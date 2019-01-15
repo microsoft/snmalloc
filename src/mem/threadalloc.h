@@ -13,13 +13,13 @@ namespace snmalloc
 
 #ifdef SNMALLOC_EXTERNAL_THREAD_ALLOC
   /**
-   * Version of the `ThreadAlloc` interface that does no managment of thread
+   * Version of the `ThreadAlloc` interface that does no management of thread
    * local state, and just assumes that "ThreadAllocUntyped::get" has been
    * declared before including snmalloc.h.  As it is included before, it cannot
    * know the allocator type, hence the casting.
    *
    * This class is used only when snmalloc is compiled as part of a runtime,
-   * which has its own managment of the thread local allocator pointer.
+   * which has its own management of the thread local allocator pointer.
    */
   class ThreadAllocUntypedWrapper
   {
