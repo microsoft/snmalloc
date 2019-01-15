@@ -1,0 +1,92 @@
+resources:
+- repo: self
+
+phases:
+- phase: Linux
+  queue:
+    name: 'Hosted Ubuntu 1604'
+    parallel: 2
+    matrix:
+      Debug:
+        BuildType: Debug
+      Release:
+        BuildType: Release
+
+  steps:
+  - script: |
+      sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+      sudo apt-get update
+      sudo apt-get install -y ninja-build libc++-dev libc++abi-dev libc++abi1 libstdc++-7-dev
+      # sudo apt-get install clang-6.0 clang++-6.0 
+
+      sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-6.0 100
+      sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang 100
+      sudo update-alternatives --set cc /usr/bin/clang
+
+      sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-6.0 100
+      sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++ 100
+      sudo update-alternatives --set c++ /usr/bin/clang++
+
+    displayName: 'Install Build Dependencies'
+
+  - task: CMake@1
+    displayName: 'CMake .. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="-stdlib=libstdc++ -std=c++17"'
+    inputs:
+      cmakeArgs: '.. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="-stdlib=libstdc++ -std=c++17"'
+
+  - script: |
+      ninja
+      ctest -j 4 --output-on-failure
+
+    workingDirectory: build
+    failOnStderr: true
+    displayName: 'Compile & Test'
+
+  - script: |
+      sudo cp libsnmallocshim.so /usr/local/lib/
+      ninja clean
+      LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
+    workingDirectory: build
+    failOnStderr: true
+    displayName: 'LD_PRELOAD Compile'
+
+- phase: Windows
+  queue:
+    name: 'Hosted VS2017'
+    parallel: 2
+    matrix:
+      Debug:
+        BuildType: Debug
+      Release:
+        BuildType: Release
+
+  steps:
+  - task: CMake@1
+    displayName: 'CMake .. -G"Visual Studio 15 2017 Win64"'
+    inputs:
+      cmakeArgs: '.. -G"Visual Studio 15 2017 Win64"'
+
+  - task: MSBuild@1
+    displayName: 'Build solution build/snmalloc.sln'
+    inputs:
+      solution: build/snmalloc.sln
+      msbuildArguments: '/m /p:Configuration=$(BuildType)'
+
+  - script: 'ctest -j 4 --interactive-debug-mode 0 --output-on-failure'
+    workingDirectory: build
+    displayName: 'Run Ctest'
+
+- phase: Format
+  queue:
+    name: 'Hosted Ubuntu 1604'
+  steps:
+  - script: |
+      wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+      sudo apt-add-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-6.0 main"
+      sudo apt-get update
+      sudo apt-get install -y clang-format-6.0
+      sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-6.0 100
+
+      bash check-format.sh
+
+    displayName: 'Check Format'

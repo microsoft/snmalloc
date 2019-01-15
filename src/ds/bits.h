@@ -1,0 +1,466 @@
+#pragma once
+
+#include <stddef.h>
+
+#ifdef _MSC_VER
+#  include <immintrin.h>
+#  include <intrin.h>
+#  define ALWAYSINLINE __forceinline
+#  define NOINLINE __declspec(noinline)
+#  define HEADER_GLOBAL __declspec(selectany)
+#else
+#  include <cpuid.h>
+#  include <emmintrin.h>
+#  define ALWAYSINLINE __attribute__((always_inline))
+#  define NOINLINE __attribute__((noinline))
+#  define HEADER_GLOBAL __attribute__((selectany))
+#endif
+
+#if defined(__i386__) || defined(_M_IX86) || defined(_X86_) || \
+  defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || \
+  defined(_M_AMD64)
+#  define PLATFORM_IS_X86
+#  if defined(__linux__) && !defined(OPEN_ENCLAVE)
+#    include <x86intrin.h>
+#  endif
+#  if defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || \
+    defined(_M_AMD64)
+#    define PLATFORM_BITS_64
+#  else
+#    define PLATFORM_BITS_32
+#  endif
+#endif
+
+#if defined(_MSC_VER) && defined(PLATFORM_BITS_32)
+#  include <intsafe.h>
+#endif
+
+#ifndef __has_builtin
+#  define __has_builtin(x) 0
+#endif
+
+#define UNUSED(x) ((void)x)
+
+// #define USE_LZCNT
+
+#include <atomic>
+#include <cassert>
+#include <cstdint>
+#include <type_traits>
+
+#ifdef pause
+#  undef pause
+#endif
+
+namespace snmalloc
+{
+  // Used to enable trivial constructors for
+  // class that zero init is sufficient.
+  // Supplying PreZeroed means the memory is pre-zeroed i.e. a global section
+  // RequiresInit is if the class needs to zero its fields.
+  enum Construction
+  {
+    PreZeroed,
+    RequiresInit
+  };
+
+  namespace bits
+  {
+    static constexpr size_t BITS = sizeof(size_t) * 8;
+
+    static constexpr bool is64()
+    {
+      return BITS == 64;
+    }
+
+    static constexpr size_t ADDRESS_BITS = is64() ? 48 : 32;
+
+    inline void pause()
+    {
+#if defined(PLATFORM_IS_X86)
+      _mm_pause();
+#else
+#  warning "Missing pause intrinsic"
+#endif
+    }
+
+    inline uint64_t tick()
+    {
+#if defined(PLATFORM_IS_X86)
+#  if defined(_MSC_VER)
+      return __rdtsc();
+#  elif defined(__clang__)
+      return __builtin_readcyclecounter();
+#  else
+      return __builtin_ia32_rdtsc();
+#  endif
+#else
+#  error Define CPU tick for this platform
+#endif
+    }
+
+    inline uint64_t tickp()
+    {
+#if defined(PLATFORM_IS_X86)
+#  if defined(_MSC_VER)
+      unsigned int aux;
+      return __rdtscp(&aux);
+#  else
+      unsigned aux;
+      return __builtin_ia32_rdtscp(&aux);
+#  endif
+#else
+#  error Define CPU tick for this platform
+#endif
+    }
+
+    inline void halt_out_of_order()
+    {
+#if defined(PLATFORM_IS_X86)
+#  if defined(_MSC_VER)
+      int cpu_info[4];
+      __cpuid(cpu_info, 0);
+#  else
+      unsigned int eax, ebx, ecx, edx;
+      __get_cpuid(0, &eax, &ebx, &ecx, &edx);
+#  endif
+#else
+#  error Define CPU benchmark start time for this platform
+#endif
+    }
+
+    inline uint64_t benchmark_time_start()
+    {
+      halt_out_of_order();
+      return tick();
+    }
+
+    inline uint64_t benchmark_time_end()
+    {
+      uint64_t t = tickp();
+      halt_out_of_order();
+      return t;
+    }
+
+    inline size_t clz(size_t x)
+    {
+#if defined(_MSC_VER)
+#  ifdef USE_LZCNT
+#    ifdef PLATFORM_BITS_64
+      return __lzcnt64(x);
+#    else
+      return __lzcnt((uint32_t)x);
+#    endif
+#  else
+      unsigned long index;
+
+#    ifdef PLATFORM_BITS_64
+      _BitScanReverse64(&index, x);
+#    else
+      _BitScanReverse(&index, (unsigned long)x);
+#    endif
+
+      return BITS - index - 1;
+#  endif
+#else
+      return (size_t)__builtin_clzl(x);
+#endif
+    }
+
+    inline constexpr size_t rotr_const(size_t x, size_t n)
+    {
+      size_t nn = n & (BITS - 1);
+      return (x >> nn) | (x << (((size_t) - (int)nn) & (BITS - 1)));
+    }
+
+    inline constexpr size_t rotl_const(size_t x, size_t n)
+    {
+      size_t nn = n & (BITS - 1);
+      return (x << nn) | (x >> (((size_t) - (int)nn) & (BITS - 1)));
+    }
+
+    inline size_t rotr(size_t x, size_t n)
+    {
+#if defined(_MSC_VER)
+#  ifdef PLATFORM_BITS_64
+      return _rotr64(x, (int)n);
+#  else
+      return _rotr((uint32_t)x, (int)n);
+#  endif
+#else
+      return rotr_const(x, n);
+#endif
+    }
+
+    inline size_t rotl(size_t x, size_t n)
+    {
+#if defined(_MSC_VER)
+#  ifdef PLATFORM_BITS_64
+      return _rotl64(x, (int)n);
+#  else
+      return _rotl((uint32_t)x, (int)n);
+#  endif
+#else
+      return rotl_const(x, n);
+#endif
+    }
+
+    constexpr size_t clz_const(size_t x)
+    {
+      size_t n = 0;
+
+      for (int i = BITS - 1; i >= 0; i--)
+      {
+        size_t mask = (size_t)1 << i;
+
+        if ((x & mask) == mask)
+          return n;
+
+        n++;
+      }
+
+      return n;
+    }
+
+    inline size_t ctz(size_t x)
+    {
+#if defined(_MSC_VER)
+#  ifdef PLATFORM_BITS_64
+      return _tzcnt_u64(x);
+#  else
+      return _tzcnt_u32((uint32_t)x);
+#  endif
+#else
+      return (size_t)__builtin_ctzl(x);
+#endif
+    }
+
+    constexpr size_t ctz_const(size_t x)
+    {
+      size_t n = 0;
+
+      for (size_t i = 0; i < BITS; i++)
+      {
+        size_t mask = (size_t)1 << i;
+
+        if ((x & mask) == mask)
+          return n;
+
+        n++;
+      }
+
+      return n;
+    }
+
+    inline size_t umul(size_t x, size_t y, bool& overflow)
+    {
+#if __has_builtin(__builtin_mul_overflow)
+      size_t prod;
+      overflow = __builtin_mul_overflow(x, y, &prod);
+      return prod;
+#elif defined(_MSC_VER)
+#  if defined(PLATFORM_BITS_64)
+      size_t high_prod;
+      size_t prod = _umul128(x, y, &high_prod);
+      overflow = high_prod != 0;
+      return prod;
+#  else
+      size_t prod;
+      overflow = S_OK == UIntMult(x, y, &prod);
+      return prod;
+#  endif
+#else
+      size_t prod = x * y;
+      return y && (x > ((size_t)-1 / y));
+#endif
+    }
+
+    inline size_t next_pow2(size_t x)
+    {
+      // Correct for numbers [0..MAX_SIZE >> 1).
+      // Returns 1 for x > (MAX_SIZE >> 1).
+      if (x <= 2)
+        return x;
+
+      return (size_t)1 << (BITS - clz(x - 1));
+    }
+
+    inline size_t next_pow2_bits(size_t x)
+    {
+      // Correct for numbers [1..MAX_SIZE].
+      // Returns 64 for 0. Approximately 2 cycles.
+      return BITS - clz(x - 1);
+    }
+
+    constexpr size_t next_pow2_const(size_t x)
+    {
+      if (x <= 2)
+        return x;
+
+      return (size_t)1 << (BITS - clz_const(x - 1));
+    }
+
+    constexpr size_t next_pow2_bits_const(size_t x)
+    {
+      return BITS - clz_const(x - 1);
+    }
+
+    inline static size_t hash(void* p)
+    {
+      size_t x = (size_t)p;
+
+      if (is64())
+      {
+        x = ~x + (x << 21);
+        x = x ^ (x >> 24);
+        x = (x + (x << 3)) + (x << 8);
+        x = x ^ (x >> 14);
+        x = (x + (x << 2)) + (x << 4);
+        x = x ^ (x >> 28);
+        x = x + (x << 31);
+      }
+      else
+      {
+        x = ~x + (x << 15);
+        x = x ^ (x >> 12);
+        x = x + (x << 2);
+        x = x ^ (x >> 4);
+        x = (x + (x << 3)) + (x << 11);
+        x = x ^ (x >> 16);
+      }
+
+      return x;
+    }
+
+    static inline size_t align_down(size_t value, size_t alignment)
+    {
+      assert(next_pow2(alignment) == alignment);
+
+      size_t align_1 = alignment - 1;
+      value &= ~align_1;
+      return value;
+    }
+
+    static inline size_t align_up(size_t value, size_t alignment)
+    {
+      assert(next_pow2(alignment) == alignment);
+
+      size_t align_1 = alignment - 1;
+      value += align_1;
+      value &= ~align_1;
+      return value;
+    }
+
+    template<size_t alignment>
+    static inline bool is_aligned_block(void* p, size_t size)
+    {
+      assert(next_pow2(alignment) == alignment);
+
+      return (((size_t)p | size) & (alignment - 1)) == 0;
+    }
+
+    template<class T>
+    constexpr T inc_mod(T v, T mod)
+    {
+      static_assert(
+        std::is_integral<T>::value, "inc_mod can only be used on integers");
+
+      using S = std::make_signed_t<T>;
+      constexpr S shift = (sizeof(S) * 8) - 1;
+
+      S a = (S)(v + 1);
+      S b = (S)(mod - a - 1);
+      return a & ~(b >> shift);
+    }
+
+    /************************************************
+     *
+     * Map large range of strictly positive integers
+     * into an exponent and mantissa pair.
+     *
+     * The reverse mapping is given as:
+     *
+     *  e |     m      |    value
+     * ---------------------------------
+     *  0 | x1 ... xm  | 0..00 x1 .. xm
+     *  1 | x1 ... xm  | 0..01 x1 .. xm
+     *  2 | x1 ... xm  | 0..1 x1 .. xm 0
+     *  3 | x1 ... xm  | 0.1 x1 .. xm 00
+     *
+     * The forward mapping maps a value to the
+     * smallest exponent and mantissa with a
+     * reverse mapping not less than the value.
+     *
+     * Does not work for value=0.
+     ***********************************************/
+    template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
+    static size_t to_exp_mant(size_t value)
+    {
+      value += ((size_t)1 << (LOW_BITS)) - 1;
+      value >>= LOW_BITS;
+
+      if (MANTISSA_BITS > 0)
+      {
+        size_t LEADING_BIT = ((size_t)1 << MANTISSA_BITS) >> 1;
+        size_t MANTISSA_MASK = ((size_t)1 << MANTISSA_BITS) - 1;
+
+        value = value - 1;
+
+        size_t e = (bits::BITS - clz(value | LEADING_BIT)) - MANTISSA_BITS;
+        size_t shift_e = (e == 0) ? 0 : e - 1;
+        size_t m = (value >> shift_e) & MANTISSA_MASK;
+
+        return (e << MANTISSA_BITS) + m;
+      }
+      else
+      {
+        return bits::next_pow2_bits(value);
+      }
+    }
+
+    template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
+    constexpr static size_t to_exp_mant_const(size_t value)
+    {
+      value += ((size_t)1 << LOW_BITS) - 1;
+      value >>= LOW_BITS;
+
+      if (MANTISSA_BITS > 0)
+      {
+        size_t LEADING_BIT = (size_t)1 << (MANTISSA_BITS - 1);
+        size_t MANTISSA_MASK = ((size_t)1 << MANTISSA_BITS) - 1;
+
+        value = value - 1;
+
+        size_t e =
+          (bits::BITS - clz_const(value | LEADING_BIT)) - MANTISSA_BITS;
+        size_t shift_e = (e == 0) ? 0 : e - 1;
+        size_t m = (value >> shift_e) & MANTISSA_MASK;
+
+        return (e << MANTISSA_BITS) + m;
+      }
+      else
+      {
+        return bits::next_pow2_bits_const(value);
+      }
+    }
+
+    template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
+    constexpr static size_t from_exp_mant(size_t m_e)
+    {
+      if (MANTISSA_BITS > 0)
+      {
+        size_t MANTISSA_MASK = ((size_t)1 << MANTISSA_BITS) - 1;
+        size_t m = m_e & MANTISSA_MASK;
+        size_t e = m_e >> MANTISSA_BITS;
+        size_t b = e == 0 ? 0 : 1;
+        size_t shifted_e = e - b;
+        size_t extended_m = (m + ((size_t)b << MANTISSA_BITS)) + 1;
+        return extended_m << (shifted_e + LOW_BITS);
+      }
+      else
+      {
+        return (size_t)1 << (m_e + LOW_BITS);
+      }
+    }
+  }
+}

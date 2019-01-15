@@ -1,0 +1,391 @@
+#pragma once
+
+#include "../ds/bits.h"
+
+#include <cstdint>
+
+#ifdef USE_SNMALLOC_STATS
+#  include "../ds/csv.h"
+#  include "sizeclass.h"
+
+#  include <cstring>
+#  include <iostream>
+#endif
+
+namespace snmalloc
+{
+  template<size_t N, size_t LARGE_N>
+  struct AllocStats
+  {
+    struct CurrentMaxPair
+    {
+      size_t current = 0;
+      size_t max = 0;
+
+      void inc()
+      {
+        current++;
+        if (current > max)
+          max++;
+      }
+
+      void dec()
+      {
+        current--;
+      }
+
+      bool is_empty()
+      {
+        return current == 0;
+      }
+
+      bool is_unused()
+      {
+        return max == 0;
+      }
+
+      void add(CurrentMaxPair& that)
+      {
+        current += that.current;
+        max += that.max;
+      }
+#ifdef USE_SNMALLOC_STATS
+      void print(CSVStream& csv, size_t multiplier = 1)
+      {
+        csv << current * multiplier << max * multiplier;
+      }
+#endif
+    };
+
+    struct Stats
+    {
+      CurrentMaxPair count;
+      CurrentMaxPair slab_count;
+      uint64_t time = bits::tick();
+      uint64_t ticks = 0;
+      double online_average = 0;
+
+      bool is_empty()
+      {
+        return count.is_empty();
+      }
+
+      void add(Stats& that)
+      {
+        count.add(that.count);
+        slab_count.add(that.slab_count);
+      }
+
+      void addToRunningAverage()
+      {
+        uint64_t now = bits::tick();
+
+        if (slab_count.current != 0)
+        {
+          double occupancy = (double)count.current / (double)slab_count.current;
+          uint64_t duration = now - time;
+
+          if (ticks == 0)
+            online_average = occupancy;
+          else
+            online_average += ((occupancy - online_average) * duration) / ticks;
+
+          ticks += duration;
+        }
+
+        time = now;
+      }
+
+#ifdef USE_SNMALLOC_STATS
+      void
+      print(CSVStream& csv, size_t multiplier = 1, size_t slab_multiplier = 1)
+      {
+        // Keep in sync with header lower down
+        count.print(csv, multiplier);
+        slab_count.print(csv, slab_multiplier);
+        size_t average = (size_t)(online_average * multiplier);
+
+        csv << average << (slab_multiplier - average) * slab_count.max
+            << csv.endl;
+      }
+#endif
+    };
+
+#ifdef USE_SNMALLOC_STATS
+    static constexpr size_t BUCKETS_BITS = 4;
+    static constexpr size_t BUCKETS = 1 << BUCKETS_BITS;
+    static constexpr size_t TOTAL_BUCKETS =
+      bits::to_exp_mant_const<BUCKETS_BITS>(
+        ((size_t)1 << (bits::ADDRESS_BITS - 1)));
+
+    Stats sizeclass[N];
+    Stats large[LARGE_N];
+
+    size_t remote_freed = 0;
+    size_t remote_posted = 0;
+    size_t remote_received = 0;
+    size_t superslab_push_count = 0;
+    size_t superslab_pop_count = 0;
+    size_t superslab_fresh_count = 0;
+    size_t segment_count = 0;
+    size_t bucketed_requests[TOTAL_BUCKETS] = {};
+#endif
+
+    void alloc_request(size_t size)
+    {
+      UNUSED(size);
+
+#ifdef USE_SNMALLOC_STATS
+      bucketed_requests[bits::to_exp_mant<BUCKETS_BITS>(size)]++;
+#endif
+    }
+
+    bool is_empty()
+    {
+#ifdef USE_SNMALLOC_STATS
+      for (size_t i = 0; i < N; i++)
+      {
+        if (!sizeclass[i].is_empty())
+          return false;
+      }
+
+      for (size_t i = 0; i < LARGE_N; i++)
+      {
+        if (!large[i].is_empty())
+          return false;
+      }
+
+      return (remote_freed == remote_posted);
+#else
+      return true;
+#endif
+    }
+
+    void sizeclass_alloc(uint8_t sc)
+    {
+      UNUSED(sc);
+
+#ifdef USE_SNMALLOC_STATS
+      sizeclass[sc].addToRunningAverage();
+      sizeclass[sc].count.inc();
+#endif
+    }
+
+    void sizeclass_dealloc(uint8_t sc)
+    {
+      UNUSED(sc);
+
+#ifdef USE_SNMALLOC_STATS
+      sizeclass[sc].addToRunningAverage();
+      sizeclass[sc].count.dec();
+#endif
+    }
+
+    void large_alloc(size_t sc)
+    {
+      UNUSED(sc);
+
+#ifdef USE_SNMALLOC_STATS
+      large[sc].count.inc();
+#endif
+    }
+
+    void sizeclass_alloc_slab(uint8_t sc)
+    {
+      UNUSED(sc);
+
+#ifdef USE_SNMALLOC_STATS
+      sizeclass[sc].addToRunningAverage();
+      sizeclass[sc].slab_count.inc();
+#endif
+    }
+
+    void sizeclass_dealloc_slab(uint8_t sc)
+    {
+      UNUSED(sc);
+
+#ifdef USE_SNMALLOC_STATS
+      sizeclass[sc].addToRunningAverage();
+      sizeclass[sc].slab_count.dec();
+#endif
+    }
+
+    void large_dealloc(size_t sc)
+    {
+      UNUSED(sc);
+
+#ifdef USE_SNMALLOC_STATS
+      large[sc].count.dec();
+#endif
+    }
+
+    void segment_create()
+    {
+#ifdef USE_SNMALLOC_STATS
+      segment_count++;
+#endif
+    }
+
+    void superslab_pop()
+    {
+#ifdef USE_SNMALLOC_STATS
+      superslab_pop_count++;
+#endif
+    }
+
+    void superslab_push()
+    {
+#ifdef USE_SNMALLOC_STATS
+      superslab_push_count++;
+#endif
+    }
+
+    void superslab_fresh()
+    {
+#ifdef USE_SNMALLOC_STATS
+      superslab_fresh_count++;
+#endif
+    }
+
+    void remote_free(uint8_t sc)
+    {
+      UNUSED(sc);
+
+#ifdef USE_SNMALLOC_STATS
+      remote_freed += sizeclass_to_size(sc);
+#endif
+    }
+
+    void remote_post()
+    {
+#ifdef USE_SNMALLOC_STATS
+      remote_posted = remote_freed;
+#endif
+    }
+
+    void remote_receive(uint8_t sc)
+    {
+      UNUSED(sc);
+
+#ifdef USE_SNMALLOC_STATS
+      remote_received += sizeclass_to_size(sc);
+#endif
+    }
+
+    void add(AllocStats<N, LARGE_N>& that)
+    {
+      UNUSED(that);
+
+#ifdef USE_SNMALLOC_STATS
+      for (size_t i = 0; i < N; i++)
+        sizeclass[i].add(that.sizeclass[i]);
+
+      for (size_t i = 0; i < LARGE_N; i++)
+        large[i].add(that.large[i]);
+
+      for (size_t i = 0; i < TOTAL_BUCKETS; i++)
+        bucketed_requests[i] += that.bucketed_requests[i];
+
+      remote_freed += that.remote_freed;
+      remote_posted += that.remote_posted;
+      remote_received += that.remote_received;
+      superslab_pop_count += that.superslab_pop_count;
+      superslab_push_count += that.superslab_push_count;
+      superslab_fresh_count += that.superslab_fresh_count;
+      segment_count += that.segment_count;
+#endif
+    }
+
+#ifdef USE_SNMALLOC_STATS
+    template<class Alloc>
+    void print(std::ostream& o, uint64_t dumpid = 0, uint64_t allocatorid = 0)
+    {
+      UNUSED(o);
+      UNUSED(dumpid);
+      UNUSED(allocatorid);
+
+      CSVStream csv(&o);
+
+      if (dumpid == 0)
+      {
+        // Output headers for initial dump
+        // Keep in sync with data dump
+        csv << "GlobalStats"
+            << "DumpID"
+            << "AllocatorID"
+            << "Remote freed"
+            << "Remote posted"
+            << "Remote received"
+            << "Superslab pop"
+            << "Superslab push"
+            << "Superslab fresh"
+            << "Segments" << csv.endl;
+
+        csv << "BucketedStats"
+            << "DumpID"
+            << "AllocatorID"
+            << "Size group"
+            << "Size"
+            << "Current bytes"
+            << "Max bytes"
+            << "Current Slab bytes"
+            << "Max Slab bytes"
+            << "Average Slab Usage"
+            << "Average wasted space" << csv.endl;
+
+        csv << "AllocSizes"
+            << "DumpID"
+            << "AllocatorID"
+            << "ClassID"
+            << "Low size"
+            << "High size"
+            << "Count" << csv.endl;
+      }
+
+      for (uint8_t i = 0; i < N; i++)
+      {
+        if (sizeclass[i].count.is_unused())
+          continue;
+
+        sizeclass[i].addToRunningAverage();
+
+        csv << "BucketedStats" << dumpid << allocatorid << i
+            << sizeclass_to_size(i);
+
+        sizeclass[i].print(csv, sizeclass_to_size(i), SLAB_SIZE);
+      }
+
+      for (uint8_t i = 0; i < LARGE_N; i++)
+      {
+        if (large[i].count.is_unused())
+          continue;
+
+        csv << "BucketedStats" << dumpid << allocatorid << (i + N)
+            << large_sizeclass_to_size(i);
+
+        large[i].print(csv, large_sizeclass_to_size(i));
+      }
+
+      size_t low = 0;
+      size_t high = 0;
+
+      for (size_t i = 0; i < TOTAL_BUCKETS; i++)
+      {
+        low = high + 1;
+        high = bits::from_exp_mant<BUCKETS_BITS>(i);
+
+        if (bucketed_requests[i] == 0)
+          continue;
+
+        csv << "AllocSizes" << dumpid << allocatorid << i << low << high
+            << bucketed_requests[i] << csv.endl;
+      }
+
+      csv << "GlobalStats" << dumpid << allocatorid << remote_freed
+          << remote_posted << remote_received << superslab_pop_count
+          << superslab_push_count << superslab_fresh_count << segment_count
+          << csv.endl;
+    }
+#endif
+  };
+}
