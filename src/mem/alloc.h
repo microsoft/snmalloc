@@ -38,7 +38,10 @@ namespace snmalloc
     PMMediumslab = 2
   };
 
-  using SuperslabPagemap = Pagemap<SUPERSLAB_BITS, uint8_t, 0>;
+  using SuperslabPagemap = std::conditional_t<
+    bits::is64(),
+    Pagemap<SUPERSLAB_BITS, uint8_t, 0>,
+    FlatPagemap<SUPERSLAB_BITS, uint8_t>>;
 
   HEADER_GLOBAL SuperslabPagemap global_pagemap;
   /**
@@ -131,7 +134,7 @@ namespace snmalloc
   };
 
   static_assert(
-    SUPERSLAB_SIZE == Pagemap<SUPERSLAB_BITS, size_t, 0>::GRANULARITY,
+    SUPERSLAB_SIZE == SuperslabPagemap::GRANULARITY,
     "The superslab size should be the same as the pagemap granularity");
 
 #ifndef SNMALLOC_DEFAULT_PAGEMAP

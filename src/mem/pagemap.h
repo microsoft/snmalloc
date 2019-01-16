@@ -21,6 +21,10 @@ namespace snmalloc
     static constexpr size_t CONTENT_BITS =
       bits::next_pow2_bits_const(sizeof(T));
 
+    static_assert(
+      PAGEMAP_BITS - CONTENT_BITS < COVERED_BITS,
+      "Should use the FlatPageMap as it does not require a tree");
+
     static constexpr size_t BITS_FOR_LEAF = PAGEMAP_BITS - CONTENT_BITS;
     static constexpr size_t ENTRIES_PER_LEAF = 1 << BITS_FOR_LEAF;
     static constexpr size_t LEAF_MASK = ENTRIES_PER_LEAF - 1;
@@ -221,6 +225,46 @@ namespace snmalloc
 
         length = length - diff;
         p = (void*)((uintptr_t)p + (diff << GRANULARITY_BITS));
+      } while (length > 0);
+    }
+  };
+
+  template<size_t GRANULARITY_BITS, typename T>
+  class FlatPagemap
+  {
+  private:
+    static constexpr size_t COVERED_BITS =
+      bits::ADDRESS_BITS - GRANULARITY_BITS;
+    static constexpr size_t CONTENT_BITS =
+      bits::next_pow2_bits_const(sizeof(T));
+    static constexpr size_t ENTRIES = 1ULL << (COVERED_BITS + CONTENT_BITS);
+    static constexpr size_t SHIFT = GRANULARITY_BITS;
+
+  public:
+    static constexpr size_t GRANULARITY = 1 << GRANULARITY_BITS;
+
+  private:
+    std::atomic<T> top[ENTRIES];
+
+  public:
+    T get(void* p)
+    {
+      return top[(size_t)p >> SHIFT].load(std::memory_order_relaxed);
+    }
+
+    void set(void* p, T x)
+    {
+      top[(size_t)p >> SHIFT].store(x, std::memory_order_relaxed);
+    }
+
+    void set_range(void* p, T x, size_t length)
+    {
+      size_t index = (size_t)p >> SHIFT;
+      do
+      {
+        top[index].store(x, std::memory_order_relaxed);
+        index++;
+        length--;
       } while (length > 0);
     }
   };
