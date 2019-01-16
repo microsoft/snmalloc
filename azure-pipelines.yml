@@ -50,7 +50,7 @@ phases:
     failOnStderr: true
     displayName: 'LD_PRELOAD Compile'
 
-- phase: Windows 64bit
+- phase: Windows64bit
   queue:
     name: 'Hosted VS2017'
     parallel: 2
@@ -76,7 +76,7 @@ phases:
     workingDirectory: build
     displayName: 'Run Ctest'
 
-- phase: Windows 32bit
+- phase: Windows32bit
   queue:
     name: 'Hosted VS2017'
     parallel: 2
