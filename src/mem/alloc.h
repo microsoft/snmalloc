@@ -521,9 +521,7 @@ namespace snmalloc
         this->size += sizeclass_to_size(sizeclass);
 
         Remote* r = (Remote*)p;
-        r->set_sizeclass(sizeclass);
-        assert(r->sizeclass() == sizeclass);
-        r->set_target_id(target_id);
+        r->set_sizeclass_and_target_id(target_id, sizeclass);
         assert(r->sizeclass() == sizeclass);
         assert(r->target_id() == target_id);
 
@@ -587,10 +585,6 @@ namespace snmalloc
         }
       }
     };
-
-    static_assert(
-      sizeof(Remote) <= MIN_ALLOC_SIZE,
-      "Need to be able to cast any small alloc to Remote");
 
     SlabList small_classes[NUM_SMALL_CLASSES];
     DLList<Mediumslab> medium_classes[NUM_MEDIUM_CLASSES];
