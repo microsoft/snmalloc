@@ -210,14 +210,15 @@ void test_external_pointer_large()
 
   auto* alloc = ThreadAlloc::get();
 
-  constexpr size_t count_log = 5;
+  constexpr size_t count_log = snmalloc::bits::is64() ? 5 : 3;
   constexpr size_t count = 1 << count_log;
   // Pre allocate all the objects
   size_t* objects[count];
 
   for (size_t i = 0; i < count; i++)
   {
-    size_t rand = r.next() & ((1 << 28) - 1);
+    size_t b = snmalloc::bits::is64() ? 28 : 26;
+    size_t rand = r.next() & ((1 << b) - 1);
     size_t size = (1 << 24) + rand;
     // store object
     objects[i] = (size_t*)alloc->alloc(size);
