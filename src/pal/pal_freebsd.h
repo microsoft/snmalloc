@@ -5,6 +5,9 @@
 #  include "../mem/allocconfig.h"
 
 #  include <sys/mman.h>
+#  include <strings.h>
+#  include <stdio.h>
+#  include <pthread.h>
 
 namespace snmalloc
 {
