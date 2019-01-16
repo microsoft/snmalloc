@@ -7,13 +7,13 @@
 
 namespace snmalloc
 {
+  static constexpr size_t PAGEMAP_NODE_BITS = 16;
+  static constexpr size_t PAGEMAP_NODE_SIZE = 1ULL << PAGEMAP_NODE_BITS;
+
   template<size_t GRANULARITY_BITS, typename T, T default_content>
   class Pagemap
   {
   private:
-    static constexpr size_t PAGEMAP_BITS = 16;
-    static constexpr size_t PAGEMAP_SIZE = 1 << PAGEMAP_BITS;
-
     static constexpr size_t COVERED_BITS =
       bits::ADDRESS_BITS - GRANULARITY_BITS;
     static constexpr size_t POINTER_BITS =
@@ -21,11 +21,16 @@ namespace snmalloc
     static constexpr size_t CONTENT_BITS =
       bits::next_pow2_bits_const(sizeof(T));
 
-    static constexpr size_t BITS_FOR_LEAF = PAGEMAP_BITS - CONTENT_BITS;
+    static_assert(
+      PAGEMAP_NODE_BITS - CONTENT_BITS < COVERED_BITS,
+      "Should use the FlatPageMap as it does not require a tree");
+
+    static constexpr size_t BITS_FOR_LEAF = PAGEMAP_NODE_BITS - CONTENT_BITS;
     static constexpr size_t ENTRIES_PER_LEAF = 1 << BITS_FOR_LEAF;
     static constexpr size_t LEAF_MASK = ENTRIES_PER_LEAF - 1;
 
-    static constexpr size_t BITS_PER_INDEX_LEVEL = PAGEMAP_BITS - POINTER_BITS;
+    static constexpr size_t BITS_PER_INDEX_LEVEL =
+      PAGEMAP_NODE_BITS - POINTER_BITS;
     static constexpr size_t ENTRIES_PER_INDEX_LEVEL = 1 << BITS_PER_INDEX_LEVEL;
     static constexpr size_t ENTRIES_MASK = ENTRIES_PER_INDEX_LEVEL - 1;
 
@@ -81,7 +86,7 @@ namespace snmalloc
                 value, (PagemapEntry*)LOCKED_ENTRY, std::memory_order_relaxed))
           {
             auto& v = default_memory_provider;
-            value = (PagemapEntry*)v.alloc_chunk(PAGEMAP_SIZE);
+            value = (PagemapEntry*)v.alloc_chunk(PAGEMAP_NODE_SIZE);
             e->store(value, std::memory_order_release);
           }
           else
@@ -155,9 +160,6 @@ namespace snmalloc
       return &(leaf_ix.first->values[leaf_ix.second]);
     }
 
-  public:
-    static constexpr size_t GRANULARITY = 1 << GRANULARITY_BITS;
-
     /**
      * Returns the index of a pagemap entry within a given page.  This is used
      * in code that propagates changes to the pagemap elsewhere.
@@ -185,6 +187,9 @@ namespace snmalloc
       bool success;
       return get_addr<true>(p, success);
     }
+
+  public:
+    static constexpr size_t GRANULARITY = 1 << GRANULARITY_BITS;
 
     T get(void* p)
     {
@@ -221,6 +226,50 @@ namespace snmalloc
 
         length = length - diff;
         p = (void*)((uintptr_t)p + (diff << GRANULARITY_BITS));
+      } while (length > 0);
+    }
+  };
+
+  /**
+   * Simple pagemap that for each GRANULARITY_BITS of the address range
+   * stores a T.
+   **/
+  template<size_t GRANULARITY_BITS, typename T>
+  class FlatPagemap
+  {
+  private:
+    static constexpr size_t COVERED_BITS =
+      bits::ADDRESS_BITS - GRANULARITY_BITS;
+    static constexpr size_t CONTENT_BITS =
+      bits::next_pow2_bits_const(sizeof(T));
+    static constexpr size_t ENTRIES = 1ULL << (COVERED_BITS + CONTENT_BITS);
+    static constexpr size_t SHIFT = GRANULARITY_BITS;
+
+  public:
+    static constexpr size_t GRANULARITY = 1 << GRANULARITY_BITS;
+
+  private:
+    std::atomic<T> top[ENTRIES];
+
+  public:
+    T get(void* p)
+    {
+      return top[(size_t)p >> SHIFT].load(std::memory_order_relaxed);
+    }
+
+    void set(void* p, T x)
+    {
+      top[(size_t)p >> SHIFT].store(x, std::memory_order_relaxed);
+    }
+
+    void set_range(void* p, T x, size_t length)
+    {
+      size_t index = (size_t)p >> SHIFT;
+      do
+      {
+        top[index].store(x, std::memory_order_relaxed);
+        index++;
+        length--;
       } while (length > 0);
     }
   };
