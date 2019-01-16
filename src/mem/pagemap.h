@@ -155,9 +155,6 @@ namespace snmalloc
       return &(leaf_ix.first->values[leaf_ix.second]);
     }
 
-  public:
-    static constexpr size_t GRANULARITY = 1 << GRANULARITY_BITS;
-
     /**
      * Returns the index of a pagemap entry within a given page.  This is used
      * in code that propagates changes to the pagemap elsewhere.
@@ -185,6 +182,9 @@ namespace snmalloc
       bool success;
       return get_addr<true>(p, success);
     }
+
+  public:
+    static constexpr size_t GRANULARITY = 1 << GRANULARITY_BITS;
 
     T get(void* p)
     {
