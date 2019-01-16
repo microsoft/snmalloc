@@ -38,10 +38,17 @@ namespace snmalloc
     PMMediumslab = 2
   };
 
+#ifndef SNMALLOC_MAX_FLATPAGEMAP_SIZE
+// Use flat map is under a single node.
+#  define SNMALLOC_MAX_FLATPAGEMAP_SIZE PAGEMAP_NODE_SIZE
+#endif
+  static constexpr bool USE_FLATPAGEMAP = SNMALLOC_MAX_FLATPAGEMAP_SIZE >=
+    sizeof(FlatPagemap<SUPERSLAB_BITS, uint8_t>);
+
   using SuperslabPagemap = std::conditional_t<
-    bits::is64(),
-    Pagemap<SUPERSLAB_BITS, uint8_t, 0>,
-    FlatPagemap<SUPERSLAB_BITS, uint8_t>>;
+    USE_FLATPAGEMAP,
+    FlatPagemap<SUPERSLAB_BITS, uint8_t>,
+    Pagemap<SUPERSLAB_BITS, uint8_t, 0>>;
 
   HEADER_GLOBAL SuperslabPagemap global_pagemap;
   /**

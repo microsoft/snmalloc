@@ -7,13 +7,13 @@
 
 namespace snmalloc
 {
+  static constexpr size_t PAGEMAP_NODE_BITS = 16;
+  static constexpr size_t PAGEMAP_NODE_SIZE = 1ULL << PAGEMAP_NODE_BITS;
+
   template<size_t GRANULARITY_BITS, typename T, T default_content>
   class Pagemap
   {
   private:
-    static constexpr size_t PAGEMAP_BITS = 16;
-    static constexpr size_t PAGEMAP_SIZE = 1 << PAGEMAP_BITS;
-
     static constexpr size_t COVERED_BITS =
       bits::ADDRESS_BITS - GRANULARITY_BITS;
     static constexpr size_t POINTER_BITS =
@@ -22,14 +22,15 @@ namespace snmalloc
       bits::next_pow2_bits_const(sizeof(T));
 
     static_assert(
-      PAGEMAP_BITS - CONTENT_BITS < COVERED_BITS,
+      PAGEMAP_NODE_BITS - CONTENT_BITS < COVERED_BITS,
       "Should use the FlatPageMap as it does not require a tree");
 
-    static constexpr size_t BITS_FOR_LEAF = PAGEMAP_BITS - CONTENT_BITS;
+    static constexpr size_t BITS_FOR_LEAF = PAGEMAP_NODE_BITS - CONTENT_BITS;
     static constexpr size_t ENTRIES_PER_LEAF = 1 << BITS_FOR_LEAF;
     static constexpr size_t LEAF_MASK = ENTRIES_PER_LEAF - 1;
 
-    static constexpr size_t BITS_PER_INDEX_LEVEL = PAGEMAP_BITS - POINTER_BITS;
+    static constexpr size_t BITS_PER_INDEX_LEVEL =
+      PAGEMAP_NODE_BITS - POINTER_BITS;
     static constexpr size_t ENTRIES_PER_INDEX_LEVEL = 1 << BITS_PER_INDEX_LEVEL;
     static constexpr size_t ENTRIES_MASK = ENTRIES_PER_INDEX_LEVEL - 1;
 
@@ -85,7 +86,7 @@ namespace snmalloc
                 value, (PagemapEntry*)LOCKED_ENTRY, std::memory_order_relaxed))
           {
             auto& v = default_memory_provider;
-            value = (PagemapEntry*)v.alloc_chunk(PAGEMAP_SIZE);
+            value = (PagemapEntry*)v.alloc_chunk(PAGEMAP_NODE_SIZE);
             e->store(value, std::memory_order_release);
           }
           else
@@ -229,6 +230,10 @@ namespace snmalloc
     }
   };
 
+  /**
+   * Simple pagemap that for each GRANULARITY_BITS of the address range
+   * stores a T.
+   **/
   template<size_t GRANULARITY_BITS, typename T>
   class FlatPagemap
   {
