@@ -81,10 +81,10 @@ namespace snmalloc
   // Used to keep Superslab metadata committed.
   static constexpr size_t OS_PAGE_SIZE = 0x1000;
   static constexpr size_t PAGE_ALIGNED_SIZE = OS_PAGE_SIZE << INTERMEDIATE_BITS;
-// Some system headers (e.g. Linux' sys/user.h, FreeBSD's machine/param.h)
-// define `PAGE_SIZE` as a macro.  We don't use `PAGE_SIZE` as our variable
-// name, to avoid conflicts, but if we do see a macro definition then check
-// that our value matches the platform's expected value.
+  // Some system headers (e.g. Linux' sys/user.h, FreeBSD's machine/param.h)
+  // define `PAGE_SIZE` as a macro.  We don't use `PAGE_SIZE` as our variable
+  // name, to avoid conflicts, but if we do see a macro definition then check
+  // that our value matches the platform's expected value.
 #ifdef PAGE_SIZE
   static_assert(
     PAGE_SIZE == OS_PAGE_SIZE,
