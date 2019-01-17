@@ -58,7 +58,7 @@ namespace snmalloc
       {
         // This slab is being bump allocated.
         p = (void*)((size_t)this + head - 1);
-        meta->head = head + (uint16_t)rsize;
+        meta->head = (head + (uint16_t)rsize) & (SLAB_SIZE - 1);
         if (meta->head == 1)
         {
           meta->set_full();
