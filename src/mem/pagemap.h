@@ -189,8 +189,6 @@ namespace snmalloc
     }
 
   public:
-    static constexpr size_t GRANULARITY = 1 << GRANULARITY_BITS;
-
     T get(void* p)
     {
       bool success;
@@ -245,10 +243,6 @@ namespace snmalloc
     static constexpr size_t ENTRIES = 1ULL << (COVERED_BITS + CONTENT_BITS);
     static constexpr size_t SHIFT = GRANULARITY_BITS;
 
-  public:
-    static constexpr size_t GRANULARITY = 1 << GRANULARITY_BITS;
-
-  private:
     std::atomic<T> top[ENTRIES];
 
   public:

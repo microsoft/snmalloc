@@ -140,10 +140,6 @@ namespace snmalloc
     }
   };
 
-  static_assert(
-    SUPERSLAB_SIZE == SuperslabPagemap::GRANULARITY,
-    "The superslab size should be the same as the pagemap granularity");
-
 #ifndef SNMALLOC_DEFAULT_PAGEMAP
 #  define SNMALLOC_DEFAULT_PAGEMAP snmalloc::SuperslabMap
 #endif
