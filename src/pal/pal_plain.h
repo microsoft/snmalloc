@@ -11,8 +11,6 @@ namespace snmalloc
   class PALPlainMixin : public State
   {
   public:
-    PALPlainMixin() : State() {}
-
     // Notify platform that we will not be using these pages
     void notify_not_using(void*, size_t) noexcept {}
 

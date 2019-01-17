@@ -39,6 +39,17 @@ namespace snmalloc
 #endif
     ;
 
+  // Specifies smaller slab and super slab sizes for address space
+  // constrained scenarios.
+  static constexpr size_t ADDRESS_SPACE_CONSTRAINED =
+#ifdef IS_ADDRESS_SPACE_CONSTRAINED
+    true
+#else
+    // In 32 bit uses smaller superslab.
+    (!bits::is64())
+#endif
+    ;
+
   static constexpr size_t RESERVE_MULTIPLE =
 #ifdef USE_RESERVE_MULTIPLE
     USE_RESERVE_MULTIPLE
@@ -85,14 +96,14 @@ namespace snmalloc
   static constexpr size_t MIN_ALLOC_SIZE = 1 << MIN_ALLOC_BITS;
 
   // Slabs are 64 kb.
-  static constexpr size_t SLAB_BITS = 16;
+  static constexpr size_t SLAB_BITS = ADDRESS_SPACE_CONSTRAINED ? 14 : 16;
   static constexpr size_t SLAB_SIZE = 1 << SLAB_BITS;
   static constexpr size_t SLAB_MASK = ~(SLAB_SIZE - 1);
 
   // Superslabs are composed of this many slabs. Slab offsets are encoded as
   // a byte, so the maximum count is 256. This must be a power of two to
   // allow fast masking to find a superslab start address.
-  static constexpr size_t SLAB_COUNT_BITS = 8;
+  static constexpr size_t SLAB_COUNT_BITS = ADDRESS_SPACE_CONSTRAINED ? 6 : 8;
   static constexpr size_t SLAB_COUNT = 1 << SLAB_COUNT_BITS;
   static constexpr size_t SUPERSLAB_SIZE = SLAB_SIZE * SLAB_COUNT;
   static constexpr size_t SUPERSLAB_MASK = ~(SUPERSLAB_SIZE - 1);
@@ -111,8 +122,8 @@ namespace snmalloc
     MIN_ALLOC_SIZE >= (sizeof(void*) * 2),
     "MIN_ALLOC_SIZE must be sufficient for two pointers");
   static_assert(
-    SLAB_BITS == (sizeof(uint16_t) * 8),
-    "SLAB_BITS must be the bits in a uint16_t");
+    SLAB_BITS <= (sizeof(uint16_t) * 8),
+    "SLAB_BITS must not be more than the bits in a uint16_t");
   static_assert(
     SLAB_COUNT == bits::next_pow2_const(SLAB_COUNT),
     "SLAB_COUNT must be a power of 2");

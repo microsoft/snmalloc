@@ -97,7 +97,7 @@ namespace snmalloc
         (__int64*)&expect);
 #  else
 #    if defined(__GNUC__) && !defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_16)
-#error You must compile with -mcx16 to enable 16-bit atomic compare and swap.
+#error You must compile with -mcx16 to enable 16-byte atomic compare and swap.
 #    endif
       Cmp xchg{value, expect.aba + 1};
 
