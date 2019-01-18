@@ -1,8 +1,13 @@
+#include "../mem/slowalloc.h"
 #include "../snmalloc.h"
 
 #include <errno.h>
 
 using namespace snmalloc;
+
+#ifndef SNMALLOC_EXPORT
+#  define SNMALLOC_EXPORT
+#endif
 
 #ifndef SNMALLOC_NAME_MANGLE
 #  define SNMALLOC_NAME_MANGLE(a) a
@@ -10,12 +15,12 @@ using namespace snmalloc;
 
 extern "C"
 {
-  void* SNMALLOC_NAME_MANGLE(__malloc_end_pointer)(void* ptr)
+  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(__malloc_end_pointer)(void* ptr)
   {
     return Alloc::external_pointer<End>(ptr);
   }
 
-  void* SNMALLOC_NAME_MANGLE(malloc)(size_t size)
+  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(malloc)(size_t size)
   {
     // Include size 0 in the first sizeclass.
     size = ((size - 1) >> (bits::BITS - 1)) + size;
@@ -23,7 +28,7 @@ extern "C"
     return ThreadAlloc::get()->alloc(size);
   }
 
-  void SNMALLOC_NAME_MANGLE(free)(void* ptr)
+  SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(free)(void* ptr)
   {
     if (ptr == nullptr)
       return;
@@ -31,7 +36,7 @@ extern "C"
     ThreadAlloc::get()->dealloc(ptr);
   }
 
-  void* SNMALLOC_NAME_MANGLE(calloc)(size_t nmemb, size_t size)
+  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(calloc)(size_t nmemb, size_t size)
   {
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
@@ -45,12 +50,12 @@ extern "C"
     return ThreadAlloc::get()->alloc<ZeroMem::YesZero>(sz);
   }
 
-  size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(void* ptr)
+  SNMALLOC_EXPORT size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(void* ptr)
   {
     return Alloc::alloc_size(ptr);
   }
 
-  void* SNMALLOC_NAME_MANGLE(realloc)(void* ptr, size_t size)
+  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(realloc)(void* ptr, size_t size)
   {
     if (size == (size_t)-1)
     {
@@ -88,7 +93,8 @@ extern "C"
   }
 
 #ifndef __FreeBSD__
-  void* SNMALLOC_NAME_MANGLE(reallocarray)(void* ptr, size_t nmemb, size_t size)
+  SNMALLOC_EXPORT void*
+    SNMALLOC_NAME_MANGLE(reallocarray)(void* ptr, size_t nmemb, size_t size)
   {
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
@@ -101,14 +107,16 @@ extern "C"
   }
 #endif
 
-  void* SNMALLOC_NAME_MANGLE(aligned_alloc)(size_t alignment, size_t size)
+  SNMALLOC_EXPORT void*
+    SNMALLOC_NAME_MANGLE(aligned_alloc)(size_t alignment, size_t size)
   {
     assert((size % alignment) == 0);
     (void)alignment;
     return SNMALLOC_NAME_MANGLE(malloc)(size);
   }
 
-  void* SNMALLOC_NAME_MANGLE(memalign)(size_t alignment, size_t size)
+  SNMALLOC_EXPORT void*
+    SNMALLOC_NAME_MANGLE(memalign)(size_t alignment, size_t size)
   {
     if (
       (alignment == 0) || (alignment == size_t(-1)) ||
@@ -141,7 +149,7 @@ extern "C"
     return nullptr;
   }
 
-  int SNMALLOC_NAME_MANGLE(posix_memalign)(
+  SNMALLOC_EXPORT int SNMALLOC_NAME_MANGLE(posix_memalign)(
     void** memptr, size_t alignment, size_t size)
   {
     if (
@@ -161,13 +169,13 @@ extern "C"
   }
 
 #ifndef __FreeBSD__
-  void* SNMALLOC_NAME_MANGLE(valloc)(size_t size)
+  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(valloc)(size_t size)
   {
     return SNMALLOC_NAME_MANGLE(memalign)(OS_PAGE_SIZE, size);
   }
 #endif
 
-  void* SNMALLOC_NAME_MANGLE(pvalloc)(size_t size)
+  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(pvalloc)(size_t size)
   {
     if (size == size_t(-1))
     {
@@ -178,11 +186,46 @@ extern "C"
       OS_PAGE_SIZE, (size + OS_PAGE_SIZE - 1) & ~(OS_PAGE_SIZE - 1));
   }
 
-  void SNMALLOC_NAME_MANGLE(_malloc_prefork)(void) {}
-  void SNMALLOC_NAME_MANGLE(_malloc_postfork)(void) {}
-  void SNMALLOC_NAME_MANGLE(_malloc_first_thread)(void) {}
-  int SNMALLOC_NAME_MANGLE(mallctl)(const char*, void*, size_t*, void*, size_t)
+  // Stub implementations for jemalloc compatibility.
+  // These are called by FreeBSD's libthr (pthreads) to notify malloc of
+  // various events.  They are currently unused, though we may wish to reset
+  // statistics on fork if built with statistics.
+
+  SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(_malloc_prefork)(void) {}
+  SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(_malloc_postfork)(void) {}
+  SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(_malloc_first_thread)(void) {}
+
+  SNMALLOC_EXPORT int
+    SNMALLOC_NAME_MANGLE(mallctl)(const char*, void*, size_t*, void*, size_t)
   {
     return ENOENT;
   }
+
+#ifndef __PIC__
+  // The following functions are required to work before TLS is set up, in
+  // statically-linked programs.  These temporarily grab an allocator from the
+  // pool and return it.
+
+  void* __je_bootstrap_malloc(size_t size)
+  {
+    return get_slow_allocator()->alloc(size);
+  }
+  void* __je_bootstrap_calloc(size_t nmemb, size_t size)
+  {
+    bool overflow = false;
+    size_t sz = bits::umul(size, nmemb, overflow);
+    if (overflow)
+    {
+      errno = ENOMEM;
+      return 0;
+    }
+    // Include size 0 in the first sizeclass.
+    sz = ((sz - 1) >> (bits::BITS - 1)) + sz;
+    return get_slow_allocator()->alloc<ZeroMem::YesZero>(sz);
+  }
+  void __je_bootstrap_free(void* ptr)
+  {
+    get_slow_allocator()->dealloc(ptr);
+  }
+#endif
 }
