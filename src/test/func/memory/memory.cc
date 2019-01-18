@@ -242,6 +242,30 @@ void test_external_pointer_large()
   }
 }
 
+void test_external_pointer_dealloc_bug()
+{
+  auto* alloc = ThreadAlloc::get();
+  constexpr size_t count = (SUPERSLAB_SIZE / SLAB_SIZE) * 2;
+  void* allocs[count];
+
+  for (size_t i = 0; i < count; i++)
+  {
+    allocs[i] = alloc->alloc(SLAB_SIZE / 2);
+  }
+
+  for (size_t i = 1; i < count; i++)
+  {
+    alloc->dealloc(allocs[i]);
+  }
+
+  for (size_t i = 0; i < count; i++)
+  {
+    Alloc::external_pointer(allocs[i]);
+  }
+
+  alloc->dealloc(allocs[0]);
+}
+
 void test_alloc_16M()
 {
   auto* alloc = ThreadAlloc::get();
@@ -264,6 +288,7 @@ int main(int argc, char** argv)
   UNUSED(argv);
 #endif
 
+  test_external_pointer_dealloc_bug();
   test_external_pointer_large();
   test_alloc_dealloc_64k();
   test_random_allocation();
