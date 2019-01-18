@@ -2,6 +2,7 @@
 
 #include "../ds/mpscq.h"
 #include "../mem/allocconfig.h"
+#include "../mem/sizeclass.h"
 
 #include <atomic>
 
@@ -10,13 +11,11 @@ namespace snmalloc
   struct Remote
   {
     static const size_t PTR_BITS = sizeof(void*) * 8;
-    static const size_t SIZECLASS_BITS = sizeof(uint8_t) * 8;
+    static const size_t SIZECLASS_BITS =
+      bits::next_pow2_bits_const(NUM_SIZECLASSES);
     static const bool USE_TOP_BITS =
-      SIZECLASS_BITS + bits::ADDRESS_BITS <= PTR_BITS;
-    static const uintptr_t SIZECLASS_SHIFT = PTR_BITS - SIZECLASS_BITS;
-    static const uintptr_t SIZECLASS_MASK = ((1ULL << SIZECLASS_BITS) - 1)
-      << SIZECLASS_SHIFT;
-    static const uintptr_t TARGET_MASK = ~SIZECLASS_MASK;
+      SIZECLASS_BITS + bits::ADDRESS_BITS < PTR_BITS;
+    static const uintptr_t SIZECLASS_MASK = ((1ULL << SIZECLASS_BITS) - 1);
 
     using alloc_id_t = size_t;
     union
@@ -25,7 +24,11 @@ namespace snmalloc
       Remote* non_atomic_next;
     };
 
-    uintptr_t value;
+    // Uses an intptr_t so that when we use the TOP_BITS to encode the
+    // sizeclass, then we can use signed shift to correctly handle kernel versus
+    // user mode.
+    intptr_t value;
+
     // This will not exist for the minimum object size. This is only used if
     // USE_TOP_BITS is false, and the bottom bit of value is set.
     uint8_t possible_sizeclass;
@@ -34,21 +37,19 @@ namespace snmalloc
     {
       if constexpr (USE_TOP_BITS)
       {
-        assert(id == (id & TARGET_MASK));
-        value = (id & TARGET_MASK) |
-          ((static_cast<uint64_t>(sizeclass) << SIZECLASS_SHIFT) &
-           SIZECLASS_MASK);
+        value = (intptr_t)(
+          (id << SIZECLASS_BITS) | ((static_cast<uintptr_t>(sizeclass))));
       }
       else
       {
         assert((id & 1) == 0);
         if (sizeclass == 0)
         {
-          value = id | 1;
+          value = (intptr_t)(id | 1);
         }
         else
         {
-          value = id;
+          value = (intptr_t)id;
           possible_sizeclass = sizeclass;
         }
       }
@@ -58,11 +59,11 @@ namespace snmalloc
     {
       if constexpr (USE_TOP_BITS)
       {
-        return value & TARGET_MASK;
+        return (alloc_id_t)(value >> SIZECLASS_BITS);
       }
       else
       {
-        return value & ~1;
+        return (alloc_id_t)(value & ~1);
       }
     }
 
@@ -70,7 +71,7 @@ namespace snmalloc
     {
       if constexpr (USE_TOP_BITS)
       {
-        return (value & SIZECLASS_MASK) >> SIZECLASS_SHIFT;
+        return (static_cast<uint8_t>((uintptr_t)value & SIZECLASS_MASK));
       }
       else
       {
