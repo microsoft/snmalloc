@@ -87,7 +87,7 @@ namespace snmalloc
           {
             auto& v = default_memory_provider;
             value =
-              (PagemapEntry*)v.alloc_chunk(PAGEMAP_NODE_SIZE, OS_PAGE_SIZE);
+              (PagemapEntry*)v.alloc_chunk<OS_PAGE_SIZE>(PAGEMAP_NODE_SIZE);
             e->store(value, std::memory_order_release);
           }
           else

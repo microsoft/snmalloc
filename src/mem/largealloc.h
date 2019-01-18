@@ -68,7 +68,8 @@ namespace snmalloc
      * Primitive allocator for structure that are required before
      * the allocator can be running.
      ***/
-    void* alloc_chunk(size_t size, size_t alignment = 64)
+    template<size_t alignment = 64>
+    void* alloc_chunk(size_t size)
     {
       // Cache line align
       size = bits::align_up(size, 64);
