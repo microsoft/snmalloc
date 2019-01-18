@@ -34,7 +34,7 @@ namespace snmalloc
 #ifdef OPEN_ENCLAVE
     PALPlainMixin<PALOpenEnclave>;
 #elif defined(SNMALLOC_MEMORY_PROVIDER)
-    PALPlainMixin<SNMALLOC_MEMORY_PROVIDER>
+    PALPlainMixin<SNMALLOC_MEMORY_PROVIDER>;
 #else
     DefaultPal;
 #endif
