@@ -51,6 +51,13 @@ namespace snmalloc
       return std::make_pair(r, size);
     }
 
+    void new_block()
+    {
+      auto r_size = reserve_block();
+      bump = (size_t)r_size.first;
+      remaining = r_size.second;
+    }
+
   public:
     /**
      * Stack of large allocations that have been returned for reuse.
@@ -61,7 +68,7 @@ namespace snmalloc
      * Primitive allocator for structure that are required before
      * the allocator can be running.
      ***/
-    void* alloc_chunk(size_t size)
+    void* alloc_chunk(size_t size, size_t alignment = 64)
     {
       // Cache line align
       size = bits::align_up(size, 64);
@@ -70,12 +77,20 @@ namespace snmalloc
       {
         FlagLock f(lock);
 
+        auto aligned_bump = bits::align_up(bump, alignment);
+        if ((aligned_bump - bump) < size)
+        {
+          new_block();
+        }
+        else
+        {
+          remaining -= aligned_bump - bump;
+          bump = aligned_bump;
+        }
+
         if (remaining < size)
         {
-          auto r_size = reserve_block();
-
-          bump = (size_t)r_size.first;
-          remaining = r_size.second;
+          new_block();
         }
 
         p = (void*)bump;

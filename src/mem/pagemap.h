@@ -86,7 +86,8 @@ namespace snmalloc
                 value, (PagemapEntry*)LOCKED_ENTRY, std::memory_order_relaxed))
           {
             auto& v = default_memory_provider;
-            value = (PagemapEntry*)v.alloc_chunk(PAGEMAP_NODE_SIZE);
+            value =
+              (PagemapEntry*)v.alloc_chunk(PAGEMAP_NODE_SIZE, OS_PAGE_SIZE);
             e->store(value, std::memory_order_release);
           }
           else
@@ -160,6 +161,13 @@ namespace snmalloc
       return &(leaf_ix.first->values[leaf_ix.second]);
     }
 
+    std::atomic<T>* get_ptr(void* p)
+    {
+      bool success;
+      return get_addr<true>(p, success);
+    }
+
+  public:
     /**
      * Returns the index of a pagemap entry within a given page.  This is used
      * in code that propagates changes to the pagemap elsewhere.
@@ -182,13 +190,6 @@ namespace snmalloc
         reinterpret_cast<uintptr_t>(get_addr<true>(p, success)));
     }
 
-    std::atomic<T>* get_ptr(void* p)
-    {
-      bool success;
-      return get_addr<true>(p, success);
-    }
-
-  public:
     T get(void* p)
     {
       bool success;
