@@ -16,10 +16,10 @@
 #include "largealloc.h"
 #include "mediumslab.h"
 #include "pagemap.h"
+#include "pooled.h"
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
 #include "slab.h"
-#include "typeallocated.h"
 
 #include <array>
 
@@ -165,7 +165,7 @@ namespace snmalloc
     class PageMap = SNMALLOC_DEFAULT_PAGEMAP,
     bool IsQueueInline = true>
   class Allocator
-  : public TypeAllocated<Allocator<MemoryProvider, PageMap, IsQueueInline>>
+  : public Pooled<Allocator<MemoryProvider, PageMap, IsQueueInline>>
   {
     LargeAlloc<MemoryProvider> large_allocator;
     PageMap page_map;
@@ -627,7 +627,7 @@ namespace snmalloc
     }
 
     template<class A, class MemProvider>
-    friend class TypeAlloc;
+    friend class Pool;
 
   public:
     Allocator(

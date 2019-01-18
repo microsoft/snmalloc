@@ -2,38 +2,48 @@
 
 #include "../ds/flaglock.h"
 #include "../ds/mpmcstack.h"
-#include "typeallocated.h"
+#include "pooled.h"
 
 namespace snmalloc
 {
+  /**
+   * Pool of a particular type of object.
+   *
+   * This pool will never return objects to the OS.  It maintains a list of all
+   * objects ever allocated that can be iterated (not concurrency safe).  Pooled
+   * types can be acquired from the pool, and released back to the pool. This is
+   * concurrency safe.
+   *
+   * This is used to bootstrap the allocation of allocators.
+   **/
   template<class T, class MemoryProvider = GlobalVirtual>
-  class TypeAlloc
+  class Pool
   {
   private:
-    friend TypeAllocated<T>;
+    friend Pooled<T>;
 
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
     MPMCStack<T, PreZeroed> stack;
     T* list = nullptr;
 
-    TypeAlloc(MemoryProvider& m) : memory_provider(m) {}
+    Pool(MemoryProvider& m) : memory_provider(m) {}
 
   public:
     MemoryProvider& memory_provider;
 
-    static TypeAlloc* make(MemoryProvider& memory_provider) noexcept
+    static Pool* make(MemoryProvider& memory_provider) noexcept
     {
-      auto r = memory_provider.alloc_chunk(sizeof(TypeAlloc));
-      return new (r) TypeAlloc(memory_provider);
+      auto r = memory_provider.alloc_chunk(sizeof(Pool));
+      return new (r) Pool(memory_provider);
     }
 
-    static TypeAlloc* make() noexcept
+    static Pool* make() noexcept
     {
       return make(default_memory_provider);
     }
 
     template<typename... Args>
-    T* alloc(Args&&... args)
+    T* acquire(Args&&... args)
     {
       T* p = stack.pop();
 
@@ -51,7 +61,7 @@ namespace snmalloc
       return p;
     }
 
-    void dealloc(T* p)
+    void release(T* p)
     {
       // The object's destructor is not run. If the object is "reallocated", it
       // is returned without the constructor being run, so the object is reused
