@@ -2,15 +2,15 @@
 
 #include "../ds/helpers.h"
 #include "alloc.h"
-#include "typealloc.h"
+#include "pool.h"
 
 namespace snmalloc
 {
   template<class MemoryProvider>
-  class AllocPool : TypeAlloc<Allocator<MemoryProvider>, MemoryProvider>
+  class AllocPool : Pool<Allocator<MemoryProvider>, MemoryProvider>
   {
     using Alloc = Allocator<MemoryProvider>;
-    using Parent = TypeAlloc<Allocator<MemoryProvider>, MemoryProvider>;
+    using Parent = Pool<Allocator<MemoryProvider>, MemoryProvider>;
 
   public:
     static AllocPool* make(MemoryProvider& mp)
@@ -29,12 +29,12 @@ namespace snmalloc
 
     Alloc* acquire()
     {
-      return Parent::alloc(Parent::memory_provider);
+      return Parent::acquire(Parent::memory_provider);
     }
 
     void release(Alloc* a)
     {
-      Parent::dealloc(a);
+      Parent::release(a);
     }
 
   public:
