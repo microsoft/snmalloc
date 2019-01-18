@@ -1,3 +1,4 @@
+#include "../mem/slowalloc.h"
 #include "../snmalloc.h"
 
 #include <errno.h>
@@ -11,46 +12,6 @@ using namespace snmalloc;
 #ifndef SNMALLOC_NAME_MANGLE
 #  define SNMALLOC_NAME_MANGLE(a) a
 #endif
-
-namespace
-{
-  /**
-   * RAII wrapper around an `Alloc`.  This class gets an allocator from the
-   * global pool and wraps it so that `Alloc` methods can be called
-   * directly via the `->` operator on this class.  When this object is
-   * destroyed, it returns the allocator to the global pool.
-   */
-  struct slow_allocator
-  {
-    /**
-     * The allocator that this wrapper will use.
-     */
-    Alloc* alloc;
-    /**
-     * Constructor.  Claims an allocator from the global pool
-     */
-    slow_allocator() : alloc(current_alloc_pool()->acquire()) {}
-    /**
-     * Destructor.  Returns the allocator to the pool.
-     */
-    ~slow_allocator()
-    {
-      current_alloc_pool()->release(alloc);
-    }
-    /**
-     * Arrow operator, allows methods exposed by `Alloc` to be called on the
-     * wrapper.
-     */
-    Alloc* operator->()
-    {
-      return alloc;
-    }
-  };
-  slow_allocator bootstrap_alloc()
-  {
-    return slow_allocator{};
-  }
-}
 
 extern "C"
 {
@@ -247,7 +208,7 @@ extern "C"
 
   void* __je_bootstrap_malloc(size_t size)
   {
-    return bootstrap_alloc()->alloc(size);
+    return get_slow_allocator()->alloc(size);
   }
   void* __je_bootstrap_calloc(size_t nmemb, size_t size)
   {
@@ -260,11 +221,11 @@ extern "C"
     }
     // Include size 0 in the first sizeclass.
     sz = ((sz - 1) >> (bits::BITS - 1)) + sz;
-    return bootstrap_alloc()->alloc<ZeroMem::YesZero>(sz);
+    return get_slow_allocator()->alloc<ZeroMem::YesZero>(sz);
   }
   void __je_bootstrap_free(void* ptr)
   {
-    bootstrap_alloc()->dealloc(ptr);
+    get_slow_allocator()->dealloc(ptr);
   }
 #endif
 }

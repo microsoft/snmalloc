@@ -4,10 +4,10 @@
 #  include "../ds/bits.h"
 #  include "../mem/allocconfig.h"
 
-#  include <sys/mman.h>
-#  include <strings.h>
-#  include <stdio.h>
 #  include <pthread.h>
+#  include <stdio.h>
+#  include <strings.h>
+#  include <sys/mman.h>
 
 namespace snmalloc
 {
