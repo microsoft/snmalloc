@@ -1,5 +1,6 @@
 #pragma once
 
+#include "bits.h"
 #include "flaglock.h"
 
 namespace snmalloc
@@ -29,5 +30,23 @@ namespace snmalloc
       }
       return obj;
     }
+  };
+
+  template <size_t length, typename T>
+  class ModArray
+  {
+    static constexpr size_t rlength = bits::next_pow2_const(length);
+    T array[rlength];
+  
+  public:
+    constexpr const T &operator[] (const size_t i) const
+    {
+      return array[i & (rlength - 1)];
+    } 
+
+    constexpr T &operator[] (const size_t i)
+    {
+      return array[i & (rlength - 1)];
+    }  
   };
 }

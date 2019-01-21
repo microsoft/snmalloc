@@ -1,16 +1,17 @@
 #pragma once
 
 #include "superslab.h"
+#include "../ds/helpers.h"
 
 namespace snmalloc
 {
   struct SizeClassTable
   {
-    size_t size[NUM_SIZECLASSES];
-    uint16_t bump_ptr_start[NUM_SMALL_CLASSES];
-    uint16_t short_bump_ptr_start[NUM_SMALL_CLASSES];
-    uint16_t count_per_slab[NUM_SMALL_CLASSES];
-    uint16_t medium_slab_slots[NUM_MEDIUM_CLASSES];
+    ModArray<NUM_SIZECLASSES, size_t> size;
+    ModArray<NUM_SMALL_CLASSES, uint16_t> bump_ptr_start;
+    ModArray<NUM_SMALL_CLASSES, uint16_t> short_bump_ptr_start;
+    ModArray<NUM_SMALL_CLASSES, uint16_t> count_per_slab;
+    ModArray<NUM_MEDIUM_CLASSES, uint16_t> medium_slab_slots;
 
     constexpr SizeClassTable()
     : size(),
@@ -66,6 +67,7 @@ namespace snmalloc
 
   constexpr static inline uint16_t medium_slab_free(uint8_t sizeclass)
   {
-    return sizeclass_metadata.medium_slab_slots[sizeclass - NUM_SMALL_CLASSES];
+    return sizeclass_metadata.medium_slab_slots
+      [(sizeclass - NUM_SMALL_CLASSES)];
   }
 }
