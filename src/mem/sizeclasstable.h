@@ -1,7 +1,7 @@
 #pragma once
 
-#include "superslab.h"
 #include "../ds/helpers.h"
+#include "superslab.h"
 
 namespace snmalloc
 {
@@ -67,7 +67,7 @@ namespace snmalloc
 
   constexpr static inline uint16_t medium_slab_free(uint8_t sizeclass)
   {
-    return sizeclass_metadata.medium_slab_slots
-      [(sizeclass - NUM_SMALL_CLASSES)];
+    return sizeclass_metadata
+      .medium_slab_slots[(sizeclass - NUM_SMALL_CLASSES)];
   }
 }

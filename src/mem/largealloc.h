@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../ds/flaglock.h"
-#include "../ds/mpmcstack.h"
 #include "../ds/helpers.h"
+#include "../ds/mpmcstack.h"
 #include "../pal/pal.h"
 #include "allocstats.h"
 #include "baseslab.h"
