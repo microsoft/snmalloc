@@ -57,11 +57,8 @@ namespace snmalloc
     // doubly linked node into that size class's free list.
     uint16_t link;
 
-    union
-    {
-      uint8_t sizeclass;
-      uint8_t next;
-    };
+    uint8_t sizeclass;
+    uint8_t next;
 
     void add_use()
     {

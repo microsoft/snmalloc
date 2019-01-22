@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds/flaglock.h"
+#include "../ds/helpers.h"
 #include "../ds/mpmcstack.h"
 #include "../pal/pal.h"
 #include "allocstats.h"
@@ -62,7 +63,7 @@ namespace snmalloc
     /**
      * Stack of large allocations that have been returned for reuse.
      */
-    MPMCStack<Largeslab, PreZeroed> large_stack[NUM_LARGE_CLASSES];
+    ModArray<NUM_LARGE_CLASSES, MPMCStack<Largeslab, PreZeroed>> large_stack;
 
     /**
      * Primitive allocator for structure that are required before

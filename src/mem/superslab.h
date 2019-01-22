@@ -194,6 +194,7 @@ namespace snmalloc
       uint8_t index = (uint8_t)slab_to_index(slab);
       uint8_t n = head - index - 1;
 
+      meta[index].sizeclass = 0;
       meta[index].next = n;
       head = index;
       bool was_almost_full = is_almost_full();
