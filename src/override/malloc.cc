@@ -210,6 +210,7 @@ extern "C"
   {
     return get_slow_allocator()->alloc(size);
   }
+
   void* __je_bootstrap_calloc(size_t nmemb, size_t size)
   {
     bool overflow = false;
@@ -223,6 +224,7 @@ extern "C"
     sz = ((sz - 1) >> (bits::BITS - 1)) + sz;
     return get_slow_allocator()->alloc<ZeroMem::YesZero>(sz);
   }
+  
   void __je_bootstrap_free(void* ptr)
   {
     get_slow_allocator()->dealloc(ptr);
