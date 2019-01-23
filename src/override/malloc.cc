@@ -201,7 +201,7 @@ extern "C"
     return ENOENT;
   }
 
-#ifndef __PIC__
+#if !defined(__PIC__) && !defined(NO_BOOTSTRAP_ALLOCATOR) 
   // The following functions are required to work before TLS is set up, in
   // statically-linked programs.  These temporarily grab an allocator from the
   // pool and return it.
