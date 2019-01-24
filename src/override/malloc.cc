@@ -140,7 +140,7 @@ extern "C"
     for (; sc < NUM_SIZECLASSES; sc++)
     {
       size = sizeclass_to_size(sc);
-      if ((size & -size) >= alignment)
+      if ((size & (~size - 1)) >= alignment)
       {
         return SNMALLOC_NAME_MANGLE(aligned_alloc)(alignment, size);
       }
@@ -201,7 +201,7 @@ extern "C"
     return ENOENT;
   }
 
-#ifndef __PIC__
+#if !defined(__PIC__) && !defined(NO_BOOTSTRAP_ALLOCATOR)
   // The following functions are required to work before TLS is set up, in
   // statically-linked programs.  These temporarily grab an allocator from the
   // pool and return it.
@@ -210,6 +210,7 @@ extern "C"
   {
     return get_slow_allocator()->alloc(size);
   }
+
   void* __je_bootstrap_calloc(size_t nmemb, size_t size)
   {
     bool overflow = false;
@@ -223,6 +224,7 @@ extern "C"
     sz = ((sz - 1) >> (bits::BITS - 1)) + sz;
     return get_slow_allocator()->alloc<ZeroMem::YesZero>(sz);
   }
+
   void __je_bootstrap_free(void* ptr)
   {
     get_slow_allocator()->dealloc(ptr);
