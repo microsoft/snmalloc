@@ -755,7 +755,7 @@ namespace snmalloc
       if ((allow_reserve == NoReserve) && (super == nullptr))
         return super;
 
-      super->init(public_state(), large_allocator.memory_provider);
+      super->init(public_state());
       pagemap().set_slab(super);
       super_available.insert(super);
       return super;

@@ -91,6 +91,15 @@ namespace snmalloc
       head = (uint16_t)~0;
     }
 
+    void zero()
+    {
+      head = 0;
+      used = 0;
+      link = 0;
+      sizeclass = 0;
+      next = 0;
+    }
+
     SlabLink* get_link(Slab* slab)
     {
       return (SlabLink*)((size_t)slab + link);

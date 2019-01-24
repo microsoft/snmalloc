@@ -1,7 +1,7 @@
 #pragma once
 
 #include "metaslab.h"
-
+#include "../ds/helpers.h"
 #include <cstring>
 
 namespace snmalloc
@@ -37,7 +37,7 @@ namespace snmalloc
     // short slab would be 6 + 1 = 7
     uint16_t used;
 
-    Metaslab meta[SLAB_COUNT];
+    ModArray<SLAB_COUNT, Metaslab> meta;
 
     // Used size_t as results in better code in MSVC
     size_t slab_to_index(Slab* slab)
@@ -74,8 +74,7 @@ namespace snmalloc
       return sizeclass <= h;
     }
 
-    template<typename MemoryProvider>
-    void init(RemoteAllocator* alloc, MemoryProvider& memory_provider)
+    void init(RemoteAllocator* alloc)
     {
       allocator = alloc;
 
@@ -91,10 +90,24 @@ namespace snmalloc
         {
           // If this wasn't previously Fresh, we need to zero some things.
           used = 0;
-          memory_provider.zero(meta, SLAB_COUNT * sizeof(Metaslab));
+          for (auto i = 0; i < SLAB_COUNT; i++)
+          {
+            meta[i].zero();
+          }
         }
+#ifndef NDEBUG
+        auto curr = head;
+        for (auto i = 0; i < SLAB_COUNT - used - 1; i++)
+        {
+          curr = (curr + meta[curr].next + 1) & (SLAB_COUNT - 1);
+        }
+        assert (curr == 0);
 
-        meta[0].set_unused();
+        for (auto i = 0; i < SLAB_COUNT; i++)
+        {
+          assert(meta[i].is_unused());
+        }
+#endif
       }
     }
 
