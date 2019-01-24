@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds/dllist.h"
+#include "../ds/helpers.h"
 #include "sizeclass.h"
 
 namespace snmalloc
@@ -51,11 +52,11 @@ namespace snmalloc
     // The terminal value in the free list, and the terminal value in
     // the SlabLink previous field will alias. The SlabLink uses ~0 for
     // its terminal value to be a valid terminal bump ptr.
-    uint16_t head;
+    Mod<SLAB_SIZE, uint16_t> head;
     // When a slab has free space it will be on the has space list for
     // that size class.  We use an empty block in this slab to be the
     // doubly linked node into that size class's free list.
-    uint16_t link;
+    Mod<SLAB_SIZE, uint16_t> link;
 
     uint8_t sizeclass;
     uint8_t next;

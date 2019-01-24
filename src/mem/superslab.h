@@ -1,5 +1,6 @@
 #pragma once
 
+#include "allocslab.h"
 #include "metaslab.h"
 #include "../ds/helpers.h"
 #include <cstring>
@@ -30,7 +31,7 @@ namespace snmalloc
     // are the relative offset to the next entry minus 1.  This means that
     // all zeros is a list that chains through all the blocks, so the zero
     // initialised memory requires no more work.
-    uint8_t head;
+    Mod<SLAB_COUNT, uint8_t> head;
 
     // Represents twice the number of full size slabs used
     // plus 1 for the short slab. i.e. using 3 slabs and the
@@ -180,15 +181,16 @@ namespace snmalloc
     template<typename MemoryProvider>
     Slab* alloc_slab(uint8_t sizeclass, MemoryProvider& memory_provider)
     {
-      Slab* slab = (Slab*)((size_t)this + ((size_t)head << SLAB_BITS));
+      uint8_t h = head;
+      Slab* slab = (Slab*)((size_t)this + ((size_t)h << SLAB_BITS));
 
-      uint8_t n = meta[head].next;
+      uint8_t n = meta[h].next;
 
-      meta[head].head = get_slab_offset(sizeclass, false);
-      meta[head].sizeclass = sizeclass;
-      meta[head].link = SLABLINK_INDEX;
+      meta[h].head = get_slab_offset(sizeclass, false);
+      meta[h].sizeclass = sizeclass;
+      meta[h].link = SLABLINK_INDEX;
 
-      head = head + n + 1;
+      head = h + n + 1;
       used += 2;
 
       if (decommit_strategy == DecommitAll)
