@@ -92,20 +92,20 @@ namespace snmalloc
         {
           // If this wasn't previously Fresh, we need to zero some things.
           used = 0;
-          for (auto i = 0; i < SLAB_COUNT; i++)
+          for (size_t i = 0; i < SLAB_COUNT; i++)
           {
             meta[i].zero();
           }
         }
 #ifndef NDEBUG
         auto curr = head;
-        for (auto i = 0; i < SLAB_COUNT - used - 1; i++)
+        for (size_t i = 0; i < SLAB_COUNT - used - 1; i++)
         {
           curr = (curr + meta[curr].next + 1) & (SLAB_COUNT - 1);
         }
         assert(curr == 0);
 
-        for (auto i = 0; i < SLAB_COUNT; i++)
+        for (size_t i = 0; i < SLAB_COUNT; i++)
         {
           assert(meta[i].is_unused());
         }
