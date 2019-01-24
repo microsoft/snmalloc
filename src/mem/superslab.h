@@ -1,8 +1,9 @@
 #pragma once
 
+#include "../ds/helpers.h"
 #include "allocslab.h"
 #include "metaslab.h"
-#include "../ds/helpers.h"
+
 #include <cstring>
 
 namespace snmalloc
@@ -102,7 +103,7 @@ namespace snmalloc
         {
           curr = (curr + meta[curr].next + 1) & (SLAB_COUNT - 1);
         }
-        assert (curr == 0);
+        assert(curr == 0);
 
         for (auto i = 0; i < SLAB_COUNT; i++)
         {
