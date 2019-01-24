@@ -152,9 +152,9 @@ namespace snmalloc
       }
     }
 
-    Metaslab* get_meta(Slab* slab)
+    Metaslab& get_meta(Slab* slab)
     {
-      return &meta[slab_to_index(slab)];
+      return meta[slab_to_index(slab)];
     }
 
     template<typename MemoryProvider>
