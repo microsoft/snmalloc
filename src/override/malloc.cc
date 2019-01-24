@@ -201,7 +201,7 @@ extern "C"
     return ENOENT;
   }
 
-#if !defined(__PIC__) && !defined(NO_BOOTSTRAP_ALLOCATOR) 
+#if !defined(__PIC__) && !defined(NO_BOOTSTRAP_ALLOCATOR)
   // The following functions are required to work before TLS is set up, in
   // statically-linked programs.  These temporarily grab an allocator from the
   // pool and return it.
@@ -224,7 +224,7 @@ extern "C"
     sz = ((sz - 1) >> (bits::BITS - 1)) + sz;
     return get_slow_allocator()->alloc<ZeroMem::YesZero>(sz);
   }
-  
+
   void __je_bootstrap_free(void* ptr)
   {
     get_slow_allocator()->dealloc(ptr);
