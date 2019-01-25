@@ -34,7 +34,7 @@ namespace snmalloc
   {
   private:
     // How many entries are used in this slab.
-    uint16_t used;
+    uint16_t used = 0;
 
   public:
     // Bump free list of unused entries in this sizeclass.
@@ -59,7 +59,8 @@ namespace snmalloc
     Mod<SLAB_SIZE, uint16_t> link;
 
     uint8_t sizeclass;
-    uint8_t next;
+    // Initially zero to encode the superslabs relative list of slabs.
+    uint8_t next = 0;
 
     void add_use()
     {
@@ -90,12 +91,6 @@ namespace snmalloc
     {
       assert(head == 1);
       head = (uint16_t)~0;
-    }
-
-    void init()
-    {
-      used = 0;
-      next = 0;
     }
 
     SlabLink* get_link(Slab* slab)
