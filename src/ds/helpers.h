@@ -32,6 +32,34 @@ namespace snmalloc
     }
   };
 
+  /**
+   * Wrapper for wrapping values.
+   *
+   * Wraps on read. This allows code to trust the value is in range, even when
+   * there is a memory corruption.
+   **/
+  template<size_t length, typename T>
+  class Mod
+  {
+    static_assert(
+      length == bits::next_pow2_const(length), "Must be a power of two.");
+
+  private:
+    T value;
+
+  public:
+    operator T()
+    {
+      return (T)(value & (length - 1));
+    }
+
+    T& operator=(const T v)
+    {
+      value = v;
+      return value;
+    }
+  };
+
   template<size_t length, typename T>
   class ModArray
   {

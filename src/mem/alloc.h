@@ -359,12 +359,12 @@ namespace snmalloc
       {
         RemoteAllocator* target = super->get_allocator();
         Slab* slab = Slab::get(p);
-        Metaslab* meta = super->get_meta(slab);
+        Metaslab& meta = super->get_meta(slab);
 
         // Reading a remote sizeclass won't fail, since the other allocator
         // can't reuse the slab, as we have not yet deallocated this
         // pointer.
-        uint8_t sizeclass = meta->sizeclass;
+        uint8_t sizeclass = meta.sizeclass;
 
         if (super->get_allocator() == public_state())
           small_dealloc(super, p, sizeclass);
@@ -411,9 +411,9 @@ namespace snmalloc
       if (size == PMSuperslab)
       {
         Slab* slab = Slab::get(p);
-        Metaslab* meta = super->get_meta(slab);
+        Metaslab& meta = super->get_meta(slab);
 
-        uint8_t sc = meta->sizeclass;
+        uint8_t sc = meta.sizeclass;
         size_t slab_end = (size_t)slab + SLAB_SIZE - 1;
 
         return external_pointer<location>(p, sc, slab_end);
@@ -471,9 +471,9 @@ namespace snmalloc
         // Reading a remote sizeclass won't fail, since the other allocator
         // can't reuse the slab, as we have no yet deallocated this pointer.
         Slab* slab = Slab::get(p);
-        Metaslab* meta = super->get_meta(slab);
+        Metaslab& meta = super->get_meta(slab);
 
-        return sizeclass_to_size(meta->sizeclass);
+        return sizeclass_to_size(meta.sizeclass);
       }
       else if (size == PMMediumslab)
       {
@@ -755,7 +755,7 @@ namespace snmalloc
       if ((allow_reserve == NoReserve) && (super == nullptr))
         return super;
 
-      super->init(public_state(), large_allocator.memory_provider);
+      super->init(public_state());
       pagemap().set_slab(super);
       super_available.insert(super);
       return super;

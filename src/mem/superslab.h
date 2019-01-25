@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../ds/helpers.h"
+#include "allocslab.h"
 #include "metaslab.h"
 
 #include <cstring>
@@ -30,14 +32,14 @@ namespace snmalloc
     // are the relative offset to the next entry minus 1.  This means that
     // all zeros is a list that chains through all the blocks, so the zero
     // initialised memory requires no more work.
-    uint8_t head;
+    Mod<SLAB_COUNT, uint8_t> head;
 
     // Represents twice the number of full size slabs used
     // plus 1 for the short slab. i.e. using 3 slabs and the
     // short slab would be 6 + 1 = 7
     uint16_t used;
 
-    Metaslab meta[SLAB_COUNT];
+    ModArray<SLAB_COUNT, Metaslab> meta;
 
     // Used size_t as results in better code in MSVC
     size_t slab_to_index(Slab* slab)
@@ -74,8 +76,7 @@ namespace snmalloc
       return sizeclass <= h;
     }
 
-    template<typename MemoryProvider>
-    void init(RemoteAllocator* alloc, MemoryProvider& memory_provider)
+    void init(RemoteAllocator* alloc)
     {
       allocator = alloc;
 
@@ -91,10 +92,24 @@ namespace snmalloc
         {
           // If this wasn't previously Fresh, we need to zero some things.
           used = 0;
-          memory_provider.zero(meta, SLAB_COUNT * sizeof(Metaslab));
+          for (size_t i = 0; i < SLAB_COUNT; i++)
+          {
+            new (&(meta[i])) Metaslab();
+          }
         }
+#ifndef NDEBUG
+        auto curr = head;
+        for (size_t i = 0; i < SLAB_COUNT - used - 1; i++)
+        {
+          curr = (curr + meta[curr].next + 1) & (SLAB_COUNT - 1);
+        }
+        assert(curr == 0);
 
-        meta[0].set_unused();
+        for (size_t i = 0; i < SLAB_COUNT; i++)
+        {
+          assert(meta[i].is_unused());
+        }
+#endif
       }
     }
 
@@ -139,9 +154,9 @@ namespace snmalloc
       }
     }
 
-    Metaslab* get_meta(Slab* slab)
+    Metaslab& get_meta(Slab* slab)
     {
-      return &meta[slab_to_index(slab)];
+      return meta[slab_to_index(slab)];
     }
 
     template<typename MemoryProvider>
@@ -167,15 +182,16 @@ namespace snmalloc
     template<typename MemoryProvider>
     Slab* alloc_slab(uint8_t sizeclass, MemoryProvider& memory_provider)
     {
-      Slab* slab = (Slab*)((size_t)this + ((size_t)head << SLAB_BITS));
+      uint8_t h = head;
+      Slab* slab = (Slab*)((size_t)this + ((size_t)h << SLAB_BITS));
 
-      uint8_t n = meta[head].next;
+      uint8_t n = meta[h].next;
 
-      meta[head].head = get_slab_offset(sizeclass, false);
-      meta[head].sizeclass = sizeclass;
-      meta[head].link = SLABLINK_INDEX;
+      meta[h].head = get_slab_offset(sizeclass, false);
+      meta[h].sizeclass = sizeclass;
+      meta[h].link = SLABLINK_INDEX;
 
-      head = head + n + 1;
+      head = h + n + 1;
       used += 2;
 
       if (decommit_strategy == DecommitAll)
