@@ -94,7 +94,7 @@ namespace snmalloc
           used = 0;
           for (size_t i = 0; i < SLAB_COUNT; i++)
           {
-            meta[i].zero();
+            meta[i].init();
           }
         }
 #ifndef NDEBUG

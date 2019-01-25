@@ -92,12 +92,9 @@ namespace snmalloc
       head = (uint16_t)~0;
     }
 
-    void zero()
+    void init()
     {
-      head = 0;
       used = 0;
-      link = 0;
-      sizeclass = 0;
       next = 0;
     }
 
