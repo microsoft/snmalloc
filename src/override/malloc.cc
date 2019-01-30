@@ -140,7 +140,7 @@ extern "C"
     for (; sc < NUM_SIZECLASSES; sc++)
     {
       size = sizeclass_to_size(sc);
-      if ((size & (~size - 1)) >= alignment)
+      if ((size & (~size + 1)) >= alignment)
       {
         return SNMALLOC_NAME_MANGLE(aligned_alloc)(alignment, size);
       }
