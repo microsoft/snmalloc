@@ -71,7 +71,7 @@ namespace snmalloc
 
       meta.debug_slab_invariant(is_short(), this);
 
-      if (zero_mem == YesZero)
+      if constexpr (zero_mem == YesZero)
       {
         if (rsize < PAGE_ALIGNED_SIZE)
           memory_provider.zero(p, rsize);

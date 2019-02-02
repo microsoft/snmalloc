@@ -80,13 +80,14 @@ extern "C"
         "Calling realloc on pointer that is not to the start of an allocation");
     }
 #endif
+    if (size <= SNMALLOC_NAME_MANGLE(malloc_usable_size)(ptr))
+      return ptr;
+
     void* p = SNMALLOC_NAME_MANGLE(malloc)(size);
-    if (p)
+    if (p != nullptr)
     {
       assert(p == Alloc::external_pointer<Start>(p));
-      size_t sz =
-        (std::min)(size, SNMALLOC_NAME_MANGLE(malloc_usable_size)(ptr));
-      memcpy(p, ptr, sz);
+      memcpy(p, ptr, size);
       SNMALLOC_NAME_MANGLE(free)(ptr);
     }
     return p;
