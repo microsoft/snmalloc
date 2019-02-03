@@ -80,7 +80,7 @@ extern "C"
         "Calling realloc on pointer that is not to the start of an allocation");
     }
 #endif
-    size_t sz = SNMALLOC_NAME_MANGLE(malloc_usable_size)(ptr);
+    size_t sz = Alloc::alloc_size(ptr);
     // Keep the current allocation if the given size is in the same sizeclass.
     if (sz == sizeclass_to_size(size_to_sizeclass(size)))
       return ptr;
