@@ -536,8 +536,7 @@ namespace snmalloc
         this->size += sizeclass_to_size(sizeclass);
 
         Remote* r = (Remote*)p;
-        r->set_sizeclass_and_target_id(target_id, sizeclass);
-        assert(r->sizeclass() == sizeclass);
+        r->set_target_id(target_id);
         assert(r->target_id() == target_id);
 
         RemoteList* l = &list[get_slot(target_id, 0)];
@@ -702,21 +701,34 @@ namespace snmalloc
     {
       if (p != &stub)
       {
-        uint8_t sizeclass = p->sizeclass();
+        Superslab* super = Superslab::get(p);
 
-        if (p->target_id() == id())
+        if (super->get_kind() == Super)
         {
-          stats().remote_receive(sizeclass);
-
-          if (sizeclass < NUM_SMALL_CLASSES)
-            small_dealloc(Superslab::get(p), p, sizeclass);
+          Slab* slab = Slab::get(p);
+          Metaslab& meta = super->get_meta(slab);
+          if (p->target_id() == id())
+          {
+            small_dealloc(super, p, meta.sizeclass);
+          }
           else
-            medium_dealloc(Mediumslab::get(p), p, sizeclass);
+          {
+            // Queue for remote dealloc elsewhere.
+            remote.dealloc(p->target_id(), p, meta.sizeclass);
+          }
         }
         else
         {
-          // Queue for remote dealloc elsewhere.
-          remote.dealloc(p->target_id(), p, sizeclass);
+          Mediumslab* slab = Mediumslab::get(p);
+          if (p->target_id() == id())
+          {
+            medium_dealloc(slab, p, slab->get_sizeclass());
+          }
+          else
+          {
+            // Queue for remote dealloc elsewhere.
+            remote.dealloc(p->target_id(), p, slab->get_sizeclass());
+          }
         }
       }
     }
