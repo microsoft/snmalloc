@@ -30,6 +30,10 @@ namespace snmalloc
     }
   };
 
+  static_assert(
+    sizeof(Remote) <= MIN_ALLOC_SIZE,
+    "Needs to be able to fit in smallest allocation.");
+
   struct RemoteAllocator
   {
     using alloc_id_t = Remote::alloc_id_t;

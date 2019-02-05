@@ -522,6 +522,9 @@ namespace snmalloc
       size_t size = 0;
       RemoteList list[REMOTE_SLOTS];
 
+      /// Used to find the index into the array of queues for remote
+      /// deallocation
+      /// r is used for which round of sending this is.
       inline size_t get_slot(size_t id, size_t r)
       {
         constexpr size_t allocator_size =
