@@ -522,6 +522,15 @@ namespace snmalloc
       size_t size = 0;
       RemoteList list[REMOTE_SLOTS];
 
+      inline size_t get_slot(size_t id, size_t r)
+      {
+        constexpr size_t allocator_size =
+          sizeof(Allocator<MemoryProvider, PageMap, IsQueueInline>);
+        constexpr size_t initial_shift =
+          bits::next_pow2_bits_const(allocator_size);
+        return (id >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
+      }
+
       void dealloc(alloc_id_t target_id, void* p, uint8_t sizeclass)
       {
         this->size += sizeclass_to_size(sizeclass);
@@ -531,7 +540,7 @@ namespace snmalloc
         assert(r->sizeclass() == sizeclass);
         assert(r->target_id() == target_id);
 
-        RemoteList* l = &list[target_id & REMOTE_MASK];
+        RemoteList* l = &list[get_slot(target_id, 0)];
         l->last->non_atomic_next = r;
         l->last = r;
       }
@@ -541,11 +550,11 @@ namespace snmalloc
         // When the cache gets big, post lists to their target allocators.
         size = 0;
 
-        size_t shift = 0;
+        size_t post_round = 0;
 
         while (true)
         {
-          auto my_slot = (id >> shift) & REMOTE_MASK;
+          auto my_slot = get_slot(id, post_round);
 
           for (size_t i = 0; i < REMOTE_SLOTS; i++)
           {
@@ -575,13 +584,13 @@ namespace snmalloc
           resend->last->non_atomic_next = nullptr;
           resend->clear();
 
-          shift += REMOTE_SLOT_BITS;
+          post_round++;
 
           while (r != nullptr)
           {
             // Use the next N bits to spread out remote deallocs in our own
             // slot.
-            size_t slot = (r->target_id() >> shift) & REMOTE_MASK;
+            size_t slot = get_slot(r->target_id(), post_round);
             RemoteList* l = &list[slot];
             l->last->non_atomic_next = r;
             l->last = r;
