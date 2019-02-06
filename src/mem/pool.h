@@ -50,7 +50,8 @@ namespace snmalloc
       if (p != nullptr)
         return p;
 
-      p = (T*)memory_provider.alloc_chunk(sizeof(T));
+      p = (T*)memory_provider
+            .template alloc_chunk<bits::next_pow2_const(sizeof(T))>(sizeof(T));
 
       new (p) T(std::forward<Args...>(args)...);
 
