@@ -60,6 +60,13 @@ if(NOT MSVC)
   target_include_directories(snmallocshim PRIVATE src)
 endif()
 
+if(NOT MSVC)
+  add_library(snmallocshim-1mib SHARED src/override/malloc.cc)
+  target_link_libraries(snmallocshim-1mib -pthread)
+  target_include_directories(snmallocshim-1mib PRIVATE src)
+  target_compile_definitions(snmallocshim-1mib PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
+endif()
+
 enable_testing()
 
 set(TESTDIR ${CMAKE_CURRENT_SOURCE_DIR}/src/test)

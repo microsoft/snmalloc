@@ -44,8 +44,11 @@ phases:
 
   - script: |
       sudo cp libsnmallocshim.so /usr/local/lib/
+      sudo cp libsnmallocshim-1mib.so /usr/local/lib/
       ninja clean
       LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
+      ninja clean
+      LD_PRELOAD=/usr/local/lib/libsnmallocshim-1mib.so ninja
     workingDirectory: build
     failOnStderr: true
     displayName: 'LD_PRELOAD Compile'
