@@ -396,52 +396,33 @@ namespace snmalloc
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
     static size_t to_exp_mant(size_t value)
     {
-      value += ((size_t)1 << (LOW_BITS)) - 1;
-      value >>= LOW_BITS;
+      size_t LEADING_BIT = ((size_t)1 << (MANTISSA_BITS + LOW_BITS)) >> 1;
+      size_t MANTISSA_MASK = ((size_t)1 << MANTISSA_BITS) - 1;
 
-      if (MANTISSA_BITS > 0)
-      {
-        size_t LEADING_BIT = ((size_t)1 << MANTISSA_BITS) >> 1;
-        size_t MANTISSA_MASK = ((size_t)1 << MANTISSA_BITS) - 1;
+      value = value - 1;
 
-        value = value - 1;
+      size_t e =
+        bits::BITS - MANTISSA_BITS - LOW_BITS - clz(value | LEADING_BIT) ;
+      size_t b = (e == 0) ? 0 : 1;
+      size_t m = (value >> (LOW_BITS + e - b)) & MANTISSA_MASK;
 
-        size_t e = (bits::BITS - clz(value | LEADING_BIT)) - MANTISSA_BITS;
-        size_t shift_e = (e == 0) ? 0 : e - 1;
-        size_t m = (value >> shift_e) & MANTISSA_MASK;
-
-        return (e << MANTISSA_BITS) + m;
-      }
-      else
-      {
-        return bits::next_pow2_bits(value);
-      }
+      return (e << MANTISSA_BITS) + m;
     }
 
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
     constexpr static size_t to_exp_mant_const(size_t value)
     {
-      value += ((size_t)1 << LOW_BITS) - 1;
-      value >>= LOW_BITS;
+      size_t LEADING_BIT = ((size_t)1 << (MANTISSA_BITS + LOW_BITS)) >> 1;
+      size_t MANTISSA_MASK = ((size_t)1 << MANTISSA_BITS) - 1;
 
-      if (MANTISSA_BITS > 0)
-      {
-        size_t LEADING_BIT = (size_t)1 << (MANTISSA_BITS - 1);
-        size_t MANTISSA_MASK = ((size_t)1 << MANTISSA_BITS) - 1;
+      value = value - 1;
 
-        value = value - 1;
+      size_t e = bits::BITS -
+        MANTISSA_BITS - LOW_BITS - clz_const(value | LEADING_BIT) ;
+      size_t b = (e == 0) ? 0 : 1;
+      size_t m = (value >> (LOW_BITS + e - b)) & MANTISSA_MASK;
 
-        size_t e =
-          (bits::BITS - clz_const(value | LEADING_BIT)) - MANTISSA_BITS;
-        size_t shift_e = (e == 0) ? 0 : e - 1;
-        size_t m = (value >> shift_e) & MANTISSA_MASK;
-
-        return (e << MANTISSA_BITS) + m;
-      }
-      else
-      {
-        return bits::next_pow2_bits_const(value);
-      }
+      return (e << MANTISSA_BITS) + m;
     }
 
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
