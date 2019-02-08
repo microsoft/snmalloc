@@ -402,7 +402,7 @@ namespace snmalloc
       value = value - 1;
 
       size_t e =
-        bits::BITS - MANTISSA_BITS - LOW_BITS - clz(value | LEADING_BIT) ;
+        bits::BITS - MANTISSA_BITS - LOW_BITS - clz(value | LEADING_BIT);
       size_t b = (e == 0) ? 0 : 1;
       size_t m = (value >> (LOW_BITS + e - b)) & MANTISSA_MASK;
 
@@ -417,8 +417,8 @@ namespace snmalloc
 
       value = value - 1;
 
-      size_t e = bits::BITS -
-        MANTISSA_BITS - LOW_BITS - clz_const(value | LEADING_BIT) ;
+      size_t e =
+        bits::BITS - MANTISSA_BITS - LOW_BITS - clz_const(value | LEADING_BIT);
       size_t b = (e == 0) ? 0 : 1;
       size_t m = (value >> (LOW_BITS + e - b)) & MANTISSA_MASK;
 

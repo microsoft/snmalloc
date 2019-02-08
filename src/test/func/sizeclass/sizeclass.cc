@@ -1,7 +1,7 @@
 #include <iostream>
 #include <snmalloc.h>
 
-NOINLINE 
+NOINLINE
 uint8_t size_to_sizeclass(size_t size)
 {
   return snmalloc::size_to_sizeclass(size);
@@ -39,8 +39,8 @@ int main(int, char**)
       if (size_to_sizeclass(i) != sz)
       {
         std::cout << "Size " << i << " has sizeclass "
-                  << (size_t)size_to_sizeclass(i)
-                  << " but expected sizeclass " << (size_t)sz << std::endl;
+                  << (size_t)size_to_sizeclass(i) << " but expected sizeclass "
+                  << (size_t)sz << std::endl;
         failed = true;
       }
     }
