@@ -378,7 +378,9 @@ namespace snmalloc
      * Map large range of strictly positive integers
      * into an exponent and mantissa pair.
      *
-     * The reverse mapping is given as:
+     * The reverse mapping is given by first adding one to the value, and then
+     * extracting the bottom MANTISSA bits as m, and the rest as e.
+     * Then each value maps as:
      *
      *  e |     m      |    value
      * ---------------------------------
@@ -390,6 +392,12 @@ namespace snmalloc
      * The forward mapping maps a value to the
      * smallest exponent and mantissa with a
      * reverse mapping not less than the value.
+     *
+     * The e and m in the forward mapping and reverse are not the same, and the
+     * initial increment in from_exp_mant and the decrement in to_exp_mant
+     * handle the different ways it is calculating and using the split.
+     * This is due to the rounding of bits below the mantissa in the
+     * representation, which is confusing but leads to the fastest code.
      *
      * Does not work for value=0.
      ***********************************************/
@@ -430,12 +438,13 @@ namespace snmalloc
     {
       if (MANTISSA_BITS > 0)
       {
+        m_e = m_e + 1;
         size_t MANTISSA_MASK = ((size_t)1 << MANTISSA_BITS) - 1;
         size_t m = m_e & MANTISSA_MASK;
         size_t e = m_e >> MANTISSA_BITS;
         size_t b = e == 0 ? 0 : 1;
         size_t shifted_e = e - b;
-        size_t extended_m = (m + ((size_t)b << MANTISSA_BITS)) + 1;
+        size_t extended_m = (m + ((size_t)b << MANTISSA_BITS));
         return extended_m << (shifted_e + LOW_BITS);
       }
       else
