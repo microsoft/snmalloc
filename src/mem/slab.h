@@ -48,11 +48,13 @@ namespace snmalloc
 
       if ((head & 1) == 0)
       {
-        p = (void*)((size_t)this + head);
+        void* node = (void*)((size_t)this + head);
 
         // Read the next slot from the memory that's about to be allocated.
-        uint16_t next = *(uint16_t*)p;
+        uint16_t next = *(uint16_t*)node;
         meta.head = next;
+
+        p = remove_cache_friendly_offset(node, meta.sizeclass);
       }
       else
       {
@@ -82,6 +84,14 @@ namespace snmalloc
       return p;
     }
 
+    bool is_start_of_object(Superslab* super, void* p)
+    {
+      Metaslab& meta = super->get_meta(this);
+      return is_multiple_of_sizeclass(
+        sizeclass_to_size(meta.sizeclass),
+        (uintptr_t)this + SLAB_SIZE - (uintptr_t)p);
+    }
+
     // Returns true, if it alters get_status.
     template<typename MemoryProvider>
     inline typename Superslab::Action dealloc(
@@ -92,15 +102,6 @@ namespace snmalloc
       bool was_full = meta.is_full();
       meta.debug_slab_invariant(is_short(), this);
       meta.sub_use();
-
-#ifndef SNMALLOC_SAFE_CLIENT
-      if (!is_multiple_of_sizeclass(
-            sizeclass_to_size(meta.sizeclass),
-            (uintptr_t)this + SLAB_SIZE - (uintptr_t)p))
-      {
-        error("Not deallocating start of an object");
-      }
-#endif
 
       if (was_full)
       {

@@ -5,6 +5,8 @@ option(USE_SNMALLOC_STATS "Track allocation stats" OFF)
 option(USE_MEASURE "Measure performance with histograms" OFF)
 option(USE_SBRK "Use sbrk instead of mmap" OFF)
 
+set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
+
 macro(subdirlist result curdir)
   file(GLOB children LIST_DIRECTORIES true RELATIVE ${curdir} ${curdir}/*)
   set(dirlist "")
@@ -44,6 +46,10 @@ set(CMAKE_CXX_STANDARD 17)
 
 if(USE_SNMALLOC_STATS)
   add_definitions(-DUSE_SNMALLOC_STATS)
+endif()
+
+if(CACHE_FRIENDLY_OFFSET)
+  add_definitions(-DCACHE_FRIENDLY_OFFSET=${CACHE_FRIENDLY_OFFSET})
 endif()
 
 if(USE_MEASURE)

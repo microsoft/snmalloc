@@ -8,6 +8,8 @@ namespace snmalloc
   struct SizeClassTable
   {
     ModArray<NUM_SIZECLASSES, size_t> size;
+    ModArray<NUM_SIZECLASSES, size_t> cache_friendly_mask;
+    ModArray<NUM_SIZECLASSES, size_t> inverse_cache_friendly_mask;
     ModArray<NUM_SMALL_CLASSES, uint16_t> bump_ptr_start;
     ModArray<NUM_SMALL_CLASSES, uint16_t> short_bump_ptr_start;
     ModArray<NUM_SMALL_CLASSES, uint16_t> count_per_slab;
@@ -15,6 +17,8 @@ namespace snmalloc
 
     constexpr SizeClassTable()
     : size(),
+      cache_friendly_mask(),
+      inverse_cache_friendly_mask(),
       bump_ptr_start(),
       short_bump_ptr_start(),
       count_per_slab(),
@@ -24,6 +28,11 @@ namespace snmalloc
       {
         size[sizeclass] =
           bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
+
+        size_t alignment =
+          std::min((size_t)1 << bits::ctz_const(size[sizeclass]), OS_PAGE_SIZE);
+        cache_friendly_mask[sizeclass] = (alignment - 1);
+        inverse_cache_friendly_mask[sizeclass] = ~(alignment - 1);
       }
 
       size_t header_size = sizeof(Superslab);
@@ -58,6 +67,18 @@ namespace snmalloc
   constexpr static inline size_t sizeclass_to_size(uint8_t sizeclass)
   {
     return sizeclass_metadata.size[sizeclass];
+  }
+
+  constexpr static inline size_t
+  sizeclass_to_cache_friendly_mask(uint8_t sizeclass)
+  {
+    return sizeclass_metadata.cache_friendly_mask[sizeclass];
+  }
+
+  constexpr static inline size_t
+  sizeclass_to_inverse_cache_friendly_mask(uint8_t sizeclass)
+  {
+    return sizeclass_metadata.inverse_cache_friendly_mask[sizeclass];
   }
 
   constexpr static inline size_t sizeclass_to_count(uint8_t sizeclass)
