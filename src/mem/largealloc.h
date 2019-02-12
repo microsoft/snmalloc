@@ -80,7 +80,7 @@ namespace snmalloc
         FlagLock f(lock);
 
         auto aligned_bump = bits::align_up(bump, alignment);
-        if ((aligned_bump - bump) < size)
+        if ((aligned_bump - bump) > remaining)
         {
           new_block();
         }
