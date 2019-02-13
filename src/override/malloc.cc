@@ -40,7 +40,7 @@ extern "C"
   {
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
-    if (overflow || ((nmemb | size) == (size_t)-1))
+    if (overflow)
     {
       errno = ENOMEM;
       return nullptr;

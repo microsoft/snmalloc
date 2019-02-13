@@ -33,10 +33,13 @@ void test_calloc(size_t nmemb, size_t size, int err, bool null)
   void* p = calloc(nmemb, size);
 
   if ((p != nullptr) && (errno == 0))
+  {
     for (size_t i = 0; i < (size * nmemb); i++)
+    {
       if (((uint8_t*)p)[i] != 0)
         abort();
-
+    }
+  }
   check_result(nmemb * size, 1, p, err, null);
 }
 
@@ -72,7 +75,6 @@ int main(int argc, char** argv)
   constexpr int SUCCESS = 0;
 
   test_calloc(0, 0, SUCCESS, false);
-  test_calloc((size_t)-1, 1, ENOMEM, true);
 
   for (uint8_t sc = 0; sc < NUM_SIZECLASSES; sc++)
   {
@@ -85,8 +87,11 @@ int main(int argc, char** argv)
         break;
 
       test_calloc(n, size, SUCCESS, false);
+      test_calloc(n, 0, SUCCESS, false);
+      test_calloc(0, size, SUCCESS, false);
     }
 
+    test_realloc(malloc(size), size, SUCCESS, false);
     test_realloc(malloc(size), 0, SUCCESS, true);
     test_realloc(nullptr, size, SUCCESS, false);
     test_realloc(malloc(size), (size_t)-1, ENOMEM, true);
@@ -101,6 +106,8 @@ int main(int argc, char** argv)
     {
       const size_t size = sizeclass_to_size(sc);
       test_posix_memalign(size, align, SUCCESS, false);
+      test_posix_memalign(size, 0, EINVAL, true);
+      test_posix_memalign(0, align, SUCCESS, false);
       test_memalign(size, align, SUCCESS, false);
     }
     test_posix_memalign(0, align, SUCCESS, false);
