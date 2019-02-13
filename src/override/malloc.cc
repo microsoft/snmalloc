@@ -136,10 +136,6 @@ extern "C"
     }
 
     size = (std::max)(size, alignment);
-    if (size >= SUPERSLAB_SIZE)
-    {
-      return SNMALLOC_NAME_MANGLE(malloc)(size);
-    }
     uint8_t sc = size_to_sizeclass(size);
     if (sc >= NUM_SIZECLASSES)
     {
@@ -154,8 +150,7 @@ extern "C"
         return SNMALLOC_NAME_MANGLE(aligned_alloc)(alignment, size);
       }
     }
-    assert(false);
-    return nullptr;
+    return SNMALLOC_NAME_MANGLE(malloc)(SUPERSLAB_SIZE);
   }
 
   SNMALLOC_EXPORT int SNMALLOC_NAME_MANGLE(posix_memalign)(

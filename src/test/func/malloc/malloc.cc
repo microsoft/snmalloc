@@ -1,22 +1,27 @@
-#include <cassert>
 #include <cerrno>
 #include <malloc.h>
 #include <snmalloc.h>
 
 using namespace snmalloc;
 
-void check_result(size_t size, void* p, int err, bool null)
+void check_result(size_t size, size_t align, void* p, int err, bool null)
 {
-  assert(errno == err);
-  UNUSED(err);
+  if (errno != err)
+    abort();
+
   if (null)
   {
-    assert(p == nullptr);
+    if (p != nullptr)
+      abort();
   }
   else
   {
-    assert(malloc_usable_size(p) >= size);
-    UNUSED(size);
+    if (malloc_usable_size(p) < size)
+      abort();
+
+    if (((uintptr_t)p % align) != 0)
+      abort();
+
     free(p);
   }
 }
@@ -29,17 +34,18 @@ void test_calloc(size_t nmemb, size_t size, int err, bool null)
 
   if ((p != nullptr) && (errno == 0))
     for (size_t i = 0; i < (size * nmemb); i++)
-      assert(((uint8_t*)p)[i] == 0);
+      if (((uint8_t*)p)[i] != 0)
+        abort();
 
-  check_result(nmemb * size, p, err, null);
+  check_result(nmemb * size, 1, p, err, null);
 }
 
 void test_realloc(void* p, size_t size, int err, bool null)
 {
-  fprintf(stderr, "realloc(%p (%d), %d)\n", p, int(size), (int)size);
+  fprintf(stderr, "realloc(%p(%d), %d)\n", p, int(size), (int)size);
   errno = 0;
   p = realloc(p, size);
-  check_result(size, p, err, null);
+  check_result(size, 1, p, err, null);
 }
 
 void test_posix_memalign(size_t size, size_t align, int err, bool null)
@@ -47,9 +53,7 @@ void test_posix_memalign(size_t size, size_t align, int err, bool null)
   fprintf(stderr, "posix_memalign(&p, %d, %d)\n", (int)align, (int)size);
   void* p = nullptr;
   errno = posix_memalign(&p, align, size);
-  check_result(size, p, err, null);
-  if (!null)
-    assert(((uintptr_t)p % align) == 0);
+  check_result(size, align, p, err, null);
 }
 
 void test_memalign(size_t size, size_t align, int err, bool null)
@@ -57,9 +61,7 @@ void test_memalign(size_t size, size_t align, int err, bool null)
   fprintf(stderr, "memalign(%d, %d)\n", (int)align, (int)size);
   errno = 0;
   void* p = memalign(align, size);
-  check_result(size, p, err, null);
-  if (!null)
-    assert(((uintptr_t)p % align) == 0);
+  check_result(size, align, p, err, null);
 }
 
 int main(int argc, char** argv)
@@ -69,15 +71,15 @@ int main(int argc, char** argv)
 
   constexpr int SUCCESS = 0;
 
+  test_calloc(0, 0, SUCCESS, false);
+  test_calloc((size_t)-1, 1, ENOMEM, true);
+
   for (uint8_t sc = 0; sc < NUM_SIZECLASSES; sc++)
   {
     const size_t size = sizeclass_to_size(sc);
 
-    test_calloc(0, 0, SUCCESS, false);
-    test_calloc((size_t)-1, 1, ENOMEM, true);
-
     bool overflow = false;
-    for (size_t n = 1; bits::umul(size, n, overflow) < SUPERSLAB_SIZE; n *= 5)
+    for (size_t n = 1; bits::umul(size, n, overflow) <= SUPERSLAB_SIZE; n *= 5)
     {
       if (overflow)
         break;
