@@ -31,6 +31,7 @@ void check_result(size_t size, void* p, int err, bool null)
 {
   fprintf(stderr, "%p, errno: %s\n", p, strerror(errno)); // TODO
   assert(errno == err);
+  UNUSED(err);
   if (null)
   {
     assert(p == nullptr);
@@ -38,6 +39,7 @@ void check_result(size_t size, void* p, int err, bool null)
   else
   {
     assert(malloc_usable_size(p) >= size);
+    UNUSED(size);
     free(p);
   }
 }
