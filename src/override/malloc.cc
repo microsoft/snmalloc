@@ -40,10 +40,10 @@ extern "C"
   {
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
-    if (overflow)
+    if (overflow || ((nmemb | size) == (size_t)-1))
     {
       errno = ENOMEM;
-      return 0;
+      return nullptr;
     }
     // Include size 0 in the first sizeclass.
     sz = ((sz - 1) >> (bits::BITS - 1)) + sz;
@@ -135,7 +135,12 @@ extern "C"
       return nullptr;
     }
 
-    uint8_t sc = size_to_sizeclass((std::max)(size, alignment));
+    size = (std::max)(size, alignment);
+    if (size >= SUPERSLAB_SIZE)
+    {
+      return SNMALLOC_NAME_MANGLE(malloc)(size);
+    }
+    uint8_t sc = size_to_sizeclass(size);
     if (sc >= NUM_SIZECLASSES)
     {
       // large allocs are 16M aligned.
