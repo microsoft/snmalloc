@@ -277,6 +277,17 @@ void test_alloc_16M()
   alloc->dealloc(p1);
 }
 
+void test_calloc_16M()
+{
+  auto* alloc = ThreadAlloc::get();
+  // sizes >= 16M use large_alloc
+  const size_t size = 16'000'000;
+
+  void* p1 = alloc->alloc<YesZero>(size);
+  assert(Alloc::alloc_size(Alloc::external_pointer(p1)) >= size);
+  alloc->dealloc(p1);
+}
+
 int main(int argc, char** argv)
 {
 #ifdef USE_SYSTEMATIC_TESTING
@@ -296,6 +307,7 @@ int main(int argc, char** argv)
   test_double_alloc();
   test_external_pointer();
   test_alloc_16M();
+  test_calloc_16M();
 
   return 0;
 }
