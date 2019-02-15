@@ -86,9 +86,9 @@ namespace snmalloc
       assert(bits::is_aligned_block<OS_PAGE_SIZE>(p, OS_PAGE_SIZE));
       size = bits::align_up(size, OS_PAGE_SIZE);
 
-      if (decommit_strategy == DecommitAll)
+      if constexpr (decommit_strategy == DecommitAll)
         memory_provider.template notify_using<zero_mem>(p, size);
-      else if (zero_mem == YesZero)
+      else if constexpr (zero_mem == YesZero)
         memory_provider.template zero<true>(p, size);
 
       return p;
@@ -104,7 +104,7 @@ namespace snmalloc
       free++;
       stack[--head] = pointer_to_index(p);
 
-      if (decommit_strategy == DecommitAll)
+      if constexpr (decommit_strategy == DecommitAll)
         memory_provider.notify_not_using(p, sizeclass_to_size(sizeclass));
 
       return was_full;

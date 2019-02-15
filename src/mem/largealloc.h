@@ -193,7 +193,7 @@ namespace snmalloc
         {
           // The first page is already in "use" for the stack element,
           // this will need zeroing for a YesZero call.
-          if (zero_mem == YesZero)
+          if constexpr (zero_mem == YesZero)
             memory_provider.template zero<true>(p, OS_PAGE_SIZE);
 
           // Notify we are using the rest of the allocation.
@@ -205,7 +205,7 @@ namespace snmalloc
         else
         {
           // This is a superslab that has not been decommitted.
-          if (zero_mem == YesZero)
+          if constexpr (zero_mem == YesZero)
             memory_provider.template zero<true>(
               p, bits::align_up(size, OS_PAGE_SIZE));
         }
