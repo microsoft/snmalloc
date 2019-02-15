@@ -1,6 +1,15 @@
 #include <cerrno>
-#include <malloc.h>
 #include <snmalloc.h>
+#include <stdlib.h>
+
+extern "C"
+{
+#ifndef SNMALLOC_NAME_MANGLE
+#  define SNMALLOC_NAME_MANGLE(a) a
+#endif
+  size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(void* ptr);
+  void* SNMALLOC_NAME_MANGLE(memalign)(size_t alignment, size_t size);
+}
 
 using namespace snmalloc;
 
