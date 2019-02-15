@@ -88,8 +88,8 @@ int main(int argc, char** argv)
 
       test_calloc(n, size, SUCCESS, false);
       test_calloc(n, 0, SUCCESS, false);
-      test_calloc(0, size, SUCCESS, false);
     }
+    test_calloc(0, size, SUCCESS, false);
 
     test_realloc(malloc(size), size, SUCCESS, false);
     test_realloc(malloc(size), 0, SUCCESS, true);
@@ -107,7 +107,6 @@ int main(int argc, char** argv)
       const size_t size = sizeclass_to_size(sc);
       test_posix_memalign(size, align, SUCCESS, false);
       test_posix_memalign(size, 0, EINVAL, true);
-      test_posix_memalign(0, align, SUCCESS, false);
       test_memalign(size, align, SUCCESS, false);
     }
     test_posix_memalign(0, align, SUCCESS, false);
