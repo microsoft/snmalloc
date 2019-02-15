@@ -1,7 +1,4 @@
 #include <snmalloc.h>
-#include <test/opt.h>
-#include <test/xoroshiro.h>
-#include <unordered_set>
 
 using namespace snmalloc;
 

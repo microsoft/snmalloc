@@ -43,7 +43,7 @@ extern "C"
     if (overflow)
     {
       errno = ENOMEM;
-      return 0;
+      return nullptr;
     }
     // Include size 0 in the first sizeclass.
     sz = ((sz - 1) >> (bits::BITS - 1)) + sz;
@@ -135,7 +135,8 @@ extern "C"
       return nullptr;
     }
 
-    uint8_t sc = size_to_sizeclass((std::max)(size, alignment));
+    size = (std::max)(size, alignment);
+    uint8_t sc = size_to_sizeclass(size);
     if (sc >= NUM_SIZECLASSES)
     {
       // large allocs are 16M aligned.
@@ -149,8 +150,7 @@ extern "C"
         return SNMALLOC_NAME_MANGLE(aligned_alloc)(alignment, size);
       }
     }
-    assert(false);
-    return nullptr;
+    return SNMALLOC_NAME_MANGLE(malloc)(SUPERSLAB_SIZE);
   }
 
   SNMALLOC_EXPORT int SNMALLOC_NAME_MANGLE(posix_memalign)(

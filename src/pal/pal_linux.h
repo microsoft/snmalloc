@@ -29,7 +29,7 @@ namespace snmalloc
       UNUSED(size);
     }
 
-    /// Notify platform that we will not be using these pages
+    /// Notify platform that we will be using these pages
     template<ZeroMem zero_mem>
     void notify_using(void* p, size_t size) noexcept
     {
