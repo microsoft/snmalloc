@@ -266,7 +266,7 @@ namespace snmalloc
       return prod;
 #  else
       size_t prod;
-      overflow = S_OK == UIntMult(x, y, &prod);
+      overflow = S_OK != UIntMult(x, y, &prod);
       return prod;
 #  endif
 #else
