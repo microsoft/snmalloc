@@ -27,8 +27,19 @@ namespace snmalloc
 {
   enum Boundary
   {
+    /**
+     * The location of the first byte of this allocation.
+     */
     Start,
-    End
+    /**
+     * The location of the last byte of the allocation.
+     */
+    End,
+    /**
+     * The location one past the end of the allocation.  This is mostly useful
+     * for bounds checking, where anything less than this value is safe.
+     */
+    OnePastEnd
   };
 
   enum PageMapSuperslabKind
@@ -414,7 +425,7 @@ namespace snmalloc
         Metaslab& meta = super->get_meta(slab);
 
         uint8_t sc = meta.sizeclass;
-        size_t slab_end = (size_t)slab + SLAB_SIZE - 1;
+        size_t slab_end = (size_t)slab + SLAB_SIZE;
 
         return external_pointer<location>(p, sc, slab_end);
       }
@@ -423,7 +434,7 @@ namespace snmalloc
         Mediumslab* slab = (Mediumslab*)super;
 
         uint8_t sc = slab->get_sizeclass();
-        size_t slab_end = (size_t)slab + SUPERSLAB_SIZE - 1;
+        size_t slab_end = (size_t)slab + SUPERSLAB_SIZE;
 
         return external_pointer<location>(p, sc, slab_end);
       }
@@ -439,7 +450,7 @@ namespace snmalloc
 
       if (size == 0)
       {
-        if (location == End)
+        if constexpr ((location == End) || (location == OnePastEnd))
           // We don't know the End, so return MAX_PTR
           return (void*)-1;
         else
@@ -448,10 +459,12 @@ namespace snmalloc
       }
 
       // This is a large alloc, mask off to the slab size.
-      if (location == Start)
+      if constexpr (location == Start)
         return (void*)ss;
-      else
+      else if constexpr (location == End)
         return (void*)((size_t)ss + (1ULL << size) - 1ULL);
+      else
+        return (void*)((size_t)ss + (1ULL << size));
 #endif
     }
 
@@ -688,9 +701,10 @@ namespace snmalloc
     static void* external_pointer(void* p, uint8_t sizeclass, size_t end_point)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
-      size_t end_point_correction =
-        location == End ? end_point : end_point - rsize + 1;
-      size_t offset_from_end = end_point - (size_t)p;
+      size_t end_point_correction = location == End ?
+        (end_point - 1) :
+        (location == OnePastEnd ? end_point : (end_point - rsize));
+      size_t offset_from_end = (end_point - 1) - (size_t)p;
       size_t end_to_end = round_by_sizeclass(rsize, offset_from_end);
       return (void*)(end_point_correction - end_to_end);
     }
