@@ -169,7 +169,7 @@ namespace snmalloc
       meta[0].sizeclass = sizeclass;
       meta[0].link = SLABLINK_INDEX;
 
-      if (decommit_strategy == DecommitAll)
+      if constexpr (decommit_strategy == DecommitAll)
       {
         memory_provider.template notify_using<NoZero>(
           (void*)((size_t)this + OS_PAGE_SIZE), SLAB_SIZE - OS_PAGE_SIZE);
@@ -194,7 +194,7 @@ namespace snmalloc
       head = h + n + 1;
       used += 2;
 
-      if (decommit_strategy == DecommitAll)
+      if constexpr (decommit_strategy == DecommitAll)
       {
         memory_provider.template notify_using<NoZero>(slab, SLAB_SIZE);
       }
@@ -216,7 +216,7 @@ namespace snmalloc
       bool was_almost_full = is_almost_full();
       used -= 2;
 
-      if (decommit_strategy == DecommitAll)
+      if constexpr (decommit_strategy == DecommitAll)
         memory_provider.notify_not_using(slab, SLAB_SIZE);
 
       assert(meta[index].is_unused());
@@ -231,7 +231,7 @@ namespace snmalloc
     Action dealloc_short_slab(MemoryProvider& memory_provider)
     {
       // This is the short slab.
-      if (decommit_strategy == DecommitAll)
+      if constexpr (decommit_strategy == DecommitAll)
       {
         memory_provider.notify_not_using(
           (void*)((size_t)this + OS_PAGE_SIZE), SLAB_SIZE - OS_PAGE_SIZE);

@@ -36,7 +36,7 @@ namespace snmalloc
       assert(
         bits::is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
 
-      if (zero_mem == YesZero)
+      if constexpr (zero_mem == YesZero)
         zero<true>(p, size);
     }
 

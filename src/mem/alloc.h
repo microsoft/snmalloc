@@ -943,7 +943,7 @@ namespace snmalloc
         {
           super_available.remove(super);
 
-          if (decommit_strategy == DecommitSuper)
+          if constexpr (decommit_strategy == DecommitSuper)
           {
             large_allocator.memory_provider.notify_not_using(
               (void*)((size_t)super + OS_PAGE_SIZE),
@@ -1027,7 +1027,7 @@ namespace snmalloc
           sc->remove(slab);
         }
 
-        if (decommit_strategy == DecommitSuper)
+        if constexpr (decommit_strategy == DecommitSuper)
         {
           large_allocator.memory_provider.notify_not_using(
             (void*)((size_t)slab + OS_PAGE_SIZE),
