@@ -196,13 +196,15 @@ namespace snmalloc
             memory_provider.template zero<true>(p, OS_PAGE_SIZE);
 
           memory_provider.template notify_using<zero_mem>(
-            (void*)((size_t)p + OS_PAGE_SIZE), size - OS_PAGE_SIZE);
+            (void*)((size_t)p + OS_PAGE_SIZE),
+            bits::align_up(size, OS_PAGE_SIZE) - OS_PAGE_SIZE);
         }
         else
         {
           // This is a superslab that has not been decommitted.
           if (zero_mem == YesZero)
-            memory_provider.template zero<true>(p, size);
+            memory_provider.template zero<true>(
+              p, bits::align_up(size, OS_PAGE_SIZE));
         }
       }
 
