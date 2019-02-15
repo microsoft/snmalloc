@@ -17,7 +17,7 @@ extern "C"
 {
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(__malloc_end_pointer)(void* ptr)
   {
-    return Alloc::external_pointer<End>(ptr);
+    return Alloc::external_pointer<OnePastEnd>(ptr);
   }
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(malloc)(size_t size)
