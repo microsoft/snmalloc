@@ -138,7 +138,7 @@ namespace snmalloc
     {
       if (((size_t)reserved_start + need) > (size_t)reserved_end)
       {
-        if (allow_reserve == YesReserve)
+        if constexpr (allow_reserve == YesReserve)
         {
           stats.segment_create();
           reserved_start =
