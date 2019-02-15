@@ -191,10 +191,13 @@ namespace snmalloc
       {
         if ((decommit_strategy != DecommitNone) || (large_class > 0))
         {
-          // Only the first page needs to be zeroed, as this was decommitted.
+          // The first page is already in "use" for the stack element,
+          // this will need zeroing for a YesZero call.
           if (zero_mem == YesZero)
             memory_provider.template zero<true>(p, OS_PAGE_SIZE);
 
+          // Notify we are using the rest of the allocation.
+          // Passing zero_mem ensures the PAL provides zeroed pages if required.
           memory_provider.template notify_using<zero_mem>(
             (void*)((size_t)p + OS_PAGE_SIZE),
             bits::align_up(size, OS_PAGE_SIZE) - OS_PAGE_SIZE);
