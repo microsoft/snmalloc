@@ -48,10 +48,6 @@ if(USE_SNMALLOC_STATS)
   add_definitions(-DUSE_SNMALLOC_STATS)
 endif()
 
-if(CACHE_FRIENDLY_OFFSET)
-  add_definitions(-DCACHE_FRIENDLY_OFFSET=${CACHE_FRIENDLY_OFFSET})
-endif()
-
 if(USE_MEASURE)
   add_definitions(-DUSE_MEASURE)
 endif()
@@ -66,6 +62,10 @@ macro(add_shim name)
   target_include_directories(${name} PRIVATE src)
   target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
   set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+
+  if(CACHE_FRIENDLY_OFFSET)
+    target_compile_definitions(${name} PRIVATE -DCACHE_FRIENDLY_OFFSET=${CACHE_FRIENDLY_OFFSET})
+  endif()
 endmacro()
 
 if(NOT MSVC)

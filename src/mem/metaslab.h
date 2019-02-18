@@ -150,7 +150,8 @@ namespace snmalloc
       }
 
       // Check we terminated traversal on a correctly aligned block
-      assert(((curr & ~1) - offset) % size == 0);
+      uint16_t start = remove_cache_friendly_offset(curr & ~1, sizeclass);
+      assert((start - offset) % size == 0);
 
       if (curr != link)
       {

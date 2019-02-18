@@ -7,8 +7,7 @@ namespace snmalloc
   constexpr static uint16_t get_slab_offset(uint8_t sc, bool is_short);
   constexpr static size_t sizeclass_to_size(uint8_t sizeclass);
   constexpr static size_t sizeclass_to_cache_friendly_mask(uint8_t sizeclass);
-  constexpr static size_t
-  sizeclass_to_inverse_cache_friendly_mask(uint8_t sizeclass);
+  constexpr static size_t sizeclass_to_inverse_cache_friendly_mask(uint8_t sc);
   constexpr static uint16_t medium_slab_free(uint8_t sizeclass);
 
   static inline uint8_t size_to_sizeclass(size_t size)
