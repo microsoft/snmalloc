@@ -68,19 +68,31 @@ namespace snmalloc
     template<bool committed>
     void* reserve(size_t* size, size_t align) noexcept
     {
+      DWORD flags = MEM_RESERVE;
+
+      if (committed)
+        flags |= MEM_COMMIT;
+
+#  if (WINVER >= _WIN32_WINNT_WIN10) && !defined(USE_SYSTEMATIC_TESTING)
+      // If we're on Windows 10 or newer, we can use the VirtualAlloc2
+      // function.  The FromApp variant is useable by UWP applications and
+      // cannot allocate executable memory.
+      MEM_ADDRESS_REQUIREMENTS addressReqs = {0};
+      MEM_EXTENDED_PARAMETER param = {0};
+      addressReqs.Alignment = align;
+      param.Type = MemExtendedParameterAddressRequirements;
+      param.Pointer = &addressReqs;
+      return VirtualAlloc2FromApp(
+        nullptr, nullptr, *size, flags, PAGE_READWRITE, &param, 1);
+#  else
       // Add align, so we can guarantee to provide at least size.
       size_t request = *size + align;
 
       // Alignment must be a power of 2.
       assert(align == bits::next_pow2(align));
 
-      DWORD flags = MEM_RESERVE;
-
-      if (committed)
-        flags |= MEM_COMMIT;
-
       void* p;
-#  ifdef USE_SYSTEMATIC_TESTING
+#    ifdef USE_SYSTEMATIC_TESTING
       size_t retries = 1000;
       do
       {
@@ -90,9 +102,9 @@ namespace snmalloc
         systematic_bump_ptr() += request;
         retries--;
       } while (p == nullptr && retries > 0);
-#  else
+#    else
       p = VirtualAlloc(nullptr, request, flags, PAGE_READWRITE);
-#  endif
+#    endif
 
       uintptr_t aligned_p = bits::align_up((size_t)p, align);
 
@@ -105,6 +117,7 @@ namespace snmalloc
       }
       *size = request;
       return p;
+#  endif
     }
   };
 }

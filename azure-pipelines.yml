@@ -79,6 +79,30 @@ phases:
     workingDirectory: build
     displayName: 'Run Ctest'
 
+- phase: Windows8Compat
+  queue:
+    name: 'Hosted VS2017'
+    parallel: 2
+    matrix:
+      Release:
+        BuildType: Release
+
+  steps:
+  - task: CMake@1
+    displayName: 'CMake .. -G"Visual Studio 15 2017 Win64"'
+    inputs:
+      cmakeArgs: '.. -G"Visual Studio 15 2017 Win64" -DWIN8COMPAT=TRUE'
+
+  - task: MSBuild@1
+    displayName: 'Build solution build/snmalloc.sln'
+    inputs:
+      solution: build/snmalloc.sln
+      msbuildArguments: '/m /p:Configuration=$(BuildType)'
+
+  - script: 'ctest -j 4 --interactive-debug-mode 0 --output-on-failure'
+    workingDirectory: build
+    displayName: 'Run Ctest'
+
 - phase: Windows32bit
   queue:
     name: 'Hosted VS2017'
