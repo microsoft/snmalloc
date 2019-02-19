@@ -583,7 +583,7 @@ namespace snmalloc
             {
               // Send all slots to the target at the head of the list.
               Superslab* super = Superslab::get(first);
-              super->get_allocator()->message_queue.push(first, l->last);
+              super->get_allocator()->message_queue.enqueue(first, l->last);
               l->clear();
             }
           }
@@ -776,12 +776,12 @@ namespace snmalloc
     {
       for (size_t i = 0; i < REMOTE_BATCH; i++)
       {
-        std::pair<Remote*, Remote*> r = message_queue().pop();
+        Remote* r = message_queue().dequeue();
 
-        if (std::get<0>(r) == nullptr)
+        if (r == nullptr)
           break;
 
-        handle_dealloc_remote(std::get<1>(r));
+        handle_dealloc_remote(r);
       }
 
       // Our remote queues may be larger due to forwarding remote frees.

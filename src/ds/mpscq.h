@@ -15,85 +15,70 @@ namespace snmalloc
       std::is_same<decltype(((T*)0)->next), std::atomic<T*>>::value,
       "T->next must be a std::atomic<T*>");
 
-    std::atomic<T*> head;
-    T* tail;
+    std::atomic<T*> back;
+    T* front;
 
   public:
     void invariant()
     {
 #ifndef NDEBUG
-      assert(head != nullptr);
-      assert(tail != nullptr);
+      assert(back != nullptr);
+      assert(front != nullptr);
 #endif
     }
 
     void init(T* stub)
     {
       stub->next.store(nullptr, std::memory_order_relaxed);
-      tail = stub;
-      head.store(stub, std::memory_order_relaxed);
+      front = stub;
+      back.store(stub, std::memory_order_relaxed);
       invariant();
     }
 
     T* destroy()
     {
-      T* tl = tail;
-      head.store(nullptr, std::memory_order_relaxed);
-      tail = nullptr;
-      return tl;
-    }
-
-    T* get_head()
-    {
-      return head.load(std::memory_order_relaxed);
-    }
-
-    inline void push(T* item)
-    {
-      push(item, item);
+      T* fnt = front;
+      back.store(nullptr, std::memory_order_relaxed);
+      front = nullptr;
+      return fnt;
     }
 
     inline bool is_empty()
     {
-      T* hd = head.load(std::memory_order_relaxed);
+      T* bk = back.load(std::memory_order_relaxed);
 
-      return hd == tail;
+      return bk == front;
     }
 
-    void push(T* first, T* last)
+    void enqueue(T* first, T* last)
     {
       // Pushes a list of messages to the queue. Each message from first to
       // last should be linked together through their next pointers.
       invariant();
       last->next.store(nullptr, std::memory_order_relaxed);
       std::atomic_thread_fence(std::memory_order_release);
-      T* prev = head.exchange(last, std::memory_order_relaxed);
+      T* prev = back.exchange(last, std::memory_order_relaxed);
       prev->next.store(first, std::memory_order_relaxed);
     }
 
-    std::pair<T*, T*> pop()
+    T* dequeue()
     {
-      // Returns the next message and the tail message. If the next message
-      // is not null, the tail message should be freed by the caller.
+      // Returns the front message, or null if not possible to return a message.
       invariant();
-      T* tl = tail;
-      T* next = tl->next.load(std::memory_order_relaxed);
+      T* first = front;
+      T* next = first->next.load(std::memory_order_relaxed);
 
       if (next != nullptr)
       {
-        tail = next;
+        front = next;
 
-        assert(tail);
+        assert(front);
         std::atomic_thread_fence(std::memory_order_acquire);
+        invariant();
+        return first;
       }
 
-      invariant();
-      return std::make_pair(next, tl);
-    }
-
-    T* peek()
-    {
-      return tail->next.load(std::memory_order_relaxed);
+      return nullptr;
     }
   };
 }
