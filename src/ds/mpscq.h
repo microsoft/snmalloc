@@ -45,9 +45,9 @@ namespace snmalloc
 
     inline bool is_empty()
     {
-      T* fnt = back.load(std::memory_order_relaxed);
+      T* bk = back.load(std::memory_order_relaxed);
 
-      return fnt == front;
+      return bk == front;
     }
 
     void enqueue(T* first, T* last)
