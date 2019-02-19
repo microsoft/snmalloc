@@ -102,7 +102,12 @@ namespace snmalloc
     {
       size_t size = sizeclass_to_size(sizeclass);
       size_t offset = get_slab_offset(sizeclass, is_short);
-      return ((((head & ~(size_t)1) - (offset & ~(size_t)1)) % size) == 0);
+
+      size_t head_start =
+        remove_cache_friendly_offset(head & ~(size_t)1, sizeclass);
+      size_t slab_start = offset & ~(size_t)1;
+
+      return ((head_start - slab_start) % size) == 0;
     }
 
     void debug_slab_invariant(bool is_short, Slab* slab)
@@ -129,7 +134,9 @@ namespace snmalloc
       while ((curr & 1) != 1)
       {
         // Check we are looking at a correctly aligned block
-        assert((curr - offset) % size == 0);
+        uint16_t start = remove_cache_friendly_offset(curr, sizeclass);
+        assert((start - offset) % size == 0);
+
         // Account for free elements in free list
         accounted_for += size;
         assert(SLAB_SIZE >= accounted_for);
@@ -143,7 +150,8 @@ namespace snmalloc
       }
 
       // Check we terminated traversal on a correctly aligned block
-      assert(((curr & ~1) - offset) % size == 0);
+      uint16_t start = remove_cache_friendly_offset(curr & ~1, sizeclass);
+      assert((start - offset) % size == 0);
 
       if (curr != link)
       {

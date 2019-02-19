@@ -628,6 +628,26 @@ namespace snmalloc
     std::conditional_t<IsQueueInline, RemoteAllocator, RemoteAllocator*>
       remote_alloc;
 
+#ifdef CACHE_FRIENDLY_OFFSET
+    size_t remote_offset = 0;
+
+    void* apply_cache_friendly_offset(void* p, uint8_t sizeclass)
+    {
+      size_t mask = sizeclass_to_cache_friendly_mask(sizeclass);
+
+      size_t offset = remote_offset & mask;
+      remote_offset += CACHE_FRIENDLY_OFFSET;
+
+      return (void*)((uintptr_t)p + offset);
+    }
+#else
+    void* apply_cache_friendly_offset(void* p, uint8_t sizeclass)
+    {
+      UNUSED(sizeclass);
+      return p;
+    }
+#endif
+
     auto* public_state()
     {
       if constexpr (IsQueueInline)
@@ -726,7 +746,7 @@ namespace snmalloc
           Metaslab& meta = super->get_meta(slab);
           if (p->target_id() == id())
           {
-            small_dealloc(super, p, meta.sizeclass);
+            small_dealloc_offseted(super, p, meta.sizeclass);
           }
           else
           {
@@ -739,7 +759,9 @@ namespace snmalloc
           Mediumslab* slab = Mediumslab::get(p);
           if (p->target_id() == id())
           {
-            medium_dealloc(slab, p, slab->get_sizeclass());
+            uint8_t sizeclass = slab->get_sizeclass();
+            void* start = remove_cache_friendly_offset(p, sizeclass);
+            medium_dealloc(slab, start, sizeclass);
           }
           else
           {
@@ -908,6 +930,20 @@ namespace snmalloc
     }
 
     void small_dealloc(Superslab* super, void* p, uint8_t sizeclass)
+    {
+#ifndef SNMALLOC_SAFE_CLIENT
+      Slab* slab = Slab::get(p);
+      if (!slab->is_start_of_object(super, p))
+      {
+        error("Not deallocating start of an object");
+      }
+#endif
+
+      void* offseted = apply_cache_friendly_offset(p, sizeclass);
+      small_dealloc_offseted(super, offseted, sizeclass);
+    }
+
+    void small_dealloc_offseted(Superslab* super, void* p, uint8_t sizeclass)
     {
       MEASURE_TIME(small_dealloc, 4, 16);
       stats().sizeclass_dealloc(sizeclass);
@@ -1111,8 +1147,10 @@ namespace snmalloc
     {
       MEASURE_TIME(remote_dealloc, 4, 16);
 
+      void* offseted = apply_cache_friendly_offset(p, sizeclass);
+
       stats().remote_free(sizeclass);
-      remote.dealloc(target->id(), p, sizeclass);
+      remote.dealloc(target->id(), offseted, sizeclass);
 
       if (remote.size < REMOTE_CACHE)
         return;

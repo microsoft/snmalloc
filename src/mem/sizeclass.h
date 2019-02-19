@@ -6,6 +6,8 @@ namespace snmalloc
 {
   constexpr static uint16_t get_slab_offset(uint8_t sc, bool is_short);
   constexpr static size_t sizeclass_to_size(uint8_t sizeclass);
+  constexpr static size_t sizeclass_to_cache_friendly_mask(uint8_t sizeclass);
+  constexpr static size_t sizeclass_to_inverse_cache_friendly_mask(uint8_t sc);
   constexpr static uint16_t medium_slab_free(uint8_t sizeclass);
 
   static inline uint8_t size_to_sizeclass(size_t size)
@@ -137,4 +139,31 @@ namespace snmalloc
       // everything fits into 32bits here.
       return (uint32_t)(offset % rsize) == 0;
   }
+
+#ifdef CACHE_FRIENDLY_OFFSET
+  inline static void* remove_cache_friendly_offset(void* p, uint8_t sizeclass)
+  {
+    size_t mask = sizeclass_to_inverse_cache_friendly_mask(sizeclass);
+    return p = (void*)((uintptr_t)p & mask);
+  }
+
+  inline static uint16_t
+  remove_cache_friendly_offset(uint16_t relative, uint8_t sizeclass)
+  {
+    size_t mask = sizeclass_to_inverse_cache_friendly_mask(sizeclass);
+    return relative & mask;
+  }
+#else
+  inline static void* remove_cache_friendly_offset(void* p, uint8_t sizeclass)
+  {
+    UNUSED(sizeclass);
+    return p;
+  }
+  inline static uint16_t
+  remove_cache_friendly_offset(uint16_t relative, uint8_t sizeclass)
+  {
+    UNUSED(sizeclass);
+    return relative;
+  }
+#endif
 };
