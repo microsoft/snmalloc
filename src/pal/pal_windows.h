@@ -7,6 +7,13 @@
 #  define WIN32_LEAN_AND_MEAN
 #  define NOMINMAX
 #  include <windows.h>
+// VirtualAlloc2 is exposed in RS5 headers. 
+#  ifdef NTDDI_WIN10_RS5
+#     if (NTDDI_VERSION >= NTDDI_WIN10_RS5) && (WINVER >= _WIN32_WINNT_WIN10)\
+         && !defined(USE_SYSTEMATIC_TESTING)
+#       define PLATFORM_HAS_VIRTUALALLOC2
+#     endif
+#   endif
 
 namespace snmalloc
 {
@@ -73,8 +80,7 @@ namespace snmalloc
       if (committed)
         flags |= MEM_COMMIT;
 
-#  if defined(NTDDI_WIN10_RS5) && (NTDDI_VERSION >= NTDDI_WIN10_RS5) && \
-    (WINVER >= _WIN32_WINNT_WIN10) && !defined(USE_SYSTEMATIC_TESTING)
+#  ifdef PLATFORM_HAS_VIRTUALALLOC2
       // If we're on Windows 10 or newer, we can use the VirtualAlloc2
       // function.  The FromApp variant is useable by UWP applications and
       // cannot allocate executable memory.
