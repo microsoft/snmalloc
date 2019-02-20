@@ -73,8 +73,8 @@ namespace snmalloc
       if (committed)
         flags |= MEM_COMMIT;
 
-#  if (NTDDI_VERSION >= NTDDI_WIN10_RS5) && (WINVER >= _WIN32_WINNT_WIN10) && \
-    !defined(USE_SYSTEMATIC_TESTING)
+#  if defined(NTDDI_WIN10_RS5) && (NTDDI_VERSION >= NTDDI_WIN10_RS5) && \
+    (WINVER >= _WIN32_WINNT_WIN10) && !defined(USE_SYSTEMATIC_TESTING)
       // If we're on Windows 10 or newer, we can use the VirtualAlloc2
       // function.  The FromApp variant is useable by UWP applications and
       // cannot allocate executable memory.
