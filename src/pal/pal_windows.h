@@ -19,7 +19,75 @@ namespace snmalloc
 {
   class PALWindows
   {
+    /**
+     * The number of times that the memory pressure notification has fired.
+     */
+    static std::atomic<uint64_t> pressure_epoch;
+    /**
+     * A flag indicating that we have tried to register for low-memory
+     * notifications.
+     */
+    static std::atomic<bool> registered_for_notifications;
+    static HANDLE lowMemoryObject;
+    /**
+     * Callback, used when the system delivers a low-memory notification.  This
+     * simply increments an atomic counter each time the notification is raised.
+     */
+    static void CALLBACK low_memory(_In_ PVOID, _In_ BOOLEAN)
+    {
+      pressure_epoch++;
+    }
+
   public:
+    PALWindows()
+    {
+      // No error handling here - if this doesn't work, then we will just
+      // consume more memory.  There's nothing sensible that we could do in
+      // error handling.  We also leak both the low memory notification object
+      // handle and the wait object handle.  We'll need them until the program
+      // exits, so there's little point doing anything else.
+      //
+      // We only try to register once.  If this fails, give up.  Even if we
+      // create multiple PAL objects, we don't want to get more than one
+      // callback.
+      if (!registered_for_notifications.exchange(true))
+      {
+        lowMemoryObject =
+          CreateMemoryResourceNotification(LowMemoryResourceNotification);
+        HANDLE waitObject;
+        RegisterWaitForSingleObject(
+          &waitObject,
+          lowMemoryObject,
+          low_memory,
+          nullptr,
+          INFINITE,
+          WT_EXECUTEDEFAULT);
+      }
+    }
+    /**
+     * Flag indicating that this PAL supports the low pressure notification.
+     */
+    static constexpr bool supports_low_memory_notification = true;
+    /**
+     * Counter values for the number of times that a low-pressure notification
+     * has been delivered.  Callers should compare this with a previous value
+     * to see if the low memory state has been triggered since they last
+     * checked.
+     */
+    uint64_t low_memory_epoch()
+    {
+      return pressure_epoch.load(std::memory_order_acquire);
+    }
+    /**
+     * Check whether the low memory state is still in effect.  This is an
+     * expensive operation and should not be on any fast paths.
+     */
+    bool expensive_low_memory_check()
+    {
+      BOOL result;
+      QueryMemoryResourceNotification(lowMemoryObject, &result);
+      return result;
+    }
     static void error(const char* const str)
     {
       puts(str);
@@ -127,5 +195,8 @@ namespace snmalloc
 #  endif
     }
   };
+  HEADER_GLOBAL std::atomic<uint64_t> PALWindows::pressure_epoch;
+  HEADER_GLOBAL std::atomic<bool> PALWindows::registered_for_notifications;
+  HEADER_GLOBAL HANDLE PALWindows::lowMemoryObject;
 }
 #endif

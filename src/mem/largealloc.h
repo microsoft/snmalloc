@@ -12,6 +12,9 @@
 
 namespace snmalloc
 {
+  template<class MemoryProviderState>
+  class MemoryProviderStateMixin;
+
   class Largeslab : public Baseslab
   {
     // This is the view of a contiguous memory area when it is being kept
@@ -19,6 +22,8 @@ namespace snmalloc
   private:
     template<class a, Construction c>
     friend class MPMCStack;
+    template<class MemoryProviderState>
+    friend class MemoryProviderStateMixin;
     std::atomic<Largeslab*> next;
 
   public:
@@ -28,12 +33,21 @@ namespace snmalloc
     }
   };
 
+  struct Decommittedslab : public Largeslab
+  {
+    Decommittedslab()
+    {
+      kind = Decommitted;
+    }
+  };
+
   // This represents the state that the large allcoator needs to add to the
   // global state of the allocator.  This is currently stored in the memory
   // provider, so we add this in.
   template<class MemoryProviderState>
   class MemoryProviderStateMixin : public MemoryProviderState
   {
+    using MemoryProviderState::supports_low_memory_notification;
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
     size_t bump;
     size_t remaining;
@@ -59,6 +73,52 @@ namespace snmalloc
       remaining = r_size.second;
     }
 
+    /**
+     * The last time we saw a low memory notification.
+     */
+    std::atomic<uint64_t> last_low_memory_epoch = 0;
+    std::atomic_flag lazy_decommit_guard;
+    void lazy_decommit()
+    {
+      // If another thread is try to do lazy decommit, let it continue.  If
+      // we try to parallelise this, we'll most likely end up waiting on the
+      // same page table locks.
+      if (!lazy_decommit_guard.test_and_set())
+      {
+        return;
+      }
+      // When we hit low memory, iterate over size classes and decommit all of
+      // the memory that we can.  Start with the small size classes so that we
+      // hit cached superslabs first.
+      // FIXME: We probably shouldn't do this all at once.
+      for (size_t large_class = 0; large_class < NUM_LARGE_CLASSES;
+           large_class++)
+      {
+        size_t rsize = ((size_t)1 << SUPERSLAB_BITS) << large_class;
+        size_t decommit_size = rsize - OS_PAGE_SIZE;
+        // Grab all of the chunks of this size class.
+        auto* slab = large_stack[large_class].pop_all();
+        while (slab)
+        {
+          // Decommit all except for the first page and then put it back on
+          // the stack.
+          if (slab->get_kind() != Decommitted)
+          {
+            notify_not_using(((char*)slab) + OS_PAGE_SIZE, decommit_size);
+          }
+          // Once we've removed these from the stack, there will be no
+          // concurrent accesses and removal should have established a
+          // happens-before relationship, so it's safe to use relaxed loads
+          // here.
+          auto next = slab->next.load(std::memory_order_relaxed);
+          large_stack[large_class].push(new (slab) Decommittedslab());
+          slab = next;
+        }
+      }
+
+      lazy_decommit_guard.clear();
+    }
+
   public:
     /**
      * Stack of large allocations that have been returned for reuse.
@@ -68,7 +128,7 @@ namespace snmalloc
     /**
      * Primitive allocator for structure that are required before
      * the allocator can be running.
-     ***/
+     */
     template<size_t alignment = 64>
     void* alloc_chunk(size_t size)
     {
@@ -108,6 +168,37 @@ namespace snmalloc
           (void*)page_start, page_end - page_start);
 
       return p;
+    }
+
+#define TEST_LAZY_DECOMMIT 4
+    ALWAYSINLINE void lazy_decommit_if_needed()
+    {
+#ifdef TEST_LAZY_DECOMMIT
+		static_assert(TEST_LAZY_DECOMMIT > 0, "TEST_LAZY_DECOMMIT must be a positive integer value.");
+		static std::atomic<uint64_t> counter;
+		auto c = counter++;
+		if (c % TEST_LAZY_DECOMMIT == 0)
+		{
+          lazy_decommit();
+		}
+#else
+      if constexpr (decommit_strategy == DecommitSuperLazy)
+      {
+        auto new_epoch = low_memory_epoch();
+        auto old_epoch = last_low_memory_epoch.load(std::memory_order_acquire);
+        if (new_epoch > old_epoch)
+        {
+          // Try to update the epoch to the value that we've seen.  If
+          // another thread has seen a newer epoch than us (or done the same
+          // update) let them win.
+          do
+          {
+            last_low_memory_epoch.compare_exchange_strong(old_epoch, new_epoch);
+          } while (old_epoch <= new_epoch);
+          lazy_decommit();
+        }
+      }
+#endif
     }
   };
 
@@ -167,6 +258,7 @@ namespace snmalloc
         size = rsize;
 
       void* p = memory_provider.large_stack[large_class].pop();
+      memory_provider.lazy_decommit_if_needed();
 
       if (p == nullptr)
       {
@@ -189,6 +281,29 @@ namespace snmalloc
       }
       else
       {
+        if constexpr (decommit_strategy == DecommitSuperLazy)
+        {
+          if (static_cast<Baseslab*>(p)->get_kind() == Decommitted)
+          {
+            // The first page is already in "use" for the stack element,
+            // this will need zeroing for a YesZero call.
+            if constexpr (zero_mem == YesZero)
+              memory_provider.template zero<true>(p, OS_PAGE_SIZE);
+
+            // Notify we are using the rest of the allocation.
+            // Passing zero_mem ensures the PAL provides zeroed pages if
+            // required.
+            memory_provider.template notify_using<zero_mem>(
+              (void*)((size_t)p + OS_PAGE_SIZE),
+              bits::align_up(size, OS_PAGE_SIZE) - OS_PAGE_SIZE);
+          }
+          else
+          {
+            if constexpr (zero_mem == YesZero)
+              memory_provider.template zero<true>(
+                p, bits::align_up(size, OS_PAGE_SIZE));
+          }
+        }
         if ((decommit_strategy != DecommitNone) || (large_class > 0))
         {
           // The first page is already in "use" for the stack element,
@@ -216,7 +331,8 @@ namespace snmalloc
 
     void dealloc(void* p, size_t large_class)
     {
-      memory_provider.large_stack[large_class].push((Largeslab*)p);
+      memory_provider.large_stack[large_class].push(static_cast<Largeslab*>(p));
+      memory_provider.lazy_decommit_if_needed();
     }
   };
 

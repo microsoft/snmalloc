@@ -24,6 +24,11 @@ namespace snmalloc
     }
 
   public:
+    /**
+     * Flag indicating that this PAL does not support low pressure
+     * notifications.
+     */
+    static constexpr bool supports_low_memory_notification = false;
     void error(const char* const str)
     {
       panic("snmalloc error: %s", str);
