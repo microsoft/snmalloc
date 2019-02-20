@@ -999,6 +999,15 @@ namespace snmalloc
               (void*)((size_t)super + OS_PAGE_SIZE),
               SUPERSLAB_SIZE - OS_PAGE_SIZE);
           }
+          else if constexpr (decommit_strategy == DecommitSuperLazy)
+          {
+            static_assert(
+              std::remove_reference_t<decltype(
+                large_allocator
+                  .memory_provider)>::supports_low_memory_notification,
+              "A lazy decommit strategy cannot be implemented on platforms "
+              "without low memory notifications");
+          }
 
           pagemap().clear_slab(super);
           large_allocator.dealloc(super, 0);

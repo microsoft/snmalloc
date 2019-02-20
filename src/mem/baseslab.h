@@ -10,7 +10,12 @@ namespace snmalloc
     Fresh = 0,
     Large,
     Medium,
-    Super
+    Super,
+    /**
+     * If the decommit policy is lazy, slabs are moved to this state when all
+     * pages other than the first one have been decommitted.
+     */
+    Decommitted
   };
 
   class Baseslab

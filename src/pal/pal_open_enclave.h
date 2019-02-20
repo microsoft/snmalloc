@@ -14,6 +14,11 @@ namespace snmalloc
     std::atomic<uintptr_t> oe_base;
 
   public:
+    /**
+     * Flag indicating that this PAL does not support low pressure
+     * notifications.
+     */
+    static constexpr bool supports_low_memory_notification = false;
     static void error(const char* const str)
     {
       UNUSED(str);

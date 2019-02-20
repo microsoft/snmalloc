@@ -60,14 +60,30 @@ namespace snmalloc
 
   enum DecommitStrategy
   {
+    /**
+     * Never decommit memory.
+     */
     DecommitNone,
+    /**
+     * Decommit superslabs when they are no entirely empty.
+     */
     DecommitSuper,
-    DecommitAll
+    /**
+     * Decommit all slabs once they are empty.
+     */
+    DecommitAll,
+    /**
+     * Decommit superslabs only when we are informed of memory pressure by the
+     * OS, do not decommit anything in normal operation.
+     */
+    DecommitSuperLazy
   };
 
   static constexpr DecommitStrategy decommit_strategy =
 #ifdef USE_DECOMMIT_STRATEGY
     USE_DECOMMIT_STRATEGY
+#elif defined(_WIN32)
+    DecommitSuperLazy
 #else
     DecommitSuper
 #endif
