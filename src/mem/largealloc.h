@@ -174,13 +174,15 @@ namespace snmalloc
     ALWAYSINLINE void lazy_decommit_if_needed()
     {
 #ifdef TEST_LAZY_DECOMMIT
-		static_assert(TEST_LAZY_DECOMMIT > 0, "TEST_LAZY_DECOMMIT must be a positive integer value.");
-		static std::atomic<uint64_t> counter;
-		auto c = counter++;
-		if (c % TEST_LAZY_DECOMMIT == 0)
-		{
-          lazy_decommit();
-		}
+      static_assert(
+        TEST_LAZY_DECOMMIT > 0,
+        "TEST_LAZY_DECOMMIT must be a positive integer value.");
+      static std::atomic<uint64_t> counter;
+      auto c = counter++;
+      if (c % TEST_LAZY_DECOMMIT == 0)
+      {
+        lazy_decommit();
+      }
 #else
       if constexpr (decommit_strategy == DecommitSuperLazy)
       {
