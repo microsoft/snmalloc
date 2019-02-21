@@ -65,9 +65,10 @@ namespace snmalloc
       }
     }
     /**
-     * Flag indicating that this PAL supports the low pressure notification.
+     * Bitmap of PalFeatures flags indicating the optional features that this
+     * PAL supports.  This PAL supports low-memory notifications.
      */
-    static constexpr bool supports_low_memory_notification = true;
+    static constexpr uint64_t pal_features = LowMemoryNotification;
     /**
      * Counter values for the number of times that a low-pressure notification
      * has been delivered.  Callers should compare this with a previous value
