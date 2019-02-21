@@ -19,7 +19,6 @@ namespace snmalloc
      */
     LowMemoryNotification = (1 << 0)
   };
-
 }
 
 // If simultating OE, then we need the underlying platform
