@@ -47,7 +47,6 @@ namespace snmalloc
   template<class PAL>
   class MemoryProviderStateMixin : public PAL
   {
-    using PAL::supports_low_memory_notification;
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
     size_t bump;
     size_t remaining;
@@ -117,13 +116,21 @@ namespace snmalloc
       lazy_decommit_guard.clear();
     }
 
+  public:
+    template<PalFeatures F, typename P = PAL>
+    constexpr static bool pal_supports()
+    {
+      return (P::pal_features & F) == F;
+    }
+
+  private:
     /**
      * Wrapper that is instantiated only if the memory provider supports low
      * memory notifications and forwards the call to the memory provider.
      */
     template<typename M>
     ALWAYSINLINE uint64_t low_mem_epoch(
-      std::enable_if_t<M::supports_low_memory_notification, int> = 0)
+      std::enable_if_t<pal_supports<LowMemoryNotification, M>(), int> = 0)
     {
       return PAL::low_memory_epoch();
     }
@@ -135,7 +142,7 @@ namespace snmalloc
      */
     template<typename M>
     ALWAYSINLINE uint64_t low_memory_epoch(
-      std::enable_if_t<!M::supports_low_memory_notification, int> = 0)
+      std::enable_if_t<!pal_supports<LowMemoryNotification, M>(), int> = 0)
     {
       return 0;
     }

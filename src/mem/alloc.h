@@ -1004,7 +1004,7 @@ namespace snmalloc
             static_assert(
               std::remove_reference_t<decltype(
                 large_allocator
-                  .memory_provider)>::supports_low_memory_notification,
+                  .memory_provider)>::pal_supports<LowMemoryNotification>(),
               "A lazy decommit strategy cannot be implemented on platforms "
               "without low memory notifications");
           }
