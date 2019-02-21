@@ -116,21 +116,24 @@ namespace snmalloc
       lazy_decommit_guard.clear();
     }
 
-  public:
-    template<PalFeatures F, typename P = PAL>
+  private:
+    /**
+     * Query whether the PAL given by `P` supports a specific feature.  This is
+     * used internally in templated functions where PAL can't be referenced in
+     * an `enable_if` context.
+     */
+    template<typename P, PalFeatures F>
     constexpr static bool pal_supports()
     {
       return (P::pal_features & F) == F;
     }
-
-  private:
     /**
      * Wrapper that is instantiated only if the memory provider supports low
      * memory notifications and forwards the call to the memory provider.
      */
     template<typename M>
     ALWAYSINLINE uint64_t low_mem_epoch(
-      std::enable_if_t<pal_supports<LowMemoryNotification, M>(), int> = 0)
+      std::enable_if_t<pal_supports<M, LowMemoryNotification>(), int> = 0)
     {
       return PAL::low_memory_epoch();
     }
@@ -142,7 +145,7 @@ namespace snmalloc
      */
     template<typename M>
     ALWAYSINLINE uint64_t low_memory_epoch(
-      std::enable_if_t<!pal_supports<LowMemoryNotification, M>(), int> = 0)
+      std::enable_if_t<!pal_supports<M, LowMemoryNotification>(), int> = 0)
     {
       return 0;
     }
@@ -196,6 +199,15 @@ namespace snmalloc
           (void*)page_start, page_end - page_start);
 
       return p;
+    }
+
+    /**
+     * Query whether the PAL supports a specific feature.
+     */
+    template<PalFeatures F>
+    constexpr static bool pal_supports()
+    {
+      return pal_supports<PAL, F>();
     }
 
     /**
