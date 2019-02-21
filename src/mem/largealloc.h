@@ -12,7 +12,7 @@
 
 namespace snmalloc
 {
-  template<class MemoryProviderState>
+  template<class PAL>
   class MemoryProviderStateMixin;
 
   class Largeslab : public Baseslab
@@ -22,7 +22,7 @@ namespace snmalloc
   private:
     template<class a, Construction c>
     friend class MPMCStack;
-    template<class MemoryProviderState>
+    template<class PAL>
     friend class MemoryProviderStateMixin;
     std::atomic<Largeslab*> next;
 
@@ -44,10 +44,10 @@ namespace snmalloc
   // This represents the state that the large allcoator needs to add to the
   // global state of the allocator.  This is currently stored in the memory
   // provider, so we add this in.
-  template<class MemoryProviderState>
-  class MemoryProviderStateMixin : public MemoryProviderState
+  template<class PAL>
+  class MemoryProviderStateMixin : public PAL
   {
-    using MemoryProviderState::supports_low_memory_notification;
+    using PAL::supports_low_memory_notification;
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
     size_t bump;
     size_t remaining;
@@ -55,14 +55,12 @@ namespace snmalloc
     std::pair<void*, size_t> reserve_block() noexcept
     {
       size_t size = SUPERSLAB_SIZE;
-      void* r = ((MemoryProviderState*)this)
-                  ->template reserve<false>(&size, SUPERSLAB_SIZE);
+      void* r = ((PAL*)this)->template reserve<false>(&size, SUPERSLAB_SIZE);
 
       if (size < SUPERSLAB_SIZE)
         error("out of memory");
 
-      ((MemoryProviderState*)this)
-        ->template notify_using<NoZero>(r, OS_PAGE_SIZE);
+      ((PAL*)this)->template notify_using<NoZero>(r, OS_PAGE_SIZE);
       return std::make_pair(r, size);
     }
 
@@ -104,8 +102,7 @@ namespace snmalloc
           // the stack.
           if (slab->get_kind() != Decommitted)
           {
-            MemoryProviderState::notify_not_using(
-              ((char*)slab) + OS_PAGE_SIZE, decommit_size);
+            PAL::notify_not_using(((char*)slab) + OS_PAGE_SIZE, decommit_size);
           }
           // Once we've removed these from the stack, there will be no
           // concurrent accesses and removal should have established a
@@ -128,7 +125,7 @@ namespace snmalloc
     ALWAYSINLINE uint64_t low_mem_epoch(
       std::enable_if_t<M::supports_low_memory_notification, int> = 0)
     {
-      return MemoryProviderState::low_memory_epoch();
+      return PAL::low_memory_epoch();
     }
 
     /**
@@ -187,7 +184,7 @@ namespace snmalloc
       auto page_start = bits::align_down((size_t)p, OS_PAGE_SIZE);
       auto page_end = bits::align_up((size_t)p + size, OS_PAGE_SIZE);
 
-      ((MemoryProviderState*)this)
+      ((PAL*)this)
         ->template notify_using<NoZero>(
           (void*)page_start, page_end - page_start);
 
@@ -202,7 +199,7 @@ namespace snmalloc
     ALWAYSINLINE
     uint64_t low_memory_epoch()
     {
-      return low_mem_epoch<MemoryProviderState>();
+      return low_mem_epoch<PAL>();
     }
 
     ALWAYSINLINE void lazy_decommit_if_needed()
