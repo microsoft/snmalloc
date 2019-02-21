@@ -129,6 +129,30 @@ phases:
     workingDirectory: build
     displayName: 'Run Ctest'
 
+- phase: macOS
+  queue:
+    name: 'Hosted macOS'
+    parallel: 2
+    matrix:
+      Debug:
+        BuildType: Debug
+      Release:
+        BuildType: Release
+
+  steps:
+  - task: CMake@1
+    displayName: 'CMake .. -DCMAKE_BUILD_TYPE=$(BuildType)'
+    inputs:
+      cmakeArgs: '.. -DCMAKE_BUILD_TYPE=$(BuildType)'
+
+  - script: |
+      make -j 4
+      ctest -j 4 --output-on-failure
+
+    workingDirectory: build
+    failOnStderr: true
+    displayName: 'Compile & Test'
+
 - phase: Format
   queue:
     name: 'Hosted Ubuntu 1604'
