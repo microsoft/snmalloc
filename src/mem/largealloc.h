@@ -120,6 +120,29 @@ namespace snmalloc
       lazy_decommit_guard.clear();
     }
 
+    /**
+     * Wrapper that is instantiated only if the memory provider supports low
+     * memory notifications and forwards the call to the memory provider.
+     */
+    template<typename M>
+    ALWAYSINLINE uint64_t low_mem_epoch(
+      std::enable_if_t<M::supports_low_memory_notification, int> = 0)
+    {
+      return MemoryProviderState::low_memory_epoch();
+    }
+
+    /**
+     * Default implementations that is instantiated when the memory provider
+     * does not support low memory notifications and always returns 0 for the
+     * epoch.
+     */
+    template<typename M>
+    ALWAYSINLINE uint64_t low_memory_epoch(
+      std::enable_if_t<!M::supports_low_memory_notification, int> = 0)
+    {
+      return 0;
+    }
+
   public:
     /**
      * Stack of large allocations that have been returned for reuse.
@@ -169,6 +192,17 @@ namespace snmalloc
           (void*)page_start, page_end - page_start);
 
       return p;
+    }
+
+    /**
+     * Returns the number of low memory notifications that have been received
+     * (over the lifetime of this process).  If the underlying system does not
+     * support low memory notifications, this will return 0.
+     */
+    ALWAYSINLINE
+    uint64_t low_memory_epoch()
+    {
+      return low_mem_epoch<MemoryProviderState>();
     }
 
     ALWAYSINLINE void lazy_decommit_if_needed()
