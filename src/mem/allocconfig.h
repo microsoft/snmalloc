@@ -82,7 +82,7 @@ namespace snmalloc
   static constexpr DecommitStrategy decommit_strategy =
 #ifdef USE_DECOMMIT_STRATEGY
     USE_DECOMMIT_STRATEGY
-#elif defined(_WIN32)
+#elif defined(_WIN32) && !defined(OPEN_ENCLAVE)
     DecommitSuperLazy
 #else
     DecommitSuper
