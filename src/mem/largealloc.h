@@ -171,7 +171,6 @@ namespace snmalloc
       return p;
     }
 
-#define TEST_LAZY_DECOMMIT 4
     ALWAYSINLINE void lazy_decommit_if_needed()
     {
 #ifdef TEST_LAZY_DECOMMIT
