@@ -104,7 +104,8 @@ namespace snmalloc
           // the stack.
           if (slab->get_kind() != Decommitted)
           {
-            notify_not_using(((char*)slab) + OS_PAGE_SIZE, decommit_size);
+            MemoryProviderState::notify_not_using(
+              ((char*)slab) + OS_PAGE_SIZE, decommit_size);
           }
           // Once we've removed these from the stack, there will be no
           // concurrent accesses and removal should have established a
