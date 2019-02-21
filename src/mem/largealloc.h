@@ -116,40 +116,6 @@ namespace snmalloc
       lazy_decommit_guard.clear();
     }
 
-  private:
-    /**
-     * Query whether the PAL given by `P` supports a specific feature.  This is
-     * used internally in templated functions where PAL can't be referenced in
-     * an `enable_if` context.
-     */
-    template<typename P, PalFeatures F>
-    constexpr static bool pal_supports()
-    {
-      return (P::pal_features & F) == F;
-    }
-    /**
-     * Wrapper that is instantiated only if the memory provider supports low
-     * memory notifications and forwards the call to the memory provider.
-     */
-    template<typename M>
-    ALWAYSINLINE uint64_t low_mem_epoch(
-      std::enable_if_t<pal_supports<M, LowMemoryNotification>(), int> = 0)
-    {
-      return PAL::low_memory_epoch();
-    }
-
-    /**
-     * Default implementations that is instantiated when the memory provider
-     * does not support low memory notifications and always returns 0 for the
-     * epoch.
-     */
-    template<typename M>
-    ALWAYSINLINE uint64_t low_memory_epoch(
-      std::enable_if_t<!pal_supports<M, LowMemoryNotification>(), int> = 0)
-    {
-      return 0;
-    }
-
   public:
     /**
      * Stack of large allocations that have been returned for reuse.
@@ -207,7 +173,7 @@ namespace snmalloc
     template<PalFeatures F>
     constexpr static bool pal_supports()
     {
-      return pal_supports<PAL, F>();
+      return (PAL::pal_features & F) == F;
     }
 
     /**
@@ -218,7 +184,14 @@ namespace snmalloc
     ALWAYSINLINE
     uint64_t low_memory_epoch()
     {
-      return low_mem_epoch<PAL>();
+      if constexpr (pal_supports<LowMemoryNotification>())
+      {
+        return PAL::low_memory_epoch();
+      }
+      else
+      {
+        return 0;
+      }
     }
 
     ALWAYSINLINE void lazy_decommit_if_needed()
