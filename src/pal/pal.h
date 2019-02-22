@@ -33,6 +33,7 @@ namespace snmalloc
 
 // If simultating OE, then we need the underlying platform
 #if !defined(OPEN_ENCLAVE) || defined(OPEN_ENCLAVE_SIMULATION)
+#  include "pal_apple.h"
 #  include "pal_free_bsd_kernel.h"
 #  include "pal_freebsd.h"
 #  include "pal_linux.h"
@@ -47,6 +48,8 @@ namespace snmalloc
   using DefaultPal =
 #  if defined(_WIN32)
     PALWindows;
+#  elif defined(__APPLE__)
+    PALApple;
 #  elif defined(__linux__)
     PALLinux;
 #  elif defined(FreeBSD_KERNEL)
