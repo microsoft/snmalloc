@@ -35,10 +35,10 @@ extern "C" void enclave_free(void*);
 using namespace snmalloc;
 int main()
 {
-  DefaultPal pal;
+  MemoryProviderStateMixin<DefaultPal> mp;
 
   size_t size = 1ULL << 28;
-  oe_base = pal.reserve<true>(&size, 0);
+  oe_base = mp.reserve<true>(&size, 1);
   oe_end = (uint8_t*)oe_base + size;
   std::cout << "Allocated region " << oe_base << " - " << oe_end << std::endl;
 

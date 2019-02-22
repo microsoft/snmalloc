@@ -68,7 +68,11 @@ namespace snmalloc
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.  This PAL supports low-memory notifications.
      */
-    static constexpr uint64_t pal_features = LowMemoryNotification;
+    static constexpr uint64_t pal_features = LowMemoryNotification
+#  if defined(PLATFORM_HAS_VIRTUALALLOC2) || defined(USE_SYSTEMATIC_TESTING)
+      | AlignedAllocation
+#  endif
+      ;
     /**
      * Counter values for the number of times that a low-pressure notification
      * has been delivered.  Callers should compare this with a previous value
@@ -139,8 +143,6 @@ namespace snmalloc
       static size_t bump_ptr = (size_t)0x4000'0000'0000;
       return bump_ptr;
     }
-#  endif
-
     template<bool committed>
     void* reserve(size_t* size, size_t align) noexcept
     {
@@ -149,26 +151,6 @@ namespace snmalloc
       if (committed)
         flags |= MEM_COMMIT;
 
-#  ifdef PLATFORM_HAS_VIRTUALALLOC2
-      // If we're on Windows 10 or newer, we can use the VirtualAlloc2
-      // function.  The FromApp variant is useable by UWP applications and
-      // cannot allocate executable memory.
-      MEM_ADDRESS_REQUIREMENTS addressReqs = {0};
-      MEM_EXTENDED_PARAMETER param = {0};
-      addressReqs.Alignment = align;
-      param.Type = MemExtendedParameterAddressRequirements;
-      param.Pointer = &addressReqs;
-      return VirtualAlloc2FromApp(
-        nullptr, nullptr, *size, flags, PAGE_READWRITE, &param, 1);
-#  else
-      // Add align, so we can guarantee to provide at least size.
-      size_t request = *size + align;
-
-      // Alignment must be a power of 2.
-      assert(align == bits::next_pow2(align));
-
-      void* p;
-#    ifdef USE_SYSTEMATIC_TESTING
       size_t retries = 1000;
       do
       {
@@ -178,9 +160,6 @@ namespace snmalloc
         systematic_bump_ptr() += request;
         retries--;
       } while (p == nullptr && retries > 0);
-#    else
-      p = VirtualAlloc(nullptr, request, flags, PAGE_READWRITE);
-#    endif
 
       uintptr_t aligned_p = bits::align_up((size_t)p, align);
 
@@ -193,8 +172,51 @@ namespace snmalloc
       }
       *size = request;
       return p;
-#  endif
     }
+#  elif defined(PLATFORM_HAS_VIRTUALALLOC2)
+    template<bool committed>
+    void* reserve(size_t* size, size_t align) noexcept
+    {
+      DWORD flags = MEM_RESERVE;
+
+      if (committed)
+        flags |= MEM_COMMIT;
+
+      // Windows doesn't let you request memory less than 64KB aligned.  Most
+      // operating systems will simply give you something more aligned than you
+      // ask for, but Windows complains about invalid parameters.
+      const size_t min_align = 64 * 1024;
+      if (align < min_align)
+        align = min_align;
+
+      // If we're on Windows 10 or newer, we can use the VirtualAlloc2
+      // function.  The FromApp variant is useable by UWP applications and
+      // cannot allocate executable memory.
+      MEM_ADDRESS_REQUIREMENTS addressReqs = {0};
+      MEM_EXTENDED_PARAMETER param = {0};
+      addressReqs.Alignment = align;
+      param.Type = MemExtendedParameterAddressRequirements;
+      param.Pointer = &addressReqs;
+      void* ret = VirtualAlloc2FromApp(
+        nullptr, nullptr, *size, flags, PAGE_READWRITE, &param, 1);
+      if (ret == nullptr)
+      {
+        error("Failed to allocate memory\n");
+      }
+      return ret;
+    }
+#  else
+    template<bool committed>
+    void* reserve(size_t* size) noexcept
+    {
+      DWORD flags = MEM_RESERVE;
+
+      if (committed)
+        flags |= MEM_COMMIT;
+
+      return VirtualAlloc(nullptr, *size, flags, PAGE_READWRITE);
+    }
+#  endif
   };
   HEADER_GLOBAL std::atomic<uint64_t> PALWindows::pressure_epoch;
   HEADER_GLOBAL std::atomic<bool> PALWindows::registered_for_notifications;
