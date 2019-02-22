@@ -54,7 +54,7 @@ namespace snmalloc
     std::pair<void*, size_t> reserve_block() noexcept
     {
       size_t size = SUPERSLAB_SIZE;
-      void* r = ((PAL*)this)->template reserve<false>(&size, SUPERSLAB_SIZE);
+      void* r = reserve<false>(&size, SUPERSLAB_SIZE);
 
       if (size < SUPERSLAB_SIZE)
         error("out of memory");
@@ -194,6 +194,40 @@ namespace snmalloc
       else
       {
         return 0;
+      }
+    }
+
+    template<bool committed>
+    void* reserve(size_t* size, size_t align) noexcept
+    {
+      if constexpr (pal_supports<AlignedAllocation>())
+      {
+        return PAL::template reserve<committed>(size, align);
+      }
+      else
+      {
+        size_t request = *size;
+        // Add align, so we can guarantee to provide at least size.
+        request += align;
+        // Alignment must be a power of 2.
+        assert(align == bits::next_pow2(align));
+
+        void* p = PAL::template reserve<committed>(&request);
+
+        *size = request;
+        uintptr_t p0 = (uintptr_t)p;
+        uintptr_t start = bits::align_up(p0, align);
+
+        if (start > (uintptr_t)p0)
+        {
+          uintptr_t end = bits::align_down(p0 + request, align);
+          *size = end - start;
+          PAL::notify_not_using(p, start - p0);
+          PAL::notify_not_using(
+            reinterpret_cast<void*>(end), (p0 + request) - end);
+          p = reinterpret_cast<void*>(start);
+        }
+        return p;
       }
     }
 

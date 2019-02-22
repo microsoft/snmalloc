@@ -61,17 +61,11 @@ namespace snmalloc
     }
 
     template<bool committed>
-    void* reserve(size_t* size, size_t align) noexcept
+    void* reserve(size_t* size) noexcept
     {
-      size_t request = *size;
-      // Add align, so we can guarantee to provide at least size.
-      request += align;
-      // Alignment must be a power of 2.
-      assert(align == bits::next_pow2(align));
-
       void* p = mmap(
         NULL,
-        request,
+        *size,
         PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS,
         -1,
@@ -79,18 +73,7 @@ namespace snmalloc
 
       if (p == MAP_FAILED)
         error("Out of memory");
-      *size = request;
-      uintptr_t p0 = (uintptr_t)p;
-      uintptr_t start = bits::align_up(p0, align);
 
-      if (start > (uintptr_t)p0)
-      {
-        uintptr_t end = bits::align_down(p0 + request, align);
-        *size = end - start;
-        munmap(p, start - p0);
-        munmap((void*)end, (p0 + request) - end);
-        p = (void*)start;
-      }
       return p;
     }
   };

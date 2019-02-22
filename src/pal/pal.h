@@ -17,7 +17,17 @@ namespace snmalloc
      * `expensive_low_memory_check()` method that returns a `bool` indicating
      * whether low memory conditions are still in effect.
      */
-    LowMemoryNotification = (1 << 0)
+    LowMemoryNotification = (1 << 0),
+    /**
+     * This PAL natively supports allocation with a guaranteed alignment.  If
+     * this is not supported, then we will over-allocate and round the
+     * allocation.
+     *
+     * A PAL that does supports this must expose a `request()` method that takes
+     * a size and alignment.  A PAL that does *not* support it must expose a
+     * `request()` method that takes only a size.
+     */
+    AlignedAllocation = (1 << 1)
   };
 }
 
