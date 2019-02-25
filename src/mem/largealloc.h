@@ -91,6 +91,10 @@ namespace snmalloc
       for (size_t large_class = 0; large_class < NUM_LARGE_CLASSES;
            large_class++)
       {
+        if (!PAL::expensive_low_memory_check())
+        {
+          break;
+        }
         size_t rsize = ((size_t)1 << SUPERSLAB_BITS) << large_class;
         size_t decommit_size = rsize - OS_PAGE_SIZE;
         // Grab all of the chunks of this size class.
@@ -112,7 +116,6 @@ namespace snmalloc
           slab = next;
         }
       }
-
       lazy_decommit_guard.clear();
     }
 
@@ -218,9 +221,12 @@ namespace snmalloc
           // update) let them win.
           do
           {
-            last_low_memory_epoch.compare_exchange_strong(old_epoch, new_epoch);
+            if (last_low_memory_epoch.compare_exchange_strong(
+                  old_epoch, new_epoch))
+            {
+              lazy_decommit();
+            }
           } while (old_epoch <= new_epoch);
-          lazy_decommit();
         }
       }
 #endif

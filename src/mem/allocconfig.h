@@ -65,7 +65,7 @@ namespace snmalloc
      */
     DecommitNone,
     /**
-     * Decommit superslabs when they are no entirely empty.
+     * Decommit superslabs when they are entirely empty.
      */
     DecommitSuper,
     /**
