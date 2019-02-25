@@ -33,7 +33,7 @@ build configuration.
 Alternatively, you can follow the steps in the next section to build with Ninja
 using the Visual Studio compiler.
 
-# Building on Linux or FreeBSD
+# Building on macOS, Linux or FreeBSD
 Snmalloc has very few dependencies, CMake, Ninja, Clang 6.0 or later and a C++17
 standard library.
 Building with GCC is currently not supported because GCC lacks support for the
@@ -61,7 +61,8 @@ cmake -G Ninja .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
 ninja
 ```
 
-The build produces a binary `libsnmallocshim.so`.  This file can be 
+On ELF platforms, The build produces a binary `libsnmallocshim.so`.
+This file can be 
 `LD_PRELOAD`ed to use the allocator in place of the system allocator, for
 example, you can run the build script using the snmalloc as the allocator for
 your toolchain:
