@@ -2,7 +2,7 @@ resources:
 - repo: self
 
 phases:
-- phase: "Linux Self Host"
+- phase: LinuxSelfHost
   queue:
     name: 'Hosted Ubuntu 1604'
 
