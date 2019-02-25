@@ -2,6 +2,50 @@ resources:
 - repo: self
 
 phases:
+- phase: "Linux Self Host"
+  queue:
+    name: 'Hosted Ubuntu 1604'
+
+  steps:
+  - script: |
+      sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+      sudo apt-get update
+      sudo apt-get install -y ninja-build libc++-dev libc++abi-dev libc++abi1 libstdc++-7-dev
+      # sudo apt-get install clang-6.0 clang++-6.0 
+
+      sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-6.0 100
+      sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang 100
+      sudo update-alternatives --set cc /usr/bin/clang
+
+      sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-6.0 100
+      sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++ 100
+      sudo update-alternatives --set c++ /usr/bin/clang++
+
+    displayName: 'Install Build Dependencies'
+
+  - task: CMake@1
+    displayName: 'CMake .. -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-stdlib=libstdc++ -std=c++17"'
+    inputs:
+      cmakeArgs: '.. -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-stdlib=libstdc++ -std=c++17"'
+
+  - script: |
+      ninja
+
+    workingDirectory: build
+    failOnStderr: true
+    displayName: 'Compile'
+
+  - script: |
+      sudo cp libsnmallocshim.so /usr/local/lib/
+      sudo cp libsnmallocshim-1mib.so /usr/local/lib/
+      ninja clean
+      LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
+      ninja clean
+      LD_PRELOAD=/usr/local/lib/libsnmallocshim-1mib.so ninja
+    workingDirectory: build
+    failOnStderr: true
+    displayName: 'LD_PRELOAD Compile'
+
 - phase: Linux
   queue:
     name: 'Hosted Ubuntu 1604'
@@ -47,17 +91,6 @@ phases:
     workingDirectory: build
     failOnStderr: true
     displayName: 'Test'
-
-  - script: |
-      sudo cp libsnmallocshim.so /usr/local/lib/
-      sudo cp libsnmallocshim-1mib.so /usr/local/lib/
-      ninja clean
-      LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
-      ninja clean
-      LD_PRELOAD=/usr/local/lib/libsnmallocshim-1mib.so ninja
-    workingDirectory: build
-    failOnStderr: true
-    displayName: 'LD_PRELOAD Compile'
 
 - phase: Windows64bit
   queue:
