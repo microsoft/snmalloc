@@ -36,11 +36,17 @@ phases:
 
   - script: |
       ninja
+
+    workingDirectory: build
+    failOnStderr: true
+    displayName: 'Compile'
+
+  - script: |
       ctest -j 4 --output-on-failure
 
     workingDirectory: build
     failOnStderr: true
-    displayName: 'Compile & Test'
+    displayName: 'Test'
 
   - script: |
       sudo cp libsnmallocshim.so /usr/local/lib/
@@ -147,11 +153,17 @@ phases:
 
   - script: |
       make -j 4
+
+    workingDirectory: build
+    failOnStderr: true
+    displayName: 'Compile'
+
+  - script: |
       ctest -j 4 --output-on-failure
 
     workingDirectory: build
     failOnStderr: true
-    displayName: 'Compile & Test'
+    displayName: 'Test'
 
 - phase: Format
   queue:
