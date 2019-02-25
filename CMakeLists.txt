@@ -90,6 +90,7 @@ enable_testing()
 
 set(TESTDIR ${CMAKE_CURRENT_SOURCE_DIR}/src/test)
 subdirlist(TEST_CATEGORIES ${TESTDIR})
+list(REVERSE TEST_CATEGORIES)
 foreach(TEST_CATEGORY ${TEST_CATEGORIES})
   subdirlist(TESTS ${TESTDIR}/${TEST_CATEGORY})
   foreach(TEST ${TESTS})
