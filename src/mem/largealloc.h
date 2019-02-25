@@ -33,8 +33,18 @@ namespace snmalloc
     }
   };
 
+  /**
+   * A slab that has been decommitted.  The first page remains committed and
+   * the only fields that are guaranteed to exist are the kind and next
+   * pointer from the superclass.
+   */
   struct Decommittedslab : public Largeslab
   {
+    /**
+     * Constructor.  Expected to be called via placement new into some memory
+     * that was formerly a superslab or large allocation and is now just some
+     * spare address space.
+     */
     Decommittedslab()
     {
       kind = Decommitted;
