@@ -42,7 +42,7 @@ phases:
     displayName: 'Compile'
 
   - script: |
-      ctest -j 4 --output-on-failure
+      ctest -j 4 --output-on-failure -C $(BuildType)
 
     workingDirectory: build
     failOnStderr: true
@@ -81,7 +81,7 @@ phases:
       solution: build/snmalloc.sln
       msbuildArguments: '/m /p:Configuration=$(BuildType)'
 
-  - script: 'ctest -j 4 --interactive-debug-mode 0 --output-on-failure'
+  - script: 'ctest -j 4 --interactive-debug-mode 0 --output-on-failure -C $(BuildType)'
     workingDirectory: build
     displayName: 'Run Ctest'
 
@@ -105,7 +105,7 @@ phases:
       solution: build/snmalloc.sln
       msbuildArguments: '/m /p:Configuration=$(BuildType)'
 
-  - script: 'ctest -j 4 --interactive-debug-mode 0 --output-on-failure'
+  - script: 'ctest -j 4 --interactive-debug-mode 0 --output-on-failure -C $(BuildType)'
     workingDirectory: build
     displayName: 'Run Ctest'
 
@@ -131,7 +131,7 @@ phases:
       solution: build/snmalloc.sln
       msbuildArguments: '/m /p:Configuration=$(BuildType)'
 
-  - script: 'ctest -j 4 --interactive-debug-mode 0 --output-on-failure'
+  - script: 'ctest -j 4 --interactive-debug-mode 0 --output-on-failure -C $(BuildType)'
     workingDirectory: build
     displayName: 'Run Ctest'
 
@@ -159,7 +159,7 @@ phases:
     displayName: 'Compile'
 
   - script: |
-      ctest -j 4 --output-on-failure
+      ctest -j 4 --output-on-failure -C $(BuildType)
 
     workingDirectory: build
     failOnStderr: true
