@@ -152,6 +152,9 @@ namespace snmalloc
         flags |= MEM_COMMIT;
 
       size_t retries = 1000;
+      void *p;
+      size_t request = *size;
+
       do
       {
         p = VirtualAlloc(
