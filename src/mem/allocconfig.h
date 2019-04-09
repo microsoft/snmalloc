@@ -4,40 +4,6 @@
 
 namespace snmalloc
 {
-  void error(const char* const str);
-
-  /**
-   * Flags in a bitfield of optional features that a PAL may support.  These
-   * should be set in the PAL's `pal_features` static constexpr field.
-   */
-  enum PalFeatures : uint64_t
-  {
-    /**
-     * This PAL supports low memory notifications.  It must implement a
-     * `low_memory_epoch` method that returns a `uint64_t` of the number of
-     * times that a low-memory notification has been raised and an
-     * `expensive_low_memory_check()` method that returns a `bool` indicating
-     * whether low memory conditions are still in effect.
-     */
-    LowMemoryNotification = (1 << 0),
-    /**
-     * This PAL natively supports allocation with a guaranteed alignment.  If
-     * this is not supported, then we will over-allocate and round the
-     * allocation.
-     *
-     * A PAL that does supports this must expose a `request()` method that takes
-     * a size and alignment.  A PAL that does *not* support it must expose a
-     * `request()` method that takes only a size.
-     */
-    AlignedAllocation = (1 << 1)
-  };
-
-  enum ZeroMem
-  {
-    NoZero,
-    YesZero
-  };
-
   // 0 intermediate bits results in power of 2 small allocs. 1 intermediate
   // bit gives additional sizeclasses at the midpoint between each power of 2.
   // 2 intermediate bits gives 3 intermediate sizeclasses, etc.
