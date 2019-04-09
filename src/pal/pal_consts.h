@@ -25,10 +25,4 @@ namespace snmalloc
      */
     AlignedAllocation = (1 << 1)
   };
-
-  enum ZeroMem
-  {
-    NoZero,
-    YesZero
-  };
 }
