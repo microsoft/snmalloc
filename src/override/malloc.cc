@@ -205,6 +205,17 @@ extern "C"
     return ENOENT;
   }
 
+  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(get_global_pagemap)(void)
+  {
+    return &snmalloc::global_pagemap;
+  }
+
+  SNMALLOC_EXPORT void*
+    SNMALLOC_NAME_MANGLE(reserve_shared)(size_t* size, size_t align)
+  {
+    return snmalloc::default_memory_provider.reserve<true>(size, align);
+  }
+
 #if !defined(__PIC__) && !defined(NO_BOOTSTRAP_ALLOCATOR)
   // The following functions are required to work before TLS is set up, in
   // statically-linked programs.  These temporarily grab an allocator from the
