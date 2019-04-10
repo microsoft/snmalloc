@@ -70,7 +70,15 @@ namespace snmalloc
    */
   struct SuperslabMap
   {
+    /**
+     * Reference to the pagemap that we're using, allowing it to not be the
+     * default pagemap.
+     */
     SuperslabPagemap& pagemap;
+    /**
+     * Constructor.  Uses the global pagemap by default, but can use a
+     * different one if required.
+     */
     SuperslabMap(SuperslabPagemap& pm = global_pagemap) : pagemap(pm) {}
     /**
      * Get the pagemap entry corresponding to a specific address.

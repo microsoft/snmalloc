@@ -198,8 +198,20 @@ namespace snmalloc
     }
 
   public:
+    /**
+     * The pagemap configuration describing this instantiation of the template.
+     */
     static constexpr PagemapConfig config = {
       1, false, GRANULARITY_BITS, sizeof(T)};
+
+    /**
+     * Cast a `void*` to a pointer to this template instantiation, given a
+     * config describing the configuration.  Return null if the configuration
+     * passed does not correspond to this template instantiation.
+     *
+     * This intended to allow code that depends on the pagemap having a
+     * specific representation to fail gracefully.
+     */
     static Pagemap* cast_to_pagemap(void* pm, const PagemapConfig* c)
     {
       if (
@@ -290,9 +302,20 @@ namespace snmalloc
     std::atomic<T> top[ENTRIES];
 
   public:
+    /**
+     * The pagemap configuration describing this instantiation of the template.
+     */
     static constexpr PagemapConfig config = {
       1, true, GRANULARITY_BITS, sizeof(T)};
 
+    /**
+     * Cast a `void*` to a pointer to this template instantiation, given a
+     * config describing the configuration.  Return null if the configuration
+     * passed does not correspond to this template instantiation.
+     *
+     * This intended to allow code that depends on the pagemap having a
+     * specific representation to fail gracefully.
+     */
     static FlatPagemap* cast_to_pagemap(void* pm, PagemapConfig* c)
     {
       if (
