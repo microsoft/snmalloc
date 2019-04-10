@@ -70,8 +70,8 @@ namespace snmalloc
    */
   struct SuperslabMap
   {
-	SuperslabPagemap &pagemap;
-	SuperslabMap(SuperslabPagemap &pm=global_pagemap) : pagemap(pm) {}
+    SuperslabPagemap& pagemap;
+    SuperslabMap(SuperslabPagemap& pm = global_pagemap) : pagemap(pm) {}
     /**
      * Get the pagemap entry corresponding to a specific address.
      */
@@ -123,8 +123,7 @@ namespace snmalloc
       for (size_t i = 0; i < size_bits - SUPERSLAB_BITS; i++)
       {
         size_t run = 1ULL << i;
-        pagemap.set_range(
-          (void*)ss, (uint8_t)(64 + i + SUPERSLAB_BITS), run);
+        pagemap.set_range((void*)ss, (uint8_t)(64 + i + SUPERSLAB_BITS), run);
         ss = (uintptr_t)ss + SUPERSLAB_SIZE * run;
       }
       pagemap.set(p, (uint8_t)size_bits);
