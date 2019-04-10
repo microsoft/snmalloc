@@ -316,7 +316,7 @@ namespace snmalloc
      * This intended to allow code that depends on the pagemap having a
      * specific representation to fail gracefully.
      */
-    static FlatPagemap* cast_to_pagemap(void* pm, PagemapConfig* c)
+    static FlatPagemap* cast_to_pagemap(void* pm, const PagemapConfig* c)
     {
       if (
         (c->version != 1) || (!c->is_flat_pagemap) ||
