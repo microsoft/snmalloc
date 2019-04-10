@@ -70,12 +70,14 @@ namespace snmalloc
    */
   struct SuperslabMap
   {
+	SuperslabPagemap &pagemap;
+	SuperslabMap(SuperslabPagemap &pm=global_pagemap) : pagemap(pm) {}
     /**
      * Get the pagemap entry corresponding to a specific address.
      */
     uint8_t get(void* p)
     {
-      return global_pagemap.get(p);
+      return pagemap.get(p);
     }
     /**
      * Set a pagemap entry indicating that there is a superslab at the
@@ -121,11 +123,11 @@ namespace snmalloc
       for (size_t i = 0; i < size_bits - SUPERSLAB_BITS; i++)
       {
         size_t run = 1ULL << i;
-        global_pagemap.set_range(
+        pagemap.set_range(
           (void*)ss, (uint8_t)(64 + i + SUPERSLAB_BITS), run);
         ss = (uintptr_t)ss + SUPERSLAB_SIZE * run;
       }
-      global_pagemap.set(p, (uint8_t)size_bits);
+      pagemap.set(p, (uint8_t)size_bits);
     }
     /**
      * Update the pagemap to remove a large allocation, of `size` bytes from
@@ -136,7 +138,7 @@ namespace snmalloc
       size_t rounded_size = bits::next_pow2(size);
       assert(get(p) == bits::next_pow2_bits(size));
       auto count = rounded_size >> SUPERSLAB_BITS;
-      global_pagemap.set_range((void*)p, PMNotOurs, count);
+      pagemap.set_range((void*)p, PMNotOurs, count);
     }
 
   private:
@@ -147,7 +149,7 @@ namespace snmalloc
      */
     void set(void* p, uint8_t x)
     {
-      global_pagemap.set(p, x);
+      pagemap.set(p, x);
     }
   };
 
