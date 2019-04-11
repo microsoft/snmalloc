@@ -31,6 +31,10 @@ namespace snmalloc
      */
     bool is_flat_pagemap;
     /**
+     * Number of bytes in a pointer.
+     */
+    uint8_t sizeof_pointer;
+    /**
      * The number of bits of the address used to index into the pagemap.
      */
     uint64_t pagemap_bits;
@@ -202,7 +206,7 @@ namespace snmalloc
      * The pagemap configuration describing this instantiation of the template.
      */
     static constexpr PagemapConfig config = {
-      1, false, GRANULARITY_BITS, sizeof(T)};
+      1, false, sizeof(void*), GRANULARITY_BITS, sizeof(T)};
 
     /**
      * Cast a `void*` to a pointer to this template instantiation, given a
@@ -216,6 +220,7 @@ namespace snmalloc
     {
       if (
         (c->version != 1) || (c->is_flat_pagemap) ||
+        (c->sizeof_pointer == sizeof(void*)) ||
         (c->pagemap_bits != GRANULARITY_BITS) ||
         (c->size_of_entry != sizeof(T)) || (!std::is_integral_v<T>))
       {
@@ -306,7 +311,7 @@ namespace snmalloc
      * The pagemap configuration describing this instantiation of the template.
      */
     static constexpr PagemapConfig config = {
-      1, true, GRANULARITY_BITS, sizeof(T)};
+      1, true, sizeof(void*), GRANULARITY_BITS, sizeof(T)};
 
     /**
      * Cast a `void*` to a pointer to this template instantiation, given a
@@ -320,6 +325,7 @@ namespace snmalloc
     {
       if (
         (c->version != 1) || (!c->is_flat_pagemap) ||
+        (c->sizeof_pointer == sizeof(void*)) ||
         (c->pagemap_bits != GRANULARITY_BITS) ||
         (c->size_of_entry != sizeof(T)) || (!std::is_integral_v<T>))
       {

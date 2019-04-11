@@ -101,7 +101,7 @@ namespace snmalloc
 
   public:
     /**
-     * Construtor.  Accesses the pagemap via the C ABI accessor and casts it to
+     * Constructor.  Accesses the pagemap via the C ABI accessor and casts it to
      * the expected type, failing in cases of ABI mismatch.
      */
     ExternalGlobalPagemap()
