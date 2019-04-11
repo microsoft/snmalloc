@@ -138,7 +138,7 @@ namespace snmalloc
     {
       const snmalloc::PagemapConfig* c;
       external_pagemap =
-        SuperslabPagemap::cast_to_pagemap(snmalloc_get_global_pagemap(&c), c);
+        SuperslabPagemap::cast_to_pagemap(snmalloc_pagemap_global_get(&c), c);
       // FIXME: Report an error somehow in non-debug builds.
       assert(external_pagemap);
     }
