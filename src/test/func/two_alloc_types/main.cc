@@ -48,7 +48,7 @@ int main()
   std::cout << "Allocated region " << oe_base << " - " << oe_end << std::endl;
 
   // Call these functions to trigger asserts if the cast-to-self doesn't work.
-  PagemapConfig *c;
+  const PagemapConfig *c;
   enclave_snmalloc_pagemap_global_get(&c);
   host_snmalloc_pagemap_global_get(&c);
 
