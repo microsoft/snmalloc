@@ -4,12 +4,6 @@
 
 namespace snmalloc
 {
-  enum ZeroMem
-  {
-    NoZero,
-    YesZero
-  };
-
   // 0 intermediate bits results in power of 2 small allocs. 1 intermediate
   // bit gives additional sizeclasses at the midpoint between each power of 2.
   // 2 intermediate bits gives 3 intermediate sizeclasses, etc.
