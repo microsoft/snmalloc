@@ -220,7 +220,7 @@ namespace snmalloc
     {
       if (
         (c->version != 1) || (c->is_flat_pagemap) ||
-        (c->sizeof_pointer == sizeof(void*)) ||
+        (c->sizeof_pointer != sizeof(void*)) ||
         (c->pagemap_bits != GRANULARITY_BITS) ||
         (c->size_of_entry != sizeof(T)) || (!std::is_integral_v<T>))
       {
@@ -325,7 +325,7 @@ namespace snmalloc
     {
       if (
         (c->version != 1) || (!c->is_flat_pagemap) ||
-        (c->sizeof_pointer == sizeof(void*)) ||
+        (c->sizeof_pointer != sizeof(void*)) ||
         (c->pagemap_bits != GRANULARITY_BITS) ||
         (c->size_of_entry != sizeof(T)) || (!std::is_integral_v<T>))
       {
