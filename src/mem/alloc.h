@@ -80,36 +80,6 @@ namespace snmalloc
   };
 
   /**
-   * Mixin used by `SuperslabMap` to access a pagemap provided by the user.
-   * This should be used by code that needs to access the canonical pagemap via
-   * some custom mechanism.
-   */
-  class CustomPagemap
-  {
-    /**
-     * Reference to the pagemap that we're using, allowing it to not be the
-     * default pagemap.
-     */
-    SuperslabPagemap& custom_pagemap;
-
-  public:
-    /**
-     * Constructor.  Takes the pagemap to use as an argument.  This constructor
-     * will be inherited by `SuperslabMap` if this mixin is used and so should
-     * be called as a constructor there, rather than directly.
-     */
-    CustomPagemap(SuperslabPagemap& pm) : custom_pagemap(pm) {}
-
-    /**
-     * Returns the provided pagemap.
-     */
-    SuperslabPagemap& pagemap()
-    {
-      return custom_pagemap;
-    }
-  };
-
-  /**
    * Optionally exported function that accesses the global pagemap provided by
    * a shared library.
    */
