@@ -4,6 +4,8 @@ project(snmalloc C CXX)
 option(USE_SNMALLOC_STATS "Track allocation stats" OFF)
 option(USE_MEASURE "Measure performance with histograms" OFF)
 option(USE_SBRK "Use sbrk instead of mmap" OFF)
+option(EXPOSE_EXTERNAL_PAGEMAP "Expose the global pagemap" OFF)
+option(EXPOSE_EXTERNAL_RESERVE "Expose an interface to reserve memory using the default memory provider" OFF)
 
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
 
@@ -76,6 +78,13 @@ macro(add_shim name)
 
   if(CACHE_FRIENDLY_OFFSET)
     target_compile_definitions(${name} PRIVATE -DCACHE_FRIENDLY_OFFSET=${CACHE_FRIENDLY_OFFSET})
+  endif()
+
+  if(EXPOSE_EXTERNAL_PAGEMAP)
+    target_compile_definitions(${name} PRIVATE -DSNMALLOC_EXPOSE_PAGEMAP)
+  endif()
+  if(EXPOSE_EXTERNAL_RESERVE)
+    target_compile_definitions(${name} PRIVATE -DSNMALLOC_EXPOSE_RESERVE)
   endif()
 endmacro()
 
