@@ -62,20 +62,82 @@ namespace snmalloc
     Pagemap<SUPERSLAB_BITS, uint8_t, 0>>;
 
   HEADER_GLOBAL SuperslabPagemap global_pagemap;
+
+  /**
+   * Mixin used by `SuperslabMap` to directly access the pagemap via a global
+   * variable.  This should be used from within the library or program that
+   * owns the pagemap.
+   */
+  struct GlobalPagemap
+  {
+    /**
+     * Returns the pagemap.
+     */
+    SuperslabPagemap& pagemap()
+    {
+      return global_pagemap;
+    }
+  };
+
+  /**
+   * Optionally exported function that accesses the global pagemap provided by
+   * a shared library.
+   */
+  extern "C" void* snmalloc_pagemap_global_get(snmalloc::PagemapConfig const**);
+
+  /**
+   * Mixin used by `SuperslabMap` to access the global pagemap via a
+   * type-checked C interface.  This should be used when another library (e.g.
+   * your C standard library) uses snmalloc and you wish to use a different
+   * configuration in your program or library, but wish to share a pagemap so
+   * that either version can deallocate memory.
+   */
+  class ExternalGlobalPagemap
+  {
+    /**
+     * A pointer to the pagemap.
+     */
+    SuperslabPagemap* external_pagemap;
+
+  public:
+    /**
+     * Constructor.  Accesses the pagemap via the C ABI accessor and casts it to
+     * the expected type, failing in cases of ABI mismatch.
+     */
+    ExternalGlobalPagemap()
+    {
+      const snmalloc::PagemapConfig* c;
+      external_pagemap =
+        SuperslabPagemap::cast_to_pagemap(snmalloc_pagemap_global_get(&c), c);
+      // FIXME: Report an error somehow in non-debug builds.
+      assert(external_pagemap);
+    }
+
+    /**
+     * Returns the exported pagemap.
+     */
+    SuperslabPagemap& pagemap()
+    {
+      return *external_pagemap;
+    }
+  };
+
   /**
    * Class that defines an interface to the pagemap.  This is provided to
    * `Allocator` as a template argument and so can be replaced by a compatible
    * implementation (for example, to move pagemap updates to a different
    * protection domain).
    */
-  struct SuperslabMap
+  template<typename PagemapProvider = GlobalPagemap>
+  struct SuperslabMap : public PagemapProvider
   {
+    using PagemapProvider::PagemapProvider;
     /**
      * Get the pagemap entry corresponding to a specific address.
      */
     uint8_t get(void* p)
     {
-      return global_pagemap.get(p);
+      return PagemapProvider::pagemap().get(p);
     }
     /**
      * Set a pagemap entry indicating that there is a superslab at the
@@ -121,11 +183,11 @@ namespace snmalloc
       for (size_t i = 0; i < size_bits - SUPERSLAB_BITS; i++)
       {
         size_t run = 1ULL << i;
-        global_pagemap.set_range(
+        PagemapProvider::pagemap().set_range(
           (void*)ss, (uint8_t)(64 + i + SUPERSLAB_BITS), run);
         ss = (uintptr_t)ss + SUPERSLAB_SIZE * run;
       }
-      global_pagemap.set(p, (uint8_t)size_bits);
+      PagemapProvider::pagemap().set(p, (uint8_t)size_bits);
     }
     /**
      * Update the pagemap to remove a large allocation, of `size` bytes from
@@ -136,7 +198,7 @@ namespace snmalloc
       size_t rounded_size = bits::next_pow2(size);
       assert(get(p) == bits::next_pow2_bits(size));
       auto count = rounded_size >> SUPERSLAB_BITS;
-      global_pagemap.set_range((void*)p, PMNotOurs, count);
+      PagemapProvider::pagemap().set_range((void*)p, PMNotOurs, count);
     }
 
   private:
@@ -147,12 +209,12 @@ namespace snmalloc
      */
     void set(void* p, uint8_t x)
     {
-      global_pagemap.set(p, x);
+      PagemapProvider::pagemap().set(p, x);
     }
   };
 
 #ifndef SNMALLOC_DEFAULT_PAGEMAP
-#  define SNMALLOC_DEFAULT_PAGEMAP snmalloc::SuperslabMap
+#  define SNMALLOC_DEFAULT_PAGEMAP snmalloc::SuperslabMap<>
 #endif
 
   /**

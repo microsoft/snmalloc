@@ -32,6 +32,11 @@ extern "C" void host_free(void*);
 extern "C" void* enclave_malloc(size_t);
 extern "C" void enclave_free(void*);
 
+extern "C" void*
+enclave_snmalloc_pagemap_global_get(snmalloc::PagemapConfig const**);
+extern "C" void*
+host_snmalloc_pagemap_global_get(snmalloc::PagemapConfig const**);
+
 using namespace snmalloc;
 int main()
 {
@@ -41,6 +46,11 @@ int main()
   oe_base = mp.reserve<true>(&size, 1);
   oe_end = (uint8_t*)oe_base + size;
   std::cout << "Allocated region " << oe_base << " - " << oe_end << std::endl;
+
+  // Call these functions to trigger asserts if the cast-to-self doesn't work.
+  const PagemapConfig* c;
+  enclave_snmalloc_pagemap_global_get(&c);
+  host_snmalloc_pagemap_global_get(&c);
 
   auto a = host_malloc(128);
   auto b = enclave_malloc(128);

@@ -1,3 +1,5 @@
+#pragma once
+
 namespace snmalloc
 {
   /**
@@ -24,5 +26,20 @@ namespace snmalloc
      * `request()` method that takes only a size.
      */
     AlignedAllocation = (1 << 1)
+  };
+  /**
+   * Flag indicating whether requested memory should be zeroed.
+   */
+  enum ZeroMem
+  {
+    /**
+     * Memory should not be zeroed, contents are undefined.
+     */
+    NoZero,
+    /**
+     * Memory must be zeroed.  This can be lazily allocated via a copy-on-write
+     * mechanism as long as any load from the memory returns zero.
+     */
+    YesZero
   };
 }

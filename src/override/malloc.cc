@@ -206,8 +206,24 @@ extern "C"
   }
 
 #ifdef SNMALLOC_EXPOSE_PAGEMAP
-  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(snmalloc_get_global_pagemap)(void)
+  /**
+   * Export the pagemap.  The return value is a pointer to the pagemap
+   * structure.  The argument is used to return a pointer to a `PagemapConfig`
+   * structure describing the type of the pagemap.  Static methods on the
+   * concrete pagemap templates can then be used to safely cast the return from
+   * this function to the correct type.  This allows us to preserve some
+   * semblance of ABI safety via a pure C API.
+   */
+  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(snmalloc_pagemap_global_get)(
+    PagemapConfig const** config)
   {
+    if (config)
+    {
+      *config = &decltype(snmalloc::global_pagemap)::config;
+      assert(
+        decltype(snmalloc::global_pagemap)::cast_to_pagemap(
+          &snmalloc::global_pagemap, *config) == &snmalloc::global_pagemap);
+    }
     return &snmalloc::global_pagemap;
   }
 #endif

@@ -10,6 +10,40 @@ namespace snmalloc
   static constexpr size_t PAGEMAP_NODE_BITS = 16;
   static constexpr size_t PAGEMAP_NODE_SIZE = 1ULL << PAGEMAP_NODE_BITS;
 
+  /**
+   * Structure describing the configuration of a pagemap.  When querying a
+   * pagemap from a different instantiation of snmalloc, the pagemap is exposed
+   * as a `void*`.  This structure allows the caller to check whether the
+   * pagemap is of the format that they expect.
+   */
+  struct PagemapConfig
+  {
+    /**
+     * The version of the pagemap structure.  This is always 1 in existing
+     * versions of snmalloc.  This will be incremented every time the format
+     * changes in an incompatible way.  Changes to the format may add fields to
+     * the end of this structure.
+     */
+    uint32_t version;
+    /**
+     * Is this a flat pagemap?  If this field is false, the pagemap is the
+     * hierarchical structure.
+     */
+    bool is_flat_pagemap;
+    /**
+     * Number of bytes in a pointer.
+     */
+    uint8_t sizeof_pointer;
+    /**
+     * The number of bits of the address used to index into the pagemap.
+     */
+    uint64_t pagemap_bits;
+    /**
+     * The size (in bytes) of a pagemap entry.
+     */
+    size_t size_of_entry;
+  };
+
   template<size_t GRANULARITY_BITS, typename T, T default_content>
   class Pagemap
   {
@@ -169,6 +203,32 @@ namespace snmalloc
 
   public:
     /**
+     * The pagemap configuration describing this instantiation of the template.
+     */
+    static constexpr PagemapConfig config = {
+      1, false, sizeof(void*), GRANULARITY_BITS, sizeof(T)};
+
+    /**
+     * Cast a `void*` to a pointer to this template instantiation, given a
+     * config describing the configuration.  Return null if the configuration
+     * passed does not correspond to this template instantiation.
+     *
+     * This intended to allow code that depends on the pagemap having a
+     * specific representation to fail gracefully.
+     */
+    static Pagemap* cast_to_pagemap(void* pm, const PagemapConfig* c)
+    {
+      if (
+        (c->version != 1) || (c->is_flat_pagemap) ||
+        (c->sizeof_pointer != sizeof(void*)) ||
+        (c->pagemap_bits != GRANULARITY_BITS) ||
+        (c->size_of_entry != sizeof(T)) || (!std::is_integral_v<T>))
+      {
+        return nullptr;
+      }
+      return static_cast<Pagemap*>(pm);
+    }
+    /**
      * Returns the index of a pagemap entry within a given page.  This is used
      * in code that propagates changes to the pagemap elsewhere.
      */
@@ -247,6 +307,32 @@ namespace snmalloc
     std::atomic<T> top[ENTRIES];
 
   public:
+    /**
+     * The pagemap configuration describing this instantiation of the template.
+     */
+    static constexpr PagemapConfig config = {
+      1, true, sizeof(void*), GRANULARITY_BITS, sizeof(T)};
+
+    /**
+     * Cast a `void*` to a pointer to this template instantiation, given a
+     * config describing the configuration.  Return null if the configuration
+     * passed does not correspond to this template instantiation.
+     *
+     * This intended to allow code that depends on the pagemap having a
+     * specific representation to fail gracefully.
+     */
+    static FlatPagemap* cast_to_pagemap(void* pm, const PagemapConfig* c)
+    {
+      if (
+        (c->version != 1) || (!c->is_flat_pagemap) ||
+        (c->sizeof_pointer != sizeof(void*)) ||
+        (c->pagemap_bits != GRANULARITY_BITS) ||
+        (c->size_of_entry != sizeof(T)) || (!std::is_integral_v<T>))
+      {
+        return nullptr;
+      }
+      return static_cast<FlatPagemap*>(pm);
+    }
     T get(void* p)
     {
       return top[(size_t)p >> SHIFT].load(std::memory_order_relaxed);
