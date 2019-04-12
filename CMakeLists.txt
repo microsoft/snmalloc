@@ -4,6 +4,7 @@ project(snmalloc C CXX)
 option(USE_SNMALLOC_STATS "Track allocation stats" OFF)
 option(USE_MEASURE "Measure performance with histograms" OFF)
 option(USE_SBRK "Use sbrk instead of mmap" OFF)
+option(EXPOSE_EXTERNAL_ALLOCATOR_API "Expose the API that allows using external allocators and sharing pagemaps" OFF)
 
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
 
@@ -65,6 +66,10 @@ endif()
 
 if(USE_SBRK)
   add_definitions(-DUSE_SBRK)
+endif()
+
+if(EXPOSE_EXTERNAL_ALLOCATOR_API)
+  add_definitions(-DSNMALLOC_EXPOSE_RESERVE -DSNMALLOC_EXPOSE_PAGEMAP)
 endif()
 
 macro(add_shim name)
