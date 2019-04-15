@@ -4,7 +4,6 @@
 #  include "../ds/bits.h"
 #  include "../mem/allocconfig.h"
 
-#  include <pthread.h>
 #  include <stdio.h>
 #  include <strings.h>
 #  include <sys/mman.h>

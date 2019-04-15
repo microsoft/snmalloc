@@ -2,6 +2,7 @@
 #include "../snmalloc.h"
 
 #include <errno.h>
+#include <string.h>
 
 using namespace snmalloc;
 
@@ -89,7 +90,7 @@ extern "C"
     if (p != nullptr)
     {
       assert(p == Alloc::external_pointer<Start>(p));
-      sz = (std::min)(size, sz);
+      sz = bits::min(size, sz);
       memcpy(p, ptr, sz);
       SNMALLOC_NAME_MANGLE(free)(ptr);
     }
@@ -135,7 +136,7 @@ extern "C"
       return nullptr;
     }
 
-    size = (std::max)(size, alignment);
+    size = bits::max(size, alignment);
     uint8_t sc = size_to_sizeclass(size);
     if (sc >= NUM_SIZECLASSES)
     {

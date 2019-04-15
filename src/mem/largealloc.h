@@ -8,8 +8,6 @@
 #include "baseslab.h"
 #include "sizeclass.h"
 
-#include <utility>
-
 namespace snmalloc
 {
   template<class PAL>
@@ -61,7 +59,7 @@ namespace snmalloc
     size_t bump;
     size_t remaining;
 
-    std::pair<void*, size_t> reserve_block() noexcept
+    void new_block()
     {
       size_t size = SUPERSLAB_SIZE;
       void* r = reserve<false>(&size, SUPERSLAB_SIZE);
@@ -70,14 +68,9 @@ namespace snmalloc
         error("out of memory");
 
       ((PAL*)this)->template notify_using<NoZero>(r, OS_PAGE_SIZE);
-      return std::make_pair(r, size);
-    }
 
-    void new_block()
-    {
-      auto r_size = reserve_block();
-      bump = (size_t)r_size.first;
-      remaining = r_size.second;
+      bump = (size_t)r;
+      remaining = size;
     }
 
     /**

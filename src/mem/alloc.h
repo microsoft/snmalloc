@@ -21,8 +21,6 @@
 #include "sizeclasstable.h"
 #include "slab.h"
 
-#include <array>
-
 namespace snmalloc
 {
   enum Boundary

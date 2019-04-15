@@ -3,8 +3,7 @@
 #include "../ds/helpers.h"
 #include "allocslab.h"
 #include "metaslab.h"
-
-#include <cstring>
+#include <new>
 
 namespace snmalloc
 {

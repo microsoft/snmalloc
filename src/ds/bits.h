@@ -452,5 +452,17 @@ namespace snmalloc
         return (size_t)1 << (m_e + LOW_BITS);
       }
     }
+
+    template <typename T>
+    constexpr inline T min(T t1, T t2)
+    {
+      return t1 < t2 ? t1 : t2;
+    }
+
+    template <typename T>
+    constexpr inline T max(T t1, T t2)
+    {
+      return t1 > t2 ? t1 : t2;
+    }
   }
 }

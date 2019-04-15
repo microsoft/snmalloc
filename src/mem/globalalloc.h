@@ -49,6 +49,7 @@ namespace snmalloc
       }
     }
 
+#ifdef USE_SNMALLOC_STATS
     void print_all_stats(std::ostream& o, uint64_t dumpid = 0)
     {
       auto alloc = Parent::iterate();
@@ -59,6 +60,12 @@ namespace snmalloc
         alloc = Parent::iterate(alloc);
       }
     }
+#else
+    void print_all_stats(void*& o, uint64_t dumpid = 0)
+    {
+      UNUSED(o); UNUSED(dumpid);
+    }
+#endif
 
     void cleanup_unused()
     {
