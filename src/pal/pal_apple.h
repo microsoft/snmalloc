@@ -5,9 +5,10 @@
 #  include "../mem/allocconfig.h"
 
 #  include <pthread.h>
-#  include <stdio.h>
 #  include <strings.h>
 #  include <sys/mman.h>
+
+int puts ( const char * str );
 
 namespace snmalloc
 {

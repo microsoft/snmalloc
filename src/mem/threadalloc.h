@@ -7,6 +7,10 @@
 #error At most one out of SNMALLOC_USE_THREAD_CLEANUP and SNMALLOC_USE_THREAD_DESTRUCTOR may be defined.
 #endif
 
+#if !defined(_WIN32) && !defined(FreeBSD_KERNEL)
+# include "pthread.h"
+#endif
+
 namespace snmalloc
 {
   extern "C" void _malloc_thread_cleanup(void);

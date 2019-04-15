@@ -1,9 +1,10 @@
 #pragma once
 
 #include "../ds/bits.h"
+#include "../ds/helpers.h"
 
-#include <algorithm>
 #include <atomic>
+#include <utility>
 
 namespace snmalloc
 {
@@ -274,7 +275,7 @@ namespace snmalloc
         auto leaf_ix = get_leaf_index<true>(p, success);
         size_t ix = leaf_ix.second;
 
-        auto last = std::min(LEAF_MASK + 1, ix + length);
+        auto last = bits::min(LEAF_MASK + 1, ix + length);
 
         auto diff = last - ix;
 
