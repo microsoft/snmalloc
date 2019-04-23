@@ -180,7 +180,7 @@ namespace snmalloc
 
 #ifdef SNMALLOC_USE_THREAD_CLEANUP
   /**
-   * Entry point the allows libc to call into the allocator for per-thread
+   * Entry point that allows libc to call into the allocator for per-thread
    * cleanup.
    */
   extern "C" void _malloc_thread_cleanup()

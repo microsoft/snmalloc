@@ -7,7 +7,8 @@ namespace snmalloc
 {
   /*
    * In some use cases we need to run before any of the C++ runtime has been
-   * initialised.  This singleton class is design to not depend on the runtime.
+   * initialised.  This singleton class is designed to not depend on the
+   * runtime.
    */
   template<class Object, Object init() noexcept>
   class Singleton

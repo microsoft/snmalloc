@@ -113,7 +113,7 @@ namespace snmalloc
   static constexpr size_t MIN_ALLOC_BITS = bits::is64() ? 4 : 3;
   static constexpr size_t MIN_ALLOC_SIZE = 1 << MIN_ALLOC_BITS;
 
-  // Slabs are 64 kb.
+  // Slabs are 64 KiB unless constrained to 16 KiB.
   static constexpr size_t SLAB_BITS = ADDRESS_SPACE_CONSTRAINED ? 14 : 16;
   static constexpr size_t SLAB_SIZE = 1 << SLAB_BITS;
   static constexpr size_t SLAB_MASK = ~(SLAB_SIZE - 1);

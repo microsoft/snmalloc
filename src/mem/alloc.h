@@ -40,7 +40,29 @@ namespace snmalloc
     PMNotOurs = 0,
     PMSuperslab = 1,
     PMMediumslab = 2
+
+    /*
+     * Values 3 (inclusive) through SUPERSLAB_BITS (exclusive) are as yet
+     * unused.
+     *
+     * Values SUPERSLAB_BITS (inclusive) through 64 (exclusive, as it would
+     * represent the entire address space) are used for log2(size) at the
+     * heads of large allocations.  See SuperslabMap::set_large_size.
+     *
+     * Values 64 (inclusive) through 128 (exclusive) are used for entries
+     * within a large allocation.  A value of x at pagemap entry p indicates
+     * that there are at least 2^(x-64) (inclusive) and at most 2^(x+1-64)
+     * (exclusive) page map entries between p and the start of the
+     * allocation.  See SuperslabMap::set_large_size and external_address's
+     * handling of large reallocation redirections.
+     *
+     * Values 128 (inclusive) through 255 (inclusive) are as yet unused.
+     */
+
   };
+
+  /* Ensure that PageMapSuperslabKind values are actually disjoint */
+  static_assert(SUPERSLAB_BITS > 2, "Large allocations possibly too small");
 
 #ifndef SNMALLOC_MAX_FLATPAGEMAP_SIZE
 // Use flat map is under a single node.
@@ -144,6 +166,9 @@ namespace snmalloc
     using PagemapProvider::PagemapProvider;
     /**
      * Get the pagemap entry corresponding to a specific address.
+     *
+     * Despite the type, the return value is an enum PageMapSuperslabKind
+     * or one of the reserved values described therewith.
      */
     uint8_t get(address_t p)
     {
@@ -301,6 +326,9 @@ namespace snmalloc
     template<class MP>
     friend class AllocPool;
 
+    /**
+     * Allocate memory of a statically known size.
+     */
     template<
       size_t size,
       ZeroMem zero_mem = NoZero,
@@ -321,7 +349,6 @@ namespace snmalloc
 
       stats().alloc_request(size);
 
-      // Allocate memory of a statically known size.
       if constexpr (sizeclass < NUM_SMALL_CLASSES)
       {
         return small_alloc<zero_mem, allow_reserve>(size);
@@ -340,6 +367,9 @@ namespace snmalloc
 #endif
     }
 
+    /**
+     * Allocate memory of a dynamically known size.
+     */
     template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
     SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
     {
@@ -354,7 +384,6 @@ namespace snmalloc
 #else
       stats().alloc_request(size);
 
-      // Allocate memory of a dynamically known size.
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
@@ -389,6 +418,10 @@ namespace snmalloc
 #endif
     }
 
+    /*
+     * Free memory of a statically known size. Must be called with an
+     * external pointer.
+     */
     template<size_t size>
     void dealloc(void* p)
     {
@@ -401,8 +434,6 @@ namespace snmalloc
 
       handle_message_queue();
 
-      // Free memory of a statically known size. Must be called with an
-      // external pointer.
       if (sizeclass < NUM_SMALL_CLASSES)
       {
         Superslab* super = Superslab::get(p);
@@ -430,6 +461,10 @@ namespace snmalloc
 #endif
     }
 
+    /*
+     * Free memory of a dynamically known size. Must be called with an
+     * external pointer.
+     */
     void dealloc(void* p, size_t size)
     {
 #ifdef USE_MALLOC
@@ -438,8 +473,6 @@ namespace snmalloc
 #else
       handle_message_queue();
 
-      // Free memory of a dynamically known size. Must be called with an
-      // external pointer.
       sizeclass_t sizeclass = size_to_sizeclass(size);
 
       if (sizeclass < NUM_SMALL_CLASSES)
@@ -469,14 +502,16 @@ namespace snmalloc
 #endif
     }
 
+    /*
+     * Free memory of an unknown size. Must be called with an external
+     * pointer.
+     */
     SNMALLOC_FAST_PATH void dealloc(void* p)
     {
 #ifdef USE_MALLOC
       return free(p);
 #else
 
-      // Free memory of an unknown size. Must be called with an external
-      // pointer.
       uint8_t size = pagemap().get(address_cast(p));
 
       Superslab* super = Superslab::get(p);
@@ -514,7 +549,7 @@ namespace snmalloc
         RemoteAllocator* target = slab->get_allocator();
 
         // Reading a remote sizeclass won't fail, since the other allocator
-        // can't reuse the slab, as we have no yet deallocated this pointer.
+        // can't reuse the slab, as we have not yet deallocated this pointer.
         sizeclass_t sizeclass = slab->get_sizeclass();
 
         if (target == public_state())
@@ -645,9 +680,20 @@ namespace snmalloc
   private:
     using alloc_id_t = typename Remote::alloc_id_t;
 
+    /*
+     * A singly-linked list of Remote objects, supporting append and
+     * take-all operations.  Intended only for the private use of this
+     * allocator; the Remote objects here will later be taken and pushed
+     * to the inter-thread message queues.
+     */
     struct RemoteList
     {
+      /*
+       * A stub Remote object that will always be the head of this list;
+       * never taken for further processing.
+       */
       Remote head;
+
       Remote* last;
 
       RemoteList()

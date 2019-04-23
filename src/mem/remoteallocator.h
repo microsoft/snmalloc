@@ -8,6 +8,11 @@
 
 namespace snmalloc
 {
+  /*
+   * A region of memory destined for a remote allocator's dealloc() via the
+   * message passing system.  This structure is placed at the beginning of
+   * the allocation itself when it is queued for sending.
+   */
   struct Remote
   {
     using alloc_id_t = size_t;

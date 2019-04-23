@@ -144,7 +144,7 @@ namespace snmalloc
           if (!alloc->stats().is_empty())
             non_empty_count++;
 
-          // Place the static stub message on the queue.
+          // Place the stub message on the queue.
           alloc->init_message_queue();
 
           // Post all remotes, including forwarded ones. If any allocator posts,
