@@ -4,6 +4,17 @@
 
 namespace snmalloc
 {
+// Store pointers to the underlying, kernel-provided memory allocations in
+// the pagemap, in addition to size information.  This turns the pagemap
+// into the central structure for preserving pointer provenance on
+// architectures, such as CHERI, where that is required.  On these
+// architectures, we cannot just round down the address given to dealloc()
+// and expect to reach slab metadata, as that address will be out of bounds.
+// Therefore, we use the pagemap to rederive pointers with larger bounds.
+#ifndef SNMALLOC_PAGEMAP_POINTERS
+#  define SNMALLOC_PAGEMAP_POINTERS 0
+#endif
+
 // The CHECK_CLIENT macro is used to turn on minimal checking of the client
 // calling the API correctly.
 #if !defined(NDEBUG) && !defined(CHECK_CLIENT)

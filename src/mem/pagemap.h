@@ -20,10 +20,10 @@ namespace snmalloc
   struct PagemapConfig
   {
     /**
-     * The version of the pagemap structure.  This is always 1 in existing
-     * versions of snmalloc.  This will be incremented every time the format
-     * changes in an incompatible way.  Changes to the format may add fields to
-     * the end of this structure.
+     * The version of the pagemap structure.  This is 2 in this version of
+     * This will be incremented every time the format changes in an
+     * incompatible way.  Changes to the format may add fields to the end of
+     * this structure.
      */
     uint32_t version;
     /**
@@ -43,6 +43,11 @@ namespace snmalloc
      * The size (in bytes) of a pagemap entry.
      */
     size_t size_of_entry;
+    /**
+     * Added in version 2: the integrality of the pagemap entry.
+     * False if entries are pointers (see SNMALLOC_PAGEMAP_POINTERS).
+     */
+    bool is_entry_integral;
   };
 
   template<size_t GRANULARITY_BITS, typename T, T default_content>
@@ -224,8 +229,12 @@ namespace snmalloc
     /**
      * The pagemap configuration describing this instantiation of the template.
      */
-    static constexpr PagemapConfig config = {
-      1, false, sizeof(uintptr_t), GRANULARITY_BITS, sizeof(T)};
+    static constexpr PagemapConfig config = {2,
+                                             false,
+                                             sizeof(uintptr_t),
+                                             GRANULARITY_BITS,
+                                             sizeof(T),
+                                             std::is_integral_v<T>};
 
     /**
      * Cast a `void*` to a pointer to this template instantiation, given a
@@ -238,10 +247,11 @@ namespace snmalloc
     static Pagemap* cast_to_pagemap(void* pm, const PagemapConfig* c)
     {
       if (
-        (c->version != 1) || (c->is_flat_pagemap) ||
+        (c->version != 2) || (c->is_flat_pagemap) ||
         (c->sizeof_pointer != sizeof(uintptr_t)) ||
         (c->pagemap_bits != GRANULARITY_BITS) ||
-        (c->size_of_entry != sizeof(T)) || (!std::is_integral_v<T>))
+        (c->size_of_entry != sizeof(T)) ||
+        (c->is_entry_integral != std::is_integral_v<T>))
       {
         return nullptr;
       }
@@ -329,8 +339,12 @@ namespace snmalloc
     /**
      * The pagemap configuration describing this instantiation of the template.
      */
-    static constexpr PagemapConfig config = {
-      1, true, sizeof(uintptr_t), GRANULARITY_BITS, sizeof(T)};
+    static constexpr PagemapConfig config = {2,
+                                             true,
+                                             sizeof(uintptr_t),
+                                             GRANULARITY_BITS,
+                                             sizeof(T),
+                                             std::is_integral_v<T>};
 
     /**
      * Cast a `void*` to a pointer to this template instantiation, given a
@@ -343,10 +357,11 @@ namespace snmalloc
     static FlatPagemap* cast_to_pagemap(void* pm, const PagemapConfig* c)
     {
       if (
-        (c->version != 1) || (!c->is_flat_pagemap) ||
+        (c->version != 2) || (!c->is_flat_pagemap) ||
         (c->sizeof_pointer != sizeof(uintptr_t)) ||
         (c->pagemap_bits != GRANULARITY_BITS) ||
-        (c->size_of_entry != sizeof(T)) || (!std::is_integral_v<T>))
+        (c->size_of_entry != sizeof(T)) ||
+        (c->is_entry_integral != std::is_integral_v<T>))
       {
         return nullptr;
       }
