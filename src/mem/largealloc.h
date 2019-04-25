@@ -68,7 +68,7 @@ namespace snmalloc
         error("out of memory");
 
       PAL::template notify_using<NoZero>(r, OS_PAGE_SIZE);
-      
+
       bump = (size_t)r;
       remaining = size;
     }
@@ -167,7 +167,7 @@ namespace snmalloc
       auto page_end = bits::align_up((size_t)p + size, OS_PAGE_SIZE);
 
       PAL::template notify_using<NoZero>(
-          (void*)page_start, page_end - page_start);
+        (void*)page_start, page_end - page_start);
 
       return new (p) T(std::forward<Args...>(args)...);
     }

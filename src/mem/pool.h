@@ -21,7 +21,7 @@ namespace snmalloc
   {
   private:
     friend Pooled<T>;
-    template <typename TT>
+    template<typename TT>
     friend class MemoryProviderStateMixin;
 
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
@@ -35,7 +35,8 @@ namespace snmalloc
 
     static Pool* make(MemoryProvider& memory_provider) noexcept
     {
-      return memory_provider.template alloc_chunk<Pool,0, MemoryProvider&>(memory_provider);
+      return memory_provider.template alloc_chunk<Pool, 0, MemoryProvider&>(
+        memory_provider);
     }
 
     static Pool* make() noexcept
@@ -52,7 +53,8 @@ namespace snmalloc
         return p;
 
       p = memory_provider
-            .template alloc_chunk<T, bits::next_pow2_const(sizeof(T))>(std::forward<Args...>(args)...);
+            .template alloc_chunk<T, bits::next_pow2_const(sizeof(T))>(
+              std::forward<Args...>(args)...);
 
       FlagLock f(lock);
       p->list_next = list;

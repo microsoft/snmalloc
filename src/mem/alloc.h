@@ -566,7 +566,7 @@ namespace snmalloc
       }
       else if (size == PMMediumslab)
       {
-        Mediumslab * slab = Mediumslab::get(p);
+        Mediumslab* slab = Mediumslab::get(p);
         // Reading a remote sizeclass won't fail, since the other allocator
         // can't reuse the slab, as we have no yet deallocated this pointer.
         return sizeclass_to_size(slab->get_sizeclass());
@@ -792,7 +792,8 @@ namespace snmalloc
     }
 
     template<Boundary location>
-    static uintptr_t external_pointer(void* p, uint8_t sizeclass, size_t end_point)
+    static uintptr_t
+    external_pointer(void* p, uint8_t sizeclass, size_t end_point)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
       size_t end_point_correction = location == End ?

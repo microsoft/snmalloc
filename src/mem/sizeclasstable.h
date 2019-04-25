@@ -29,8 +29,8 @@ namespace snmalloc
         size[sizeclass] =
           bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
 
-        size_t alignment =
-          bits::min((size_t)1 << bits::ctz_const(size[sizeclass]), OS_PAGE_SIZE);
+        size_t alignment = bits::min(
+          (size_t)1 << bits::ctz_const(size[sizeclass]), OS_PAGE_SIZE);
         cache_friendly_mask[sizeclass] = (alignment - 1);
         inverse_cache_friendly_mask[sizeclass] = ~(alignment - 1);
       }

@@ -124,7 +124,7 @@ namespace snmalloc
                 value, (PagemapEntry*)LOCKED_ENTRY, std::memory_order_relaxed))
           {
             auto& v = default_memory_provider;
-            value = v.alloc_chunk<PagemapEntry,OS_PAGE_SIZE>();
+            value = v.alloc_chunk<PagemapEntry, OS_PAGE_SIZE>();
             e->store(value, std::memory_order_release);
           }
           else
