@@ -8,7 +8,7 @@
 #endif
 
 #if !defined(_WIN32) && !defined(FreeBSD_KERNEL)
-# include "pthread.h"
+#  include "pthread.h"
 #endif
 
 namespace snmalloc
