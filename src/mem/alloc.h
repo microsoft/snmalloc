@@ -445,7 +445,7 @@ namespace snmalloc
       }
       else if (size == PMMediumslab)
       {
-        Mediumslab* slab = (Mediumslab*)super;
+        Mediumslab* slab = Mediumslab::get(p);
         RemoteAllocator* target = slab->get_allocator();
 
         // Reading a remote sizeclass won't fail, since the other allocator
@@ -460,7 +460,7 @@ namespace snmalloc
       }
 
 #  ifndef SNMALLOC_SAFE_CLIENT
-      if (size > 64 || (void*)super != p)
+      if (size > 64 || (uintptr_t)super != (uintptr_t)p)
       {
         error("Not deallocating start of an object");
       }
@@ -491,7 +491,7 @@ namespace snmalloc
       }
       else if (size == PMMediumslab)
       {
-        Mediumslab* slab = (Mediumslab*)super;
+        Mediumslab* slab = Mediumslab::get(p);
 
         uint8_t sc = slab->get_sizeclass();
         size_t slab_end = (size_t)slab + SUPERSLAB_SIZE;
@@ -550,11 +550,9 @@ namespace snmalloc
       }
       else if (size == PMMediumslab)
       {
-        Superslab* super = Superslab::get(p);
+        Mediumslab * slab = Mediumslab::get(p);
         // Reading a remote sizeclass won't fail, since the other allocator
         // can't reuse the slab, as we have no yet deallocated this pointer.
-        Mediumslab* slab = (Mediumslab*)super;
-
         return sizeclass_to_size(slab->get_sizeclass());
       }
 
@@ -972,7 +970,7 @@ namespace snmalloc
       SlabLink* link = sc->get_head();
       Slab* slab;
 
-      if (link != (SlabLink*)~0)
+      if ((uintptr_t)link != ~0ULL)
       {
         slab = link->get_slab();
       }

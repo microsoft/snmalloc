@@ -67,8 +67,8 @@ namespace snmalloc
       if (size < SUPERSLAB_SIZE)
         error("out of memory");
 
-      ((PAL*)this)->template notify_using<NoZero>(r, OS_PAGE_SIZE);
-
+      PAL::template notify_using<NoZero>(r, OS_PAGE_SIZE);
+      
       bump = (size_t)r;
       remaining = size;
     }
@@ -166,8 +166,7 @@ namespace snmalloc
       auto page_start = bits::align_down((size_t)p, OS_PAGE_SIZE);
       auto page_end = bits::align_up((size_t)p + size, OS_PAGE_SIZE);
 
-      ((PAL*)this)
-        ->template notify_using<NoZero>(
+      PAL::template notify_using<NoZero>(
           (void*)page_start, page_end - page_start);
 
       return p;
