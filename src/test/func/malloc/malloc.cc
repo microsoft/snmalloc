@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #define SNMALLOC_NAME_MANGLE(a) our_##a
 #include "../../../override/malloc.cc"
 
