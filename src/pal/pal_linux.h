@@ -7,7 +7,7 @@
 #  include <string.h>
 #  include <sys/mman.h>
 
-int puts(const char* str);
+extern "C" int puts(const char* str);
 
 namespace snmalloc
 {
