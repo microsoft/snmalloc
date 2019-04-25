@@ -6,16 +6,24 @@
 
 namespace snmalloc
 {
-  template<class T, uintptr_t terminator = 0>
+  template<class T, uintptr_t terminator_ = 0>
   class DLList
   {
   private:
-    static_assert(
-      std::is_same<decltype(((T*)0)->prev), T*>::value, "T->prev must be a T*");
-    static_assert(
-      std::is_same<decltype(((T*)0)->next), T*>::value, "T->next must be a T*");
+    // Single point to perform this cast.
+    // Would like this to be a constexpr, but reinterpret cast is not allowed in
+    // constexpr.
+    static inline T* terminator()
+    {
+      return (T*)terminator_;
+    }
 
-    T* head = (T*)terminator;
+    static_assert(
+      std::is_same<decltype(T::prev), T*>::value, "T->prev must be a T*");
+    static_assert(
+      std::is_same<decltype(T::next), T*>::value, "T->next must be a T*");
+
+    T* head = terminator();
 
   public:
     T* get_head()
@@ -27,7 +35,7 @@ namespace snmalloc
     {
       T* item = head;
 
-      if (item != (T*)terminator)
+      if (item != terminator())
         remove(item);
 
       return item;
@@ -40,9 +48,9 @@ namespace snmalloc
 #endif
 
       item->next = head;
-      item->prev = (T*)terminator;
+      item->prev = terminator();
 
-      if (head != (T*)terminator)
+      if (head != terminator())
         head->prev = item;
 
       head = item;
@@ -57,10 +65,10 @@ namespace snmalloc
       debug_check_contains(item);
 #endif
 
-      if (item->next != (T*)terminator)
+      if (item->next != terminator())
         item->next->prev = item->prev;
 
-      if (item->prev != (T*)terminator)
+      if (item->prev != terminator())
         item->prev->next = item->next;
       else
         head = item->next;
@@ -78,7 +86,7 @@ namespace snmalloc
 
       while (curr != item)
       {
-        assert(curr != (T*)terminator);
+        assert(curr != terminator());
         curr = curr->next;
       }
 #else
@@ -92,7 +100,7 @@ namespace snmalloc
       debug_check();
       T* curr = head;
 
-      while (curr != (T*)terminator)
+      while (curr != terminator())
       {
         assert(curr != item);
         curr = curr->next;
@@ -106,9 +114,9 @@ namespace snmalloc
     {
 #ifndef NDEBUG
       T* item = head;
-      T* prev = (T*)terminator;
+      T* prev = terminator();
 
-      while (item != (T*)terminator)
+      while (item != terminator())
       {
         assert(item->prev == prev);
         prev = item;
