@@ -84,6 +84,8 @@ namespace snmalloc
     ;
 
   // The remaining values are derived, not configurable.
+  static constexpr size_t POINTER_BITS =
+    bits::next_pow2_bits_const(sizeof(uintptr_t));
 
   // Used to isolate values on cache lines to prevent false sharing.
   static constexpr size_t CACHELINE_SIZE = 64;

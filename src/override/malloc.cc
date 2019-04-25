@@ -158,7 +158,7 @@ extern "C"
     void** memptr, size_t alignment, size_t size)
   {
     if (
-      ((alignment % sizeof(void*)) != 0) ||
+      ((alignment % sizeof(uintptr_t)) != 0) ||
       ((alignment & (alignment - 1)) != 0) || (alignment == 0))
     {
       return EINVAL;
