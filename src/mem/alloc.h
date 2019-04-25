@@ -987,7 +987,7 @@ namespace snmalloc
       SlabLink* link = sc->get_head();
       Slab* slab;
 
-      if ((uintptr_t)link != ~0ULL)
+      if (~(uintptr_t)link != 0)
       {
         slab = link->get_slab();
       }
