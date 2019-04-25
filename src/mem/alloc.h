@@ -480,7 +480,7 @@ namespace snmalloc
     }
 
     template<Boundary location = Start>
-    static void* external_pointer(void* p)
+    static uintptr_t external_uintptr(void* p)
     {
 #ifdef USE_MALLOC
       error("Unsupported");
@@ -522,7 +522,7 @@ namespace snmalloc
       {
         if constexpr ((location == End) || (location == OnePastEnd))
           // We don't know the End, so return MAX_PTR
-          return (void*)-1;
+          return (uintptr_t)~0;
         else
           // We don't know the Start, so return MIN_PTR
           return 0;
@@ -530,12 +530,18 @@ namespace snmalloc
 
       // This is a large alloc, mask off to the slab size.
       if constexpr (location == Start)
-        return (void*)ss;
+        return ss;
       else if constexpr (location == End)
-        return (void*)((size_t)ss + (1ULL << size) - 1ULL);
+        return (ss + (1ULL << size) - 1ULL);
       else
-        return (void*)((size_t)ss + (1ULL << size));
+        return (ss + (1ULL << size));
 #endif
+    }
+
+    template<Boundary location = Start>
+    static void* external_pointer(void* p)
+    {
+      return (void*)external_uintptr<location>(p);
     }
 
     static size_t alloc_size(void* p)
@@ -786,7 +792,7 @@ namespace snmalloc
     }
 
     template<Boundary location>
-    static void* external_pointer(void* p, uint8_t sizeclass, size_t end_point)
+    static uintptr_t external_pointer(void* p, uint8_t sizeclass, size_t end_point)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
       size_t end_point_correction = location == End ?
@@ -794,7 +800,7 @@ namespace snmalloc
         (location == OnePastEnd ? end_point : (end_point - rsize));
       size_t offset_from_end = (end_point - 1) - (size_t)p;
       size_t end_to_end = round_by_sizeclass(rsize, offset_from_end);
-      return (void*)(end_point_correction - end_to_end);
+      return end_point_correction - end_to_end;
     }
 
     void init_message_queue()
