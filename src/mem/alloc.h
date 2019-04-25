@@ -231,8 +231,6 @@ namespace snmalloc
           ss, static_cast<uint8_t>(64 + i + SUPERSLAB_BITS), run);
         ss = ss + SUPERSLAB_SIZE * run;
       }
-      PagemapProvider::pagemap().set(
-        address_cast(p), static_cast<uint8_t>(size_bits));
     }
     /**
      * Update the pagemap to remove a large allocation, of `size` bytes from
