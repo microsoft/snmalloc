@@ -146,9 +146,8 @@ namespace snmalloc
     }
 
     template<bool create_addr>
-    inline std::pair<Leaf*, size_t> get_leaf_index(void* p, bool& result)
+    inline std::pair<Leaf*, size_t> get_leaf_index(uintptr_t addr, bool& result)
     {
-      size_t addr = (size_t)p;
 #ifdef FreeBSD_KERNEL
       // Zero the top 16 bits - kernel addresses all have them set, but the
       // data structure assumes that they're zero.
@@ -190,13 +189,13 @@ namespace snmalloc
     }
 
     template<bool create_addr>
-    inline std::atomic<T>* get_addr(void* p, bool& success)
+    inline std::atomic<T>* get_addr(uintptr_t p, bool& success)
     {
       auto leaf_ix = get_leaf_index<create_addr>(p, success);
       return &(leaf_ix.first->values[leaf_ix.second]);
     }
 
-    std::atomic<T>* get_ptr(void* p)
+    std::atomic<T>* get_ptr(uintptr_t p)
     {
       bool success;
       return get_addr<true>(p, success);
@@ -207,7 +206,7 @@ namespace snmalloc
      * The pagemap configuration describing this instantiation of the template.
      */
     static constexpr PagemapConfig config = {
-      1, false, sizeof(void*), GRANULARITY_BITS, sizeof(T)};
+      1, false, sizeof(uintptr_t), GRANULARITY_BITS, sizeof(T)};
 
     /**
      * Cast a `void*` to a pointer to this template instantiation, given a
@@ -221,7 +220,7 @@ namespace snmalloc
     {
       if (
         (c->version != 1) || (c->is_flat_pagemap) ||
-        (c->sizeof_pointer != sizeof(void*)) ||
+        (c->sizeof_pointer != sizeof(uintptr_t)) ||
         (c->pagemap_bits != GRANULARITY_BITS) ||
         (c->size_of_entry != sizeof(T)) || (!std::is_integral_v<T>))
       {
@@ -229,11 +228,12 @@ namespace snmalloc
       }
       return static_cast<Pagemap*>(pm);
     }
+
     /**
      * Returns the index of a pagemap entry within a given page.  This is used
      * in code that propagates changes to the pagemap elsewhere.
      */
-    size_t index_for_address(void* p)
+    size_t index_for_address(uintptr_t p)
     {
       bool success;
       return (OS_PAGE_SIZE - 1) &
@@ -243,7 +243,7 @@ namespace snmalloc
     /**
      * Returns the address of the page containing
      */
-    void* page_for_address(void* p)
+    void* page_for_address(uintptr_t p)
     {
       bool success;
       return reinterpret_cast<void*>(
@@ -251,7 +251,7 @@ namespace snmalloc
         reinterpret_cast<uintptr_t>(get_addr<true>(p, success)));
     }
 
-    T get(void* p)
+    T get(uintptr_t p)
     {
       bool success;
       auto addr = get_addr<false>(p, success);
@@ -260,14 +260,14 @@ namespace snmalloc
       return addr->load(std::memory_order_relaxed);
     }
 
-    void set(void* p, T x)
+    void set(uintptr_t p, T x)
     {
       bool success;
       auto addr = get_addr<true>(p, success);
       addr->store(x, std::memory_order_relaxed);
     }
 
-    void set_range(void* p, T x, size_t length)
+    void set_range(uintptr_t p, T x, size_t length)
     {
       bool success;
       do
@@ -285,7 +285,7 @@ namespace snmalloc
         }
 
         length = length - diff;
-        p = (void*)((uintptr_t)p + (diff << GRANULARITY_BITS));
+        p = p + (diff << GRANULARITY_BITS);
       } while (length > 0);
     }
   };
@@ -312,7 +312,7 @@ namespace snmalloc
      * The pagemap configuration describing this instantiation of the template.
      */
     static constexpr PagemapConfig config = {
-      1, true, sizeof(void*), GRANULARITY_BITS, sizeof(T)};
+      1, true, sizeof(uintptr_t), GRANULARITY_BITS, sizeof(T)};
 
     /**
      * Cast a `void*` to a pointer to this template instantiation, given a
@@ -326,7 +326,7 @@ namespace snmalloc
     {
       if (
         (c->version != 1) || (!c->is_flat_pagemap) ||
-        (c->sizeof_pointer != sizeof(void*)) ||
+        (c->sizeof_pointer != sizeof(uintptr_t)) ||
         (c->pagemap_bits != GRANULARITY_BITS) ||
         (c->size_of_entry != sizeof(T)) || (!std::is_integral_v<T>))
       {
@@ -334,19 +334,20 @@ namespace snmalloc
       }
       return static_cast<FlatPagemap*>(pm);
     }
-    T get(void* p)
+
+    T get(uintptr_t p)
     {
-      return top[(size_t)p >> SHIFT].load(std::memory_order_relaxed);
+      return top[p >> SHIFT].load(std::memory_order_relaxed);
     }
 
-    void set(void* p, T x)
+    void set(uintptr_t p, T x)
     {
-      top[(size_t)p >> SHIFT].store(x, std::memory_order_relaxed);
+      top[p >> SHIFT].store(x, std::memory_order_relaxed);
     }
 
-    void set_range(void* p, T x, size_t length)
+    void set_range(uintptr_t p, T x, size_t length)
     {
-      size_t index = (size_t)p >> SHIFT;
+      size_t index = p >> SHIFT;
       do
       {
         top[index].store(x, std::memory_order_relaxed);
