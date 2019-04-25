@@ -132,11 +132,11 @@ namespace snmalloc
      * Primitive allocator for structure that are required before
      * the allocator can be running.
      */
-    template<size_t alignment = 64>
-    void* alloc_chunk(size_t size)
+    template<typename T, size_t alignment, typename... Args>
+    T* alloc_chunk(Args&&... args)
     {
       // Cache line align
-      size = bits::align_up(size, 64);
+      size_t size = bits::align_up(sizeof(T), 64);
 
       void* p;
       {
@@ -169,7 +169,7 @@ namespace snmalloc
       PAL::template notify_using<NoZero>(
           (void*)page_start, page_end - page_start);
 
-      return p;
+      return new (p) T(std::forward<Args...>(args)...);
     }
 
     /**

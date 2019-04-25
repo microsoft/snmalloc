@@ -95,6 +95,9 @@ namespace snmalloc
     static_assert(
       sizeof(PagemapEntry) == sizeof(Leaf), "Should be the same size");
 
+    static_assert(
+      sizeof(PagemapEntry) == PAGEMAP_NODE_SIZE, "Should be the same size");
+
     // Init removed as not required as this is only ever a global
     // cl is generating a memset of zero, which will be a problem
     // in libc/ucrt bring up.  On ucrt this will run after the first
@@ -121,8 +124,7 @@ namespace snmalloc
                 value, (PagemapEntry*)LOCKED_ENTRY, std::memory_order_relaxed))
           {
             auto& v = default_memory_provider;
-            value =
-              (PagemapEntry*)v.alloc_chunk<OS_PAGE_SIZE>(PAGEMAP_NODE_SIZE);
+            value = v.alloc_chunk<PagemapEntry,OS_PAGE_SIZE>();
             e->store(value, std::memory_order_release);
           }
           else
