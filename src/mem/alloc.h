@@ -133,10 +133,19 @@ namespace snmalloc
     /**
      * Get the pagemap entry corresponding to a specific address.
      */
-    uint8_t get(void* p)
+    uint8_t get(uintptr_t p)
     {
       return PagemapProvider::pagemap().get(p);
     }
+
+    /**
+     * Get the pagemap entry corresponding to a specific address.
+     */
+    uint8_t get(void* p)
+    {
+      return get((uintptr_t)p);
+    }
+
     /**
      * Set a pagemap entry indicating that there is a superslab at the
      * specified index.
@@ -177,26 +186,27 @@ namespace snmalloc
       size_t size_bits = bits::next_pow2_bits(size);
       set(p, (uint8_t)size_bits);
       // Set redirect slide
-      uintptr_t ss = (uintptr_t)((size_t)p + SUPERSLAB_SIZE);
+      uintptr_t ss = (uintptr_t)p + SUPERSLAB_SIZE;
       for (size_t i = 0; i < size_bits - SUPERSLAB_BITS; i++)
       {
         size_t run = 1ULL << i;
         PagemapProvider::pagemap().set_range(
-          (void*)ss, (uint8_t)(64 + i + SUPERSLAB_BITS), run);
-        ss = (uintptr_t)ss + SUPERSLAB_SIZE * run;
+          ss, (uint8_t)(64 + i + SUPERSLAB_BITS), run);
+        ss = ss + SUPERSLAB_SIZE * run;
       }
-      PagemapProvider::pagemap().set(p, (uint8_t)size_bits);
+      PagemapProvider::pagemap().set((uintptr_t)p, (uint8_t)size_bits);
     }
     /**
      * Update the pagemap to remove a large allocation, of `size` bytes from
      * address `p`.
      */
-    void clear_large_size(void* p, size_t size)
+    void clear_large_size(void* vp, size_t size)
     {
+      uintptr_t p = (uintptr_t)vp;
       size_t rounded_size = bits::next_pow2(size);
       assert(get(p) == bits::next_pow2_bits(size));
       auto count = rounded_size >> SUPERSLAB_BITS;
-      PagemapProvider::pagemap().set_range((void*)p, PMNotOurs, count);
+      PagemapProvider::pagemap().set_range(p, PMNotOurs, count);
     }
 
   private:
@@ -207,7 +217,7 @@ namespace snmalloc
      */
     void set(void* p, uint8_t x)
     {
-      PagemapProvider::pagemap().set(p, x);
+      PagemapProvider::pagemap().set((uintptr_t)p, x);
     }
   };
 
@@ -417,7 +427,7 @@ namespace snmalloc
 
       // Free memory of an unknown size. Must be called with an external
       // pointer.
-      uint8_t size = pagemap().get(p);
+      uint8_t size = pagemap().get((uintptr_t)p);
 
       if (size == 0)
       {
@@ -476,7 +486,7 @@ namespace snmalloc
       error("Unsupported");
       UNUSED(p);
 #else
-      uint8_t size = global_pagemap.get(p);
+      uint8_t size = global_pagemap.get((uintptr_t)p);
 
       Superslab* super = Superslab::get(p);
       if (size == PMSuperslab)
@@ -505,7 +515,7 @@ namespace snmalloc
       {
         // This is a large alloc redirect.
         ss = ss - (1ULL << (size - 64));
-        size = global_pagemap.get((void*)ss);
+        size = global_pagemap.get(ss);
       }
 
       if (size == 0)
@@ -531,7 +541,7 @@ namespace snmalloc
     static size_t alloc_size(void* p)
     {
       // This must be called on an external pointer.
-      size_t size = global_pagemap.get(p);
+      size_t size = global_pagemap.get((uintptr_t)p);
 
       if (size == 0)
       {
