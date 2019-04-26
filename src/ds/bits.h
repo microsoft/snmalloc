@@ -454,9 +454,9 @@ namespace snmalloc
     }
 
     /**
-     * Implementation of std::min
+     * Implementation of `std::min`
      *
-     * std::min is algorithm, so pulls in a lot of unneccessary code
+     * `std::min` is in `<algorithm>`, so pulls in a lot of unneccessary code
      * We write our own to reduce the code that potentially needs reviewing.
      **/
     template<typename T>
@@ -466,9 +466,9 @@ namespace snmalloc
     }
 
     /**
-     * Implementation of std::max
+     * Implementation of `std::max`
      *
-     * std::max is algorithm, so pulls in a lot of unneccessary code
+     * `std::max` is in `<algorithm>`, so pulls in a lot of unneccessary code
      * We write our own to reduce the code that potentially needs reviewing.
      **/
     template<typename T>

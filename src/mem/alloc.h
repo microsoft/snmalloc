@@ -984,11 +984,11 @@ namespace snmalloc
       stats().sizeclass_alloc(sizeclass);
 
       SlabList* sc = &small_classes[sizeclass];
-      SlabLink* link = sc->get_head();
       Slab* slab;
 
-      if (~(uintptr_t)link != 0)
+      if (!sc->is_empty())
       {
+        SlabLink* link = sc->get_head();
         slab = link->get_slab();
       }
       else
