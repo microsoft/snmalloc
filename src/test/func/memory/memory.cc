@@ -173,7 +173,7 @@ void test_external_pointer()
 
     for (size_t offset = 0; offset < size; offset += 17)
     {
-      void* p2 = (void*)((size_t)p1 + offset);
+      void* p2 = pointer_offset(p1, offset);
       void* p3 = Alloc::external_pointer(p2);
       void* p4 = Alloc::external_pointer<End>(p2);
       UNUSED(p3);
