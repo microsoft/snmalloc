@@ -522,7 +522,7 @@ namespace snmalloc
       {
         if constexpr ((location == End) || (location == OnePastEnd))
           // We don't know the End, so return MAX_PTR
-          return (uintptr_t)~0;
+          return UINTPTR_MAX;
         else
           // We don't know the Start, so return MIN_PTR
           return 0;
