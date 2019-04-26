@@ -453,12 +453,24 @@ namespace snmalloc
       }
     }
 
+    /**
+     * Implementation of std::min
+     *
+     * std::min is algorithm, so pulls in a lot of unneccessary code
+     * We write our own to reduce the code that potentially needs reviewing.
+     **/
     template<typename T>
     constexpr inline T min(T t1, T t2)
     {
       return t1 < t2 ? t1 : t2;
     }
 
+    /**
+     * Implementation of std::max
+     *
+     * std::max is algorithm, so pulls in a lot of unneccessary code
+     * We write our own to reduce the code that potentially needs reviewing.
+     **/
     template<typename T>
     constexpr inline T max(T t1, T t2)
     {
