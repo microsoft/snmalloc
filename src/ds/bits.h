@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <limits>
 
 #ifdef _MSC_VER
 #  include <immintrin.h>
