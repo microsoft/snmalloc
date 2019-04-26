@@ -6,7 +6,7 @@
 
 namespace snmalloc
 {
-  template<class T, uintptr_t terminator_ = 0>
+  template<class T, uintptr_t Terminator = 0>
   class DLList
   {
   private:
@@ -15,7 +15,7 @@ namespace snmalloc
     // constexpr.
     static inline T* terminator()
     {
-      return (T*)terminator_;
+      return (T*)Terminator;
     }
 
     static_assert(
@@ -26,6 +26,11 @@ namespace snmalloc
     T* head = terminator();
 
   public:
+    bool is_empty()
+    {
+      return head == terminator();
+    }
+
     T* get_head()
     {
       return head;

@@ -51,8 +51,6 @@ namespace snmalloc
   private:
     static constexpr size_t COVERED_BITS =
       bits::ADDRESS_BITS - GRANULARITY_BITS;
-    static constexpr size_t POINTER_BITS =
-      bits::next_pow2_bits_const(sizeof(void*));
     static constexpr size_t CONTENT_BITS =
       bits::next_pow2_bits_const(sizeof(T));
 
