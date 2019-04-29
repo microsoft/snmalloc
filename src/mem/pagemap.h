@@ -281,6 +281,7 @@ namespace snmalloc
 
         for (; ix < last; ix++)
         {
+          SNMALLOC_ASSUME(leaf_ix.first != nullptr);
           leaf_ix.first->values[ix] = x;
         }
 

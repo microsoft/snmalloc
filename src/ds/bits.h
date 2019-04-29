@@ -42,6 +42,15 @@
 
 #define UNUSED(x) ((void)(x))
 
+#if __has_builtin(__builtin_assume)
+#  define SNMALLOC_ASSUME(x) __builtin_assume(x)
+#else
+#  define SNMALLOC_ASSUME(x) \
+    do \
+    { \
+    } while (0)
+#endif
+
 // #define USE_LZCNT
 
 #include "address.h"
