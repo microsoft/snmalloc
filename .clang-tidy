@@ -1,1 +1,1 @@
-Checks:          '-*,clang-diagnostic-*,google-readability-casting,readability-else-after-return'
+Checks:          '-*,clang-diagnostic-*,google-readability-casting,readability-else-after-return,performance-unnecessary-copy-initialization,bugprone-use-after-move,modernize-use-nullptr'

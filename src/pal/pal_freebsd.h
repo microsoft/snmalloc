@@ -78,7 +78,7 @@ namespace snmalloc
       size_t log2align = bits::next_pow2_bits(align);
 
       void* p = mmap(
-        NULL,
+        nullptr,
         request,
         PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS | MAP_ALIGNED(log2align),
