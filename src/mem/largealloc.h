@@ -58,7 +58,7 @@ namespace snmalloc
   class MemoryProviderStateMixin : public PAL
   {
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
-    address_t bump;
+    void* bump;
     size_t remaining;
 
     void new_block()
@@ -71,7 +71,7 @@ namespace snmalloc
 
       PAL::template notify_using<NoZero>(r, OS_PAGE_SIZE);
 
-      bump = address_cast(r);
+      bump = r;
       remaining = size;
     }
 
@@ -145,15 +145,21 @@ namespace snmalloc
       {
         FlagLock f(lock);
 
-        auto aligned_bump = bits::align_up(bump, alignment);
-        if ((aligned_bump - bump) > remaining)
+        if constexpr (alignment != 0)
         {
-          new_block();
-        }
-        else
-        {
-          remaining -= aligned_bump - bump;
-          bump = aligned_bump;
+          char* aligned_bump = pointer_align_up<alignment, char>(bump);
+
+          size_t bump_delta = pointer_diff(bump, aligned_bump);
+
+          if (bump_delta > remaining)
+          {
+            new_block();
+          }
+          else
+          {
+            remaining -= bump_delta;
+            bump = aligned_bump;
+          }
         }
 
         if (remaining < size)
@@ -161,8 +167,8 @@ namespace snmalloc
           new_block();
         }
 
-        p = pointer_cast<void>(bump);
-        bump += size;
+        p = bump;
+        bump = pointer_offset(bump, size);
         remaining -= size;
       }
 
