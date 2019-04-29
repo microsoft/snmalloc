@@ -50,7 +50,7 @@ namespace snmalloc
   public:
     operator T()
     {
-      return (T)(value & (length - 1));
+      return static_cast<T>(value & (length - 1));
     }
 
     T& operator=(const T v)

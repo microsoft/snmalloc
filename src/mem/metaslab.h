@@ -15,7 +15,7 @@ namespace snmalloc
 
     Slab* get_slab()
     {
-      return (Slab*)((size_t)this & SLAB_MASK);
+      return pointer_cast<Slab>(address_cast(this) & SLAB_MASK);
     }
   };
 
@@ -95,7 +95,7 @@ namespace snmalloc
 
     SlabLink* get_link(Slab* slab)
     {
-      return (SlabLink*)((size_t)slab + link);
+      return reinterpret_cast<SlabLink*>(pointer_offset(slab, link));
     }
 
     bool valid_head(bool is_short)
@@ -146,7 +146,7 @@ namespace snmalloc
         if (curr == link)
           break;
         // Iterate bump/free list segment
-        curr = *(uint16_t*)((uintptr_t)slab + curr);
+        curr = *reinterpret_cast<uint16_t*>(pointer_offset(slab, curr));
       }
 
       // Check we terminated traversal on a correctly aligned block

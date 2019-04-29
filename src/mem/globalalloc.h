@@ -19,7 +19,7 @@ namespace snmalloc
         sizeof(AllocPool) == sizeof(Parent),
         "You cannot add fields to this class.");
       // This cast is safe due to the static assert.
-      return (AllocPool*)Parent::make(mp);
+      return static_cast<AllocPool*>(Parent::make(mp));
     }
 
     static AllocPool* make() noexcept

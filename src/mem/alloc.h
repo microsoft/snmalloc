@@ -133,7 +133,7 @@ namespace snmalloc
     /**
      * Get the pagemap entry corresponding to a specific address.
      */
-    uint8_t get(uintptr_t p)
+    uint8_t get(address_t p)
     {
       return PagemapProvider::pagemap().get(p);
     }
@@ -143,7 +143,7 @@ namespace snmalloc
      */
     uint8_t get(void* p)
     {
-      return get((uintptr_t)p);
+      return get(address_cast(p));
     }
 
     /**
@@ -186,7 +186,7 @@ namespace snmalloc
       size_t size_bits = bits::next_pow2_bits(size);
       set(p, static_cast<uint8_t>(size_bits));
       // Set redirect slide
-      uintptr_t ss = (uintptr_t)p + SUPERSLAB_SIZE;
+      auto ss = address_cast(p) + SUPERSLAB_SIZE;
       for (size_t i = 0; i < size_bits - SUPERSLAB_BITS; i++)
       {
         size_t run = 1ULL << i;
@@ -195,7 +195,7 @@ namespace snmalloc
         ss = ss + SUPERSLAB_SIZE * run;
       }
       PagemapProvider::pagemap().set(
-        (uintptr_t)p, static_cast<uint8_t>(size_bits));
+        address_cast(p), static_cast<uint8_t>(size_bits));
     }
     /**
      * Update the pagemap to remove a large allocation, of `size` bytes from
@@ -203,7 +203,7 @@ namespace snmalloc
      */
     void clear_large_size(void* vp, size_t size)
     {
-      uintptr_t p = (uintptr_t)vp;
+      auto p = address_cast(vp);
       size_t rounded_size = bits::next_pow2(size);
       assert(get(p) == bits::next_pow2_bits(size));
       auto count = rounded_size >> SUPERSLAB_BITS;
@@ -218,7 +218,7 @@ namespace snmalloc
      */
     void set(void* p, uint8_t x)
     {
-      PagemapProvider::pagemap().set((uintptr_t)p, x);
+      PagemapProvider::pagemap().set(address_cast(p), x);
     }
   };
 
@@ -427,7 +427,7 @@ namespace snmalloc
 
       // Free memory of an unknown size. Must be called with an external
       // pointer.
-      uint8_t size = pagemap().get((uintptr_t)p);
+      uint8_t size = pagemap().get(address_cast(p));
 
       if (size == 0)
       {
@@ -470,7 +470,7 @@ namespace snmalloc
       }
 
 #  ifndef SNMALLOC_SAFE_CLIENT
-      if (size > 64 || (uintptr_t)super != (uintptr_t)p)
+      if (size > 64 || address_cast(super) != address_cast(p))
       {
         error("Not deallocating start of an object");
       }
@@ -480,13 +480,13 @@ namespace snmalloc
     }
 
     template<Boundary location = Start>
-    static uintptr_t external_uintptr(void* p)
+    static address_t external_address(void* p)
     {
 #ifdef USE_MALLOC
       error("Unsupported");
       UNUSED(p);
 #else
-      uint8_t size = global_pagemap.get((uintptr_t)p);
+      uint8_t size = global_pagemap.get(address_cast(p));
 
       Superslab* super = Superslab::get(p);
       if (size == PMSuperslab)
@@ -495,7 +495,7 @@ namespace snmalloc
         Metaslab& meta = super->get_meta(slab);
 
         uint8_t sc = meta.sizeclass;
-        size_t slab_end = (size_t)slab + SLAB_SIZE;
+        size_t slab_end = static_cast<size_t>(address_cast(slab) + SLAB_SIZE);
 
         return external_pointer<location>(p, sc, slab_end);
       }
@@ -504,12 +504,13 @@ namespace snmalloc
         Mediumslab* slab = Mediumslab::get(p);
 
         uint8_t sc = slab->get_sizeclass();
-        size_t slab_end = (size_t)slab + SUPERSLAB_SIZE;
+        size_t slab_end =
+          static_cast<size_t>(address_cast(slab) + SUPERSLAB_SIZE);
 
         return external_pointer<location>(p, sc, slab_end);
       }
 
-      uintptr_t ss = (uintptr_t)super;
+      auto ss = address_cast(super);
 
       while (size > 64)
       {
@@ -541,13 +542,13 @@ namespace snmalloc
     template<Boundary location = Start>
     static void* external_pointer(void* p)
     {
-      return (void*)external_uintptr<location>(p);
+      return pointer_cast<void>(external_address<location>(p));
     }
 
     static size_t alloc_size(void* p)
     {
       // This must be called on an external pointer.
-      size_t size = global_pagemap.get((uintptr_t)p);
+      size_t size = global_pagemap.get(address_cast(p));
 
       if (size == 0)
       {
@@ -799,7 +800,8 @@ namespace snmalloc
       size_t end_point_correction = location == End ?
         (end_point - 1) :
         (location == OnePastEnd ? end_point : (end_point - rsize));
-      size_t offset_from_end = (end_point - 1) - (size_t)p;
+      size_t offset_from_end =
+        (end_point - 1) - static_cast<size_t>(address_cast(p));
       size_t end_to_end = round_by_sizeclass(rsize, offset_from_end);
       return end_point_correction - end_to_end;
     }
@@ -884,8 +886,9 @@ namespace snmalloc
       if (super != nullptr)
         return super;
 
-      super = (Superslab*)large_allocator.template alloc<NoZero, allow_reserve>(
-        0, SUPERSLAB_SIZE);
+      super = reinterpret_cast<Superslab*>(
+        large_allocator.template alloc<NoZero, allow_reserve>(
+          0, SUPERSLAB_SIZE));
 
       if ((allow_reserve == NoReserve) && (super == nullptr))
         return super;
@@ -1071,7 +1074,7 @@ namespace snmalloc
           if constexpr (decommit_strategy == DecommitSuper)
           {
             large_allocator.memory_provider.notify_not_using(
-              (void*)((size_t)super + OS_PAGE_SIZE),
+              pointer_offset(super, OS_PAGE_SIZE),
               SUPERSLAB_SIZE - OS_PAGE_SIZE);
           }
           else if constexpr (decommit_strategy == DecommitSuperLazy)
@@ -1118,9 +1121,9 @@ namespace snmalloc
       }
       else
       {
-        slab =
-          (Mediumslab*)large_allocator.template alloc<NoZero, allow_reserve>(
-            0, SUPERSLAB_SIZE);
+        slab = reinterpret_cast<Mediumslab*>(
+          large_allocator.template alloc<NoZero, allow_reserve>(
+            0, SUPERSLAB_SIZE));
 
         if ((allow_reserve == NoReserve) && (slab == nullptr))
           return nullptr;
@@ -1146,7 +1149,7 @@ namespace snmalloc
 #ifndef SNMALLOC_SAFE_CLIENT
       if (!is_multiple_of_sizeclass(
             sizeclass_to_size(sizeclass),
-            (uintptr_t)slab + SUPERSLAB_SIZE - (uintptr_t)p))
+            address_cast(slab) + SUPERSLAB_SIZE - address_cast(p)))
       {
         error("Not deallocating start of an object");
       }
@@ -1164,8 +1167,7 @@ namespace snmalloc
         if constexpr (decommit_strategy == DecommitSuper)
         {
           large_allocator.memory_provider.notify_not_using(
-            (void*)((size_t)slab + OS_PAGE_SIZE),
-            SUPERSLAB_SIZE - OS_PAGE_SIZE);
+            pointer_offset(slab, OS_PAGE_SIZE), SUPERSLAB_SIZE - OS_PAGE_SIZE);
         }
 
         pagemap().clear_slab(slab);
@@ -1219,7 +1221,7 @@ namespace snmalloc
 
       if ((decommit_strategy != DecommitNone) || (large_class > 0))
         large_allocator.memory_provider.notify_not_using(
-          (void*)((size_t)p + OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
+          pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
 
       // Initialise in order to set the correct SlabKind.
       Largeslab* slab = static_cast<Largeslab*>(p);

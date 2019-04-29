@@ -44,6 +44,8 @@
 
 // #define USE_LZCNT
 
+#include "address.h"
+
 #include <atomic>
 #include <cassert>
 #include <cstdint>
@@ -310,7 +312,7 @@ namespace snmalloc
 
     inline static size_t hash(void* p)
     {
-      size_t x = (size_t)p;
+      size_t x = static_cast<size_t>(address_cast(p));
 
       if (is64())
       {
@@ -359,7 +361,8 @@ namespace snmalloc
     {
       assert(next_pow2(alignment) == alignment);
 
-      return (((size_t)p | size) & (alignment - 1)) == 0;
+      return ((static_cast<size_t>(address_cast(p)) | size) &
+              (alignment - 1)) == 0;
     }
 
     template<class T>
@@ -371,8 +374,8 @@ namespace snmalloc
       using S = std::make_signed_t<T>;
       constexpr S shift = (sizeof(S) * 8) - 1;
 
-      S a = (S)(v + 1);
-      S b = (S)(mod - a - 1);
+      S a = static_cast<S>(v + 1);
+      S b = static_cast<S>(mod - a - 1);
       return a & ~(b >> shift);
     }
 

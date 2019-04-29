@@ -41,7 +41,7 @@ namespace snmalloc
 
     static Mediumslab* get(void* p)
     {
-      return (Mediumslab*)((size_t)p & SUPERSLAB_MASK);
+      return pointer_cast<Mediumslab>(address_cast(p) & SUPERSLAB_MASK);
     }
 
     void init(RemoteAllocator* alloc, uint8_t sc, size_t rsize)
@@ -81,7 +81,7 @@ namespace snmalloc
       assert(!full());
 
       uint16_t index = stack[head++];
-      void* p = (void*)((size_t)this + (static_cast<size_t>(index) << 8));
+      void* p = pointer_offset(this, (static_cast<size_t>(index) << 8));
       free--;
 
       assert(bits::is_aligned_block<OS_PAGE_SIZE>(p, OS_PAGE_SIZE));
@@ -125,7 +125,8 @@ namespace snmalloc
     uint16_t pointer_to_index(void* p)
     {
       // Get the offset from the slab for a memory location.
-      return static_cast<uint16_t>(((size_t)p - (size_t)this) >> 8);
+      return static_cast<uint16_t>(
+        ((address_cast(p) - address_cast(this))) >> 8);
     }
   };
 }

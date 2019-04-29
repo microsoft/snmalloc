@@ -78,7 +78,7 @@ namespace snmalloc
       (INDEX_LEVELS * BITS_PER_INDEX_LEVEL) + BITS_FOR_LEAF + GRANULARITY_BITS;
 
     // Value used to represent when a node is being added too
-    static constexpr uintptr_t LOCKED_ENTRY = 1;
+    static constexpr address_t LOCKED_ENTRY = 1;
 
     struct Leaf
     {
@@ -112,14 +112,16 @@ namespace snmalloc
       // to see that correctly.
       PagemapEntry* value = e->load(std::memory_order_relaxed);
 
-      if ((uintptr_t)value <= LOCKED_ENTRY)
+      if (address_cast(value) <= LOCKED_ENTRY)
       {
         if constexpr (create_addr)
         {
           value = nullptr;
 
           if (e->compare_exchange_strong(
-                value, (PagemapEntry*)LOCKED_ENTRY, std::memory_order_relaxed))
+                value,
+                pointer_cast<PagemapEntry>(LOCKED_ENTRY),
+                std::memory_order_relaxed))
           {
             auto& v = default_memory_provider;
             value = v.alloc_chunk<PagemapEntry, OS_PAGE_SIZE>();
@@ -127,7 +129,7 @@ namespace snmalloc
           }
           else
           {
-            while ((uintptr_t)e->load(std::memory_order_relaxed) ==
+            while (address_cast(e->load(std::memory_order_relaxed)) ==
                    LOCKED_ENTRY)
             {
               bits::pause();
@@ -178,7 +180,7 @@ namespace snmalloc
           break;
       }
 
-      Leaf* leaf = (Leaf*)get_node<create_addr>(e, result);
+      Leaf* leaf = reinterpret_cast<Leaf*>(get_node<create_addr>(e, result));
 
       if (!result)
         return std::pair(nullptr, 0);

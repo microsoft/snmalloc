@@ -44,7 +44,7 @@ namespace snmalloc
     // Used size_t as results in better code in MSVC
     size_t slab_to_index(Slab* slab)
     {
-      auto res = (((size_t)slab - (size_t)this) >> SLAB_BITS);
+      auto res = ((address_cast(slab) - address_cast(this)) >> SLAB_BITS);
       assert(res == (uint8_t)res);
       return res;
     }
@@ -67,7 +67,7 @@ namespace snmalloc
 
     static Superslab* get(void* p)
     {
-      return (Superslab*)((size_t)p & SUPERSLAB_MASK);
+      return pointer_cast<Superslab>(address_cast(p) & SUPERSLAB_MASK);
     }
 
     static bool is_short_sizeclass(uint8_t sizeclass)
@@ -166,7 +166,7 @@ namespace snmalloc
       if constexpr (decommit_strategy == DecommitAll)
       {
         memory_provider.template notify_using<NoZero>(
-          (void*)((size_t)this + OS_PAGE_SIZE), SLAB_SIZE - OS_PAGE_SIZE);
+          pointer_offset(this, OS_PAGE_SIZE), SLAB_SIZE - OS_PAGE_SIZE);
       }
 
       used++;
@@ -177,8 +177,8 @@ namespace snmalloc
     Slab* alloc_slab(uint8_t sizeclass, MemoryProvider& memory_provider)
     {
       uint8_t h = head;
-      Slab* slab =
-        (Slab*)((size_t)this + (static_cast<size_t>(h) << SLAB_BITS));
+      Slab* slab = pointer_cast<Slab>(
+        address_cast(this) + (static_cast<size_t>(h) << SLAB_BITS));
 
       uint8_t n = meta[h].next;
 
@@ -229,7 +229,7 @@ namespace snmalloc
       if constexpr (decommit_strategy == DecommitAll)
       {
         memory_provider.notify_not_using(
-          (void*)((size_t)this + OS_PAGE_SIZE), SLAB_SIZE - OS_PAGE_SIZE);
+          pointer_offset(this, OS_PAGE_SIZE), SLAB_SIZE - OS_PAGE_SIZE);
       }
 
       bool was_full = is_full();
