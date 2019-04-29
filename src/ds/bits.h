@@ -164,20 +164,22 @@ namespace snmalloc
       return BITS - index - 1;
 #  endif
 #else
-      return (size_t)__builtin_clzl(x);
+      return static_cast<size_t>(__builtin_clzl(x));
 #endif
     }
 
     inline constexpr size_t rotr_const(size_t x, size_t n)
     {
       size_t nn = n & (BITS - 1);
-      return (x >> nn) | (x << (((size_t) - (int)nn) & (BITS - 1)));
+      return (x >> nn) |
+        (x << ((static_cast<size_t>(-static_cast<int>(nn))) & (BITS - 1)));
     }
 
     inline constexpr size_t rotl_const(size_t x, size_t n)
     {
       size_t nn = n & (BITS - 1);
-      return (x << nn) | (x >> (((size_t) - (int)nn) & (BITS - 1)));
+      return (x << nn) |
+        (x >> ((static_cast<size_t>(-static_cast<int>(nn))) & (BITS - 1)));
     }
 
     inline size_t rotr(size_t x, size_t n)
@@ -212,7 +214,7 @@ namespace snmalloc
 
       for (int i = BITS - 1; i >= 0; i--)
       {
-        size_t mask = (size_t)1 << i;
+        size_t mask = static_cast<size_t>(1) << i;
 
         if ((x & mask) == mask)
           return n;
@@ -232,7 +234,7 @@ namespace snmalloc
       return _tzcnt_u32((uint32_t)x);
 #  endif
 #else
-      return (size_t)__builtin_ctzl(x);
+      return static_cast<size_t>(__builtin_ctzl(x));
 #endif
     }
 
@@ -242,7 +244,7 @@ namespace snmalloc
 
       for (size_t i = 0; i < BITS; i++)
       {
-        size_t mask = (size_t)1 << i;
+        size_t mask = static_cast<size_t>(1) << i;
 
         if ((x & mask) == mask)
           return n;
@@ -283,7 +285,7 @@ namespace snmalloc
       if (x <= 2)
         return x;
 
-      return (size_t)1 << (BITS - clz(x - 1));
+      return static_cast<size_t>(1) << (BITS - clz(x - 1));
     }
 
     inline size_t next_pow2_bits(size_t x)
@@ -298,7 +300,7 @@ namespace snmalloc
       if (x <= 2)
         return x;
 
-      return (size_t)1 << (BITS - clz_const(x - 1));
+      return static_cast<size_t>(1) << (BITS - clz_const(x - 1));
     }
 
     constexpr size_t next_pow2_bits_const(size_t x)
@@ -405,8 +407,9 @@ namespace snmalloc
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
     static size_t to_exp_mant(size_t value)
     {
-      size_t LEADING_BIT = ((size_t)1 << (MANTISSA_BITS + LOW_BITS)) >> 1;
-      size_t MANTISSA_MASK = ((size_t)1 << MANTISSA_BITS) - 1;
+      size_t LEADING_BIT =
+        (static_cast<size_t>(1) << (MANTISSA_BITS + LOW_BITS)) >> 1;
+      size_t MANTISSA_MASK = (static_cast<size_t>(1) << MANTISSA_BITS) - 1;
 
       value = value - 1;
 
@@ -421,8 +424,9 @@ namespace snmalloc
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
     constexpr static size_t to_exp_mant_const(size_t value)
     {
-      size_t LEADING_BIT = ((size_t)1 << (MANTISSA_BITS + LOW_BITS)) >> 1;
-      size_t MANTISSA_MASK = ((size_t)1 << MANTISSA_BITS) - 1;
+      size_t LEADING_BIT =
+        (static_cast<size_t>(1) << (MANTISSA_BITS + LOW_BITS)) >> 1;
+      size_t MANTISSA_MASK = (static_cast<size_t>(1) << MANTISSA_BITS) - 1;
 
       value = value - 1;
 
@@ -440,18 +444,16 @@ namespace snmalloc
       if (MANTISSA_BITS > 0)
       {
         m_e = m_e + 1;
-        size_t MANTISSA_MASK = ((size_t)1 << MANTISSA_BITS) - 1;
+        size_t MANTISSA_MASK = (static_cast<size_t>(1) << MANTISSA_BITS) - 1;
         size_t m = m_e & MANTISSA_MASK;
         size_t e = m_e >> MANTISSA_BITS;
         size_t b = e == 0 ? 0 : 1;
         size_t shifted_e = e - b;
-        size_t extended_m = (m + ((size_t)b << MANTISSA_BITS));
+        size_t extended_m = (m + (b << MANTISSA_BITS));
         return extended_m << (shifted_e + LOW_BITS);
       }
-      else
-      {
-        return (size_t)1 << (m_e + LOW_BITS);
-      }
+
+      return static_cast<size_t>(1) << (m_e + LOW_BITS);
     }
 
     /**

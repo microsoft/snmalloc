@@ -26,7 +26,7 @@ namespace snmalloc
     "Need to be able to pack a SlabLink into any free small alloc");
 
   static constexpr uint16_t SLABLINK_INDEX =
-    (uint16_t)(SLAB_SIZE - sizeof(SlabLink));
+    static_cast<uint16_t>(SLAB_SIZE - sizeof(SlabLink));
 
   // The Metaslab represent the status of a single slab.
   // This can be either a short or a standard slab.
@@ -90,7 +90,7 @@ namespace snmalloc
     void set_full()
     {
       assert(head == 1);
-      head = (uint16_t)~0;
+      head = static_cast<uint16_t>(~0);
     }
 
     SlabLink* get_link(Slab* slab)
@@ -104,8 +104,8 @@ namespace snmalloc
       size_t offset = get_slab_offset(sizeclass, is_short);
 
       size_t head_start =
-        remove_cache_friendly_offset(head & ~(size_t)1, sizeclass);
-      size_t slab_start = offset & ~(size_t)1;
+        remove_cache_friendly_offset(head & ~static_cast<size_t>(1), sizeclass);
+      size_t slab_start = offset & ~static_cast<size_t>(1);
 
       return ((head_start - slab_start) % size) == 0;
     }

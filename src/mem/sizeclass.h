@@ -15,7 +15,8 @@ namespace snmalloc
     // Don't use sizeclasses that are not a multiple of the alignment.
     // For example, 24 byte allocations can be
     // problematic for some data due to alignment issues.
-    return (uint8_t)bits::to_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(size);
+    return static_cast<uint8_t>(
+      bits::to_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(size));
   }
 
   constexpr static inline uint8_t size_to_sizeclass_const(size_t size)
@@ -23,18 +24,18 @@ namespace snmalloc
     // Don't use sizeclasses that are not a multiple of the alignment.
     // For example, 24 byte allocations can be
     // problematic for some data due to alignment issues.
-    return (uint8_t)bits::to_exp_mant_const<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(
-      size);
+    return static_cast<uint8_t>(
+      bits::to_exp_mant_const<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(size));
   }
 
   constexpr static inline size_t large_sizeclass_to_size(uint8_t large_class)
   {
-    return (size_t)1 << (large_class + SUPERSLAB_BITS);
+    return static_cast<size_t>(1) << (large_class + SUPERSLAB_BITS);
   }
 
   // Small classes range from [MIN, SLAB], i.e. inclusive.
   static constexpr size_t NUM_SMALL_CLASSES =
-    size_to_sizeclass_const((size_t)1 << SLAB_BITS) + 1;
+    size_to_sizeclass_const(static_cast<size_t>(1) << SLAB_BITS) + 1;
 
   static constexpr size_t NUM_SIZECLASSES =
     size_to_sizeclass_const(SUPERSLAB_SIZE);
@@ -89,7 +90,7 @@ namespace snmalloc
     else
       // Use 32-bit division as considerably faster than 64-bit, and
       // everything fits into 32bits here.
-      return (uint32_t)(offset / rsize) * rsize;
+      return static_cast<uint32_t>(offset / rsize) * rsize;
   }
 
   inline static bool is_multiple_of_sizeclass(size_t rsize, size_t offset)
@@ -137,7 +138,7 @@ namespace snmalloc
     else
       // Use 32-bit division as considerably faster than 64-bit, and
       // everything fits into 32bits here.
-      return (uint32_t)(offset % rsize) == 0;
+      return static_cast<uint32_t>(offset % rsize) == 0;
   }
 
 #ifdef CACHE_FRIENDLY_OFFSET

@@ -116,7 +116,7 @@ namespace snmalloc
     static constexpr size_t BUCKETS = 1 << BUCKETS_BITS;
     static constexpr size_t TOTAL_BUCKETS =
       bits::to_exp_mant_const<BUCKETS_BITS>(
-        ((size_t)1 << (bits::ADDRESS_BITS - 1)));
+        (static_cast<size_t>(1) << (bits::ADDRESS_BITS - 1)));
 
     Stats sizeclass[N];
     Stats large[LARGE_N];

@@ -136,22 +136,16 @@ namespace snmalloc
         {
           return Available;
         }
-        else
-        {
-          return Empty;
-        }
+
+        return Empty;
       }
-      else
+
+      if (!is_full())
       {
-        if (!is_full())
-        {
-          return OnlyShortSlabAvailable;
-        }
-        else
-        {
-          return Full;
-        }
+        return OnlyShortSlabAvailable;
       }
+
+      return Full;
     }
 
     Metaslab& get_meta(Slab* slab)
@@ -183,7 +177,8 @@ namespace snmalloc
     Slab* alloc_slab(uint8_t sizeclass, MemoryProvider& memory_provider)
     {
       uint8_t h = head;
-      Slab* slab = (Slab*)((size_t)this + ((size_t)h << SLAB_BITS));
+      Slab* slab =
+        (Slab*)((size_t)this + (static_cast<size_t>(h) << SLAB_BITS));
 
       uint8_t n = meta[h].next;
 
@@ -207,7 +202,7 @@ namespace snmalloc
     Action dealloc_slab(Slab* slab, MemoryProvider& memory_provider)
     {
       // This is not the short slab.
-      uint8_t index = (uint8_t)slab_to_index(slab);
+      uint8_t index = static_cast<uint8_t>(slab_to_index(slab));
       uint8_t n = head - index - 1;
 
       meta[index].sizeclass = 0;

@@ -30,7 +30,8 @@ namespace snmalloc
           bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
 
         size_t alignment = bits::min(
-          (size_t)1 << bits::ctz_const(size[sizeclass]), OS_PAGE_SIZE);
+          static_cast<size_t>(1) << bits::ctz_const(size[sizeclass]),
+          OS_PAGE_SIZE);
         cache_friendly_mask[sizeclass] = (alignment - 1);
         inverse_cache_friendly_mask[sizeclass] = ~(alignment - 1);
       }
@@ -41,15 +42,15 @@ namespace snmalloc
       for (uint8_t i = 0; i < NUM_SMALL_CLASSES; i++)
       {
         short_bump_ptr_start[i] =
-          (uint16_t)(1 + (short_slab_size % size[i]) + header_size);
-        bump_ptr_start[i] = (uint16_t)(1 + (SLAB_SIZE % size[i]));
-        count_per_slab[i] = (uint16_t)(SLAB_SIZE / size[i]);
+          static_cast<uint16_t>(1 + (short_slab_size % size[i]) + header_size);
+        bump_ptr_start[i] = static_cast<uint16_t>(1 + (SLAB_SIZE % size[i]));
+        count_per_slab[i] = static_cast<uint16_t>(SLAB_SIZE / size[i]);
       }
 
       for (uint8_t i = NUM_SMALL_CLASSES; i < NUM_SIZECLASSES; i++)
       {
-        medium_slab_slots[i - NUM_SMALL_CLASSES] =
-          (uint16_t)((SUPERSLAB_SIZE - Mediumslab::header_size()) / size[i]);
+        medium_slab_slots[i - NUM_SMALL_CLASSES] = static_cast<uint16_t>(
+          (SUPERSLAB_SIZE - Mediumslab::header_size()) / size[i]);
       }
     }
   };
@@ -60,8 +61,8 @@ namespace snmalloc
   {
     if (is_short)
       return sizeclass_metadata.short_bump_ptr_start[sc];
-    else
-      return sizeclass_metadata.bump_ptr_start[sc];
+
+    return sizeclass_metadata.bump_ptr_start[sc];
   }
 
   constexpr static inline size_t sizeclass_to_size(uint8_t sizeclass)

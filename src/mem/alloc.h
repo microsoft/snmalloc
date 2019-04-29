@@ -152,14 +152,14 @@ namespace snmalloc
      */
     void set_slab(Superslab* slab)
     {
-      set(slab, (size_t)PMSuperslab);
+      set(slab, static_cast<size_t>(PMSuperslab));
     }
     /**
      * Add a pagemap entry indicating that a medium slab has been allocated.
      */
     void set_slab(Mediumslab* slab)
     {
-      set(slab, (size_t)PMMediumslab);
+      set(slab, static_cast<size_t>(PMMediumslab));
     }
     /**
      * Remove an entry from the pagemap corresponding to a superslab.
@@ -167,7 +167,7 @@ namespace snmalloc
     void clear_slab(Superslab* slab)
     {
       assert(get(slab) == PMSuperslab);
-      set(slab, (size_t)PMNotOurs);
+      set(slab, static_cast<size_t>(PMNotOurs));
     }
     /**
      * Remove an entry corresponding to a medium slab.
@@ -175,7 +175,7 @@ namespace snmalloc
     void clear_slab(Mediumslab* slab)
     {
       assert(get(slab) == PMMediumslab);
-      set(slab, (size_t)PMNotOurs);
+      set(slab, static_cast<size_t>(PMNotOurs));
     }
     /**
      * Update the pagemap to reflect a large allocation, of `size` bytes from
@@ -184,17 +184,18 @@ namespace snmalloc
     void set_large_size(void* p, size_t size)
     {
       size_t size_bits = bits::next_pow2_bits(size);
-      set(p, (uint8_t)size_bits);
+      set(p, static_cast<uint8_t>(size_bits));
       // Set redirect slide
       uintptr_t ss = (uintptr_t)p + SUPERSLAB_SIZE;
       for (size_t i = 0; i < size_bits - SUPERSLAB_BITS; i++)
       {
         size_t run = 1ULL << i;
         PagemapProvider::pagemap().set_range(
-          ss, (uint8_t)(64 + i + SUPERSLAB_BITS), run);
+          ss, static_cast<uint8_t>(64 + i + SUPERSLAB_BITS), run);
         ss = ss + SUPERSLAB_SIZE * run;
       }
-      PagemapProvider::pagemap().set((uintptr_t)p, (uint8_t)size_bits);
+      PagemapProvider::pagemap().set(
+        (uintptr_t)p, static_cast<uint8_t>(size_bits));
     }
     /**
      * Update the pagemap to remove a large allocation, of `size` bytes from
@@ -326,15 +327,14 @@ namespace snmalloc
         size_t rsize = sizeclass_to_size(sizeclass);
         return small_alloc<zero_mem, allow_reserve>(sizeclass, rsize);
       }
-      else if (sizeclass < NUM_SIZECLASSES)
+      if (sizeclass < NUM_SIZECLASSES)
       {
         size_t rsize = sizeclass_to_size(sizeclass);
         return medium_alloc<zero_mem, allow_reserve>(sizeclass, rsize, size);
       }
-      else
-      {
-        return large_alloc<zero_mem, allow_reserve>(size);
-      }
+
+      return large_alloc<zero_mem, allow_reserve>(size);
+
 #endif
     }
 
@@ -453,7 +453,7 @@ namespace snmalloc
           remote_dealloc(target, p, sizeclass);
         return;
       }
-      else if (size == PMMediumslab)
+      if (size == PMMediumslab)
       {
         Mediumslab* slab = Mediumslab::get(p);
         RemoteAllocator* target = slab->get_allocator();
@@ -499,7 +499,7 @@ namespace snmalloc
 
         return external_pointer<location>(p, sc, slab_end);
       }
-      else if (size == PMMediumslab)
+      if (size == PMMediumslab)
       {
         Mediumslab* slab = Mediumslab::get(p);
 
@@ -625,7 +625,7 @@ namespace snmalloc
       {
         this->size += sizeclass_to_size(sizeclass);
 
-        Remote* r = (Remote*)p;
+        Remote* r = static_cast<Remote*>(p);
         r->set_target_id(target_id);
         assert(r->target_id() == target_id);
 
@@ -762,7 +762,7 @@ namespace snmalloc
         remote_alloc = r;
       }
 
-      if (id() >= (alloc_id_t)-1)
+      if (id() >= static_cast<alloc_id_t>(-1))
         error("Id should not be -1");
 
       init_message_queue();
@@ -1209,7 +1209,7 @@ namespace snmalloc
       MEASURE_TIME(large_dealloc, 4, 16);
 
       size_t size_bits = bits::next_pow2_bits(size);
-      size_t rsize = (size_t)1 << size_bits;
+      size_t rsize = static_cast<size_t>(1) << size_bits;
       assert(rsize >= SUPERSLAB_SIZE);
       size_t large_class = size_bits - SUPERSLAB_BITS;
 
@@ -1222,7 +1222,7 @@ namespace snmalloc
           (void*)((size_t)p + OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
 
       // Initialise in order to set the correct SlabKind.
-      Largeslab* slab = (Largeslab*)p;
+      Largeslab* slab = static_cast<Largeslab*>(p);
       slab->init();
       large_allocator.dealloc(slab, large_class);
     }
