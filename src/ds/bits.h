@@ -40,7 +40,7 @@
 #  define __has_builtin(x) 0
 #endif
 
-#define UNUSED(x) ((void)x)
+#define UNUSED(x) ((void)(x))
 
 // #define USE_LZCNT
 

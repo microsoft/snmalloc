@@ -1,7 +1,8 @@
-Checks:          '-*,clang-diagnostic-*,google-readability-casting,readability-else-after-return,performance-unnecessary-copy-initialization,bugprone-use-after-move,modernize-use-nullptr,modernize-redundant-void-arg,modernize-return-braced-init-list,modernize-use-default-member-init,modernize-use-equals-default,modernize-use-equals-delete,modernize-use-nodiscard,modernize-use-override,cppcoreguidelines-avoid-goto,misc-unconventional-assign-operator'
+Checks:          '-*,clang-diagnostic-*,google-readability-casting,readability-else-after-return,performance-unnecessary-copy-initialization,bugprone-use-after-move,modernize-use-nullptr,modernize-redundant-void-arg,modernize-return-braced-init-list,modernize-use-default-member-init,modernize-use-equals-default,modernize-use-equals-delete,modernize-use-nodiscard,modernize-use-override,cppcoreguidelines-avoid-goto,misc-unconventional-assign-operator,cppcoreguidelines-narrowing-conversions,bugprone-assert-side-effect,bugprone-bool-pointer-implicit-conversion,bugprone-copy-constructor-init,bugprone-forward-declaration-namespace,bugprone-forwarding-reference-overload,bugprone-macro-parentheses'
 # It would be nice to enable:
 # - readability-magic-numbers
 # - modernize-avoid-c-arrays
+# - cppcoreguidelines-pro-bounds-array-to-pointer-decay (assert breaks it).
 CheckOptions:
   - key:             modernize-use-default-member-init.UseAssignment
     value:           '1'
