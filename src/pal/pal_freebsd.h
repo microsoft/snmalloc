@@ -91,5 +91,5 @@ namespace snmalloc
       return p;
     }
   };
-}
+} // namespace snmalloc
 #endif

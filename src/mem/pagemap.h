@@ -357,4 +357,4 @@ namespace snmalloc
       } while (length > 0);
     }
   };
-}
+} // namespace snmalloc

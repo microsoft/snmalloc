@@ -92,4 +92,4 @@ namespace snmalloc
     return sizeclass_metadata
       .medium_slab_slots[(sizeclass - NUM_SMALL_CLASSES)];
   }
-}
+} // namespace snmalloc

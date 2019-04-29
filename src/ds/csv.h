@@ -52,4 +52,4 @@ namespace snmalloc
       return *this;
     }
   };
-}
+} // namespace snmalloc

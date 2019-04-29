@@ -39,4 +39,4 @@ namespace snmalloc
   {
     return reinterpret_cast<T*>(address);
   }
-}
+} // namespace snmalloc

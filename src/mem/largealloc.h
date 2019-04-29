@@ -410,4 +410,4 @@ namespace snmalloc
    * passed as an argument.
    */
   HEADER_GLOBAL GlobalVirtual default_memory_provider;
-}
+} // namespace snmalloc

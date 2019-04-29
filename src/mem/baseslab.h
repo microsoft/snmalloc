@@ -29,4 +29,4 @@ namespace snmalloc
       return kind;
     }
   };
-}
+} // namespace snmalloc

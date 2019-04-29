@@ -18,4 +18,4 @@ namespace snmalloc
     /// Used by the pool to keep the list of all entries ever created.
     T* list_next;
   };
-}
+} // namespace snmalloc

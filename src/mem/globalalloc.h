@@ -176,4 +176,4 @@ namespace snmalloc
   }
 
   using Alloc = Allocator<GlobalVirtual>;
-}
+} // namespace snmalloc

@@ -163,4 +163,4 @@ namespace snmalloc
       return (address_cast(this) & SUPERSLAB_MASK) == address_cast(this);
     }
   };
-}
+} // namespace snmalloc

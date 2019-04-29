@@ -95,4 +95,4 @@ namespace snmalloc
       return p->list_next;
     }
   };
-}
+} // namespace snmalloc

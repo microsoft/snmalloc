@@ -491,5 +491,5 @@ namespace snmalloc
     {
       return t1 > t2 ? t1 : t2;
     }
-  }
-}
+  } // namespace bits
+} // namespace snmalloc

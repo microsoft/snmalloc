@@ -242,4 +242,4 @@ namespace snmalloc
       return NoStatusChange;
     }
   };
-}
+} // namespace snmalloc

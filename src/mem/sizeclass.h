@@ -167,4 +167,4 @@ namespace snmalloc
     return relative;
   }
 #endif
-};
+} // namespace snmalloc

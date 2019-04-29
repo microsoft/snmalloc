@@ -266,4 +266,4 @@ namespace snmalloc
 #else
   using ThreadAlloc = ThreadAllocExplicitTLSCleanup;
 #endif
-}
+} // namespace snmalloc

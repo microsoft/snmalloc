@@ -143,4 +143,4 @@ namespace snmalloc
     "SLAB_COUNT must be a power of 2");
   static_assert(
     SLAB_COUNT <= (UINT8_MAX + 1), "SLAB_COUNT must fit in a uint8_t");
-};
+} // namespace snmalloc

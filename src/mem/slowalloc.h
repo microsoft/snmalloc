@@ -65,4 +65,4 @@ namespace snmalloc
   {
     return SlowAllocator{};
   }
-}
+} // namespace snmalloc

@@ -129,4 +129,4 @@ namespace snmalloc
         ((address_cast(p) - address_cast(this))) >> 8);
     }
   };
-}
+} // namespace snmalloc

@@ -77,4 +77,4 @@ namespace snmalloc
       return array[i & (rlength - 1)];
     }
   };
-}
+} // namespace snmalloc

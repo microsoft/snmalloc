@@ -21,4 +21,4 @@ namespace snmalloc
       lock.clear(std::memory_order_release);
     }
   };
-}
+} // namespace snmalloc

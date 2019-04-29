@@ -1250,4 +1250,4 @@ namespace snmalloc
       return page_map;
     }
   };
-}
+} // namespace snmalloc
