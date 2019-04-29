@@ -1,7 +1,7 @@
 #pragma once
 
-#include <stddef.h>
 #include <limits>
+#include <stddef.h>
 
 #ifdef _MSC_VER
 #  include <immintrin.h>
