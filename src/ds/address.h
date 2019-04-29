@@ -10,7 +10,7 @@ namespace snmalloc
    * separated into two types, one for raw addresses and one for addresses that
    * can be cast back to pointers.
    */
-  typedef uintptr_t address_t;
+  using address_t = uintptr_t;
 
   /**
    * Perform pointer arithmetic and return the adjusted pointer.
