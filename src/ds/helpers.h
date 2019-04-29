@@ -53,10 +53,10 @@ namespace snmalloc
       return static_cast<T>(value & (length - 1));
     }
 
-    T& operator=(const T v)
+    Mod& operator=(const T v)
     {
       value = v;
-      return value;
+      return *this;
     }
   };
 

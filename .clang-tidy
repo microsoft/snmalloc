@@ -1,1 +1,7 @@
-Checks:          '-*,clang-diagnostic-*,google-readability-casting,readability-else-after-return,performance-unnecessary-copy-initialization,bugprone-use-after-move,modernize-use-nullptr'
+Checks:          '-*,clang-diagnostic-*,google-readability-casting,readability-else-after-return,performance-unnecessary-copy-initialization,bugprone-use-after-move,modernize-use-nullptr,modernize-redundant-void-arg,modernize-return-braced-init-list,modernize-use-default-member-init,modernize-use-equals-default,modernize-use-equals-delete,modernize-use-nodiscard,modernize-use-override,cppcoreguidelines-avoid-goto,misc-unconventional-assign-operator'
+# It would be nice to enable:
+# - readability-magic-numbers
+# - modernize-avoid-c-arrays
+CheckOptions:
+  - key:             modernize-use-default-member-init.UseAssignment
+    value:           '1'
