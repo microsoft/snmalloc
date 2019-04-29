@@ -19,7 +19,7 @@ namespace snmalloc
     }
   };
 
-  using SlabList = DLList<SlabLink, UINTPTR_MAX>;
+  using SlabList = DLList<SlabLink, InvalidPointer<UINTPTR_MAX>>;
 
   static_assert(
     sizeof(SlabLink) <= MIN_ALLOC_SIZE,
