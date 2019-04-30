@@ -82,7 +82,8 @@ namespace snmalloc
 
         if (slab_count.current != 0)
         {
-          double occupancy = (double)count.current / (double)slab_count.current;
+          double occupancy = static_cast<double>(count.current) /
+            static_cast<double>(slab_count.current);
           uint64_t duration = now - time;
 
           if (ticks == 0)
@@ -103,7 +104,7 @@ namespace snmalloc
         // Keep in sync with header lower down
         count.print(csv, multiplier);
         slab_count.print(csv, slab_multiplier);
-        size_t average = (size_t)(online_average * multiplier);
+        size_t average = static_cast<size_t>(online_average * multiplier);
 
         csv << average << (slab_multiplier - average) * slab_count.max
             << csv.endl;
@@ -116,7 +117,7 @@ namespace snmalloc
     static constexpr size_t BUCKETS = 1 << BUCKETS_BITS;
     static constexpr size_t TOTAL_BUCKETS =
       bits::to_exp_mant_const<BUCKETS_BITS>(
-        ((size_t)1 << (bits::ADDRESS_BITS - 1)));
+        bits::one_at_bit(bits::ADDRESS_BITS - 1));
 
     Stats sizeclass[N];
     Stats large[LARGE_N];
@@ -388,4 +389,4 @@ namespace snmalloc
     }
 #endif
   };
-}
+} // namespace snmalloc

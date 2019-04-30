@@ -47,4 +47,4 @@ namespace snmalloc
         reinterpret_cast<uintptr_t>(&message_queue));
     }
   };
-}
+} // namespace snmalloc

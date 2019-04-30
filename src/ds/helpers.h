@@ -50,13 +50,13 @@ namespace snmalloc
   public:
     operator T()
     {
-      return (T)(value & (length - 1));
+      return static_cast<T>(value & (length - 1));
     }
 
-    T& operator=(const T v)
+    Mod& operator=(const T v)
     {
       value = v;
-      return value;
+      return *this;
     }
   };
 
@@ -77,4 +77,4 @@ namespace snmalloc
       return array[i & (rlength - 1)];
     }
   };
-}
+} // namespace snmalloc

@@ -64,7 +64,7 @@ namespace snmalloc
     }
 
     template<bool committed>
-    void* reserve(size_t* size, size_t align) noexcept
+    void* reserve(const size_t* size, size_t align) noexcept
     {
       size_t request = *size;
       // Alignment must be a power of 2.
@@ -78,7 +78,7 @@ namespace snmalloc
       size_t log2align = bits::next_pow2_bits(align);
 
       void* p = mmap(
-        NULL,
+        nullptr,
         request,
         PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS | MAP_ALIGNED(log2align),
@@ -91,5 +91,5 @@ namespace snmalloc
       return p;
     }
   };
-}
+} // namespace snmalloc
 #endif

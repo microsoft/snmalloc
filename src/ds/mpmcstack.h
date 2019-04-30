@@ -72,4 +72,4 @@ namespace snmalloc
       return top;
     }
   };
-}
+} // namespace snmalloc

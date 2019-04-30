@@ -10,7 +10,7 @@ namespace snmalloc
    * Invalid pointer class.  This is similar to `std::nullptr_t`, but allows
    * other values.
    */
-  template<uintptr_t Sentinel>
+  template<address_t Sentinel>
   struct InvalidPointer
   {
     /**
@@ -40,9 +40,16 @@ namespace snmalloc
      * systems the sentinel should be a value in unmapped memory.
      */
     template<typename T>
-    operator T*()
+    operator T*() const
     {
       return reinterpret_cast<T*>(Sentinel);
+    }
+    /**
+     * Implicit conversion to an address, returns the sentinel value.
+     */
+    operator address_t() const
+    {
+      return Sentinel;
     }
   };
 
@@ -162,4 +169,4 @@ namespace snmalloc
 #endif
     }
   };
-}
+} // namespace snmalloc

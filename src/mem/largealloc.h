@@ -56,7 +56,7 @@ namespace snmalloc
   class MemoryProviderStateMixin : public PAL
   {
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
-    size_t bump;
+    address_t bump;
     size_t remaining;
 
     void new_block()
@@ -69,7 +69,7 @@ namespace snmalloc
 
       PAL::template notify_using<NoZero>(r, OS_PAGE_SIZE);
 
-      bump = (size_t)r;
+      bump = address_cast(r);
       remaining = size;
     }
 
@@ -98,7 +98,7 @@ namespace snmalloc
         {
           break;
         }
-        size_t rsize = ((size_t)1 << SUPERSLAB_BITS) << large_class;
+        size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
         size_t decommit_size = rsize - OS_PAGE_SIZE;
         // Grab all of the chunks of this size class.
         auto* slab = large_stack[large_class].pop_all();
@@ -108,7 +108,8 @@ namespace snmalloc
           // the stack.
           if (slab->get_kind() != Decommitted)
           {
-            PAL::notify_not_using(((char*)slab) + OS_PAGE_SIZE, decommit_size);
+            PAL::notify_not_using(
+              pointer_offset(slab, OS_PAGE_SIZE), decommit_size);
           }
           // Once we've removed these from the stack, there will be no
           // concurrent accesses and removal should have established a
@@ -158,16 +159,16 @@ namespace snmalloc
           new_block();
         }
 
-        p = (void*)bump;
+        p = pointer_cast<void>(bump);
         bump += size;
         remaining -= size;
       }
 
-      auto page_start = bits::align_down((size_t)p, OS_PAGE_SIZE);
-      auto page_end = bits::align_up((size_t)p + size, OS_PAGE_SIZE);
+      auto page_start = bits::align_down(address_cast(p), OS_PAGE_SIZE);
+      auto page_end = bits::align_up(address_cast(p) + size, OS_PAGE_SIZE);
 
       PAL::template notify_using<NoZero>(
-        (void*)page_start, page_end - page_start);
+        pointer_cast<void>(page_start), page_end - page_start);
 
       return new (p) T(std::forward<Args...>(args)...);
     }
@@ -217,17 +218,16 @@ namespace snmalloc
         void* p = PAL::template reserve<committed>(&request);
 
         *size = request;
-        uintptr_t p0 = (uintptr_t)p;
-        uintptr_t start = bits::align_up(p0, align);
+        auto p0 = address_cast(p);
+        auto start = bits::align_up(p0, align);
 
-        if (start > (uintptr_t)p0)
+        if (start > p0)
         {
           uintptr_t end = bits::align_down(p0 + request, align);
           *size = end - start;
           PAL::notify_not_using(p, start - p0);
-          PAL::notify_not_using(
-            reinterpret_cast<void*>(end), (p0 + request) - end);
-          p = reinterpret_cast<void*>(start);
+          PAL::notify_not_using(pointer_cast<void>(end), (p0 + request) - end);
+          p = pointer_cast<void>(start);
         }
         return p;
       }
@@ -294,16 +294,16 @@ namespace snmalloc
     template<AllowReserve allow_reserve>
     bool reserve_memory(size_t need, size_t add)
     {
-      if (((size_t)reserved_start + need) > (size_t)reserved_end)
+      if ((address_cast(reserved_start) + need) > address_cast(reserved_end))
       {
         if constexpr (allow_reserve == YesReserve)
         {
           stats.segment_create();
           reserved_start =
             memory_provider.template reserve<false>(&add, SUPERSLAB_SIZE);
-          reserved_end = (void*)((size_t)reserved_start + add);
-          reserved_start =
-            (void*)bits::align_up((size_t)reserved_start, SUPERSLAB_SIZE);
+          reserved_end = pointer_offset(reserved_start, add);
+          reserved_start = pointer_cast<void>(
+            bits::align_up(address_cast(reserved_start), SUPERSLAB_SIZE));
 
           if (add < need)
             return false;
@@ -320,7 +320,7 @@ namespace snmalloc
     template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
     void* alloc(size_t large_class, size_t size)
     {
-      size_t rsize = ((size_t)1 << SUPERSLAB_BITS) << large_class;
+      size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
       if (size == 0)
         size = rsize;
 
@@ -340,8 +340,8 @@ namespace snmalloc
         if (!reserve_memory<allow_reserve>(rsize, add))
           return nullptr;
 
-        p = (void*)reserved_start;
-        reserved_start = (void*)((size_t)p + rsize);
+        p = reserved_start;
+        reserved_start = pointer_offset(p, rsize);
 
         // All memory is zeroed since it comes from reserved space.
         memory_provider.template notify_using<NoZero>(p, size);
@@ -361,7 +361,7 @@ namespace snmalloc
             // Passing zero_mem ensures the PAL provides zeroed pages if
             // required.
             memory_provider.template notify_using<zero_mem>(
-              (void*)((size_t)p + OS_PAGE_SIZE),
+              pointer_offset(p, OS_PAGE_SIZE),
               bits::align_up(size, OS_PAGE_SIZE) - OS_PAGE_SIZE);
           }
           else
@@ -381,7 +381,7 @@ namespace snmalloc
           // Notify we are using the rest of the allocation.
           // Passing zero_mem ensures the PAL provides zeroed pages if required.
           memory_provider.template notify_using<zero_mem>(
-            (void*)((size_t)p + OS_PAGE_SIZE),
+            pointer_offset(p, OS_PAGE_SIZE),
             bits::align_up(size, OS_PAGE_SIZE) - OS_PAGE_SIZE);
         }
         else
@@ -409,4 +409,4 @@ namespace snmalloc
    * passed as an argument.
    */
   HEADER_GLOBAL GlobalVirtual default_memory_provider;
-}
+} // namespace snmalloc

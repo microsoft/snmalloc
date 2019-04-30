@@ -79,4 +79,4 @@ namespace snmalloc
       return nullptr;
     }
   };
-}
+} // namespace snmalloc

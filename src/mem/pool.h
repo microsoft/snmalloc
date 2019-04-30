@@ -76,8 +76,8 @@ namespace snmalloc
       // Returns a linked list of all objects in the stack, emptying the stack.
       if (p == nullptr)
         return stack.pop_all();
-      else
-        return p->next;
+
+      return p->next;
     }
 
     void restore(T* first, T* last)
@@ -91,8 +91,8 @@ namespace snmalloc
     {
       if (p == nullptr)
         return list;
-      else
-        return p->list_next;
+
+      return p->list_next;
     }
   };
-}
+} // namespace snmalloc

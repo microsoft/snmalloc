@@ -15,7 +15,7 @@ namespace snmalloc
 
     Slab* get_slab()
     {
-      return (Slab*)((size_t)this & SLAB_MASK);
+      return pointer_cast<Slab>(address_cast(this) & SLAB_MASK);
     }
   };
 
@@ -26,7 +26,7 @@ namespace snmalloc
     "Need to be able to pack a SlabLink into any free small alloc");
 
   static constexpr uint16_t SLABLINK_INDEX =
-    (uint16_t)(SLAB_SIZE - sizeof(SlabLink));
+    static_cast<uint16_t>(SLAB_SIZE - sizeof(SlabLink));
 
   // The Metaslab represent the status of a single slab.
   // This can be either a short or a standard slab.
@@ -90,22 +90,23 @@ namespace snmalloc
     void set_full()
     {
       assert(head == 1);
-      head = (uint16_t)~0;
+      head = static_cast<uint16_t>(~0);
     }
 
     SlabLink* get_link(Slab* slab)
     {
-      return (SlabLink*)((size_t)slab + link);
+      return reinterpret_cast<SlabLink*>(pointer_offset(slab, link));
     }
 
     bool valid_head(bool is_short)
     {
       size_t size = sizeclass_to_size(sizeclass);
       size_t offset = get_slab_offset(sizeclass, is_short);
+      size_t all_high_bits = ~static_cast<size_t>(1);
 
       size_t head_start =
-        remove_cache_friendly_offset(head & ~(size_t)1, sizeclass);
-      size_t slab_start = offset & ~(size_t)1;
+        remove_cache_friendly_offset(head & all_high_bits, sizeclass);
+      size_t slab_start = offset & all_high_bits;
 
       return ((head_start - slab_start) % size) == 0;
     }
@@ -146,7 +147,7 @@ namespace snmalloc
         if (curr == link)
           break;
         // Iterate bump/free list segment
-        curr = *(uint16_t*)((uintptr_t)slab + curr);
+        curr = *reinterpret_cast<uint16_t*>(pointer_offset(slab, curr));
       }
 
       // Check we terminated traversal on a correctly aligned block
@@ -170,4 +171,4 @@ namespace snmalloc
 #endif
     }
   };
-}
+} // namespace snmalloc

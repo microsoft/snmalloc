@@ -10,13 +10,13 @@ namespace snmalloc
     uint16_t pointer_to_index(void* p)
     {
       // Get the offset from the slab for a memory location.
-      return (uint16_t)((size_t)p - (size_t)this);
+      return static_cast<uint16_t>(address_cast(p) - address_cast(this));
     }
 
   public:
     static Slab* get(void* p)
     {
-      return (Slab*)((size_t)p & SLAB_MASK);
+      return pointer_cast<Slab>(address_cast(p) & SLAB_MASK);
     }
 
     Metaslab& get_meta()
@@ -48,10 +48,10 @@ namespace snmalloc
 
       if ((head & 1) == 0)
       {
-        void* node = (void*)((size_t)this + head);
+        void* node = pointer_offset(this, head);
 
         // Read the next slot from the memory that's about to be allocated.
-        uint16_t next = *(uint16_t*)node;
+        uint16_t next = *static_cast<uint16_t*>(node);
         meta.head = next;
 
         p = remove_cache_friendly_offset(node, meta.sizeclass);
@@ -59,8 +59,8 @@ namespace snmalloc
       else
       {
         // This slab is being bump allocated.
-        p = (void*)((size_t)this + head - 1);
-        meta.head = (head + (uint16_t)rsize) & (SLAB_SIZE - 1);
+        p = pointer_offset(this, head - 1);
+        meta.head = (head + static_cast<uint16_t>(rsize)) & (SLAB_SIZE - 1);
         if (meta.head == 1)
         {
           meta.set_full();
@@ -89,7 +89,7 @@ namespace snmalloc
       Metaslab& meta = super->get_meta(this);
       return is_multiple_of_sizeclass(
         sizeclass_to_size(meta.sizeclass),
-        (uintptr_t)this + SLAB_SIZE - (uintptr_t)p);
+        address_cast(this) + SLAB_SIZE - address_cast(p));
     }
 
     // Returns true, if it alters get_status.
@@ -123,8 +123,8 @@ namespace snmalloc
           // Dealloc on the superslab.
           if (is_short())
             return super->dealloc_short_slab(memory_provider);
-          else
-            return super->dealloc_slab(this, memory_provider);
+
+          return super->dealloc_slab(this, memory_provider);
         }
       }
       else if (meta.is_unused())
@@ -134,8 +134,8 @@ namespace snmalloc
 
         if (is_short())
           return super->dealloc_short_slab(memory_provider);
-        else
-          return super->dealloc_slab(this, memory_provider);
+
+        return super->dealloc_slab(this, memory_provider);
       }
       else
       {
@@ -152,7 +152,7 @@ namespace snmalloc
         assert(meta.valid_head(is_short()));
 
         // Set the next pointer to the previous head.
-        *(uint16_t*)p = head;
+        *static_cast<uint16_t*>(p) = head;
         meta.debug_slab_invariant(is_short(), this);
       }
       return Superslab::NoSlabReturn;
@@ -160,7 +160,7 @@ namespace snmalloc
 
     bool is_short()
     {
-      return ((size_t)this & SUPERSLAB_MASK) == (size_t)this;
+      return (address_cast(this) & SUPERSLAB_MASK) == address_cast(this);
     }
   };
-}
+} // namespace snmalloc

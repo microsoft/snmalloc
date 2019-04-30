@@ -42,4 +42,4 @@ namespace snmalloc
      */
     YesZero
   };
-}
+} // namespace snmalloc

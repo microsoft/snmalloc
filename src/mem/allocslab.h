@@ -16,4 +16,4 @@ namespace snmalloc
       return allocator;
     }
   };
-}
+} // namespace snmalloc

@@ -29,4 +29,4 @@ namespace snmalloc
       }
     }
   };
-}
+} // namespace snmalloc

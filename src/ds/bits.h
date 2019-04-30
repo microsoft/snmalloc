@@ -40,9 +40,20 @@
 #  define __has_builtin(x) 0
 #endif
 
-#define UNUSED(x) ((void)x)
+#define UNUSED(x) ((void)(x))
+
+#if __has_builtin(__builtin_assume)
+#  define SNMALLOC_ASSUME(x) __builtin_assume(x)
+#else
+#  define SNMALLOC_ASSUME(x) \
+    do \
+    { \
+    } while (0)
+#endif
 
 // #define USE_LZCNT
+
+#include "address.h"
 
 #include <atomic>
 #include <cassert>
@@ -72,6 +83,20 @@ namespace snmalloc
     static constexpr bool is64()
     {
       return BITS == 64;
+    }
+
+    /**
+     * Returns a value of type T that has a single bit set,
+     *
+     * S is a template parameter because callers use either `int` or `size_t`
+     * and either is valid to represent a number in the range 0-63 (or 0-127 if
+     * we want to use `__uint128_t` as `T`).
+     */
+    template<typename T = size_t, typename S>
+    constexpr T one_at_bit(S shift)
+    {
+      static_assert(std::is_integral_v<T>, "Type must be integral");
+      return (static_cast<T>(1)) << shift;
     }
 
     static constexpr size_t ADDRESS_BITS = is64() ? 48 : 32;
@@ -164,20 +189,22 @@ namespace snmalloc
       return BITS - index - 1;
 #  endif
 #else
-      return (size_t)__builtin_clzl(x);
+      return static_cast<size_t>(__builtin_clzl(x));
 #endif
     }
 
     inline constexpr size_t rotr_const(size_t x, size_t n)
     {
       size_t nn = n & (BITS - 1);
-      return (x >> nn) | (x << (((size_t) - (int)nn) & (BITS - 1)));
+      return (x >> nn) |
+        (x << ((static_cast<size_t>(-static_cast<int>(nn))) & (BITS - 1)));
     }
 
     inline constexpr size_t rotl_const(size_t x, size_t n)
     {
       size_t nn = n & (BITS - 1);
-      return (x << nn) | (x >> (((size_t) - (int)nn) & (BITS - 1)));
+      return (x << nn) |
+        (x >> ((static_cast<size_t>(-static_cast<int>(nn))) & (BITS - 1)));
     }
 
     inline size_t rotr(size_t x, size_t n)
@@ -212,7 +239,7 @@ namespace snmalloc
 
       for (int i = BITS - 1; i >= 0; i--)
       {
-        size_t mask = (size_t)1 << i;
+        size_t mask = one_at_bit(i);
 
         if ((x & mask) == mask)
           return n;
@@ -232,7 +259,7 @@ namespace snmalloc
       return _tzcnt_u32((uint32_t)x);
 #  endif
 #else
-      return (size_t)__builtin_ctzl(x);
+      return static_cast<size_t>(__builtin_ctzl(x));
 #endif
     }
 
@@ -242,7 +269,7 @@ namespace snmalloc
 
       for (size_t i = 0; i < BITS; i++)
       {
-        size_t mask = (size_t)1 << i;
+        size_t mask = one_at_bit(i);
 
         if ((x & mask) == mask)
           return n;
@@ -283,7 +310,7 @@ namespace snmalloc
       if (x <= 2)
         return x;
 
-      return (size_t)1 << (BITS - clz(x - 1));
+      return one_at_bit(BITS - clz(x - 1));
     }
 
     inline size_t next_pow2_bits(size_t x)
@@ -298,7 +325,7 @@ namespace snmalloc
       if (x <= 2)
         return x;
 
-      return (size_t)1 << (BITS - clz_const(x - 1));
+      return one_at_bit(BITS - clz_const(x - 1));
     }
 
     constexpr size_t next_pow2_bits_const(size_t x)
@@ -308,7 +335,7 @@ namespace snmalloc
 
     inline static size_t hash(void* p)
     {
-      size_t x = (size_t)p;
+      size_t x = static_cast<size_t>(address_cast(p));
 
       if (is64())
       {
@@ -357,7 +384,8 @@ namespace snmalloc
     {
       assert(next_pow2(alignment) == alignment);
 
-      return (((size_t)p | size) & (alignment - 1)) == 0;
+      return ((static_cast<size_t>(address_cast(p)) | size) &
+              (alignment - 1)) == 0;
     }
 
     template<class T>
@@ -369,8 +397,8 @@ namespace snmalloc
       using S = std::make_signed_t<T>;
       constexpr S shift = (sizeof(S) * 8) - 1;
 
-      S a = (S)(v + 1);
-      S b = (S)(mod - a - 1);
+      S a = static_cast<S>(v + 1);
+      S b = static_cast<S>(mod - a - 1);
       return a & ~(b >> shift);
     }
 
@@ -405,8 +433,8 @@ namespace snmalloc
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
     static size_t to_exp_mant(size_t value)
     {
-      size_t LEADING_BIT = ((size_t)1 << (MANTISSA_BITS + LOW_BITS)) >> 1;
-      size_t MANTISSA_MASK = ((size_t)1 << MANTISSA_BITS) - 1;
+      size_t LEADING_BIT = one_at_bit(MANTISSA_BITS + LOW_BITS) >> 1;
+      size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
 
       value = value - 1;
 
@@ -421,8 +449,8 @@ namespace snmalloc
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
     constexpr static size_t to_exp_mant_const(size_t value)
     {
-      size_t LEADING_BIT = ((size_t)1 << (MANTISSA_BITS + LOW_BITS)) >> 1;
-      size_t MANTISSA_MASK = ((size_t)1 << MANTISSA_BITS) - 1;
+      size_t LEADING_BIT = one_at_bit(MANTISSA_BITS + LOW_BITS) >> 1;
+      size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
 
       value = value - 1;
 
@@ -440,18 +468,16 @@ namespace snmalloc
       if (MANTISSA_BITS > 0)
       {
         m_e = m_e + 1;
-        size_t MANTISSA_MASK = ((size_t)1 << MANTISSA_BITS) - 1;
+        size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
         size_t m = m_e & MANTISSA_MASK;
         size_t e = m_e >> MANTISSA_BITS;
         size_t b = e == 0 ? 0 : 1;
         size_t shifted_e = e - b;
-        size_t extended_m = (m + ((size_t)b << MANTISSA_BITS));
+        size_t extended_m = (m + (b << MANTISSA_BITS));
         return extended_m << (shifted_e + LOW_BITS);
       }
-      else
-      {
-        return (size_t)1 << (m_e + LOW_BITS);
-      }
+
+      return one_at_bit(m_e + LOW_BITS);
     }
 
     /**
@@ -477,5 +503,5 @@ namespace snmalloc
     {
       return t1 > t2 ? t1 : t2;
     }
-  }
-}
+  } // namespace bits
+} // namespace snmalloc

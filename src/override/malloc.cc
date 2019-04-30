@@ -254,7 +254,7 @@ extern "C"
     if (overflow)
     {
       errno = ENOMEM;
-      return 0;
+      return nullptr;
     }
     // Include size 0 in the first sizeclass.
     sz = ((sz - 1) >> (bits::BITS - 1)) + sz;

@@ -157,7 +157,7 @@ namespace snmalloc
 #  endif
       thread_alloc_release(void* p)
     {
-      Alloc** pp = (Alloc**)p;
+      Alloc** pp = static_cast<Alloc**>(p);
       current_alloc_pool()->release(*pp);
       *pp = nullptr;
     }
@@ -266,4 +266,4 @@ namespace snmalloc
 #else
   using ThreadAlloc = ThreadAllocExplicitTLSCleanup;
 #endif
-}
+} // namespace snmalloc
