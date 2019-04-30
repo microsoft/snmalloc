@@ -102,13 +102,11 @@ namespace snmalloc
     {
       size_t size = sizeclass_to_size(sizeclass);
       size_t offset = get_slab_offset(sizeclass, is_short);
-      size_t all_ones = std::numeric_limits<size_t>::is_signed ?
-        size_t(-1) :
-        std::numeric_limits<size_t>::max();
+      size_t all_high_bits = ~static_cast<size_t>(1);
 
       size_t head_start =
-        remove_cache_friendly_offset(head & all_ones, sizeclass);
-      size_t slab_start = offset & all_ones;
+        remove_cache_friendly_offset(head & all_high_bits, sizeclass);
+      size_t slab_start = offset & all_high_bits;
 
       return ((head_start - slab_start) % size) == 0;
     }
