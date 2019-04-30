@@ -217,6 +217,7 @@ phases:
     displayName: 'Clang-Format'
 
   - script: |
-      clang-tidy-8  src/override/malloc.cc  -header-filter="`pwd`/*"  -fix -- -std=c++17 -mcx16
+      clang-tidy-8  src/override/malloc.cc  -header-filter="`pwd`/*" -export-fixes=tidy.fail -- -std=c++17 -mcx16
+      if [ -f tidy.fail ] ; then exit 1 ; fi
 
     displayName: 'Clang-Tidy'
