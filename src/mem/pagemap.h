@@ -78,7 +78,7 @@ namespace snmalloc
       (INDEX_LEVELS * BITS_PER_INDEX_LEVEL) + BITS_FOR_LEAF + GRANULARITY_BITS;
 
     // Value used to represent when a node is being added too
-    static constexpr InvalidPointer<1> LOCKED_ENTRY;
+    static constexpr InvalidPointer<1> LOCKED_ENTRY{};
 
     struct Leaf
     {

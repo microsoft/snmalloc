@@ -110,7 +110,7 @@ namespace snmalloc
           if (slab->get_kind() != Decommitted)
           {
             PAL::notify_not_using(
-              static_cast<char*>(slab) + OS_PAGE_SIZE, decommit_size);
+              pointer_offset(slab, OS_PAGE_SIZE), decommit_size);
           }
           // Once we've removed these from the stack, there will be no
           // concurrent accesses and removal should have established a
