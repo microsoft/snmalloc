@@ -87,9 +87,13 @@ namespace snmalloc
 
     /**
      * Returns a value of type T that has a single bit set,
+     *
+     * S is a template parameter because callers use either `int` or `size_t`
+     * and either is valid to represent a number in the range 0-63 (or 0-127 if
+     * we want to use `__uint128_t` as `T`).
      */
-    template<typename T = size_t>
-    constexpr T one_at_bit(size_t shift)
+    template<typename T = size_t, typename S>
+    constexpr T one_at_bit(S shift)
     {
       static_assert(std::is_integral_v<T>, "Type must be integral");
       return (static_cast<T>(1)) << shift;
