@@ -62,10 +62,10 @@ namespace snmalloc
     }
 
     template<bool committed>
-    void* reserve(size_t* size) noexcept
+    void* reserve(const size_t* size) noexcept
     {
       void* p = mmap(
-        NULL,
+        nullptr,
         *size,
         PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS,
@@ -78,5 +78,5 @@ namespace snmalloc
       return p;
     }
   };
-}
+} // namespace snmalloc
 #endif

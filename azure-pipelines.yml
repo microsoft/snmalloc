@@ -204,11 +204,20 @@ phases:
   steps:
   - script: |
       wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-      sudo apt-add-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-6.0 main"
+      sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main"
       sudo apt-get update
-      sudo apt-get install -y clang-format-6.0
-      sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-6.0 100
+      sudo apt-get install -y clang-format-8 clang-tidy-8
+      sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-8 100
 
+    displayName: 'Install clang'
+
+  - script: |
       bash check-format.sh
 
-    displayName: 'Check Format'
+    displayName: 'Clang-Format'
+
+  - script: |
+      clang-tidy-8  src/override/malloc.cc  -header-filter="`pwd`/*" -export-fixes=tidy.fail -- -std=c++17 -mcx16
+      if [ -f tidy.fail ] ; then exit 1 ; fi
+
+    displayName: 'Clang-Tidy'
