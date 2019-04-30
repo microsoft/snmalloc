@@ -64,7 +64,7 @@ namespace snmalloc
     }
 
     template<bool committed>
-    void* reserve(size_t* size, size_t align) noexcept
+    void* reserve(const size_t* size, size_t align) noexcept
     {
       size_t request = *size;
       // Alignment must be a power of 2.
