@@ -1211,7 +1211,7 @@ namespace snmalloc
       MEASURE_TIME(large_dealloc, 4, 16);
 
       size_t size_bits = bits::next_pow2_bits(size);
-      size_t rsize = static_cast<size_t>(1) << size_bits;
+      size_t rsize = bits::one_at_bit(size_bits);
       assert(rsize >= SUPERSLAB_SIZE);
       size_t large_class = size_bits - SUPERSLAB_BITS;
 

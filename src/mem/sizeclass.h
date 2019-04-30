@@ -30,12 +30,12 @@ namespace snmalloc
 
   constexpr static inline size_t large_sizeclass_to_size(uint8_t large_class)
   {
-    return static_cast<size_t>(1) << (large_class + SUPERSLAB_BITS);
+    return bits::one_at_bit(large_class + SUPERSLAB_BITS);
   }
 
   // Small classes range from [MIN, SLAB], i.e. inclusive.
   static constexpr size_t NUM_SMALL_CLASSES =
-    size_to_sizeclass_const(static_cast<size_t>(1) << SLAB_BITS) + 1;
+    size_to_sizeclass_const(bits::one_at_bit(SLAB_BITS)) + 1;
 
   static constexpr size_t NUM_SIZECLASSES =
     size_to_sizeclass_const(SUPERSLAB_SIZE);

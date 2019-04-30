@@ -85,6 +85,16 @@ namespace snmalloc
       return BITS == 64;
     }
 
+    /**
+     * Returns a value of type T that has a single bit set,
+     */
+    template<typename T = size_t>
+    constexpr T one_at_bit(size_t shift)
+    {
+      static_assert(std::is_integral_v<T>, "Type must be integral");
+      return (static_cast<T>(1)) << shift;
+    }
+
     static constexpr size_t ADDRESS_BITS = is64() ? 48 : 32;
 
     inline void pause()
@@ -225,7 +235,7 @@ namespace snmalloc
 
       for (int i = BITS - 1; i >= 0; i--)
       {
-        size_t mask = static_cast<size_t>(1) << i;
+        size_t mask = one_at_bit(i);
 
         if ((x & mask) == mask)
           return n;
@@ -255,7 +265,7 @@ namespace snmalloc
 
       for (size_t i = 0; i < BITS; i++)
       {
-        size_t mask = static_cast<size_t>(1) << i;
+        size_t mask = one_at_bit(i);
 
         if ((x & mask) == mask)
           return n;
@@ -296,7 +306,7 @@ namespace snmalloc
       if (x <= 2)
         return x;
 
-      return static_cast<size_t>(1) << (BITS - clz(x - 1));
+      return one_at_bit(BITS - clz(x - 1));
     }
 
     inline size_t next_pow2_bits(size_t x)
@@ -311,7 +321,7 @@ namespace snmalloc
       if (x <= 2)
         return x;
 
-      return static_cast<size_t>(1) << (BITS - clz_const(x - 1));
+      return one_at_bit(BITS - clz_const(x - 1));
     }
 
     constexpr size_t next_pow2_bits_const(size_t x)
@@ -419,9 +429,8 @@ namespace snmalloc
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
     static size_t to_exp_mant(size_t value)
     {
-      size_t LEADING_BIT =
-        (static_cast<size_t>(1) << (MANTISSA_BITS + LOW_BITS)) >> 1;
-      size_t MANTISSA_MASK = (static_cast<size_t>(1) << MANTISSA_BITS) - 1;
+      size_t LEADING_BIT = one_at_bit(MANTISSA_BITS + LOW_BITS) >> 1;
+      size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
 
       value = value - 1;
 
@@ -436,9 +445,8 @@ namespace snmalloc
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
     constexpr static size_t to_exp_mant_const(size_t value)
     {
-      size_t LEADING_BIT =
-        (static_cast<size_t>(1) << (MANTISSA_BITS + LOW_BITS)) >> 1;
-      size_t MANTISSA_MASK = (static_cast<size_t>(1) << MANTISSA_BITS) - 1;
+      size_t LEADING_BIT = one_at_bit(MANTISSA_BITS + LOW_BITS) >> 1;
+      size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
 
       value = value - 1;
 
@@ -456,7 +464,7 @@ namespace snmalloc
       if (MANTISSA_BITS > 0)
       {
         m_e = m_e + 1;
-        size_t MANTISSA_MASK = (static_cast<size_t>(1) << MANTISSA_BITS) - 1;
+        size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
         size_t m = m_e & MANTISSA_MASK;
         size_t e = m_e >> MANTISSA_BITS;
         size_t b = e == 0 ? 0 : 1;
@@ -465,7 +473,7 @@ namespace snmalloc
         return extended_m << (shifted_e + LOW_BITS);
       }
 
-      return static_cast<size_t>(1) << (m_e + LOW_BITS);
+      return one_at_bit(m_e + LOW_BITS);
     }
 
     /**

@@ -98,8 +98,7 @@ namespace snmalloc
         {
           break;
         }
-        size_t rsize = (static_cast<size_t>(1) << SUPERSLAB_BITS)
-          << large_class;
+        size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
         size_t decommit_size = rsize - OS_PAGE_SIZE;
         // Grab all of the chunks of this size class.
         auto* slab = large_stack[large_class].pop_all();
@@ -321,7 +320,7 @@ namespace snmalloc
     template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
     void* alloc(size_t large_class, size_t size)
     {
-      size_t rsize = (static_cast<size_t>(1) << SUPERSLAB_BITS) << large_class;
+      size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
       if (size == 0)
         size = rsize;
 
