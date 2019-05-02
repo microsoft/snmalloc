@@ -379,7 +379,15 @@ namespace snmalloc
      */
     size_t index_for_address(uintptr_t p)
     {
-      return reinterpret_cast<size_t>((p >> SHIFT) & (OS_PAGE_SIZE - 1));
+      size_t paddr;
+
+#if defined(__CHERI_PURE_CAPABILITY__)
+      paddr = static_cast<size_t>(static_cast<vaddr_t>(p));
+#else
+      paddr = reinterpret_cast<size_t>(p);
+#endif
+
+      return ((paddr >> SHIFT) & (OS_PAGE_SIZE - 1));
     }
 
     /**
@@ -388,8 +396,17 @@ namespace snmalloc
     void* page_for_address(uintptr_t p)
     {
       assert((reinterpret_cast<uintptr_t>(&top) & (OS_PAGE_SIZE - 1)) == 0);
+
+      size_t paddr;
+#if defined(__CHERI_PURE_CAPABILITY__)
+      paddr = static_cast<size_t>(static_cast<vaddr_t>(p));
+#else
+      paddr = reinterpret_cast<size_t>(p);
+#endif
+
       return reinterpret_cast<void*>(
-        reinterpret_cast<uintptr_t>(&top[p >> SHIFT]) & ~(OS_PAGE_SIZE - 1));
+        reinterpret_cast<uintptr_t>(&top[paddr >> SHIFT]) &
+        ~(OS_PAGE_SIZE - 1));
     }
   };
 } // namespace snmalloc
