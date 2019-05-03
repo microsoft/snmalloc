@@ -112,9 +112,9 @@ phases:
     displayName: 'Install Build Dependencies'
 
   - task: CMake@1
-    displayName: 'CMake .. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="-stdlib=libstdc++ -std=c++17"'
+    displayName: 'CMake .. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="-std=c++17"'
     inputs:
-      cmakeArgs: '.. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="-stdlib=libstdc++ -std=c++17"'
+      cmakeArgs: '.. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="-std=c++17"'
 
   - script: |
       ninja
