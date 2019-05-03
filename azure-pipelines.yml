@@ -92,6 +92,44 @@ phases:
     failOnStderr: true
     displayName: 'Test'
 
+- phase: Linux GCC
+  queue:
+    name: 'Hosted Ubuntu 1604'
+    parallel: 2
+    matrix:
+      Debug:
+        BuildType: Debug
+      Release:
+        BuildType: Release
+
+  steps:
+  - script: |
+      sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+      sudo apt-get update
+      sudo apt-get install -y ninja-build libc++-dev libc++abi-dev libc++abi1 libstdc++-7-dev
+      # sudo apt-get install clang-6.0 clang++-6.0 
+
+    displayName: 'Install Build Dependencies'
+
+  - task: CMake@1
+    displayName: 'CMake .. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="-stdlib=libstdc++ -std=c++17"'
+    inputs:
+      cmakeArgs: '.. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="-stdlib=libstdc++ -std=c++17"'
+
+  - script: |
+      ninja
+
+    workingDirectory: build
+    failOnStderr: true
+    displayName: 'Compile'
+
+  - script: |
+      ctest -j 4 --output-on-failure -C $(BuildType)
+
+    workingDirectory: build
+    failOnStderr: true
+    displayName: 'Test'
+
 - phase: Windows64bit
   queue:
     name: 'Hosted VS2017'

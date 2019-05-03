@@ -8,6 +8,8 @@
 #include "baseslab.h"
 #include "sizeclass.h"
 
+#include <new>
+
 namespace snmalloc
 {
   template<class PAL>

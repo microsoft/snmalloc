@@ -14,7 +14,11 @@
 #  include <emmintrin.h>
 #  define ALWAYSINLINE __attribute__((always_inline))
 #  define NOINLINE __attribute__((noinline))
-#  define HEADER_GLOBAL __attribute__((selectany))
+#  ifdef __clang__
+#    define HEADER_GLOBAL __attribute__((selectany))
+#  else 
+#    define HEADER_GLOBAL __attribute__((weak))
+#  endif
 #endif
 
 #if defined(__i386__) || defined(_M_IX86) || defined(_X86_) || \
@@ -299,7 +303,8 @@ namespace snmalloc
 #  endif
 #else
       size_t prod = x * y;
-      return y && (x > ((size_t)-1 / y));
+      overflow = y && (x > ((size_t)-1 / y));
+      return prod;
 #endif
     }
 
