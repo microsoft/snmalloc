@@ -44,6 +44,11 @@ namespace snmalloc
 
       if constexpr (zero_mem == YesZero)
         zero<true>(p, size);
+      else
+      {
+        UNUSED(p);
+        UNUSED(size);
+      }
     }
 
     /// OS specific function for zeroing memory
