@@ -92,7 +92,7 @@ phases:
     failOnStderr: true
     displayName: 'Test'
 
-- phase: Linux GCC
+- phase: LinuxGCC
   queue:
     name: 'Hosted Ubuntu 1604'
     parallel: 2
