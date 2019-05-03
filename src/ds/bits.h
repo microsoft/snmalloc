@@ -16,7 +16,7 @@
 #  define NOINLINE __attribute__((noinline))
 #  ifdef __clang__
 #    define HEADER_GLOBAL __attribute__((selectany))
-#  else 
+#  else
 #    define HEADER_GLOBAL __attribute__((weak))
 #  endif
 #endif
