@@ -37,7 +37,9 @@ using the Visual Studio compiler.
 Snmalloc has very few dependencies, CMake, Ninja, Clang 6.0 or later and a C++17
 standard library.
 Building with GCC is currently not supported because GCC lacks support for the
-`selectany` attribute to specify variables in a COMDAT.
+`selectany` attribute to specify variables in a COMDAT.  
+It will, however, build with GCC-7, but some of global variables will be 
+preemptible.
 
 To build a debug configuration:
 ```

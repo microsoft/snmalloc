@@ -17,6 +17,8 @@
 #  ifdef __clang__
 #    define HEADER_GLOBAL __attribute__((selectany))
 #  else
+//  GCC does not support selectany, weak is almost the correct
+//  attribute, but leaves the global variable preemptible.
 #    define HEADER_GLOBAL __attribute__((weak))
 #  endif
 #endif
