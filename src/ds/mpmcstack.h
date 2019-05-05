@@ -7,14 +7,14 @@ namespace snmalloc
   template<class T, Construction c = RequiresInit>
   class MPMCStack
   {
-    using ABA = ABA<T, c>;
+    using ABAT = ABA<T, c>;
 
   private:
     static_assert(
       std::is_same<decltype(T::next), std::atomic<T*>>::value,
       "T->next must be a std::atomic<T*>");
 
-    ABA stack;
+    ABAT stack;
 
   public:
     void push(T* item)
@@ -29,7 +29,7 @@ namespace snmalloc
 
       do
       {
-        T* top = ABA::load(cmp);
+        T* top = ABAT::load(cmp);
         last->next.store(top, std::memory_order_release);
       } while (!stack.compare_exchange(cmp, first));
     }
@@ -44,7 +44,7 @@ namespace snmalloc
 
       do
       {
-        top = ABA::load(cmp);
+        top = ABAT::load(cmp);
 
         if (top == nullptr)
           break;
@@ -63,7 +63,7 @@ namespace snmalloc
 
       do
       {
-        top = ABA::load(cmp);
+        top = ABAT::load(cmp);
 
         if (top == nullptr)
           break;
