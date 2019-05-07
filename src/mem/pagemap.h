@@ -265,9 +265,7 @@ namespace snmalloc
     void* page_for_address(uintptr_t p)
     {
       bool success;
-      return reinterpret_cast<void*>(
-        ~(OS_PAGE_SIZE - 1) &
-        reinterpret_cast<uintptr_t>(get_addr<true>(p, success)));
+      return pointer_align_down<OS_PAGE_SIZE>(get_addr<true>(p, success));
     }
 
     T get(uintptr_t p)

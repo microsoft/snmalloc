@@ -56,4 +56,37 @@ namespace snmalloc
       0;
   }
 
+  /**
+   * Align a pointer down to a statically specified granularity, which must be a
+   * power of two.
+   */
+  template<size_t granule, typename T = void>
+  inline T* pointer_align_down(void* p)
+  {
+    static_assert(granule > 0);
+    static_assert((granule & (granule - 1)) == 0);
+#if __has_builtin(__builtin_align_down)
+    return reinterpret_cast<T*>(__builtin_align_down(p, granule));
+#else
+	return reinterpret_cast<T*>(
+		bits::align_down(reinterpret_cast<uintptr_t>(p), granule));
+#endif
+  }
+
+  /**
+   * Align a pointer up to a statically specified granularity, which must be a
+   * power of two.
+   */
+  template<size_t granule, typename T = void>
+  inline T* pointer_align_up(void* p)
+  {
+    static_assert(granule > 0);
+    static_assert((granule & (granule - 1)) == 0);
+#if __has_builtin(__builtin_align_up)
+    return reinterpret_cast<T*>(__builtin_align_up(p, granule));
+#else
+	return reinterpret_cast<T*>(
+		bits::align_up(reinterpret_cast<uintptr_t>(p), granule));
+#endif
+  }
 } // namespace snmalloc
