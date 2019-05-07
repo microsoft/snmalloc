@@ -67,7 +67,7 @@ namespace snmalloc
 
     static Superslab* get(void* p)
     {
-      return pointer_cast<Superslab>(address_cast(p) & SUPERSLAB_MASK);
+      return pointer_align_down<SUPERSLAB_SIZE, Superslab>(p);
     }
 
     static bool is_short_sizeclass(sizeclass_t sizeclass)

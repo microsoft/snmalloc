@@ -15,7 +15,7 @@ namespace snmalloc
 
     Slab* get_slab()
     {
-      return pointer_cast<Slab>(address_cast(this) & SLAB_MASK);
+      return pointer_align_down<SLAB_SIZE, Slab>(this);
     }
   };
 

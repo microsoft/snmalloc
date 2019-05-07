@@ -166,11 +166,12 @@ namespace snmalloc
         remaining -= size;
       }
 
-      auto page_start = bits::align_down(address_cast(p), OS_PAGE_SIZE);
-      auto page_end = bits::align_up(address_cast(p) + size, OS_PAGE_SIZE);
+      auto page_start = pointer_align_down<OS_PAGE_SIZE, char>(p);
+      auto page_end =
+        pointer_align_up<OS_PAGE_SIZE, char>(pointer_offset(p, size));
 
       PAL::template notify_using<NoZero>(
-        pointer_cast<void>(page_start), page_end - page_start);
+        page_start, static_cast<size_t>(page_end - page_start));
 
       return new (p) T(std::forward<Args...>(args)...);
     }
@@ -295,8 +296,7 @@ namespace snmalloc
           reserved_start =
             memory_provider.template reserve<false>(&add, SUPERSLAB_SIZE);
           reserved_end = pointer_offset(reserved_start, add);
-          reserved_start = pointer_cast<void>(
-            bits::align_up(address_cast(reserved_start), SUPERSLAB_SIZE));
+          reserved_start = pointer_align_up<SUPERSLAB_SIZE>(reserved_start);
 
           if (add < need)
             return false;
