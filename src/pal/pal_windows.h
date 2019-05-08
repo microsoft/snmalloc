@@ -64,6 +64,7 @@ namespace snmalloc
           WT_EXECUTEDEFAULT);
       }
     }
+
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.  This PAL supports low-memory notifications.
@@ -73,6 +74,7 @@ namespace snmalloc
       | AlignedAllocation
 #  endif
       ;
+
     /**
      * Counter values for the number of times that a low-pressure notification
      * has been delivered.  Callers should compare this with a previous value
@@ -83,6 +85,7 @@ namespace snmalloc
     {
       return pressure_epoch.load(std::memory_order_acquire);
     }
+
     /**
      * Check whether the low memory state is still in effect.  This is an
      * expensive operation and should not be on any fast paths.
@@ -93,9 +96,11 @@ namespace snmalloc
       QueryMemoryResourceNotification(lowMemoryObject, &result);
       return result;
     }
+
     static void error(const char* const str)
     {
       puts(str);
+      fflush(stdout);
       abort();
     }
 
