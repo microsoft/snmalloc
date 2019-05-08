@@ -18,7 +18,7 @@ namespace snmalloc
   template<typename T>
   inline T* pointer_offset(T* base, size_t diff)
   {
-    return reinterpret_cast<T*>(reinterpret_cast<char*>(base) + diff);
+    return reinterpret_cast<T*>(reinterpret_cast<uint8_t*>(base) + diff);
   }
 
   /**
