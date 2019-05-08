@@ -217,7 +217,12 @@ namespace snmalloc
       if (committed)
         flags |= MEM_COMMIT;
 
-      return VirtualAlloc(nullptr, *size, flags, PAGE_READWRITE);
+      void* ret = VirtualAlloc(nullptr, *size, flags, PAGE_READWRITE);
+      if (ret == nullptr)
+      {
+        error("Failed to allocate memory\n");
+      }
+      return ret;
     }
 #  endif
   };
