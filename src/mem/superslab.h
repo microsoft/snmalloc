@@ -159,9 +159,12 @@ namespace snmalloc
       if ((used & 1) == 1)
         return alloc_slab(sizeclass, memory_provider);
 
-      meta[0].head = get_slab_offset(sizeclass, true);
+      auto rsize = sizeclass_to_size(sizeclass);
+
+      meta[0].head =
+        (get_slab_offset(sizeclass, true) + rsize) & (SLAB_SIZE - 1);
       meta[0].sizeclass = sizeclass;
-      meta[0].link = SLABLINK_INDEX;
+      meta[0].link = get_slab_offset(sizeclass, true) - 1;
 
       if constexpr (decommit_strategy == DecommitAll)
       {
@@ -182,9 +185,11 @@ namespace snmalloc
 
       uint8_t n = meta[h].next;
 
-      meta[h].head = get_slab_offset(sizeclass, false);
+      auto rsize = sizeclass_to_size(sizeclass);
+      meta[h].head =
+        (get_slab_offset(sizeclass, false) + rsize) & (SLAB_SIZE - 1);
       meta[h].sizeclass = sizeclass;
-      meta[h].link = SLABLINK_INDEX;
+      meta[h].link = get_slab_offset(sizeclass, false) - 1;
 
       head = h + n + 1;
       used += 2;
