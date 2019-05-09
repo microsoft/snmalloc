@@ -8,6 +8,24 @@ option(EXPOSE_EXTERNAL_RESERVE "Expose an interface to reserve memory using the 
 
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
 
+# Provide as macro so other projects can reuse
+macro(warnings_high)
+  if(MSVC)
+    # Force to always compile with W4
+    if(CMAKE_CXX_FLAGS MATCHES "/W[0-4]")
+      string(REGEX REPLACE "/W[0-4]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    else()
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
+    endif()
+    add_compile_options(/WX /wd4127 /wd4324 /wd4201)
+  else()
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+      add_compile_options(-Wsign-conversion)
+    endif ()
+    add_compile_options(-Wall -Wextra -Werror)
+  endif()
+endmacro()
+
 # The main target for snmalloc
 add_library(snmalloc_lib INTERFACE)
 target_include_directories(snmalloc_lib INTERFACE src/)
@@ -46,22 +64,13 @@ endif()
 # in containing Cmake file.
 if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
 
-  # Set high warning levels
+  warnings_high()
+
   if(MSVC)
-    # Force to always compile with W4
-    if(CMAKE_CXX_FLAGS MATCHES "/W[0-4]")
-      string(REGEX REPLACE "/W[0-4]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-    else()
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
-    endif()
-    add_compile_options(/WX /wd4127 /wd4324 /wd4201)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
   else()
-    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-      add_compile_options(-Wsign-conversion)
-    endif ()
-    add_compile_options(-march=native -Wall -Wextra -Werror -g -fno-exceptions -fno-rtti)
+    add_compile_options(-march=native -fno-exceptions -fno-rtti -g)
   endif()
 
   macro(subdirlist result curdir)
