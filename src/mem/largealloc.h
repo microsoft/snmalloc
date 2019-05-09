@@ -295,7 +295,14 @@ namespace snmalloc
     template<AllowReserve allow_reserve>
     bool reserve_memory(size_t need, size_t add)
     {
-      if ((address_cast(reserved_start) + need) > address_cast(reserved_end))
+      assert(reserved_start <= reserved_end);
+
+      /*
+       * Spell this comparison in terms of pointer subtraction like this,
+       * rather than "reserved_start + need < reserved_end" becuase the
+       * sum might not be representable on CHERI.
+       */
+      if (pointer_diff(reserved_start, reserved_end) < need)
       {
         if constexpr (allow_reserve == YesReserve)
         {
