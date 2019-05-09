@@ -82,6 +82,16 @@ These can be added to your cmake command line.
 -DUSE_MEASURE=ON // Measure performance with histograms
 ```
 
+The project can be included in other CMake projects as a header
+only library:
+```
+set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
+add_subdirectory([...]/snmalloc EXCLUDE_FROM_ALL)
+```
+This has a single build target `snmalloc_lib`, which includes
+the necessary compiler and linker flags, to use snmalloc as a header-only
+library.
+
 # Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
