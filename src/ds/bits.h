@@ -340,33 +340,6 @@ namespace snmalloc
       return BITS - clz_const(x - 1);
     }
 
-    inline static size_t hash(void* p)
-    {
-      size_t x = static_cast<size_t>(address_cast(p));
-
-      if (is64())
-      {
-        x = ~x + (x << 21);
-        x = x ^ (x >> 24);
-        x = (x + (x << 3)) + (x << 8);
-        x = x ^ (x >> 14);
-        x = (x + (x << 2)) + (x << 4);
-        x = x ^ (x >> 28);
-        x = x + (x << 31);
-      }
-      else
-      {
-        x = ~x + (x << 15);
-        x = x ^ (x >> 12);
-        x = x + (x << 2);
-        x = x ^ (x >> 4);
-        x = (x + (x << 3)) + (x << 11);
-        x = x ^ (x >> 16);
-      }
-
-      return x;
-    }
-
     static inline size_t align_down(size_t value, size_t alignment)
     {
       assert(next_pow2(alignment) == alignment);
@@ -393,20 +366,6 @@ namespace snmalloc
 
       return ((static_cast<size_t>(address_cast(p)) | size) &
               (alignment - 1)) == 0;
-    }
-
-    template<class T>
-    constexpr T inc_mod(T v, T mod)
-    {
-      static_assert(
-        std::is_integral<T>::value, "inc_mod can only be used on integers");
-
-      using S = std::make_signed_t<T>;
-      constexpr S shift = (sizeof(S) * 8) - 1;
-
-      S a = static_cast<S>(v + 1);
-      S b = static_cast<S>(mod - a - 1);
-      return a & ~(b >> shift);
     }
 
     /************************************************
