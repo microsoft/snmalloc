@@ -11,7 +11,7 @@ namespace snmalloc
 {
   class PALOpenEnclave
   {
-    std::atomic<uintptr_t> oe_base;
+    std::atomic<void*> oe_base;
 
   public:
     /**
@@ -30,27 +30,28 @@ namespace snmalloc
     {
       if (oe_base == 0)
       {
-        uintptr_t dummy = 0;
-        oe_base.compare_exchange_strong(dummy, (uintptr_t)__oe_get_heap_base());
+        void* dummy = NULL;
+        oe_base.compare_exchange_strong(
+          dummy, const_cast<void*>(__oe_get_heap_base()));
       }
 
-      uintptr_t old_base = oe_base;
-      uintptr_t old_base2 = old_base;
-      uintptr_t next_base;
-      auto end = (uintptr_t)__oe_get_heap_end();
+      void* old_base = oe_base;
+      void* old_base2 = old_base;
+      void* next_base;
+      auto end = __oe_get_heap_end();
       do
       {
         old_base2 = old_base;
-        auto new_base = bits::align_up(old_base, align);
-        next_base = new_base + *size;
+        auto new_base = pointer_align_up(old_base, align);
+        next_base = pointer_offset(new_base, *size);
 
         if (next_base > end)
           error("Out of memory");
 
       } while (oe_base.compare_exchange_strong(old_base, next_base));
 
-      *size = next_base - old_base2;
-      return (void*)old_base;
+      *size = pointer_diff(old_base2, next_base);
+      return old_base;
     }
 
     template<bool page_aligned = false>
