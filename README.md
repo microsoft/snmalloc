@@ -82,15 +82,27 @@ These can be added to your cmake command line.
 -DUSE_MEASURE=ON // Measure performance with histograms
 ```
 
-The project can be included in other CMake projects as a header
-only library:
+# Using snmalloc as header-only library
+
+In this section we show how to compile snmalloc into your project such that it replaces the standard allocator functions such as free and malloc. The following instructions were tested with CMake and Clang running on Ubuntu 18.04.
+
+Add these lines to your CMake file.
 ```
 set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
-add_subdirectory([...]/snmalloc EXCLUDE_FROM_ALL)
+add_subdirectory(snmalloc EXCLUDE_FROM_ALL)
 ```
-This has a single build target `snmalloc_lib`, which includes
-the necessary compiler and linker flags, to use snmalloc as a header-only
-library.
+
+In addition make sure your executable is compiled to support 128 bit atomic operations. This may require you to add the following to your CMake file.
+```
+target_link_libraries([lib_name] PRIVATE snmalloc_lib)
+```
+
+You will also need to compile the relavent parts of snmalloc itself. Create a new file with the following contents and compile it with the rest of your application.
+```
+#define NO_BOOTSTRAP_ALLOCATOR
+
+#include "snmalloc/src/override/malloc.cc"
+```
 
 # Contributing
 
