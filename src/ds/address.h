@@ -89,6 +89,22 @@ namespace snmalloc
   }
 
   /**
+   * Align a pointer up to a dynamically specified granularity, which must
+   * be a power of two.
+   */
+  template<typename T = void>
+  inline T* pointer_align_up(void* p, size_t alignment)
+  {
+    assert(alignment > 0);
+    assert(bits::next_pow2(alignment) == alignment);
+#if __has_builtin(__builtin_align_up)
+    return static_cast<T*>(__builtin_align_up(p, alignment));
+#else
+    return pointer_cast<T>(bits::align_up(address_cast(p), alignment));
+#endif
+  }
+
+  /**
    * Compute the difference in pointers in units of char.  base is
    * expected to point to the base of some (sub)allocation into which cursor
    * points; would-be negative answers trip an assertion in debug builds.
