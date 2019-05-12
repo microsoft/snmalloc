@@ -125,8 +125,7 @@ namespace snmalloc
     uint16_t pointer_to_index(void* p)
     {
       // Get the offset from the slab for a memory location.
-      return static_cast<uint16_t>(
-        ((address_cast(p) - address_cast(this))) >> 8);
+      return static_cast<uint16_t>(pointer_diff(this, p) >> 8);
     }
   };
 } // namespace snmalloc

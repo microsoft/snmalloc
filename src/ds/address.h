@@ -89,4 +89,16 @@ namespace snmalloc
 		bits::align_up(reinterpret_cast<uintptr_t>(p), granule));
 #endif
   }
+
+  /**
+   * Compute the difference in pointers in units of char.  base is
+   * expected to point to the base of some (sub)allocation into which cursor
+   * points; would-be negative answers trip an assertion in debug builds.
+   */
+  inline size_t pointer_diff(void* base, void* cursor)
+  {
+    assert(cursor >= base);
+    return static_cast<size_t>(
+      static_cast<char*>(cursor) - static_cast<char*>(base));
+  }
 } // namespace snmalloc

@@ -44,9 +44,9 @@ namespace snmalloc
     // Used size_t as results in better code in MSVC
     size_t slab_to_index(Slab* slab)
     {
-      auto res = ((address_cast(slab) - address_cast(this)) >> SLAB_BITS);
-      assert(res == (uint8_t)res);
-      return res;
+      auto res = (pointer_diff(this, slab) >> SLAB_BITS);
+      assert(res == static_cast<uint8_t>(res));
+      return static_cast<uint8_t>(res);
     }
 
   public:
