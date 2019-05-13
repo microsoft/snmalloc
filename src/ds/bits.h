@@ -9,7 +9,11 @@
 #  define ALWAYSINLINE __forceinline
 #  define NOINLINE __declspec(noinline)
 #  define HEADER_GLOBAL __declspec(selectany)
+#  define likely(x)   !!(x)
+#  define unlikely(x) !!(x)
 #else
+#  define likely(x)   __builtin_expect(!!(x), 1)
+#  define unlikely(x) __builtin_expect(!!(x), 0)
 #  include <cpuid.h>
 #  include <emmintrin.h>
 #  define ALWAYSINLINE __attribute__((always_inline))
