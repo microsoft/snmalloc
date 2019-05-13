@@ -219,14 +219,23 @@ namespace snmalloc
       pthread_setspecific(key, static_cast<void*>(value));
     }
 #  endif
-  public:
+
     /**
-     * Public interface, returns the allocator for the current thread,
-     * constructing it if necessary.
+     * Private accessor to the per thread allocator
+     * Provides no checking for initialization
      */
-    static inline Alloc*& get()
+    static inline Alloc*& inner_get()
     {
       static thread_local Alloc* per_thread;
+      return per_thread;
+    }
+
+    /**
+     * Private initialiser for the per thread allocator
+     */
+    static NOINLINE Alloc*& inner_init()
+    {
+      Alloc*& per_thread = inner_get();
 
       // If we don't have an allocator, construct one.
       if (!per_thread)
@@ -243,8 +252,23 @@ namespace snmalloc
         // Associate the new allocator with the destructor.
         tls_set_value(key, &per_thread);
       }
-
       return per_thread;
+    }
+
+  public:
+    /**
+     * Public interface, returns the allocator for the current thread,
+     * constructing it if necessary.
+     */
+    static inline Alloc*& get()
+    {
+      Alloc*& per_thread = inner_get();
+
+      if (per_thread != nullptr)
+        return per_thread;
+
+      // Slow path that performs initialization
+      return inner_init();
     }
   };
 #endif
