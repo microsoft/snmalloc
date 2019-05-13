@@ -469,7 +469,7 @@ namespace snmalloc
         return;
       }
 
-#  ifndef SNMALLOC_SAFE_CLIENT
+#  ifndef NDEBUG
       if (size > 64 || address_cast(super) != address_cast(p))
       {
         error("Not deallocating start of an object");
@@ -1009,7 +1009,7 @@ namespace snmalloc
 
     void small_dealloc(Superslab* super, void* p, uint8_t sizeclass)
     {
-#ifndef SNMALLOC_SAFE_CLIENT
+#ifndef NDEBUG
       Slab* slab = Slab::get(p);
       if (!slab->is_start_of_object(super, p))
       {
@@ -1146,7 +1146,7 @@ namespace snmalloc
       stats().sizeclass_dealloc(sizeclass);
       bool was_full = slab->dealloc(p, large_allocator.memory_provider);
 
-#ifndef SNMALLOC_SAFE_CLIENT
+#ifndef NDEBUG
       if (!is_multiple_of_sizeclass(
             sizeclass_to_size(sizeclass),
             address_cast(slab) + SUPERSLAB_SIZE - address_cast(p)))
