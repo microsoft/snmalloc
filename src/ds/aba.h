@@ -41,7 +41,7 @@ namespace snmalloc
       Independent independent;
     };
 #else
-    std::atomic<T*> ptr;
+    std::atomic<T*> raw;
 #endif
 
   public:
@@ -57,13 +57,18 @@ namespace snmalloc
       independent.ptr.store(x, std::memory_order_relaxed);
       independent.aba.store(0, std::memory_order_relaxed);
 #else
-      ptr.store(x, std::memory_order_relaxed);
+      raw.store(x, std::memory_order_relaxed);
 #endif
     }
 
     T* peek()
     {
-      return independent.ptr.load(std::memory_order_relaxed);
+      return
+#ifdef PLATFORM_IS_X86
+        independent.ptr.load(std::memory_order_relaxed);
+#else
+        raw.load(std::memory_order_relaxed);
+#endif
     }
 
     Cmp read()
@@ -73,11 +78,11 @@ namespace snmalloc
         Cmp{independent.ptr.load(std::memory_order_relaxed),
             independent.aba.load(std::memory_order_relaxed)};
 #else
-        ptr.load(std::memory_order_relaxed);
+        raw.load(std::memory_order_relaxed);
 #endif
     }
 
-    static T* load(Cmp& from)
+    static T* ptr(Cmp& from)
     {
 #ifdef PLATFORM_IS_X86
       return from.ptr;
@@ -105,7 +110,7 @@ namespace snmalloc
         expect, xchg, std::memory_order_relaxed, std::memory_order_relaxed);
 #  endif
 #else
-      return ptr.compare_exchange_weak(
+      return raw.compare_exchange_weak(
         expect, value, std::memory_order_relaxed, std::memory_order_relaxed);
 #endif
     }
