@@ -740,13 +740,41 @@ namespace snmalloc
         return external_pointer<location>(p, sc, slab_end);
       }
 
-      auto ss = address_cast(super);
+      address_t ss;
 
-      while (size > 64)
+      if constexpr (SNMALLOC_PAGEMAP_POINTERS)
       {
-        // This is a large alloc redirect.
-        ss = ss - (1ULL << (size - 64));
+        /*
+         * There's no reason to do anything logarithmic; we're directly
+         * storing the pointer to the start here.  Just use that.
+         */
+
+        ss = address_cast(pagemap().template getp<false>(super));
         size = PageMap::pagemap().get(ss);
+      }
+      else
+      {
+        ss = address_cast(super);
+        while (size > 64)
+        {
+          // This is a large alloc redirect.
+          ss = ss - (1ULL << (size - 64));
+          size = PageMap::pagemap().get(ss);
+        }
+
+#  if 0
+        /*
+         * It may, for debugging, be useful to cross-check the pagemap
+         * pointers, by overriding the above use thereof.  In that case,
+         * we should arrive at the same answer.
+         */
+        if constexpr (SNMALLOC_PAGEMAP_POINTERS)
+        {
+          assert(
+            (size == 0) ||
+            (ss == address_cast(pagemap().template getp<false>(super))));
+        }
+#  endif
       }
 
       if (size == 0)
