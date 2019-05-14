@@ -224,7 +224,7 @@ namespace snmalloc
      * Private accessor to the per thread allocator
      * Provides no checking for initialization
      */
-    static inline Alloc*& inner_get()
+    static ALWAYSINLINE Alloc*& inner_get()
     {
       static thread_local Alloc* per_thread;
       return per_thread;
@@ -260,7 +260,7 @@ namespace snmalloc
      * Public interface, returns the allocator for the current thread,
      * constructing it if necessary.
      */
-    static inline Alloc*& get()
+    static ALWAYSINLINE Alloc*& get()
     {
       Alloc*& per_thread = inner_get();
 

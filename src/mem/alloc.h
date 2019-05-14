@@ -869,7 +869,7 @@ namespace snmalloc
       remote.post(id());
     }
 
-    inline void handle_message_queue()
+    ALWAYSINLINE void handle_message_queue()
     {
       // Inline the empty check, but not necessarily the full queue handling.
       if (likely(message_queue().is_empty()))
