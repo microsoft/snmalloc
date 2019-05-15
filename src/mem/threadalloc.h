@@ -230,6 +230,15 @@ namespace snmalloc
       return per_thread;
     }
 
+#  ifdef USE_SNMALLOC_STATS
+    static void print_stats()
+    {
+      Stats s;
+      current_alloc_pool()->aggregate_stats(s);
+      s.print<Alloc>(std::cout);
+    }
+#  endif
+
     /**
      * Private initialiser for the per thread allocator
      */
@@ -248,9 +257,20 @@ namespace snmalloc
         // allocator.
         per_thread = current_alloc_pool()->acquire();
 
-        tls_key_t key = Singleton<tls_key_t, tls_key_create>::get();
+        bool first = false;
+        tls_key_t key = Singleton<tls_key_t, tls_key_create>::get(&first);
         // Associate the new allocator with the destructor.
         tls_set_value(key, &per_thread);
+
+#  ifdef USE_SNMALLOC_STATS
+        // Allocator is up and running now, safe to call atexit.
+        if (first)
+        {
+          atexit(print_stats);
+        }
+#  else
+        UNUSED(first);
+#  endif
       }
       return per_thread;
     }

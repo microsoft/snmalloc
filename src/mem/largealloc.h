@@ -345,11 +345,14 @@ namespace snmalloc
         p = reserved_start;
         reserved_start = pointer_offset(p, rsize);
 
+        stats.superslab_fresh();
         // All memory is zeroed since it comes from reserved space.
         memory_provider.template notify_using<NoZero>(p, size);
       }
       else
       {
+        stats.superslab_pop();
+
         if constexpr (decommit_strategy == DecommitSuperLazy)
         {
           if (static_cast<Baseslab*>(p)->get_kind() == Decommitted)
@@ -400,6 +403,7 @@ namespace snmalloc
 
     void dealloc(void* p, size_t large_class)
     {
+      stats.superslab_push();
       memory_provider.large_stack[large_class].push(static_cast<Largeslab*>(p));
       memory_provider.lazy_decommit_if_needed();
     }
