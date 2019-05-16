@@ -21,10 +21,12 @@ namespace snmalloc
     {
       size_t current = 0;
       size_t max = 0;
+      size_t used = 0;
 
       void inc()
       {
         current++;
+        used++;
         if (current > max)
           max++;
       }
@@ -48,11 +50,12 @@ namespace snmalloc
       {
         current += that.current;
         max += that.max;
+        used += that.used;
       }
 #ifdef USE_SNMALLOC_STATS
       void print(CSVStream& csv, size_t multiplier = 1)
       {
-        csv << current * multiplier << max * multiplier;
+        csv << current * multiplier << max * multiplier << used * multiplier;
       }
 #endif
     };
@@ -327,10 +330,12 @@ namespace snmalloc
             << "AllocatorID"
             << "Size group"
             << "Size"
-            << "Current bytes"
-            << "Max bytes"
+            << "Current count"
+            << "Max count"
+            << "Total Allocs"
             << "Current Slab bytes"
             << "Max Slab bytes"
+            << "Total slab allocs"
             << "Average Slab Usage"
             << "Average wasted space" << csv.endl;
 
@@ -353,7 +358,7 @@ namespace snmalloc
         csv << "BucketedStats" << dumpid << allocatorid << i
             << sizeclass_to_size(i);
 
-        sizeclass[i].print(csv, sizeclass_to_size(i), SLAB_SIZE);
+        sizeclass[i].print(csv, sizeclass_to_size(i));
       }
 
       for (uint8_t i = 0; i < LARGE_N; i++)
