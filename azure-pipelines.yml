@@ -7,25 +7,25 @@ phases:
     name: 'Hosted Ubuntu 1604'
     parallel: 5
     matrix:
-      Clang_6 Debug:
+      Clang-6 Debug:
         CC: clang-6.0
         CXX: clang++-6.0
         BuildType: Debug
         SelfHost: false
 
-      Clang_6 Release:
+      Clang-6 Release:
         CC: clang-6.0
         CXX: clang++-6.0
         BuildType: Release
         SelfHost: false
 
-      GCC_7 Debug:
+      GCC-7 Debug:
         CC: gcc-7
         CXX: g++-7
         BuildType: Debug
         SelfHost: false
 
-      GCC_7 Release:
+      GCC-7 Release:
         CC: gcc-7
         CXX: g++-7
         BuildType: Release
@@ -82,71 +82,36 @@ phases:
     failOnStderr: true
     displayName: 'Test'
 
-- phase: Windows64bit
+- phase: Windows
   queue:
     name: 'Hosted VS2017'
-    parallel: 2
+    parallel: 5
     matrix:
-      Debug:
+      64-bit Debug:
         BuildType: Debug
-      Release:
+        CMakeArgs: '-G"Visual Studio 15 2017 Win64"'
+
+      64-bit Release:
         BuildType: Release
+        CMakeArgs: '-G"Visual Studio 15 2017 Win64"'
 
-  steps:
-  - task: CMake@1
-    displayName: 'CMake .. -G"Visual Studio 15 2017 Win64"'
-    inputs:
-      cmakeArgs: '.. -G"Visual Studio 15 2017 Win64"'
-
-  - task: MSBuild@1
-    displayName: 'Build solution build/snmalloc.sln'
-    inputs:
-      solution: build/snmalloc.sln
-      msbuildArguments: '/m /p:Configuration=$(BuildType)'
-
-  - script: 'ctest -j 4 --interactive-debug-mode 0 --output-on-failure -C $(BuildType)'
-    workingDirectory: build
-    displayName: 'Run Ctest'
-
-- phase: Windows8Compat
-  queue:
-    name: 'Hosted VS2017'
-    parallel: 2
-    matrix:
-      Release:
+      64-bit Release Windows8Compat:
         BuildType: Release
+        CMakeArgs: '-G"Visual Studio 15 2017 Win64" -DWIN8COMPAT=TRUE'
 
-  steps:
-  - task: CMake@1
-    displayName: 'CMake .. -G"Visual Studio 15 2017 Win64"'
-    inputs:
-      cmakeArgs: '.. -G"Visual Studio 15 2017 Win64" -DWIN8COMPAT=TRUE'
-
-  - task: MSBuild@1
-    displayName: 'Build solution build/snmalloc.sln'
-    inputs:
-      solution: build/snmalloc.sln
-      msbuildArguments: '/m /p:Configuration=$(BuildType)'
-
-  - script: 'ctest -j 4 --interactive-debug-mode 0 --output-on-failure -C $(BuildType)'
-    workingDirectory: build
-    displayName: 'Run Ctest'
-
-- phase: Windows32bit
-  queue:
-    name: 'Hosted VS2017'
-    parallel: 2
-    matrix:
-      Debug:
+      32-bit Debug:
         BuildType: Debug
-      Release:
+        CMakeArgs: '-G"Visual Studio 15 2017"'
+
+      32-bit Release:
         BuildType: Release
+        CMakeArgs: '-G"Visual Studio 15 2017"'
 
   steps:
   - task: CMake@1
-    displayName: 'CMake .. -G"Visual Studio 15 2017"'
+    displayName: 'CMake .. $(CMakeArgs)'
     inputs:
-      cmakeArgs: '.. -G"Visual Studio 15 2017"'
+      cmakeArgs: '.. $(CMakeArgs)'
 
   - task: MSBuild@1
     displayName: 'Build solution build/snmalloc.sln'
@@ -201,9 +166,16 @@ phases:
 
     displayName: 'Install clang'
 
-  - script: |
-      bash check-format.sh
+  - task: CMake@1
+    displayName: 'CMake ..'
+    inputs:
+      cmakeArgs: '..'
 
+  - script: |
+      if [ "$(git diff $(Build.SourceVersion))" != "" ]; then exit 1; fi
+      make clangformat
+
+    workingDirectory: build
     displayName: 'Clang-Format'
 
   - script: |

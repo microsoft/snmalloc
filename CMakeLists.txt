@@ -170,10 +170,9 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     message(STATUS "Generating clangformat target using ${CLANG_FORMAT}")
     file(GLOB_RECURSE ALL_SOURCE_FILES *.cc *.h *.hh)
     add_custom_target(
-            clangformat
-            COMMAND ${CLANG_FORMAT}
-            -i
-            ${ALL_SOURCE_FILES}
-    )
+      clangformat
+      COMMAND ${CLANG_FORMAT}
+      -i
+      ${ALL_SOURCE_FILES})
   endif()
 endif()
