@@ -109,9 +109,9 @@ phases:
 
   steps:
   - task: CMake@1
-    displayName: 'CMake .. $(CMakeArgs)'
+    displayName: 'CMake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType)'
     inputs:
-      cmakeArgs: '.. $(CMakeArgs)'
+      cmakeArgs: '.. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType)'
 
   - task: MSBuild@1
     displayName: 'Build solution build/snmalloc.sln'
