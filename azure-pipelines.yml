@@ -2,105 +2,40 @@ resources:
 - repo: self
 
 phases:
-- phase: LinuxSelfHost
-  queue:
-    name: 'Hosted Ubuntu 1604'
-
-  steps:
-  - script: |
-      sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-      sudo apt-get update
-      sudo apt-get install -y ninja-build libc++-dev libc++abi-dev libc++abi1 libstdc++-7-dev
-      # sudo apt-get install clang-6.0 clang++-6.0
-
-      sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-6.0 100
-      sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang 100
-      sudo update-alternatives --set cc /usr/bin/clang
-
-      sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-6.0 100
-      sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++ 100
-      sudo update-alternatives --set c++ /usr/bin/clang++
-
-    displayName: 'Install Build Dependencies'
-
-  - task: CMake@1
-    displayName: 'CMake .. -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-stdlib=libstdc++ -std=c++17"'
-    inputs:
-      cmakeArgs: '.. -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-stdlib=libstdc++ -std=c++17"'
-
-  - script: |
-      ninja
-
-    workingDirectory: build
-    failOnStderr: true
-    displayName: 'Compile'
-
-  - script: |
-      sudo cp libsnmallocshim.so /usr/local/lib/
-      sudo cp libsnmallocshim-1mib.so /usr/local/lib/
-      ninja clean
-      LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
-      ninja clean
-      LD_PRELOAD=/usr/local/lib/libsnmallocshim-1mib.so ninja
-    workingDirectory: build
-    failOnStderr: true
-    displayName: 'LD_PRELOAD Compile'
-
 - phase: Linux
   queue:
     name: 'Hosted Ubuntu 1604'
-    parallel: 2
+    parallel: 5
     matrix:
-      Debug:
+      Clang-6 Debug:
+        CC: clang-6.0
+        CXX: clang++-6.0
         BuildType: Debug
-      Release:
+        SelfHost: false
+
+      Clang-6 Release:
+        CC: clang-6.0
+        CXX: clang++-6.0
         BuildType: Release
+        SelfHost: false
 
-  steps:
-  - script: |
-      sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-      sudo apt-get update
-      sudo apt-get install -y ninja-build libc++-dev libc++abi-dev libc++abi1 libstdc++-7-dev
-      # sudo apt-get install clang-6.0 clang++-6.0
-
-      sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-6.0 100
-      sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang 100
-      sudo update-alternatives --set cc /usr/bin/clang
-
-      sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-6.0 100
-      sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++ 100
-      sudo update-alternatives --set c++ /usr/bin/clang++
-
-    displayName: 'Install Build Dependencies'
-
-  - task: CMake@1
-    displayName: 'CMake .. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="-stdlib=libstdc++ -std=c++17"'
-    inputs:
-      cmakeArgs: '.. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="-stdlib=libstdc++ -std=c++17"'
-
-  - script: |
-      ninja
-
-    workingDirectory: build
-    failOnStderr: true
-    displayName: 'Compile'
-
-  - script: |
-      ctest -j 4 --output-on-failure -C $(BuildType)
-
-    workingDirectory: build
-    failOnStderr: true
-    displayName: 'Test'
-
-- phase: LinuxGCC
-  queue:
-    name: 'Hosted Ubuntu 1604'
-    parallel: 2
-    matrix:
-      Debug:
+      GCC-7 Debug:
+        CC: gcc-7
+        CXX: g++-7
         BuildType: Debug
-      Release:
+        SelfHost: false
+
+      GCC-7 Release:
+        CC: gcc-7
+        CXX: g++-7
         BuildType: Release
+        SelfHost: false
+
+      Self Host:
+        CC: clang-6.0
+        CXX: clang++-6.0
+        BuildType: Debug
+        SelfHost: true
 
   steps:
   - script: |
@@ -109,18 +44,21 @@ phases:
       sudo apt-get install -y ninja-build libc++-dev libc++abi-dev libc++abi1 libstdc++-7-dev gcc-7 g++-7
       # sudo apt-get install clang-6.0 clang++-6.0
 
-      sudo update-alternatives --install /usr/bin/cc cc /usr/bin/gcc-7 100
-      sudo update-alternatives --set cc /usr/bin/gcc-7
+      sudo update-alternatives --install /usr/bin/cc cc /usr/bin/$(CC) 100
+      sudo update-alternatives --set cc /usr/bin/$(CC)
 
-      sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-7 100
-      sudo update-alternatives --set c++ /usr/bin/g++-7
+      sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/$(CXX) 100
+      sudo update-alternatives --set c++ /usr/bin/$(CXX)
+
+      CMAKE_CXX_FLAGS="-std=c++17"
+      if [[ "$CXX" == clang++* ]]; then CMAKE_CXX_FLAGS+=" -stdlib=libstdc++"; fi
 
     displayName: 'Install Build Dependencies'
 
   - task: CMake@1
-    displayName: 'CMake .. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="-std=c++17"'
+    displayName: 'CMake .. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS"'
     inputs:
-      cmakeArgs: '.. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="-std=c++17"'
+      cmakeArgs: '.. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS"'
 
   - script: |
       ninja
@@ -130,77 +68,50 @@ phases:
     displayName: 'Compile'
 
   - script: |
-      ctest -j 4 --output-on-failure -C $(BuildType)
+      if [ $(SelfHost) = false ]; then
+        ctest -j 4 --output-on-failure -C $(BuildType)
+      else
+        sudo cp libsnmallocshim.so libsnmallocshim-1mib.so /usr/local/lib/
+        ninja clean
+        LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
+        ninja clean
+        LD_PRELOAD=/usr/local/lib/libsnmallocshim-1mib.so ninja
+      fi
 
     workingDirectory: build
     failOnStderr: true
     displayName: 'Test'
 
-- phase: Windows64bit
+- phase: Windows
   queue:
     name: 'Hosted VS2017'
-    parallel: 2
+    parallel: 5
     matrix:
-      Debug:
+      64-bit Debug:
         BuildType: Debug
-      Release:
+        CMakeArgs: '-G"Visual Studio 15 2017 Win64"'
+
+      64-bit Release:
         BuildType: Release
+        CMakeArgs: '-G"Visual Studio 15 2017 Win64"'
 
-  steps:
-  - task: CMake@1
-    displayName: 'CMake .. -G"Visual Studio 15 2017 Win64"'
-    inputs:
-      cmakeArgs: '.. -G"Visual Studio 15 2017 Win64"'
-
-  - task: MSBuild@1
-    displayName: 'Build solution build/snmalloc.sln'
-    inputs:
-      solution: build/snmalloc.sln
-      msbuildArguments: '/m /p:Configuration=$(BuildType)'
-
-  - script: 'ctest -j 4 --interactive-debug-mode 0 --output-on-failure -C $(BuildType)'
-    workingDirectory: build
-    displayName: 'Run Ctest'
-
-- phase: Windows8Compat
-  queue:
-    name: 'Hosted VS2017'
-    parallel: 2
-    matrix:
-      Release:
+      64-bit Release Windows8Compat:
         BuildType: Release
+        CMakeArgs: '-G"Visual Studio 15 2017 Win64" -DWIN8COMPAT=TRUE'
 
-  steps:
-  - task: CMake@1
-    displayName: 'CMake .. -G"Visual Studio 15 2017 Win64"'
-    inputs:
-      cmakeArgs: '.. -G"Visual Studio 15 2017 Win64" -DWIN8COMPAT=TRUE'
-
-  - task: MSBuild@1
-    displayName: 'Build solution build/snmalloc.sln'
-    inputs:
-      solution: build/snmalloc.sln
-      msbuildArguments: '/m /p:Configuration=$(BuildType)'
-
-  - script: 'ctest -j 4 --interactive-debug-mode 0 --output-on-failure -C $(BuildType)'
-    workingDirectory: build
-    displayName: 'Run Ctest'
-
-- phase: Windows32bit
-  queue:
-    name: 'Hosted VS2017'
-    parallel: 2
-    matrix:
-      Debug:
+      32-bit Debug:
         BuildType: Debug
-      Release:
+        CMakeArgs: '-G"Visual Studio 15 2017"'
+
+      32-bit Release:
         BuildType: Release
+        CMakeArgs: '-G"Visual Studio 15 2017"'
 
   steps:
   - task: CMake@1
-    displayName: 'CMake .. -G"Visual Studio 15 2017"'
+    displayName: 'CMake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType)'
     inputs:
-      cmakeArgs: '.. -G"Visual Studio 15 2017"'
+      cmakeArgs: '.. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType)'
 
   - task: MSBuild@1
     displayName: 'Build solution build/snmalloc.sln'
@@ -255,9 +166,16 @@ phases:
 
     displayName: 'Install clang'
 
-  - script: |
-      bash check-format.sh
+  - task: CMake@1
+    displayName: 'CMake ..'
+    inputs:
+      cmakeArgs: '..'
 
+  - script: |
+      if [ "$(git diff $(Build.SourceVersion))" != "" ]; then exit 1; fi
+      make clangformat
+
+    workingDirectory: build
     displayName: 'Clang-Format'
 
   - script: |
