@@ -1263,6 +1263,7 @@ namespace snmalloc
 
       stats().large_dealloc(large_class);
 
+      // Cross-reference largealloc's alloc() decommitted condition.
       if ((decommit_strategy != DecommitNone) || (large_class > 0))
         large_allocator.memory_provider.notify_not_using(
           pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
