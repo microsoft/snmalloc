@@ -344,30 +344,14 @@ namespace snmalloc
       {
         stats.superslab_pop();
 
-        if constexpr (decommit_strategy == DecommitSuperLazy)
-        {
-          if (static_cast<Baseslab*>(p)->get_kind() == Decommitted)
-          {
-            // The first page is already in "use" for the stack element,
-            // this will need zeroing for a YesZero call.
-            if constexpr (zero_mem == YesZero)
-              memory_provider.template zero<true>(p, OS_PAGE_SIZE);
+        // Cross-reference alloc.h's large_dealloc decommitment condition
+        // and lazy_decommit_if_needed.
+        bool decommitted =
+          ((decommit_strategy == DecommitSuperLazy) &&
+           (static_cast<Baseslab*>(p)->get_kind() == Decommitted)) ||
+          (large_class > 0) || (decommit_strategy != DecommitNone);
 
-            // Notify we are using the rest of the allocation.
-            // Passing zero_mem ensures the PAL provides zeroed pages if
-            // required.
-            memory_provider.template notify_using<zero_mem>(
-              pointer_offset(p, OS_PAGE_SIZE),
-              bits::align_up(size, OS_PAGE_SIZE) - OS_PAGE_SIZE);
-          }
-          else
-          {
-            if constexpr (zero_mem == YesZero)
-              memory_provider.template zero<true>(
-                p, bits::align_up(size, OS_PAGE_SIZE));
-          }
-        }
-        if ((decommit_strategy != DecommitNone) || (large_class > 0))
+        if (decommitted)
         {
           // The first page is already in "use" for the stack element,
           // this will need zeroing for a YesZero call.
@@ -375,7 +359,8 @@ namespace snmalloc
             memory_provider.template zero<true>(p, OS_PAGE_SIZE);
 
           // Notify we are using the rest of the allocation.
-          // Passing zero_mem ensures the PAL provides zeroed pages if required.
+          // Passing zero_mem ensures the PAL provides zeroed pages if
+          // required.
           memory_provider.template notify_using<zero_mem>(
             pointer_offset(p, OS_PAGE_SIZE),
             bits::align_up(size, OS_PAGE_SIZE) - OS_PAGE_SIZE);
