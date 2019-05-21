@@ -4,7 +4,8 @@
 
 namespace snmalloc
 {
-  constexpr static uint16_t get_slab_offset(uint8_t sc, bool is_short);
+  constexpr static uint16_t get_initial_bumpptr(uint8_t sc, bool is_short);
+  constexpr static uint16_t get_initial_link(uint8_t sc, bool is_short);
   constexpr static size_t sizeclass_to_size(uint8_t sizeclass);
   constexpr static size_t sizeclass_to_cache_friendly_mask(uint8_t sizeclass);
   constexpr static size_t sizeclass_to_inverse_cache_friendly_mask(uint8_t sc);

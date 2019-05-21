@@ -12,7 +12,8 @@ namespace snmalloc
     ModArray<NUM_SIZECLASSES, size_t> inverse_cache_friendly_mask;
     ModArray<NUM_SMALL_CLASSES, uint16_t> bump_ptr_start;
     ModArray<NUM_SMALL_CLASSES, uint16_t> short_bump_ptr_start;
-    ModArray<NUM_SMALL_CLASSES, uint16_t> count_per_slab;
+    ModArray<NUM_SMALL_CLASSES, uint16_t> initial_link_ptr;
+    ModArray<NUM_SMALL_CLASSES, uint16_t> short_initial_link_ptr;
     ModArray<NUM_MEDIUM_CLASSES, uint16_t> medium_slab_slots;
 
     constexpr SizeClassTable()
@@ -21,7 +22,8 @@ namespace snmalloc
       inverse_cache_friendly_mask(),
       bump_ptr_start(),
       short_bump_ptr_start(),
-      count_per_slab(),
+      initial_link_ptr(),
+      short_initial_link_ptr(),
       medium_slab_slots()
     {
       for (uint8_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass++)
@@ -40,10 +42,25 @@ namespace snmalloc
 
       for (uint8_t i = 0; i < NUM_SMALL_CLASSES; i++)
       {
+        // We align to the end of the block to remove special cases for the
+        // short block. Calculate remainders
+        size_t short_correction = short_slab_size % size[i];
+        size_t correction = SLAB_SIZE % size[i];
+
+        // First element in the block is the link
+        initial_link_ptr[i] = static_cast<uint16_t>(correction);
+        short_initial_link_ptr[i] =
+          static_cast<uint16_t>(header_size + short_correction);
+
+        // Move to object after link.
+        auto short_after_link = short_initial_link_ptr[i] + size[i];
+        size_t after_link = initial_link_ptr[i] + size[i];
+
+        // Bump ptr has bottom bit set.
+        // In case we only have one object on this slab check for wrap around.
         short_bump_ptr_start[i] =
-          static_cast<uint16_t>(1 + (short_slab_size % size[i]) + header_size);
-        bump_ptr_start[i] = static_cast<uint16_t>(1 + (SLAB_SIZE % size[i]));
-        count_per_slab[i] = static_cast<uint16_t>(SLAB_SIZE / size[i]);
+          static_cast<uint16_t>((short_after_link + 1) % SLAB_SIZE);
+        bump_ptr_start[i] = static_cast<uint16_t>((after_link + 1) % SLAB_SIZE);
       }
 
       for (uint8_t i = NUM_SMALL_CLASSES; i < NUM_SIZECLASSES; i++)
@@ -56,12 +73,21 @@ namespace snmalloc
 
   static constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
 
-  static inline constexpr uint16_t get_slab_offset(uint8_t sc, bool is_short)
+  static inline constexpr uint16_t
+  get_initial_bumpptr(uint8_t sc, bool is_short)
   {
     if (is_short)
       return sizeclass_metadata.short_bump_ptr_start[sc];
 
     return sizeclass_metadata.bump_ptr_start[sc];
+  }
+
+  static inline constexpr uint16_t get_initial_link(uint8_t sc, bool is_short)
+  {
+    if (is_short)
+      return sizeclass_metadata.short_initial_link_ptr[sc];
+
+    return sizeclass_metadata.initial_link_ptr[sc];
   }
 
   constexpr static inline size_t sizeclass_to_size(uint8_t sizeclass)
@@ -79,11 +105,6 @@ namespace snmalloc
   sizeclass_to_inverse_cache_friendly_mask(uint8_t sizeclass)
   {
     return sizeclass_metadata.inverse_cache_friendly_mask[sizeclass];
-  }
-
-  constexpr static inline size_t sizeclass_to_count(uint8_t sizeclass)
-  {
-    return sizeclass_metadata.count_per_slab[sizeclass];
   }
 
   constexpr static inline uint16_t medium_slab_free(uint8_t sizeclass)

@@ -58,18 +58,19 @@ namespace snmalloc
       }
       else
       {
-        // This slab is being bump allocated.
-        p = pointer_offset(this, head - 1);
-        meta.head = (head + static_cast<uint16_t>(rsize)) & (SLAB_SIZE - 1);
         if (meta.head == 1)
         {
+          p = pointer_offset(this, meta.link);
+          sc->pop();
           meta.set_full();
         }
+        else
+        {
+          // This slab is being bump allocated.
+          p = pointer_offset(this, head - 1);
+          meta.head = (head + static_cast<uint16_t>(rsize)) & (SLAB_SIZE - 1);
+        }
       }
-
-      // If we're full, we're no longer the current slab for this sizeclass
-      if (meta.is_full())
-        sc->pop();
 
       meta.debug_slab_invariant(is_short(), this);
 
@@ -110,8 +111,7 @@ namespace snmalloc
         {
           // Update the head and the sizeclass link.
           uint16_t index = pointer_to_index(p);
-          meta.head = index;
-          assert(meta.valid_head(is_short()));
+          assert(meta.head == 1);
           meta.link = index;
 
           // Push on the list of slabs for this sizeclass.
