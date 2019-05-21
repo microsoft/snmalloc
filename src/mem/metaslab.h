@@ -94,12 +94,11 @@ namespace snmalloc
     bool valid_head(bool is_short)
     {
       size_t size = sizeclass_to_size(sizeclass);
-      size_t offset = get_slab_offset(sizeclass, is_short);
+      size_t slab_start = get_initial_link(sizeclass, is_short);
       size_t all_high_bits = ~static_cast<size_t>(1);
 
       size_t head_start =
         remove_cache_friendly_offset(head & all_high_bits, sizeclass);
-      size_t slab_start = offset & all_high_bits;
 
       return ((head_start - slab_start) % size) == 0;
     }
@@ -108,7 +107,7 @@ namespace snmalloc
     {
 #if !defined(NDEBUG) && !defined(SNMALLOC_CHEAP_CHECKS)
       size_t size = sizeclass_to_size(sizeclass);
-      size_t offset = get_slab_offset(sizeclass, is_short) - 1;
+      size_t offset = get_initial_link(sizeclass, is_short);
 
       size_t accounted_for = used * size + offset;
 
@@ -152,7 +151,7 @@ namespace snmalloc
 
         // The link should be the first allocation as we
         // haven't completely filled this block at any point.
-        assert(link == (get_slab_offset(sizeclass, is_short) - 1));
+        assert(link == get_initial_link(sizeclass, is_short));
       }
 
       assert(!is_full());
