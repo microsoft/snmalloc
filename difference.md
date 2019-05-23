@@ -1,7 +1,7 @@
 # Difference from published paper
 
-This document outlines the changes that have diverged from the published paper
-on `snmalloc`.
+This document outlines the changes that have diverged from
+[the published paper](snmalloc.pdf) on `snmalloc`.
 
   1.  Link no longer terminates the bump-free list.  The paper describes a 
       complex invariant for how the final element of the bump-free list can 

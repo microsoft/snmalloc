@@ -10,6 +10,10 @@ snmalloc is a research allocator.  Its key design features are:
 * The allocator uses large ranges of pages to reduce the amount of meta-data
   required.
 
+Details about snmalloc's design can be found in the
+[accompanying paper](snmalloc.pdf). Differences between the paper and the
+current implementation are [described here](difference.md).
+
 [![Build Status](https://dev.azure.com/snmalloc/snmalloc/_apis/build/status/Microsoft.snmalloc?branchName=master)](https://dev.azure.com/snmalloc/snmalloc/_build/latest?definitionId=1?branchName=master)
 
 # Building on Windows
