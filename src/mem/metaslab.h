@@ -91,6 +91,32 @@ namespace snmalloc
       return reinterpret_cast<SlabLink*>(pointer_offset(slab, link));
     }
 
+    /// Value used to check for corruptions in a block
+    static constexpr size_t POISON = 
+      static_cast<size_t>(bits::is64() ? 0xDEADBEEFDEAD0000 : 0xDEAD0000);
+
+    /// Store next pointer in a block. In Debug using magic value to detect some
+    /// simple corruptions.
+    static void store_next(void* p, uint16_t head)
+    { 
+#ifdef NDEBUG
+      *static_cast<size_t*>(p) = head;
+#else
+      *static_cast<size_t*>(p) = head ^ POISON;
+#endif
+    }
+
+    /// Accessor function for the next pointer in a block.
+    /// In Debug checks for simple corruptions.    
+    static uint16_t follow_next(void* node)
+    {   
+      size_t next = *static_cast<size_t*>(node);
+#ifndef NDEBUG
+      if ((next ^ POISON) > 0xFFFF)
+        error("Detected memory corruption.  Use-after-free.");
+#endif
+      return static_cast<uint16_t>(next);
+    }
     bool valid_head(bool is_short)
     {
       size_t size = sizeclass_to_size(sizeclass);
@@ -122,8 +148,33 @@ namespace snmalloc
       // Block is not full
       assert(SLAB_SIZE > accounted_for);
 
-      // Walk bump-free-list-segment accounting for unused space
+      // Walk bump-free-list-segment checking for cycles.
+      // Using 
+      // https://en.wikipedia.org/wiki/Cycle_detection#Floyd's_Tortoise_and_Hare
+      // We don't expect a cycle, so worst case is only followed by a crash, so
+      // slow doesn't mater.
       uint16_t curr = head;
+      uint16_t curr_slow = head;
+      bool both = false;
+      while ((curr & 1) != 1)
+      {
+        curr = follow_next(pointer_offset(slab, curr));
+        if (both)
+        {
+          curr_slow = follow_next(pointer_offset(slab, curr_slow));
+        }
+
+        if (curr == curr_slow)
+        {
+          error("Free list contains a cycle, typically indicates double free.");
+        }
+        
+        both = !both;
+      }
+
+
+      // Walk bump-free-list-segment accounting for unused space
+      curr = head;
       while ((curr & 1) != 1)
       {
         // Check we are looking at a correctly aligned block
@@ -137,7 +188,7 @@ namespace snmalloc
         assert(curr != link);
 
         // Iterate bump/free list segment
-        curr = *reinterpret_cast<uint16_t*>(pointer_offset(slab, curr));
+        curr = follow_next(pointer_offset(slab, curr));
       }
 
       if (curr != 1)

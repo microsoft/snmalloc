@@ -51,8 +51,7 @@ namespace snmalloc
         void* node = pointer_offset(this, head);
 
         // Read the next slot from the memory that's about to be allocated.
-        uint16_t next = *static_cast<uint16_t*>(node);
-        meta.head = next;
+        meta.head = Metaslab::follow_next(node);
 
         p = remove_cache_friendly_offset(node, meta.sizeclass);
       }
@@ -101,6 +100,12 @@ namespace snmalloc
       Metaslab& meta = super->get_meta(this);
 
       bool was_full = meta.is_full();
+      
+#ifndef NDEBUG
+      if (meta.is_unused())
+        error("Detected potential double free.");
+#endif
+
       meta.debug_slab_invariant(is_short(), this);
       meta.sub_use();
 
@@ -152,7 +157,8 @@ namespace snmalloc
         assert(meta.valid_head(is_short()));
 
         // Set the next pointer to the previous head.
-        *static_cast<uint16_t*>(p) = head;
+        Metaslab::store_next(p, head);
+
         meta.debug_slab_invariant(is_short(), this);
       }
       return Superslab::NoSlabReturn;
