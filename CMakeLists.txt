@@ -112,6 +112,8 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
 
   enable_testing()
 
+  add_library(overide_new STATIC src/override/new.cc)
+
   set(TESTDIR ${CMAKE_CURRENT_SOURCE_DIR}/src/test)
   subdirlist(TEST_CATEGORIES ${TESTDIR})
   list(REVERSE TEST_CATEGORIES)
@@ -123,12 +125,12 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         aux_source_directory(${TESTDIR}/${TEST_CATEGORY}/${TEST} SRC)
         set(TESTNAME "${TEST_CATEGORY}-${TEST}-${SUPER_SLAB_SIZE}")
 
-        add_executable(${TESTNAME} ${SRC} src/override/new.cc)
+        add_executable(${TESTNAME} ${SRC})
         if (${SUPER_SLAB_SIZE} EQUAL 1)
           target_compile_definitions(${TESTNAME} PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
         endif()
         target_include_directories(${TESTNAME} PRIVATE src)
-        target_link_libraries(${TESTNAME} snmalloc_lib)
+        target_link_libraries(${TESTNAME} snmalloc_lib overide_new)
         if (${TEST} MATCHES "release-.*")
           message(STATUS "Adding test: ${TESTNAME} only for release configs")
           add_test(NAME ${TESTNAME} COMMAND ${TESTNAME} CONFIGURATIONS "Release")
