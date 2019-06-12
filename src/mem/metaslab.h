@@ -159,6 +159,8 @@ namespace snmalloc
 
         both = !both;
       }
+#else
+      UNUSED(slab);
 #endif
     }
 
