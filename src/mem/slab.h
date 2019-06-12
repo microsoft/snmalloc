@@ -100,7 +100,7 @@ namespace snmalloc
       Metaslab& meta = super->get_meta(this);
 
       bool was_full = meta.is_full();
-      
+
 #ifndef NDEBUG
       if (meta.is_unused())
         error("Detected potential double free.");

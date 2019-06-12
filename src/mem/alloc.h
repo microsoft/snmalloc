@@ -817,7 +817,6 @@ namespace snmalloc
       {
         Superslab* super = Superslab::get(p);
 
-        
 #ifndef NDEBUG
         if (p->target_id() != super->get_allocator()->id())
           error("Detected memory corruption.  Potential use-after-free");
