@@ -26,6 +26,41 @@ macro(warnings_high)
   endif()
 endmacro()
 
+macro(clangformat_targets)
+  # The clang-format tool is installed under a variety of different names.  Try
+  # to find a sensible one.  Only look for 6.0 and 7.0 versions explicitly - we
+  # don't know whether our clang-format file will work with newer versions of the
+  # tool
+  set(CLANG_FORMAT_NAMES
+    clang-format-7.0
+    clang-format-6.0
+    clang-format70
+    clang-format60
+    clang-format)
+
+  # Loop over each of the possible names of clang-format and try to find one.
+  set(CLANG_FORMAT CLANG_FORMAT-NOTFOUND)
+  foreach (NAME IN ITEMS ${CLANG_FORMAT_NAMES})
+    if (${CLANG_FORMAT} STREQUAL "CLANG_FORMAT-NOTFOUND")
+      find_program(CLANG_FORMAT ${NAME})
+    endif ()
+  endforeach()
+
+  # If we've found a clang-format tool, generate a target for it, otherwise emit
+  # a warning.
+  if (${CLANG_FORMAT} STREQUAL "CLANG_FORMAT-NOTFOUND")
+    message(WARNING "Not generating clangformat target, no clang-format tool found")
+  else ()
+    message(STATUS "Generating clangformat target using ${CLANG_FORMAT}")
+    file(GLOB_RECURSE ALL_SOURCE_FILES *.cc *.h *.hh)
+    add_custom_target(
+      clangformat
+      COMMAND ${CLANG_FORMAT}
+      -i
+      ${ALL_SOURCE_FILES})
+  endif()
+endmacro()
+
 # The main target for snmalloc
 add_library(snmalloc_lib INTERFACE)
 target_include_directories(snmalloc_lib INTERFACE src/)
@@ -143,36 +178,5 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     endforeach()
   endforeach()
 
-  # The clang-format tool is installed under a variety of different names.  Try
-  # to find a sensible one.  Only look for 6.0 and 7.0 versions explicitly - we
-  # don't know whether our clang-format file will work with newer versions of the
-  # tool
-  set(CLANG_FORMAT_NAMES
-    clang-format-7.0
-    clang-format-6.0
-    clang-format70
-    clang-format60
-    clang-format)
-
-  # Loop over each of the possible names of clang-format and try to find one.
-  set(CLANG_FORMAT CLANG_FORMAT-NOTFOUND)
-  foreach (NAME IN ITEMS ${CLANG_FORMAT_NAMES})
-    if (${CLANG_FORMAT} STREQUAL "CLANG_FORMAT-NOTFOUND")
-      find_program(CLANG_FORMAT ${NAME})
-    endif ()
-  endforeach()
-
-  # If we've found a clang-format tool, generate a target for it, otherwise emit
-  # a warning.
-  if (${CLANG_FORMAT} STREQUAL "CLANG_FORMAT-NOTFOUND")
-    message(WARNING "Not generating clangformat target, no clang-format tool found")
-  else ()
-    message(STATUS "Generating clangformat target using ${CLANG_FORMAT}")
-    file(GLOB_RECURSE ALL_SOURCE_FILES *.cc *.h *.hh)
-    add_custom_target(
-      clangformat
-      COMMAND ${CLANG_FORMAT}
-      -i
-      ${ALL_SOURCE_FILES})
-  endif()
+  clangformat_targets()
 endif()
