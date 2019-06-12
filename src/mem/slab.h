@@ -101,7 +101,7 @@ namespace snmalloc
 
       bool was_full = meta.is_full();
 
-#ifndef NDEBUG
+#ifdef CHECK_CLIENT
       if (meta.is_unused())
         error("Detected potential double free.");
 #endif

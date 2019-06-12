@@ -4,6 +4,12 @@
 
 namespace snmalloc
 {
+// The CHECK_CLIENT macro is used to turn on minimal checking of the client
+// calling the API correctly.
+#if !defined(NDEBUG) && !defined(CHECK_CLIENT)
+#  define CHECK_CLIENT
+#endif
+
   // 0 intermediate bits results in power of 2 small allocs. 1 intermediate
   // bit gives additional sizeclasses at the midpoint between each power of 2.
   // 2 intermediate bits gives 3 intermediate sizeclasses, etc.

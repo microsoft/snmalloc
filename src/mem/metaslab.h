@@ -99,7 +99,7 @@ namespace snmalloc
     /// simple corruptions.
     static void store_next(void* p, uint16_t head)
     {
-#ifdef NDEBUG
+#ifndef CHECK_CLIENT
       *static_cast<size_t*>(p) = head;
 #else
       *static_cast<size_t*>(p) =
@@ -112,7 +112,7 @@ namespace snmalloc
     static uint16_t follow_next(void* node)
     {
       size_t next = *static_cast<size_t*>(node);
-#ifndef NDEBUG
+#ifdef CHECK_CLIENT
       if (((next ^ POISON) ^ (next << (bits::BITS - 16))) > 0xFFFF)
         error("Detected memory corruption.  Use-after-free.");
 #endif

@@ -469,7 +469,7 @@ namespace snmalloc
         return;
       }
 
-#  ifndef NDEBUG
+#  ifdef CHECK_CLIENT
       if (size > 64 || address_cast(super) != address_cast(p))
       {
         error("Not deallocating start of an object");
@@ -817,7 +817,7 @@ namespace snmalloc
       {
         Superslab* super = Superslab::get(p);
 
-#ifndef NDEBUG
+#ifdef CHECK_CLIENT
         if (p->target_id() != super->get_allocator()->id())
           error("Detected memory corruption.  Potential use-after-free");
 #endif
@@ -1013,7 +1013,7 @@ namespace snmalloc
 
     void small_dealloc(Superslab* super, void* p, uint8_t sizeclass)
     {
-#ifndef NDEBUG
+#ifdef CHECK_CLIENT
       Slab* slab = Slab::get(p);
       if (!slab->is_start_of_object(super, p))
       {
@@ -1150,7 +1150,7 @@ namespace snmalloc
       stats().sizeclass_dealloc(sizeclass);
       bool was_full = slab->dealloc(p, large_allocator.memory_provider);
 
-#ifndef NDEBUG
+#ifdef CHECK_CLIENT
       if (!is_multiple_of_sizeclass(
             sizeclass_to_size(sizeclass),
             address_cast(slab) + SUPERSLAB_SIZE - address_cast(p)))
