@@ -21,7 +21,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
     if (our_malloc_usable_size(p) < size)
       abort();
 
-    if (((uintptr_t)p % align) != 0)
+    if (static_cast<size_t>(reinterpret_cast<uintptr_t>(p) % align) != 0)
       abort();
 
     our_free(p);
