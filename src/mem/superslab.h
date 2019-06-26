@@ -70,9 +70,9 @@ namespace snmalloc
       return pointer_cast<Superslab>(address_cast(p) & SUPERSLAB_MASK);
     }
 
-    static bool is_short_sizeclass(uint8_t sizeclass)
+    static bool is_short_sizeclass(sizeclass_t sizeclass)
     {
-      constexpr uint8_t h = size_to_sizeclass_const(sizeof(Superslab));
+      constexpr sizeclass_t h = size_to_sizeclass_const(sizeof(Superslab));
       return sizeclass <= h;
     }
 
@@ -154,13 +154,14 @@ namespace snmalloc
     }
 
     template<typename MemoryProvider>
-    Slab* alloc_short_slab(uint8_t sizeclass, MemoryProvider& memory_provider)
+    Slab*
+    alloc_short_slab(sizeclass_t sizeclass, MemoryProvider& memory_provider)
     {
       if ((used & 1) == 1)
         return alloc_slab(sizeclass, memory_provider);
 
       meta[0].head = get_initial_bumpptr(sizeclass, true);
-      meta[0].sizeclass = sizeclass;
+      meta[0].sizeclass = static_cast<uint8_t>(sizeclass);
       meta[0].link = get_initial_link(sizeclass, true);
 
       if constexpr (decommit_strategy == DecommitAll)
@@ -174,7 +175,7 @@ namespace snmalloc
     }
 
     template<typename MemoryProvider>
-    Slab* alloc_slab(uint8_t sizeclass, MemoryProvider& memory_provider)
+    Slab* alloc_slab(sizeclass_t sizeclass, MemoryProvider& memory_provider)
     {
       uint8_t h = head;
       Slab* slab = pointer_cast<Slab>(
@@ -183,7 +184,7 @@ namespace snmalloc
       uint8_t n = meta[h].next;
 
       meta[h].head = get_initial_bumpptr(sizeclass, false);
-      meta[h].sizeclass = sizeclass;
+      meta[h].sizeclass = static_cast<uint8_t>(sizeclass);
       meta[h].link = get_initial_link(sizeclass, false);
 
       head = h + n + 1;

@@ -26,7 +26,7 @@ namespace snmalloc
       short_initial_link_ptr(),
       medium_slab_slots()
     {
-      for (uint8_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass++)
+      for (sizeclass_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass++)
       {
         size[sizeclass] =
           bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
@@ -40,7 +40,7 @@ namespace snmalloc
       size_t header_size = sizeof(Superslab);
       size_t short_slab_size = SLAB_SIZE - header_size;
 
-      for (uint8_t i = 0; i < NUM_SMALL_CLASSES; i++)
+      for (sizeclass_t i = 0; i < NUM_SMALL_CLASSES; i++)
       {
         // We align to the end of the block to remove special cases for the
         // short block. Calculate remainders
@@ -63,7 +63,7 @@ namespace snmalloc
         bump_ptr_start[i] = static_cast<uint16_t>((after_link + 1) % SLAB_SIZE);
       }
 
-      for (uint8_t i = NUM_SMALL_CLASSES; i < NUM_SIZECLASSES; i++)
+      for (sizeclass_t i = NUM_SMALL_CLASSES; i < NUM_SIZECLASSES; i++)
       {
         medium_slab_slots[i - NUM_SMALL_CLASSES] = static_cast<uint16_t>(
           (SUPERSLAB_SIZE - Mediumslab::header_size()) / size[i]);
@@ -74,7 +74,7 @@ namespace snmalloc
   static constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
 
   static inline constexpr uint16_t
-  get_initial_bumpptr(uint8_t sc, bool is_short)
+  get_initial_bumpptr(sizeclass_t sc, bool is_short)
   {
     if (is_short)
       return sizeclass_metadata.short_bump_ptr_start[sc];
@@ -82,7 +82,8 @@ namespace snmalloc
     return sizeclass_metadata.bump_ptr_start[sc];
   }
 
-  static inline constexpr uint16_t get_initial_link(uint8_t sc, bool is_short)
+  static inline constexpr uint16_t
+  get_initial_link(sizeclass_t sc, bool is_short)
   {
     if (is_short)
       return sizeclass_metadata.short_initial_link_ptr[sc];
@@ -90,24 +91,24 @@ namespace snmalloc
     return sizeclass_metadata.initial_link_ptr[sc];
   }
 
-  constexpr static inline size_t sizeclass_to_size(uint8_t sizeclass)
+  constexpr static inline size_t sizeclass_to_size(sizeclass_t sizeclass)
   {
     return sizeclass_metadata.size[sizeclass];
   }
 
   constexpr static inline size_t
-  sizeclass_to_cache_friendly_mask(uint8_t sizeclass)
+  sizeclass_to_cache_friendly_mask(sizeclass_t sizeclass)
   {
     return sizeclass_metadata.cache_friendly_mask[sizeclass];
   }
 
   constexpr static inline size_t
-  sizeclass_to_inverse_cache_friendly_mask(uint8_t sizeclass)
+  sizeclass_to_inverse_cache_friendly_mask(sizeclass_t sizeclass)
   {
     return sizeclass_metadata.inverse_cache_friendly_mask[sizeclass];
   }
 
-  constexpr static inline uint16_t medium_slab_free(uint8_t sizeclass)
+  constexpr static inline uint16_t medium_slab_free(sizeclass_t sizeclass)
   {
     return sizeclass_metadata
       .medium_slab_slots[(sizeclass - NUM_SMALL_CLASSES)];

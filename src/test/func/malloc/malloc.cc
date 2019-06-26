@@ -77,7 +77,7 @@ int main(int argc, char** argv)
 
   test_calloc(0, 0, SUCCESS, false);
 
-  for (uint8_t sc = 0; sc < NUM_SIZECLASSES; sc++)
+  for (snmalloc::sizeclass_t sc = 0; sc < NUM_SIZECLASSES; sc++)
   {
     const size_t size = sizeclass_to_size(sc);
 
@@ -103,7 +103,7 @@ int main(int argc, char** argv)
 
   for (size_t align = sizeof(size_t); align <= SUPERSLAB_SIZE; align <<= 1)
   {
-    for (uint8_t sc = 0; sc < NUM_SIZECLASSES; sc++)
+    for (snmalloc::sizeclass_t sc = 0; sc < NUM_SIZECLASSES; sc++)
     {
       const size_t size = sizeclass_to_size(sc);
       test_posix_memalign(size, align, SUCCESS, false);

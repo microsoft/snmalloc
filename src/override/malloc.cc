@@ -137,7 +137,7 @@ extern "C"
     }
 
     size = bits::max(size, alignment);
-    uint8_t sc = size_to_sizeclass(size);
+    snmalloc::sizeclass_t sc = size_to_sizeclass(size);
     if (sc >= NUM_SIZECLASSES)
     {
       // large allocs are 16M aligned.

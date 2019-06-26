@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds/bits.h"
+#include "../mem/sizeclass.h"
 
 #include <cstdint>
 
@@ -165,7 +166,7 @@ namespace snmalloc
 #endif
     }
 
-    void sizeclass_alloc(uint8_t sc)
+    void sizeclass_alloc(sizeclass_t sc)
     {
       UNUSED(sc);
 
@@ -175,7 +176,7 @@ namespace snmalloc
 #endif
     }
 
-    void sizeclass_dealloc(uint8_t sc)
+    void sizeclass_dealloc(sizeclass_t sc)
     {
       UNUSED(sc);
 
@@ -194,7 +195,7 @@ namespace snmalloc
 #endif
     }
 
-    void sizeclass_alloc_slab(uint8_t sc)
+    void sizeclass_alloc_slab(sizeclass_t sc)
     {
       UNUSED(sc);
 
@@ -204,7 +205,7 @@ namespace snmalloc
 #endif
     }
 
-    void sizeclass_dealloc_slab(uint8_t sc)
+    void sizeclass_dealloc_slab(sizeclass_t sc)
     {
       UNUSED(sc);
 
@@ -251,7 +252,7 @@ namespace snmalloc
 #endif
     }
 
-    void remote_free(uint8_t sc)
+    void remote_free(sizeclass_t sc)
     {
       UNUSED(sc);
 
@@ -267,7 +268,7 @@ namespace snmalloc
 #endif
     }
 
-    void remote_receive(uint8_t sc)
+    void remote_receive(sizeclass_t sc)
     {
       UNUSED(sc);
 
@@ -348,7 +349,7 @@ namespace snmalloc
             << "Count" << csv.endl;
       }
 
-      for (uint8_t i = 0; i < N; i++)
+      for (sizeclass_t i = 0; i < N; i++)
       {
         if (sizeclass[i].count.is_unused())
           continue;
