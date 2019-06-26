@@ -5,8 +5,21 @@
 
 namespace snmalloc
 {
+  constexpr size_t PTR_BITS = bits::next_pow2_bits_const(sizeof(void*));
+
+  constexpr static size_t sizeclass_lookup_index(size_t s)
+  {
+    // We shift by PTR_BITS as makes code-gen for the table lookup nicer.
+    // We could shift by MIN_ALLOC_BITS, but then there is a slightly more
+    // complex sequence.
+    return (s - 1) >> PTR_BITS;
+  }
+
+  constexpr static size_t sizeclass_lookup_size = sizeclass_lookup_index(SLAB_SIZE + 1);
+
   struct SizeClassTable
   {
+    sizeclass_t sizeclass_lookup[sizeclass_lookup_size];
     ModArray<NUM_SIZECLASSES, size_t> size;
     ModArray<NUM_SIZECLASSES, size_t> cache_friendly_mask;
     ModArray<NUM_SIZECLASSES, size_t> inverse_cache_friendly_mask;
@@ -16,8 +29,10 @@ namespace snmalloc
     ModArray<NUM_SMALL_CLASSES, uint16_t> short_initial_link_ptr;
     ModArray<NUM_MEDIUM_CLASSES, uint16_t> medium_slab_slots;
 
+
     constexpr SizeClassTable()
-    : size(),
+    : sizeclass_lookup(),
+      size(),
       cache_friendly_mask(),
       inverse_cache_friendly_mask(),
       bump_ptr_start(),
@@ -26,10 +41,18 @@ namespace snmalloc
       short_initial_link_ptr(),
       medium_slab_slots()
     {
+      size_t curr = 1;
       for (sizeclass_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass++)
       {
         size[sizeclass] =
           bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
+        if (sizeclass < NUM_SMALL_CLASSES)
+        { 
+          for ( ; curr <= size[sizeclass]; curr+= 1 << PTR_BITS)
+          {
+            sizeclass_lookup[sizeclass_lookup_index(curr)] = sizeclass;
+          }
+        }
 
         size_t alignment = bits::min(
           bits::one_at_bit(bits::ctz_const(size[sizeclass])), OS_PAGE_SIZE);
@@ -107,6 +130,21 @@ namespace snmalloc
   {
     return sizeclass_metadata.inverse_cache_friendly_mask[sizeclass];
   }
+
+  static inline sizeclass_t size_to_sizeclass(size_t size)
+  {
+    if ((size-1) <= (SLAB_SIZE-1))
+    {
+      return sizeclass_metadata.sizeclass_lookup[sizeclass_lookup_index(size)];
+    }
+
+    // Don't use sizeclasses that are not a multiple of the alignment.
+    // For example, 24 byte allocations can be
+    // problematic for some data due to alignment issues.
+    return static_cast<sizeclass_t>(
+      bits::to_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(size));
+  }
+
 
   constexpr static inline uint16_t medium_slab_free(sizeclass_t sizeclass)
   {
