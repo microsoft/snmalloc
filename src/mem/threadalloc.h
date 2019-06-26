@@ -284,7 +284,7 @@ namespace snmalloc
     {
       Alloc*& per_thread = inner_get();
 
-      if (per_thread != nullptr)
+      if (likely(per_thread != nullptr))
         return per_thread;
 
       // Slow path that performs initialization

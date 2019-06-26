@@ -27,7 +27,7 @@ namespace snmalloc
       // If defined should be initially false;
       assert(first == nullptr || *first == false);
 
-      if (!initialised.load(std::memory_order_acquire))
+      if (unlikely(!initialised.load(std::memory_order_acquire)))
       {
         FlagLock lock(flag);
         if (!initialised)
