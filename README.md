@@ -38,7 +38,7 @@ Alternatively, you can follow the steps in the next section to build with Ninja
 using the Visual Studio compiler.
 
 # Building on macOS, Linux or FreeBSD
-Snmalloc has very few dependencies, CMake, Ninja, Clang 6.0 or later and a C++17
+snmalloc has very few dependencies, CMake, Ninja, Clang 6.0 or later and a C++17
 standard library.
 Building with GCC is currently not recommended because GCC lacks support for the
 `selectany` attribute to specify variables in a COMDAT.  
@@ -101,7 +101,7 @@ In addition make sure your executable is compiled to support 128 bit atomic oper
 target_link_libraries([lib_name] PRIVATE snmalloc_lib)
 ```
 
-You will also need to compile the relavent parts of snmalloc itself. Create a new file with the following contents and compile it with the rest of your application.
+You will also need to compile the relevant parts of snmalloc itself. Create a new file with the following contents and compile it with the rest of your application.
 ```
 #define NO_BOOTSTRAP_ALLOCATOR
 
