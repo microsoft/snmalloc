@@ -160,11 +160,11 @@ namespace snmalloc
       if ((used & 1) == 1)
         return alloc_slab(sizeclass, memory_provider);
 
-      meta[0].head = get_initial_bumpptr(sizeclass, true);
+      meta[0].allocated = 1;
+      meta[0].head = 1;
       meta[0].sizeclass = static_cast<uint8_t>(sizeclass);
-      meta[0].link = get_initial_link(sizeclass, true);
+      meta[0].link = get_initial_offset(sizeclass, true);
 
-      if constexpr (decommit_strategy == DecommitAll)
       {
         memory_provider.template notify_using<NoZero>(
           pointer_offset(this, OS_PAGE_SIZE), SLAB_SIZE - OS_PAGE_SIZE);
@@ -183,9 +183,10 @@ namespace snmalloc
 
       uint8_t n = meta[h].next;
 
-      meta[h].head = get_initial_bumpptr(sizeclass, false);
+      meta[h].head = 1;
+      meta[h].allocated = 1;
       meta[h].sizeclass = static_cast<uint8_t>(sizeclass);
-      meta[h].link = get_initial_link(sizeclass, false);
+      meta[h].link = get_initial_offset(sizeclass, false);
 
       head = h + n + 1;
       used += 2;

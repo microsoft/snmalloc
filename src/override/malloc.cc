@@ -23,9 +23,6 @@ extern "C"
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(malloc)(size_t size)
   {
-    // Include size 0 in the first sizeclass.
-    size = ((size - 1) >> (bits::BITS - 1)) + size;
-
     return ThreadAlloc::get()->alloc(size);
   }
 
@@ -46,8 +43,6 @@ extern "C"
       errno = ENOMEM;
       return nullptr;
     }
-    // Include size 0 in the first sizeclass.
-    sz = ((sz - 1) >> (bits::BITS - 1)) + sz;
     return ThreadAlloc::get()->alloc<ZeroMem::YesZero>(sz);
   }
 
