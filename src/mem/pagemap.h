@@ -112,33 +112,48 @@ namespace snmalloc
       // to see that correctly.
       PagemapEntry* value = e->load(std::memory_order_relaxed);
 
+      if (likely((value != nullptr) && (value != LOCKED_ENTRY)))
+      {
+        result = true;
+        return value;
+      }
+      if constexpr (create_addr)
+      {
+        return get_node_slow(e, result);
+      }
+      else
+      {
+        result = false;
+        return nullptr;
+      }
+    }
+    
+    NOINLINE PagemapEntry* get_node_slow(std::atomic<PagemapEntry*>* e, bool& result)
+    {
+      // The page map nodes are all allocated directly from the OS zero
+      // initialised with a system call.  We don't need any ordered to guarantee
+      // to see that correctly.
+      PagemapEntry* value = e->load(std::memory_order_relaxed);
+
       if ((value == nullptr) || (value == LOCKED_ENTRY))
       {
-        if constexpr (create_addr)
-        {
-          value = nullptr;
+        value = nullptr;
 
-          if (e->compare_exchange_strong(
-                value, LOCKED_ENTRY, std::memory_order_relaxed))
-          {
-            auto& v = default_memory_provider;
-            value = v.alloc_chunk<PagemapEntry, OS_PAGE_SIZE>();
-            e->store(value, std::memory_order_release);
-          }
-          else
-          {
-            while (address_cast(e->load(std::memory_order_relaxed)) ==
-                   LOCKED_ENTRY)
-            {
-              bits::pause();
-            }
-            value = e->load(std::memory_order_acquire);
-          }
+        if (e->compare_exchange_strong(
+              value, LOCKED_ENTRY, std::memory_order_relaxed))
+        {
+          auto& v = default_memory_provider;
+          value = v.alloc_chunk<PagemapEntry, OS_PAGE_SIZE>();
+          e->store(value, std::memory_order_release);
         }
         else
         {
-          result = false;
-          return nullptr;
+          while (address_cast(e->load(std::memory_order_relaxed)) ==
+                  LOCKED_ENTRY)
+          {
+            bits::pause();
+          }
+          value = e->load(std::memory_order_acquire);
         }
       }
       result = true;
