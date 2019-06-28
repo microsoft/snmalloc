@@ -1021,6 +1021,7 @@ namespace snmalloc
       stats().sizeclass_alloc(sizeclass);
 
 
+      assert(sizeclass < NUM_SMALL_CLASSES);
       auto& fl = small_fast_free_lists[sizeclass];
       auto head = fl.value;
       if (likely((reinterpret_cast<size_t>(head) & 1) == 0))
