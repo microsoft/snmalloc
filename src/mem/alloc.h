@@ -1,10 +1,5 @@
 #pragma once
 
-#if !defined(NDEBUG) && !defined(OPEN_ENCLAVE) && !defined(FreeBSD_KERNEL) && \
-  !defined(USE_SNMALLOC_STATS)
-#  define USE_SNMALLOC_STATS
-#endif
-
 #ifdef _MSC_VER
 #  define ALLOCATOR __declspec(allocator)
 #else
