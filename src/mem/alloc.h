@@ -339,7 +339,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
-    NOINLINE ALLOCATOR void* alloc_not_small(size_t size)
+    SLOW_PATH ALLOCATOR void* alloc_not_small(size_t size)
     {
       handle_message_queue();
 
@@ -440,7 +440,7 @@ namespace snmalloc
 #endif
     }
 
-    ALWAYSINLINE void dealloc(void* p)
+    FAST_PATH void dealloc(void* p)
     {
 #ifdef USE_MALLOC
       return free(p);
@@ -474,7 +474,7 @@ namespace snmalloc
       dealloc_not_small(p, size);
     }
 
-    NOINLINE void dealloc_not_small(void* p, uint8_t size)
+    SLOW_PATH void dealloc_not_small(void* p, uint8_t size)
     {
       if (size == PMMediumslab)
       {
@@ -882,7 +882,7 @@ namespace snmalloc
       }
     }
 
-    NOINLINE void handle_message_queue_inner()
+    SLOW_PATH void handle_message_queue_inner()
     {
       for (size_t i = 0; i < REMOTE_BATCH; i++)
       {
@@ -902,7 +902,7 @@ namespace snmalloc
       remote.post(id());
     }
 
-    ALWAYSINLINE void handle_message_queue()
+    FAST_PATH void handle_message_queue()
     {
       // Inline the empty check, but not necessarily the full queue handling.
       if (likely(message_queue().is_empty()))
@@ -1017,6 +1017,7 @@ namespace snmalloc
           zero_mem == YesZero ? "zeromem" : "nozeromem",
           allow_reserve == NoReserve ? "noreserve" : "reserve"));
 
+      ASSUME(size <= SLAB_SIZE);
       sizeclass_t sizeclass = size_to_sizeclass(size);
       stats().sizeclass_alloc(sizeclass);
 
@@ -1041,7 +1042,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    NOINLINE
+    SLOW_PATH
     void* small_alloc_slow(size_t size)
     {
       handle_message_queue();
@@ -1069,7 +1070,7 @@ namespace snmalloc
       return slab->alloc<zero_mem>(sl, ffl, rsize, large_allocator.memory_provider);
     }
 
-    ALWAYSINLINE void small_dealloc(Superslab* super, void* p, sizeclass_t sizeclass)
+    FAST_PATH void small_dealloc(Superslab* super, void* p, sizeclass_t sizeclass)
     {
 #ifdef CHECK_CLIENT
       Slab* slab = Slab::get(p);
@@ -1083,7 +1084,7 @@ namespace snmalloc
       small_dealloc_offseted(super, offseted, sizeclass);
     }
 
-    ALWAYSINLINE void small_dealloc_offseted(Superslab* super, void* p, sizeclass_t sizeclass)
+    FAST_PATH void small_dealloc_offseted(Superslab* super, void* p, sizeclass_t sizeclass)
     {
       MEASURE_TIME(small_dealloc, 4, 16);
       stats().sizeclass_dealloc(sizeclass);
@@ -1095,7 +1096,7 @@ namespace snmalloc
       small_dealloc_offseted_slow(super, p, sizeclass);
     }
 
-    NOINLINE void small_dealloc_offseted_slow(Superslab* super, void* p, sizeclass_t sizeclass)
+    SLOW_PATH void small_dealloc_offseted_slow(Superslab* super, void* p, sizeclass_t sizeclass)
     {
       bool was_full = super->is_full();
       SlabList* sl = &small_classes[sizeclass];

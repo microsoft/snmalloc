@@ -144,7 +144,7 @@ namespace snmalloc
     // Returns true, if it deallocation can proceed without changing any status bits.
     // Note that this does remove the use from the meta slab, so it doesn't need doing
     // on the slow path.
-    ALWAYSINLINE bool dealloc_fast(Superslab* super, void* p)
+    FAST_PATH bool dealloc_fast(Superslab* super, void* p)
     {
       Metaslab& meta = super->get_meta(this);
 #ifdef CHECK_CLIENT
@@ -179,7 +179,7 @@ namespace snmalloc
     // Returns a complex return code for managing the superslab meta data.
     // i.e. This deallocation could make an entire superslab free.
     template<typename MemoryProvider>
-    NOINLINE typename Superslab::Action dealloc_slow(
+    SLOW_PATH typename Superslab::Action dealloc_slow(
       SlabList* sl, Superslab* super, void* p, MemoryProvider& memory_provider)
     {
       Metaslab& meta = super->get_meta(this);

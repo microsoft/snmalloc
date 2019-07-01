@@ -105,7 +105,7 @@ namespace snmalloc
     std::atomic<PagemapEntry*> top[TOPLEVEL_ENTRIES]; // = {nullptr};
 
     template<bool create_addr>
-    inline PagemapEntry* get_node(std::atomic<PagemapEntry*>* e, bool& result)
+    FAST_PATH PagemapEntry* get_node(std::atomic<PagemapEntry*>* e, bool& result)
     {
       // The page map nodes are all allocated directly from the OS zero
       // initialised with a system call.  We don't need any ordered to guarantee
@@ -128,7 +128,7 @@ namespace snmalloc
       }
     }
     
-    NOINLINE PagemapEntry* get_node_slow(std::atomic<PagemapEntry*>* e, bool& result)
+    SLOW_PATH PagemapEntry* get_node_slow(std::atomic<PagemapEntry*>* e, bool& result)
     {
       // The page map nodes are all allocated directly from the OS zero
       // initialised with a system call.  We don't need any ordered to guarantee
@@ -161,7 +161,7 @@ namespace snmalloc
     }
 
     template<bool create_addr>
-    inline std::pair<Leaf*, size_t> get_leaf_index(uintptr_t addr, bool& result)
+    FAST_PATH std::pair<Leaf*, size_t> get_leaf_index(uintptr_t addr, bool& result)
     {
 #ifdef FreeBSD_KERNEL
       // Zero the top 16 bits - kernel addresses all have them set, but the
@@ -204,7 +204,7 @@ namespace snmalloc
     }
 
     template<bool create_addr>
-    inline std::atomic<T>* get_addr(uintptr_t p, bool& success)
+    FAST_PATH std::atomic<T>* get_addr(uintptr_t p, bool& success)
     {
       auto leaf_ix = get_leaf_index<create_addr>(p, success);
       return &(leaf_ix.first->values[leaf_ix.second]);

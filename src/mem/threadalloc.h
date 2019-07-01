@@ -1,4 +1,4 @@
-#pragma once
+ #pragma once
 
 #include "../ds/helpers.h"
 #include "globalalloc.h"
@@ -28,7 +28,7 @@ namespace snmalloc
   class ThreadAllocUntypedWrapper
   {
   public:
-    static inline Alloc*& get()
+    static FAST_PATH Alloc*& get()
     {
       return (Alloc*&)ThreadAllocUntyped::get();
     }
@@ -76,7 +76,7 @@ namespace snmalloc
      * The non-create case exists so that the `per_thread` variable can be a
      * local static and not a global, allowing ODR to deduplicate it.
      */
-    static inline Alloc*& get(bool create = true)
+    static FAST_PATH Alloc*& get(bool create = true)
     {
       static thread_local Alloc* per_thread;
       if (!per_thread && create)
@@ -224,7 +224,7 @@ namespace snmalloc
      * Private accessor to the per thread allocator
      * Provides no checking for initialization
      */
-    static ALWAYSINLINE Alloc*& inner_get()
+    static FAST_PATH Alloc*& inner_get()
     {
       static thread_local Alloc* per_thread;
       return per_thread;
@@ -242,7 +242,7 @@ namespace snmalloc
     /**
      * Private initialiser for the per thread allocator
      */
-    static NOINLINE Alloc*& inner_init()
+    static SLOW_PATH Alloc*& inner_init()
     {
       Alloc*& per_thread = inner_get();
 
@@ -262,15 +262,15 @@ namespace snmalloc
         // Associate the new allocator with the destructor.
         tls_set_value(key, &per_thread);
 
-#  ifdef USE_SNMALLOC_STATS
+  #  ifdef USE_SNMALLOC_STATS
         // Allocator is up and running now, safe to call atexit.
         if (first)
         {
           atexit(print_stats);
         }
-#  else
+  #  else
         UNUSED(first);
-#  endif
+  #  endif
       }
       return per_thread;
     }
@@ -280,7 +280,7 @@ namespace snmalloc
      * Public interface, returns the allocator for the current thread,
      * constructing it if necessary.
      */
-    static ALWAYSINLINE Alloc*& get()
+    static FAST_PATH Alloc*& get()
     {
       Alloc*& per_thread = inner_get();
 

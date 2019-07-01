@@ -11,6 +11,13 @@
 #  define HEADER_GLOBAL __declspec(selectany)
 #  define likely(x) !!(x)
 #  define unlikely(x) !!(x)
+#  define SLOW_PATH NOINLINE
+#  define FAST_PATH ALWAYSINLINE
+#  ifdef NDEBUG
+#    define ASSUME(x)
+#  else
+#    define ASSUME(x) assert(x);
+#  endif
 #else
 #  define likely(x) __builtin_expect(!!(x), 1)
 #  define unlikely(x) __builtin_expect(!!(x), 0)
@@ -18,6 +25,13 @@
 #  include <emmintrin.h>
 #  define ALWAYSINLINE __attribute__((always_inline))
 #  define NOINLINE __attribute__((noinline))
+#  define SLOW_PATH NOINLINE
+#  define FAST_PATH ALWAYSINLINE
+#  ifdef NDEBUG
+#    define ASSUME(x) if (!(x)) __builtin_unreachable();
+#  else
+#    define ASSUME(x) assert(x);
+#  endif
 #  ifdef __clang__
 #    define HEADER_GLOBAL __attribute__((selectany))
 #  else
