@@ -112,7 +112,7 @@ namespace snmalloc
       // to see that correctly.
       PagemapEntry* value = e->load(std::memory_order_relaxed);
 
-      if (likely((value != nullptr) && (value != LOCKED_ENTRY)))
+      if (likely(value > LOCKED_ENTRY))
       {
         result = true;
         return value;
@@ -175,7 +175,7 @@ namespace snmalloc
       for (size_t i = 0; i < INDEX_LEVELS; i++)
       {
         PagemapEntry* value = get_node<create_addr>(e, result);
-        if (!result)
+        if (unlikely(!result))
           return std::pair(nullptr, 0);
 
         shift -= BITS_PER_INDEX_LEVEL;
@@ -195,7 +195,7 @@ namespace snmalloc
 
       Leaf* leaf = reinterpret_cast<Leaf*>(get_node<create_addr>(e, result));
 
-      if (!result)
+      if (unlikely(!result))
         return std::pair(nullptr, 0);
 
       shift -= BITS_FOR_LEAF;
