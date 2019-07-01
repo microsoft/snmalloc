@@ -19,7 +19,7 @@ namespace snmalloc
 
   struct SizeClassTable
   {
-    sizeclass_t sizeclass_lookup[sizeclass_lookup_size];
+    sizeclass_t sizeclass_lookup[sizeclass_lookup_size] = {{}};
     ModArray<NUM_SIZECLASSES, size_t> size;
     ModArray<NUM_SIZECLASSES, size_t> cache_friendly_mask;
     ModArray<NUM_SIZECLASSES, size_t> inverse_cache_friendly_mask;
@@ -29,8 +29,7 @@ namespace snmalloc
 
 
     constexpr SizeClassTable()
-    : sizeclass_lookup(),
-      size(),
+    : size(),
       cache_friendly_mask(),
       inverse_cache_friendly_mask(),
       initial_offset_ptr(),
