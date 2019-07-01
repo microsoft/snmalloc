@@ -38,7 +38,14 @@ namespace snmalloc
       assert(
         bits::is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
       if constexpr (zero_mem == YesZero)
+      {
         zero(p, size);
+      }
+      else
+      {
+        UNUSED(size);
+        UNUSED(p);
+      }
     }
 
     /// OS specific function for zeroing memory
