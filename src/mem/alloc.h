@@ -442,7 +442,6 @@ namespace snmalloc
 #ifdef USE_MALLOC
       return free(p);
 #else
-      handle_message_queue();
 
       // Free memory of an unknown size. Must be called with an external
       // pointer.
@@ -473,6 +472,8 @@ namespace snmalloc
 
     SLOW_PATH void dealloc_not_small(void* p, uint8_t size)
     {
+      handle_message_queue();
+
       if (size == PMMediumslab)
       {
         Mediumslab* slab = Mediumslab::get(p);
@@ -1035,15 +1036,14 @@ namespace snmalloc
         return p;
       }
 
-      return small_alloc_slow<zero_mem, allow_reserve>(size);
+      return small_alloc_slow<zero_mem, allow_reserve>(sizeclass);
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SLOW_PATH
-    void* small_alloc_slow(size_t size)
+    void* small_alloc_slow(sizeclass_t sizeclass)
     {
       handle_message_queue();
-      sizeclass_t sizeclass = size_to_sizeclass(size);
       size_t rsize = sizeclass_to_size(sizeclass);
       auto& sl = small_classes[sizeclass];
 
@@ -1300,6 +1300,8 @@ namespace snmalloc
     void remote_dealloc(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
     {
       MEASURE_TIME(remote_dealloc, 4, 16);
+
+      handle_message_queue();
 
       void* offseted = apply_cache_friendly_offset(p, sizeclass);
 
