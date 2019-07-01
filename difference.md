@@ -22,7 +22,8 @@ This document outlines the changes that have diverged from
   2.  Separate Bump/Free list.  We have separate bump ptr and free list.  This 
       is required to have a "fast free list" in each allocator for each
       sizeclass.  We bump allocate a whole os page (4KiB) worth of allocations
-      in one go, so that we generally predicate the free list path.
+      in one go, so that the CPU predicts the free list path for the fast 
+      path.
 
   3.  Per allocator per sizeclass fast free list.  Each allocator has an array
       for each small size class that contains a free list of some elements for 
