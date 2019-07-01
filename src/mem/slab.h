@@ -48,7 +48,8 @@ namespace snmalloc
       assert(sl.get_head() == (SlabLink*)((size_t)this + meta.link));
       assert(!meta.is_full());
 
-      void* p;
+      void* p = nullptr;
+      bool p_has_value = false;
 
       if (head == 1)
       {
@@ -62,7 +63,7 @@ namespace snmalloc
           p = pointer_offset(this, meta.link);
           meta.set_full();
           sl.pop();
-          goto finish1;
+          p_has_value = true;
         }
         else
         {
@@ -104,6 +105,7 @@ namespace snmalloc
         }
       }
 
+      if (!p_has_value)
       {
         p = pointer_offset(this, meta.head);
 
@@ -119,7 +121,6 @@ namespace snmalloc
 
       assert (is_start_of_object(Superslab::get(p), p));
 
-    finish1:
       meta.debug_slab_invariant(is_short(), this);
 
       if constexpr (zero_mem == YesZero)

@@ -112,7 +112,9 @@ namespace snmalloc
   {
     if ((size-1) <= (SLAB_SIZE-1))
     {
-      return sizeclass_metadata.sizeclass_lookup[sizeclass_lookup_index(size)];
+      auto index = sizeclass_lookup_index(size);
+      ASSUME(index <= sizeclass_lookup_index(SLAB_SIZE));
+      return sizeclass_metadata.sizeclass_lookup[index];
     }
 
     // Don't use sizeclasses that are not a multiple of the alignment.

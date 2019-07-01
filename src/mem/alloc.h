@@ -235,6 +235,8 @@ namespace snmalloc
   {
   protected:
     FreeListHead small_fast_free_lists[NUM_SMALL_CLASSES];
+  public:
+    FastFreeLists () : small_fast_free_lists() {}
   };
 
   /**
