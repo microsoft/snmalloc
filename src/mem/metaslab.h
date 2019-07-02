@@ -40,10 +40,10 @@ namespace snmalloc
     // list.  The list entries are stored as the first pointer
     // in each unused object. The terminator is a pointer or
     // offset into the block with the bottom bit set.  This means
-    //  I.e. 
+    //  I.e.
     //    * an empty list has a head of 1.
     //    * a one element list has an head contains an offset to this
-    //       this block, and then contains a pointer with the bottom 
+    //       this block, and then contains a pointer with the bottom
     //       bit set.
     Mod<SLAB_SIZE, uint16_t> head;
 
@@ -105,8 +105,7 @@ namespace snmalloc
       *static_cast<void**>(p) = head;
 #else
       *static_cast<void**>(p) = head;
-      *(static_cast<uintptr_t*>(p) + 1) = 
-          address_cast(head) ^ POISON;
+      *(static_cast<uintptr_t*>(p) + 1) = address_cast(head) ^ POISON;
 #endif
     }
 
@@ -164,7 +163,7 @@ namespace snmalloc
         }
 
         both = !both;
-        length ++;
+        length++;
       }
       return length;
 #else
@@ -204,7 +203,8 @@ namespace snmalloc
       {
         // Check we are looking at a correctly aligned block
         void* start = curr;
-        assert(((address_cast(start) - address_cast(slab) - offset) % size) == 0);
+        assert(
+          ((address_cast(start) - address_cast(slab) - offset) % size) == 0);
 
         // Account for free elements in free list
         accounted_for += size;
@@ -229,7 +229,7 @@ namespace snmalloc
         // haven't completely filled this block at any point.
         assert(link == get_initial_offset(sizeclass, is_short));
       }
-      
+
       assert(!is_full());
       // Add the link node.
       accounted_for += size;

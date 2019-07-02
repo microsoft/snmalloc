@@ -28,7 +28,9 @@
 #  define SLOW_PATH NOINLINE
 #  define FAST_PATH ALWAYSINLINE
 #  ifdef NDEBUG
-#    define ASSUME(x) if (!(x)) __builtin_unreachable();
+#    define ASSUME(x) \
+      if (!(x)) \
+        __builtin_unreachable();
 #  else
 #    define ASSUME(x) assert(x);
 #  endif

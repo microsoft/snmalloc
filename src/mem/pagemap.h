@@ -105,7 +105,8 @@ namespace snmalloc
     std::atomic<PagemapEntry*> top[TOPLEVEL_ENTRIES]; // = {nullptr};
 
     template<bool create_addr>
-    FAST_PATH PagemapEntry* get_node(std::atomic<PagemapEntry*>* e, bool& result)
+    FAST_PATH PagemapEntry*
+    get_node(std::atomic<PagemapEntry*>* e, bool& result)
     {
       // The page map nodes are all allocated directly from the OS zero
       // initialised with a system call.  We don't need any ordered to guarantee
@@ -127,8 +128,9 @@ namespace snmalloc
         return nullptr;
       }
     }
-    
-    SLOW_PATH PagemapEntry* get_node_slow(std::atomic<PagemapEntry*>* e, bool& result)
+
+    SLOW_PATH PagemapEntry*
+    get_node_slow(std::atomic<PagemapEntry*>* e, bool& result)
     {
       // The page map nodes are all allocated directly from the OS zero
       // initialised with a system call.  We don't need any ordered to guarantee
@@ -149,7 +151,7 @@ namespace snmalloc
         else
         {
           while (address_cast(e->load(std::memory_order_relaxed)) ==
-                  LOCKED_ENTRY)
+                 LOCKED_ENTRY)
           {
             bits::pause();
           }
@@ -161,7 +163,8 @@ namespace snmalloc
     }
 
     template<bool create_addr>
-    FAST_PATH std::pair<Leaf*, size_t> get_leaf_index(uintptr_t addr, bool& result)
+    FAST_PATH std::pair<Leaf*, size_t>
+    get_leaf_index(uintptr_t addr, bool& result)
     {
 #ifdef FreeBSD_KERNEL
       // Zero the top 16 bits - kernel addresses all have them set, but the

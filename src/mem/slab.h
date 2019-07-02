@@ -37,7 +37,11 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, typename MemoryProvider>
-    inline void* alloc(SlabList& sl, FreeListHead& fast_free_list, size_t rsize, MemoryProvider& memory_provider)
+    inline void* alloc(
+      SlabList& sl,
+      FreeListHead& fast_free_list,
+      size_t rsize,
+      MemoryProvider& memory_provider)
     {
       // Read the head from the metadata stored in the superslab.
       Metaslab& meta = get_meta();
@@ -67,22 +71,23 @@ namespace snmalloc
         }
         else
         {
-          
           void* curr = nullptr;
           bool commit = false;
           while (true)
           {
             size_t newbumpptr = bumpptr + rsize;
-            auto alignedbumpptr =
-              bits::align_up(bumpptr - 1, OS_PAGE_SIZE);
+            auto alignedbumpptr = bits::align_up(bumpptr - 1, OS_PAGE_SIZE);
             auto alignednewbumpptr = bits::align_up(newbumpptr, OS_PAGE_SIZE);
 
             if (alignedbumpptr != alignednewbumpptr)
             {
               // We have committed once already.
-              if (commit) break;
+              if (commit)
+                break;
 
-              memory_provider.template notify_using<NoZero>(pointer_offset(this, alignedbumpptr), alignednewbumpptr - alignedbumpptr); 
+              memory_provider.template notify_using<NoZero>(
+                pointer_offset(this, alignedbumpptr),
+                alignednewbumpptr - alignedbumpptr);
 
               commit = true;
             }
@@ -109,7 +114,7 @@ namespace snmalloc
       {
         p = pointer_offset(this, meta.head);
 
-        // Read the next slot from the memory that's about to be allocated.    
+        // Read the next slot from the memory that's about to be allocated.
         void* next = Metaslab::follow_next(p);
         // Put everything in allocators small_class free list.
         meta.head = 1;
@@ -119,7 +124,7 @@ namespace snmalloc
         meta.used = meta.allocated - 1;
       }
 
-      assert (is_start_of_object(Superslab::get(p), p));
+      assert(is_start_of_object(Superslab::get(p), p));
 
       meta.debug_slab_invariant(is_short(), this);
 
@@ -142,9 +147,9 @@ namespace snmalloc
         address_cast(this) + SLAB_SIZE - address_cast(p));
     }
 
-    // Returns true, if it deallocation can proceed without changing any status bits.
-    // Note that this does remove the use from the meta slab, so it doesn't need doing
-    // on the slow path.
+    // Returns true, if it deallocation can proceed without changing any status
+    // bits. Note that this does remove the use from the meta slab, so it
+    // doesn't need doing on the slow path.
     FAST_PATH bool dealloc_fast(Superslab* super, void* p)
     {
       Metaslab& meta = super->get_meta(this);
@@ -156,10 +161,12 @@ namespace snmalloc
       meta.sub_use();
 
       bool was_full = meta.is_full();
-      if (unlikely(was_full)) return false;
+      if (unlikely(was_full))
+        return false;
 
       bool is_unused = meta.is_unused();
-      if (unlikely(is_unused)) return false;
+      if (unlikely(is_unused))
+        return false;
 
       // Update the head and the next pointer in the free list.
       uint16_t head = meta.head;
@@ -175,7 +182,7 @@ namespace snmalloc
       return true;
     }
 
-    // If dealloc fast returns false, then call this. 
+    // If dealloc fast returns false, then call this.
     // This does not need to remove the "use" as done by the fast path.
     // Returns a complex return code for managing the superslab meta data.
     // i.e. This deallocation could make an entire superslab free.
@@ -184,7 +191,7 @@ namespace snmalloc
       SlabList* sl, Superslab* super, void* p, MemoryProvider& memory_provider)
     {
       Metaslab& meta = super->get_meta(this);
-      
+
       bool was_full = meta.is_full();
       bool is_unused = meta.is_unused();
 
@@ -202,7 +209,7 @@ namespace snmalloc
         // Update the head and the sizeclass link.
         uint16_t index = pointer_to_index(p);
         assert(meta.head == 1);
-//        assert(meta.fully_allocated(is_short()));
+        //        assert(meta.fully_allocated(is_short()));
         meta.link = index;
 
         // Push on the list of slabs for this sizeclass.
@@ -210,7 +217,7 @@ namespace snmalloc
         meta.debug_slab_invariant(is_short(), this);
         return Superslab::NoSlabReturn;
       }
-      
+
       if (is_unused)
       {
         // Remove from the sizeclass list and dealloc on the superslab.
@@ -221,7 +228,7 @@ namespace snmalloc
 
         return super->dealloc_slab(this, memory_provider);
       }
-      
+
       abort();
     }
 

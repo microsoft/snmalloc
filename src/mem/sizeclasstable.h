@@ -15,7 +15,8 @@ namespace snmalloc
     return (s - 1) >> PTR_BITS;
   }
 
-  constexpr static size_t sizeclass_lookup_size = sizeclass_lookup_index(SLAB_SIZE + 1);
+  constexpr static size_t sizeclass_lookup_size =
+    sizeclass_lookup_index(SLAB_SIZE + 1);
 
   struct SizeClassTable
   {
@@ -26,7 +27,6 @@ namespace snmalloc
     ModArray<NUM_SMALL_CLASSES, uint16_t> initial_offset_ptr;
     ModArray<NUM_SMALL_CLASSES, uint16_t> short_initial_offset_ptr;
     ModArray<NUM_MEDIUM_CLASSES, uint16_t> medium_slab_slots;
-
 
     constexpr SizeClassTable()
     : size(),
@@ -42,8 +42,8 @@ namespace snmalloc
         size[sizeclass] =
           bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
         if (sizeclass < NUM_SMALL_CLASSES)
-        { 
-          for ( ; curr <= size[sizeclass]; curr+= 1 << PTR_BITS)
+        {
+          for (; curr <= size[sizeclass]; curr += 1 << PTR_BITS)
           {
             sizeclass_lookup[sizeclass_lookup_index(curr)] = sizeclass;
           }
@@ -109,7 +109,7 @@ namespace snmalloc
 
   static inline sizeclass_t size_to_sizeclass(size_t size)
   {
-    if ((size-1) <= (SLAB_SIZE-1))
+    if ((size - 1) <= (SLAB_SIZE - 1))
     {
       auto index = sizeclass_lookup_index(size);
       ASSUME(index <= sizeclass_lookup_index(SLAB_SIZE));
@@ -122,7 +122,6 @@ namespace snmalloc
     return static_cast<sizeclass_t>(
       bits::to_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(size));
   }
-
 
   constexpr static inline uint16_t medium_slab_free(sizeclass_t sizeclass)
   {

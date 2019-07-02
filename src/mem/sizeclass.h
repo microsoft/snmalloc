@@ -10,11 +10,12 @@ namespace snmalloc
 
   constexpr static uint16_t get_initial_offset(sizeclass_t sc, bool is_short);
   constexpr static size_t sizeclass_to_size(sizeclass_t sizeclass);
-  constexpr static size_t sizeclass_to_cache_friendly_mask(sizeclass_t sizeclass);
-  constexpr static size_t sizeclass_to_inverse_cache_friendly_mask(sizeclass_t sc);
+  constexpr static size_t
+  sizeclass_to_cache_friendly_mask(sizeclass_t sizeclass);
+  constexpr static size_t
+  sizeclass_to_inverse_cache_friendly_mask(sizeclass_t sc);
   constexpr static uint16_t medium_slab_free(sizeclass_t sizeclass);
   static sizeclass_t size_to_sizeclass(size_t size);
-
 
   constexpr static inline sizeclass_t size_to_sizeclass_const(size_t size)
   {
@@ -28,7 +29,7 @@ namespace snmalloc
   constexpr static inline size_t large_sizeclass_to_size(uint8_t large_class)
   {
     return bits::one_at_bit(large_class + SUPERSLAB_BITS);
-  } 
+  }
 
   // Small classes range from [MIN, SLAB], i.e. inclusive.
   static constexpr size_t NUM_SMALL_CLASSES =

@@ -1,4 +1,4 @@
- #pragma once
+#pragma once
 
 #include "../ds/helpers.h"
 #include "globalalloc.h"
@@ -262,15 +262,15 @@ namespace snmalloc
         // Associate the new allocator with the destructor.
         tls_set_value(key, &per_thread);
 
-  #  ifdef USE_SNMALLOC_STATS
+#  ifdef USE_SNMALLOC_STATS
         // Allocator is up and running now, safe to call atexit.
         if (first)
         {
           atexit(print_stats);
         }
-  #  else
+#  else
         UNUSED(first);
-  #  endif
+#  endif
       }
       return per_thread;
     }

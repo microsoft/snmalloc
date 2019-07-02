@@ -223,15 +223,15 @@ namespace snmalloc
 
   // This class is just used so that the free lists are the first entry
   // in the allocator and hence has better code gen.
-  // It contains a free list per small size class.  These are used for allocation
-  // on the fast path.
-  // This part of the code is inspired by mimalloc.
+  // It contains a free list per small size class.  These are used for
+  // allocation on the fast path. This part of the code is inspired by mimalloc.
   class FastFreeLists
   {
   protected:
     FreeListHead small_fast_free_lists[NUM_SMALL_CLASSES];
+
   public:
-    FastFreeLists () : small_fast_free_lists() {}
+    FastFreeLists() : small_fast_free_lists() {}
   };
 
   /**
@@ -255,7 +255,8 @@ namespace snmalloc
     class PageMap = SNMALLOC_DEFAULT_PAGEMAP,
     bool IsQueueInline = true>
   class Allocator
-  : public FastFreeLists, public Pooled<Allocator<MemoryProvider, PageMap, IsQueueInline>>
+  : public FastFreeLists,
+    public Pooled<Allocator<MemoryProvider, PageMap, IsQueueInline>>
   {
     LargeAlloc<MemoryProvider> large_allocator;
     PageMap page_map;
@@ -301,7 +302,7 @@ namespace snmalloc
         return medium_alloc<zero_mem, allow_reserve>(sizeclass, rsize, size);
       }
       else
-      {      
+      {
         handle_message_queue();
         return large_alloc<zero_mem, allow_reserve>(size);
       }
@@ -323,7 +324,7 @@ namespace snmalloc
       stats().alloc_request(size);
 
       // Allocate memory of a dynamically known size.
-      // Perform the - 1 on size, so that zero wraps around and ends up on 
+      // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
       {
@@ -446,7 +447,6 @@ namespace snmalloc
       // Free memory of an unknown size. Must be called with an external
       // pointer.
       uint8_t size = pagemap().get(address_cast(p));
-
 
       Superslab* super = Superslab::get(p);
 
@@ -1019,14 +1019,13 @@ namespace snmalloc
       sizeclass_t sizeclass = size_to_sizeclass(size);
       stats().sizeclass_alloc(sizeclass);
 
-
       assert(sizeclass < NUM_SMALL_CLASSES);
       auto& fl = small_fast_free_lists[sizeclass];
       auto head = fl.value;
       if (likely((reinterpret_cast<size_t>(head) & 1) == 0))
       {
-        void * p = head;
-        // Read the next slot from the memory that's about to be allocated.    
+        void* p = head;
+        // Read the next slot from the memory that's about to be allocated.
         fl.value = Metaslab::follow_next(p);
 
         if constexpr (zero_mem == YesZero)
@@ -1040,8 +1039,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SLOW_PATH
-    void* small_alloc_slow(sizeclass_t sizeclass)
+    SLOW_PATH void* small_alloc_slow(sizeclass_t sizeclass)
     {
       handle_message_queue();
       size_t rsize = sizeclass_to_size(sizeclass);
@@ -1064,10 +1062,12 @@ namespace snmalloc
         sl.insert(slab->get_link());
       }
       auto& ffl = small_fast_free_lists[sizeclass];
-      return slab->alloc<zero_mem>(sl, ffl, rsize, large_allocator.memory_provider);
+      return slab->alloc<zero_mem>(
+        sl, ffl, rsize, large_allocator.memory_provider);
     }
 
-    FAST_PATH void small_dealloc(Superslab* super, void* p, sizeclass_t sizeclass)
+    FAST_PATH void
+    small_dealloc(Superslab* super, void* p, sizeclass_t sizeclass)
     {
 #ifdef CHECK_CLIENT
       Slab* slab = Slab::get(p);
@@ -1081,7 +1081,8 @@ namespace snmalloc
       small_dealloc_offseted(super, offseted, sizeclass);
     }
 
-    FAST_PATH void small_dealloc_offseted(Superslab* super, void* p, sizeclass_t sizeclass)
+    FAST_PATH void
+    small_dealloc_offseted(Superslab* super, void* p, sizeclass_t sizeclass)
     {
       MEASURE_TIME(small_dealloc, 4, 16);
       stats().sizeclass_dealloc(sizeclass);
@@ -1093,7 +1094,8 @@ namespace snmalloc
       small_dealloc_offseted_slow(super, p, sizeclass);
     }
 
-    SLOW_PATH void small_dealloc_offseted_slow(Superslab* super, void* p, sizeclass_t sizeclass)
+    SLOW_PATH void small_dealloc_offseted_slow(
+      Superslab* super, void* p, sizeclass_t sizeclass)
     {
       bool was_full = super->is_full();
       SlabList* sl = &small_classes[sizeclass];
