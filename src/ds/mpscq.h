@@ -71,6 +71,7 @@ namespace snmalloc
       if (next != nullptr)
       {
         front = next;
+        bits::prefetch(&(next->next));
         assert(front);
         std::atomic_thread_fence(std::memory_order_acquire);
         invariant();
