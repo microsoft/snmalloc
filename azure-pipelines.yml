@@ -1,11 +1,15 @@
-resources:
-- repo: self
+trigger:
+- master
 
-phases:
-- phase: Linux
-  queue:
-    name: 'Hosted Ubuntu 1604'
-    parallel: 5
+pr:
+- master
+    
+jobs:
+- job:
+  displayName: Linux
+  pool:
+    vmImage: 'ubuntu-16.04'
+  strategy:
     matrix:
       Clang-6 Debug:
         CC: clang-6.0
@@ -82,10 +86,11 @@ phases:
     failOnStderr: true
     displayName: 'Test'
 
-- phase: Windows
-  queue:
-    name: 'Hosted VS2017'
-    parallel: 5
+- job:
+  displayName: Windows
+  pool:
+    vmImage: 'vs2017-win2016'
+  strategy:
     matrix:
       64-bit Debug:
         BuildType: Debug
@@ -123,10 +128,11 @@ phases:
     workingDirectory: build
     displayName: 'Run Ctest'
 
-- phase: macOS
-  queue:
-    name: 'Hosted macOS'
-    parallel: 2
+- job: 
+  displayName: macOS
+  pool:
+    vmImage: 'macOS-10.13'
+  strategy:
     matrix:
       Debug:
         BuildType: Debug
@@ -153,9 +159,10 @@ phases:
     failOnStderr: true
     displayName: 'Test'
 
-- phase: Format
-  queue:
-    name: 'Hosted Ubuntu 1604'
+- job: 
+  displayName: Format
+  pool:
+    vmImage: 'ubuntu-16.04'
   steps:
   - script: |
       wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
