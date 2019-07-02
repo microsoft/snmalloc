@@ -649,7 +649,8 @@ namespace snmalloc
         return (id >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
       }
 
-      void dealloc(alloc_id_t target_id, void* p, sizeclass_t sizeclass)
+      FAST_PATH void
+      dealloc(alloc_id_t target_id, void* p, sizeclass_t sizeclass)
       {
         this->size += sizeclass_to_size(sizeclass);
 
@@ -838,9 +839,9 @@ namespace snmalloc
       message_queue().init(&stub);
     }
 
-    void handle_dealloc_remote(Remote* p)
+    FAST_PATH void handle_dealloc_remote(Remote* p)
     {
-      if (p != &stub)
+      if (likely(p != &stub))
       {
         Superslab* super = Superslab::get(p);
 
@@ -884,16 +885,16 @@ namespace snmalloc
     {
       for (size_t i = 0; i < REMOTE_BATCH; i++)
       {
-        Remote* r = message_queue().dequeue();
+        auto r = message_queue().dequeue();
 
-        if (r == nullptr)
+        if (unlikely(!r.second))
           break;
 
-        handle_dealloc_remote(r);
+        handle_dealloc_remote(r.first);
       }
 
       // Our remote queues may be larger due to forwarding remote frees.
-      if (remote.size < REMOTE_CACHE)
+      if (likely(remote.size < REMOTE_CACHE))
         return;
 
       stats().remote_post();

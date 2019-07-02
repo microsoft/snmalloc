@@ -121,7 +121,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   endmacro()
 
   macro(add_shim name)
-    add_library(${name} SHARED src/override/malloc.cc)
+    add_library(${name} SHARED src/override/malloc.cc src/override/new.cc)
     target_link_libraries(${name} snmalloc_lib)
     target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
     set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden)

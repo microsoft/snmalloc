@@ -3,6 +3,8 @@
 #include "bits.h"
 #include "helpers.h"
 
+#include <utility>
+
 namespace snmalloc
 {
   template<class T>
@@ -59,7 +61,7 @@ namespace snmalloc
       prev->next.store(first, std::memory_order_relaxed);
     }
 
-    T* dequeue()
+    std::pair<T*, bool> dequeue()
     {
       // Returns the front message, or null if not possible to return a message.
       invariant();
@@ -69,14 +71,13 @@ namespace snmalloc
       if (next != nullptr)
       {
         front = next;
-
         assert(front);
         std::atomic_thread_fence(std::memory_order_acquire);
         invariant();
-        return first;
+        return std::pair(first, true);
       }
 
-      return nullptr;
+      return std::pair(nullptr, false);
     }
   };
 } // namespace snmalloc
