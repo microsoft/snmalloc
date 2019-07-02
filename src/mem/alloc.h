@@ -837,8 +837,10 @@ namespace snmalloc
     {
       // Manufacture an allocation to prime the queue
       // Using an actual allocation removes a conditional of a critical path.
-      message_queue().init(
-        reinterpret_cast<Remote*>(alloc<YesZero>(MIN_ALLOC_SIZE)));
+      Remote* remote =
+        reinterpret_cast<Remote*>(alloc<YesZero>(MIN_ALLOC_SIZE));
+      remote->set_target_id(id());
+      message_queue().init(remote);
     }
 
     SNMALLOC_FAST_PATH void handle_dealloc_remote(Remote* p)

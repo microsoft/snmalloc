@@ -104,7 +104,7 @@ namespace snmalloc
     return sizeclass_metadata.cache_friendly_mask[sizeclass];
   }
 
-  constexpr static inline size_t
+  constexpr static SNMALLOC_FAST_PATH size_t
   sizeclass_to_inverse_cache_friendly_mask(sizeclass_t sizeclass)
   {
     return sizeclass_metadata.inverse_cache_friendly_mask[sizeclass];

@@ -133,9 +133,9 @@ namespace snmalloc
     inline void prefetch(void* ptr)
     {
 #if defined(PLATFORM_IS_X86)
-      _mm_prefetch(reinterpret_cast<const char *>(ptr), _MM_HINT_T0);
+      _mm_prefetch(reinterpret_cast<const char*>(ptr), _MM_HINT_T0);
 #else
-#  warning "Missing pause intrinsic"
+#  warning "Missing prefetch intrinsic"
 #endif
     }
 
