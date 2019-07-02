@@ -18,3 +18,22 @@ This document outlines the changes that have diverged from
       The value 1, is never a valid bump allocation value, as we initially
       allocate the first entry as the link, so we can use 1 as the no more bump
       space value. 
+
+  2.  Separate Bump/Free list.  We have separate bump ptr and free list.  This 
+      is required to have a "fast free list" in each allocator for each
+      sizeclass.  We bump allocate a whole os page (4KiB) worth of allocations
+      in one go, so that the CPU predicts the free list path for the fast 
+      path.
+
+  3.  Per allocator per sizeclass fast free list.  Each allocator has an array
+      for each small size class that contains a free list of some elements for 
+      that sizeclass. This enables a very compressed path for the common 
+      allocation case.
+
+  4.  We now store a direct pointer to the next element in each slabs free list
+      rather than a relative offset into the slab.  This enables list
+      calculation on the fast path.
+
+
+[2-4]  Are changes that are directly inspired by
+(mimalloc)[http://github.com/microsoft/mimalloc].

@@ -11,6 +11,9 @@
 #  define HEADER_GLOBAL __declspec(selectany)
 #  define likely(x) !!(x)
 #  define unlikely(x) !!(x)
+#  define SNMALLOC_SLOW_PATH NOINLINE
+#  define SNMALLOC_FAST_PATH ALWAYSINLINE
+#  define SNMALLOC_PURE
 #else
 #  define likely(x) __builtin_expect(!!(x), 1)
 #  define unlikely(x) __builtin_expect(!!(x), 0)
@@ -18,6 +21,9 @@
 #  include <emmintrin.h>
 #  define ALWAYSINLINE __attribute__((always_inline))
 #  define NOINLINE __attribute__((noinline))
+#  define SNMALLOC_SLOW_PATH NOINLINE
+#  define SNMALLOC_FAST_PATH inline ALWAYSINLINE
+#  define SNMALLOC_PURE __attribute__((const))
 #  ifdef __clang__
 #    define HEADER_GLOBAL __attribute__((selectany))
 #  else
@@ -52,13 +58,17 @@
 
 #define UNUSED(x) ((void)(x))
 
-#if __has_builtin(__builtin_assume)
-#  define SNMALLOC_ASSUME(x) __builtin_assume(x)
+#ifndef NDEBUG
+#  define SNMALLOC_ASSUME(x) assert(x)
 #else
-#  define SNMALLOC_ASSUME(x) \
-    do \
-    { \
-    } while (0)
+#  if __has_builtin(__builtin_assume)
+#    define SNMALLOC_ASSUME(x) __builtin_assume((x))
+#  else
+#    define SNMALLOC_ASSUME(x) \
+      do \
+      { \
+      } while (0)
+#  endif
 #endif
 
 // #define USE_LZCNT
@@ -117,6 +127,15 @@ namespace snmalloc
       _mm_pause();
 #else
 #  warning "Missing pause intrinsic"
+#endif
+    }
+
+    inline void prefetch(void* ptr)
+    {
+#if defined(PLATFORM_IS_X86)
+      _mm_prefetch(reinterpret_cast<const char*>(ptr), _MM_HINT_T0);
+#else
+#  warning "Missing prefetch intrinsic"
 #endif
     }
 

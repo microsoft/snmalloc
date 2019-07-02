@@ -1,10 +1,5 @@
 #pragma once
 
-#if !defined(NDEBUG) && !defined(OPEN_ENCLAVE) && !defined(FreeBSD_KERNEL) && \
-  !defined(USE_SNMALLOC_STATS)
-#  define USE_SNMALLOC_STATS
-#endif
-
 #ifdef _MSC_VER
 #  define ALLOCATOR __declspec(allocator)
 #else
@@ -226,6 +221,19 @@ namespace snmalloc
 #  define SNMALLOC_DEFAULT_PAGEMAP snmalloc::SuperslabMap<>
 #endif
 
+  // This class is just used so that the free lists are the first entry
+  // in the allocator and hence has better code gen.
+  // It contains a free list per small size class.  These are used for
+  // allocation on the fast path. This part of the code is inspired by mimalloc.
+  class FastFreeLists
+  {
+  protected:
+    FreeListHead small_fast_free_lists[NUM_SMALL_CLASSES];
+
+  public:
+    FastFreeLists() : small_fast_free_lists() {}
+  };
+
   /**
    * Allocator.  This class is parameterised on three template parameters.  The
    * `MemoryProvider` defines the source of memory for this allocator.
@@ -247,7 +255,8 @@ namespace snmalloc
     class PageMap = SNMALLOC_DEFAULT_PAGEMAP,
     bool IsQueueInline = true>
   class Allocator
-  : public Pooled<Allocator<MemoryProvider, PageMap, IsQueueInline>>
+  : public FastFreeLists,
+    public Pooled<Allocator<MemoryProvider, PageMap, IsQueueInline>>
   {
     LargeAlloc<MemoryProvider> large_allocator;
     PageMap page_map;
@@ -277,32 +286,31 @@ namespace snmalloc
       else
         return calloc(1, size);
 #else
-      constexpr uint8_t sizeclass = size_to_sizeclass_const(size);
+      constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
 
       stats().alloc_request(size);
-
-      handle_message_queue();
 
       // Allocate memory of a statically known size.
       if constexpr (sizeclass < NUM_SMALL_CLASSES)
       {
-        constexpr size_t rsize = sizeclass_to_size(sizeclass);
-        return small_alloc<zero_mem, allow_reserve>(sizeclass, rsize);
+        return small_alloc<zero_mem, allow_reserve>(size);
       }
       else if constexpr (sizeclass < NUM_SIZECLASSES)
       {
+        handle_message_queue();
         constexpr size_t rsize = sizeclass_to_size(sizeclass);
         return medium_alloc<zero_mem, allow_reserve>(sizeclass, rsize, size);
       }
       else
       {
+        handle_message_queue();
         return large_alloc<zero_mem, allow_reserve>(size);
       }
 #endif
     }
 
     template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
-    ALLOCATOR void* alloc(size_t size)
+    inline ALLOCATOR void* alloc(size_t size)
     {
 #ifdef USE_MALLOC
       static_assert(
@@ -315,18 +323,30 @@ namespace snmalloc
 #else
       stats().alloc_request(size);
 
-      handle_message_queue();
-
-      uint8_t sizeclass = size_to_sizeclass(size);
-
       // Allocate memory of a dynamically known size.
-      if (sizeclass < NUM_SMALL_CLASSES)
+      // Perform the - 1 on size, so that zero wraps around and ends up on
+      // slow path.
+      if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
       {
         // Allocations smaller than the slab size are more likely. Improve
         // branch prediction by placing this case first.
-        size_t rsize = sizeclass_to_size(sizeclass);
-        return small_alloc<zero_mem, allow_reserve>(sizeclass, rsize);
+        return small_alloc<zero_mem, allow_reserve>(size);
       }
+
+      return alloc_not_small<zero_mem, allow_reserve>(size);
+    }
+
+    template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
+    SNMALLOC_SLOW_PATH ALLOCATOR void* alloc_not_small(size_t size)
+    {
+      handle_message_queue();
+
+      if (size == 0)
+      {
+        return small_alloc<zero_mem, allow_reserve>(1);
+      }
+
+      sizeclass_t sizeclass = size_to_sizeclass(size);
       if (sizeclass < NUM_SIZECLASSES)
       {
         size_t rsize = sizeclass_to_size(sizeclass);
@@ -346,7 +366,7 @@ namespace snmalloc
       return free(p);
 #else
 
-      constexpr uint8_t sizeclass = size_to_sizeclass_const(size);
+      constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
 
       handle_message_queue();
 
@@ -389,7 +409,7 @@ namespace snmalloc
 
       // Free memory of a dynamically known size. Must be called with an
       // external pointer.
-      uint8_t sizeclass = size_to_sizeclass(size);
+      sizeclass_t sizeclass = size_to_sizeclass(size);
 
       if (sizeclass < NUM_SMALL_CLASSES)
       {
@@ -418,25 +438,19 @@ namespace snmalloc
 #endif
     }
 
-    void dealloc(void* p)
+    SNMALLOC_FAST_PATH void dealloc(void* p)
     {
 #ifdef USE_MALLOC
       return free(p);
 #else
-      handle_message_queue();
 
       // Free memory of an unknown size. Must be called with an external
       // pointer.
       uint8_t size = pagemap().get(address_cast(p));
 
-      if (size == 0)
-      {
-        error("Not allocated by this allocator");
-      }
-
       Superslab* super = Superslab::get(p);
 
-      if (size == PMSuperslab)
+      if (likely(size == PMSuperslab))
       {
         RemoteAllocator* target = super->get_allocator();
         Slab* slab = Slab::get(p);
@@ -445,14 +459,24 @@ namespace snmalloc
         // Reading a remote sizeclass won't fail, since the other allocator
         // can't reuse the slab, as we have not yet deallocated this
         // pointer.
-        uint8_t sizeclass = meta.sizeclass;
+        sizeclass_t sizeclass = meta.sizeclass;
 
-        if (super->get_allocator() == public_state())
+        if (likely(super->get_allocator() == public_state()))
           small_dealloc(super, p, sizeclass);
         else
           remote_dealloc(target, p, sizeclass);
         return;
       }
+      dealloc_not_small(p, size);
+    }
+
+    SNMALLOC_SLOW_PATH void dealloc_not_small(void* p, uint8_t size)
+    {
+      handle_message_queue();
+
+      if (p == nullptr)
+        return;
+
       if (size == PMMediumslab)
       {
         Mediumslab* slab = Mediumslab::get(p);
@@ -460,7 +484,7 @@ namespace snmalloc
 
         // Reading a remote sizeclass won't fail, since the other allocator
         // can't reuse the slab, as we have no yet deallocated this pointer.
-        uint8_t sizeclass = slab->get_sizeclass();
+        sizeclass_t sizeclass = slab->get_sizeclass();
 
         if (target == public_state())
           medium_dealloc(slab, p, sizeclass);
@@ -469,7 +493,13 @@ namespace snmalloc
         return;
       }
 
+      if (size == 0)
+      {
+        error("Not allocated by this allocator");
+      }
+
 #  ifdef CHECK_CLIENT
+      Superslab* super = Superslab::get(p);
       if (size > 64 || address_cast(super) != address_cast(p))
       {
         error("Not deallocating start of an object");
@@ -494,7 +524,7 @@ namespace snmalloc
         Slab* slab = Slab::get(p);
         Metaslab& meta = super->get_meta(slab);
 
-        uint8_t sc = meta.sizeclass;
+        sizeclass_t sc = meta.sizeclass;
         size_t slab_end = static_cast<size_t>(address_cast(slab) + SLAB_SIZE);
 
         return external_pointer<location>(p, sc, slab_end);
@@ -503,7 +533,7 @@ namespace snmalloc
       {
         Mediumslab* slab = Mediumslab::get(p);
 
-        uint8_t sc = slab->get_sizeclass();
+        sizeclass_t sc = slab->get_sizeclass();
         size_t slab_end =
           static_cast<size_t>(address_cast(slab) + SUPERSLAB_SIZE);
 
@@ -622,7 +652,8 @@ namespace snmalloc
         return (id >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
       }
 
-      void dealloc(alloc_id_t target_id, void* p, uint8_t sizeclass)
+      SNMALLOC_FAST_PATH void
+      dealloc(alloc_id_t target_id, void* p, sizeclass_t sizeclass)
       {
         this->size += sizeclass_to_size(sizeclass);
 
@@ -698,7 +729,6 @@ namespace snmalloc
     DLList<Superslab> super_only_short_available;
 
     RemoteCache remote;
-    Remote stub;
 
     std::conditional_t<IsQueueInline, RemoteAllocator, RemoteAllocator*>
       remote_alloc;
@@ -706,7 +736,7 @@ namespace snmalloc
 #ifdef CACHE_FRIENDLY_OFFSET
     size_t remote_offset = 0;
 
-    void* apply_cache_friendly_offset(void* p, uint8_t sizeclass)
+    void* apply_cache_friendly_offset(void* p, sizeclass_t sizeclass)
     {
       size_t mask = sizeclass_to_cache_friendly_mask(sizeclass);
 
@@ -716,7 +746,7 @@ namespace snmalloc
       return (void*)((uintptr_t)p + offset);
     }
 #else
-    void* apply_cache_friendly_offset(void* p, uint8_t sizeclass)
+    void* apply_cache_friendly_offset(void* p, sizeclass_t sizeclass)
     {
       UNUSED(sizeclass);
       return p;
@@ -770,11 +800,11 @@ namespace snmalloc
       message_queue().invariant();
 
 #ifndef NDEBUG
-      for (uint8_t i = 0; i < NUM_SIZECLASSES; i++)
+      for (sizeclass_t i = 0; i < NUM_SIZECLASSES; i++)
       {
         size_t size = sizeclass_to_size(i);
-        uint8_t sc1 = size_to_sizeclass(size);
-        uint8_t sc2 = size_to_sizeclass_const(size);
+        sizeclass_t sc1 = size_to_sizeclass(size);
+        sizeclass_t sc2 = size_to_sizeclass_const(size);
         size_t size1 = sizeclass_to_size(sc1);
         size_t size2 = sizeclass_to_size(sc2);
 
@@ -794,7 +824,7 @@ namespace snmalloc
 
     template<Boundary location>
     static uintptr_t
-    external_pointer(void* p, uint8_t sizeclass, size_t end_point)
+    external_pointer(void* p, sizeclass_t sizeclass, size_t end_point)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
       size_t end_point_correction = location == End ?
@@ -808,72 +838,83 @@ namespace snmalloc
 
     void init_message_queue()
     {
-      message_queue().init(&stub);
+      // Manufacture an allocation to prime the queue
+      // Using an actual allocation removes a conditional of a critical path.
+      Remote* dummy = reinterpret_cast<Remote*>(alloc<YesZero>(MIN_ALLOC_SIZE));
+      dummy->set_target_id(id());
+      message_queue().init(dummy);
     }
 
-    void handle_dealloc_remote(Remote* p)
+    SNMALLOC_FAST_PATH void handle_dealloc_remote(Remote* p)
     {
-      if (p != &stub)
-      {
-        Superslab* super = Superslab::get(p);
+      Superslab* super = Superslab::get(p);
 
 #ifdef CHECK_CLIENT
-        if (p->target_id() != super->get_allocator()->id())
-          error("Detected memory corruption.  Potential use-after-free");
+      if (p->target_id() != super->get_allocator()->id())
+        error("Detected memory corruption.  Potential use-after-free");
 #endif
-        if (super->get_kind() == Super)
+      if (likely(super->get_kind() == Super))
+      {
+        Slab* slab = Slab::get(p);
+        Metaslab& meta = super->get_meta(slab);
+        if (likely(p->target_id() == id()))
         {
-          Slab* slab = Slab::get(p);
-          Metaslab& meta = super->get_meta(slab);
-          if (p->target_id() == id())
-          {
-            small_dealloc_offseted(super, p, meta.sizeclass);
-          }
-          else
-          {
-            // Queue for remote dealloc elsewhere.
-            remote.dealloc(p->target_id(), p, meta.sizeclass);
-          }
+          small_dealloc_offseted(super, p, meta.sizeclass);
+          return;
+        }
+      }
+      handle_dealloc_remote_slow(p);
+    }
+
+    SNMALLOC_SLOW_PATH void handle_dealloc_remote_slow(Remote* p)
+    {
+      Superslab* super = Superslab::get(p);
+      if (likely(super->get_kind() == Medium))
+      {
+        Mediumslab* slab = Mediumslab::get(p);
+        if (p->target_id() == id())
+        {
+          sizeclass_t sizeclass = slab->get_sizeclass();
+          void* start = remove_cache_friendly_offset(p, sizeclass);
+          medium_dealloc(slab, start, sizeclass);
         }
         else
         {
-          Mediumslab* slab = Mediumslab::get(p);
-          if (p->target_id() == id())
-          {
-            uint8_t sizeclass = slab->get_sizeclass();
-            void* start = remove_cache_friendly_offset(p, sizeclass);
-            medium_dealloc(slab, start, sizeclass);
-          }
-          else
-          {
-            // Queue for remote dealloc elsewhere.
-            remote.dealloc(p->target_id(), p, slab->get_sizeclass());
-          }
+          // Queue for remote dealloc elsewhere.
+          remote.dealloc(p->target_id(), p, slab->get_sizeclass());
         }
+      }
+      else
+      {
+        assert(likely(p->target_id() != id()));
+        Slab* slab = Slab::get(p);
+        Metaslab& meta = super->get_meta(slab);
+        // Queue for remote dealloc elsewhere.
+        remote.dealloc(p->target_id(), p, meta.sizeclass);
       }
     }
 
-    NOINLINE void handle_message_queue_inner()
+    SNMALLOC_SLOW_PATH void handle_message_queue_inner()
     {
       for (size_t i = 0; i < REMOTE_BATCH; i++)
       {
-        Remote* r = message_queue().dequeue();
+        auto r = message_queue().dequeue();
 
-        if (r == nullptr)
+        if (unlikely(!r.second))
           break;
 
-        handle_dealloc_remote(r);
+        handle_dealloc_remote(r.first);
       }
 
       // Our remote queues may be larger due to forwarding remote frees.
-      if (remote.size < REMOTE_CACHE)
+      if (likely(remote.size < REMOTE_CACHE))
         return;
 
       stats().remote_post();
       remote.post(id());
     }
 
-    ALWAYSINLINE void handle_message_queue()
+    SNMALLOC_FAST_PATH void handle_message_queue()
     {
       // Inline the empty check, but not necessarily the full queue handling.
       if (likely(message_queue().is_empty()))
@@ -938,7 +979,7 @@ namespace snmalloc
     }
 
     template<AllowReserve allow_reserve>
-    Slab* alloc_slab(uint8_t sizeclass)
+    Slab* alloc_slab(sizeclass_t sizeclass)
     {
       stats().sizeclass_alloc_slab(sizeclass);
       if (Superslab::is_short_sizeclass(sizeclass))
@@ -978,7 +1019,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    void* small_alloc(uint8_t sizeclass, size_t rsize)
+    inline void* small_alloc(size_t size)
     {
       MEASURE_TIME_MARKERS(
         small_alloc,
@@ -988,14 +1029,41 @@ namespace snmalloc
           zero_mem == YesZero ? "zeromem" : "nozeromem",
           allow_reserve == NoReserve ? "noreserve" : "reserve"));
 
+      SNMALLOC_ASSUME(size <= SLAB_SIZE);
+      sizeclass_t sizeclass = size_to_sizeclass(size);
       stats().sizeclass_alloc(sizeclass);
 
-      SlabList* sc = &small_classes[sizeclass];
+      assert(sizeclass < NUM_SMALL_CLASSES);
+      auto& fl = small_fast_free_lists[sizeclass];
+      auto head = fl.value;
+      if (likely((reinterpret_cast<size_t>(head) & 1) == 0))
+      {
+        void* p = head;
+        // Read the next slot from the memory that's about to be allocated.
+        fl.value = Metaslab::follow_next(p);
+
+        if constexpr (zero_mem == YesZero)
+        {
+          large_allocator.memory_provider.zero(p, size);
+        }
+        return p;
+      }
+
+      return small_alloc_slow<zero_mem, allow_reserve>(sizeclass);
+    }
+
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_SLOW_PATH void* small_alloc_slow(sizeclass_t sizeclass)
+    {
+      handle_message_queue();
+      size_t rsize = sizeclass_to_size(sizeclass);
+      auto& sl = small_classes[sizeclass];
+
       Slab* slab;
 
-      if (!sc->is_empty())
+      if (!sl.is_empty())
       {
-        SlabLink* link = sc->get_head();
+        SlabLink* link = sl.get_head();
         slab = link->get_slab();
       }
       else
@@ -1005,13 +1073,15 @@ namespace snmalloc
         if ((allow_reserve == NoReserve) && (slab == nullptr))
           return nullptr;
 
-        sc->insert(slab->get_link());
+        sl.insert(slab->get_link());
       }
-
-      return slab->alloc<zero_mem>(sc, rsize, large_allocator.memory_provider);
+      auto& ffl = small_fast_free_lists[sizeclass];
+      return slab->alloc<zero_mem>(
+        sl, ffl, rsize, large_allocator.memory_provider);
     }
 
-    void small_dealloc(Superslab* super, void* p, uint8_t sizeclass)
+    SNMALLOC_FAST_PATH void
+    small_dealloc(Superslab* super, void* p, sizeclass_t sizeclass)
     {
 #ifdef CHECK_CLIENT
       Slab* slab = Slab::get(p);
@@ -1025,19 +1095,29 @@ namespace snmalloc
       small_dealloc_offseted(super, offseted, sizeclass);
     }
 
-    void small_dealloc_offseted(Superslab* super, void* p, uint8_t sizeclass)
+    SNMALLOC_FAST_PATH void
+    small_dealloc_offseted(Superslab* super, void* p, sizeclass_t sizeclass)
     {
       MEASURE_TIME(small_dealloc, 4, 16);
       stats().sizeclass_dealloc(sizeclass);
 
-      bool was_full = super->is_full();
-      SlabList* sc = &small_classes[sizeclass];
       Slab* slab = Slab::get(p);
-      Superslab::Action a =
-        slab->dealloc(sc, super, p, large_allocator.memory_provider);
-      if (a == Superslab::NoSlabReturn)
+      if (likely(slab->dealloc_fast(super, p)))
         return;
 
+      small_dealloc_offseted_slow(super, p, sizeclass);
+    }
+
+    SNMALLOC_SLOW_PATH void small_dealloc_offseted_slow(
+      Superslab* super, void* p, sizeclass_t sizeclass)
+    {
+      bool was_full = super->is_full();
+      SlabList* sl = &small_classes[sizeclass];
+      Slab* slab = Slab::get(p);
+      Superslab::Action a =
+        slab->dealloc_slow(sl, super, p, large_allocator.memory_provider);
+      if (likely(a == Superslab::NoSlabReturn))
+        return;
       stats().sizeclass_dealloc_slab(sizeclass);
 
       if (a == Superslab::NoStatusChange)
@@ -1100,7 +1180,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    void* medium_alloc(uint8_t sizeclass, size_t rsize, size_t size)
+    void* medium_alloc(sizeclass_t sizeclass, size_t rsize, size_t size)
     {
       MEASURE_TIME_MARKERS(
         medium_alloc,
@@ -1110,7 +1190,7 @@ namespace snmalloc
           zero_mem == YesZero ? "zeromem" : "nozeromem",
           allow_reserve == NoReserve ? "noreserve" : "reserve"));
 
-      uint8_t medium_class = sizeclass - NUM_SMALL_CLASSES;
+      sizeclass_t medium_class = sizeclass - NUM_SMALL_CLASSES;
 
       DLList<Mediumslab>* sc = &medium_classes[medium_class];
       Mediumslab* slab = sc->get_head();
@@ -1144,7 +1224,7 @@ namespace snmalloc
       return p;
     }
 
-    void medium_dealloc(Mediumslab* slab, void* p, uint8_t sizeclass)
+    void medium_dealloc(Mediumslab* slab, void* p, sizeclass_t sizeclass)
     {
       MEASURE_TIME(medium_dealloc, 4, 16);
       stats().sizeclass_dealloc(sizeclass);
@@ -1163,7 +1243,7 @@ namespace snmalloc
       {
         if (!was_full)
         {
-          uint8_t medium_class = sizeclass - NUM_SMALL_CLASSES;
+          sizeclass_t medium_class = sizeclass - NUM_SMALL_CLASSES;
           DLList<Mediumslab>* sc = &medium_classes[medium_class];
           sc->remove(slab);
         }
@@ -1180,7 +1260,7 @@ namespace snmalloc
       }
       else if (was_full)
       {
-        uint8_t medium_class = sizeclass - NUM_SMALL_CLASSES;
+        sizeclass_t medium_class = sizeclass - NUM_SMALL_CLASSES;
         DLList<Mediumslab>* sc = &medium_classes[medium_class];
         sc->insert(slab);
       }
@@ -1233,9 +1313,12 @@ namespace snmalloc
       large_allocator.dealloc(slab, large_class);
     }
 
-    void remote_dealloc(RemoteAllocator* target, void* p, uint8_t sizeclass)
+    SNMALLOC_FAST_PATH void
+    remote_dealloc(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
     {
       MEASURE_TIME(remote_dealloc, 4, 16);
+
+      handle_message_queue();
 
       void* offseted = apply_cache_friendly_offset(p, sizeclass);
 

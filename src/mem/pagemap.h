@@ -105,7 +105,33 @@ namespace snmalloc
     std::atomic<PagemapEntry*> top[TOPLEVEL_ENTRIES]; // = {nullptr};
 
     template<bool create_addr>
-    inline PagemapEntry* get_node(std::atomic<PagemapEntry*>* e, bool& result)
+    SNMALLOC_FAST_PATH PagemapEntry*
+    get_node(std::atomic<PagemapEntry*>* e, bool& result)
+    {
+      // The page map nodes are all allocated directly from the OS zero
+      // initialised with a system call.  We don't need any ordered to guarantee
+      // to see that correctly. The only transistions are monotone and handled
+      // by the slow path.
+      PagemapEntry* value = e->load(std::memory_order_relaxed);
+
+      if (likely(value > LOCKED_ENTRY))
+      {
+        result = true;
+        return value;
+      }
+      if constexpr (create_addr)
+      {
+        return get_node_slow(e, result);
+      }
+      else
+      {
+        result = false;
+        return nullptr;
+      }
+    }
+
+    SNMALLOC_SLOW_PATH PagemapEntry*
+    get_node_slow(std::atomic<PagemapEntry*>* e, bool& result)
     {
       // The page map nodes are all allocated directly from the OS zero
       // initialised with a system call.  We don't need any ordered to guarantee
@@ -114,31 +140,23 @@ namespace snmalloc
 
       if ((value == nullptr) || (value == LOCKED_ENTRY))
       {
-        if constexpr (create_addr)
-        {
-          value = nullptr;
+        value = nullptr;
 
-          if (e->compare_exchange_strong(
-                value, LOCKED_ENTRY, std::memory_order_relaxed))
-          {
-            auto& v = default_memory_provider;
-            value = v.alloc_chunk<PagemapEntry, OS_PAGE_SIZE>();
-            e->store(value, std::memory_order_release);
-          }
-          else
-          {
-            while (address_cast(e->load(std::memory_order_relaxed)) ==
-                   LOCKED_ENTRY)
-            {
-              bits::pause();
-            }
-            value = e->load(std::memory_order_acquire);
-          }
+        if (e->compare_exchange_strong(
+              value, LOCKED_ENTRY, std::memory_order_relaxed))
+        {
+          auto& v = default_memory_provider;
+          value = v.alloc_chunk<PagemapEntry, OS_PAGE_SIZE>();
+          e->store(value, std::memory_order_release);
         }
         else
         {
-          result = false;
-          return nullptr;
+          while (address_cast(e->load(std::memory_order_relaxed)) ==
+                 LOCKED_ENTRY)
+          {
+            bits::pause();
+          }
+          value = e->load(std::memory_order_acquire);
         }
       }
       result = true;
@@ -146,7 +164,8 @@ namespace snmalloc
     }
 
     template<bool create_addr>
-    inline std::pair<Leaf*, size_t> get_leaf_index(uintptr_t addr, bool& result)
+    SNMALLOC_FAST_PATH std::pair<Leaf*, size_t>
+    get_leaf_index(uintptr_t addr, bool& result)
     {
 #ifdef FreeBSD_KERNEL
       // Zero the top 16 bits - kernel addresses all have them set, but the
@@ -160,7 +179,7 @@ namespace snmalloc
       for (size_t i = 0; i < INDEX_LEVELS; i++)
       {
         PagemapEntry* value = get_node<create_addr>(e, result);
-        if (!result)
+        if (unlikely(!result))
           return std::pair(nullptr, 0);
 
         shift -= BITS_PER_INDEX_LEVEL;
@@ -180,7 +199,7 @@ namespace snmalloc
 
       Leaf* leaf = reinterpret_cast<Leaf*>(get_node<create_addr>(e, result));
 
-      if (!result)
+      if (unlikely(!result))
         return std::pair(nullptr, 0);
 
       shift -= BITS_FOR_LEAF;
@@ -189,7 +208,7 @@ namespace snmalloc
     }
 
     template<bool create_addr>
-    inline std::atomic<T>* get_addr(uintptr_t p, bool& success)
+    SNMALLOC_FAST_PATH std::atomic<T>* get_addr(uintptr_t p, bool& success)
     {
       auto leaf_ix = get_leaf_index<create_addr>(p, success);
       return &(leaf_ix.first->values[leaf_ix.second]);

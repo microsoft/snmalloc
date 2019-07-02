@@ -3,6 +3,7 @@
 #include "bits.h"
 #include "helpers.h"
 
+#include <utility>
 namespace snmalloc
 {
   template<class T>
@@ -13,8 +14,8 @@ namespace snmalloc
       std::is_same<decltype(T::next), std::atomic<T*>>::value,
       "T->next must be a std::atomic<T*>");
 
-    std::atomic<T*> back;
-    T* front;
+    std::atomic<T*> back = nullptr;
+    T* front = nullptr;
 
   public:
     void invariant()
@@ -59,7 +60,7 @@ namespace snmalloc
       prev->next.store(first, std::memory_order_relaxed);
     }
 
-    T* dequeue()
+    std::pair<T*, bool> dequeue()
     {
       // Returns the front message, or null if not possible to return a message.
       invariant();
@@ -69,14 +70,14 @@ namespace snmalloc
       if (next != nullptr)
       {
         front = next;
-
+        bits::prefetch(&(next->next));
         assert(front);
         std::atomic_thread_fence(std::memory_order_acquire);
         invariant();
-        return first;
+        return std::pair(first, true);
       }
 
-      return nullptr;
+      return std::pair(nullptr, false);
     }
   };
 } // namespace snmalloc

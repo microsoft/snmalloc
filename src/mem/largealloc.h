@@ -189,7 +189,7 @@ namespace snmalloc
      * (over the lifetime of this process).  If the underlying system does not
      * support low memory notifications, this will return 0.
      */
-    ALWAYSINLINE
+    SNMALLOC_FAST_PATH
     uint64_t low_memory_epoch()
     {
       if constexpr (pal_supports<LowMemoryNotification>())
@@ -235,7 +235,7 @@ namespace snmalloc
       }
     }
 
-    ALWAYSINLINE void lazy_decommit_if_needed()
+    SNMALLOC_FAST_PATH void lazy_decommit_if_needed()
     {
 #ifdef TEST_LAZY_DECOMMIT
       static_assert(

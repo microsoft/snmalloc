@@ -23,17 +23,11 @@ extern "C"
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(malloc)(size_t size)
   {
-    // Include size 0 in the first sizeclass.
-    size = ((size - 1) >> (bits::BITS - 1)) + size;
-
     return ThreadAlloc::get()->alloc(size);
   }
 
   SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(free)(void* ptr)
   {
-    if (ptr == nullptr)
-      return;
-
     ThreadAlloc::get()->dealloc(ptr);
   }
 
@@ -46,8 +40,6 @@ extern "C"
       errno = ENOMEM;
       return nullptr;
     }
-    // Include size 0 in the first sizeclass.
-    sz = ((sz - 1) >> (bits::BITS - 1)) + sz;
     return ThreadAlloc::get()->alloc<ZeroMem::YesZero>(sz);
   }
 
@@ -137,7 +129,7 @@ extern "C"
     }
 
     size = bits::max(size, alignment);
-    uint8_t sc = size_to_sizeclass(size);
+    snmalloc::sizeclass_t sc = size_to_sizeclass(size);
     if (sc >= NUM_SIZECLASSES)
     {
       // large allocs are 16M aligned.

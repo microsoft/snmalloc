@@ -44,7 +44,7 @@ namespace snmalloc
       return pointer_cast<Mediumslab>(address_cast(p) & SUPERSLAB_MASK);
     }
 
-    void init(RemoteAllocator* alloc, uint8_t sc, size_t rsize)
+    void init(RemoteAllocator* alloc, sizeclass_t sc, size_t rsize)
     {
       assert(sc >= NUM_SMALL_CLASSES);
       assert((sc - NUM_SMALL_CLASSES) < NUM_MEDIUM_CLASSES);
@@ -56,7 +56,7 @@ namespace snmalloc
       // initialise the allocation stack.
       if ((kind != Medium) || (sizeclass != sc))
       {
-        sizeclass = sc;
+        sizeclass = static_cast<uint8_t>(sc);
         uint16_t ssize = static_cast<uint16_t>(rsize >> 8);
         kind = Medium;
         free = medium_slab_free(sc);

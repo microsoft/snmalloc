@@ -172,8 +172,8 @@ phases:
       cmakeArgs: '..'
 
   - script: |
-      if [ "$(git diff $(Build.SourceVersion))" != "" ]; then exit 1; fi
       make clangformat
+      if [ "$(git diff $(Build.SourceVersion))" != "" ]; then exit 1; fi
 
     workingDirectory: build
     displayName: 'Clang-Format'
