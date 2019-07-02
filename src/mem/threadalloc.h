@@ -15,6 +15,16 @@ namespace snmalloc
 {
   extern "C" void _malloc_thread_cleanup(void);
 
+  /**
+   * A global fake allocator object.  This never allocates memory and, as a
+   * result, never owns any slabs.  On the slow paths, where it would fetch
+   * slabs to allocate from, it will discover that it is the placeholder and
+   * replace itself with the thread-local allocator, allocating one if
+   * required.  This avoids a branch on the fast path.
+   */
+  HEADER_GLOBAL Alloc GlobalPlaceHolder(
+    default_memory_provider, SNMALLOC_DEFAULT_PAGEMAP(), nullptr, true);
+
 #ifdef SNMALLOC_EXTERNAL_THREAD_ALLOC
   /**
    * Version of the `ThreadAlloc` interface that does no management of thread
@@ -32,6 +42,7 @@ namespace snmalloc
     {
       return (Alloc*&)ThreadAllocUntyped::get();
     }
+    static void register_cleanup() {}
   };
 #endif
 
@@ -59,7 +70,8 @@ namespace snmalloc
      */
     static inline void exit()
     {
-      if (auto* per_thread = get(false))
+      auto* per_thread = get();
+      if ((per_thread != &GlobalPlaceHolder) && (per_thread != nullptr))
       {
         current_alloc_pool()->release(per_thread);
         per_thread = nullptr;
@@ -76,15 +88,12 @@ namespace snmalloc
      * The non-create case exists so that the `per_thread` variable can be a
      * local static and not a global, allowing ODR to deduplicate it.
      */
-    static SNMALLOC_FAST_PATH Alloc*& get(bool create = true)
+    static SNMALLOC_FAST_PATH Alloc*& get()
     {
-      static thread_local Alloc* per_thread;
-      if (!per_thread && create)
-      {
-        per_thread = current_alloc_pool()->acquire();
-      }
+      static thread_local Alloc* per_thread = &GlobalPlaceHolder;
       return per_thread;
     }
+    static void register_cleanup() {}
   };
   /**
    * Version of the `ThreadAlloc` interface that uses C++ `thread_local`
@@ -109,7 +118,7 @@ namespace snmalloc
      * Constructor.  Acquires a new allocator and associates it with this
      * object.  There should be only one instance of this class per thread.
      */
-    ThreadAllocThreadDestructor() : alloc(current_alloc_pool()->acquire()) {}
+    ThreadAllocThreadDestructor() : alloc(&GlobalPlaceHolder) {}
 
     /**
      * Destructor.  Releases the allocator owned by this thread.
@@ -129,6 +138,7 @@ namespace snmalloc
       static thread_local ThreadAllocThreadDestructor per_thread;
       return per_thread.alloc;
     }
+    static void register_cleanup() {}
   };
   // When targeting the FreeBSD kernel, the pthread header exists, but the
   // pthread symbols do not, so don't compile this because it will fail to
@@ -157,9 +167,13 @@ namespace snmalloc
 #  endif
       thread_alloc_release(void* p)
     {
-      Alloc** pp = static_cast<Alloc**>(p);
-      current_alloc_pool()->release(*pp);
+      // Keep pthreads happy
+      void** pp = reinterpret_cast<void**>(p);
       *pp = nullptr;
+      // Actually destroy the allocator and reset TLS
+      Alloc*& alloc = ThreadAllocExplicitTLSCleanup::get();
+      current_alloc_pool()->release(alloc);
+      alloc = &GlobalPlaceHolder;
     }
 
 #  ifdef _WIN32
@@ -185,9 +199,9 @@ namespace snmalloc
      *
      * This must not be called until after `tls_key_create` has returned.
      */
-    static inline void tls_set_value(tls_key_t key, Alloc** value)
+    static inline void tls_set_value(tls_key_t key, Alloc* value)
     {
-      FlsSetValue(key, static_cast<void*>(value));
+      FlsSetValue(key, value);
     }
 #  else
     /**
@@ -214,9 +228,9 @@ namespace snmalloc
      *
      * This must not be called until after `tls_key_create` has returned.
      */
-    static inline void tls_set_value(tls_key_t key, Alloc** value)
+    static inline void tls_set_value(tls_key_t key, Alloc* value)
     {
-      pthread_setspecific(key, static_cast<void*>(value));
+      pthread_setspecific(key, value);
     }
 #  endif
 
@@ -226,7 +240,7 @@ namespace snmalloc
      */
     static SNMALLOC_FAST_PATH Alloc*& inner_get()
     {
-      static thread_local Alloc* per_thread;
+      static thread_local Alloc* per_thread = &GlobalPlaceHolder;
       return per_thread;
     }
 
@@ -239,42 +253,6 @@ namespace snmalloc
     }
 #  endif
 
-    /**
-     * Private initialiser for the per thread allocator
-     */
-    static SNMALLOC_SLOW_PATH Alloc*& inner_init()
-    {
-      Alloc*& per_thread = inner_get();
-
-      // If we don't have an allocator, construct one.
-      if (!per_thread)
-      {
-        // Construct the allocator and assign it to `per_thread` *before* doing
-        // anything else.  This is important because `tls_key_create` may
-        // allocate memory and if we are providing the `malloc` implementation
-        // then this function must be re-entrant within a single thread.  In
-        // this case, the second call to this function will simply return the
-        // allocator.
-        per_thread = current_alloc_pool()->acquire();
-
-        bool first = false;
-        tls_key_t key = Singleton<tls_key_t, tls_key_create>::get(&first);
-        // Associate the new allocator with the destructor.
-        tls_set_value(key, &per_thread);
-
-#  ifdef USE_SNMALLOC_STATS
-        // Allocator is up and running now, safe to call atexit.
-        if (first)
-        {
-          atexit(print_stats);
-        }
-#  else
-        UNUSED(first);
-#  endif
-      }
-      return per_thread;
-    }
-
   public:
     /**
      * Public interface, returns the allocator for the current thread,
@@ -282,13 +260,25 @@ namespace snmalloc
      */
     static SNMALLOC_FAST_PATH Alloc*& get()
     {
-      Alloc*& per_thread = inner_get();
+      return inner_get();
+    }
+    static void register_cleanup()
+    {
+      // Register the allocator destructor.
+      bool first = false;
+      tls_key_t key = Singleton<tls_key_t, tls_key_create>::get(&first);
+      // Associate the new allocator with the destructor.
+      tls_set_value(key, &GlobalPlaceHolder);
 
-      if (likely(per_thread != nullptr))
-        return per_thread;
-
-      // Slow path that performs initialization
-      return inner_init();
+#  ifdef USE_SNMALLOC_STATS
+      // Allocator is up and running now, safe to call atexit.
+      if (first)
+      {
+        atexit(print_stats);
+      }
+#  else
+      UNUSED(first);
+#  endif
     }
   };
 #endif
@@ -310,4 +300,39 @@ namespace snmalloc
 #else
   using ThreadAlloc = ThreadAllocExplicitTLSCleanup;
 #endif
+
+  /**
+   * Slow path for the placeholder replacement.  The simple check that this is
+   * the global placeholder is inlined, the rest of it is only hit in a very
+   * unusual case and so should go off the fast path.
+   */
+  SNMALLOC_SLOW_PATH inline void* lazy_replacement_slow()
+  {
+    auto*& local_alloc = ThreadAlloc::get();
+    if ((local_alloc != nullptr) && (local_alloc != &GlobalPlaceHolder))
+    {
+      return local_alloc;
+    }
+    local_alloc = current_alloc_pool()->acquire();
+    ThreadAlloc::register_cleanup();
+    return local_alloc;
+  }
+
+  /**
+   * Function passed as a template parameter to `Allocator` to allow lazy
+   * replacement.  This is called on all of the slow paths in `Allocator`.  If
+   * the caller is the global placeholder allocator then this function will
+   * check if we've already allocated a per-thread allocator, returning it if
+   * so.  If we have not allocated a per-thread allocator yet, then this
+   * function will allocate one.
+   */
+  ALWAYSINLINE inline void* lazy_replacement(void* existing)
+  {
+    if (existing != &GlobalPlaceHolder)
+    {
+      return nullptr;
+    }
+    return lazy_replacement_slow();
+  }
+
 } // namespace snmalloc

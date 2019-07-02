@@ -234,6 +234,11 @@ namespace snmalloc
     FastFreeLists() : small_fast_free_lists() {}
   };
 
+  ALWAYSINLINE inline void* no_replacement(void*)
+  {
+    return nullptr;
+  }
+
   /**
    * Allocator.  This class is parameterised on three template parameters.  The
    * `MemoryProvider` defines the source of memory for this allocator.
@@ -245,18 +250,27 @@ namespace snmalloc
    * to associate metadata with large (16MiB, by default) regions, allowing an
    * allocator to find the allocator responsible for that region.
    *
-   * The final template parameter, `IsQueueInline`, defines whether the
+   * The next template parameter, `IsQueueInline`, defines whether the
    * message queue for this allocator should be stored as a field of the
    * allocator (`true`) or provided externally, allowing it to be anywhere else
    * in the address space (`false`).
+   *
+   * The final template parameter provides a hook to allow the allocator in use
+   * to be dynamically modified.  This is used to implement a trick from
+   * mimalloc that avoids a conditional branch on the fast path.  We initialise
+   * the thread-local allocator pointer with the address of a global allocator,
+   * which never owns any memory.  When we try to allocate memory, we call the
+   * replacement function.
    */
   template<
     class MemoryProvider = GlobalVirtual,
     class PageMap = SNMALLOC_DEFAULT_PAGEMAP,
-    bool IsQueueInline = true>
+    bool IsQueueInline = true,
+    void* (*Replacement)(void*) = no_replacement>
   class Allocator
   : public FastFreeLists,
-    public Pooled<Allocator<MemoryProvider, PageMap, IsQueueInline>>
+    public Pooled<
+      Allocator<MemoryProvider, PageMap, IsQueueInline, Replacement>>
   {
     LargeAlloc<MemoryProvider> large_allocator;
     PageMap page_map;
@@ -637,7 +651,14 @@ namespace snmalloc
 
     struct RemoteCache
     {
-      size_t size = 0;
+      /**
+       * The total amount of memory stored awaiting dispatch to other
+       * allocators.  This is initialised to the maximum size that we use
+       * before caching so that, when we hit the slow path and need to dispatch
+       * everything, we can check if we are a real allocator and lazily provide
+       * a real allocator.
+       */
+      size_t size = REMOTE_CACHE;
       RemoteList list[REMOTE_SLOTS];
 
       /// Used to find the index into the array of queues for remote
@@ -645,17 +666,18 @@ namespace snmalloc
       /// r is used for which round of sending this is.
       inline size_t get_slot(size_t id, size_t r)
       {
-        constexpr size_t allocator_size =
-          sizeof(Allocator<MemoryProvider, PageMap, IsQueueInline>);
+        constexpr size_t allocator_size = sizeof(
+          Allocator<MemoryProvider, PageMap, IsQueueInline, Replacement>);
         constexpr size_t initial_shift =
           bits::next_pow2_bits_const(allocator_size);
+        assert((initial_shift - (r * REMOTE_SLOT_BITS)) < 64);
         return (id >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
       }
 
       SNMALLOC_FAST_PATH void
-      dealloc(alloc_id_t target_id, void* p, sizeclass_t sizeclass)
+      dealloc_sized(alloc_id_t target_id, void* p, size_t objectsize)
       {
-        this->size += sizeclass_to_size(sizeclass);
+        this->size += objectsize;
 
         Remote* r = static_cast<Remote*>(p);
         r->set_target_id(target_id);
@@ -664,6 +686,12 @@ namespace snmalloc
         RemoteList* l = &list[get_slot(target_id, 0)];
         l->last->non_atomic_next = r;
         l->last = r;
+      }
+
+      SNMALLOC_FAST_PATH void
+      dealloc(alloc_id_t target_id, void* p, sizeclass_t sizeclass)
+      {
+        dealloc_sized(target_id, p, sizeclass_to_size(sizeclass));
       }
 
       void post(alloc_id_t id)
@@ -780,7 +808,10 @@ namespace snmalloc
 
   public:
     Allocator(
-      MemoryProvider& m, PageMap&& p = PageMap(), RemoteAllocator* r = nullptr)
+      MemoryProvider& m,
+      PageMap&& p = PageMap(),
+      RemoteAllocator* r = nullptr,
+      bool isFake = false)
     : large_allocator(m), page_map(p)
     {
       if constexpr (IsQueueInline)
@@ -795,6 +826,11 @@ namespace snmalloc
 
       if (id() >= static_cast<alloc_id_t>(-1))
         error("Id should not be -1");
+
+      // If this is fake, don't do any of the bits of initialisation that may
+      // allocate memory.
+      if (isFake)
+        return;
 
       init_message_queue();
       message_queue().invariant();
@@ -1055,6 +1091,11 @@ namespace snmalloc
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_slow(sizeclass_t sizeclass)
     {
+      if (void* replacement = Replacement(this))
+      {
+        return reinterpret_cast<Allocator*>(replacement)
+          ->template small_alloc_slow<zero_mem, allow_reserve>(sizeclass);
+      }
       handle_message_queue();
       size_t rsize = sizeclass_to_size(sizeclass);
       auto& sl = small_classes[sizeclass];
@@ -1205,6 +1246,12 @@ namespace snmalloc
       }
       else
       {
+        if (void* replacement = Replacement(this))
+        {
+          return reinterpret_cast<Allocator*>(replacement)
+            ->template medium_alloc<zero_mem, allow_reserve>(
+              sizeclass, rsize, size);
+        }
         slab = reinterpret_cast<Mediumslab*>(
           large_allocator.template alloc<NoZero, allow_reserve>(
             0, SUPERSLAB_SIZE));
@@ -1277,6 +1324,12 @@ namespace snmalloc
           zero_mem == YesZero ? "zeromem" : "nozeromem",
           allow_reserve == NoReserve ? "noreserve" : "reserve"));
 
+      if (void* replacement = Replacement(this))
+      {
+        return reinterpret_cast<Allocator*>(replacement)
+          ->template large_alloc<zero_mem, allow_reserve>(size);
+      }
+
       size_t size_bits = bits::next_pow2_bits(size);
       size_t large_class = size_bits - SUPERSLAB_BITS;
       assert(large_class < NUM_LARGE_CLASSES);
@@ -1317,16 +1370,35 @@ namespace snmalloc
     remote_dealloc(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
     {
       MEASURE_TIME(remote_dealloc, 4, 16);
+      assert(target->id() != id());
 
       handle_message_queue();
 
       void* offseted = apply_cache_friendly_offset(p, sizeclass);
 
+      // Check whether this will overflow the cache first.  If we are a fake
+      // allocator, then our cache will always be full and so we will never hit
+      // this path.
+      size_t sz = sizeclass_to_size(sizeclass);
+      if ((remote.size + sz) < REMOTE_CACHE)
+      {
+        stats().remote_free(sizeclass);
+        remote.dealloc_sized(target->id(), offseted, sz);
+        return;
+      }
+      // Now that we've established that we're in the slow path (if we're a
+      // real allocator, we will have to empty our cache now), check if we are
+      // a real allocator and construct one if we aren't.
+      if (void* replacement = Replacement(this))
+      {
+        // We have to do a dealloc, not a remote_dealloc here because this may
+        // have been allocated with the allocator that we've just had returned.
+        reinterpret_cast<Allocator*>(replacement)->dealloc(p);
+        return;
+      }
+
       stats().remote_free(sizeclass);
       remote.dealloc(target->id(), offseted, sizeclass);
-
-      if (remote.size < REMOTE_CACHE)
-        return;
 
       stats().remote_post();
       remote.post(id());
