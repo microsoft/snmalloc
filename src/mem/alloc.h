@@ -837,8 +837,7 @@ namespace snmalloc
     {
       // Manufacture an allocation to prime the queue
       // Using an actual allocation removes a conditional of a critical path.
-      Remote* dummy =
-        reinterpret_cast<Remote*>(alloc<YesZero>(MIN_ALLOC_SIZE));
+      Remote* dummy = reinterpret_cast<Remote*>(alloc<YesZero>(MIN_ALLOC_SIZE));
       dummy->set_target_id(id());
       message_queue().init(dummy);
     }
