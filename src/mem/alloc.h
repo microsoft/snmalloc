@@ -473,8 +473,9 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void dealloc_not_small(void* p, uint8_t size)
     {
       handle_message_queue();
-      
-      if (p == nullptr) return;
+
+      if (p == nullptr)
+        return;
 
       if (size == PMMediumslab)
       {
