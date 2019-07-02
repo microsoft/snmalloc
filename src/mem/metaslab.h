@@ -99,7 +99,7 @@ namespace snmalloc
 
     /// Store next pointer in a block. In Debug using magic value to detect some
     /// simple corruptions.
-    static void store_next(void* p, void* head)
+    static SNMALLOC_FAST_PATH void store_next(void* p, void* head)
     {
 #ifndef CHECK_CLIENT
       *static_cast<void**>(p) = head;
@@ -111,7 +111,7 @@ namespace snmalloc
 
     /// Accessor function for the next pointer in a block.
     /// In Debug checks for simple corruptions.
-    static void* follow_next(void* node)
+    static SNMALLOC_FAST_PATH void* follow_next(void* node)
     {
 #ifdef CHECK_CLIENT
       uintptr_t next = *static_cast<uintptr_t*>(node);
@@ -195,11 +195,13 @@ namespace snmalloc
       // Block is not full
       assert(SLAB_SIZE > accounted_for);
 
+      // Keep variable so it appears in debugger.
       size_t length = debug_slab_acyclic_free_list(slab);
       UNUSED(length);
+
       // Walk bump-free-list-segment accounting for unused space
       void* curr = pointer_offset(slab, head);
-      while ((reinterpret_cast<size_t>(curr) & 1) == 0)
+      while ((address_cast(curr) & 1) == 0)
       {
         // Check we are looking at a correctly aligned block
         void* start = curr;

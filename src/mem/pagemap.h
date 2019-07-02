@@ -105,12 +105,13 @@ namespace snmalloc
     std::atomic<PagemapEntry*> top[TOPLEVEL_ENTRIES]; // = {nullptr};
 
     template<bool create_addr>
-    FAST_PATH PagemapEntry*
+    SNMALLOC_FAST_PATH PagemapEntry*
     get_node(std::atomic<PagemapEntry*>* e, bool& result)
     {
       // The page map nodes are all allocated directly from the OS zero
       // initialised with a system call.  We don't need any ordered to guarantee
-      // to see that correctly.
+      // to see that correctly. The only transistions are monotone and handled
+      // by the slow path.
       PagemapEntry* value = e->load(std::memory_order_relaxed);
 
       if (likely(value > LOCKED_ENTRY))
@@ -129,7 +130,7 @@ namespace snmalloc
       }
     }
 
-    SLOW_PATH PagemapEntry*
+    SNMALLOC_SLOW_PATH PagemapEntry*
     get_node_slow(std::atomic<PagemapEntry*>* e, bool& result)
     {
       // The page map nodes are all allocated directly from the OS zero
@@ -163,7 +164,7 @@ namespace snmalloc
     }
 
     template<bool create_addr>
-    FAST_PATH std::pair<Leaf*, size_t>
+    SNMALLOC_FAST_PATH std::pair<Leaf*, size_t>
     get_leaf_index(uintptr_t addr, bool& result)
     {
 #ifdef FreeBSD_KERNEL
@@ -207,7 +208,7 @@ namespace snmalloc
     }
 
     template<bool create_addr>
-    FAST_PATH std::atomic<T>* get_addr(uintptr_t p, bool& success)
+    SNMALLOC_FAST_PATH std::atomic<T>* get_addr(uintptr_t p, bool& success)
     {
       auto leaf_ix = get_leaf_index<create_addr>(p, success);
       return &(leaf_ix.first->values[leaf_ix.second]);

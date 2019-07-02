@@ -5,6 +5,7 @@
 namespace snmalloc
 {
   // Both usings should compile
+  // We use size_t as it generates better code.
   using sizeclass_t = size_t;
   //  using sizeclass_t = uint8_t;
 
@@ -22,8 +23,12 @@ namespace snmalloc
     // Don't use sizeclasses that are not a multiple of the alignment.
     // For example, 24 byte allocations can be
     // problematic for some data due to alignment issues.
-    return static_cast<sizeclass_t>(
+    auto sc = static_cast<sizeclass_t>(
       bits::to_exp_mant_const<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(size));
+
+    assert(sc == static_cast<uint8_t>(sc));
+
+    return sc;
   }
 
   constexpr static inline size_t large_sizeclass_to_size(uint8_t large_class)
@@ -140,27 +145,28 @@ namespace snmalloc
   }
 
 #ifdef CACHE_FRIENDLY_OFFSET
-  inline static void*
+  SNMALLOC_FAST_PATH static void*
   remove_cache_friendly_offset(void* p, sizeclass_t sizeclass)
   {
     size_t mask = sizeclass_to_inverse_cache_friendly_mask(sizeclass);
     return p = (void*)((uintptr_t)p & mask);
   }
 
-  inline static uint16_t
+  SNMALLOC_FAST_PATH static uint16_t
   remove_cache_friendly_offset(uint16_t relative, sizeclass_t sizeclass)
   {
     size_t mask = sizeclass_to_inverse_cache_friendly_mask(sizeclass);
     return relative & mask;
   }
 #else
-  inline static void*
+  SNMALLOC_FAST_PATH static void*
   remove_cache_friendly_offset(void* p, sizeclass_t sizeclass)
   {
     UNUSED(sizeclass);
     return p;
   }
-  inline static uint16_t
+
+  SNMALLOC_FAST_PATH static uint16_t
   remove_cache_friendly_offset(uint16_t relative, sizeclass_t sizeclass)
   {
     UNUSED(sizeclass);

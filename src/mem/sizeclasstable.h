@@ -7,11 +7,14 @@ namespace snmalloc
 {
   constexpr size_t PTR_BITS = bits::next_pow2_bits_const(sizeof(void*));
 
-  constexpr static size_t sizeclass_lookup_index(size_t s)
+  constexpr static SNMALLOC_PURE size_t sizeclass_lookup_index(const size_t s)
   {
-    // We shift by PTR_BITS as makes code-gen for the table lookup nicer.
-    // We could shift by MIN_ALLOC_BITS, but then there is a slightly more
-    // complex sequence.
+    // We subtract and shirt to reduce the size of the table, i.e. we don't have
+    // to store a value for every size class.
+    // We could shift by MIN_ALLOC_BITS, as this would give us the most
+    // compressed table, but by shifting by PTR_BITS the code-gen is better
+    // as the most important path using this subsequently shifts left by
+    // PTR_BITS, hence they can be fused into a single mask.
     return (s - 1) >> PTR_BITS;
   }
 
@@ -112,7 +115,7 @@ namespace snmalloc
     if ((size - 1) <= (SLAB_SIZE - 1))
     {
       auto index = sizeclass_lookup_index(size);
-      ASSUME(index <= sizeclass_lookup_index(SLAB_SIZE));
+      SNMALLOC_ASSUME(index <= sizeclass_lookup_index(SLAB_SIZE));
       return sizeclass_metadata.sizeclass_lookup[index];
     }
 

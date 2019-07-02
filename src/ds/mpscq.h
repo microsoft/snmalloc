@@ -4,7 +4,6 @@
 #include "helpers.h"
 
 #include <utility>
-
 namespace snmalloc
 {
   template<class T>
@@ -15,8 +14,8 @@ namespace snmalloc
       std::is_same<decltype(T::next), std::atomic<T*>>::value,
       "T->next must be a std::atomic<T*>");
 
-    std::atomic<T*> back;
-    T* front;
+    std::atomic<T*> back = nullptr;
+    T* front = nullptr;
 
   public:
     void invariant()

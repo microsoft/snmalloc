@@ -28,7 +28,7 @@ namespace snmalloc
   class ThreadAllocUntypedWrapper
   {
   public:
-    static FAST_PATH Alloc*& get()
+    static SNMALLOC_FAST_PATH Alloc*& get()
     {
       return (Alloc*&)ThreadAllocUntyped::get();
     }
@@ -76,7 +76,7 @@ namespace snmalloc
      * The non-create case exists so that the `per_thread` variable can be a
      * local static and not a global, allowing ODR to deduplicate it.
      */
-    static FAST_PATH Alloc*& get(bool create = true)
+    static SNMALLOC_FAST_PATH Alloc*& get(bool create = true)
     {
       static thread_local Alloc* per_thread;
       if (!per_thread && create)
@@ -224,7 +224,7 @@ namespace snmalloc
      * Private accessor to the per thread allocator
      * Provides no checking for initialization
      */
-    static FAST_PATH Alloc*& inner_get()
+    static SNMALLOC_FAST_PATH Alloc*& inner_get()
     {
       static thread_local Alloc* per_thread;
       return per_thread;
@@ -242,7 +242,7 @@ namespace snmalloc
     /**
      * Private initialiser for the per thread allocator
      */
-    static SLOW_PATH Alloc*& inner_init()
+    static SNMALLOC_SLOW_PATH Alloc*& inner_init()
     {
       Alloc*& per_thread = inner_get();
 
@@ -280,7 +280,7 @@ namespace snmalloc
      * Public interface, returns the allocator for the current thread,
      * constructing it if necessary.
      */
-    static FAST_PATH Alloc*& get()
+    static SNMALLOC_FAST_PATH Alloc*& get()
     {
       Alloc*& per_thread = inner_get();
 

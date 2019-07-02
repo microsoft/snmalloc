@@ -337,7 +337,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
-    SLOW_PATH ALLOCATOR void* alloc_not_small(size_t size)
+    SNMALLOC_SLOW_PATH ALLOCATOR void* alloc_not_small(size_t size)
     {
       handle_message_queue();
 
@@ -438,7 +438,7 @@ namespace snmalloc
 #endif
     }
 
-    FAST_PATH void dealloc(void* p)
+    SNMALLOC_FAST_PATH void dealloc(void* p)
     {
 #ifdef USE_MALLOC
       return free(p);
@@ -470,7 +470,7 @@ namespace snmalloc
       dealloc_not_small(p, size);
     }
 
-    SLOW_PATH void dealloc_not_small(void* p, uint8_t size)
+    SNMALLOC_SLOW_PATH void dealloc_not_small(void* p, uint8_t size)
     {
       handle_message_queue();
 
@@ -649,7 +649,7 @@ namespace snmalloc
         return (id >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
       }
 
-      FAST_PATH void
+      SNMALLOC_FAST_PATH void
       dealloc(alloc_id_t target_id, void* p, sizeclass_t sizeclass)
       {
         this->size += sizeclass_to_size(sizeclass);
@@ -726,7 +726,6 @@ namespace snmalloc
     DLList<Superslab> super_only_short_available;
 
     RemoteCache remote;
-    Remote stub;
 
     std::conditional_t<IsQueueInline, RemoteAllocator, RemoteAllocator*>
       remote_alloc;
@@ -836,52 +835,62 @@ namespace snmalloc
 
     void init_message_queue()
     {
-      message_queue().init(&stub);
+      // Manufacture an allocation to prime the queue
+      // Using an actual allocation removes a conditional of a critical path.
+      message_queue().init(
+        reinterpret_cast<Remote*>(alloc<YesZero>(MIN_ALLOC_SIZE)));
     }
 
-    FAST_PATH void handle_dealloc_remote(Remote* p)
+    SNMALLOC_FAST_PATH void handle_dealloc_remote(Remote* p)
     {
-      if (likely(p != &stub))
-      {
-        Superslab* super = Superslab::get(p);
+      Superslab* super = Superslab::get(p);
 
 #ifdef CHECK_CLIENT
-        if (p->target_id() != super->get_allocator()->id())
-          error("Detected memory corruption.  Potential use-after-free");
+      if (p->target_id() != super->get_allocator()->id())
+        error("Detected memory corruption.  Potential use-after-free");
 #endif
-        if (likely(super->get_kind() == Super))
+      if (likely(super->get_kind() == Super))
+      {
+        Slab* slab = Slab::get(p);
+        Metaslab& meta = super->get_meta(slab);
+        if (likely(p->target_id() == id()))
         {
-          Slab* slab = Slab::get(p);
-          Metaslab& meta = super->get_meta(slab);
-          if (likely(p->target_id() == id()))
-          {
-            small_dealloc_offseted(super, p, meta.sizeclass);
-          }
-          else
-          {
-            // Queue for remote dealloc elsewhere.
-            remote.dealloc(p->target_id(), p, meta.sizeclass);
-          }
+          small_dealloc_offseted(super, p, meta.sizeclass);
+          return;
+        }
+      }
+      handle_dealloc_remote_slow(p);
+    }
+
+    SNMALLOC_SLOW_PATH void handle_dealloc_remote_slow(Remote* p)
+    {
+      Superslab* super = Superslab::get(p);
+      if (likely(super->get_kind() == Medium))
+      {
+        Mediumslab* slab = Mediumslab::get(p);
+        if (p->target_id() == id())
+        {
+          sizeclass_t sizeclass = slab->get_sizeclass();
+          void* start = remove_cache_friendly_offset(p, sizeclass);
+          medium_dealloc(slab, start, sizeclass);
         }
         else
         {
-          Mediumslab* slab = Mediumslab::get(p);
-          if (p->target_id() == id())
-          {
-            sizeclass_t sizeclass = slab->get_sizeclass();
-            void* start = remove_cache_friendly_offset(p, sizeclass);
-            medium_dealloc(slab, start, sizeclass);
-          }
-          else
-          {
-            // Queue for remote dealloc elsewhere.
-            remote.dealloc(p->target_id(), p, slab->get_sizeclass());
-          }
+          // Queue for remote dealloc elsewhere.
+          remote.dealloc(p->target_id(), p, slab->get_sizeclass());
         }
+      }
+      else
+      {
+        assert(likely(p->target_id() != id()));
+        Slab* slab = Slab::get(p);
+        Metaslab& meta = super->get_meta(slab);
+        // Queue for remote dealloc elsewhere.
+        remote.dealloc(p->target_id(), p, meta.sizeclass);
       }
     }
 
-    SLOW_PATH void handle_message_queue_inner()
+    SNMALLOC_SLOW_PATH void handle_message_queue_inner()
     {
       for (size_t i = 0; i < REMOTE_BATCH; i++)
       {
@@ -901,7 +910,7 @@ namespace snmalloc
       remote.post(id());
     }
 
-    FAST_PATH void handle_message_queue()
+    SNMALLOC_FAST_PATH void handle_message_queue()
     {
       // Inline the empty check, but not necessarily the full queue handling.
       if (likely(message_queue().is_empty()))
@@ -1016,7 +1025,7 @@ namespace snmalloc
           zero_mem == YesZero ? "zeromem" : "nozeromem",
           allow_reserve == NoReserve ? "noreserve" : "reserve"));
 
-      ASSUME(size <= SLAB_SIZE);
+      SNMALLOC_ASSUME(size <= SLAB_SIZE);
       sizeclass_t sizeclass = size_to_sizeclass(size);
       stats().sizeclass_alloc(sizeclass);
 
@@ -1040,7 +1049,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SLOW_PATH void* small_alloc_slow(sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH void* small_alloc_slow(sizeclass_t sizeclass)
     {
       handle_message_queue();
       size_t rsize = sizeclass_to_size(sizeclass);
@@ -1067,7 +1076,7 @@ namespace snmalloc
         sl, ffl, rsize, large_allocator.memory_provider);
     }
 
-    FAST_PATH void
+    SNMALLOC_FAST_PATH void
     small_dealloc(Superslab* super, void* p, sizeclass_t sizeclass)
     {
 #ifdef CHECK_CLIENT
@@ -1082,7 +1091,7 @@ namespace snmalloc
       small_dealloc_offseted(super, offseted, sizeclass);
     }
 
-    FAST_PATH void
+    SNMALLOC_FAST_PATH void
     small_dealloc_offseted(Superslab* super, void* p, sizeclass_t sizeclass)
     {
       MEASURE_TIME(small_dealloc, 4, 16);
@@ -1095,7 +1104,7 @@ namespace snmalloc
       small_dealloc_offseted_slow(super, p, sizeclass);
     }
 
-    SLOW_PATH void small_dealloc_offseted_slow(
+    SNMALLOC_SLOW_PATH void small_dealloc_offseted_slow(
       Superslab* super, void* p, sizeclass_t sizeclass)
     {
       bool was_full = super->is_full();
@@ -1300,7 +1309,8 @@ namespace snmalloc
       large_allocator.dealloc(slab, large_class);
     }
 
-    void remote_dealloc(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
+    SNMALLOC_FAST_PATH void
+    remote_dealloc(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
     {
       MEASURE_TIME(remote_dealloc, 4, 16);
 
