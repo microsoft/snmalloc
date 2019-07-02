@@ -28,9 +28,6 @@ extern "C"
 
   SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(free)(void* ptr)
   {
-    if (ptr == nullptr)
-      return;
-
     ThreadAlloc::get()->dealloc(ptr);
   }
 
