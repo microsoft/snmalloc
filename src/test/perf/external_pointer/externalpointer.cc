@@ -69,6 +69,9 @@ namespace test
 int main(int, char**)
 {
   xoroshiro::p128r64 r;
+  // Force a per-thread allocator to actually exist.
+  void* p = ThreadAlloc::get()->alloc(16);
+  ThreadAlloc::get()->dealloc(p);
 #if NDEBUG
   size_t nn = 30;
 #else
