@@ -288,7 +288,7 @@ namespace snmalloc
       size_t size,
       ZeroMem zero_mem = NoZero,
       AllowReserve allow_reserve = YesReserve>
-    ALLOCATOR void* alloc()
+    SNMALLOC_FAST_PATH ALLOCATOR void* alloc()
     {
       static_assert(size != 0, "Size must not be zero.");
 #ifdef USE_MALLOC
@@ -324,7 +324,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
-    inline ALLOCATOR void* alloc(size_t size)
+    SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
     {
 #ifdef USE_MALLOC
       static_assert(
