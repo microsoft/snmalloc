@@ -234,7 +234,7 @@ namespace snmalloc
     FastFreeLists() : small_fast_free_lists() {}
   };
 
-  ALWAYSINLINE inline void* no_replacement(void*)
+  SNMALLOC_FAST_PATH void* no_replacement(void*)
   {
     return nullptr;
   }
