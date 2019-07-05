@@ -1366,8 +1366,15 @@ namespace snmalloc
       large_allocator.dealloc(slab, large_class);
     }
 
-    SNMALLOC_FAST_PATH void
-    remote_dealloc(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
+#if defined(__GNUC__) && !defined(__clang__) && !defined(__OPTIMIZE__)
+    // Don't force this to be always inlined in debug builds with GCC, because
+    // it will fail and then raise an error.
+    inline
+#else
+    SNMALLOC_FAST_PATH
+#endif
+      void
+      remote_dealloc(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
     {
       MEASURE_TIME(remote_dealloc, 4, 16);
       assert(target->id() != id());
