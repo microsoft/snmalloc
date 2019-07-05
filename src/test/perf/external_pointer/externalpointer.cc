@@ -43,7 +43,7 @@ namespace test
 
   void test_external_pointer(xoroshiro::p128r64& r)
   {
-    auto* alloc = ThreadAlloc::get();
+    auto& alloc = ThreadAlloc::get();
 
     setup(r, alloc);
 
