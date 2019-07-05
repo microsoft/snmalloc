@@ -105,7 +105,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
   else()
-    add_compile_options(-march=native -fno-exceptions -fno-rtti -g -ftls-model=initial-exec)
+    add_compile_options(-march=native -fno-exceptions -fno-rtti -g -ftls-model=initial-exec -fomit-frame-pointer)
   endif()
 
   macro(subdirlist result curdir)
