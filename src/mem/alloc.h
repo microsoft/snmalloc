@@ -1072,7 +1072,7 @@ namespace snmalloc
       assert(sizeclass < NUM_SMALL_CLASSES);
       auto& fl = small_fast_free_lists[sizeclass];
       auto head = fl.value;
-      if (likely((reinterpret_cast<size_t>(head) & 1) == 0))
+      if (likely(head != nullptr))
       {
         void* p = head;
         // Read the next slot from the memory that's about to be allocated.

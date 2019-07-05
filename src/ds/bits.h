@@ -21,7 +21,7 @@
 #  include <emmintrin.h>
 #  define ALWAYSINLINE __attribute__((always_inline))
 #  define NOINLINE __attribute__((noinline))
-#  define SNMALLOC_SLOW_PATH NOINLINE
+#  define SNMALLOC_SLOW_PATH NOINLINE __attribute__((section(".text,slow")))
 #  define SNMALLOC_FAST_PATH inline ALWAYSINLINE
 #  define SNMALLOC_PURE __attribute__((const))
 #  ifdef __clang__
