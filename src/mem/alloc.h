@@ -1073,7 +1073,7 @@ namespace snmalloc
         if ((allow_reserve == NoReserve) && (slab == nullptr))
           return nullptr;
 
-        sl.insert(slab->get_link());
+        sl.insert_back(slab->get_link());
       }
       auto& ffl = small_fast_free_lists[sizeclass];
       return slab->alloc<zero_mem>(
