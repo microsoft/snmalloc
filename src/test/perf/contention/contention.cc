@@ -75,7 +75,7 @@ size_t swapcount;
 
 void test_tasks_f(size_t id)
 {
-  Alloc* a = ThreadAlloc::get();
+  Alloc*& a = ThreadAlloc::get();
   xoroshiro::p128r32 r(id + 5000);
 
   for (size_t n = 0; n < swapcount; n++)
@@ -100,7 +100,7 @@ void test_tasks_f(size_t id)
 
 void test_tasks(size_t num_tasks, size_t count, size_t size)
 {
-  Alloc* a = ThreadAlloc::get();
+  Alloc*& a = ThreadAlloc::get();
 
   contention = new std::atomic<size_t*>[size];
   xoroshiro::p128r32 r;

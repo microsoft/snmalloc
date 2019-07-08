@@ -7,7 +7,7 @@ using namespace snmalloc;
 template<ZeroMem zero_mem>
 void test_alloc_dealloc(size_t count, size_t size, bool write)
 {
-  auto* alloc = ThreadAlloc::get();
+  auto*& alloc = ThreadAlloc::get();
 
   DO_TIME(
     "Count: " << std::setw(6) << count << ", Size: " << std::setw(6) << size

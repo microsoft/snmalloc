@@ -6,11 +6,25 @@
 
 namespace snmalloc
 {
+  inline void* lazy_replacement(void*);
+  using Alloc =
+    Allocator<GlobalVirtual, SNMALLOC_DEFAULT_PAGEMAP, true, lazy_replacement>;
+
   template<class MemoryProvider>
-  class AllocPool : Pool<Allocator<MemoryProvider>, MemoryProvider>
+  class AllocPool : Pool<
+                      Allocator<
+                        MemoryProvider,
+                        SNMALLOC_DEFAULT_PAGEMAP,
+                        true,
+                        lazy_replacement>,
+                      MemoryProvider>
   {
-    using Alloc = Allocator<MemoryProvider>;
-    using Parent = Pool<Allocator<MemoryProvider>, MemoryProvider>;
+    using Alloc = Allocator<
+      MemoryProvider,
+      SNMALLOC_DEFAULT_PAGEMAP,
+      true,
+      lazy_replacement>;
+    using Parent = Pool<Alloc, MemoryProvider>;
 
   public:
     static AllocPool* make(MemoryProvider& mp)
@@ -175,5 +189,4 @@ namespace snmalloc
     return AllocPool<MemoryProvider>::make(mp);
   }
 
-  using Alloc = Allocator<GlobalVirtual>;
 } // namespace snmalloc

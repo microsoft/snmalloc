@@ -7,7 +7,7 @@ namespace snmalloc
   struct FreeListHead
   {
     // Use a value with bottom bit set for empty list.
-    void* value = pointer_offset<void*>(nullptr, 1);
+    void* value = nullptr;
   };
 
   class Slab
@@ -98,7 +98,8 @@ namespace snmalloc
             }
             else
             {
-              Metaslab::store_next(curr, pointer_offset(this, bumpptr));
+              Metaslab::store_next(
+                curr, (bumpptr == 1) ? nullptr : pointer_offset(this, bumpptr));
             }
             curr = pointer_offset(this, bumpptr);
             bumpptr = newbumpptr;
@@ -106,7 +107,7 @@ namespace snmalloc
           }
 
           assert(curr != nullptr);
-          Metaslab::store_next(curr, pointer_offset<void*>(nullptr, 1));
+          Metaslab::store_next(curr, nullptr);
         }
       }
 
@@ -177,7 +178,8 @@ namespace snmalloc
       assert(meta.valid_head(is_short()));
 
       // Set the next pointer to the previous head.
-      Metaslab::store_next(p, pointer_offset(this, head));
+      Metaslab::store_next(
+        p, (head == 1) ? nullptr : pointer_offset(this, head));
       meta.debug_slab_invariant(is_short(), this);
       return true;
     }

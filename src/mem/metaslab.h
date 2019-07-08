@@ -146,10 +146,10 @@ namespace snmalloc
     {
 #ifndef NDEBUG
       size_t length = 0;
-      void* curr = pointer_offset(slab, head);
-      void* curr_slow = pointer_offset(slab, head);
+      void* curr = (head == 1) ? nullptr : pointer_offset(slab, head);
+      void* curr_slow = (head == 1) ? nullptr : pointer_offset(slab, head);
       bool both = false;
-      while ((reinterpret_cast<size_t>(curr) & 1) == 0)
+      while (curr != nullptr)
       {
         curr = follow_next(curr);
         if (both)
@@ -200,8 +200,8 @@ namespace snmalloc
       UNUSED(length);
 
       // Walk bump-free-list-segment accounting for unused space
-      void* curr = pointer_offset(slab, head);
-      while ((address_cast(curr) & 1) == 0)
+      void* curr = (head == 1) ? nullptr : pointer_offset(slab, head);
+      while (curr != nullptr)
       {
         // Check we are looking at a correctly aligned block
         void* start = curr;

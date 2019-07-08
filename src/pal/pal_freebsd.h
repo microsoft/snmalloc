@@ -77,10 +77,7 @@ namespace snmalloc
       // Alignment must be a power of 2.
       assert(align == bits::next_pow2(align));
 
-      if (align == 0)
-      {
-        align = 1;
-      }
+      align = bits::max<size_t>(4096, align);
 
       size_t log2align = bits::next_pow2_bits(align);
 
