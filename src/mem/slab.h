@@ -215,7 +215,7 @@ namespace snmalloc
         meta.link = index;
 
         // Push on the list of slabs for this sizeclass.
-        sl->insert(meta.get_link(this));
+        sl->insert_back(meta.get_link(this));
         meta.debug_slab_invariant(is_short(), this);
         return Superslab::NoSlabReturn;
       }

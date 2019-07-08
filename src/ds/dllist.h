@@ -63,6 +63,7 @@ namespace snmalloc
       std::is_same<decltype(T::next), T*>::value, "T->next must be a T*");
 
     T* head = Terminator();
+    T* tail = Terminator();
 
   public:
     bool is_empty()
@@ -96,8 +97,30 @@ namespace snmalloc
 
       if (head != Terminator())
         head->prev = item;
+      else
+        tail = item;
 
       head = item;
+#ifndef NDEBUG
+      debug_check();
+#endif
+    }
+
+    void insert_back(T* item)
+    {
+#ifndef NDEBUG
+      debug_check_not_contains(item);
+#endif
+
+      item->prev = tail;
+      item->next = Terminator();
+
+      if (tail != Terminator())
+        tail->next = item;
+      else
+        head = item;
+
+      tail = item;
 #ifndef NDEBUG
       debug_check();
 #endif
@@ -111,6 +134,8 @@ namespace snmalloc
 
       if (item->next != Terminator())
         item->next->prev = item->prev;
+      else
+        tail = item->prev;
 
       if (item->prev != Terminator())
         item->prev->next = item->next;
