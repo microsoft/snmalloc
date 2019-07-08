@@ -125,7 +125,11 @@ namespace snmalloc
      */
     ~ThreadAllocThreadDestructor()
     {
-      current_alloc_pool()->release(alloc);
+      if (alloc != &GlobalPlaceHolder)
+      {
+        current_alloc_pool()->release(alloc);
+        alloc = &GlobalPlaceHolder;
+      }
     }
 
   public:
@@ -172,8 +176,11 @@ namespace snmalloc
       *pp = nullptr;
       // Actually destroy the allocator and reset TLS
       Alloc*& alloc = ThreadAllocExplicitTLSCleanup::get();
-      current_alloc_pool()->release(alloc);
-      alloc = &GlobalPlaceHolder;
+      if (alloc != &GlobalPlaceHolder)
+      {
+        current_alloc_pool()->release(alloc);
+        alloc = &GlobalPlaceHolder;
+      }
     }
 
 #  ifdef _WIN32
@@ -314,6 +321,7 @@ namespace snmalloc
       return local_alloc;
     }
     local_alloc = current_alloc_pool()->acquire();
+    assert(local_alloc != &GlobalPlaceHolder);
     ThreadAlloc::register_cleanup();
     return local_alloc;
   }
