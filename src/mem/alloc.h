@@ -1370,6 +1370,10 @@ namespace snmalloc
       large_allocator.dealloc(slab, large_class);
     }
 
+    // Note that this is on the slow path as it lead to better code.
+    // As it is tail, not inlining means that it is jumped to, so has no perf
+    // impact on the producer consumer scenarios, and doesn't require register
+    // spills in the fast path for local deallocation.
     SNMALLOC_SLOW_PATH
     void remote_dealloc(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
     {
