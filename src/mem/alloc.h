@@ -1153,8 +1153,6 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void small_dealloc_offseted_slow(
       Superslab* super, void* p, sizeclass_t sizeclass)
     {
-      handle_message_queue();
-
       bool was_full = super->is_full();
       SlabList* sl = &small_classes[sizeclass];
       Slab* slab = Slab::get(p);
