@@ -334,7 +334,7 @@ namespace snmalloc
    * so.  If we have not allocated a per-thread allocator yet, then this
    * function will allocate one.
    */
-  ALWAYSINLINE void* lazy_replacement(void* existing)
+  SNMALLOC_FAST_PATH void* lazy_replacement(void* existing)
   {
     if (existing != &GlobalPlaceHolder)
     {
