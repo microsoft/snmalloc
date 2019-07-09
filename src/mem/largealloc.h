@@ -176,15 +176,6 @@ namespace snmalloc
     }
 
     /**
-     * Query whether the PAL supports a specific feature.
-     */
-    template<PalFeatures F>
-    constexpr static bool pal_supports()
-    {
-      return (PAL::pal_features & F) == F;
-    }
-
-    /**
      * Returns the number of low memory notifications that have been received
      * (over the lifetime of this process).  If the underlying system does not
      * support low memory notifications, this will return 0.
@@ -192,7 +183,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH
     uint64_t low_memory_epoch()
     {
-      if constexpr (pal_supports<LowMemoryNotification>())
+      if constexpr (pal_supports<LowMemoryNotification, PAL>())
       {
         return PAL::low_memory_epoch();
       }
@@ -205,7 +196,7 @@ namespace snmalloc
     template<bool committed>
     void* reserve(size_t* size, size_t align) noexcept
     {
-      if constexpr (pal_supports<AlignedAllocation>())
+      if constexpr (pal_supports<AlignedAllocation, PAL>())
       {
         return PAL::template reserve<committed>(size, align);
       }

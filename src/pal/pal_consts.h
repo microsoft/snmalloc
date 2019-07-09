@@ -28,8 +28,8 @@ namespace snmalloc
     AlignedAllocation = (1 << 1),
     /**
      * This PAL natively supports lazy commit of pages. This means have large
-     * allocations and not touching them does not up memory usage.  This is
-     * exposed in the P
+     * allocations and not touching them does not increase memory usage. This is
+     * exposed in the Pal.
      */
     LazyCommit = (1 << 2),
   };

@@ -46,8 +46,7 @@ namespace snmalloc
 // Use flat map is under a single node.
 #  define SNMALLOC_MAX_FLATPAGEMAP_SIZE PAGEMAP_NODE_SIZE
 #endif
-  static constexpr bool USE_FLATPAGEMAP =
-    (Pal::pal_features & PalFeatures::LazyCommit) ||
+  static constexpr bool USE_FLATPAGEMAP = pal_supports<LazyCommit>() ||
     (SNMALLOC_MAX_FLATPAGEMAP_SIZE >=
      sizeof(FlatPagemap<SUPERSLAB_BITS, uint8_t>));
 
@@ -1209,9 +1208,7 @@ namespace snmalloc
           else if constexpr (decommit_strategy == DecommitSuperLazy)
           {
             static_assert(
-              std::remove_reference_t<decltype(
-                large_allocator.memory_provider)>::
-                template pal_supports<LowMemoryNotification>(),
+              pal_supports<LowMemoryNotification, MemoryProvider>(),
               "A lazy decommit strategy cannot be implemented on platforms "
               "without low memory notifications");
           }
