@@ -44,11 +44,15 @@ namespace test
   void test_external_pointer(xoroshiro::p128r64& r)
   {
     auto& alloc = ThreadAlloc::get();
-
+#ifdef NDEBUG
+    static constexpr size_t iterations = 10000000;
+#else
+    static constexpr size_t iterations = 100000;
+#endif
     setup(r, alloc);
 
     DO_TIME("External pointer queries ", {
-      for (size_t i = 0; i < 10000000; i++)
+      for (size_t i = 0; i < iterations; i++)
       {
         size_t rand = (size_t)r.next();
         size_t oid = rand & (((size_t)1 << count_log) - 1);
