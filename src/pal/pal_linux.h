@@ -18,7 +18,7 @@ namespace snmalloc
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
      */
-    static constexpr uint64_t pal_features = 0;
+    static constexpr uint64_t pal_features = LazyCommit;
     static void error(const char* const str)
     {
       puts(str);

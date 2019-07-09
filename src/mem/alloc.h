@@ -46,8 +46,10 @@ namespace snmalloc
 // Use flat map is under a single node.
 #  define SNMALLOC_MAX_FLATPAGEMAP_SIZE PAGEMAP_NODE_SIZE
 #endif
-  static constexpr bool USE_FLATPAGEMAP = SNMALLOC_MAX_FLATPAGEMAP_SIZE >=
-    sizeof(FlatPagemap<SUPERSLAB_BITS, uint8_t>);
+  static constexpr bool USE_FLATPAGEMAP =
+    (Pal::pal_features & PalFeatures::LazyCommit) ||
+    (SNMALLOC_MAX_FLATPAGEMAP_SIZE >=
+     sizeof(FlatPagemap<SUPERSLAB_BITS, uint8_t>));
 
   using SuperslabPagemap = std::conditional_t<
     USE_FLATPAGEMAP,
@@ -1152,6 +1154,8 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void small_dealloc_offseted_slow(
       Superslab* super, void* p, sizeclass_t sizeclass)
     {
+      handle_message_queue();
+
       bool was_full = super->is_full();
       SlabList* sl = &small_classes[sizeclass];
       Slab* slab = Slab::get(p);
