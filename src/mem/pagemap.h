@@ -154,7 +154,7 @@ namespace snmalloc
           while (address_cast(e->load(std::memory_order_relaxed)) ==
                  LOCKED_ENTRY)
           {
-            bits::pause();
+            AAL::pause();
           }
           value = e->load(std::memory_order_acquire);
         }

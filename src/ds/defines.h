@@ -1,8 +1,6 @@
 #pragma once
 
 #ifdef _MSC_VER
-#  include <immintrin.h>
-#  include <intrin.h>
 #  define ALWAYSINLINE __forceinline
 #  define NOINLINE __declspec(noinline)
 #  define HEADER_GLOBAL __declspec(selectany)
@@ -14,8 +12,6 @@
 #else
 #  define likely(x) __builtin_expect(!!(x), 1)
 #  define unlikely(x) __builtin_expect(!!(x), 0)
-#  include <cpuid.h>
-#  include <emmintrin.h>
 #  define ALWAYSINLINE __attribute__((always_inline))
 #  define NOINLINE __attribute__((noinline))
 #  define SNMALLOC_SLOW_PATH NOINLINE
@@ -28,25 +24,6 @@
 //  attribute, but leaves the global variable preemptible.
 #    define HEADER_GLOBAL __attribute__((weak))
 #  endif
-#endif
-
-#if defined(__i386__) || defined(_M_IX86) || defined(_X86_) || \
-  defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || \
-  defined(_M_AMD64)
-#  define PLATFORM_IS_X86
-#  if defined(__linux__) && !defined(OPEN_ENCLAVE)
-#    include <x86intrin.h>
-#  endif
-#  if defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || \
-    defined(_M_AMD64)
-#    define PLATFORM_BITS_64
-#  else
-#    define PLATFORM_BITS_32
-#  endif
-#endif
-
-#if defined(_MSC_VER) && defined(PLATFORM_BITS_32)
-#  include <intsafe.h>
 #endif
 
 #ifndef __has_builtin

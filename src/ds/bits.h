@@ -3,9 +3,9 @@
 #include <limits>
 #include <stddef.h>
 
-
 // #define USE_LZCNT
 
+#include "aal/aal.h"
 #include "address.h"
 #include "defines.h"
 
@@ -55,87 +55,11 @@ namespace snmalloc
 
     static constexpr size_t ADDRESS_BITS = is64() ? 48 : 32;
 
-    inline void pause()
-    {
-#if defined(PLATFORM_IS_X86)
-      _mm_pause();
-#else
-#  warning "Missing pause intrinsic"
-#endif
-    }
-
-    inline void prefetch(void* ptr)
-    {
-#if defined(PLATFORM_IS_X86)
-      _mm_prefetch(reinterpret_cast<const char*>(ptr), _MM_HINT_T0);
-#else
-#  warning "Missing prefetch intrinsic"
-#endif
-    }
-
-    inline uint64_t tick()
-    {
-#if defined(PLATFORM_IS_X86)
-#  if defined(_MSC_VER)
-      return __rdtsc();
-#  elif defined(__clang__)
-      return __builtin_readcyclecounter();
-#  else
-      return __builtin_ia32_rdtsc();
-#  endif
-#else
-#  error Define CPU tick for this platform
-#endif
-    }
-
-    inline uint64_t tickp()
-    {
-#if defined(PLATFORM_IS_X86)
-#  if defined(_MSC_VER)
-      unsigned int aux;
-      return __rdtscp(&aux);
-#  else
-      unsigned aux;
-      return __builtin_ia32_rdtscp(&aux);
-#  endif
-#else
-#  error Define CPU tick for this platform
-#endif
-    }
-
-    inline void halt_out_of_order()
-    {
-#if defined(PLATFORM_IS_X86)
-#  if defined(_MSC_VER)
-      int cpu_info[4];
-      __cpuid(cpu_info, 0);
-#  else
-      unsigned int eax, ebx, ecx, edx;
-      __get_cpuid(0, &eax, &ebx, &ecx, &edx);
-#  endif
-#else
-#  error Define CPU benchmark start time for this platform
-#endif
-    }
-
-    inline uint64_t benchmark_time_start()
-    {
-      halt_out_of_order();
-      return tick();
-    }
-
-    inline uint64_t benchmark_time_end()
-    {
-      uint64_t t = tickp();
-      halt_out_of_order();
-      return t;
-    }
-
     inline size_t clz(size_t x)
     {
 #if defined(_MSC_VER)
 #  ifdef USE_LZCNT
-#    ifdef PLATFORM_BITS_64
+#    ifdef SNMALLOC_VA_BITS_64
       return __lzcnt64(x);
 #    else
       return __lzcnt((uint32_t)x);
@@ -143,7 +67,7 @@ namespace snmalloc
 #  else
       unsigned long index;
 
-#    ifdef PLATFORM_BITS_64
+#    ifdef SNMALLOC_VA_BITS_64
       _BitScanReverse64(&index, x);
 #    else
       _BitScanReverse(&index, (unsigned long)x);
@@ -173,7 +97,7 @@ namespace snmalloc
     inline size_t rotr(size_t x, size_t n)
     {
 #if defined(_MSC_VER)
-#  ifdef PLATFORM_BITS_64
+#  ifdef SNMALLOC_VA_BITS_64
       return _rotr64(x, (int)n);
 #  else
       return _rotr((uint32_t)x, (int)n);
@@ -186,7 +110,7 @@ namespace snmalloc
     inline size_t rotl(size_t x, size_t n)
     {
 #if defined(_MSC_VER)
-#  ifdef PLATFORM_BITS_64
+#  ifdef SNMALLOC_VA_BITS_64
       return _rotl64(x, (int)n);
 #  else
       return _rotl((uint32_t)x, (int)n);
@@ -216,7 +140,7 @@ namespace snmalloc
     inline size_t ctz(size_t x)
     {
 #if defined(_MSC_VER)
-#  ifdef PLATFORM_BITS_64
+#  ifdef SNMALLOC_VA_BITS_64
       return _tzcnt_u64(x);
 #  else
       return _tzcnt_u32((uint32_t)x);
@@ -250,7 +174,7 @@ namespace snmalloc
       overflow = __builtin_mul_overflow(x, y, &prod);
       return prod;
 #elif defined(_MSC_VER)
-#  if defined(PLATFORM_BITS_64)
+#  if defined(SNMALLOC_VA_BITS_64)
       size_t high_prod;
       size_t prod = _umul128(x, y, &high_prod);
       overflow = high_prod != 0;

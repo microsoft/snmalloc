@@ -30,18 +30,18 @@ private:
     auto prev = ready.fetch_add(1);
     if (prev + 1 == cores)
     {
-      start = bits::tick();
+      start = AAL::tick();
       flag = true;
     }
     while (!flag)
-      bits::pause();
+      AAL::pause();
 
     f(id);
 
     prev = complete.fetch_add(1);
     if (prev + 1 == cores)
     {
-      end = bits::tick();
+      end = AAL::tick();
     }
   }
 
