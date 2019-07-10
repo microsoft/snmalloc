@@ -18,8 +18,14 @@ namespace test
     {
       size_t rand = (size_t)r.next();
       size_t offset = bits::clz(rand);
-      if (offset > 30)
-        offset = 30;
+      if constexpr (bits::is64())
+      {
+        if (offset > 30)
+          offset = 30;
+      }
+      else if (offset > 20)
+        offset = 20;
+
       size_t size = (rand & 15) << offset;
       if (size < 16)
         size = 16;
