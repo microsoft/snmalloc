@@ -224,8 +224,7 @@ namespace snmalloc
       {
         // Check we are looking at a correctly aligned block
         void* start = remove_cache_friendly_offset(curr, sizeclass);
-        assert(
-          ((address_cast(start) - address_cast(slab) - offset) % size) == 0);
+        assert(((pointer_diff(slab, start) - offset) % size) == 0);
 
         // Account for free elements in free list
         accounted_for += size;
