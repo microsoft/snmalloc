@@ -65,7 +65,7 @@ namespace snmalloc
     {
       CurrentMaxPair count;
       CurrentMaxPair slab_count;
-      uint64_t time = bits::tick();
+      uint64_t time = AAL::tick();
       uint64_t ticks = 0;
       double online_average = 0;
 
@@ -82,7 +82,7 @@ namespace snmalloc
 
       void addToRunningAverage()
       {
-        uint64_t now = bits::tick();
+        uint64_t now = AAL::tick();
 
         if (slab_count.current != 0)
         {

@@ -89,7 +89,7 @@ namespace snmalloc
     bool compare_exchange(Cmp& expect, T* value)
     {
 #ifdef PLATFORM_IS_X86
-#  if defined(_MSC_VER) && defined(PLATFORM_BITS_64)
+#  if defined(_MSC_VER) && defined(SNMALLOC_VA_BITS_64)
       return _InterlockedCompareExchange128(
         (volatile __int64*)&linked,
         expect.aba + 1,

@@ -13,7 +13,7 @@ namespace snmalloc
     FlagLock(std::atomic_flag& lock) : lock(lock)
     {
       while (lock.test_and_set(std::memory_order_acquire))
-        bits::pause();
+        AAL::pause();
     }
 
     ~FlagLock()
