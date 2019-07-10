@@ -1,5 +1,5 @@
 #pragma once
-#include "ds/defines.h"
+#include "../ds/defines.h"
 
 #include <cstdint>
 
@@ -55,7 +55,7 @@ namespace snmalloc
     }
   };
 
-}
+} // namespace snmalloc
 
 #ifdef PLATFORM_IS_X86
 #  include "aal_x86.h"
@@ -64,7 +64,7 @@ namespace snmalloc
 namespace snmalloc
 {
   using AAL = AAL_Generic<AAL_Arch>;
-}
+} // namespace snmalloc
 
 #if defined(_MSC_VER) && defined(SNMALLOC_VA_BITS_32)
 #  include <intsafe.h>

@@ -109,4 +109,4 @@ namespace snmalloc
   };
 
   using AAL_Arch = AAL_x86;
-}
+} // namespace snmalloc
