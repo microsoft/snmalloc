@@ -95,22 +95,27 @@ jobs:
       64-bit Debug:
         BuildType: Debug
         CMakeArgs: '-G"Visual Studio 15 2017 Win64"'
+        JFlag: -j 4
 
       64-bit Release:
         BuildType: Release
         CMakeArgs: '-G"Visual Studio 15 2017 Win64"'
+        JFlag: '-j 4'
 
       64-bit Release Windows8Compat:
         BuildType: Release
         CMakeArgs: '-G"Visual Studio 15 2017 Win64" -DWIN8COMPAT=TRUE'
+        JFlag: '-j 2'
 
       32-bit Debug:
         BuildType: Debug
         CMakeArgs: '-G"Visual Studio 15 2017"'
+        JFlag: '-j 4'
 
       32-bit Release:
         BuildType: Release
         CMakeArgs: '-G"Visual Studio 15 2017"'
+        JFlag: '-j 4'
 
   steps:
   - task: CMake@1
@@ -124,7 +129,7 @@ jobs:
       solution: build/snmalloc.sln
       msbuildArguments: '/m /p:Configuration=$(BuildType)'
 
-  - script: 'ctest -j 4 --interactive-debug-mode 0 --output-on-failure -C $(BuildType)'
+  - script: 'ctest $(JFlag) --interactive-debug-mode 0 --output-on-failure -C $(BuildType)'
     workingDirectory: build
     displayName: 'Run Ctest'
 
