@@ -46,8 +46,9 @@ namespace snmalloc
 // Use flat map is under a single node.
 #  define SNMALLOC_MAX_FLATPAGEMAP_SIZE PAGEMAP_NODE_SIZE
 #endif
-  static constexpr bool USE_FLATPAGEMAP = SNMALLOC_MAX_FLATPAGEMAP_SIZE >=
-    sizeof(FlatPagemap<SUPERSLAB_BITS, uint8_t>);
+  static constexpr bool USE_FLATPAGEMAP = pal_supports<LazyCommit>() ||
+    (SNMALLOC_MAX_FLATPAGEMAP_SIZE >=
+     sizeof(FlatPagemap<SUPERSLAB_BITS, uint8_t>));
 
   using SuperslabPagemap = std::conditional_t<
     USE_FLATPAGEMAP,
@@ -1205,9 +1206,7 @@ namespace snmalloc
           else if constexpr (decommit_strategy == DecommitSuperLazy)
           {
             static_assert(
-              std::remove_reference_t<decltype(
-                large_allocator.memory_provider)>::
-                template pal_supports<LowMemoryNotification>(),
+              pal_supports<LowMemoryNotification, MemoryProvider>(),
               "A lazy decommit strategy cannot be implemented on platforms "
               "without low memory notifications");
           }
@@ -1366,15 +1365,12 @@ namespace snmalloc
       large_allocator.dealloc(slab, large_class);
     }
 
-#if defined(__GNUC__) && !defined(__clang__) && !defined(__OPTIMIZE__)
-    // Don't force this to be always inlined in debug builds with GCC, because
-    // it will fail and then raise an error.
-    inline
-#else
-    SNMALLOC_FAST_PATH
-#endif
-      void
-      remote_dealloc(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
+    // Note that this is on the slow path as it lead to better code.
+    // As it is tail, not inlining means that it is jumped to, so has no perf
+    // impact on the producer consumer scenarios, and doesn't require register
+    // spills in the fast path for local deallocation.
+    SNMALLOC_SLOW_PATH
+    void remote_dealloc(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
     {
       MEASURE_TIME(remote_dealloc, 4, 16);
       assert(target->id() != id());

@@ -17,7 +17,7 @@ namespace snmalloc
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
      */
-    static constexpr uint64_t pal_features = AlignedAllocation;
+    static constexpr uint64_t pal_features = AlignedAllocation | LazyCommit;
     static void error(const char* const str)
     {
       puts(str);

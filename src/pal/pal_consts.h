@@ -25,7 +25,13 @@ namespace snmalloc
      * a size and alignment.  A PAL that does *not* support it must expose a
      * `request()` method that takes only a size.
      */
-    AlignedAllocation = (1 << 1)
+    AlignedAllocation = (1 << 1),
+    /**
+     * This PAL natively supports lazy commit of pages. This means have large
+     * allocations and not touching them does not increase memory usage. This is
+     * exposed in the Pal.
+     */
+    LazyCommit = (1 << 2),
   };
   /**
    * Flag indicating whether requested memory should be zeroed.
