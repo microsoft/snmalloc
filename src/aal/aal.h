@@ -46,7 +46,7 @@ namespace snmalloc
      */
     static inline uint64_t tick()
     {
-#if __has_builtin(__builtin_readcyclecounter) && \
+#if __has_builtin(__builtin_readcyclecounter) && !defined(__CHERI__) && \
   !defined(SNMALLOC_NO_AAL_BUILTINS)
       return __builtin_readcyclecounter();
 #else
@@ -59,6 +59,8 @@ namespace snmalloc
 
 #ifdef PLATFORM_IS_X86
 #  include "aal_x86.h"
+#elif defined(__CHERI__) && defined(__mips__)
+#  include "aal_cheri_mips.h"
 #endif
 
 namespace snmalloc
