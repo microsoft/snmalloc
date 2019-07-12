@@ -7,10 +7,6 @@
 #error At most one out of SNMALLOC_USE_THREAD_CLEANUP and SNMALLOC_USE_THREAD_DESTRUCTOR may be defined.
 #endif
 
-#if !defined(_WIN32) && !defined(FreeBSD_KERNEL)
-#  include "pthread.h"
-#endif
-
 namespace snmalloc
 {
   extern "C" void _malloc_thread_cleanup(void);
@@ -95,6 +91,20 @@ namespace snmalloc
     }
     static void register_cleanup() {}
   };
+
+  /**
+   * Helper class to execute a specified function on destruction.
+   */
+  template<void f()>
+  class OnDestruct
+  {
+  public:
+    ~OnDestruct()
+    {
+      f();
+    }
+  };
+
   /**
    * Version of the `ThreadAlloc` interface that uses C++ `thread_local`
    * destructors for cleanup.  If a per-thread allocator is used during the
@@ -109,28 +119,34 @@ namespace snmalloc
    */
   class ThreadAllocThreadDestructor
   {
-    /**
-     * A pointer to the allocator owned by this thread.
-     */
-    Alloc* alloc;
+    template<void f()>
+    friend class OnDestruct;
 
     /**
-     * Constructor.  Acquires a new allocator and associates it with this
-     * object.  There should be only one instance of this class per thread.
+     * Releases the allocator owned by this thread.
      */
-    ThreadAllocThreadDestructor() : alloc(&GlobalPlaceHolder) {}
-
-    /**
-     * Destructor.  Releases the allocator owned by this thread.
-     */
-    ~ThreadAllocThreadDestructor()
+    static void inner_release()
     {
-      if (alloc != &GlobalPlaceHolder)
+      if (get() != &GlobalPlaceHolder)
       {
-        current_alloc_pool()->release(alloc);
-        alloc = &GlobalPlaceHolder;
+        current_alloc_pool()->release(get());
+        get() = &GlobalPlaceHolder;
       }
     }
+
+#ifdef USE_SNMALLOC_STATS
+    static void print_stats()
+    {
+      Stats s;
+      current_alloc_pool()->aggregate_stats(s);
+      s.print<Alloc>(std::cout);
+    }
+
+    static int atexit_print_stats()
+    {
+      return atexit(print_stats);
+    }
+#endif
 
   public:
     /**
@@ -139,156 +155,20 @@ namespace snmalloc
      */
     static inline Alloc*& get()
     {
-      static thread_local ThreadAllocThreadDestructor per_thread;
-      return per_thread.alloc;
-    }
-    static void register_cleanup() {}
-  };
-  // When targeting the FreeBSD kernel, the pthread header exists, but the
-  // pthread symbols do not, so don't compile this because it will fail to
-  // link.
-#ifndef FreeBSD_KERNEL
-  /**
-   * Version of the `ThreadAlloc` interface that uses thread-specific (POSIX
-   * threads) or Fiber-local (Windows) storage with an explicit destructor.
-   * Neither of the underlying mechanisms guarantee ordering, so the cleanup
-   * may be called before other cleanup functions or thread-local destructors.
-   *
-   * This implementation is used when using snmalloc as a library
-   * implementation of malloc, but not embedding it in C standard library.
-   * Using this implementation removes the dependency on a C++ runtime library.
-   */
-  class ThreadAllocExplicitTLSCleanup
-  {
-    /**
-     * Cleanup function.  This is registered with the operating system's
-     * thread- or fibre-local storage subsystem to clean up the per-thread
-     * allocator.
-     */
-    static inline void
-#  ifdef _WIN32
-      NTAPI
-#  endif
-      thread_alloc_release(void* p)
-    {
-      // Keep pthreads happy
-      void** pp = reinterpret_cast<void**>(p);
-      *pp = nullptr;
-      // Actually destroy the allocator and reset TLS
-      Alloc*& alloc = ThreadAllocExplicitTLSCleanup::get();
-      if (alloc != &GlobalPlaceHolder)
-      {
-        current_alloc_pool()->release(alloc);
-        alloc = &GlobalPlaceHolder;
-      }
+      static thread_local Alloc* alloc = &GlobalPlaceHolder;
+      return alloc;
     }
 
-#  ifdef _WIN32
-    /**
-     * Key type used to identify fibre-local storage.
-     */
-    using tls_key_t = DWORD;
-
-    /**
-     * On Windows, construct a new fibre-local storage allocation.  This
-     * function must not be called more than once.
-     */
-    static inline tls_key_t tls_key_create() noexcept
-    {
-      return FlsAlloc(thread_alloc_release);
-    }
-
-    /**
-     * On Windows, store a pointer to a `thread_local` pointer to an allocator
-     * into fibre-local storage.  This function takes a pointer to the
-     * `thread_local` allocation, rather than to the pointee, so that the
-     * cleanup function can zero the pointer.
-     *
-     * This must not be called until after `tls_key_create` has returned.
-     */
-    static inline void tls_set_value(tls_key_t key, Alloc* value)
-    {
-      FlsSetValue(key, value);
-    }
-#  else
-    /**
-     * Key type used for thread-specific storage.
-     */
-    using tls_key_t = pthread_key_t;
-
-    /**
-     * On POSIX systems, construct a new thread-specific storage allocation.
-     * This function must not be called more than once.
-     */
-    static inline tls_key_t tls_key_create() noexcept
-    {
-      tls_key_t key;
-      pthread_key_create(&key, thread_alloc_release);
-      return key;
-    }
-
-    /**
-     * On POSIX systems, store a pointer to a `thread_local` pointer to an
-     * allocator into fibre-local storage.  This function takes a pointer to
-     * the `thread_local` allocation, rather than to the pointee, so that the
-     * cleanup function can zero the pointer.
-     *
-     * This must not be called until after `tls_key_create` has returned.
-     */
-    static inline void tls_set_value(tls_key_t key, Alloc* value)
-    {
-      pthread_setspecific(key, value);
-    }
-#  endif
-
-    /**
-     * Private accessor to the per thread allocator
-     * Provides no checking for initialization
-     */
-    static SNMALLOC_FAST_PATH Alloc*& inner_get()
-    {
-      static thread_local Alloc* per_thread = &GlobalPlaceHolder;
-      return per_thread;
-    }
-
-#  ifdef USE_SNMALLOC_STATS
-    static void print_stats()
-    {
-      Stats s;
-      current_alloc_pool()->aggregate_stats(s);
-      s.print<Alloc>(std::cout);
-    }
-#  endif
-
-  public:
-    /**
-     * Public interface, returns the allocator for the current thread,
-     * constructing it if necessary.
-     */
-    static SNMALLOC_FAST_PATH Alloc*& get()
-    {
-      return inner_get();
-    }
     static void register_cleanup()
     {
-      // Register the allocator destructor.
-      bool first = false;
-      tls_key_t key = Singleton<tls_key_t, tls_key_create>::get(&first);
-      // Associate the new allocator with the destructor.
-      tls_set_value(key, &GlobalPlaceHolder);
+      static thread_local OnDestruct<ThreadAllocThreadDestructor::inner_release>
+        tidier;
 
-#  ifdef USE_SNMALLOC_STATS
-      // Allocator is up and running now, safe to call atexit.
-      if (first)
-      {
-        atexit(print_stats);
-      }
-#  else
-      UNUSED(first);
-#  endif
+#ifdef USE_SNMALLOC_STATS
+      Singleton<int, atexit_print_stats>::get();
+#endif
     }
   };
-#endif
 
 #ifdef SNMALLOC_USE_THREAD_CLEANUP
   /**
@@ -305,7 +185,7 @@ namespace snmalloc
 #elif defined(SNMALLOC_EXTERNAL_THREAD_ALLOC)
   using ThreadAlloc = ThreadAllocUntypedWrapper;
 #else
-  using ThreadAlloc = ThreadAllocExplicitTLSCleanup;
+  using ThreadAlloc = ThreadAllocThreadDestructor;
 #endif
 
   /**
