@@ -315,7 +315,7 @@ namespace snmalloc
    * stores a T.
    **/
   template<size_t GRANULARITY_BITS, typename T>
-  class FlatPagemap
+  class alignas(OS_PAGE_SIZE) FlatPagemap
   {
   private:
     static constexpr size_t COVERED_BITS =
@@ -375,5 +375,24 @@ namespace snmalloc
         length--;
       } while (length > 0);
     }
+
+    /**
+     * Returns the index within a page for the specified address.
+     */
+    size_t index_for_address(uintptr_t p)
+    {
+      return reinterpret_cast<size_t>((p >> SHIFT) & (OS_PAGE_SIZE - 1));
+    }
+
+    /**
+     * Returns the address of the page containing the pagemap address p.
+     */
+    void* page_for_address(uintptr_t p)
+    {
+      assert((reinterpret_cast<uintptr_t>(&top) & (OS_PAGE_SIZE - 1)) == 0);
+      return reinterpret_cast<void*>(
+          reinterpret_cast<uintptr_t>(&top[p >> SHIFT]) & ~(OS_PAGE_SIZE - 1));
+    }
+
   };
 } // namespace snmalloc
