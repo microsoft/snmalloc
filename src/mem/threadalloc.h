@@ -127,10 +127,11 @@ namespace snmalloc
      */
     static void inner_release()
     {
-      if (get() != &GlobalPlaceHolder)
+      Alloc*& a = get_noncachable();
+      if (a != &GlobalPlaceHolder)
       {
-        current_alloc_pool()->release(get());
-        get() = &GlobalPlaceHolder;
+        current_alloc_pool()->release(a);
+        a = &GlobalPlaceHolder;
       }
     }
 
@@ -152,11 +153,36 @@ namespace snmalloc
     /**
      * Public interface, returns the allocator for this thread, constructing
      * one if necessary.
+     *
+     * If no operations have been performed on an allocator returned by either
+     * `get()` nor `get_noncachable`, then the value contained in the return
+     * will be an Alloc* that will always use the slow path.  The Alloc*& will
+     * be updated, and is performant to use for subsequent calls.
+     *
+     * Only use this API if you intend to use the returned allocator just once
+     * per call, you store the indirection (Alloc*&) rather than (Alloc*), or if
+     * you know other calls have already been made to the allocator.
      */
-    static inline Alloc*& get()
+    static inline Alloc*& get_noncachable()
     {
       static thread_local Alloc* alloc = &GlobalPlaceHolder;
       return alloc;
+    }
+
+    /**
+     * Public interface, returns the allocator for this thread, constructing
+     * one if necessary.
+     *
+     * The returned Alloc* is guaranteed to be initialised.  This incurs a cost,
+     * so use `get_noncachable` if you can meet its criteria.
+     */
+    static SNMALLOC_FAST_PATH Alloc* get()
+    {
+      auto alloc = get_noncachable();
+      auto new_alloc = lazy_replacement(alloc);
+      return (likely(new_alloc == nullptr)) ?
+        alloc :
+        reinterpret_cast<Alloc*>(new_alloc);
     }
 
     static void register_cleanup()
@@ -195,7 +221,7 @@ namespace snmalloc
    */
   SNMALLOC_SLOW_PATH inline void* lazy_replacement_slow()
   {
-    auto*& local_alloc = ThreadAlloc::get();
+    auto*& local_alloc = ThreadAlloc::get_noncachable();
     if ((local_alloc != nullptr) && (local_alloc != &GlobalPlaceHolder))
     {
       return local_alloc;
