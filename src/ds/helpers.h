@@ -87,4 +87,17 @@ namespace snmalloc
       return array[i & (rlength - 1)];
     }
   };
+
+  /**
+   * Helper class to execute a specified function on destruction.
+   */
+  template<void f()>
+  class OnDestruct
+  {
+  public:
+    ~OnDestruct()
+    {
+      f();
+    }
+  };
 } // namespace snmalloc
