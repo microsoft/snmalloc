@@ -391,8 +391,7 @@ namespace snmalloc
     {
       assert((reinterpret_cast<uintptr_t>(&top) & (OS_PAGE_SIZE - 1)) == 0);
       return reinterpret_cast<void*>(
-          reinterpret_cast<uintptr_t>(&top[p >> SHIFT]) & ~(OS_PAGE_SIZE - 1));
+        reinterpret_cast<uintptr_t>(&top[p >> SHIFT]) & ~(OS_PAGE_SIZE - 1));
     }
-
   };
 } // namespace snmalloc
