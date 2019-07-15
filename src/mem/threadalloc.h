@@ -181,7 +181,7 @@ namespace snmalloc
    * Entry point the allows libc to call into the allocator for per-thread
    * cleanup.
    */
-  extern "C" void _malloc_thread_cleanup(void)
+  extern "C" void _malloc_thread_cleanup()
   {
     ThreadAllocLibcCleanup::inner_release();
   }
