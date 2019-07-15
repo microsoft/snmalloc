@@ -147,7 +147,7 @@ namespace snmalloc
      * This function must be allowed to call back into this class to destroy
      * the state.
      */
-    friend void _malloc_thread_cleanup(void);
+    friend void _malloc_thread_cleanup();
   };
 
   /**
