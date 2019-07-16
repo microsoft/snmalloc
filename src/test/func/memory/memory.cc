@@ -7,7 +7,7 @@ using namespace snmalloc;
 
 void test_alloc_dealloc_64k()
 {
-  auto& alloc = ThreadAlloc::get();
+  auto alloc = ThreadAlloc::get();
 
   constexpr size_t count = 1 << 12;
   constexpr size_t outer_count = 12;
@@ -39,7 +39,7 @@ void test_alloc_dealloc_64k()
 
 void test_random_allocation()
 {
-  auto& alloc = ThreadAlloc::get();
+  auto alloc = ThreadAlloc::get();
   std::unordered_set<void*> allocated;
 
   constexpr size_t count = 10000;
@@ -91,7 +91,7 @@ void test_random_allocation()
 
 void test_calloc()
 {
-  auto& alloc = ThreadAlloc::get();
+  auto alloc = ThreadAlloc::get();
 
   for (size_t size = 16; size <= (1 << 24); size <<= 1)
   {
@@ -162,7 +162,7 @@ void test_double_alloc()
 void test_external_pointer()
 {
   // Malloc does not have an external pointer querying mechanism.
-  auto& alloc = ThreadAlloc::get();
+  auto alloc = ThreadAlloc::get();
 
   for (uint8_t sc = 0; sc < NUM_SIZECLASSES; sc++)
   {
@@ -208,7 +208,7 @@ void test_external_pointer_large()
 {
   xoroshiro::p128r64 r;
 
-  auto& alloc = ThreadAlloc::get();
+  auto alloc = ThreadAlloc::get();
 
   constexpr size_t count_log = snmalloc::bits::is64() ? 5 : 3;
   constexpr size_t count = 1 << count_log;
@@ -244,7 +244,7 @@ void test_external_pointer_large()
 
 void test_external_pointer_dealloc_bug()
 {
-  auto& alloc = ThreadAlloc::get();
+  auto alloc = ThreadAlloc::get();
   constexpr size_t count = (SUPERSLAB_SIZE / SLAB_SIZE) * 2;
   void* allocs[count];
 
@@ -268,7 +268,7 @@ void test_external_pointer_dealloc_bug()
 
 void test_alloc_16M()
 {
-  auto& alloc = ThreadAlloc::get();
+  auto alloc = ThreadAlloc::get();
   // sizes >= 16M use large_alloc
   const size_t size = 16'000'000;
 
@@ -279,7 +279,7 @@ void test_alloc_16M()
 
 void test_calloc_16M()
 {
-  auto& alloc = ThreadAlloc::get();
+  auto alloc = ThreadAlloc::get();
   // sizes >= 16M use large_alloc
   const size_t size = 16'000'000;
 

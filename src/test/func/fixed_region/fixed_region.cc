@@ -37,7 +37,7 @@ int main()
   oe_end = (uint8_t*)oe_base + size;
   std::cout << "Allocated region " << oe_base << " - " << oe_end << std::endl;
 
-  auto& a = ThreadAlloc::get();
+  auto a = ThreadAlloc::get();
 
   for (size_t i = 0; i < 1000; i++)
   {

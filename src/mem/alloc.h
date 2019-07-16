@@ -1056,7 +1056,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    inline void* small_alloc(size_t size)
+    SNMALLOC_FAST_PATH void* small_alloc(size_t size)
     {
       MEASURE_TIME_MARKERS(
         small_alloc,

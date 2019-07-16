@@ -49,7 +49,7 @@ namespace test
 
   void test_external_pointer(xoroshiro::p128r64& r)
   {
-    auto& alloc = ThreadAlloc::get();
+    auto alloc = ThreadAlloc::get();
 #ifdef NDEBUG
     static constexpr size_t iterations = 10000000;
 #else
@@ -79,9 +79,6 @@ namespace test
 int main(int, char**)
 {
   xoroshiro::p128r64 r;
-  // Force a per-thread allocator to actually exist.
-  void* p = ThreadAlloc::get()->alloc(16);
-  ThreadAlloc::get()->dealloc(p);
 #if NDEBUG
   size_t nn = 30;
 #else
