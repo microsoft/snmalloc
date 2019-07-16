@@ -7,6 +7,8 @@
 #error At most one out of SNMALLOC_USE_THREAD_CLEANUP and SNMALLOC_USE_THREAD_DESTRUCTOR may be defined.
 #endif
 
+extern "C" void _malloc_thread_cleanup();
+
 namespace snmalloc
 {
   /**
@@ -147,7 +149,7 @@ namespace snmalloc
      * This function must be allowed to call back into this class to destroy
      * the state.
      */
-    friend void _malloc_thread_cleanup();
+    friend void ::_malloc_thread_cleanup();
   };
 
   /**
