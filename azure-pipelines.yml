@@ -16,30 +16,35 @@ jobs:
         CXX: clang++-6.0
         BuildType: Debug
         SelfHost: false
+        CMakeArgs: ''
 
       Clang-6 Release:
         CC: clang-6.0
         CXX: clang++-6.0
         BuildType: Release
         SelfHost: false
+        CMakeArgs: ''
 
       GCC-7 Debug:
         CC: gcc-7
         CXX: g++-7
         BuildType: Debug
         SelfHost: false
+        CMakeArgs: ''
 
       GCC-7 Release:
         CC: gcc-7
         CXX: g++-7
         BuildType: Release
         SelfHost: false
+        CMakeArgs: ''
 
       Self Host:
         CC: clang-6.0
         CXX: clang++-6.0
         BuildType: Debug
         SelfHost: true
+        CMakeArgs: ''
 
       Cache Friendly:
         CC: clang-6.0
