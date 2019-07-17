@@ -23,12 +23,12 @@ extern "C"
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(malloc)(size_t size)
   {
-    return ThreadAlloc::get()->alloc(size);
+    return ThreadAlloc::get_noncachable()->alloc(size);
   }
 
   SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(free)(void* ptr)
   {
-    ThreadAlloc::get()->dealloc(ptr);
+    ThreadAlloc::get_noncachable()->dealloc(ptr);
   }
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(calloc)(size_t nmemb, size_t size)
@@ -40,7 +40,7 @@ extern "C"
       errno = ENOMEM;
       return nullptr;
     }
-    return ThreadAlloc::get()->alloc<ZeroMem::YesZero>(sz);
+    return ThreadAlloc::get_noncachable()->alloc<ZeroMem::YesZero>(sz);
   }
 
   SNMALLOC_EXPORT size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(void* ptr)
