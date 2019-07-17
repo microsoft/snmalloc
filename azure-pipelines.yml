@@ -16,30 +16,42 @@ jobs:
         CXX: clang++-6.0
         BuildType: Debug
         SelfHost: false
+        CMakeArgs: ''
 
       Clang-6 Release:
         CC: clang-6.0
         CXX: clang++-6.0
         BuildType: Release
         SelfHost: false
+        CMakeArgs: ''
 
       GCC-7 Debug:
         CC: gcc-7
         CXX: g++-7
         BuildType: Debug
         SelfHost: false
+        CMakeArgs: ''
 
       GCC-7 Release:
         CC: gcc-7
         CXX: g++-7
         BuildType: Release
         SelfHost: false
+        CMakeArgs: ''
 
       Self Host:
         CC: clang-6.0
         CXX: clang++-6.0
         BuildType: Debug
         SelfHost: true
+        CMakeArgs: ''
+
+      Cache Friendly:
+        CC: clang-6.0
+        CXX: clang++-6.0
+        BuildType: Debug
+        SelfHost: false
+        CMakeArgs: '-DCACHE_FRIENDLY_OFFSET=64'
 
   steps:
   - script: |
@@ -60,9 +72,9 @@ jobs:
     displayName: 'Install Build Dependencies'
 
   - task: CMake@1
-    displayName: 'CMake .. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS"'
+    displayName: 'CMake .. $(CMakeArgs) -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS"'
     inputs:
-      cmakeArgs: '.. -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS"'
+      cmakeArgs: '.. $(CMakeArgs) -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS"'
 
   - script: |
       ninja

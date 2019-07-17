@@ -204,7 +204,7 @@ namespace snmalloc
       while (curr != nullptr)
       {
         // Check we are looking at a correctly aligned block
-        void* start = curr;
+        void* start = remove_cache_friendly_offset(curr, sizeclass);
         assert(
           ((address_cast(start) - address_cast(slab) - offset) % size) == 0);
 
