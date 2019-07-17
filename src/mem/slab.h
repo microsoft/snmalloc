@@ -64,7 +64,9 @@ namespace snmalloc
           meta.add_use();
           assert(meta.used == meta.allocated);
 
-          p = pointer_offset(this, meta.link);
+          void* link = pointer_offset(this, meta.link);
+          p = remove_cache_friendly_offset(link, meta.sizeclass);
+
           meta.set_full();
           sl.pop();
           p_has_value = true;
@@ -113,16 +115,18 @@ namespace snmalloc
 
       if (!p_has_value)
       {
-        p = pointer_offset(this, meta.head);
+        void* head = pointer_offset(this, meta.head);
 
         // Read the next slot from the memory that's about to be allocated.
-        void* next = Metaslab::follow_next(p);
+        void* next = Metaslab::follow_next(head);
         // Put everything in allocators small_class free list.
         meta.head = 1;
         fast_free_list.value = next;
         // Treat stealing the free list as allocating it all.
         // Link is not in use, i.e. - 1 is required.
         meta.used = meta.allocated - 1;
+
+        p = remove_cache_friendly_offset(head, meta.sizeclass);
       }
 
       assert(is_start_of_object(Superslab::get(p), p));

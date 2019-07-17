@@ -1072,13 +1072,13 @@ namespace snmalloc
 
       assert(sizeclass < NUM_SMALL_CLASSES);
       auto& fl = small_fast_free_lists[sizeclass];
-      auto head = fl.value;
+      void* head = fl.value;
       if (likely(head != nullptr))
       {
-        void* p = head;
         // Read the next slot from the memory that's about to be allocated.
-        fl.value = Metaslab::follow_next(p);
+        fl.value = Metaslab::follow_next(head);
 
+        void* p = remove_cache_friendly_offset(head, sizeclass);
         if constexpr (zero_mem == YesZero)
         {
           large_allocator.memory_provider.zero(p, size);

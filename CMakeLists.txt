@@ -95,6 +95,10 @@ if(USE_MEASURE)
   target_compile_definitions(snmalloc_lib INTERFACE -DUSE_MEASURE)
 endif()
 
+if(CACHE_FRIENDLY_OFFSET)
+  target_compile_definitions(snmalloc_lib INTERFACE -DCACHE_FRIENDLY_OFFSET=${CACHE_FRIENDLY_OFFSET})
+endif()
+
 # To build with just the header library target define SNMALLOC_ONLY_HEADER_LIBRARY
 # in containing Cmake file.
 if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
@@ -124,10 +128,6 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     target_link_libraries(${name} snmalloc_lib)
     target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
     set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden)
-
-    if(CACHE_FRIENDLY_OFFSET)
-      target_compile_definitions(${name} PRIVATE -DCACHE_FRIENDLY_OFFSET=${CACHE_FRIENDLY_OFFSET})
-    endif()
 
     if(EXPOSE_EXTERNAL_PAGEMAP)
       target_compile_definitions(${name} PRIVATE -DSNMALLOC_EXPOSE_PAGEMAP)
