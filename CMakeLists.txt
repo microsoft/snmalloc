@@ -23,7 +23,7 @@ macro(warnings_high)
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
       add_compile_options(-Wsign-conversion)
     endif ()
-    add_compile_options(-Wall -Wextra -Werror)
+    add_compile_options(-Wall -Wextra -Werror -Wundef)
   endif()
 endmacro()
 
