@@ -88,7 +88,7 @@ int main(int, char**)
   setup();
 
   xoroshiro::p128r64 r;
-#if NDEBUG
+#ifdef NDEBUG
   size_t nn = 30;
 #else
   size_t nn = 3;
