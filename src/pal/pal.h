@@ -13,6 +13,7 @@ namespace snmalloc
 #  include "pal_free_bsd_kernel.h"
 #  include "pal_freebsd.h"
 #  include "pal_linux.h"
+#  include "pal_openbsd.h"
 #  include "pal_windows.h"
 #endif
 #include "pal_open_enclave.h"
@@ -32,6 +33,8 @@ namespace snmalloc
     PALFreeBSDKernel;
 #  elif defined(__FreeBSD__)
     PALFBSD;
+#  elif defined(__OpenBSD__)
+    PALOBSD;
 #  else
 #    error Unsupported platform
 #  endif
