@@ -1,24 +1,24 @@
 #pragma once
 
-#if defined(__FreeBSD__) && !defined(_KERNEL)
+#ifdef __NetBSD__
 #  include "pal_bsd_aligned.h"
 
 namespace snmalloc
 {
   /**
-   * FreeBSD-specific platform abstraction layer.
+   * NetBSD-specific platform abstraction layer.
    *
-   * This adds FreeBSD-specific aligned allocation to the generic BSD
+   * This adds NetBSD-specific aligned allocation to the generic BSD
    * implementation.
    */
-  class PALFreeBSD : public PALBSD_Aligned<PALFreeBSD>
+  class PALNetBSD : public PALBSD_Aligned<PALFBSD>
   {
   public:
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
      *
-     * The FreeBSD PAL does not currently add any features beyond those of a
+     * The NetBSD PAL does not currently add any features beyond those of a
      * generic BSD with support for arbitrary alignment from `mmap`.  This
      * field is declared explicitly to remind anyone modifying this class to
      * add new features that they should add any required feature flags.

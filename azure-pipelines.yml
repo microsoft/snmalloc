@@ -112,7 +112,7 @@ jobs:
       64-bit Release:
         BuildType: Release
         CMakeArgs: '-G"Visual Studio 15 2017 Win64"'
-        JFlag: '-j 4'
+        JFlag: '-j 2'
 
       64-bit Release Windows8Compat:
         BuildType: Release
@@ -127,7 +127,7 @@ jobs:
       32-bit Release:
         BuildType: Release
         CMakeArgs: '-G"Visual Studio 15 2017"'
-        JFlag: '-j 4'
+        JFlag: '-j 2'
 
   steps:
   - task: CMake@1
