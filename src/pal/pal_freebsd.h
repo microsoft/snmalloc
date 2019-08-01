@@ -11,6 +11,12 @@
 
 namespace snmalloc
 {
+  /**
+   * FreeBSD-specific platform abstraction layer.
+   *
+   * This adds FreeBSD-specific aligned allocation to the generic BSD
+   * implementation.
+   */
   class PALFBSD : public PALBSD<PALFBSD>
   {
   public:

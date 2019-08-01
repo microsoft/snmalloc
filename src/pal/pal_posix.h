@@ -10,6 +10,18 @@ extern "C" int puts(const char* str);
 
 namespace snmalloc
 {
+  /**
+   * Platform abstraction layer for generic POSIX systems.
+   *
+   * This provides the lowest common denominator for POSIX systems.  It should
+   * work on pretty much any POSIX system, but won't necessarily be the most
+   * efficient implementation.  Subclasses should provide more efficient
+   * implementations using platform-specific functionality.
+   *
+   * The template parameter for this is the subclass and is used for explicit
+   * up casts to allow this class to call non-virtual methods on the templated
+   * version.
+   */
   template<class OS>
   class PALPOSIX
   {
@@ -21,6 +33,10 @@ namespace snmalloc
      * POSIX systems are assumed to support lazy commit.
      */
     static constexpr uint64_t pal_features = LazyCommit;
+
+    /**
+     * Report a fatal error an exit.
+     */
     static void error(const char* const str) noexcept
     {
       puts(str);
