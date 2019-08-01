@@ -27,7 +27,7 @@ namespace snmalloc
      * declared explicitly to remind anyone who modifies this class that they
      * should add any required features.
      */
-    static constexpr uint64_t pal_features = PALBSD<PALOBSD>;
+    static constexpr uint64_t pal_features = PALBSD::pal_features;
   };
 } // namespace snmalloc
 #endif
