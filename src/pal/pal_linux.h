@@ -3,6 +3,7 @@
 #if defined(__linux__)
 #  include "../ds/bits.h"
 #  include "../mem/allocconfig.h"
+#  include "pal_posix.h"
 
 #  include <string.h>
 #  include <sys/mman.h>
@@ -11,47 +12,28 @@ extern "C" int puts(const char* str);
 
 namespace snmalloc
 {
-  class PALLinux
+  class PALLinux : public PALPOSIX<PALLinux>
   {
   public:
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
+     *
+     * Linux does not support any features other than those in a generic POSIX
+     * platform.  This field is declared explicitly to remind anyone who
+     * extends this PAL that they may need to extend the set of advertised
+     * features.
      */
-    static constexpr uint64_t pal_features = LazyCommit;
-    static void error(const char* const str)
-    {
-      puts(str);
-      abort();
-    }
+    static constexpr uint64_t pal_features = PALPOSIX::pal_features;
 
-    /// Notify platform that we will not be using these pages
-    void notify_not_using(void* p, size_t size) noexcept
-    {
-      assert(bits::is_aligned_block<OS_PAGE_SIZE>(p, size));
-      // Do nothing. Don't call madvise here, as the system call slows the
-      // allocator down too much.
-      UNUSED(p);
-      UNUSED(size);
-    }
-
-    /// Notify platform that we will be using these pages
-    template<ZeroMem zero_mem>
-    void notify_using(void* p, size_t size) noexcept
-    {
-      assert(
-        bits::is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
-
-      if constexpr (zero_mem == YesZero)
-        zero<true>(p, size);
-      else
-      {
-        UNUSED(p);
-        UNUSED(size);
-      }
-    }
-
-    /// OS specific function for zeroing memory
+    /**
+     * OS specific function for zeroing memory.
+     *
+     * Linux implements an unusual interpretation of `MADV_DONTNEED`, which
+     * immediately resets the pages to the zero state (rather than marking them
+     * as sensible ones to swap out in high memory pressure).  We use this to
+     * clear the underlying memory range.
+     */
     template<bool page_aligned = false>
     void zero(void* p, size_t size) noexcept
     {
@@ -64,23 +46,6 @@ namespace snmalloc
       {
         ::memset(p, 0, size);
       }
-    }
-
-    template<bool committed>
-    void* reserve(const size_t* size) noexcept
-    {
-      void* p = mmap(
-        nullptr,
-        *size,
-        PROT_READ | PROT_WRITE,
-        MAP_PRIVATE | MAP_ANONYMOUS,
-        -1,
-        0);
-
-      if (p == MAP_FAILED)
-        error("Out of memory");
-
-      return p;
     }
   };
 } // namespace snmalloc

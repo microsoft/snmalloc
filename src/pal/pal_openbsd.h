@@ -11,10 +11,23 @@
 
 namespace snmalloc
 {
-  class PALOBSD : public PALBSD
+  /**
+   * OpenBSD platform abstraction layer.
+   *
+   * OpenBSD behaves exactly like a generic BSD platform but this class exists
+   * as a place to add OpenBSD-specific behaviour later, if required.
+   */
+  class PALOBSD : public PALBSD<PALOBSD>
   {
   public:
-    static constexpr uint64_t pal_features = LazyCommit;
+    /**
+     * The features exported by this PAL.
+     *
+     * Currently, these are identical to the generic BSD PAL.  This field is
+     * declared explicitly to remind anyone who modifies this class that they
+     * should add any required features.
+     */
+    static constexpr uint64_t pal_features = PALBSD<PALOBSD>;
   };
 } // namespace snmalloc
 #endif

@@ -3,6 +3,7 @@
 #if (defined(__FreeBSD__) || defined(__OpenBSD__)) && !defined(_KERNEL)
 #  include "../ds/bits.h"
 #  include "../mem/allocconfig.h"
+#  include "pal_posix.h"
 
 #  include <stdio.h>
 #  include <strings.h>
@@ -10,83 +11,35 @@
 
 namespace snmalloc
 {
-  class PALBSD
+  /**
+   * Generic *BSD PAL mixin.  This provides features that are common to the BSD
+   * family.
+   */
+  template<typename OS>
+  class PALBSD : public PALPOSIX<OS>
   {
   public:
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
+     *
+     * The generic BSD PAL does not add any features that are not supported by
+     * generic POSIX systems, but explicitly declares this variable to remind
+     * anyone who extends this class that they may need to modify this field.
      */
-    static constexpr uint64_t pal_features = 0;
-    static void error(const char* const str)
-    {
-      puts(str);
-      abort();
-    }
+    static constexpr uint64_t pal_features = PALPOSIX<OS>::pal_features;
 
-    /// Notify platform that we will not be using these pages
+    /**
+     * Notify platform that we will not be using these pages.
+     *
+     * BSD systems provide the `MADV_FREE` flag to `madvise`, which allows the
+     * operating system to replace the pages with CoW copies of a zero page at
+     * any point between the call and the next write to that page.
+     */
     void notify_not_using(void* p, size_t size) noexcept
     {
       assert(bits::is_aligned_block<OS_PAGE_SIZE>(p, size));
       madvise(p, size, MADV_FREE);
-    }
-
-    /// Notify platform that we will be using these pages
-    template<ZeroMem zero_mem>
-    void notify_using(void* p, size_t size) noexcept
-    {
-      assert(
-        bits::is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
-      if constexpr (zero_mem == YesZero)
-      {
-        zero(p, size);
-      }
-      else
-      {
-        UNUSED(size);
-        UNUSED(p);
-      }
-    }
-
-    /// OS specific function for zeroing memory
-    template<bool page_aligned = false>
-    void zero(void* p, size_t size) noexcept
-    {
-      if (page_aligned || bits::is_aligned_block<OS_PAGE_SIZE>(p, size))
-      {
-        assert(bits::is_aligned_block<OS_PAGE_SIZE>(p, size));
-        void* r = mmap(
-          p,
-          size,
-          PROT_READ | PROT_WRITE,
-          MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED,
-          -1,
-          0);
-
-        if (r != MAP_FAILED)
-          return;
-      }
-
-      bzero(p, size);
-    }
-
-    template<bool committed>
-    void* reserve(const size_t* size) noexcept
-    {
-      size_t request = *size;
-
-      void* p = mmap(
-        nullptr,
-        request,
-        PROT_READ | PROT_WRITE,
-        MAP_PRIVATE | MAP_ANONYMOUS,
-        -1,
-        0);
-
-      if (p == MAP_FAILED)
-        error("Out of memory");
-
-      return p;
     }
   };
 } // namespace snmalloc

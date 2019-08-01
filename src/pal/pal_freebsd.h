@@ -11,19 +11,25 @@
 
 namespace snmalloc
 {
-  class PALFBSD : public PALBSD
+  class PALFBSD : public PALBSD<PALFBSD>
   {
   public:
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
      */
-    static constexpr uint64_t pal_features = AlignedAllocation | LazyCommit;
+    static constexpr uint64_t pal_features =
+      AlignedAllocation | PALBSD::pal_features;
 
+    /**
+     * Reserve memory.
+     *
+     * FreeBSD supports requesting pages at an arbitrary alignment, which
+     * improves efficiency of snmalloc.
+     */
     template<bool committed>
     void* reserve(const size_t* size, size_t align) noexcept
     {
-      size_t request = *size;
       // Alignment must be a power of 2.
       assert(align == bits::next_pow2(align));
 
@@ -33,7 +39,7 @@ namespace snmalloc
 
       void* p = mmap(
         nullptr,
-        request,
+        *size,
         PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS | MAP_ALIGNED(log2align),
         -1,
