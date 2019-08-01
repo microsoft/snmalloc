@@ -1,13 +1,7 @@
 #pragma once
 
 #if defined(__FreeBSD__) && !defined(_KERNEL)
-#  include "../ds/bits.h"
-#  include "../mem/allocconfig.h"
-#  include "pal_bsd.h"
-
-#  include <stdio.h>
-#  include <strings.h>
-#  include <sys/mman.h>
+#  include "pal_bsd_aligned.h"
 
 namespace snmalloc
 {
@@ -17,45 +11,19 @@ namespace snmalloc
    * This adds FreeBSD-specific aligned allocation to the generic BSD
    * implementation.
    */
-  class PALFBSD : public PALBSD<PALFBSD>
+  class PALFBSD : public PALBSD_Aligned<PALFBSD>
   {
   public:
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
-     */
-    static constexpr uint64_t pal_features =
-      AlignedAllocation | PALBSD::pal_features;
-
-    /**
-     * Reserve memory.
      *
-     * FreeBSD supports requesting pages at an arbitrary alignment, which
-     * improves efficiency of snmalloc.
+     * The FreeBSD PAL does not currently add any features beyond those of a
+     * generic BSD with support for arbitrary alignment from `mmap`.  This
+     * field is declared explicitly to remind anyone modifying this class to
+     * add new features that they should add any required feature flags.
      */
-    template<bool committed>
-    void* reserve(const size_t* size, size_t align) noexcept
-    {
-      // Alignment must be a power of 2.
-      assert(align == bits::next_pow2(align));
-
-      align = bits::max<size_t>(4096, align);
-
-      size_t log2align = bits::next_pow2_bits(align);
-
-      void* p = mmap(
-        nullptr,
-        *size,
-        PROT_READ | PROT_WRITE,
-        MAP_PRIVATE | MAP_ANONYMOUS | MAP_ALIGNED(log2align),
-        -1,
-        0);
-
-      if (p == MAP_FAILED)
-        error("Out of memory");
-
-      return p;
-    }
+    static constexpr uint64_t pal_features = PALBSD_Aligned::pal_features;
   };
 } // namespace snmalloc
 #endif
