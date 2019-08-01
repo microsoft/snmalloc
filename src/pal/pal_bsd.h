@@ -2,7 +2,6 @@
 
 #  include "pal_posix.h"
 
-#  include <strings.h>
 #  include <sys/mman.h>
 
 namespace snmalloc
