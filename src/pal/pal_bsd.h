@@ -1,8 +1,8 @@
 #pragma once
 
-#  include "pal_posix.h"
+#include "pal_posix.h"
 
-#  include <sys/mman.h>
+#include <sys/mman.h>
 
 namespace snmalloc
 {

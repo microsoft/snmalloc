@@ -10,8 +10,8 @@ namespace snmalloc
 // If simultating OE, then we need the underlying platform
 #if !defined(OPEN_ENCLAVE) || defined(OPEN_ENCLAVE_SIMULATION)
 #  include "pal_apple.h"
-#  include "pal_freebsd_kernel.h"
 #  include "pal_freebsd.h"
+#  include "pal_freebsd_kernel.h"
 #  include "pal_linux.h"
 #  include "pal_netbsd.h"
 #  include "pal_openbsd.h"
