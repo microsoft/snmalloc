@@ -1,7 +1,6 @@
 #pragma once
 
-#if defined(__FreeBSD__) && !defined(_KERNEL)
-#  include "pal_bsd.h"
+#include "pal_bsd.h"
 
 namespace snmalloc
 {
@@ -52,4 +51,3 @@ namespace snmalloc
     }
   };
 } // namespace snmalloc
-#endif
