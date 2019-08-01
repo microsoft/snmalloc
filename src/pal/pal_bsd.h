@@ -1,11 +1,7 @@
 #pragma once
 
-#if (defined(__FreeBSD__) || defined(__OpenBSD__)) && !defined(_KERNEL)
-#  include "../ds/bits.h"
-#  include "../mem/allocconfig.h"
 #  include "pal_posix.h"
 
-#  include <stdio.h>
 #  include <strings.h>
 #  include <sys/mman.h>
 
@@ -43,4 +39,3 @@ namespace snmalloc
     }
   };
 } // namespace snmalloc
-#endif
