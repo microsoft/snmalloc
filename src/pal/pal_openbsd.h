@@ -11,7 +11,7 @@ namespace snmalloc
    * OpenBSD behaves exactly like a generic BSD platform but this class exists
    * as a place to add OpenBSD-specific behaviour later, if required.
    */
-  class PALOBSD : public PALBSD<PALOBSD>
+  class PALOpenBSD : public PALBSD<PALOpenBSD>
   {
   public:
     /**
