@@ -11,7 +11,7 @@ namespace snmalloc
    * This adds NetBSD-specific aligned allocation to the generic BSD
    * implementation.
    */
-  class PALNetBSD : public PALBSD_Aligned<PALFBSD>
+  class PALNetBSD : public PALBSD_Aligned<PALNetBSD>
   {
   public:
     /**
