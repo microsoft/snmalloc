@@ -37,7 +37,13 @@ build configuration.
 Alternatively, you can follow the steps in the next section to build with Ninja
 using the Visual Studio compiler.
 
-# Building on macOS, Linux or FreeBSD
+# Building on UNIX-like platforms
+
+snmalloc has platform abstraction layers for XNU (macOS, iOS, and so on),
+FreeBSD, NetBSD, OpenBSD, and Linux and is expected to work out of the box on
+these systems.
+Please open issues if it does not.
+
 snmalloc has very few dependencies, CMake, Ninja, Clang 6.0 or later and a C++17
 standard library.
 Building with GCC is currently not recommended because GCC lacks support for the
@@ -91,22 +97,110 @@ These can be added to your cmake command line.
 In this section we show how to compile snmalloc into your project such that it replaces the standard allocator functions such as free and malloc. The following instructions were tested with CMake and Clang running on Ubuntu 18.04.
 
 Add these lines to your CMake file.
-```
+
+```cmake
 set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
 add_subdirectory(snmalloc EXCLUDE_FROM_ALL)
 ```
 
 In addition make sure your executable is compiled to support 128 bit atomic operations. This may require you to add the following to your CMake file.
-```
+
+```cmake
 target_link_libraries([lib_name] PRIVATE snmalloc_lib)
 ```
 
 You will also need to compile the relevant parts of snmalloc itself. Create a new file with the following contents and compile it with the rest of your application.
-```
+
+```c++
 #define NO_BOOTSTRAP_ALLOCATOR
 
 #include "snmalloc/src/override/malloc.cc"
 ```
+
+# Porting snmalloc to a new platform
+
+All of the platform-specific logic in snmalloc is isolated in the [Platform
+Abstraction Layer (PAL)](src/pal).
+To add support for a new platform, you will need to implement a new PAL for
+your system.
+
+The PAL must implement the following methods:
+
+```c++
+void error(const char* const str);
+```
+Report a fatal error and exit
+
+```c++
+void notify_not_using(void* p, size_t size) noexcept;
+```
+Notify the system that the range of memory from `p` to `p` + `size` is no
+longer in use, allowing the underlying physical pages to recycled for other
+purposes.
+
+```c++
+template<ZeroMem zero_mem>
+void notify_using(void* p, size_t size) noexcept;
+```
+Notify the system that the range of memory from `p` to `p` + `size` is now in use.
+On systems that lazily provide physical memory to virtual mappings, this
+function may not be required to do anything.
+If the template parameter is set to `YesZero` then this function is also
+responsible for ensuring that the newly requested memory is full of zeros.
+
+```c++
+template<bool page_aligned = false>
+void zero(void* p, size_t size) noexcept;
+```
+Zero the range of memory from `p` to `p` + `size`.
+This may be a simple `memset` call, but the `page_aligned` template parameter
+allows for more efficient implementations when entire pages are being zeroed.
+This function is typically called with very large ranges, so it may be more
+efficient to request that the operating system provides background-zeroed
+pages, rather than zeroing them synchronously in this call
+
+```c++
+template<bool committed>
+void* reserve(size_t* size, size_t align);
+template<bool committed>
+void* reserve(const size_t* size) noexcept;
+```
+Only one of these needs to be implemented, depending on whether the underlying
+system can provide strongly (e.g. 16MiB) aligned memory regions.
+If the system guarantees only page alignment, implement the second and snmalloc
+will over-allocate and then trim the requested region.
+If the system provides strong alignment, implement the first to return memory
+at the desired alignment.
+
+Finally, you need to define a field to indicate the features that your PAL supports:
+```c++
+static constexpr uint64_t pal_features = ...;
+```
+
+These features are defined in the [`PalFeatures`](src/pal/pal_consts.h) enumeration.
+
+There are several partial PALs that can be used when implementing POSIX-like systems:
+
+ - `PALPOSIX` defines a PAL for a POSIX platform using no non-standard features.
+ - `PALBSD` defines a PAL for the common set of BSD extensions to POSIX.
+ - `PALBSD_Aligned` extends `PALBSD` to provide support for aligned allocation
+   from `mmap`, as supported by NetBSD and FreeBSD.
+
+Each of these template classes takes the PAL that inherits from it as a
+template parameter.
+A purely POSIX-compliant platform could have a PAL as simple as this:
+
+```c++
+class PALMyOS : public PALPOSIX<PALMyOS> {}
+```
+
+Typically, a PAL will implement at least one of the functions outlined above in
+a more-efficient platform-specific way, but this is not required.
+Non-POSIX systems will need to implement the entire PAL interface.
+The [Windows](src/pal/pal_windows.h), and
+[OpenEnclave](src/pal/pal_open_enclave) and
+[FreeBSD kernel](src/pal/pal_freebsd_kernel.h) implementations give examples of
+non-POSIX environments that snmalloc supports.
 
 # Contributing
 
