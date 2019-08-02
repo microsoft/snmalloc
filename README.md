@@ -43,13 +43,16 @@ snmalloc has platform abstraction layers for XNU (macOS, iOS, and so on),
 FreeBSD, NetBSD, OpenBSD, and Linux and is expected to work out of the box on
 these systems.
 Please open issues if it does not.
+Note that NetBSD, by default, ships with a toolchain that emits calls to
+`libatomic` but does not ship `libatomic`.
+To use snmalloc on NetBSD, you must either acquire a `libatomic` implementation
+(for example, from the GCC or LLVM project) or compile with clang.
 
 snmalloc has very few dependencies, CMake, Ninja, Clang 6.0 or later and a C++17
 standard library.
 Building with GCC is currently not recommended because GCC lacks support for the
 `selectany` attribute to specify variables in a COMDAT.  
-It will, however, build with GCC-7, but some of global variables will be 
-preemptible.
+It will build with GCC-7, but some of global variables will be preemptible.
 
 To build a debug configuration:
 ```
@@ -127,7 +130,7 @@ your system.
 The PAL must implement the following methods:
 
 ```c++
-void error(const char* const str);
+void error(const char* const str) noexcept;
 ```
 Report a fatal error and exit.
 
