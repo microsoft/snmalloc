@@ -129,7 +129,7 @@ The PAL must implement the following methods:
 ```c++
 void error(const char* const str);
 ```
-Report a fatal error and exit
+Report a fatal error and exit.
 
 ```c++
 void notify_not_using(void* p, size_t size) noexcept;
@@ -198,7 +198,7 @@ Typically, a PAL will implement at least one of the functions outlined above in
 a more-efficient platform-specific way, but this is not required.
 Non-POSIX systems will need to implement the entire PAL interface.
 The [Windows](src/pal/pal_windows.h), and
-[OpenEnclave](src/pal/pal_open_enclave) and
+[OpenEnclave](src/pal/pal_open_enclave.h) and
 [FreeBSD kernel](src/pal/pal_freebsd_kernel.h) implementations give examples of
 non-POSIX environments that snmalloc supports.
 
