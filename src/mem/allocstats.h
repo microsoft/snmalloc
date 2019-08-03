@@ -183,6 +183,7 @@ namespace snmalloc
       UNUSED(sc);
 
 #ifdef USE_SNMALLOC_STATS
+      assert(sizeclass[sc].count.current > 0);
       sizeclass[sc].addToRunningAverage();
       sizeclass[sc].count.dec();
 #endif
@@ -212,6 +213,7 @@ namespace snmalloc
       UNUSED(sc);
 
 #ifdef USE_SNMALLOC_STATS
+      assert(sizeclass[sc].slab_count.current > 0);
       sizeclass[sc].addToRunningAverage();
       sizeclass[sc].slab_count.dec();
 #endif
@@ -222,6 +224,7 @@ namespace snmalloc
       UNUSED(sc);
 
 #ifdef USE_SNMALLOC_STATS
+      assert(large[sc].count.current > 0);
       large[sc].count.dec();
 #endif
     }
