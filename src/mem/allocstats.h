@@ -34,6 +34,7 @@ namespace snmalloc
 
       void dec()
       {
+        assert(current > 0);
         current--;
       }
 
