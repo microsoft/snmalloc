@@ -115,5 +115,6 @@ int main(int argc, char** argv)
     test_posix_memalign(0, align + 1, EINVAL, true);
   }
 
+  current_alloc_pool()->debug_check_empty();
   return 0;
 }
