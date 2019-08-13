@@ -210,14 +210,13 @@ extern "C"
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(snmalloc_pagemap_global_get)(
     PagemapConfig const** config)
   {
+    auto& pm = GlobalPagemap::pagemap();
     if (config)
     {
-      *config = &decltype(snmalloc::global_pagemap)::config;
-      assert(
-        decltype(snmalloc::global_pagemap)::cast_to_pagemap(
-          &snmalloc::global_pagemap, *config) == &snmalloc::global_pagemap);
+      *config = &SuperslabPagemap::config;
+      assert(SuperslabPagemap::cast_to_pagemap(&pm, *config) == &pm);
     }
-    return &snmalloc::global_pagemap;
+    return &pm;
   }
 #endif
 
