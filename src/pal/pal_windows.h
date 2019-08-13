@@ -231,8 +231,8 @@ namespace snmalloc
     }
 #  endif
   };
-  HEADER_GLOBAL std::atomic<uint64_t> PALWindows::pressure_epoch;
-  HEADER_GLOBAL std::atomic<bool> PALWindows::registered_for_notifications;
-  HEADER_GLOBAL HANDLE PALWindows::lowMemoryObject;
+  inline std::atomic<uint64_t> PALWindows::pressure_epoch;
+  inline std::atomic<bool> PALWindows::registered_for_notifications;
+  inline HANDLE PALWindows::lowMemoryObject;
 }
 #endif
