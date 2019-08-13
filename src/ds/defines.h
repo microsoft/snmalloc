@@ -3,7 +3,6 @@
 #ifdef _MSC_VER
 #  define ALWAYSINLINE __forceinline
 #  define NOINLINE __declspec(noinline)
-#  define HEADER_GLOBAL __declspec(selectany)
 #  define likely(x) !!(x)
 #  define unlikely(x) !!(x)
 #  define SNMALLOC_SLOW_PATH NOINLINE
@@ -17,13 +16,6 @@
 #  define SNMALLOC_SLOW_PATH NOINLINE
 #  define SNMALLOC_FAST_PATH inline ALWAYSINLINE
 #  define SNMALLOC_PURE __attribute__((const))
-#  ifdef __clang__
-#    define HEADER_GLOBAL __attribute__((selectany))
-#  else
-//  GCC does not support selectany, weak is almost the correct
-//  attribute, but leaves the global variable preemptible.
-#    define HEADER_GLOBAL __attribute__((weak))
-#  endif
 #endif
 
 #ifndef __has_builtin

@@ -18,7 +18,7 @@ namespace snmalloc
    * replace itself with the thread-local allocator, allocating one if
    * required.  This avoids a branch on the fast path.
    */
-  HEADER_GLOBAL Alloc GlobalPlaceHolder(
+  inline Alloc GlobalPlaceHolder(
     default_memory_provider, SNMALLOC_DEFAULT_PAGEMAP(), nullptr, true);
 
 #ifdef SNMALLOC_EXTERNAL_THREAD_ALLOC
