@@ -1,5 +1,6 @@
 #include "test/measuretime.h"
 #include "test/opt.h"
+#include "test/setup.h"
 #include "test/usage.h"
 #include "test/xoroshiro.h"
 
@@ -148,6 +149,8 @@ void test_tasks(size_t num_tasks, size_t count, size_t size)
 
 int main(int argc, char** argv)
 {
+  setup();
+
   opt::Opt opt(argc, argv);
   size_t cores = opt.is<size_t>("--cores", 8);
 

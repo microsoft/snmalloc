@@ -1084,13 +1084,13 @@ namespace snmalloc
 
       SNMALLOC_ASSUME(size <= SLAB_SIZE);
       sizeclass_t sizeclass = size_to_sizeclass(size);
-      stats().sizeclass_alloc(sizeclass);
 
       assert(sizeclass < NUM_SMALL_CLASSES);
       auto& fl = small_fast_free_lists[sizeclass];
       void* head = fl.value;
       if (likely(head != nullptr))
       {
+        stats().sizeclass_alloc(sizeclass);
         // Read the next slot from the memory that's about to be allocated.
         fl.value = Metaslab::follow_next(head);
 
@@ -1113,6 +1113,9 @@ namespace snmalloc
         return reinterpret_cast<Allocator*>(replacement)
           ->template small_alloc_slow<zero_mem, allow_reserve>(sizeclass);
       }
+
+      stats().sizeclass_alloc(sizeclass);
+
       handle_message_queue();
       size_t rsize = sizeclass_to_size(sizeclass);
       auto& sl = small_classes[sizeclass];

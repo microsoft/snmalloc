@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <test/setup.h>
 
 #define SNMALLOC_NAME_MANGLE(a) our_##a
 #include "../../../override/malloc.cc"
@@ -48,8 +49,11 @@ void test_realloc(void* p, size_t size, int err, bool null)
 {
   fprintf(stderr, "realloc(%p(%d), %d)\n", p, int(size), (int)size);
   errno = 0;
-  p = our_realloc(p, size);
-  check_result(size, 1, p, err, null);
+  auto new_p = our_realloc(p, size);
+  // Realloc failure case, deallocate original block
+  if (new_p == nullptr && size != 0)
+    our_free(p);
+  check_result(size, 1, new_p, err, null);
 }
 
 void test_posix_memalign(size_t size, size_t align, int err, bool null)
@@ -72,6 +76,8 @@ int main(int argc, char** argv)
 {
   UNUSED(argc);
   UNUSED(argv);
+
+  setup();
 
   constexpr int SUCCESS = 0;
 
@@ -115,5 +121,6 @@ int main(int argc, char** argv)
     test_posix_memalign(0, align + 1, EINVAL, true);
   }
 
+  current_alloc_pool()->debug_check_empty();
   return 0;
 }

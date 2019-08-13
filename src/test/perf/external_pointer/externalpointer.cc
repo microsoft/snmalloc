@@ -1,5 +1,6 @@
 #include <snmalloc.h>
 #include <test/measuretime.h>
+#include <test/setup.h>
 #include <test/xoroshiro.h>
 #include <unordered_set>
 
@@ -78,6 +79,8 @@ namespace test
 
 int main(int, char**)
 {
+  setup();
+
   xoroshiro::p128r64 r;
 #if NDEBUG
   size_t nn = 30;

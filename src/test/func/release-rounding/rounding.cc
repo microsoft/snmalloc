@@ -1,4 +1,5 @@
 #include <snmalloc.h>
+#include <test/setup.h>
 
 using namespace snmalloc;
 
@@ -9,6 +10,8 @@ using namespace snmalloc;
 
 int main(int argc, char** argv)
 {
+  setup();
+
   UNUSED(argc);
   UNUSED(argv);
 

@@ -1,5 +1,6 @@
 #include <snmalloc.h>
 #include <test/measuretime.h>
+#include <test/setup.h>
 #include <unordered_set>
 
 using namespace snmalloc;
@@ -63,6 +64,8 @@ void test_alloc_dealloc(size_t count, size_t size, bool write)
 
 int main(int, char**)
 {
+  setup();
+
   for (size_t size = 16; size <= 128; size <<= 1)
   {
     test_alloc_dealloc<NoZero>(1 << 15, size, false);

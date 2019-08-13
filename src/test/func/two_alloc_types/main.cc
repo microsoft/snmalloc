@@ -3,6 +3,7 @@
 #include <iostream>
 #include <stdlib.h>
 #include <string.h>
+#include <test/setup.h>
 
 void* oe_base;
 void* oe_end;
@@ -40,9 +41,11 @@ host_snmalloc_pagemap_global_get(snmalloc::PagemapConfig const**);
 using namespace snmalloc;
 int main()
 {
+  setup();
+
   MemoryProviderStateMixin<DefaultPal> mp;
 
-  size_t size = 1ULL << 28;
+  size_t size = 1ULL << 26;
   oe_base = mp.reserve<true>(&size, 1);
   oe_end = (uint8_t*)oe_base + size;
   std::cout << "Allocated region " << oe_base << " - " << oe_end << std::endl;

@@ -72,9 +72,9 @@ jobs:
     displayName: 'Install Build Dependencies'
 
   - task: CMake@1
-    displayName: 'CMake .. $(CMakeArgs) -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS"'
+    displayName: 'CMake .. $(CMakeArgs) -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS" -DSNMALLOC_CI_BUILD=On'
     inputs:
-      cmakeArgs: '.. $(CMakeArgs) -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS"'
+      cmakeArgs: '.. $(CMakeArgs) -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS" -DSNMALLOC_CI_BUILD=On'
 
   - script: |
       ninja
@@ -131,9 +131,9 @@ jobs:
 
   steps:
   - task: CMake@1
-    displayName: 'CMake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType)'
+    displayName: 'CMake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On'
     inputs:
-      cmakeArgs: '.. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType)'
+      cmakeArgs: '.. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On'
 
   - task: MSBuild@1
     displayName: 'Build solution build/snmalloc.sln'
@@ -158,9 +158,9 @@ jobs:
 
   steps:
   - task: CMake@1
-    displayName: 'CMake .. -DCMAKE_BUILD_TYPE=$(BuildType)'
+    displayName: 'CMake .. -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On'
     inputs:
-      cmakeArgs: '.. -DCMAKE_BUILD_TYPE=$(BuildType)'
+      cmakeArgs: '.. -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On'
 
   - script: |
       make -j 4
