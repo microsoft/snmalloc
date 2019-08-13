@@ -141,7 +141,9 @@ namespace snmalloc
       UNUSED(size);
 
 #ifdef USE_SNMALLOC_STATS
-      bucketed_requests[bits::to_exp_mant<BUCKETS_BITS>(size)]++;
+      auto index = (size == 0) ? 0 : bits::to_exp_mant<BUCKETS_BITS>(size);
+      assert(index < TOTAL_BUCKETS);
+      bucketed_requests[index]++;
 #endif
     }
 
