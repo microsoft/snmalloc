@@ -43,6 +43,25 @@ namespace snmalloc
   };
 
   /**
+   * A singleton global.  Used to allow globals in headers.  Precisely one
+   * instance of the static field will exist in the final program, irrespective
+   * of the number of compilation units that reference the field.
+   *
+   * C++ globals do not have their types as part of the name mangling, so this
+   * allows a singleton instance of a specific type that won't be confused with
+   * other template instantiations of the same type.
+   */
+  template<class T>
+  struct TypedSingleton
+  {
+    /**
+     * The global variable, which will have a mangled name that includes the
+     * type of `T`.
+     */
+    static inline T global;
+  };
+
+  /**
    * Wrapper for wrapping values.
    *
    * Wraps on read. This allows code to trust the value is in range, even when
