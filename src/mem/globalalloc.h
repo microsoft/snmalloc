@@ -108,9 +108,9 @@ namespace snmalloc
     }
 
     /**
-      If you pass a pointer to a bool, then it returns whether all the allocators are empty.
-      If you don't pass a pointer to a bool, then will raise an error all the allocators are
-      not empty.
+      If you pass a pointer to a bool, then it returns whether all the
+      allocators are empty. If you don't pass a pointer to a bool, then will
+      raise an error all the allocators are not empty.
      */
     void debug_check_empty(bool* result = nullptr)
     {
@@ -133,7 +133,7 @@ namespace snmalloc
           // Destroy the message queue so that it has no stub message.
           Remote* p = alloc->message_queue().destroy();
 
-            while (p != nullptr)
+          while (p != nullptr)
           {
             Remote* next = p->non_atomic_next;
             alloc->handle_dealloc_remote(p);
