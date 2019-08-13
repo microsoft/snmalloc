@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <test/setup.h>
 
 #define SNMALLOC_NAME_MANGLE(a) our_##a
 #include "../../../override/malloc.cc"
@@ -75,6 +76,8 @@ int main(int argc, char** argv)
 {
   UNUSED(argc);
   UNUSED(argv);
+
+  setup();
 
   constexpr int SUCCESS = 0;
 

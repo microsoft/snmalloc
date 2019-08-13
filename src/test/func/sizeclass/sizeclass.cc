@@ -1,5 +1,6 @@
 #include <iostream>
 #include <snmalloc.h>
+#include <test/setup.h>
 
 NOINLINE
 snmalloc::sizeclass_t size_to_sizeclass(size_t size)
@@ -9,6 +10,8 @@ snmalloc::sizeclass_t size_to_sizeclass(size_t size)
 
 int main(int, char**)
 {
+  setup();
+
   bool failed = false;
   size_t size_low = 0;
 

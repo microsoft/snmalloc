@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.8)
 project(snmalloc C CXX)
 
 option(USE_SNMALLOC_STATS "Track allocation stats" OFF)
+option(SNMALLOC_CI_BUILD "Disable features not sensible for CI" OFF)
 option(USE_MEASURE "Measure performance with histograms" OFF)
 option(EXPOSE_EXTERNAL_PAGEMAP "Expose the global pagemap" OFF)
 option(EXPOSE_EXTERNAL_RESERVE "Expose an interface to reserve memory using the default memory provider" OFF)
@@ -93,6 +94,10 @@ endif()
 
 if(USE_MEASURE)
   target_compile_definitions(snmalloc_lib INTERFACE -DUSE_MEASURE)
+endif()
+
+if(SNMALLOC_CI_BUILD)
+  target_compile_definitions(snmalloc_lib INTERFACE -DSNMALLOC_CI_BUILD)
 endif()
 
 if(CACHE_FRIENDLY_OFFSET)
