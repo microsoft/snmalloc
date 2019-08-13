@@ -55,23 +55,39 @@ namespace snmalloc
     FlatPagemap<SUPERSLAB_BITS, uint8_t>,
     Pagemap<SUPERSLAB_BITS, uint8_t, 0>>;
 
-  HEADER_GLOBAL SuperslabPagemap global_pagemap;
-
   /**
    * Mixin used by `SuperslabMap` to directly access the pagemap via a global
    * variable.  This should be used from within the library or program that
    * owns the pagemap.
+   *
+   * This class makes the global pagemap a static field so that its name
+   * includes the type mangling.  If two compilation units try to instantiate
+   * two different types of pagemap then they will see two distinct pagemaps.
+   * This will prevent allocating with one and freeing with the other (because
+   * the memory will show up as not owned by any allocator in the other
+   * compilation unit) but will prevent the same memory being interpreted as
+   * having two different types.
    */
-  struct GlobalPagemap
+  template<typename T>
+  class GlobalPagemapTemplate
   {
+    /**
+     * The global pagemap variable.  The name of this symbol will include the
+     * type of `T`.
+     */
+    inline static T global_pagemap;
+
+  public:
     /**
      * Returns the pagemap.
      */
-    SuperslabPagemap& pagemap()
+    static SuperslabPagemap& pagemap()
     {
       return global_pagemap;
     }
   };
+
+  using GlobalPagemap = GlobalPagemapTemplate<SuperslabPagemap>;
 
   /**
    * Optionally exported function that accesses the global pagemap provided by
@@ -91,7 +107,7 @@ namespace snmalloc
     /**
      * A pointer to the pagemap.
      */
-    SuperslabPagemap* external_pagemap;
+    inline static SuperslabPagemap* external_pagemap;
 
   public:
     /**
@@ -110,7 +126,7 @@ namespace snmalloc
     /**
      * Returns the exported pagemap.
      */
-    SuperslabPagemap& pagemap()
+    static SuperslabPagemap& pagemap()
     {
       return *external_pagemap;
     }
@@ -531,7 +547,7 @@ namespace snmalloc
       error("Unsupported");
       UNUSED(p);
 #else
-      uint8_t size = global_pagemap.get(address_cast(p));
+      uint8_t size = PageMap::pagemap().get(address_cast(p));
 
       Superslab* super = Superslab::get(p);
       if (size == PMSuperslab)
@@ -561,7 +577,7 @@ namespace snmalloc
       {
         // This is a large alloc redirect.
         ss = ss - (1ULL << (size - 64));
-        size = global_pagemap.get(ss);
+        size = PageMap::pagemap().get(ss);
       }
 
       if (size == 0)
@@ -593,7 +609,7 @@ namespace snmalloc
     static size_t alloc_size(void* p)
     {
       // This must be called on an external pointer.
-      size_t size = global_pagemap.get(address_cast(p));
+      size_t size = PageMap::pagemap().get(address_cast(p));
 
       if (size == 0)
       {
