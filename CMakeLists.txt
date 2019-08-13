@@ -158,7 +158,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         aux_source_directory(${TESTDIR}/${TEST_CATEGORY}/${TEST} SRC)
         set(TESTNAME "${TEST_CATEGORY}-${TEST}-${SUPER_SLAB_SIZE}")
 
-        add_executable(${TESTNAME} ${SRC} src/override/new.cc)
+        add_executable(${TESTNAME} ${SRC})
         if (${SUPER_SLAB_SIZE} EQUAL 1)
           target_compile_definitions(${TESTNAME} PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
         endif()
