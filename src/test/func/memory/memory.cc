@@ -1,6 +1,7 @@
 #include <iostream>
 #include <snmalloc.h>
 #include <test/opt.h>
+#include <test/setup.h>
 #include <test/xoroshiro.h>
 #include <unordered_set>
 
@@ -297,6 +298,8 @@ void test_calloc_16M()
 
 int main(int argc, char** argv)
 {
+  setup();
+
 #ifdef USE_SYSTEMATIC_TESTING
   opt::Opt opt(argc, argv);
   size_t seed = opt.is<size_t>("--seed", 0);
