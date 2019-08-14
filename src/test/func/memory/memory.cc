@@ -1,3 +1,4 @@
+#include <iostream>
 #include <snmalloc.h>
 #include <test/opt.h>
 #include <test/xoroshiro.h>
@@ -215,11 +216,14 @@ void test_external_pointer_large()
   // Pre allocate all the objects
   size_t* objects[count];
 
+  size_t total_size = 0;
+
   for (size_t i = 0; i < count; i++)
   {
     size_t b = snmalloc::bits::is64() ? 28 : 26;
     size_t rand = r.next() & ((1 << b) - 1);
     size_t size = (1 << 24) + rand;
+    total_size += size;
     // store object
     objects[i] = (size_t*)alloc->alloc(size);
     // Store allocators size for this object
@@ -234,6 +238,9 @@ void test_external_pointer_large()
   {
     check_external_pointer_large(objects[i]);
   }
+
+  std::cout << "Total size allocated in test_external_pointer_large: "
+            << total_size << std::endl;
 
   // Deallocate everything
   for (size_t i = 0; i < count; i++)
