@@ -3,7 +3,7 @@ trigger:
 
 pr:
 - master
-    
+
 jobs:
 - job:
   displayName: Linux
@@ -130,6 +130,12 @@ jobs:
         JFlag: '-j 2'
 
   steps:
+  - script: |
+      bash -c "cat /proc/cpuinfo"
+      bash -c "cat /proc/meminfo"
+    displayName: 'Machine stats'
+    
+
   - task: CMake@1
     displayName: 'CMake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On'
     inputs:

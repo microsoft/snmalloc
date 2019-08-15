@@ -170,6 +170,8 @@ namespace snmalloc
       {
         error("debug_check_empty: found non-empty allocators");
       }
+#else
+      UNUSED(result);
 #endif
     }
   };
