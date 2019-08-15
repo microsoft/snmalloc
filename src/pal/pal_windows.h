@@ -22,13 +22,13 @@ namespace snmalloc
     /**
      * The number of times that the memory pressure notification has fired.
      */
-    static std::atomic<uint64_t> pressure_epoch;
+    static inline std::atomic<uint64_t> pressure_epoch;
     /**
      * A flag indicating that we have tried to register for low-memory
      * notifications.
      */
-    static std::atomic<bool> registered_for_notifications;
-    static HANDLE lowMemoryObject;
+    static inline std::atomic<bool> registered_for_notifications;
+    static inline HANDLE lowMemoryObject;
     /**
      * Callback, used when the system delivers a low-memory notification.  This
      * simply increments an atomic counter each time the notification is raised.
@@ -231,8 +231,5 @@ namespace snmalloc
     }
 #  endif
   };
-  inline std::atomic<uint64_t> PALWindows::pressure_epoch;
-  inline std::atomic<bool> PALWindows::registered_for_notifications;
-  inline HANDLE PALWindows::lowMemoryObject;
 }
 #endif
