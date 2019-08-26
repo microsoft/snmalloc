@@ -22,6 +22,56 @@ namespace snmalloc
      * should add any required features.
      */
     static constexpr uint64_t pal_features = PALBSD::pal_features;
+
+     // OS specific function for zeroing memory with ID 241.
+    template<bool page_aligned = false>
+    void zero(void* p, size_t size)
+    {
+      if (page_aligned || bits::is_aligned_block<OS_PAGE_SIZE>(p, size))
+      {
+        assert(bits::is_aligned_block<OS_PAGE_SIZE>(p, size));
+        void* r = mmap(
+          p,
+          size,
+          PROT_READ | PROT_WRITE,
+          MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED,
+          pal_anon_id,
+          0);
+
+        if (r != MAP_FAILED)
+          return;
+      }
+
+      bzero(p, size);
+    }
+
+     // Reserve memory with ID 241.
+    template<bool committed>
+    void* reserve(const size_t* size)
+    {
+      void* p = mmap(
+        nullptr,
+        *size,
+        PROT_READ | PROT_WRITE,
+        MAP_PRIVATE | MAP_ANONYMOUS,
+        pal_anon_id,
+        0);
+
+      if (p == MAP_FAILED)
+        error("Out of memory");
+
+      return p;
+    }
+  private:
+    /**
+     * Anonymous page tag ID
+     *
+     * Darwin platform allows to gives an ID to anonymous pages
+     * from 240 up to 255 are guaranteed to be free of usage
+     * however eventually a lower could be taken (e.g. LLVM sanitizers
+     * has 99) so we can monitor their states via vmmap for instance.
+     */
+    int pal_anon_id = 241 << 24;
   };
 } // namespace snmalloc
 #endif
