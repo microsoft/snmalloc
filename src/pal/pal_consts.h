@@ -48,4 +48,9 @@ namespace snmalloc
      */
     YesZero
   };
+
+  /**
+   * Default Tag ID for the Apple class
+   */
+  static const int PALAnonDefaultID = 241;
 } // namespace snmalloc

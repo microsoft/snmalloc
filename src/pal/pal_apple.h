@@ -9,11 +9,9 @@ namespace snmalloc
 {
   /**
    * PAL implementation for Apple systems (macOS, iOS, watchOS, tvOS...).
-   *
-   * XNU behaves exactly like a generic BSD platform but this class exists
-   * as a place to add XNU-specific behaviour later, if required.
    */
-  class PALApple : public PALBSD<PALApple>
+  template<int PALAnonID = PALAnonDefaultID>
+  class PALApple : public PALBSD<PALApple<>>
   {
   public:
     /**
@@ -84,7 +82,7 @@ namespace snmalloc
      * (e.g. LLVM sanitizers has 99) so we can monitor their states
      * via vmmap for instance.
      */
-    static constexpr int pal_anon_id = VM_MAKE_TAG(241);
+    static constexpr int pal_anon_id = VM_MAKE_TAG(PALAnonID);
   };
 } // namespace snmalloc
 #endif

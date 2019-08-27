@@ -27,7 +27,7 @@ namespace snmalloc
 #  if defined(_WIN32)
     PALWindows;
 #  elif defined(__APPLE__)
-    PALApple;
+    PALApple<>;
 #  elif defined(__linux__)
     PALLinux;
 #  elif defined(FreeBSD_KERNEL)
