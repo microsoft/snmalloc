@@ -3,6 +3,8 @@
 #ifdef __APPLE__
 #  include "pal_bsd.h"
 
+#  include <mach/vm_statistics.h>
+
 namespace snmalloc
 {
   /**
@@ -23,7 +25,7 @@ namespace snmalloc
      */
     static constexpr uint64_t pal_features = PALBSD::pal_features;
 
-     // OS specific function for zeroing memory with ID 241.
+    // OS specific function for zeroing memory with ID 241.
     template<bool page_aligned = false>
     void zero(void* p, size_t size)
     {
@@ -45,7 +47,7 @@ namespace snmalloc
       bzero(p, size);
     }
 
-     // Reserve memory with ID 241.
+    // Reserve memory with ID 241.
     template<bool committed>
     void* reserve(const size_t* size)
     {
@@ -62,16 +64,18 @@ namespace snmalloc
 
       return p;
     }
+
   private:
     /**
      * Anonymous page tag ID
      *
-     * Darwin platform allows to gives an ID to anonymous pages
-     * from 240 up to 255 are guaranteed to be free of usage
-     * however eventually a lower could be taken (e.g. LLVM sanitizers
-     * has 99) so we can monitor their states via vmmap for instance.
+     * Darwin platform allows to gives an ID to anonymous pages via
+     * the VM_MAKE_TAG's macro, from 240 up to 255 are guaranteed
+     * to be free of usage, however eventually a lower could be taken
+     * (e.g. LLVM sanitizers has 99) so we can monitor their states
+     * via vmmap for instance.
      */
-    int pal_anon_id = 241 << 24;
+    int pal_anon_id = VM_MAKE_TAG(241);
   };
 } // namespace snmalloc
 #endif
