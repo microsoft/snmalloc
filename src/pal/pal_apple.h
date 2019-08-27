@@ -25,7 +25,12 @@ namespace snmalloc
      */
     static constexpr uint64_t pal_features = PALBSD::pal_features;
 
-    // OS specific function for zeroing memory with ID 241.
+    /**
+     *  OS specific function for zeroing memory with the Apple application
+     *  tag id.
+     *
+     *  See comment below.
+     */
     template<bool page_aligned = false>
     void zero(void* p, size_t size)
     {
@@ -47,7 +52,11 @@ namespace snmalloc
       bzero(p, size);
     }
 
-    // Reserve memory with ID 241.
+    /**
+     * Reserve memory with the Apple application tag id.
+     *
+     * See comment below.
+     */
     template<bool committed>
     void* reserve(const size_t* size)
     {
@@ -75,7 +84,7 @@ namespace snmalloc
      * (e.g. LLVM sanitizers has 99) so we can monitor their states
      * via vmmap for instance.
      */
-    int pal_anon_id = VM_MAKE_TAG(241);
+    static constexpr int pal_anon_id = VM_MAKE_TAG(241);
   };
 } // namespace snmalloc
 #endif
