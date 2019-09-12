@@ -145,7 +145,7 @@ namespace snmalloc
         if (e->compare_exchange_strong(
               value, LOCKED_ENTRY, std::memory_order_relaxed))
         {
-          auto& v = default_memory_provider();
+          auto& v = default_memory_provider;
           value = v.alloc_chunk<PagemapEntry, OS_PAGE_SIZE>();
           e->store(value, std::memory_order_release);
         }
