@@ -60,7 +60,7 @@ namespace snmalloc
    * variable.  This should be used from within the library or program that
    * owns the pagemap.
    *
-   * This class makes the global pagemap a typed singleton so that its name
+   * This class makes the global pagemap a static field so that its name
    * includes the type mangling.  If two compilation units try to instantiate
    * two different types of pagemap then they will see two distinct pagemaps.
    * This will prevent allocating with one and freeing with the other (because
@@ -69,14 +69,21 @@ namespace snmalloc
    * having two different types.
    */
   template<typename T>
-  struct GlobalPagemapTemplate
+  class GlobalPagemapTemplate
   {
+    /**
+     * The global pagemap variable.  The name of this symbol will include the
+     * type of `T`.
+     */
+    inline static T global_pagemap;
+
+  public:
     /**
      * Returns the pagemap.
      */
     static SuperslabPagemap& pagemap()
     {
-      return TypedSingleton<SuperslabPagemap>::global;
+      return global_pagemap;
     }
   };
 

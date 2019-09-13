@@ -19,7 +19,7 @@ namespace snmalloc
    * required.  This avoids a branch on the fast path.
    */
   inline Alloc GlobalPlaceHolder(
-    default_memory_provider(), SNMALLOC_DEFAULT_PAGEMAP(), nullptr, true);
+    default_memory_provider, SNMALLOC_DEFAULT_PAGEMAP(), nullptr, true);
 
 #ifdef SNMALLOC_EXTERNAL_THREAD_ALLOC
   /**
