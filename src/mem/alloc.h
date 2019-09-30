@@ -687,7 +687,7 @@ namespace snmalloc
           Allocator<MemoryProvider, PageMap, IsQueueInline, Replacement>);
         constexpr size_t initial_shift =
           bits::next_pow2_bits_const(allocator_size);
-        assert((initial_shift - (r * REMOTE_SLOT_BITS)) < 64);
+        assert((initial_shift + (r * REMOTE_SLOT_BITS)) < 64);
         return (id >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
       }
 
