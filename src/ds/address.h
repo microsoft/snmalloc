@@ -1,4 +1,7 @@
 #pragma once
+#include "bits.h"
+
+#include <cassert>
 #include <cstdint>
 
 namespace snmalloc
@@ -39,4 +42,18 @@ namespace snmalloc
   {
     return reinterpret_cast<T*>(address);
   }
+
+  /**
+   * Test if a pointer is aligned to a given size, which must be a power of
+   * two.
+   */
+  template<size_t alignment>
+  static inline bool is_aligned_block(void* p, size_t size)
+  {
+    assert(bits::next_pow2(alignment) == alignment);
+
+    return ((static_cast<size_t>(address_cast(p)) | size) & (alignment - 1)) ==
+      0;
+  }
+
 } // namespace snmalloc

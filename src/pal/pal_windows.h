@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../ds/address.h"
 #include "../ds/bits.h"
 #include "../mem/allocconfig.h"
 
@@ -107,7 +108,7 @@ namespace snmalloc
     /// Notify platform that we will not be using these pages
     void notify_not_using(void* p, size_t size) noexcept
     {
-      assert(bits::is_aligned_block<OS_PAGE_SIZE>(p, size));
+      assert(is_aligned_block<OS_PAGE_SIZE>(p, size));
 
       BOOL ok = VirtualFree(p, size, MEM_DECOMMIT);
 
@@ -119,8 +120,7 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     void notify_using(void* p, size_t size) noexcept
     {
-      assert(
-        bits::is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
+      assert(is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
 
       void* r = VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE);
 
@@ -132,9 +132,9 @@ namespace snmalloc
     template<bool page_aligned = false>
     void zero(void* p, size_t size) noexcept
     {
-      if (page_aligned || bits::is_aligned_block<OS_PAGE_SIZE>(p, size))
+      if (page_aligned || is_aligned_block<OS_PAGE_SIZE>(p, size))
       {
-        assert(bits::is_aligned_block<OS_PAGE_SIZE>(p, size));
+        assert(is_aligned_block<OS_PAGE_SIZE>(p, size));
         notify_not_using(p, size);
         notify_using<YesZero>(p, size);
       }

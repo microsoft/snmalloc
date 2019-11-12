@@ -908,7 +908,7 @@ namespace snmalloc
         // All medium size classes are page aligned.
         if (i > NUM_SMALL_CLASSES)
         {
-          assert(bits::is_aligned_block<OS_PAGE_SIZE>(nullptr, size1));
+          assert(is_aligned_block<OS_PAGE_SIZE>(nullptr, size1));
         }
 
         assert(sc1 == i);

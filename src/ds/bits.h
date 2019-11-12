@@ -6,7 +6,6 @@
 // #define USE_LZCNT
 
 #include "../aal/aal.h"
-#include "address.h"
 #include "defines.h"
 
 #include <atomic>
@@ -238,15 +237,6 @@ namespace snmalloc
       value += align_1;
       value &= ~align_1;
       return value;
-    }
-
-    template<size_t alignment>
-    static inline bool is_aligned_block(void* p, size_t size)
-    {
-      assert(next_pow2(alignment) == alignment);
-
-      return ((static_cast<size_t>(address_cast(p)) | size) &
-              (alignment - 1)) == 0;
     }
 
     /************************************************
