@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../ds/bits.h"
+#include "../ds/address.h"
 #include "../mem/allocconfig.h"
 
 #include <string.h>
@@ -53,7 +53,7 @@ namespace snmalloc
      */
     void notify_not_using(void* p, size_t size) noexcept
     {
-      assert(bits::is_aligned_block<OS_PAGE_SIZE>(p, size));
+      assert(is_aligned_block<OS_PAGE_SIZE>(p, size));
       UNUSED(p);
       UNUSED(size);
     }
@@ -68,8 +68,7 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     void notify_using(void* p, size_t size) noexcept
     {
-      assert(
-        bits::is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
+      assert(is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
 
       if constexpr (zero_mem == YesZero)
         static_cast<OS*>(this)->template zero<true>(p, size);
@@ -94,9 +93,9 @@ namespace snmalloc
     template<bool page_aligned = false>
     void zero(void* p, size_t size) noexcept
     {
-      if (page_aligned || bits::is_aligned_block<OS_PAGE_SIZE>(p, size))
+      if (page_aligned || is_aligned_block<OS_PAGE_SIZE>(p, size))
       {
-        assert(bits::is_aligned_block<OS_PAGE_SIZE>(p, size));
+        assert(is_aligned_block<OS_PAGE_SIZE>(p, size));
         void* r = mmap(
           p,
           size,

@@ -84,7 +84,7 @@ namespace snmalloc
       void* p = pointer_offset(this, (static_cast<size_t>(index) << 8));
       free--;
 
-      assert(bits::is_aligned_block<OS_PAGE_SIZE>(p, OS_PAGE_SIZE));
+      assert(is_aligned_block<OS_PAGE_SIZE>(p, OS_PAGE_SIZE));
       size = bits::align_up(size, OS_PAGE_SIZE);
 
       if constexpr (decommit_strategy == DecommitAll)
