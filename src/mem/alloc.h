@@ -1096,18 +1096,18 @@ namespace snmalloc
       size_t rsize = sizeclass_to_size(sizeclass);
 
       void* end_point_correction = location == End ?
-        (static_cast<uint8_t*>(end_point) - 1) :
+        pointer_offset(end_point, -1) :
         (location == OnePastEnd ? end_point :
-                                  (static_cast<uint8_t*>(end_point) - rsize));
+                                  pointer_offset(end_point, -rsize));
 
       ptrdiff_t offset_from_end =
-        (static_cast<uint8_t*>(end_point) - 1) - static_cast<uint8_t*>(p);
+        pointer_diff(p, pointer_offset(end_point, -1));
 
       size_t end_to_end =
         round_by_sizeclass(rsize, static_cast<size_t>(offset_from_end));
 
-      return address_cast<uint8_t>(
-        static_cast<uint8_t*>(end_point_correction) - end_to_end);
+      return address_cast<void>(
+        pointer_offset(end_point_correction, -end_to_end));
     }
 
     void init_message_queue()
