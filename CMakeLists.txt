@@ -33,6 +33,7 @@ macro(clangformat_targets)
   # don't know whether our clang-format file will work with newer versions of the
   # tool
   set(CLANG_FORMAT_NAMES
+    clang-format-8
     clang-format-7.0
     clang-format-6.0
     clang-format70
