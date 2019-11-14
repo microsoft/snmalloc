@@ -876,15 +876,16 @@ namespace snmalloc
     }
 
     /**
-     * If result parameter is non-null, then is_empty is passsed into the
-     * the location pointed to by result.
+     * If result parameter is non-null, then false is assigned into the
+     * the location pointed to by result if this allocator is non-empty.
      *
-     * Otherwise, asserts that it is empty.
+     * If result pointer is null, then this code raises a Pal::error on the
+     * particular check that fails, if any do fail.
      **/
     void debug_is_empty(bool* result)
     {
-      auto test = [&result](bool value) {
-        if (!value)
+      auto test = [&result](auto& queue) {
+        if (!queue.is_empty())
         {
           if (result != nullptr)
             *result = false;
@@ -914,16 +915,16 @@ namespace snmalloc
           prev = n;
         }
 
-        test(small_classes[i].is_empty());
+        test(small_classes[i]);
       }
 
       for (auto & medium_class : medium_classes)
       {
-        test(medium_class.is_empty());
+        test(medium_class);
       }
 
-      test(super_available.is_empty());
-      test(super_only_short_available.is_empty());
+      test(super_available);
+      test(super_only_short_available);
 
       // Place the static stub message on the queue.
       init_message_queue();
