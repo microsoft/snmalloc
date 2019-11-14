@@ -125,11 +125,15 @@ namespace snmalloc
      */
     static SNMALLOC_FAST_PATH Alloc* get()
     {
+#ifdef USE_MALLOC
+      return get_reference();
+#else
       auto alloc = get_reference();
       auto new_alloc = lazy_replacement(alloc);
       return (likely(new_alloc == nullptr)) ?
         alloc :
         reinterpret_cast<Alloc*>(new_alloc);
+#endif
     }
   };
 
