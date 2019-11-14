@@ -911,7 +911,7 @@ namespace snmalloc
         while (prev != nullptr)
         {
           auto n = Metaslab::follow_next(prev);
-          dealloc(prev);
+          dealloc(remove_cache_friendly_offset(prev, i));
           prev = n;
         }
 
