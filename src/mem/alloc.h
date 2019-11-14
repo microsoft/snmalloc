@@ -1084,7 +1084,12 @@ namespace snmalloc
 
       SNMALLOC_ASSUME(size <= SLAB_SIZE);
       sizeclass_t sizeclass = size_to_sizeclass(size);
+      return small_alloc_inner<zero_mem, allow_reserve>(sizeclass);
+    }
 
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_FAST_PATH void* small_alloc_inner(sizeclass_t sizeclass)
+    {
       assert(sizeclass < NUM_SMALL_CLASSES);
       auto& fl = small_fast_free_lists[sizeclass];
       void* head = fl.value;
@@ -1097,7 +1102,7 @@ namespace snmalloc
         void* p = remove_cache_friendly_offset(head, sizeclass);
         if constexpr (zero_mem == YesZero)
         {
-          large_allocator.memory_provider.zero(p, size);
+          large_allocator.memory_provider.zero(p, sizeclass_to_size(sizeclass));
         }
         return p;
       }
