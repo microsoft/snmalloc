@@ -918,7 +918,7 @@ namespace snmalloc
         test(small_classes[i]);
       }
 
-      for (auto & medium_class : medium_classes)
+      for (auto& medium_class : medium_classes)
       {
         test(medium_class);
       }
