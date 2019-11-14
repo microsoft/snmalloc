@@ -917,9 +917,9 @@ namespace snmalloc
         test(small_classes[i].is_empty());
       }
 
-      for (size_t i = 0; i < NUM_MEDIUM_CLASSES; i++)
+      for (auto & medium_class : medium_classes)
       {
-        test(medium_classes[i].is_empty());
+        test(medium_class.is_empty());
       }
 
       test(super_available.is_empty());
