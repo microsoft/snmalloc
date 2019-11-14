@@ -875,6 +875,60 @@ namespace snmalloc
 #endif
     }
 
+    /**
+     * If result parameter is non-null, then is_empty is passsed into the
+     * the location pointed to by result.
+     *
+     * Otherwise, asserts that it is empty.
+     **/
+    void debug_is_empty(bool* result)
+    {
+      auto test = [&result](bool value) {
+        if (!value)
+        {
+          if (result != nullptr)
+            *result = false;
+          else
+            error("debug_is_empty: found non-empty allocator");
+        }
+      };
+
+      // Destroy the message queue so that it has no stub message.
+      Remote* p = message_queue().destroy();
+
+      while (p != nullptr)
+      {
+        Remote* n = p->non_atomic_next;
+        handle_dealloc_remote(p);
+        p = n;
+      }
+
+      for (size_t i = 0; i < NUM_SMALL_CLASSES; i++)
+      {
+        auto prev = small_fast_free_lists[i].value;
+        small_fast_free_lists[i].value = nullptr;
+        while (prev != nullptr)
+        {
+          auto n = Metaslab::follow_next(prev);
+          dealloc(prev);
+          prev = n;
+        }
+
+        test(small_classes[i].is_empty());
+      }
+
+      for (size_t i = 0; i < NUM_MEDIUM_CLASSES; i++)
+      {
+        test(medium_classes[i].is_empty());
+      }
+
+      test(super_available.is_empty());
+      test(super_only_short_available.is_empty());
+
+      // Place the static stub message on the queue.
+      init_message_queue();
+    }
+
     template<Boundary location>
     static uintptr_t
     external_pointer(void* p, sizeclass_t sizeclass, size_t end_point)
@@ -1116,7 +1170,7 @@ namespace snmalloc
       if (void* replacement = Replacement(this))
       {
         return reinterpret_cast<Allocator*>(replacement)
-          ->template small_alloc_slow<zero_mem, allow_reserve>(sizeclass);
+          ->template small_alloc_inner<zero_mem, allow_reserve>(sizeclass);
       }
 
       stats().sizeclass_alloc(sizeclass);
