@@ -875,6 +875,61 @@ namespace snmalloc
 #endif
     }
 
+    /**
+     * If result parameter is non-null, then false is assigned into the
+     * the location pointed to by result if this allocator is non-empty.
+     *
+     * If result pointer is null, then this code raises a Pal::error on the
+     * particular check that fails, if any do fail.
+     **/
+    void debug_is_empty(bool* result)
+    {
+      auto test = [&result](auto& queue) {
+        if (!queue.is_empty())
+        {
+          if (result != nullptr)
+            *result = false;
+          else
+            error("debug_is_empty: found non-empty allocator");
+        }
+      };
+
+      // Destroy the message queue so that it has no stub message.
+      Remote* p = message_queue().destroy();
+
+      while (p != nullptr)
+      {
+        Remote* n = p->non_atomic_next;
+        handle_dealloc_remote(p);
+        p = n;
+      }
+
+      for (size_t i = 0; i < NUM_SMALL_CLASSES; i++)
+      {
+        auto prev = small_fast_free_lists[i].value;
+        small_fast_free_lists[i].value = nullptr;
+        while (prev != nullptr)
+        {
+          auto n = Metaslab::follow_next(prev);
+          dealloc(remove_cache_friendly_offset(prev, i));
+          prev = n;
+        }
+
+        test(small_classes[i]);
+      }
+
+      for (auto& medium_class : medium_classes)
+      {
+        test(medium_class);
+      }
+
+      test(super_available);
+      test(super_only_short_available);
+
+      // Place the static stub message on the queue.
+      init_message_queue();
+    }
+
     template<Boundary location>
     static uintptr_t
     external_pointer(void* p, sizeclass_t sizeclass, size_t end_point)
@@ -1084,7 +1139,12 @@ namespace snmalloc
 
       SNMALLOC_ASSUME(size <= SLAB_SIZE);
       sizeclass_t sizeclass = size_to_sizeclass(size);
+      return small_alloc_inner<zero_mem, allow_reserve>(sizeclass);
+    }
 
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_FAST_PATH void* small_alloc_inner(sizeclass_t sizeclass)
+    {
       assert(sizeclass < NUM_SMALL_CLASSES);
       auto& fl = small_fast_free_lists[sizeclass];
       void* head = fl.value;
@@ -1097,7 +1157,7 @@ namespace snmalloc
         void* p = remove_cache_friendly_offset(head, sizeclass);
         if constexpr (zero_mem == YesZero)
         {
-          large_allocator.memory_provider.zero(p, size);
+          large_allocator.memory_provider.zero(p, sizeclass_to_size(sizeclass));
         }
         return p;
       }
@@ -1111,7 +1171,7 @@ namespace snmalloc
       if (void* replacement = Replacement(this))
       {
         return reinterpret_cast<Allocator*>(replacement)
-          ->template small_alloc_slow<zero_mem, allow_reserve>(sizeclass);
+          ->template small_alloc_inner<zero_mem, allow_reserve>(sizeclass);
       }
 
       stats().sizeclass_alloc(sizeclass);

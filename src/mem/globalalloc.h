@@ -120,32 +120,18 @@ namespace snmalloc
       auto* alloc = Parent::iterate();
 
       bool done = false;
+      bool okay = true;
 
-      size_t non_empty_count = 0;
       while (!done)
       {
         done = true;
         alloc = Parent::iterate();
-        non_empty_count = 0;
+        okay = true;
 
         while (alloc != nullptr)
         {
-          // Destroy the message queue so that it has no stub message.
-          Remote* p = alloc->message_queue().destroy();
-
-          while (p != nullptr)
-          {
-            Remote* next = p->non_atomic_next;
-            alloc->handle_dealloc_remote(p);
-            p = next;
-          }
-
           // Check that the allocator has freed all memory.
-          if (!alloc->stats().is_empty())
-            non_empty_count++;
-
-          // Place the static stub message on the queue.
-          alloc->init_message_queue();
+          alloc->debug_is_empty(&okay);
 
           // Post all remotes, including forwarded ones. If any allocator posts,
           // repeat the loop.
@@ -162,13 +148,18 @@ namespace snmalloc
 
       if (result != nullptr)
       {
-        *result = non_empty_count == 0;
+        *result = okay;
         return;
       }
 
-      if (non_empty_count != 0)
+      if (!okay)
       {
-        error("debug_check_empty: found non-empty allocators");
+        alloc = Parent::iterate();
+        while (alloc != nullptr)
+        {
+          alloc->debug_is_empty(nullptr);
+          alloc = Parent::iterate(alloc);
+        }
       }
 #else
       UNUSED(result);
