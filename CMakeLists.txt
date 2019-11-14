@@ -142,6 +142,10 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     if(EXPOSE_EXTERNAL_RESERVE)
       target_compile_definitions(${name} PRIVATE -DSNMALLOC_EXPOSE_RESERVE)
     endif()
+
+    # Ensure that we do not link against C++ stdlib when compiling shims.
+    set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
+
   endmacro()
 
   if(NOT MSVC)
