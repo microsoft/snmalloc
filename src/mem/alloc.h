@@ -895,13 +895,15 @@ namespace snmalloc
       };
 
       // Destroy the message queue so that it has no stub message.
-      Remote* p = message_queue().destroy();
-
-      while (p != nullptr)
       {
-        Remote* n = p->non_atomic_next;
-        handle_dealloc_remote(p);
-        p = n;
+        Remote* p = message_queue().destroy();
+
+        while (p != nullptr)
+        {
+          Remote* n = p->non_atomic_next;
+          handle_dealloc_remote(p);
+          p = n;
+        }
       }
 
       for (size_t i = 0; i < NUM_SMALL_CLASSES; i++)
@@ -911,7 +913,10 @@ namespace snmalloc
         while (prev != nullptr)
         {
           auto n = Metaslab::follow_next(prev);
-          dealloc(remove_cache_friendly_offset(prev, i));
+
+          Superslab* super = Superslab::get(prev);
+          small_dealloc_offseted_inner(super, prev, i);
+
           prev = n;
         }
 
@@ -1222,6 +1227,12 @@ namespace snmalloc
       MEASURE_TIME(small_dealloc, 4, 16);
       stats().sizeclass_dealloc(sizeclass);
 
+      small_dealloc_offseted_inner(super, p, sizeclass);
+    }
+
+    SNMALLOC_FAST_PATH void small_dealloc_offseted_inner(
+      Superslab* super, void* p, sizeclass_t sizeclass)
+    {
       Slab* slab = Slab::get(p);
       if (likely(slab->dealloc_fast(super, p)))
         return;
