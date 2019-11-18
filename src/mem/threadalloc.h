@@ -92,13 +92,17 @@ namespace snmalloc
     }
 #endif
 
+  public:
+    /**
+     * Returns a reference to the allocator for the current thread. This allows
+     * the caller to replace the current thread's allocator.
+     */
     static inline Alloc*& get_reference()
     {
       static thread_local Alloc* alloc = &GlobalPlaceHolder;
       return alloc;
     }
 
-  public:
     /**
      * Public interface, returns the allocator for this thread, constructing
      * one if necessary.
