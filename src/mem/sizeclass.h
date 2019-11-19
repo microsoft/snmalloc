@@ -153,8 +153,8 @@ namespace snmalloc
     return p = (void*)((uintptr_t)p & mask);
   }
 
-  SNMALLOC_FAST_PATH static uint16_t
-  remove_cache_friendly_offset(uint16_t relative, sizeclass_t sizeclass)
+  SNMALLOC_FAST_PATH static uintptr_t
+  remove_cache_friendly_offset(uintptr_t relative, sizeclass_t sizeclass)
   {
     size_t mask = sizeclass_to_inverse_cache_friendly_mask(sizeclass);
     return relative & mask;
@@ -167,8 +167,8 @@ namespace snmalloc
     return p;
   }
 
-  SNMALLOC_FAST_PATH static uint16_t
-  remove_cache_friendly_offset(uint16_t relative, sizeclass_t sizeclass)
+  SNMALLOC_FAST_PATH static uintptr_t
+  remove_cache_friendly_offset(uintptr_t relative, sizeclass_t sizeclass)
   {
     UNUSED(sizeclass);
     return relative;

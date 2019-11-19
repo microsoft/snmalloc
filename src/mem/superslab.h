@@ -161,7 +161,7 @@ namespace snmalloc
         return alloc_slab(sizeclass, memory_provider);
 
       meta[0].allocated = 1;
-      meta[0].head = 1;
+      meta[0].head = nullptr;
       meta[0].sizeclass = static_cast<uint8_t>(sizeclass);
       meta[0].link = get_initial_offset(sizeclass, true);
 
@@ -183,7 +183,7 @@ namespace snmalloc
 
       uint8_t n = meta[h].next;
 
-      meta[h].head = 1;
+      meta[h].head = nullptr;
       meta[h].allocated = 1;
       meta[h].sizeclass = static_cast<uint8_t>(sizeclass);
       meta[h].link = get_initial_offset(sizeclass, false);

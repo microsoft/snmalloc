@@ -30,22 +30,14 @@ namespace snmalloc
   class Metaslab
   {
   public:
+    // Ppinter to first free entry in this slab
+    void* head;
+
     // How many entries are not in the free list of  slab.
     uint16_t used = 0;
 
     // How many entries have been allocated from this slab.
     uint16_t allocated;
-
-    // Index of first entry in this slab that forms the free
-    // list.  The list entries are stored as the first pointer
-    // in each unused object. The terminator is a pointer or
-    // offset into the block with the bottom bit set.  This means
-    //  I.e.
-    //    * an empty list has a head of 1.
-    //    * a one element list has an head contains an offset to this
-    //       this block, and then contains a pointer with the bottom
-    //       bit set.
-    Mod<SLAB_SIZE, uint16_t> head;
 
     // When a slab has free space it will be on the has space list for
     // that size class.  We use an empty block in this slab to be the
@@ -80,13 +72,13 @@ namespace snmalloc
     bool is_full()
     {
       auto result = link == 1;
-      assert(!result || head == 1);
+      assert(!result || head == nullptr);
       return result;
     }
 
     void set_full()
     {
-      assert(head == 1);
+      assert(head == nullptr);
       assert(link != 1);
       link = 1;
       // Set used to 1, so that "sub_use" will return true after calling
@@ -128,16 +120,19 @@ namespace snmalloc
       return *static_cast<void**>(node);
     }
 
-    bool valid_head(bool is_short)
+    bool valid_head()
     {
       size_t size = sizeclass_to_size(sizeclass);
-      size_t slab_start = get_initial_offset(sizeclass, is_short);
-      size_t all_high_bits = ~static_cast<size_t>(1);
+      size_t slab_end = (address_cast(head) | ~SLAB_MASK) + 1;
+      uintptr_t allocation_start =
+        remove_cache_friendly_offset(address_cast(head), sizeclass);
 
-      size_t head_start =
-        remove_cache_friendly_offset(head & all_high_bits, sizeclass);
+      return (slab_end - allocation_start) % size == 0;
+    }
 
-      return ((head_start - slab_start) % size) == 0;
+    static Slab* get_slab(void* p)
+    {
+      return pointer_cast<Slab>(address_cast(p) & SLAB_MASK);
     }
 
     /**
@@ -152,11 +147,15 @@ namespace snmalloc
     {
 #ifndef NDEBUG
       size_t length = 0;
-      void* curr = (head == 1) ? nullptr : pointer_offset(slab, head);
-      void* curr_slow = (head == 1) ? nullptr : pointer_offset(slab, head);
+      void* curr = head;
+      void* curr_slow = head;
       bool both = false;
       while (curr != nullptr)
       {
+        if (get_slab(curr) != slab)
+        {
+          error("Free list corruption, not correct slab.");
+        }
         curr = follow_next(curr);
         if (both)
         {
@@ -195,7 +194,6 @@ namespace snmalloc
       size_t offset = get_initial_offset(sizeclass, is_short);
       size_t accounted_for = used * size + offset;
 
-
       // Block is not full
       assert(SLAB_SIZE > accounted_for);
 
@@ -204,7 +202,7 @@ namespace snmalloc
       UNUSED(length);
 
       // Walk bump-free-list-segment accounting for unused space
-      void* curr = (head == 1) ? nullptr : pointer_offset(slab, head);
+      void* curr = head;
       while (curr != nullptr)
       {
         // Check we are looking at a correctly aligned block

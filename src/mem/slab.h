@@ -20,11 +20,6 @@ namespace snmalloc
     }
 
   public:
-    static Slab* get(void* p)
-    {
-      return pointer_cast<Slab>(address_cast(p) & SLAB_MASK);
-    }
-
     Metaslab& get_meta()
     {
       Superslab* super = Superslab::get(this);
@@ -45,7 +40,7 @@ namespace snmalloc
     {
       // Read the head from the metadata stored in the superslab.
       Metaslab& meta = get_meta();
-      uint16_t head = meta.head;
+      void* head = meta.head;
 
       assert(rsize == sizeclass_to_size(meta.sizeclass));
       meta.debug_slab_invariant(is_short(), this);
@@ -55,7 +50,7 @@ namespace snmalloc
       void* p = nullptr;
       bool p_has_value = false;
 
-      if (head == 1)
+      if (head == nullptr)
       {
         size_t bumpptr = get_initial_offset(meta.sizeclass, is_short());
         bumpptr += meta.allocated * rsize;
@@ -96,7 +91,7 @@ namespace snmalloc
 
             if (curr == nullptr)
             {
-              meta.head = static_cast<uint16_t>(bumpptr);
+              meta.head = pointer_offset(this, bumpptr);
             }
             else
             {
@@ -115,12 +110,12 @@ namespace snmalloc
 
       if (!p_has_value)
       {
-        p = pointer_offset(this, meta.head);
+        p = meta.head;
 
         // Read the next slot from the memory that's about to be allocated.
         void* next = Metaslab::follow_next(p);
         // Put everything in allocators small_class free list.
-        meta.head = 1;
+        meta.head = nullptr;
         fast_free_list.value = next;
         // Treat stealing the free list as allocating it all.
         // Link is not in use, i.e. - 1 is required.
@@ -164,21 +159,18 @@ namespace snmalloc
 #endif
       meta.debug_slab_invariant(is_short(), this);
 
-      
       if (unlikely(meta.sub_use()))
         return false;
 
       // Update the head and the next pointer in the free list.
-      uint16_t head = meta.head;
-      uint16_t current = pointer_to_index(p);
+      void* head = meta.head;
 
       // Set the head to the memory being deallocated.
-      meta.head = current;
-      assert(meta.valid_head(is_short()));
+      meta.head = p;
+      assert(meta.valid_head());
 
       // Set the next pointer to the previous head.
-      Metaslab::store_next(
-        p, (head == 1) ? nullptr : pointer_offset(this, head));
+      Metaslab::store_next(p, head);
       meta.debug_slab_invariant(is_short(), this);
       return true;
     }
@@ -206,7 +198,7 @@ namespace snmalloc
         }
         // Update the head and the sizeclass link.
         uint16_t index = pointer_to_index(p);
-        assert(meta.head == 1);
+        assert(meta.head == nullptr);
         //        assert(meta.fully_allocated(is_short()));
         meta.link = index;
         meta.used = meta.allocated - 1;
