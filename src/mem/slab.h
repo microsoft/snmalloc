@@ -163,14 +163,9 @@ namespace snmalloc
         error("Detected potential double free.");
 #endif
       meta.debug_slab_invariant(is_short(), this);
-      meta.sub_use();
 
-      bool was_full = meta.is_full();
-      if (unlikely(was_full))
-        return false;
-
-      bool is_unused = meta.is_unused();
-      if (unlikely(is_unused))
+      
+      if (unlikely(meta.sub_use()))
         return false;
 
       // Update the head and the next pointer in the free list.
@@ -198,13 +193,10 @@ namespace snmalloc
     {
       Metaslab& meta = super->get_meta(this);
 
-      bool was_full = meta.is_full();
-      bool is_unused = meta.is_unused();
-
-      if (was_full)
+      if (meta.is_full())
       {
         // We are not on the sizeclass list.
-        if (is_unused)
+        if (meta.allocated == 1)
         {
           // Dealloc on the superslab.
           if (is_short())
@@ -217,6 +209,7 @@ namespace snmalloc
         assert(meta.head == 1);
         //        assert(meta.fully_allocated(is_short()));
         meta.link = index;
+        meta.used = meta.allocated - 1;
 
         // Push on the list of slabs for this sizeclass.
         sl->insert_back(meta.get_link(this));
@@ -224,18 +217,13 @@ namespace snmalloc
         return Superslab::NoSlabReturn;
       }
 
-      if (is_unused)
-      {
-        // Remove from the sizeclass list and dealloc on the superslab.
-        sl->remove(meta.get_link(this));
+      // Remove from the sizeclass list and dealloc on the superslab.
+      sl->remove(meta.get_link(this));
 
-        if (is_short())
-          return super->dealloc_short_slab(memory_provider);
+      if (is_short())
+        return super->dealloc_short_slab(memory_provider);
 
-        return super->dealloc_slab(this, memory_provider);
-      }
-
-      abort();
+      return super->dealloc_slab(this, memory_provider);
     }
 
     bool is_short()

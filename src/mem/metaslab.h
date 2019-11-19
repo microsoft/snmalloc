@@ -61,14 +61,15 @@ namespace snmalloc
       used++;
     }
 
-    void sub_use()
+    /**
+     * Removes a use, if the slab is either
+     *  - empty after removing the use, or
+     *  - was full before the substraction
+     * this returns true, otherwise returns false.
+     **/
+    bool sub_use()
     {
-      used--;
-    }
-
-    void set_unused()
-    {
-      used = 0;
+      return (--used) == 0;
     }
 
     bool is_unused()
@@ -78,7 +79,9 @@ namespace snmalloc
 
     bool is_full()
     {
-      return link == 1;
+      auto result = link == 1;
+      assert(!result || head == 1);
+      return result;
     }
 
     void set_full()
@@ -86,6 +89,9 @@ namespace snmalloc
       assert(head == 1);
       assert(link != 1);
       link = 1;
+      // Set used to 1, so that "sub_use" will return true after calling
+      // set_full
+      used = 1;
     }
 
     SlabLink* get_link(Slab* slab)
@@ -175,22 +181,20 @@ namespace snmalloc
     void debug_slab_invariant(bool is_short, Slab* slab)
     {
 #if !defined(NDEBUG) && !defined(SNMALLOC_CHEAP_CHECKS)
-      size_t size = sizeclass_to_size(sizeclass);
-      size_t offset = get_initial_offset(sizeclass, is_short);
-
-      if (is_unused())
-        return;
-
-      size_t accounted_for = used * size + offset;
-
       if (is_full())
       {
-        // All the blocks must be used.
-        assert(SLAB_SIZE == accounted_for);
         // There is no free list to validate
         // 'link' value is not important if full.
         return;
       }
+
+      if (is_unused())
+        return;
+
+      size_t size = sizeclass_to_size(sizeclass);
+      size_t offset = get_initial_offset(sizeclass, is_short);
+      size_t accounted_for = used * size + offset;
+
 
       // Block is not full
       assert(SLAB_SIZE > accounted_for);
