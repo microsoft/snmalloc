@@ -43,7 +43,7 @@ namespace snmalloc
       void* head = meta.head;
 
       assert(rsize == sizeclass_to_size(meta.sizeclass));
-      meta.debug_slab_invariant(is_short(), this);
+      meta.debug_slab_invariant(this);
       assert(sl.get_head() == (SlabLink*)((size_t)this + meta.link));
       assert(!meta.is_full());
 
@@ -127,7 +127,7 @@ namespace snmalloc
 
       assert(is_start_of_object(Superslab::get(p), p));
 
-      meta.debug_slab_invariant(is_short(), this);
+      meta.debug_slab_invariant(this);
 
       if constexpr (zero_mem == YesZero)
       {
@@ -158,7 +158,7 @@ namespace snmalloc
       if (meta.is_unused())
         error("Detected potential double free.");
 #endif
-      meta.debug_slab_invariant(is_short(), this);
+      meta.debug_slab_invariant(this);
 
       if (unlikely(meta.return_object()))
         return false;
@@ -172,7 +172,7 @@ namespace snmalloc
 
       // Set the next pointer to the previous head.
       Metaslab::store_next(p, head);
-      meta.debug_slab_invariant(is_short(), this);
+      meta.debug_slab_invariant(this);
       return true;
     }
 
@@ -206,7 +206,7 @@ namespace snmalloc
 
         // Push on the list of slabs for this sizeclass.
         sl->insert_back(meta.get_link(this));
-        meta.debug_slab_invariant(is_short(), this);
+        meta.debug_slab_invariant(this);
         return Superslab::NoSlabReturn;
       }
 
@@ -218,10 +218,9 @@ namespace snmalloc
 
       return super->dealloc_slab(this, memory_provider);
     }
-
     bool is_short()
     {
-      return (address_cast(this) & SUPERSLAB_MASK) == address_cast(this);
+      return Metaslab::is_short(this);
     }
   };
 } // namespace snmalloc

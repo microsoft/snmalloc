@@ -33,7 +33,7 @@ namespace snmalloc
     /**
      *  Pointer to first free entry in this slab
      *
-     *  The list will (allocated - needed - 1) long. The -1 is
+     *  The list will be (allocated - needed - 1) long. The -1 is
      *  for the `link` element which is not in the free list.
      */
     void* head;
@@ -145,6 +145,11 @@ namespace snmalloc
       return pointer_cast<Slab>(address_cast(p) & SLAB_MASK);
     }
 
+    static bool is_short(Slab* p)
+    {
+      return (address_cast(p) & SUPERSLAB_MASK) == address_cast(p);
+    }
+
     /**
      * Check bump-free-list-segment for cycles
      *
@@ -187,9 +192,11 @@ namespace snmalloc
 #endif
     }
 
-    void debug_slab_invariant(bool is_short, Slab* slab)
+    void debug_slab_invariant(Slab* slab)
     {
 #if !defined(NDEBUG) && !defined(SNMALLOC_CHEAP_CHECKS)
+      bool is_short = Metaslab::is_short(slab);
+
       if (is_full())
       {
         // There is no free list to validate
@@ -252,7 +259,6 @@ namespace snmalloc
       assert(SLAB_SIZE == accounted_for);
 #else
       UNUSED(slab);
-      UNUSED(is_short);
 #endif
     }
   };
