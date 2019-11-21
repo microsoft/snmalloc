@@ -203,6 +203,7 @@ jobs:
 
   - script: |
       make clangformat
+      git diff
       if [ "$(git diff $(Build.SourceVersion))" != "" ]; then exit 1; fi
 
     workingDirectory: build
