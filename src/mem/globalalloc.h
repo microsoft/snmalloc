@@ -8,20 +8,20 @@ namespace snmalloc
 {
   inline void* lazy_replacement(void*);
   using Alloc =
-    Allocator<GlobalVirtual, SNMALLOC_DEFAULT_PAGEMAP, true, lazy_replacement>;
+    Allocator<GlobalVirtual, SNMALLOC_DEFAULT_CHUNKMAP, true, lazy_replacement>;
 
   template<class MemoryProvider>
   class AllocPool : Pool<
                       Allocator<
                         MemoryProvider,
-                        SNMALLOC_DEFAULT_PAGEMAP,
+                        SNMALLOC_DEFAULT_CHUNKMAP,
                         true,
                         lazy_replacement>,
                       MemoryProvider>
   {
     using Alloc = Allocator<
       MemoryProvider,
-      SNMALLOC_DEFAULT_PAGEMAP,
+      SNMALLOC_DEFAULT_CHUNKMAP,
       true,
       lazy_replacement>;
     using Parent = Pool<Alloc, MemoryProvider>;

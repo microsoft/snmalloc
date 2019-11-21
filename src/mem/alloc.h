@@ -8,9 +8,9 @@
 
 #include "../test/histogram.h"
 #include "allocstats.h"
+#include "chunkmap.h"
 #include "largealloc.h"
 #include "mediumslab.h"
-#include "pagemap.h"
 #include "pooled.h"
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
@@ -34,209 +34,6 @@ namespace snmalloc
      */
     OnePastEnd
   };
-
-  enum PageMapSuperslabKind
-  {
-    PMNotOurs = 0,
-    PMSuperslab = 1,
-    PMMediumslab = 2
-  };
-
-#ifndef SNMALLOC_MAX_FLATPAGEMAP_SIZE
-// Use flat map is under a single node.
-#  define SNMALLOC_MAX_FLATPAGEMAP_SIZE PAGEMAP_NODE_SIZE
-#endif
-  static constexpr bool USE_FLATPAGEMAP = pal_supports<LazyCommit>() ||
-    (SNMALLOC_MAX_FLATPAGEMAP_SIZE >=
-     sizeof(FlatPagemap<SUPERSLAB_BITS, uint8_t>));
-
-  using SuperslabPagemap = std::conditional_t<
-    USE_FLATPAGEMAP,
-    FlatPagemap<SUPERSLAB_BITS, uint8_t>,
-    Pagemap<SUPERSLAB_BITS, uint8_t, 0>>;
-
-  /**
-   * Mixin used by `SuperslabMap` to directly access the pagemap via a global
-   * variable.  This should be used from within the library or program that
-   * owns the pagemap.
-   *
-   * This class makes the global pagemap a static field so that its name
-   * includes the type mangling.  If two compilation units try to instantiate
-   * two different types of pagemap then they will see two distinct pagemaps.
-   * This will prevent allocating with one and freeing with the other (because
-   * the memory will show up as not owned by any allocator in the other
-   * compilation unit) but will prevent the same memory being interpreted as
-   * having two different types.
-   */
-  template<typename T>
-  class GlobalPagemapTemplate
-  {
-    /**
-     * The global pagemap variable.  The name of this symbol will include the
-     * type of `T`.
-     */
-    inline static T global_pagemap;
-
-  public:
-    /**
-     * Returns the pagemap.
-     */
-    static SuperslabPagemap& pagemap()
-    {
-      return global_pagemap;
-    }
-  };
-
-  using GlobalPagemap = GlobalPagemapTemplate<SuperslabPagemap>;
-
-  /**
-   * Optionally exported function that accesses the global pagemap provided by
-   * a shared library.
-   */
-  extern "C" void* snmalloc_pagemap_global_get(snmalloc::PagemapConfig const**);
-
-  /**
-   * Mixin used by `SuperslabMap` to access the global pagemap via a
-   * type-checked C interface.  This should be used when another library (e.g.
-   * your C standard library) uses snmalloc and you wish to use a different
-   * configuration in your program or library, but wish to share a pagemap so
-   * that either version can deallocate memory.
-   */
-  class ExternalGlobalPagemap
-  {
-    /**
-     * A pointer to the pagemap.
-     */
-    inline static SuperslabPagemap* external_pagemap;
-
-  public:
-    /**
-     * Constructor.  Accesses the pagemap via the C ABI accessor and casts it to
-     * the expected type, failing in cases of ABI mismatch.
-     */
-    ExternalGlobalPagemap()
-    {
-      const snmalloc::PagemapConfig* c;
-      external_pagemap =
-        SuperslabPagemap::cast_to_pagemap(snmalloc_pagemap_global_get(&c), c);
-      // FIXME: Report an error somehow in non-debug builds.
-      assert(external_pagemap);
-    }
-
-    /**
-     * Returns the exported pagemap.
-     */
-    static SuperslabPagemap& pagemap()
-    {
-      return *external_pagemap;
-    }
-  };
-
-  /**
-   * Class that defines an interface to the pagemap.  This is provided to
-   * `Allocator` as a template argument and so can be replaced by a compatible
-   * implementation (for example, to move pagemap updates to a different
-   * protection domain).
-   */
-  template<typename PagemapProvider = GlobalPagemap>
-  struct SuperslabMap : public PagemapProvider
-  {
-    using PagemapProvider::PagemapProvider;
-    /**
-     * Get the pagemap entry corresponding to a specific address.
-     */
-    uint8_t get(address_t p)
-    {
-      return PagemapProvider::pagemap().get(p);
-    }
-
-    /**
-     * Get the pagemap entry corresponding to a specific address.
-     */
-    uint8_t get(void* p)
-    {
-      return get(address_cast(p));
-    }
-
-    /**
-     * Set a pagemap entry indicating that there is a superslab at the
-     * specified index.
-     */
-    void set_slab(Superslab* slab)
-    {
-      set(slab, static_cast<size_t>(PMSuperslab));
-    }
-    /**
-     * Add a pagemap entry indicating that a medium slab has been allocated.
-     */
-    void set_slab(Mediumslab* slab)
-    {
-      set(slab, static_cast<size_t>(PMMediumslab));
-    }
-    /**
-     * Remove an entry from the pagemap corresponding to a superslab.
-     */
-    void clear_slab(Superslab* slab)
-    {
-      assert(get(slab) == PMSuperslab);
-      set(slab, static_cast<size_t>(PMNotOurs));
-    }
-    /**
-     * Remove an entry corresponding to a medium slab.
-     */
-    void clear_slab(Mediumslab* slab)
-    {
-      assert(get(slab) == PMMediumslab);
-      set(slab, static_cast<size_t>(PMNotOurs));
-    }
-    /**
-     * Update the pagemap to reflect a large allocation, of `size` bytes from
-     * address `p`.
-     */
-    void set_large_size(void* p, size_t size)
-    {
-      size_t size_bits = bits::next_pow2_bits(size);
-      set(p, static_cast<uint8_t>(size_bits));
-      // Set redirect slide
-      auto ss = address_cast(p) + SUPERSLAB_SIZE;
-      for (size_t i = 0; i < size_bits - SUPERSLAB_BITS; i++)
-      {
-        size_t run = 1ULL << i;
-        PagemapProvider::pagemap().set_range(
-          ss, static_cast<uint8_t>(64 + i + SUPERSLAB_BITS), run);
-        ss = ss + SUPERSLAB_SIZE * run;
-      }
-      PagemapProvider::pagemap().set(
-        address_cast(p), static_cast<uint8_t>(size_bits));
-    }
-    /**
-     * Update the pagemap to remove a large allocation, of `size` bytes from
-     * address `p`.
-     */
-    void clear_large_size(void* vp, size_t size)
-    {
-      auto p = address_cast(vp);
-      size_t rounded_size = bits::next_pow2(size);
-      assert(get(p) == bits::next_pow2_bits(size));
-      auto count = rounded_size >> SUPERSLAB_BITS;
-      PagemapProvider::pagemap().set_range(p, PMNotOurs, count);
-    }
-
-  private:
-    /**
-     * Helper function to set a pagemap entry.  This is not part of the public
-     * interface and exists to make it easy to reuse the code in the public
-     * methods in other pagemap adaptors.
-     */
-    void set(void* p, uint8_t x)
-    {
-      PagemapProvider::pagemap().set(address_cast(p), x);
-    }
-  };
-
-#ifndef SNMALLOC_DEFAULT_PAGEMAP
-#  define SNMALLOC_DEFAULT_PAGEMAP snmalloc::SuperslabMap<>
-#endif
 
   // This class is just used so that the free lists are the first entry
   // in the allocator and hence has better code gen.
@@ -263,7 +60,7 @@ namespace snmalloc
    * reusing freed large allocations.  When they need to allocate a new chunk
    * of memory they request space from the `MemoryProvider`.
    *
-   * The `PageMap` parameter provides the adaptor to the pagemap.  This is used
+   * The `ChunkMap` parameter provides the adaptor to the pagemap.  This is used
    * to associate metadata with large (16MiB, by default) regions, allowing an
    * allocator to find the allocator responsible for that region.
    *
@@ -281,16 +78,16 @@ namespace snmalloc
    */
   template<
     class MemoryProvider = GlobalVirtual,
-    class PageMap = SNMALLOC_DEFAULT_PAGEMAP,
+    class ChunkMap = SNMALLOC_DEFAULT_CHUNKMAP,
     bool IsQueueInline = true,
     void* (*Replacement)(void*) = no_replacement>
   class Allocator
   : public FastFreeLists,
     public Pooled<
-      Allocator<MemoryProvider, PageMap, IsQueueInline, Replacement>>
+      Allocator<MemoryProvider, ChunkMap, IsQueueInline, Replacement>>
   {
     LargeAlloc<MemoryProvider> large_allocator;
-    PageMap page_map;
+    ChunkMap chunk_map;
 
   public:
     Stats& stats()
@@ -477,11 +274,11 @@ namespace snmalloc
 
       // Free memory of an unknown size. Must be called with an external
       // pointer.
-      uint8_t size = pagemap().get(address_cast(p));
+      uint8_t size = chunkmap().get(address_cast(p));
 
       Superslab* super = Superslab::get(p);
 
-      if (likely(size == PMSuperslab))
+      if (likely(size == CMSuperslab))
       {
         RemoteAllocator* target = super->get_allocator();
         Slab* slab = Slab::get(p);
@@ -508,7 +305,7 @@ namespace snmalloc
       if (p == nullptr)
         return;
 
-      if (size == PMMediumslab)
+      if (size == CMMediumslab)
       {
         Mediumslab* slab = Mediumslab::get(p);
         RemoteAllocator* target = slab->get_allocator();
@@ -547,10 +344,10 @@ namespace snmalloc
       error("Unsupported");
       UNUSED(p);
 #else
-      uint8_t size = PageMap::pagemap().get(address_cast(p));
+      uint8_t size = ChunkMap::get(address_cast(p));
 
       Superslab* super = Superslab::get(p);
-      if (size == PMSuperslab)
+      if (size == CMSuperslab)
       {
         Slab* slab = Slab::get(p);
         Metaslab& meta = super->get_meta(slab);
@@ -560,7 +357,7 @@ namespace snmalloc
 
         return external_pointer<location>(p, sc, slab_end);
       }
-      if (size == PMMediumslab)
+      if (size == CMMediumslab)
       {
         Mediumslab* slab = Mediumslab::get(p);
 
@@ -577,7 +374,7 @@ namespace snmalloc
       {
         // This is a large alloc redirect.
         ss = ss - (1ULL << (size - 64));
-        size = PageMap::pagemap().get(ss);
+        size = ChunkMap::get(ss);
       }
 
       if (size == 0)
@@ -609,13 +406,13 @@ namespace snmalloc
     static size_t alloc_size(void* p)
     {
       // This must be called on an external pointer.
-      size_t size = PageMap::pagemap().get(address_cast(p));
+      size_t size = ChunkMap::get(address_cast(p));
 
       if (size == 0)
       {
         error("Not allocated by this allocator");
       }
-      else if (size == PMSuperslab)
+      else if (size == CMSuperslab)
       {
         Superslab* super = Superslab::get(p);
 
@@ -626,7 +423,7 @@ namespace snmalloc
 
         return sizeclass_to_size(meta.sizeclass);
       }
-      else if (size == PMMediumslab)
+      else if (size == CMMediumslab)
       {
         Mediumslab* slab = Mediumslab::get(p);
         // Reading a remote sizeclass won't fail, since the other allocator
@@ -684,7 +481,7 @@ namespace snmalloc
       inline size_t get_slot(size_t id, size_t r)
       {
         constexpr size_t allocator_size = sizeof(
-          Allocator<MemoryProvider, PageMap, IsQueueInline, Replacement>);
+          Allocator<MemoryProvider, ChunkMap, IsQueueInline, Replacement>);
         constexpr size_t initial_shift =
           bits::next_pow2_bits_const(allocator_size);
         assert((initial_shift + (r * REMOTE_SLOT_BITS)) < 64);
@@ -826,10 +623,10 @@ namespace snmalloc
   public:
     Allocator(
       MemoryProvider& m,
-      PageMap&& p = PageMap(),
+      ChunkMap&& c = ChunkMap(),
       RemoteAllocator* r = nullptr,
       bool isFake = false)
-    : large_allocator(m), page_map(p)
+    : large_allocator(m), chunk_map(c)
     {
       if constexpr (IsQueueInline)
       {
@@ -1052,7 +849,7 @@ namespace snmalloc
         return super;
 
       super->init(public_state());
-      pagemap().set_slab(super);
+      chunkmap().set_slab(super);
       super_available.insert(super);
       return super;
     }
@@ -1301,7 +1098,7 @@ namespace snmalloc
               "without low memory notifications");
           }
 
-          pagemap().clear_slab(super);
+          chunkmap().clear_slab(super);
           large_allocator.dealloc(super, 0);
           stats().superslab_push();
           break;
@@ -1349,7 +1146,7 @@ namespace snmalloc
           return nullptr;
 
         slab->init(public_state(), sizeclass, rsize);
-        pagemap().set_slab(slab);
+        chunkmap().set_slab(slab);
         p = slab->alloc<zero_mem>(size, large_allocator.memory_provider);
 
         if (!slab->full())
@@ -1390,7 +1187,7 @@ namespace snmalloc
             pointer_offset(slab, OS_PAGE_SIZE), SUPERSLAB_SIZE - OS_PAGE_SIZE);
         }
 
-        pagemap().clear_slab(slab);
+        chunkmap().clear_slab(slab);
         large_allocator.dealloc(slab, 0);
         stats().superslab_push();
       }
@@ -1426,7 +1223,7 @@ namespace snmalloc
       void* p = large_allocator.template alloc<zero_mem, allow_reserve>(
         large_class, size);
 
-      pagemap().set_large_size(p, size);
+      chunkmap().set_large_size(p, size);
 
       stats().large_alloc(large_class);
       return p;
@@ -1441,7 +1238,7 @@ namespace snmalloc
       assert(rsize >= SUPERSLAB_SIZE);
       size_t large_class = size_bits - SUPERSLAB_BITS;
 
-      pagemap().clear_large_size(p, size);
+      chunkmap().clear_large_size(p, size);
 
       stats().large_dealloc(large_class);
 
@@ -1497,9 +1294,9 @@ namespace snmalloc
       remote.post(id());
     }
 
-    PageMap& pagemap()
+    ChunkMap& chunkmap()
     {
-      return page_map;
+      return chunk_map;
     }
   };
 } // namespace snmalloc
