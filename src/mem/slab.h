@@ -56,8 +56,9 @@ namespace snmalloc
         bumpptr += meta.allocated * rsize;
         if (bumpptr == SLAB_SIZE)
         {
-          meta.add_use();
-          assert(meta.used == meta.allocated);
+          // Everything is in use, so we need all entries to be
+          // return before we can reclaim this slab.
+          meta.needed = meta.allocated;
 
           void* link = pointer_offset(this, meta.link);
           p = remove_cache_friendly_offset(link, meta.sizeclass);
@@ -119,7 +120,7 @@ namespace snmalloc
         fast_free_list.value = next;
         // Treat stealing the free list as allocating it all.
         // Link is not in use, i.e. - 1 is required.
-        meta.used = meta.allocated - 1;
+        meta.needed = meta.allocated - 1;
 
         p = remove_cache_friendly_offset(p, meta.sizeclass);
       }
@@ -159,7 +160,7 @@ namespace snmalloc
 #endif
       meta.debug_slab_invariant(is_short(), this);
 
-      if (unlikely(meta.sub_use()))
+      if (unlikely(meta.return_object()))
         return false;
 
       // Update the head and the next pointer in the free list.
@@ -201,7 +202,7 @@ namespace snmalloc
         assert(meta.head == nullptr);
         //        assert(meta.fully_allocated(is_short()));
         meta.link = index;
-        meta.used = meta.allocated - 1;
+        meta.needed = meta.allocated - 1;
 
         // Push on the list of slabs for this sizeclass.
         sl->insert_back(meta.get_link(this));
