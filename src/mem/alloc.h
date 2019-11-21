@@ -484,7 +484,7 @@ namespace snmalloc
       if (likely(size == PMSuperslab))
       {
         RemoteAllocator* target = super->get_allocator();
-        Slab* slab = Slab::get(p);
+        Slab* slab = Metaslab::get_slab(p);
         Metaslab& meta = super->get_meta(slab);
 
         // Reading a remote sizeclass won't fail, since the other allocator
@@ -552,7 +552,7 @@ namespace snmalloc
       Superslab* super = Superslab::get(p);
       if (size == PMSuperslab)
       {
-        Slab* slab = Slab::get(p);
+        Slab* slab = Metaslab::get_slab(p);
         Metaslab& meta = super->get_meta(slab);
 
         sizeclass_t sc = meta.sizeclass;
@@ -621,7 +621,7 @@ namespace snmalloc
 
         // Reading a remote sizeclass won't fail, since the other allocator
         // can't reuse the slab, as we have no yet deallocated this pointer.
-        Slab* slab = Slab::get(p);
+        Slab* slab = Metaslab::get_slab(p);
         Metaslab& meta = super->get_meta(slab);
 
         return sizeclass_to_size(meta.sizeclass);
@@ -968,7 +968,7 @@ namespace snmalloc
 #endif
       if (likely(super->get_kind() == Super))
       {
-        Slab* slab = Slab::get(p);
+        Slab* slab = Metaslab::get_slab(p);
         Metaslab& meta = super->get_meta(slab);
         if (likely(p->target_id() == id()))
         {
@@ -1000,7 +1000,7 @@ namespace snmalloc
       else
       {
         assert(likely(p->target_id() != id()));
-        Slab* slab = Slab::get(p);
+        Slab* slab = Metaslab::get_slab(p);
         Metaslab& meta = super->get_meta(slab);
         // Queue for remote dealloc elsewhere.
         remote.dealloc(p->target_id(), p, meta.sizeclass);
@@ -1210,7 +1210,7 @@ namespace snmalloc
     small_dealloc(Superslab* super, void* p, sizeclass_t sizeclass)
     {
 #ifdef CHECK_CLIENT
-      Slab* slab = Slab::get(p);
+      Slab* slab = Metaslab::get_slab(p);
       if (!slab->is_start_of_object(super, p))
       {
         error("Not deallocating start of an object");
@@ -1233,7 +1233,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void small_dealloc_offseted_inner(
       Superslab* super, void* p, sizeclass_t sizeclass)
     {
-      Slab* slab = Slab::get(p);
+      Slab* slab = Metaslab::get_slab(p);
       if (likely(slab->dealloc_fast(super, p)))
         return;
 
@@ -1245,7 +1245,7 @@ namespace snmalloc
     {
       bool was_full = super->is_full();
       SlabList* sl = &small_classes[sizeclass];
-      Slab* slab = Slab::get(p);
+      Slab* slab = Metaslab::get_slab(p);
       Superslab::Action a =
         slab->dealloc_slow(sl, super, p, large_allocator.memory_provider);
       if (likely(a == Superslab::NoSlabReturn))

@@ -8,6 +8,7 @@ namespace snmalloc
   // We use size_t as it generates better code.
   using sizeclass_t = size_t;
   //  using sizeclass_t = uint8_t;
+  using sizeclass_compress_t = uint8_t;
 
   constexpr static uint16_t get_initial_offset(sizeclass_t sc, bool is_short);
   constexpr static size_t sizeclass_to_size(sizeclass_t sizeclass);
@@ -152,8 +153,8 @@ namespace snmalloc
     return p = (void*)((uintptr_t)p & mask);
   }
 
-  SNMALLOC_FAST_PATH static uint16_t
-  remove_cache_friendly_offset(uint16_t relative, sizeclass_t sizeclass)
+  SNMALLOC_FAST_PATH static uintptr_t
+  remove_cache_friendly_offset(uintptr_t relative, sizeclass_t sizeclass)
   {
     size_t mask = sizeclass_to_inverse_cache_friendly_mask(sizeclass);
     return relative & mask;
@@ -166,8 +167,8 @@ namespace snmalloc
     return p;
   }
 
-  SNMALLOC_FAST_PATH static uint16_t
-  remove_cache_friendly_offset(uint16_t relative, sizeclass_t sizeclass)
+  SNMALLOC_FAST_PATH static uintptr_t
+  remove_cache_friendly_offset(uintptr_t relative, sizeclass_t sizeclass)
   {
     UNUSED(sizeclass);
     return relative;
