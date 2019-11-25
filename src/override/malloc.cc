@@ -213,8 +213,8 @@ extern "C"
     auto& pm = GlobalPagemap::pagemap();
     if (config)
     {
-      *config = &SuperslabPagemap::config;
-      assert(SuperslabPagemap::cast_to_pagemap(&pm, *config) == &pm);
+      *config = &ChunkmapPagemap::config;
+      assert(ChunkmapPagemap::cast_to_pagemap(&pm, *config) == &pm);
     }
     return &pm;
   }

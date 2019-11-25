@@ -45,6 +45,14 @@ namespace snmalloc
     size_t size_of_entry;
   };
 
+  /**
+   * The Pagemap is the shared data structure ultimately used by multiple
+   * snmalloc threads / allocators to determine who owns memory and,
+   * therefore, to whom deallocated memory should be returned.  The
+   * allocators do not interact with this directly but rather via the
+   * static ChunkMap object, which encapsulates knowledge about the
+   * pagemap's parametric type T.
+   */
   template<size_t GRANULARITY_BITS, typename T, T default_content>
   class Pagemap
   {
