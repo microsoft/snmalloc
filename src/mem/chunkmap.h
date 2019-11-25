@@ -141,7 +141,7 @@ namespace snmalloc
    * implementation (for example, to move pagemap updates to a different
    * protection domain).
    */
-  template<typename PagemapProvider = GlobalPagemap>
+  template<typename PagemapProvider>
   struct DefaultChunkMap
   {
     /**
@@ -238,7 +238,7 @@ namespace snmalloc
   };
 
 #ifndef SNMALLOC_DEFAULT_CHUNKMAP
-#  define SNMALLOC_DEFAULT_CHUNKMAP snmalloc::DefaultChunkMap<>
+#  define SNMALLOC_DEFAULT_CHUNKMAP snmalloc::Pal::PalChunkMap<GlobalPagemap>
 #endif
 
 } // namespace snmalloc
