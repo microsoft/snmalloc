@@ -15,7 +15,33 @@ namespace snmalloc
     CMNotOurs = 0,
     CMSuperslab = 1,
     CMMediumslab = 2
+
+    /*
+     * Values 3 (inclusive) through SUPERSLAB_BITS (exclusive) are as yet
+     * unused.
+     *
+     * Values SUPERSLAB_BITS (inclusive) through 64 (exclusive, as it would
+     * represent the entire address space) are used for log2(size) at the
+     * heads of large allocations.  See SuperslabMap::set_large_size.
+     *
+     * Values 64 (inclusive) through 128 (exclusive) are used for entries
+     * within a large allocation.  A value of x at pagemap entry p indicates
+     * that there are at least 2^(x-64) (inclusive) and at most 2^(x+1-64)
+     * (exclusive) page map entries between p and the start of the
+     * allocation.  See SuperslabMap::set_large_size and external_address's
+     * handling of large reallocation redirections.
+     *
+     * Values 128 (inclusive) through 255 (inclusive) are as yet unused.
+     */
+
   };
+
+  /*
+   * Ensure that ChunkMapSuperslabKind values are actually disjoint, i.e.,
+   * that large allocations don't land on CMMediumslab.
+   */
+  static_assert(
+    SUPERSLAB_BITS > CMMediumslab, "Large allocations may be too small");
 
 #ifndef SNMALLOC_MAX_FLATPAGEMAP_SIZE
 // Use flat map is under a single node.
@@ -120,6 +146,9 @@ namespace snmalloc
   {
     /**
      * Get the pagemap entry corresponding to a specific address.
+     *
+     * Despite the type, the return value is an enum ChunkMapSuperslabKind
+     * or one of the reserved values described therewith.
      */
     static uint8_t get(address_t p)
     {
