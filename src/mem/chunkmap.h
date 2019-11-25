@@ -94,8 +94,10 @@ namespace snmalloc
       const snmalloc::PagemapConfig* c;
       external_pagemap =
         ChunkmapPagemap::cast_to_pagemap(snmalloc_pagemap_global_get(&c), c);
-      // FIXME: Report an error somehow in non-debug builds.
-      assert(external_pagemap);
+      if (!external_pagemap)
+      {
+        Pal::error("Incorrect ABI of global pagemap.");
+      }
     }
 
     /**
