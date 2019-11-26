@@ -1,6 +1,7 @@
 #pragma once
 
 #include "allocconfig.h"
+#include "../pal/pal.h"
 
 namespace snmalloc
 {
@@ -50,7 +51,7 @@ namespace snmalloc
 
   // Large classes range from [SUPERSLAB, ADDRESS_SPACE).
   static constexpr size_t NUM_LARGE_CLASSES =
-    bits::ADDRESS_BITS - SUPERSLAB_BITS;
+    Pal::ADDRESS_BITS - SUPERSLAB_BITS;
 
   inline static size_t round_by_sizeclass(size_t rsize, size_t offset)
   {

@@ -40,6 +40,8 @@ namespace snmalloc
     }
 
   public:
+    static constexpr size_t ADDRESS_BITS = bits::is64() ? 48 : 32;
+
     PALWindows()
     {
       // No error handling here - if this doesn't work, then we will just

@@ -14,6 +14,8 @@ namespace snmalloc
     std::atomic<void*> oe_base;
 
   public:
+    static constexpr size_t ADDRESS_BITS = bits::is64() ? 48 : 32;
+
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.

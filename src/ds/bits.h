@@ -52,8 +52,6 @@ namespace snmalloc
       return (static_cast<T>(1)) << shift;
     }
 
-    static constexpr size_t ADDRESS_BITS = is64() ? 48 : 32;
-
     inline size_t clz(size_t x)
     {
 #if defined(_MSC_VER)

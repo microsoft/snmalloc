@@ -58,7 +58,7 @@ namespace snmalloc
   {
   private:
     static constexpr size_t COVERED_BITS =
-      bits::ADDRESS_BITS - GRANULARITY_BITS;
+      Pal::ADDRESS_BITS - GRANULARITY_BITS;
     static constexpr size_t CONTENT_BITS =
       bits::next_pow2_bits_const(sizeof(T));
 
@@ -325,7 +325,7 @@ namespace snmalloc
   {
   private:
     static constexpr size_t COVERED_BITS =
-      bits::ADDRESS_BITS - GRANULARITY_BITS;
+      Pal::ADDRESS_BITS - GRANULARITY_BITS;
     static constexpr size_t CONTENT_BITS =
       bits::next_pow2_bits_const(sizeof(T));
     static constexpr size_t ENTRIES = 1ULL << (COVERED_BITS + CONTENT_BITS);
