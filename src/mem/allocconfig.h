@@ -110,8 +110,9 @@ namespace snmalloc
 #endif
 
   // Minimum allocation size is space for two pointers.
-  static constexpr size_t MIN_ALLOC_BITS = bits::is64() ? 4 : 3;
-  static constexpr size_t MIN_ALLOC_SIZE = 1 << MIN_ALLOC_BITS;
+  static_assert(bits::next_pow2_const(sizeof(void*)) == sizeof(void*));
+  static constexpr size_t MIN_ALLOC_SIZE = 2 * sizeof(void*);
+  static constexpr size_t MIN_ALLOC_BITS = bits::ctz_const(MIN_ALLOC_SIZE);
 
   // Slabs are 64 KiB unless constrained to 16 KiB.
   static constexpr size_t SLAB_BITS = ADDRESS_SPACE_CONSTRAINED ? 14 : 16;
