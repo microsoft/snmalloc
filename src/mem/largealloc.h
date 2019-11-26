@@ -58,7 +58,7 @@ namespace snmalloc
   class MemoryProviderStateMixin : public PAL
   {
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
-    address_t bump;
+    void* bump;
     size_t remaining;
 
     void new_block()
@@ -71,7 +71,7 @@ namespace snmalloc
 
       PAL::template notify_using<NoZero>(r, OS_PAGE_SIZE);
 
-      bump = address_cast(r);
+      bump = r;
       remaining = size;
     }
 
@@ -145,15 +145,21 @@ namespace snmalloc
       {
         FlagLock f(lock);
 
-        auto aligned_bump = bits::align_up(bump, alignment);
-        if ((aligned_bump - bump) > remaining)
+        if constexpr (alignment != 0)
         {
-          new_block();
-        }
-        else
-        {
-          remaining -= aligned_bump - bump;
-          bump = aligned_bump;
+          char* aligned_bump = pointer_align_up<alignment, char>(bump);
+
+          size_t bump_delta = pointer_diff(bump, aligned_bump);
+
+          if (bump_delta > remaining)
+          {
+            new_block();
+          }
+          else
+          {
+            remaining -= bump_delta;
+            bump = aligned_bump;
+          }
         }
 
         if (remaining < size)
@@ -161,16 +167,17 @@ namespace snmalloc
           new_block();
         }
 
-        p = pointer_cast<void>(bump);
-        bump += size;
+        p = bump;
+        bump = pointer_offset(bump, size);
         remaining -= size;
       }
 
-      auto page_start = bits::align_down(address_cast(p), OS_PAGE_SIZE);
-      auto page_end = bits::align_up(address_cast(p) + size, OS_PAGE_SIZE);
+      auto page_start = pointer_align_down<OS_PAGE_SIZE, char>(p);
+      auto page_end =
+        pointer_align_up<OS_PAGE_SIZE, char>(pointer_offset(p, size));
 
       PAL::template notify_using<NoZero>(
-        pointer_cast<void>(page_start), page_end - page_start);
+        page_start, static_cast<size_t>(page_end - page_start));
 
       return new (p) T(std::forward<Args...>(args)...);
     }
@@ -287,7 +294,14 @@ namespace snmalloc
     template<AllowReserve allow_reserve>
     bool reserve_memory(size_t need, size_t add)
     {
-      if ((address_cast(reserved_start) + need) > address_cast(reserved_end))
+      assert(reserved_start <= reserved_end);
+
+      /*
+       * Spell this comparison in terms of pointer subtraction like this,
+       * rather than "reserved_start + need < reserved_end" because the
+       * sum might not be representable on CHERI.
+       */
+      if (pointer_diff(reserved_start, reserved_end) < need)
       {
         if constexpr (allow_reserve == YesReserve)
         {
@@ -295,8 +309,7 @@ namespace snmalloc
           reserved_start =
             memory_provider.template reserve<false>(&add, SUPERSLAB_SIZE);
           reserved_end = pointer_offset(reserved_start, add);
-          reserved_start = pointer_cast<void>(
-            bits::align_up(address_cast(reserved_start), SUPERSLAB_SIZE));
+          reserved_start = pointer_align_up<SUPERSLAB_SIZE>(reserved_start);
 
           if (add < need)
             return false;
@@ -344,30 +357,14 @@ namespace snmalloc
       {
         stats.superslab_pop();
 
-        if constexpr (decommit_strategy == DecommitSuperLazy)
-        {
-          if (static_cast<Baseslab*>(p)->get_kind() == Decommitted)
-          {
-            // The first page is already in "use" for the stack element,
-            // this will need zeroing for a YesZero call.
-            if constexpr (zero_mem == YesZero)
-              memory_provider.template zero<true>(p, OS_PAGE_SIZE);
+        // Cross-reference alloc.h's large_dealloc decommitment condition
+        // and lazy_decommit_if_needed.
+        bool decommitted =
+          ((decommit_strategy == DecommitSuperLazy) &&
+           (static_cast<Baseslab*>(p)->get_kind() == Decommitted)) ||
+          (large_class > 0) || (decommit_strategy != DecommitNone);
 
-            // Notify we are using the rest of the allocation.
-            // Passing zero_mem ensures the PAL provides zeroed pages if
-            // required.
-            memory_provider.template notify_using<zero_mem>(
-              pointer_offset(p, OS_PAGE_SIZE),
-              bits::align_up(size, OS_PAGE_SIZE) - OS_PAGE_SIZE);
-          }
-          else
-          {
-            if constexpr (zero_mem == YesZero)
-              memory_provider.template zero<true>(
-                p, bits::align_up(size, OS_PAGE_SIZE));
-          }
-        }
-        if ((decommit_strategy != DecommitNone) || (large_class > 0))
+        if (decommitted)
         {
           // The first page is already in "use" for the stack element,
           // this will need zeroing for a YesZero call.
@@ -375,7 +372,8 @@ namespace snmalloc
             memory_provider.template zero<true>(p, OS_PAGE_SIZE);
 
           // Notify we are using the rest of the allocation.
-          // Passing zero_mem ensures the PAL provides zeroed pages if required.
+          // Passing zero_mem ensures the PAL provides zeroed pages if
+          // required.
           memory_provider.template notify_using<zero_mem>(
             pointer_offset(p, OS_PAGE_SIZE),
             bits::align_up(size, OS_PAGE_SIZE) - OS_PAGE_SIZE);

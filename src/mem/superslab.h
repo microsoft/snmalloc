@@ -44,9 +44,9 @@ namespace snmalloc
     // Used size_t as results in better code in MSVC
     size_t slab_to_index(Slab* slab)
     {
-      auto res = ((address_cast(slab) - address_cast(this)) >> SLAB_BITS);
-      assert(res == (uint8_t)res);
-      return res;
+      auto res = (pointer_diff(this, slab) >> SLAB_BITS);
+      assert(res == static_cast<uint8_t>(res));
+      return static_cast<uint8_t>(res);
     }
 
   public:
@@ -67,7 +67,7 @@ namespace snmalloc
 
     static Superslab* get(void* p)
     {
-      return pointer_cast<Superslab>(address_cast(p) & SUPERSLAB_MASK);
+      return pointer_align_down<SUPERSLAB_SIZE, Superslab>(p);
     }
 
     static bool is_short_sizeclass(sizeclass_t sizeclass)
@@ -82,12 +82,6 @@ namespace snmalloc
 
       if (kind != Super)
       {
-        // If this wasn't previously a Superslab, we need to set up the
-        // header.
-        kind = Super;
-        // Point head at the first non-short slab.
-        head = 1;
-
         if (kind != Fresh)
         {
           // If this wasn't previously Fresh, we need to zero some things.
@@ -97,6 +91,13 @@ namespace snmalloc
             new (&(meta[i])) Metaslab();
           }
         }
+
+        // If this wasn't previously a Superslab, we need to set up the
+        // header.
+        kind = Super;
+        // Point head at the first non-short slab.
+        head = 1;
+
 #ifndef NDEBUG
         auto curr = head;
         for (size_t i = 0; i < SLAB_COUNT - used - 1; i++)

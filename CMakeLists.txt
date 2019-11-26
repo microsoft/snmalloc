@@ -23,7 +23,7 @@ macro(warnings_high)
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
       add_compile_options(-Wsign-conversion)
     endif ()
-    add_compile_options(-Wall -Wextra -Werror)
+    add_compile_options(-Wall -Wextra -Werror -Wundef)
   endif()
 endmacro()
 
@@ -33,6 +33,7 @@ macro(clangformat_targets)
   # don't know whether our clang-format file will work with newer versions of the
   # tool
   set(CLANG_FORMAT_NAMES
+    clang-format-8
     clang-format-7.0
     clang-format-6.0
     clang-format70
@@ -71,7 +72,12 @@ if(NOT MSVC)
   if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     target_link_libraries(snmalloc_lib INTERFACE atomic)
   endif()
-  target_compile_options(snmalloc_lib INTERFACE -mcx16)
+  if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
+   target_compile_options(snmalloc_lib INTERFACE -mcx16)
+  elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86")
+   target_compile_options(snmalloc_lib INTERFACE -mcx16)
+  # XXX elseif ARM?
+  endif()
 else()
   set(WIN8COMPAT FALSE CACHE BOOL "Avoid Windows 10 APIs")
   if (WIN8COMPAT)
@@ -114,7 +120,13 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
   else()
-    add_compile_options(-march=native -fno-exceptions -fno-rtti -g -ftls-model=initial-exec -fomit-frame-pointer)
+    add_compile_options(-fno-exceptions -fno-rtti -g -ftls-model=initial-exec -fomit-frame-pointer)
+    if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
+     add_compile_options(-march=native)
+    elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86")
+     add_compile_options(-march=native)
+    # XXX elseif ARM?
+    endif()
   endif()
 
   macro(subdirlist result curdir)
@@ -141,6 +153,10 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     if(EXPOSE_EXTERNAL_RESERVE)
       target_compile_definitions(${name} PRIVATE -DSNMALLOC_EXPOSE_RESERVE)
     endif()
+
+    # Ensure that we do not link against C++ stdlib when compiling shims.
+    set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
+
   endmacro()
 
   if(NOT MSVC)

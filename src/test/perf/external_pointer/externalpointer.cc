@@ -72,8 +72,8 @@ namespace test
         size_t* external_ptr = objects[oid];
         size_t size = *external_ptr;
         size_t offset = (size >> 4) * (rand & 15);
-        size_t interior_ptr = ((size_t)external_ptr) + offset;
-        void* calced_external = Alloc::external_pointer((void*)interior_ptr);
+        void* interior_ptr = pointer_offset(external_ptr, offset);
+        void* calced_external = Alloc::external_pointer(interior_ptr);
         if (calced_external != external_ptr)
           abort();
       }
@@ -88,7 +88,7 @@ int main(int, char**)
   setup();
 
   xoroshiro::p128r64 r;
-#if NDEBUG
+#ifdef NDEBUG
   size_t nn = 30;
 #else
   size_t nn = 3;

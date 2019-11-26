@@ -98,6 +98,9 @@ namespace snmalloc
     template<class MP>
     friend class AllocPool;
 
+    /**
+     * Allocate memory of a statically known size.
+     */
     template<
       size_t size,
       ZeroMem zero_mem = NoZero,
@@ -118,7 +121,6 @@ namespace snmalloc
 
       stats().alloc_request(size);
 
-      // Allocate memory of a statically known size.
       if constexpr (sizeclass < NUM_SMALL_CLASSES)
       {
         return small_alloc<zero_mem, allow_reserve>(size);
@@ -137,6 +139,9 @@ namespace snmalloc
 #endif
     }
 
+    /**
+     * Allocate memory of a dynamically known size.
+     */
     template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
     SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
     {
@@ -151,7 +156,6 @@ namespace snmalloc
 #else
       stats().alloc_request(size);
 
-      // Allocate memory of a dynamically known size.
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
@@ -186,6 +190,10 @@ namespace snmalloc
 #endif
     }
 
+    /*
+     * Free memory of a statically known size. Must be called with an
+     * external pointer.
+     */
     template<size_t size>
     void dealloc(void* p)
     {
@@ -198,8 +206,6 @@ namespace snmalloc
 
       handle_message_queue();
 
-      // Free memory of a statically known size. Must be called with an
-      // external pointer.
       if (sizeclass < NUM_SMALL_CLASSES)
       {
         Superslab* super = Superslab::get(p);
@@ -227,6 +233,10 @@ namespace snmalloc
 #endif
     }
 
+    /*
+     * Free memory of a dynamically known size. Must be called with an
+     * external pointer.
+     */
     void dealloc(void* p, size_t size)
     {
 #ifdef USE_MALLOC
@@ -235,8 +245,6 @@ namespace snmalloc
 #else
       handle_message_queue();
 
-      // Free memory of a dynamically known size. Must be called with an
-      // external pointer.
       sizeclass_t sizeclass = size_to_sizeclass(size);
 
       if (sizeclass < NUM_SMALL_CLASSES)
@@ -266,14 +274,16 @@ namespace snmalloc
 #endif
     }
 
+    /*
+     * Free memory of an unknown size. Must be called with an external
+     * pointer.
+     */
     SNMALLOC_FAST_PATH void dealloc(void* p)
     {
 #ifdef USE_MALLOC
       return free(p);
 #else
 
-      // Free memory of an unknown size. Must be called with an external
-      // pointer.
       uint8_t size = chunkmap().get(address_cast(p));
 
       Superslab* super = Superslab::get(p);
@@ -311,7 +321,7 @@ namespace snmalloc
         RemoteAllocator* target = slab->get_allocator();
 
         // Reading a remote sizeclass won't fail, since the other allocator
-        // can't reuse the slab, as we have no yet deallocated this pointer.
+        // can't reuse the slab, as we have not yet deallocated this pointer.
         sizeclass_t sizeclass = slab->get_sizeclass();
 
         if (target == public_state())
@@ -353,7 +363,7 @@ namespace snmalloc
         Metaslab& meta = super->get_meta(slab);
 
         sizeclass_t sc = meta.sizeclass;
-        size_t slab_end = static_cast<size_t>(address_cast(slab) + SLAB_SIZE);
+        void* slab_end = pointer_offset(slab, SLAB_SIZE);
 
         return external_pointer<location>(p, sc, slab_end);
       }
@@ -362,8 +372,7 @@ namespace snmalloc
         Mediumslab* slab = Mediumslab::get(p);
 
         sizeclass_t sc = slab->get_sizeclass();
-        size_t slab_end =
-          static_cast<size_t>(address_cast(slab) + SUPERSLAB_SIZE);
+        void* slab_end = pointer_offset(slab, SUPERSLAB_SIZE);
 
         return external_pointer<location>(p, sc, slab_end);
       }
@@ -442,9 +451,20 @@ namespace snmalloc
   private:
     using alloc_id_t = typename Remote::alloc_id_t;
 
+    /*
+     * A singly-linked list of Remote objects, supporting append and
+     * take-all operations.  Intended only for the private use of this
+     * allocator; the Remote objects here will later be taken and pushed
+     * to the inter-thread message queues.
+     */
     struct RemoteList
     {
+      /*
+       * A stub Remote object that will always be the head of this list;
+       * never taken for further processing.
+       */
       Remote head;
+
       Remote* last;
 
       RemoteList()
@@ -661,7 +681,7 @@ namespace snmalloc
         // All medium size classes are page aligned.
         if (i > NUM_SMALL_CLASSES)
         {
-          assert(bits::is_aligned_block<OS_PAGE_SIZE>(nullptr, size1));
+          assert(is_aligned_block<OS_PAGE_SIZE>(nullptr, size1));
         }
 
         assert(sc1 == i);
@@ -734,16 +754,23 @@ namespace snmalloc
 
     template<Boundary location>
     static uintptr_t
-    external_pointer(void* p, sizeclass_t sizeclass, size_t end_point)
+    external_pointer(void* p, sizeclass_t sizeclass, void* end_point)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
-      size_t end_point_correction = location == End ?
-        (end_point - 1) :
-        (location == OnePastEnd ? end_point : (end_point - rsize));
-      size_t offset_from_end =
-        (end_point - 1) - static_cast<size_t>(address_cast(p));
-      size_t end_to_end = round_by_sizeclass(rsize, offset_from_end);
-      return end_point_correction - end_to_end;
+
+      void* end_point_correction = location == End ?
+        (static_cast<uint8_t*>(end_point) - 1) :
+        (location == OnePastEnd ? end_point :
+                                  (static_cast<uint8_t*>(end_point) - rsize));
+
+      ptrdiff_t offset_from_end =
+        (static_cast<uint8_t*>(end_point) - 1) - static_cast<uint8_t*>(p);
+
+      size_t end_to_end =
+        round_by_sizeclass(rsize, static_cast<size_t>(offset_from_end));
+
+      return address_cast<uint8_t>(
+        static_cast<uint8_t*>(end_point_correction) - end_to_end);
     }
 
     void init_message_queue()
@@ -1166,7 +1193,7 @@ namespace snmalloc
 #ifdef CHECK_CLIENT
       if (!is_multiple_of_sizeclass(
             sizeclass_to_size(sizeclass),
-            address_cast(slab) + SUPERSLAB_SIZE - address_cast(p)))
+            pointer_diff(p, pointer_offset(slab, SUPERSLAB_SIZE))))
       {
         error("Not deallocating start of an object");
       }
@@ -1242,6 +1269,7 @@ namespace snmalloc
 
       stats().large_dealloc(large_class);
 
+      // Cross-reference largealloc's alloc() decommitted condition.
       if ((decommit_strategy != DecommitNone) || (large_class > 0))
         large_allocator.memory_provider.notify_not_using(
           pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);

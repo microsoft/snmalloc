@@ -29,7 +29,7 @@ namespace snmalloc
 
       do
       {
-        T* top = ABAT::load(cmp);
+        T* top = ABAT::ptr(cmp);
         last->next.store(top, std::memory_order_release);
       } while (!stack.compare_exchange(cmp, first));
     }
@@ -44,7 +44,7 @@ namespace snmalloc
 
       do
       {
-        top = ABAT::load(cmp);
+        top = ABAT::ptr(cmp);
 
         if (top == nullptr)
           break;
@@ -63,7 +63,7 @@ namespace snmalloc
 
       do
       {
-        top = ABAT::load(cmp);
+        top = ABAT::ptr(cmp);
 
         if (top == nullptr)
           break;

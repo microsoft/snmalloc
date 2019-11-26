@@ -16,7 +16,7 @@ namespace snmalloc
     uint16_t pointer_to_index(void* p)
     {
       // Get the offset from the slab for a memory location.
-      return static_cast<uint16_t>(address_cast(p) - address_cast(this));
+      return static_cast<uint16_t>(pointer_diff(this, p));
     }
 
   public:
@@ -43,8 +43,7 @@ namespace snmalloc
       void* head = meta.head;
 
       assert(rsize == sizeclass_to_size(meta.sizeclass));
-      meta.debug_slab_invariant(this);
-      assert(sl.get_head() == (SlabLink*)((size_t)this + meta.link));
+      assert(sl.get_head() == (SlabLink*)pointer_offset(this, meta.link));
       assert(!meta.is_full());
 
       void* p = nullptr;
@@ -145,7 +144,7 @@ namespace snmalloc
       Metaslab& meta = super->get_meta(this);
       return is_multiple_of_sizeclass(
         sizeclass_to_size(meta.sizeclass),
-        address_cast(this) + SLAB_SIZE - address_cast(p));
+        pointer_diff(p, pointer_offset(this, SLAB_SIZE)));
     }
 
     // Returns true, if it deallocation can proceed without changing any status
