@@ -47,14 +47,19 @@ namespace snmalloc
 // Use flat map is under a single node.
 #  define SNMALLOC_MAX_FLATPAGEMAP_SIZE PAGEMAP_NODE_SIZE
 #endif
-  static constexpr bool USE_FLATPAGEMAP = pal_supports<LazyCommit>() ||
-    (SNMALLOC_MAX_FLATPAGEMAP_SIZE >=
-     sizeof(FlatPagemap<SUPERSLAB_BITS, uint8_t>));
 
-  using ChunkmapPagemap = std::conditional_t<
-    USE_FLATPAGEMAP,
-    FlatPagemap<SUPERSLAB_BITS, uint8_t>,
-    Pagemap<SUPERSLAB_BITS, uint8_t, 0>>;
+  template<typename T>
+  static constexpr bool use_flatpagemap_for()
+  {
+    return pal_supports<LazyCommit>() ||
+      (SNMALLOC_MAX_FLATPAGEMAP_SIZE >= sizeof(FlatPagemap<SUPERSLAB_BITS, T>));
+  }
+
+  template<auto V>
+  using DefaultChunkmapPagemapTemplate = std::conditional_t<
+    use_flatpagemap_for<decltype(V)>(),
+    FlatPagemap<SUPERSLAB_BITS, decltype(V)>,
+    Pagemap<SUPERSLAB_BITS, decltype(V), V>>;
 
   /**
    * Mixin used by `ChunkMap` to directly access the pagemap via a global
@@ -82,13 +87,11 @@ namespace snmalloc
     /**
      * Returns the pagemap.
      */
-    static ChunkmapPagemap& pagemap()
+    static T& pagemap()
     {
       return global_pagemap;
     }
   };
-
-  using GlobalPagemap = GlobalPagemapTemplate<ChunkmapPagemap>;
 
   /**
    * Optionally exported function that accesses the global pagemap provided by
@@ -103,12 +106,13 @@ namespace snmalloc
    * configuration in your program or library, but wish to share a pagemap so
    * that either version can deallocate memory.
    */
+  template<typename T>
   class ExternalGlobalPagemap
   {
     /**
      * A pointer to the pagemap.
      */
-    inline static ChunkmapPagemap* external_pagemap;
+    inline static T* external_pagemap;
 
   public:
     /**
@@ -118,8 +122,7 @@ namespace snmalloc
     ExternalGlobalPagemap()
     {
       const snmalloc::PagemapConfig* c;
-      external_pagemap =
-        ChunkmapPagemap::cast_to_pagemap(snmalloc_pagemap_global_get(&c), c);
+      external_pagemap = T::cast_to_pagemap(snmalloc_pagemap_global_get(&c), c);
       if (!external_pagemap)
       {
         Pal::error("Incorrect ABI of global pagemap.");
@@ -129,7 +132,7 @@ namespace snmalloc
     /**
      * Returns the exported pagemap.
      */
-    static ChunkmapPagemap& pagemap()
+    static T& pagemap()
     {
       return *external_pagemap;
     }
@@ -141,9 +144,23 @@ namespace snmalloc
    * implementation (for example, to move pagemap updates to a different
    * protection domain).
    */
-  template<typename PagemapProvider>
+  template<
+    template<typename>
+    typename PagemapProviderTemplate,
+    template<auto>
+    typename ChunkmapPagemapTemplate>
   struct DefaultChunkMap
   {
+    using ChunkmapPagemap = ChunkmapPagemapTemplate<static_cast<uint8_t>(0)>;
+    using PagemapProvider = PagemapProviderTemplate<ChunkmapPagemap>;
+
+#ifdef SNMALLOC_EXPOSE_PAGEMAP
+    static ChunkmapPagemap& expose_pagemap()
+    {
+      return PagemapProvider::pagemap();
+    }
+#endif
+
     /**
      * Get the pagemap entry corresponding to a specific address.
      *
@@ -161,6 +178,24 @@ namespace snmalloc
     static uint8_t get(void* p)
     {
       return get(address_cast(p));
+    }
+
+    /**
+     * Some architectures (notably, CHERI) need the ability to rederive an
+     * internal, privileged pointer from a pointer given out as a result of
+     * allocation.  This provides such a hook.  On architectures where
+     * pointers are just integers, this is a no-op that should always be
+     * inlined into nothing.
+     *
+     * The template paramter controls whether the returned pointer points
+     * to the same place as the argument or to the beginning of the chunkmap
+     * region containing the argument.
+     */
+    template<bool offset = true>
+    SNMALLOC_FAST_PATH static void* getp(void* p)
+    {
+      static_assert(offset);
+      return p;
     }
 
     /**
@@ -238,7 +273,9 @@ namespace snmalloc
   };
 
 #ifndef SNMALLOC_DEFAULT_CHUNKMAP
-#  define SNMALLOC_DEFAULT_CHUNKMAP snmalloc::Pal::PalChunkMap<GlobalPagemap>
+#  define SNMALLOC_DEFAULT_CHUNKMAP \
+    snmalloc::Pal:: \
+      PalChunkMap<GlobalPagemapTemplate, DefaultChunkmapPagemapTemplate>
 #endif
 
 } // namespace snmalloc

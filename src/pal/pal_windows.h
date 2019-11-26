@@ -42,6 +42,14 @@ namespace snmalloc
   public:
     static constexpr size_t ADDRESS_BITS = bits::is64() ? 48 : 32;
 
+    template<
+      template<typename>
+      typename PagemapProviderTemplate,
+      template<auto>
+      typename ChunkmapPagemapTemplate>
+    using PalChunkMap = snmalloc::
+      DefaultChunkMap<PagemapProviderTemplate, ChunkmapPagemapTemplate>;
+
     PALWindows()
     {
       // No error handling here - if this doesn't work, then we will just

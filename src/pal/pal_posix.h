@@ -28,8 +28,13 @@ namespace snmalloc
   public:
     static constexpr size_t ADDRESS_BITS = bits::is64() ? 48 : 32;
 
-    template<typename PagemapProvider>
-    using PalChunkMap = snmalloc::DefaultChunkMap<PagemapProvider>;
+    template<
+      template<typename>
+      typename PagemapProviderTemplate,
+      template<auto>
+      typename ChunkmapPagemapTemplate>
+    using PalChunkMap = snmalloc::
+      DefaultChunkMap<PagemapProviderTemplate, ChunkmapPagemapTemplate>;
 
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this

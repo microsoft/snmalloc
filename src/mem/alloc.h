@@ -203,6 +203,7 @@ namespace snmalloc
 #else
 
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
+      p = chunkmap().getp(p);
 
       handle_message_queue();
 
@@ -246,6 +247,7 @@ namespace snmalloc
       handle_message_queue();
 
       sizeclass_t sizeclass = size_to_sizeclass(size);
+      p = chunkmap().getp(p);
 
       if (sizeclass < NUM_SMALL_CLASSES)
       {
@@ -285,6 +287,7 @@ namespace snmalloc
 #else
 
       uint8_t size = chunkmap().get(address_cast(p));
+      p = chunkmap().getp(p);
 
       Superslab* super = Superslab::get(p);
 

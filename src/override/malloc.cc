@@ -210,10 +210,10 @@ extern "C"
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(snmalloc_pagemap_global_get)(
     PagemapConfig const** config)
   {
-    auto& pm = GlobalPagemap::pagemap();
+    auto& pm = SNMALLOC_DEFAULT_CHUNKMAP::expose_pagemap();
     if (config)
     {
-      *config = &ChunkmapPagemap::config;
+      *config = &pm.config;
       assert(ChunkmapPagemap::cast_to_pagemap(&pm, *config) == &pm);
     }
     return &pm;

@@ -6,8 +6,12 @@ namespace snmalloc
 {
   void error(const char* const str);
 
-  template<typename PagemapProvder>
-  class DefaultChunkMap;
+  template<
+    template<typename>
+    typename PagemapProvderTemplate,
+    template<auto>
+    typename ChunkmapPagemapTemplate>
+  struct DefaultChunkMap;
 } // namespace snmalloc
 
 // If simultating OE, then we need the underlying platform
