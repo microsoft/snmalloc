@@ -142,12 +142,12 @@ namespace snmalloc
 
     static Slab* get_slab(void* p)
     {
-      return pointer_cast<Slab>(address_cast(p) & SLAB_MASK);
+      return pointer_align_down<SLAB_SIZE, Slab>(p);
     }
 
     static bool is_short(Slab* p)
     {
-      return (address_cast(p) & SUPERSLAB_MASK) == address_cast(p);
+      return pointer_align_down<SUPERSLAB_SIZE>(p) == p;
     }
 
     /**
