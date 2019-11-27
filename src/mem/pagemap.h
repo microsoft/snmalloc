@@ -191,7 +191,7 @@ namespace snmalloc
           return std::pair(nullptr, 0);
 
         shift -= BITS_PER_INDEX_LEVEL;
-        ix = (addr >> shift) & ENTRIES_MASK;
+        ix = (static_cast<size_t>(addr) >> shift) & ENTRIES_MASK;
         e = &value->entries[ix];
 
         if constexpr (INDEX_LEVELS == 1)
@@ -211,7 +211,7 @@ namespace snmalloc
         return std::pair(nullptr, 0);
 
       shift -= BITS_FOR_LEAF;
-      ix = (addr >> shift) & LEAF_MASK;
+      ix = (static_cast<size_t>(addr) >> shift) & LEAF_MASK;
       return std::pair(leaf, ix);
     }
 
@@ -387,7 +387,7 @@ namespace snmalloc
      */
     size_t index_for_address(uintptr_t p)
     {
-      return reinterpret_cast<size_t>((p >> SHIFT) & (OS_PAGE_SIZE - 1));
+      return bits::align_down(static_cast<size_t>(p) >> SHIFT, OS_PAGE_SIZE);
     }
 
     /**
