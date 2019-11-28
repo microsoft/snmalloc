@@ -74,6 +74,8 @@ if(NOT MSVC)
   endif()
   if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
    target_compile_options(snmalloc_lib INTERFACE -mcx16)
+  elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "amd64")
+   target_compile_options(snmalloc_lib INTERFACE -mcx16)
   elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86")
    target_compile_options(snmalloc_lib INTERFACE -mcx16)
   # XXX elseif ARM?
