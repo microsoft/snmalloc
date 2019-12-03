@@ -56,6 +56,11 @@ namespace snmalloc
 
   public:
     /**
+     * Bitmap of AalFeature flags
+     */
+    static constexpr uint64_t aal_features = IntegerPointers;
+
+    /**
      * On pipelined processors, notify the core that we are in a spin loop and
      * that speculative execution past this point may not be a performance gain.
      */
