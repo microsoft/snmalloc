@@ -31,18 +31,18 @@ private:
     auto prev = ready.fetch_add(1);
     if (prev + 1 == cores)
     {
-      start = AAL::tick();
+      start = Aal::tick();
       flag = true;
     }
     while (!flag)
-      AAL::pause();
+      Aal::pause();
 
     f(id);
 
     prev = complete.fetch_add(1);
     if (prev + 1 == cores)
     {
-      end = AAL::tick();
+      end = Aal::tick();
     }
   }
 

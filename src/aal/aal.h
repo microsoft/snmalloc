@@ -63,7 +63,7 @@ namespace snmalloc
 
 namespace snmalloc
 {
-  using AAL = AAL_Generic<AAL_Arch>;
+  using Aal = AAL_Generic<AAL_Arch>;
 } // namespace snmalloc
 
 #if defined(_MSC_VER) && defined(SNMALLOC_VA_BITS_32)
