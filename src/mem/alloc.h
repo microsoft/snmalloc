@@ -1120,7 +1120,7 @@ namespace snmalloc
           else if constexpr (decommit_strategy == DecommitSuperLazy)
           {
             static_assert(
-              pal_supports<LowMemoryNotification, MemoryProvider>(),
+              pal_supports<LowMemoryNotification, MemoryProvider>,
               "A lazy decommit strategy cannot be implemented on platforms "
               "without low memory notifications");
           }

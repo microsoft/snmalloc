@@ -47,7 +47,7 @@ namespace snmalloc
 // Use flat map is under a single node.
 #  define SNMALLOC_MAX_FLATPAGEMAP_SIZE PAGEMAP_NODE_SIZE
 #endif
-  static constexpr bool USE_FLATPAGEMAP = pal_supports<LazyCommit>() ||
+  static constexpr bool USE_FLATPAGEMAP = pal_supports<LazyCommit> ||
     (SNMALLOC_MAX_FLATPAGEMAP_SIZE >=
      sizeof(FlatPagemap<SUPERSLAB_BITS, uint8_t>));
 
