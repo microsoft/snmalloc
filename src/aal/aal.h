@@ -12,6 +12,19 @@
 namespace snmalloc
 {
   /**
+   * Flags in a bitfield of attributes of this architecture, much like
+   * PalFeatures.
+   */
+  enum AalFeatures : uint64_t
+  {
+    /**
+     * This architecture does not discriminate between integers and pointers,
+     * and so may use bit operations on pointer values.
+     */
+    IntegerPointers = (1 << 0),
+  };
+
+  /**
    * Architecture Abstraction Layer. Includes default implementations of some
    * functions using compiler builtins.  Falls back to the definitions in the
    * platform's AAL if the builtin does not exist.
@@ -63,7 +76,10 @@ namespace snmalloc
 
 namespace snmalloc
 {
-  using AAL = AAL_Generic<AAL_Arch>;
+  using Aal = AAL_Generic<AAL_Arch>;
+
+  template<AalFeatures F, typename AAL = Aal>
+  constexpr static bool aal_supports = (AAL::aal_features & F) == F;
 } // namespace snmalloc
 
 #if defined(_MSC_VER) && defined(SNMALLOC_VA_BITS_32)

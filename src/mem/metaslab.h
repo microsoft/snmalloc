@@ -109,11 +109,12 @@ namespace snmalloc
     /// simple corruptions.
     static SNMALLOC_FAST_PATH void store_next(void* p, void* head)
     {
-#ifndef CHECK_CLIENT
       *static_cast<void**>(p) = head;
-#else
-      *static_cast<void**>(p) = head;
-      *(static_cast<uintptr_t*>(p) + 1) = address_cast(head) ^ POISON;
+#if defined(CHECK_CLIENT)
+      if constexpr (aal_supports<IntegerPointers>)
+      {
+        *(static_cast<uintptr_t*>(p) + 1) = address_cast(head) ^ POISON;
+      }
 #endif
     }
 
@@ -121,11 +122,14 @@ namespace snmalloc
     /// In Debug checks for simple corruptions.
     static SNMALLOC_FAST_PATH void* follow_next(void* node)
     {
-#ifdef CHECK_CLIENT
-      uintptr_t next = *static_cast<uintptr_t*>(node);
-      uintptr_t chk = *(static_cast<uintptr_t*>(node) + 1);
-      if ((next ^ chk) != POISON)
-        error("Detected memory corruption.  Use-after-free.");
+#if defined(CHECK_CLIENT)
+      if constexpr (aal_supports<IntegerPointers>)
+      {
+        uintptr_t next = *static_cast<uintptr_t*>(node);
+        uintptr_t chk = *(static_cast<uintptr_t*>(node) + 1);
+        if ((next ^ chk) != POISON)
+          error("Detected memory corruption.  Use-after-free.");
+      }
 #endif
       return *static_cast<void**>(node);
     }
