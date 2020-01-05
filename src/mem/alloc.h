@@ -974,7 +974,7 @@ namespace snmalloc
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_FAST_PATH void* small_alloc_inner(sizeclass_t sizeclass)
     {
-      assert(sizeclass < NUM_SMALL_CLASSES);
+      SNMALLOC_ASSUME(sizeclass < NUM_SMALL_CLASSES);
       auto& fl = small_fast_free_lists[sizeclass];
       void* head = fl.value;
       if (likely(head != nullptr))
