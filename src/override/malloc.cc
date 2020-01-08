@@ -104,14 +104,6 @@ extern "C"
   }
 #endif
 
-  SNMALLOC_EXPORT void*
-    SNMALLOC_NAME_MANGLE(aligned_alloc)(size_t alignment, size_t size)
-  {
-    assert((size % alignment) == 0);
-    (void)alignment;
-    return SNMALLOC_NAME_MANGLE(malloc)(size);
-  }
-
   inline size_t aligned_size(size_t alignment, size_t size)
   {
     // Client responsible for checking alignment is not zero
@@ -157,6 +149,13 @@ extern "C"
     }
 
     return SNMALLOC_NAME_MANGLE(malloc)(aligned_size(alignment, size));
+  }
+
+  SNMALLOC_EXPORT void*
+    SNMALLOC_NAME_MANGLE(aligned_alloc)(size_t alignment, size_t size)
+  {
+    assert((size % alignment) == 0);
+    return SNMALLOC_NAME_MANGLE(memalign)(alignment, size);
   }
 
   SNMALLOC_EXPORT int SNMALLOC_NAME_MANGLE(posix_memalign)(
