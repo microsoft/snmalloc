@@ -104,12 +104,32 @@ extern "C"
   }
 #endif
 
-  SNMALLOC_EXPORT void*
-    SNMALLOC_NAME_MANGLE(aligned_alloc)(size_t alignment, size_t size)
+  inline size_t aligned_size(size_t alignment, size_t size)
   {
-    assert((size % alignment) == 0);
-    (void)alignment;
-    return SNMALLOC_NAME_MANGLE(malloc)(size);
+    // Client responsible for checking alignment is not zero
+    assert(alignment != 0);
+    // Client responsible for checking alignment is not above SUPERSLAB_SIZE
+    assert(alignment <= SUPERSLAB_SIZE);
+    // Client responsible for checking alignment is a power of two
+    assert(bits::next_pow2(alignment) == alignment);
+
+    size = bits::max(size, alignment);
+    snmalloc::sizeclass_t sc = size_to_sizeclass(size);
+    if (sc >= NUM_SIZECLASSES)
+    {
+      // large allocs are 16M aligned, which is maximum we guarantee
+      return size;
+    }
+    for (; sc < NUM_SIZECLASSES; sc++)
+    {
+      size = sizeclass_to_size(sc);
+      if ((size & (~size + 1)) >= alignment)
+      {
+        return size;
+      }
+    }
+    // Give max alignment.
+    return SUPERSLAB_SIZE;
   }
 
   SNMALLOC_EXPORT void*
@@ -128,22 +148,14 @@ extern "C"
       return nullptr;
     }
 
-    size = bits::max(size, alignment);
-    snmalloc::sizeclass_t sc = size_to_sizeclass(size);
-    if (sc >= NUM_SIZECLASSES)
-    {
-      // large allocs are 16M aligned.
-      return SNMALLOC_NAME_MANGLE(malloc)(size);
-    }
-    for (; sc < NUM_SIZECLASSES; sc++)
-    {
-      size = sizeclass_to_size(sc);
-      if ((size & (~size + 1)) >= alignment)
-      {
-        return SNMALLOC_NAME_MANGLE(aligned_alloc)(alignment, size);
-      }
-    }
-    return SNMALLOC_NAME_MANGLE(malloc)(SUPERSLAB_SIZE);
+    return SNMALLOC_NAME_MANGLE(malloc)(aligned_size(alignment, size));
+  }
+
+  SNMALLOC_EXPORT void*
+    SNMALLOC_NAME_MANGLE(aligned_alloc)(size_t alignment, size_t size)
+  {
+    assert((size % alignment) == 0);
+    return SNMALLOC_NAME_MANGLE(memalign)(alignment, size);
   }
 
   SNMALLOC_EXPORT int SNMALLOC_NAME_MANGLE(posix_memalign)(
