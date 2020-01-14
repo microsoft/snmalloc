@@ -75,7 +75,7 @@ cmake -G Ninja .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
 ninja
 ```
 
-On ELF platforms, The build produces a binary `libsnmallocshim.so`.
+On ELF platforms, the build produces a binary `libsnmallocshim.so`.
 This file can be 
 `LD_PRELOAD`ed to use the allocator in place of the system allocator, for
 example, you can run the build script using the snmalloc as the allocator for
