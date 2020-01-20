@@ -1,0 +1,4 @@
+[submodule "snmalloc-sys/snmalloc"]
+	path = snmalloc-sys/snmalloc
+	url = https://github.com/SchrodingerZhu/snmalloc
+	branch = master
