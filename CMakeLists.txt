@@ -6,7 +6,7 @@ option(SNMALLOC_CI_BUILD "Disable features not sensible for CI" OFF)
 option(USE_MEASURE "Measure performance with histograms" OFF)
 option(EXPOSE_EXTERNAL_PAGEMAP "Expose the global pagemap" OFF)
 option(EXPOSE_EXTERNAL_RESERVE "Expose an interface to reserve memory using the default memory provider" OFF)
-
+option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF)
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
 
 # Provide as macro so other projects can reuse
@@ -143,7 +143,11 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   endmacro()
 
   macro(add_shim name)
-    add_library(${name} SHARED src/override/malloc.cc src/override/new.cc)
+    if(SNMALLOC_RUST_SUPPORT)
+      add_library(${name} STATIC src/override/rust.cc)
+    else()
+      add_library(${name} SHARED src/override/malloc.cc src/override/new.cc)
+    endif()
     target_link_libraries(${name} snmalloc_lib)
     target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
     set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden)
