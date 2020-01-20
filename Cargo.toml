@@ -3,11 +3,15 @@ name = "snmalloc-rs"
 version = "0.1.0"
 authors = ["schrodingerzhu <i@zhuyi.fan>"]
 edition = "2018"
+license = "MIT"
+description = "rust bindings of snmalloc."
+homepage = "https://github.com/microsoft/snmalloc"
+repository = "https://github.com/SchrodingerZhu/snmalloc-rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-snmalloc-sys = {path = "snmalloc-sys"}
+snmalloc-sys = {version = "0.1.0", path = "snmalloc-sys"}
 
 [features]
 1mib = ["snmalloc-sys/1mib"]
