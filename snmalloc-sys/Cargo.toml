@@ -1,10 +1,12 @@
 [package]
 name = "snmalloc-sys"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["schrodingerzhu <i@zhuyi.fan>"]
 edition = "2018"
 license = "MIT"
 description = "rust raw bindings of snmalloc."
+keywords = ["snmalloc", "allocator"]
+categories = ["memory-management", "api-bindings"]
 homepage = "https://github.com/microsoft/snmalloc"
 repository = "https://github.com/SchrodingerZhu/snmalloc-rs"
 build = "build.rs"
