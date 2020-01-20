@@ -175,7 +175,7 @@ namespace snmalloc
   }
 #endif
 
-  inline size_t aligned_size(size_t alignment, size_t size)
+  inline static size_t aligned_size(size_t alignment, size_t size)
   {
     // Client responsible for checking alignment is not zero
     assert(alignment != 0);
