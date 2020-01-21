@@ -175,7 +175,7 @@ namespace snmalloc
   }
 #endif
 
-  inline static size_t aligned_size(size_t alignment, size_t size)
+  SNMALLOC_FAST_PATH static size_t aligned_size(size_t alignment, size_t size)
   {
     // Client responsible for checking alignment is not zero
     assert(alignment != 0);
