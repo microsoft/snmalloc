@@ -169,7 +169,9 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     endif()
 
     # Ensure that we do not link against C++ stdlib when compiling shims.
-    set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
+    if(NOT MSVC)
+      set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
+    endif()
 
   endmacro()
 
