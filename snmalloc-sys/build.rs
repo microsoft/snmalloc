@@ -14,8 +14,7 @@ fn main() {
             .build_arg("--config")
             .build_arg(build_type)
     } else {
-        cfg = cfg.generator("Ninja")
-            .define("SNMALLOC_RUST_SUPPORT", "ON")
+        cfg = cfg.define("SNMALLOC_RUST_SUPPORT", "ON")
             .define("CMAKE_BUILD_TYPE", build_type)
     }
 
