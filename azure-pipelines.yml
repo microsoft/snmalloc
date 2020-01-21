@@ -72,9 +72,9 @@ jobs:
     displayName: 'Install Build Dependencies'
 
   - task: CMake@1
-    displayName: 'CMake .. $(CMakeArgs) -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS" -DSNMALLOC_CI_BUILD=On'
+    displayName: 'CMake .. $(CMakeArgs) -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS" -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
     inputs:
-      cmakeArgs: '.. $(CMakeArgs) -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS" -DSNMALLOC_CI_BUILD=On'
+      cmakeArgs: '.. $(CMakeArgs) -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS" -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
 
   - script: |
       ninja
@@ -137,9 +137,9 @@ jobs:
     
 
   - task: CMake@1
-    displayName: 'CMake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On'
+    displayName: 'CMake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
     inputs:
-      cmakeArgs: '.. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On'
+      cmakeArgs: '.. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
 
   - task: MSBuild@1
     displayName: 'Build solution build/snmalloc.sln'
@@ -164,9 +164,9 @@ jobs:
 
   steps:
   - task: CMake@1
-    displayName: 'CMake .. -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On'
+    displayName: 'CMake .. -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
     inputs:
-      cmakeArgs: '.. -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On'
+      cmakeArgs: '.. -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
 
   - script: |
       make -j 4
