@@ -25,8 +25,9 @@ void test_align_size()
       failed |= true;
     }
 
-    auto lsb_rsize = rsize & -rsize;
-    auto lsb_size = size & -size;
+    auto lsb_rsize = rsize & (~rsize + 1);
+    auto lsb_size = size & (~size + 1);
+
     if (lsb_rsize < lsb_size)
     {
       std::cout << "Original size more aligned than rounded size: " << size
