@@ -8,6 +8,59 @@ snmalloc::sizeclass_t size_to_sizeclass(size_t size)
   return snmalloc::size_to_sizeclass(size);
 }
 
+void test_align_size()
+{
+  bool failed = false;
+
+  assert(snmalloc::aligned_size(128, 160) == 256);
+
+  for (size_t size = 1; size < snmalloc::sizeclass_to_size(snmalloc::NUM_SIZECLASSES - 1); size++)
+  {
+    size_t rsize = snmalloc::sizeclass_to_size(size_to_sizeclass(size));
+
+    if (rsize < size)
+    {
+      std::cout << "Size class rounding shrunk: " << size << " -> " << rsize
+                << std::endl;
+      failed |= true;
+    }
+
+    auto lsb_rsize = rsize & -rsize;
+    auto lsb_size = size & -size;
+    if (lsb_rsize < lsb_size)
+    {
+      std::cout << "Original size more aligned than rounded size: " << size
+                << " (" << lsb_size << ") -> " << rsize << " (" << lsb_rsize
+                << ")" << std::endl;
+      failed |= true;
+    }
+
+    for (size_t alignment_bits = 0; alignment_bits < snmalloc::SUPERSLAB_BITS;
+         alignment_bits++)
+    {
+      auto alignment = (size_t)1 << alignment_bits;
+      auto asize = snmalloc::aligned_size(alignment, size);
+
+      if (asize < size)
+      {
+        std::cout << "Shrunk! Alignment: " << alignment << " Size: " << size
+                  << " ASize: " << asize << std::endl;
+        failed |= true;
+      }
+
+      if ((asize & (alignment - 1)) != 0)
+      {
+        std::cout << "Not aligned! Alignment: " << alignment
+                  << " Size: " << size << " ASize: " << asize << std::endl;
+        failed |= true;
+      }
+    }
+  }
+
+  if (failed)
+    abort();
+}
+
 int main(int, char**)
 {
   setup();
@@ -53,4 +106,6 @@ int main(int, char**)
 
   if (failed)
     abort();
+
+  test_align_size();
 }
