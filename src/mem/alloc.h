@@ -263,7 +263,7 @@ namespace snmalloc
       if (size == 0)
         dealloc(p, 1);
 
-      if (likely(size <= sizeclass_to_size(NUM_SIZECLASSES-1)))
+      if (likely(size <= sizeclass_to_size(NUM_SIZECLASSES - 1)))
       {
         Mediumslab* slab = Mediumslab::get(p);
         RemoteAllocator* target = slab->get_allocator();
