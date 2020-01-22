@@ -14,7 +14,9 @@ void test_align_size()
 
   assert(snmalloc::aligned_size(128, 160) == 256);
 
-  for (size_t size = 1; size < snmalloc::sizeclass_to_size(snmalloc::NUM_SIZECLASSES - 1); size++)
+  for (size_t size = 1;
+       size < snmalloc::sizeclass_to_size(snmalloc::NUM_SIZECLASSES - 1);
+       size++)
   {
     size_t rsize = snmalloc::sizeclass_to_size(size_to_sizeclass(size));
 
