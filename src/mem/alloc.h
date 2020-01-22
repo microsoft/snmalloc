@@ -237,41 +237,44 @@ namespace snmalloc
      * Free memory of a dynamically known size. Must be called with an
      * external pointer.
      */
-    void dealloc(void* p, size_t size)
+    SNMALLOC_FAST_PATH void dealloc(void* p, size_t size)
     {
 #ifdef USE_MALLOC
       UNUSED(size);
       return free(p);
 #else
-      handle_message_queue();
-
-      sizeclass_t sizeclass = size_to_sizeclass(size);
-
-      if (sizeclass < NUM_SMALL_CLASSES)
+      if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
       {
         Superslab* super = Superslab::get(p);
         RemoteAllocator* target = super->get_allocator();
-
-        if (target == public_state())
+        sizeclass_t sizeclass = size_to_sizeclass(size);
+        if (likely(target == public_state()))
           small_dealloc(super, p, sizeclass);
         else
           remote_dealloc(target, p, sizeclass);
+        return;
       }
-      else if (sizeclass < NUM_SIZECLASSES)
+      dealloc_sized_slow(p, size);
+#endif
+    }
+
+    SNMALLOC_SLOW_PATH void dealloc_sized_slow(void* p, size_t size)
+    {
+      if (size == 0)
+        dealloc(p, 1);
+
+      if (likely(size <= sizeclass_to_size(NUM_SIZECLASSES - 1)))
       {
         Mediumslab* slab = Mediumslab::get(p);
         RemoteAllocator* target = slab->get_allocator();
-
-        if (target == public_state())
+        sizeclass_t sizeclass = size_to_sizeclass(size);
+        if (likely(target == public_state()))
           medium_dealloc(slab, p, sizeclass);
         else
           remote_dealloc(target, p, sizeclass);
+        return;
       }
-      else
-      {
-        large_dealloc(p, size);
-      }
-#endif
+      large_dealloc(p, size);
     }
 
     /*
