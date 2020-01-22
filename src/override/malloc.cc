@@ -114,13 +114,15 @@ extern "C"
       errno = EINVAL;
       return nullptr;
     }
+
     if ((size + alignment) < size)
     {
       errno = ENOMEM;
       return nullptr;
     }
 
-    return SNMALLOC_NAME_MANGLE(malloc)(aligned_size(alignment, size));
+    return SNMALLOC_NAME_MANGLE(malloc)(
+      size ? aligned_size(alignment, size) : alignment);
   }
 
   SNMALLOC_EXPORT void*
