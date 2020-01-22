@@ -25,7 +25,8 @@ rust_realloc(void* ptr, size_t alignment, size_t old_size, size_t new_size)
 {
   size_t aligned_old_size = aligned_size(alignment, old_size),
          aligned_new_size = aligned_size(alignment, new_size);
-  if (aligned_old_size == aligned_new_size)
+  if (
+    size_to_sizeclass(aligned_old_size) == size_to_sizeclass(aligned_new_size))
     return ptr;
   void* p = ThreadAlloc::get_noncachable()->alloc(aligned_new_size);
   if (p)
