@@ -174,4 +174,16 @@ namespace snmalloc
     return relative;
   }
 #endif
+
+  SNMALLOC_FAST_PATH static size_t aligned_size(size_t alignment, size_t size)
+  {
+    // Client responsible for checking alignment is not zero
+    assert(alignment != 0);
+    // Client responsible for checking alignment is not above SUPERSLAB_SIZE
+    assert(alignment <= SUPERSLAB_SIZE);
+    // Client responsible for checking alignment is a power of two
+    assert(bits::next_pow2(alignment) == alignment);
+
+    return ((alignment - 1) | (size - 1)) + 1;
+  }
 } // namespace snmalloc

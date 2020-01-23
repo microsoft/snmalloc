@@ -6,7 +6,7 @@ option(SNMALLOC_CI_BUILD "Disable features not sensible for CI" OFF)
 option(USE_MEASURE "Measure performance with histograms" OFF)
 option(EXPOSE_EXTERNAL_PAGEMAP "Expose the global pagemap" OFF)
 option(EXPOSE_EXTERNAL_RESERVE "Expose an interface to reserve memory using the default memory provider" OFF)
-
+option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF)
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
 
 # Provide as macro so other projects can reuse
@@ -142,30 +142,48 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(${result} ${dirlist})
   endmacro()
 
-  macro(add_shim name)
-    add_library(${name} SHARED src/override/malloc.cc src/override/new.cc)
+  macro(add_shim name type)
+    add_library(${name} ${type} ${ARGN})
     target_link_libraries(${name} snmalloc_lib)
-    target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
+    if(NOT MSVC)
+      target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
+    endif()
     set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
     if(EXPOSE_EXTERNAL_PAGEMAP)
-      target_compile_definitions(${name} PRIVATE -DSNMALLOC_EXPOSE_PAGEMAP)
+      if(MSVC)
+        target_compile_definitions(${name} PRIVATE /DSNMALLOC_EXPOSE_PAGEMAP)
+      else()
+        target_compile_definitions(${name} PRIVATE -DSNMALLOC_EXPOSE_PAGEMAP)
+      endif()
     endif()
 
     if(EXPOSE_EXTERNAL_RESERVE)
-      target_compile_definitions(${name} PRIVATE -DSNMALLOC_EXPOSE_RESERVE)
+      if(MSVC)
+        target_compile_definitions(${name} PRIVATE /DSNMALLOC_EXPOSE_RESERVE)
+      else()
+        target_compile_definitions(${name} PRIVATE -DSNMALLOC_EXPOSE_RESERVE)
+      endif()
     endif()
 
     # Ensure that we do not link against C++ stdlib when compiling shims.
-    set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
+    if(NOT MSVC)
+      set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
+    endif()
 
   endmacro()
 
   if(NOT MSVC)
-    add_shim(snmallocshim)
-
-    add_shim(snmallocshim-1mib)
+    set(SHARED_FILES src/override/new.cc src/override/malloc.cc)
+    add_shim(snmallocshim SHARED ${SHARED_FILES})
+    add_shim(snmallocshim-1mib SHARED ${SHARED_FILES})
     target_compile_definitions(snmallocshim-1mib PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
+  endif()
+
+  if(SNMALLOC_RUST_SUPPORT)
+    add_shim(snmallocshim-rust STATIC src/override/rust.cc)
+    add_shim(snmallocshim-1mib-rust STATIC src/override/rust.cc)
+    target_compile_definitions(snmallocshim-1mib-rust PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
   endif()
 
   enable_testing()
