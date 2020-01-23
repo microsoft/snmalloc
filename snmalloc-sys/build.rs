@@ -19,9 +19,9 @@ fn main() {
     }
 
     let target = if cfg!(feature = "1mib") {
-        "snmallocshim-1mib"
+        "snmallocshim-1mib-rust"
     } else {
-        "snmallocshim"
+        "snmallocshim-rust"
     };
 
     let mut dst = if cfg!(feature = "cache-friendly") {

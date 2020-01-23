@@ -22,7 +22,7 @@ extern "C" {
     /// The program may be forced to abort if the constrains are not full-filled.
     pub fn rust_dealloc(ptr: *mut c_void, alignment: size_t, size: size_t) -> c_void;
 
-    /// dealloc the memory at the given address with the given alignment and size. 
+    /// Re-allocate the memory at the given address with the given alignment and size. 
     /// On success, it returns a pointer pointing to the required memory address. 
     /// The memory content within the `new_size` will remains the same as previous.
     /// On failure, it returns a null pointer. In this situation, the previous memory is not returned to the allocator.
