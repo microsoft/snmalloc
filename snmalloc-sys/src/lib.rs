@@ -1,6 +1,6 @@
 #![no_std]
 #![allow(non_camel_case_types)]
-#![feature(static_nobundle)]
+
 use core::ffi::c_void;
 use libc::size_t;
 
