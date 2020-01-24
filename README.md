@@ -1,4 +1,6 @@
 # snmalloc-rs
+![travis ci](https://www.travis-ci.org/SchrodingerZhu/snmalloc-rs.svg?branch=master)
+
 `snmalloc-rs` provides a wrapper for [`microsoft/snmalloc`](https://github.com/microsoft/snmalloc) to make it usable as a global allocator for rust.
 snmalloc is a research allocator. Its key design features are:
 - Memory that is freed by the same thread that allocated it does not require any synchronising operations.
@@ -15,7 +17,7 @@ To use `snmalloc-rs` add it as a dependency:
 ```toml
 # Cargo.toml
 [dependencies]
-snmalloc-rs = "0.1.0"
+snmalloc-rs = "0.2"
 ```
 
 To set `SnMalloc` as the global allocator add this to your project:
