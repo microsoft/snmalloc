@@ -30,9 +30,12 @@ fn main() {
     if cfg!(unix) {
         println!("cargo:rustc-link-search=native={}", dst.display());
         println!("cargo:rustc-link-lib=dylib=stdc++");
-        println!("cargo:rustc-link-lib=dylib=atomic");
     } else {
         println!("cargo:rustc-link-search=native={}/{}", dst.display(), build_type);
         println!("cargo:rustc-link-lib=dylib=mincore");
+    }
+
+    if cfg!(target_os = "linux") {
+        println!("cargo:rustc-link-lib=dylib=atomic");
     }
 }

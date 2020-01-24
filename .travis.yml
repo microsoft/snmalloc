@@ -1,11 +1,60 @@
-language: rust
-rust:
-  - stable
+matrix:
+  include:
+    - os: windows
+      language: rust
+      rust:
+        - stable
+      before_script:
+        - rustup toolchain install stable-x86_64-pc-windows-msvc
+        - rustup default stable-msvc
 
-os:
-  - linux
-  - osx
-  - windows
+    - os: windows
+      language: rust
+      rust:
+        - nightly
+      before_script:
+        - rustup toolchain install nightly-x86_64-pc-windows-msvc
+        - rustup default nightly-msvc
+
+    - os: linux
+      language: rust
+      rust:
+        - stable
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-9
+      env:
+        - CC=gcc-9
+        - CXX=g++-9
+
+    - os: linux
+      language: rust
+      rust:
+          - nightly
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-9
+      env:
+        - CC=gcc-9
+        - CXX=g++-9
+
+    - os: osx
+      language: rust
+      rust:
+        - stable
+
+    - os: osx
+      language: rust
+      rust:
+        - nightly
+
+
 
 script:
   - cargo test --all
