@@ -200,11 +200,14 @@ namespace snmalloc
       // If we're on Windows 10 or newer, we can use the VirtualAlloc2
       // function.  The FromApp variant is useable by UWP applications and
       // cannot allocate executable memory.
-      MEM_ADDRESS_REQUIREMENTS addressReqs = {0};
-      MEM_EXTENDED_PARAMETER param = {0};
-      addressReqs.Alignment = align;
-      param.Type = MemExtendedParameterAddressRequirements;
+      MEM_ADDRESS_REQUIREMENTS addressReqs = {NULL, NULL, align};
+
+      MEM_EXTENDED_PARAMETER param = {
+        {MemExtendedParameterAddressRequirements, 0}, {0}};
+      // Separate assignment as MSVC doesn't support .Pointer in the
+      // initialisation list.
       param.Pointer = &addressReqs;
+
       void* ret = VirtualAlloc2FromApp(
         nullptr, nullptr, *size, flags, PAGE_READWRITE, &param, 1);
       if (ret == nullptr)

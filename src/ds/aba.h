@@ -97,7 +97,7 @@ namespace snmalloc
 #  if defined(_MSC_VER) && defined(SNMALLOC_VA_BITS_64)
       return _InterlockedCompareExchange128(
         (volatile __int64*)&linked,
-        expect.aba + 1,
+        (__int64)(expect.aba + (uintptr_t)1),
         (__int64)value,
         (__int64*)&expect);
 #  else

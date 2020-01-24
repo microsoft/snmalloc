@@ -138,13 +138,16 @@ namespace snmalloc
 
     inline size_t ctz(size_t x)
     {
-#if defined(_MSC_VER)
+#if __has_builtin(__builtin_ctzl)
+      return static_cast<size_t>(__builtin_ctzl(x));
+#elif defined(_MSC_VER)
 #  ifdef SNMALLOC_VA_BITS_64
       return _tzcnt_u64(x);
 #  else
       return _tzcnt_u32((uint32_t)x);
 #  endif
 #else
+      // Probably GCC at this point.
       return static_cast<size_t>(__builtin_ctzl(x));
 #endif
     }

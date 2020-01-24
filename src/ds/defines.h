@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(__clang__)
 #  define ALWAYSINLINE __forceinline
 #  define NOINLINE __declspec(noinline)
 #  define likely(x) !!(x)
