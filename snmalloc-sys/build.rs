@@ -1,4 +1,5 @@
 use cmake::Config;
+
 fn main() {
     let mut cfg = &mut Config::new("snmalloc");
 
@@ -8,15 +9,8 @@ fn main() {
         "Release"
     };
 
-    if cfg!(all(windows, target_env = "msvc")) {
-        cfg = cfg.generator("Visual Studio 15 2017 Win64")
-            .define("SNMALLOC_RUST_SUPPORT", "ON")
-            .build_arg("--config")
-            .build_arg(build_type)
-    } else {
-        cfg = cfg.define("SNMALLOC_RUST_SUPPORT", "ON")
-            .define("CMAKE_BUILD_TYPE", build_type)
-    }
+    cfg = cfg.define("SNMALLOC_RUST_SUPPORT", "ON")
+        .profile(build_type);
 
     let target = if cfg!(feature = "1mib") {
         "snmallocshim-1mib-rust"
@@ -29,12 +23,16 @@ fn main() {
     } else {
         cfg.build_target(target).build()
     };
-    
+
     dst.push("./build");
-    println!("cargo:rustc-link-search=native={}", dst.display());
+
     println!("cargo:rustc-link-lib={}", target);
     if cfg!(unix) {
+        println!("cargo:rustc-link-search=native={}", dst.display());
         println!("cargo:rustc-link-lib=dylib=stdc++");
         println!("cargo:rustc-link-lib=dylib=atomic");
+    } else {
+        println!("cargo:rustc-link-search=native={}/{}", dst.display(), build_type);
+        println!("cargo:rustc-link-lib=dylib=mincore");
     }
 }
