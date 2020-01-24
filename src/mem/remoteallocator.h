@@ -18,8 +18,8 @@ namespace snmalloc
     using alloc_id_t = size_t;
     union
     {
-      std::atomic<Remote*> next;
       Remote* non_atomic_next;
+      std::atomic<Remote*> next = nullptr;
     };
 
     alloc_id_t allocator_id;

@@ -134,7 +134,6 @@ jobs:
       bash -c "cat /proc/cpuinfo"
       bash -c "cat /proc/meminfo"
     displayName: 'Machine stats'
-    
 
   - task: CMake@1
     displayName: 'CMake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
@@ -148,6 +147,45 @@ jobs:
       msbuildArguments: '/m /p:Configuration=$(BuildType)'
 
   - script: 'ctest $(JFlag) --interactive-debug-mode 0 --output-on-failure -C $(BuildType)'
+    workingDirectory: build
+    displayName: 'Run Ctest'
+
+- job:
+  displayName: WinClang
+  pool: 
+    vmImage:  'windows-2019'
+  strategy:
+    matrix:
+      64-bit Debug Clang:
+        BuildType: Debug
+        CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="C:/Program Files/LLVM/bin/clang.exe" -DCMAKE_CXX_COMPILER="C:/Program Files/LLVM/bin/clang++.exe"'
+        JFlag: -j 4
+
+  steps:
+  - script: |
+      bash -c "cat /proc/cpuinfo"
+      bash -c "cat /proc/meminfo"
+    displayName: 'Machine stats'
+
+  - script: |
+      choco install --accept-license -y Ninja llvm
+    displayName: 'Dependencies'
+
+  - task: CMake@1
+    displayName: 'CMake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
+    inputs:
+      cmakeArgs: '.. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
+
+  - task: CMake@1
+    displayName: 'CMake --build . --config ${BuildType}'
+    inputs:
+      cmakeArgs: '--build . --config ${BuildType}'
+
+  - script: |
+      set PATH=%PATH%;"C:\Program Files\LLVM\bin\"
+      func-statistics-1.exe
+      ctest $(JFlag) --interactive-debug-mode 0 --output-on-failure -C $(BuildType)
+
     workingDirectory: build
     displayName: 'Run Ctest'
 

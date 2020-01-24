@@ -25,7 +25,7 @@ void print_stack_trace()
   {
     // SymInitialize failed
     error = GetLastError();
-    printf("SymInitialize returned error : %d\n", error);
+    printf("SymInitialize returned error : %lu\n", error);
     return;
   }
 

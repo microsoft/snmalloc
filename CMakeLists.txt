@@ -66,6 +66,7 @@ endmacro()
 # The main target for snmalloc
 add_library(snmalloc_lib INTERFACE)
 target_include_directories(snmalloc_lib INTERFACE src/)
+
 if(NOT MSVC)
   find_package(Threads REQUIRED COMPONENTS snmalloc_lib)
   target_link_libraries(snmalloc_lib INTERFACE ${CMAKE_THREAD_LIBS_INIT})
@@ -80,7 +81,9 @@ if(NOT MSVC)
    target_compile_options(snmalloc_lib INTERFACE -mcx16)
   # XXX elseif ARM?
   endif()
-else()
+endif()
+
+if (WIN32)
   set(WIN8COMPAT FALSE CACHE BOOL "Avoid Windows 10 APIs")
   if (WIN8COMPAT)
     target_compile_definitions(snmalloc_lib INTERFACE -DWINVER=0x0603)
@@ -92,6 +95,10 @@ else()
     target_link_libraries(snmalloc_lib INTERFACE mincore)
   endif()
 endif()
+
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  target_compile_options(snmalloc_lib INTERFACE -mcx16)
+endif ()
 
 # Have to set this globally, as can't be set on an interface target.
 set(CMAKE_CXX_STANDARD 17)
@@ -173,7 +180,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
 
   endmacro()
 
-  if(NOT MSVC)
+  if(NOT WIN32)
     set(SHARED_FILES src/override/new.cc src/override/malloc.cc)
     add_shim(snmallocshim SHARED ${SHARED_FILES})
     add_shim(snmallocshim-1mib SHARED ${SHARED_FILES})
@@ -203,7 +210,6 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         if (${SUPER_SLAB_SIZE} EQUAL 1)
           target_compile_definitions(${TESTNAME} PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
         endif()
-        target_include_directories(${TESTNAME} PRIVATE src)
         target_link_libraries(${TESTNAME} snmalloc_lib)
         if (${TEST} MATCHES "release-.*")
           message(STATUS "Adding test: ${TESTNAME} only for release configs")
@@ -216,7 +222,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
           message(STATUS "Single threaded test: ${TESTNAME}")
           set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
         endif()
-        if(MSVC)
+        if(WIN32)
           # On Windows these tests use a lot of memory as it doesn't support
           # lazy commit.
           if (${TEST} MATCHES "two_alloc_types")
