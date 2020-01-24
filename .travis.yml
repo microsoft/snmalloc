@@ -1,0 +1,15 @@
+language: rust
+rust:
+  - stable
+
+os:
+  - linux
+  - osx
+  - windows
+
+script:
+  - cargo test --all
+  - cargo test --all --features 1mib
+  - cargo test --all --features debug
+  - cargo test --all --features cache-friendly
+
