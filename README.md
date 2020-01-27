@@ -7,7 +7,7 @@ snmalloc is a research allocator. Its key design features are:
 - Freeing memory in a different thread to initially allocated it, does not take any locks and instead uses a novel message passing scheme to return the memory to the original allocator, where it is recycled.
 - The allocator uses large ranges of pages to reduce the amount of meta-data required.
 
-The benchmark is available at the [paper](https://github.com/microsoft/snmalloc/blob/master/snmalloc.pdf) of `snmalloc`
+Some old benchmark results are available in the [`snmalloc` paper](https://github.com/microsoft/snmalloc/blob/master/snmalloc.pdf).
 There are three features defined in this crate:
 - `debug`: Enable the `Debug` mode in `snmalloc`.
 - `1mib`: Use the `1mib` chunk configuration.
