@@ -61,9 +61,9 @@ namespace snmalloc
     }
 
     template<bool committed>
-    void* reserve(size_t* size, size_t align)
+    void* reserve(size_t size, size_t align)
     {
-      size_t request = *size;
+      size_t request = size;
       vm_offset_t addr;
       if (vmem_xalloc(
             kernel_arena,

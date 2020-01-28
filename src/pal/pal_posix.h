@@ -121,11 +121,11 @@ namespace snmalloc
      * greater than a page.
      */
     template<bool committed>
-    void* reserve(const size_t* size) noexcept
+    void* reserve(size_t size) noexcept
     {
       void* p = mmap(
         nullptr,
-        *size,
+        size,
         PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS,
         -1,

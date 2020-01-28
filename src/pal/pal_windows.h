@@ -183,7 +183,7 @@ namespace snmalloc
     }
 #  elif defined(PLATFORM_HAS_VIRTUALALLOC2)
     template<bool committed>
-    void* reserve(size_t* size, size_t align) noexcept
+    void* reserve(size_t size, size_t align) noexcept
     {
       DWORD flags = MEM_RESERVE;
 
@@ -209,7 +209,7 @@ namespace snmalloc
       param.Pointer = &addressReqs;
 
       void* ret = VirtualAlloc2FromApp(
-        nullptr, nullptr, *size, flags, PAGE_READWRITE, &param, 1);
+        nullptr, nullptr, size, flags, PAGE_READWRITE, &param, 1);
       if (ret == nullptr)
       {
         error("Failed to allocate memory\n");
@@ -218,14 +218,14 @@ namespace snmalloc
     }
 #  else
     template<bool committed>
-    void* reserve(size_t* size) noexcept
+    void* reserve(size_t size) noexcept
     {
       DWORD flags = MEM_RESERVE;
 
       if (committed)
         flags |= MEM_COMMIT;
 
-      void* ret = VirtualAlloc(nullptr, *size, flags, PAGE_READWRITE);
+      void* ret = VirtualAlloc(nullptr, size, flags, PAGE_READWRITE);
       if (ret == nullptr)
       {
         error("Failed to allocate memory\n");

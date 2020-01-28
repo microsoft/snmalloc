@@ -163,9 +163,9 @@ pages, rather than zeroing them synchronously in this call
 
 ```c++
 template<bool committed>
-void* reserve(size_t* size, size_t align);
+void* reserve(size_t size, size_t align);
 template<bool committed>
-void* reserve(const size_t* size) noexcept;
+void* reserve(size_t size) noexcept;
 ```
 Only one of these needs to be implemented, depending on whether the underlying
 system can provide strongly aligned memory regions.

@@ -63,16 +63,11 @@ namespace snmalloc
 
     void new_block()
     {
-      size_t size = SUPERSLAB_SIZE;
-      void* r = reserve<false>(&size, SUPERSLAB_SIZE);
-
-      if (size < SUPERSLAB_SIZE)
-        error("out of memory");
-
+      void* r = reserve<false>(SUPERSLAB_SIZE, SUPERSLAB_SIZE);
       PAL::template notify_using<NoZero>(r, OS_PAGE_SIZE);
 
       bump = r;
-      remaining = size;
+      remaining = SUPERSLAB_SIZE;
     }
 
     /**
@@ -202,7 +197,7 @@ namespace snmalloc
     }
 
     template<bool committed>
-    void* reserve(size_t* size, size_t align) noexcept
+    void* reserve(size_t size, size_t align) noexcept
     {
       if constexpr (pal_supports<AlignedAllocation, PAL>)
       {
@@ -210,22 +205,20 @@ namespace snmalloc
       }
       else
       {
-        size_t request = *size;
+        size_t request = size;
         // Add align, so we can guarantee to provide at least size.
         request += align;
         // Alignment must be a power of 2.
         assert(align == bits::next_pow2(align));
 
-        void* p = PAL::template reserve<committed>(&request);
+        void* p = PAL::template reserve<committed>(request);
 
-        *size = request;
         auto p0 = address_cast(p);
         auto start = bits::align_up(p0, align);
 
         if (start > p0)
         {
           uintptr_t end = bits::align_down(p0 + request, align);
-          *size = end - start;
           PAL::notify_not_using(p, start - p0);
           PAL::notify_not_using(pointer_cast<void>(end), (p0 + request) - end);
           p = pointer_cast<void>(start);
@@ -302,8 +295,7 @@ namespace snmalloc
 
       if (p == nullptr)
       {
-        size_t add = rsize;
-        p = memory_provider.template reserve<false>(&add, rsize);
+        p = memory_provider.template reserve<false>(rsize, rsize);
         memory_provider.template notify_using<zero_mem>(p, size);
       }
       else
@@ -340,6 +332,7 @@ namespace snmalloc
         }
       }
 
+      assert(p == pointer_align_up(p, rsize));
       return p;
     }
 
