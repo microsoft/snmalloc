@@ -179,8 +179,6 @@ namespace snmalloc
   {
     // Client responsible for checking alignment is not zero
     assert(alignment != 0);
-    // Client responsible for checking alignment is not above SUPERSLAB_SIZE
-    assert(alignment <= SUPERSLAB_SIZE);
     // Client responsible for checking alignment is a power of two
     assert(bits::next_pow2(alignment) == alignment);
 

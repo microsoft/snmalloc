@@ -108,7 +108,7 @@ int main(int argc, char** argv)
   test_posix_memalign((size_t)-1, 0, EINVAL, true);
   test_posix_memalign(OS_PAGE_SIZE, sizeof(uintptr_t) / 2, EINVAL, true);
 
-  for (size_t align = sizeof(uintptr_t); align <= SUPERSLAB_SIZE; align <<= 1)
+  for (size_t align = sizeof(uintptr_t); align <= SUPERSLAB_SIZE * 8; align <<= 1)
   {
     for (snmalloc::sizeclass_t sc = 0; sc < NUM_SIZECLASSES; sc++)
     {

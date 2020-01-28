@@ -108,8 +108,7 @@ extern "C"
     SNMALLOC_NAME_MANGLE(memalign)(size_t alignment, size_t size)
   {
     if (
-      (alignment == 0) || (alignment == size_t(-1)) ||
-      (alignment > SUPERSLAB_SIZE))
+      (alignment == 0) || (alignment == size_t(-1)))
     {
       errno = EINVAL;
       return nullptr;

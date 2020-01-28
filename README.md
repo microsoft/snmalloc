@@ -168,7 +168,7 @@ template<bool committed>
 void* reserve(const size_t* size) noexcept;
 ```
 Only one of these needs to be implemented, depending on whether the underlying
-system can provide strongly (e.g. 16MiB) aligned memory regions.
+system can provide strongly aligned memory regions.
 If the system guarantees only page alignment, implement the second and snmalloc
 will over-allocate and then trim the requested region.
 If the system provides strong alignment, implement the first to return memory

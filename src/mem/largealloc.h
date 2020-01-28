@@ -281,9 +281,6 @@ namespace snmalloc
   template<class MemoryProvider>
   class LargeAlloc
   {
-    void* reserved_start = nullptr;
-    void* reserved_end = nullptr;
-
   public:
     // This will be a zero-size structure if stats are not enabled.
     Stats stats;
@@ -291,38 +288,6 @@ namespace snmalloc
     MemoryProvider& memory_provider;
 
     LargeAlloc(MemoryProvider& mp) : memory_provider(mp) {}
-
-    template<AllowReserve allow_reserve>
-    bool reserve_memory(size_t need, size_t add)
-    {
-      assert(reserved_start <= reserved_end);
-
-      /*
-       * Spell this comparison in terms of pointer subtraction like this,
-       * rather than "reserved_start + need < reserved_end" because the
-       * sum might not be representable on CHERI.
-       */
-      if (pointer_diff(reserved_start, reserved_end) < need)
-      {
-        if constexpr (allow_reserve == YesReserve)
-        {
-          stats.segment_create();
-          reserved_start =
-            memory_provider.template reserve<false>(&add, SUPERSLAB_SIZE);
-          reserved_end = pointer_offset(reserved_start, add);
-          reserved_start = pointer_align_up<SUPERSLAB_SIZE>(reserved_start);
-
-          if (add < need)
-            return false;
-        }
-        else
-        {
-          return false;
-        }
-      }
-
-      return true;
-    }
 
     template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
     void* alloc(size_t large_class, size_t size)
@@ -337,23 +302,9 @@ namespace snmalloc
 
       if (p == nullptr)
       {
-        assert(reserved_start <= reserved_end);
-        size_t add;
-
-        if ((rsize + SUPERSLAB_SIZE) < RESERVE_SIZE)
-          add = RESERVE_SIZE;
-        else
-          add = rsize + SUPERSLAB_SIZE;
-
-        if (!reserve_memory<allow_reserve>(rsize, add))
-          return nullptr;
-
-        p = reserved_start;
-        reserved_start = pointer_offset(p, rsize);
-
-        stats.superslab_fresh();
-        // All memory is zeroed since it comes from reserved space.
-        memory_provider.template notify_using<NoZero>(p, size);
+        size_t add = rsize;
+        p = memory_provider.template reserve<false>(&add, rsize);
+        memory_provider.template notify_using<zero_mem>(p, size);
       }
       else
       {
