@@ -54,8 +54,12 @@ namespace snmalloc
     void notify_not_using(void* p, size_t size) noexcept
     {
       assert(is_aligned_block<OS_PAGE_SIZE>(p, size));
+#ifndef NDEBUG
+      mprotect(p, size, PROT_NONE);
+#else
       UNUSED(p);
       UNUSED(size);
+#endif
     }
 
     /**
@@ -72,11 +76,14 @@ namespace snmalloc
 
       if constexpr (zero_mem == YesZero)
         static_cast<OS*>(this)->template zero<true>(p, size);
-      else
-      {
-        UNUSED(p);
-        UNUSED(size);
-      }
+
+#ifndef NDEBUG
+      mprotect(p, size, PROT_READ | PROT_WRITE);
+#else
+      UNUSED(p);
+      UNUSED(size);
+#endif
+
     }
 
     /**
