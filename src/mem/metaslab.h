@@ -36,7 +36,7 @@ namespace snmalloc
      *  The list will be (allocated - needed - 1) long. The -1 is
      *  for the `link` element which is not in the free list.
      */
-    void* head;
+    void* head = nullptr;
 
     /**
      *  How many entries are not in the free list of slab, i.e.
@@ -51,7 +51,7 @@ namespace snmalloc
     /**
      *  How many entries have been allocated from this slab.
      */
-    uint16_t allocated;
+    uint16_t allocated = 0;
 
     // When a slab has free space it will be on the has space list for
     // that size class.  We use an empty block in this slab to be the

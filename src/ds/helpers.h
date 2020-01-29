@@ -56,7 +56,7 @@ namespace snmalloc
       length == bits::next_pow2_const(length), "Must be a power of two.");
 
   private:
-    T value;
+    T value = 0;
 
   public:
     operator T()

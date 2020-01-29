@@ -84,7 +84,7 @@ namespace snmalloc
       {
         if (kind != Fresh)
         {
-          // If this wasn't previously Fresh, we need to zero some things.
+        // If this wasn't previously Fresh, we need to zero some things.
           used = 0;
           for (size_t i = 0; i < SLAB_COUNT; i++)
           {
@@ -97,21 +97,21 @@ namespace snmalloc
         kind = Super;
         // Point head at the first non-short slab.
         head = 1;
+      }
 
 #ifndef NDEBUG
-        auto curr = head;
-        for (size_t i = 0; i < SLAB_COUNT - used - 1; i++)
-        {
-          curr = (curr + meta[curr].next + 1) & (SLAB_COUNT - 1);
-        }
-        assert(curr == 0);
-
-        for (size_t i = 0; i < SLAB_COUNT; i++)
-        {
-          assert(meta[i].is_unused());
-        }
-#endif
+      auto curr = head;
+      for (size_t i = 0; i < SLAB_COUNT - used - 1; i++)
+      {
+        curr = (curr + meta[curr].next + 1) & (SLAB_COUNT - 1);
       }
+      if (curr != 0) abort();
+
+      for (size_t i = 0; i < SLAB_COUNT; i++)
+      {
+        assert(meta[i].is_unused());
+      }
+#endif
     }
 
     bool is_empty()
@@ -165,7 +165,7 @@ namespace snmalloc
       meta[0].link = get_initial_offset(sizeclass, true);
 
       used++;
-      return (Slab*)this;
+      return reinterpret_cast<Slab*>(this);
     }
 
     Slab* alloc_slab(sizeclass_t sizeclass)
