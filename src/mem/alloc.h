@@ -1111,20 +1111,6 @@ namespace snmalloc
         {
           super_available.remove(super);
 
-          if constexpr (decommit_strategy == DecommitSuper)
-          {
-            large_allocator.memory_provider.notify_not_using(
-              pointer_offset(super, OS_PAGE_SIZE),
-              SUPERSLAB_SIZE - OS_PAGE_SIZE);
-          }
-          else if constexpr (decommit_strategy == DecommitSuperLazy)
-          {
-            static_assert(
-              pal_supports<LowMemoryNotification, MemoryProvider>,
-              "A lazy decommit strategy cannot be implemented on platforms "
-              "without low memory notifications");
-          }
-
           chunkmap().clear_slab(super);
           large_allocator.dealloc(super, 0);
           stats().superslab_push();
@@ -1208,12 +1194,6 @@ namespace snmalloc
           sc->remove(slab);
         }
 
-        if constexpr (decommit_strategy == DecommitSuper)
-        {
-          large_allocator.memory_provider.notify_not_using(
-            pointer_offset(slab, OS_PAGE_SIZE), SUPERSLAB_SIZE - OS_PAGE_SIZE);
-        }
-
         chunkmap().clear_slab(slab);
         large_allocator.dealloc(slab, 0);
         stats().superslab_push();
@@ -1261,18 +1241,12 @@ namespace snmalloc
       MEASURE_TIME(large_dealloc, 4, 16);
 
       size_t size_bits = bits::next_pow2_bits(size);
-      size_t rsize = bits::one_at_bit(size_bits);
-      assert(rsize >= SUPERSLAB_SIZE);
+      assert(bits::one_at_bit(size_bits) >= SUPERSLAB_SIZE);
       size_t large_class = size_bits - SUPERSLAB_BITS;
 
       chunkmap().clear_large_size(p, size);
 
       stats().large_dealloc(large_class);
-
-      // Cross-reference largealloc's alloc() decommitted condition.
-      if ((decommit_strategy != DecommitNone) || (large_class > 0))
-        large_allocator.memory_provider.notify_not_using(
-          pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
 
       // Initialise in order to set the correct SlabKind.
       Largeslab* slab = static_cast<Largeslab*>(p);

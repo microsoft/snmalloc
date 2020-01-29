@@ -362,7 +362,7 @@ namespace snmalloc
         bool decommitted =
           ((decommit_strategy == DecommitSuperLazy) &&
            (static_cast<Baseslab*>(p)->get_kind() == Decommitted)) ||
-          (large_class > 0) || (decommit_strategy != DecommitNone);
+          (large_class > 0) || (decommit_strategy == DecommitSuper);
 
         if (decommitted)
         {
@@ -392,6 +392,24 @@ namespace snmalloc
 
     void dealloc(void* p, size_t large_class)
     {
+      if constexpr (decommit_strategy == DecommitSuperLazy)
+      {
+        static_assert(
+          pal_supports<LowMemoryNotification, MemoryProvider>,
+          "A lazy decommit strategy cannot be implemented on platforms "
+          "without low memory notifications");
+      }
+
+      // Cross-reference largealloc's alloc() decommitted condition.
+      if ((decommit_strategy != DecommitNone) 
+          && (large_class != 0 || decommit_strategy == DecommitSuper))
+      {
+        size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
+
+        memory_provider.notify_not_using(
+          pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
+      }
+
       stats.superslab_push();
       memory_provider.large_stack[large_class].push(static_cast<Largeslab*>(p));
       memory_provider.lazy_decommit_if_needed();
