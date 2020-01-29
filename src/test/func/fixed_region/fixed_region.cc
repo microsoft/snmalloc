@@ -32,8 +32,9 @@ int main()
 {
   MemoryProviderStateMixin<DefaultPal> mp;
 
-  size_t size = 1ULL << 28;
-  oe_base = mp.reserve<true>(size, 1);
+  size_t large_class = 28 - SUPERSLAB_BITS;
+  size_t size = 1ULL << (SUPERSLAB_BITS + large_class);
+  oe_base = mp.reserve<true>(large_class);
   oe_end = (uint8_t*)oe_base + size;
   std::cout << "Allocated region " << oe_base << " - " << oe_end << std::endl;
 
