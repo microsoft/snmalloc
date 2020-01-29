@@ -154,29 +154,21 @@ namespace snmalloc
       return meta[slab_to_index(slab)];
     }
 
-    template<typename MemoryProvider>
-    Slab*
-    alloc_short_slab(sizeclass_t sizeclass, MemoryProvider& memory_provider)
+    Slab* alloc_short_slab(sizeclass_t sizeclass)
     {
       if ((used & 1) == 1)
-        return alloc_slab(sizeclass, memory_provider);
+        return alloc_slab(sizeclass);
 
       meta[0].allocated = 1;
       meta[0].head = nullptr;
       meta[0].sizeclass = static_cast<uint8_t>(sizeclass);
       meta[0].link = get_initial_offset(sizeclass, true);
 
-      {
-        memory_provider.template notify_using<NoZero>(
-          pointer_offset(this, OS_PAGE_SIZE), SLAB_SIZE - OS_PAGE_SIZE);
-      }
-
       used++;
       return (Slab*)this;
     }
 
-    template<typename MemoryProvider>
-    Slab* alloc_slab(sizeclass_t sizeclass, MemoryProvider& memory_provider)
+    Slab* alloc_slab(sizeclass_t sizeclass)
     {
       uint8_t h = head;
       Slab* slab = pointer_cast<Slab>(
@@ -192,17 +184,11 @@ namespace snmalloc
       head = h + n + 1;
       used += 2;
 
-      if constexpr (decommit_strategy == DecommitAll)
-      {
-        memory_provider.template notify_using<NoZero>(slab, SLAB_SIZE);
-      }
-
       return slab;
     }
 
     // Returns true, if this alters the value of get_status
-    template<typename MemoryProvider>
-    Action dealloc_slab(Slab* slab, MemoryProvider& memory_provider)
+    Action dealloc_slab(Slab* slab)
     {
       // This is not the short slab.
       uint8_t index = static_cast<uint8_t>(slab_to_index(slab));
@@ -214,9 +200,6 @@ namespace snmalloc
       bool was_almost_full = is_almost_full();
       used -= 2;
 
-      if constexpr (decommit_strategy == DecommitAll)
-        memory_provider.notify_not_using(slab, SLAB_SIZE);
-
       assert(meta[index].is_unused());
       if (was_almost_full || is_empty())
         return StatusChange;
@@ -225,16 +208,8 @@ namespace snmalloc
     }
 
     // Returns true, if this alters the value of get_status
-    template<typename MemoryProvider>
-    Action dealloc_short_slab(MemoryProvider& memory_provider)
+    Action dealloc_short_slab()
     {
-      // This is the short slab.
-      if constexpr (decommit_strategy == DecommitAll)
-      {
-        memory_provider.notify_not_using(
-          pointer_offset(this, OS_PAGE_SIZE), SLAB_SIZE - OS_PAGE_SIZE);
-      }
-
       bool was_full = is_full();
       used--;
 

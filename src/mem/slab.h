@@ -178,9 +178,8 @@ namespace snmalloc
     // This does not need to remove the "use" as done by the fast path.
     // Returns a complex return code for managing the superslab meta data.
     // i.e. This deallocation could make an entire superslab free.
-    template<typename MemoryProvider>
     SNMALLOC_SLOW_PATH typename Superslab::Action dealloc_slow(
-      SlabList* sl, Superslab* super, void* p, MemoryProvider& memory_provider)
+      SlabList* sl, Superslab* super, void* p)
     {
       Metaslab& meta = super->get_meta(this);
 
@@ -191,9 +190,9 @@ namespace snmalloc
         {
           // Dealloc on the superslab.
           if (is_short())
-            return super->dealloc_short_slab(memory_provider);
+            return super->dealloc_short_slab();
 
-          return super->dealloc_slab(this, memory_provider);
+          return super->dealloc_slab(this);
         }
         // Update the head and the sizeclass link.
         uint16_t index = pointer_to_index(p);
@@ -212,10 +211,11 @@ namespace snmalloc
       sl->remove(meta.get_link(this));
 
       if (is_short())
-        return super->dealloc_short_slab(memory_provider);
+        return super->dealloc_short_slab();
 
-      return super->dealloc_slab(this, memory_provider);
+      return super->dealloc_slab(this);
     }
+
     bool is_short()
     {
       return Metaslab::is_short(this);

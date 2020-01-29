@@ -930,8 +930,7 @@ namespace snmalloc
 
         if (super != nullptr)
         {
-          Slab* slab =
-            super->alloc_short_slab(sizeclass, large_allocator.memory_provider);
+          Slab* slab = super->alloc_short_slab(sizeclass);
           assert(super->is_full());
           return slab;
         }
@@ -941,8 +940,7 @@ namespace snmalloc
         if ((allow_reserve == NoReserve) && (super == nullptr))
           return nullptr;
 
-        Slab* slab =
-          super->alloc_short_slab(sizeclass, large_allocator.memory_provider);
+        Slab* slab = super->alloc_short_slab(sizeclass);
         reposition_superslab(super);
         return slab;
       }
@@ -952,8 +950,7 @@ namespace snmalloc
       if ((allow_reserve == NoReserve) && (super == nullptr))
         return nullptr;
 
-      Slab* slab =
-        super->alloc_slab(sizeclass, large_allocator.memory_provider);
+      Slab* slab = super->alloc_slab(sizeclass);
       reposition_superslab(super);
       return slab;
     }
@@ -1074,7 +1071,7 @@ namespace snmalloc
       SlabList* sl = &small_classes[sizeclass];
       Slab* slab = Metaslab::get_slab(p);
       Superslab::Action a =
-        slab->dealloc_slow(sl, super, p, large_allocator.memory_provider);
+        slab->dealloc_slow(sl, super, p);
       if (likely(a == Superslab::NoSlabReturn))
         return;
       stats().sizeclass_dealloc_slab(sizeclass);
@@ -1191,7 +1188,7 @@ namespace snmalloc
     {
       MEASURE_TIME(medium_dealloc, 4, 16);
       stats().sizeclass_dealloc(sizeclass);
-      bool was_full = slab->dealloc(p, large_allocator.memory_provider);
+      bool was_full = slab->dealloc(p);
 
 #ifdef CHECK_CLIENT
       if (!is_multiple_of_sizeclass(
