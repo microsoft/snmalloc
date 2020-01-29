@@ -68,8 +68,10 @@ namespace snmalloc
         }
         else
         {
+          // Allocate the last object on the current page if there is one,
+          // and then thread the next free list worth of allocations.
+          bool crossed_page_boundary = false;
           void* curr = nullptr;
-          bool commit = false;
           while (true)
           {
             size_t newbumpptr = bumpptr + rsize;
@@ -78,15 +80,12 @@ namespace snmalloc
 
             if (alignedbumpptr != alignednewbumpptr)
             {
-              // We have committed once already.
-              if (commit)
+              // We have crossed a page boundary already, so
+              // lets stop building our free list.
+              if (crossed_page_boundary)
                 break;
 
-              memory_provider.template notify_using<NoZero>(
-                pointer_offset(this, alignedbumpptr),
-                alignednewbumpptr - alignedbumpptr);
-
-              commit = true;
+              crossed_page_boundary = true;
             }
 
             if (curr == nullptr)
