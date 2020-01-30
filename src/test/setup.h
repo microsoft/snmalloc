@@ -91,7 +91,7 @@ void setup()
   // If we have an unhandled exception print a stack trace.
   SetUnhandledExceptionFilter(VectoredHandler);
 
-  //Disable OS level dialog boxes during CI.
+  // Disable OS level dialog boxes during CI.
   SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 }
 #else
