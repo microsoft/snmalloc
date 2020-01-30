@@ -245,6 +245,7 @@ jobs:
       if [ "$(git diff $(Build.SourceVersion))" != "" ]; then exit 1; fi
 
     workingDirectory: build
+    failOnStderr: true
     displayName: 'Clang-Format'
 
   - script: |
@@ -252,3 +253,4 @@ jobs:
       if [ -f tidy.fail ] ; then exit 1 ; fi
 
     displayName: 'Clang-Tidy'
+    failOnStderr: true
