@@ -29,24 +29,16 @@ endmacro()
 
 macro(clangformat_targets)
   # The clang-format tool is installed under a variety of different names.  Try
-  # to find a sensible one.  Only look for 6.0 and 7.0 versions explicitly - we
-  # don't know whether our clang-format file will work with newer versions of the
+  # to find a sensible one.  Only look for versions 6 to 8 explicitly - we don't
+  # know whether our clang-format file will work with newer versions of the
   # tool
-  set(CLANG_FORMAT_NAMES
+  find_program(CLANG_FORMAT NAMES
     clang-format-8
     clang-format-7.0
     clang-format-6.0
     clang-format70
     clang-format60
     clang-format)
-
-  # Loop over each of the possible names of clang-format and try to find one.
-  set(CLANG_FORMAT CLANG_FORMAT-NOTFOUND)
-  foreach (NAME IN ITEMS ${CLANG_FORMAT_NAMES})
-    if (${CLANG_FORMAT} STREQUAL "CLANG_FORMAT-NOTFOUND")
-      find_program(CLANG_FORMAT ${NAME})
-    endif ()
-  endforeach()
 
   # If we've found a clang-format tool, generate a target for it, otherwise emit
   # a warning.
