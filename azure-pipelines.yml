@@ -258,4 +258,3 @@ jobs:
       if [ -f tidy.fail ] ; then exit 1 ; fi
 
     displayName: 'Clang-Tidy'
-    failOnStderr: true
