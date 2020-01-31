@@ -40,6 +40,7 @@ unsafe impl GlobalAlloc for SnMalloc {
     /// - `alignment` is less equal to `SUPERSLAB_SIZE` (defined in snmalloc)
     /// - Other constrains are the same as the rust standard library.
     /// The program may be forced to abort if the constrains are not full-filled.
+    #[inline(always)]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         ffi::rust_alloc(layout.align(), layout.size()) as _
     }
@@ -49,6 +50,7 @@ unsafe impl GlobalAlloc for SnMalloc {
     /// - the memory is acquired using the same allocator and the pointer points to the start position.
     /// - Other constrains are the same as the rust standard library.
     /// The program may be forced to abort if the constrains are not full-filled.
+    #[inline(always)]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         ffi::rust_dealloc(ptr as _, layout.align(), layout.size());
     }
@@ -62,6 +64,7 @@ unsafe impl GlobalAlloc for SnMalloc {
     /// - `alignment` fulfills all the requirements as `rust_alloc`
     /// - Other constrains are the same as the rust standard library.
     /// The program may be forced to abort if the constrains are not full-filled.
+    #[inline(always)]
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         ffi::rust_realloc(ptr as _, layout.align(), layout.size(), new_size) as _
     }
