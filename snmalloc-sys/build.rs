@@ -12,6 +12,11 @@ fn main() {
     cfg = cfg.define("SNMALLOC_RUST_SUPPORT", "ON")
         .profile(build_type);
 
+    if cfg!(all(windows, target_env = "msvc")) {
+        cfg = cfg.define("CMAKE_CXX_FLAGS_RELEASE", "/MD /O2 /Ob2 /DNDEBUG");
+        cfg = cfg.define("CMAKE_C_FLAGS_RELEASE", "/MD /O2 /Ob2 /DNDEBUG");
+    }
+
     let target = if cfg!(feature = "1mib") {
         "snmallocshim-1mib-rust"
     } else {
