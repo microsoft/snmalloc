@@ -263,7 +263,7 @@ namespace snmalloc
             {
               lazy_decommit();
             }
-          } while (old_epoch <= new_epoch);
+          } while (old_epoch < new_epoch);
         }
       }
 #endif
