@@ -207,6 +207,7 @@ jobs:
       cmakeArgs: '.. -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
 
   - script: |
+      set -eo pipefail
       make -j 4
 
     workingDirectory: build
@@ -214,6 +215,7 @@ jobs:
     displayName: 'Compile'
 
   - script: |
+      set -eo pipefail
       ctest -j 4 --output-on-failure -C $(BuildType)
 
     workingDirectory: build
@@ -226,6 +228,7 @@ jobs:
     vmImage: 'ubuntu-16.04'
   steps:
   - script: |
+      set -eo pipefail
       wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
       sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-8 main"
       sudo apt-get update
@@ -240,14 +243,17 @@ jobs:
       cmakeArgs: '..'
 
   - script: |
+      set -eo pipefail
       make clangformat
       git diff
-      if [ "$(git diff $(Build.SourceVersion))" != "" ]; then exit 1; fi
+      git diff --exit-code $(Build.SourceVersion)
 
     workingDirectory: build
+    failOnStderr: true
     displayName: 'Clang-Format'
 
   - script: |
+      set -eo pipefail
       clang-tidy-8  src/override/malloc.cc  -header-filter="`pwd`/*" -export-fixes=tidy.fail -- -std=c++17 -mcx16
       if [ -f tidy.fail ] ; then exit 1 ; fi
 

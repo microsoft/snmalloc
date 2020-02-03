@@ -70,7 +70,6 @@ void _cdecl error(int signal)
   _exit(1);
 }
 
-#  define CALL_LAST 0
 LONG WINAPI VectoredHandler(struct _EXCEPTION_POINTERS* ExceptionInfo)
 {
   UNUSED(ExceptionInfo);
@@ -89,7 +88,11 @@ void setup()
   _set_abort_behavior(0, _WRITE_ABORT_MSG);
   signal(SIGABRT, error);
 
-  AddVectoredExceptionHandler(CALL_LAST, VectoredHandler);
+  // If we have an unhandled exception print a stack trace.
+  SetUnhandledExceptionFilter(VectoredHandler);
+
+  // Disable OS level dialog boxes during CI.
+  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 }
 #else
 void setup() {}
