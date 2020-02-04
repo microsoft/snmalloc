@@ -68,40 +68,32 @@ bool has_pressure()
 
 void reach_pressure(Queue& allocations)
 {
-  size_t size = 1;
-  size_t i = 0;
+  size_t size = 4096;
+
   while(!has_pressure())
   {
-    i++;
     allocations.add(size);
     allocations.try_remove();
     allocations.add(size);
-
-    if (i % 8192 == 0)
-      size ++;
+    allocations.add(size);
   }
 }
 
 void reduce_pressure(Queue& allocations)
 {
-  size_t size = 1;
-  size_t i = 0;
-
+  size_t size = 4096;
   for (size_t n = 0; n < 1000; n++)
   {
     allocations.try_remove();
     allocations.try_remove();
     allocations.add(size);
-
-    if (i % 8192 == 0)
-      size ++;
   }
 }
 
 
 int main(int, char**)
 {
-
+#ifndef NDEBUG
   Queue allocations;
 
 
@@ -112,9 +104,9 @@ int main(int, char**)
     return 0;
   }
 
-#if defined(WIN32) && !defined(SNMALLOC_VA_BITS_64)
+#  if defined(WIN32) && !defined(SNMALLOC_VA_BITS_64)
   std::cout << "32-bit windows not supported for this test." << std::endl;
-#else
+#  else
   setup();
 
   for(size_t i = 0; i < 10; i++)
@@ -125,6 +117,9 @@ int main(int, char**)
     reduce_pressure(allocations);
 
   }
+#  endif
+#else
+  std::cout << "Release test only." << std::endl;
 #endif
   return 0;
 }
