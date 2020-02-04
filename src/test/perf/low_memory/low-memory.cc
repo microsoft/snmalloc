@@ -112,6 +112,9 @@ int main(int, char**)
     return 0;
   }
 
+#if defined(WIN32) && !defined(SNMALLOC_VA_BITS_64)
+  std::cout << "32-bit windows not supported for this test." << std::endl;
+#else
   setup();
 
   for(size_t i = 0; i < 10; i++)
@@ -122,6 +125,6 @@ int main(int, char**)
     reduce_pressure(allocations);
 
   }
-
+#endif
   return 0;
 }
