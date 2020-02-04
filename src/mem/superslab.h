@@ -84,7 +84,7 @@ namespace snmalloc
       {
         if (kind != Fresh)
         {
-        // If this wasn't previously Fresh, we need to zero some things.
+          // If this wasn't previously Fresh, we need to zero some things.
           used = 0;
           for (size_t i = 0; i < SLAB_COUNT; i++)
           {
@@ -105,7 +105,8 @@ namespace snmalloc
       {
         curr = (curr + meta[curr].next + 1) & (SLAB_COUNT - 1);
       }
-      if (curr != 0) abort();
+      if (curr != 0)
+        abort();
 
       for (size_t i = 0; i < SLAB_COUNT; i++)
       {

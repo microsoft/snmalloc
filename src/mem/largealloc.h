@@ -124,7 +124,7 @@ namespace snmalloc
 
     void push_space(address_t start, size_t large_class)
     {
-      void * p = pointer_cast<void>(start);
+      void* p = pointer_cast<void>(start);
       if (large_class > 0)
         PAL::template notify_using<YesZero>(p, OS_PAGE_SIZE);
       else
@@ -249,7 +249,7 @@ namespace snmalloc
           PAL::notify_not_using(pointer_cast<void>(end), p1 - end);
         }
 
-        for (; end < bits::align_down(p1,align); end += size)
+        for (; end < bits::align_down(p1, align); end += size)
         {
           push_space(end, large_class);
         }
@@ -409,13 +409,14 @@ namespace snmalloc
       }
 
       // Cross-reference largealloc's alloc() decommitted condition.
-      if ((decommit_strategy != DecommitNone) 
-          && (large_class != 0 || decommit_strategy == DecommitSuper))
+      if (
+        (decommit_strategy != DecommitNone) &&
+        (large_class != 0 || decommit_strategy == DecommitSuper))
       {
         size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
 
         memory_provider.notify_not_using(
-        pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
+          pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
       }
 
       stats.superslab_push();

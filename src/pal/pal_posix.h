@@ -83,7 +83,6 @@ namespace snmalloc
       UNUSED(p);
       UNUSED(size);
 #endif
-
     }
 
     /**

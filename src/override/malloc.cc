@@ -107,8 +107,7 @@ extern "C"
   SNMALLOC_EXPORT void*
     SNMALLOC_NAME_MANGLE(memalign)(size_t alignment, size_t size)
   {
-    if (
-      (alignment == 0) || (alignment == size_t(-1)))
+    if ((alignment == 0) || (alignment == size_t(-1)))
     {
       errno = EINVAL;
       return nullptr;
