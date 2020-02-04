@@ -263,7 +263,7 @@ namespace snmalloc
             {
               lazy_decommit();
             }
-          } while (old_epoch <= new_epoch);
+          } while (old_epoch < new_epoch);
         }
       }
 #endif
@@ -403,13 +403,14 @@ namespace snmalloc
       }
 
       // Cross-reference largealloc's alloc() decommitted condition.
-      if ((decommit_strategy != DecommitNone) 
-          && (large_class != 0 || decommit_strategy == DecommitSuper))
+      if (
+        (decommit_strategy != DecommitNone) &&
+        (large_class != 0 || decommit_strategy == DecommitSuper))
       {
         size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
 
         memory_provider.notify_not_using(
-        pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
+          pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
       }
 
       stats.superslab_push();
