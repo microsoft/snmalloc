@@ -178,8 +178,8 @@ namespace snmalloc
     // This does not need to remove the "use" as done by the fast path.
     // Returns a complex return code for managing the superslab meta data.
     // i.e. This deallocation could make an entire superslab free.
-    SNMALLOC_SLOW_PATH typename Superslab::Action dealloc_slow(
-      SlabList* sl, Superslab* super, void* p)
+    SNMALLOC_SLOW_PATH typename Superslab::Action
+    dealloc_slow(SlabList* sl, Superslab* super, void* p)
     {
       Metaslab& meta = super->get_meta(this);
 

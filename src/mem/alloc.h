@@ -1070,8 +1070,7 @@ namespace snmalloc
       bool was_full = super->is_full();
       SlabList* sl = &small_classes[sizeclass];
       Slab* slab = Metaslab::get_slab(p);
-      Superslab::Action a =
-        slab->dealloc_slow(sl, super, p);
+      Superslab::Action a = slab->dealloc_slow(sl, super, p);
       if (likely(a == Superslab::NoSlabReturn))
         return;
       stats().sizeclass_dealloc_slab(sizeclass);
