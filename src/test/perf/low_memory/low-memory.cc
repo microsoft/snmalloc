@@ -1,10 +1,9 @@
+#include <iostream>
 #include <snmalloc.h>
 #include <test/measuretime.h>
 #include <test/setup.h>
 #include <unordered_set>
-
 #include <vector>
-#include <iostream>
 
 using namespace snmalloc;
 
@@ -47,13 +46,12 @@ public:
     ThreadAlloc::get()->dealloc(head);
     head = next;
   }
-
 };
 
 bool has_pressure()
 {
   static thread_local uint64_t epoch;
-  
+
   if constexpr (!pal_supports<LowMemoryNotification, GlobalVirtual>)
   {
     return false;
@@ -65,12 +63,11 @@ bool has_pressure()
   return result;
 }
 
-
 void reach_pressure(Queue& allocations)
 {
   size_t size = 4096;
 
-  while(!has_pressure())
+  while (!has_pressure())
   {
     allocations.add(size);
     allocations.try_remove();
@@ -90,17 +87,15 @@ void reduce_pressure(Queue& allocations)
   }
 }
 
-
 int main(int, char**)
 {
 #ifndef NDEBUG
   Queue allocations;
 
-
   if constexpr (!pal_supports<LowMemoryNotification, GlobalVirtual>)
   {
-    std::cout << "Pal does not support low-memory notification! Test not run" 
-      << std::endl;
+    std::cout << "Pal does not support low-memory notification! Test not run"
+              << std::endl;
     return 0;
   }
 
@@ -109,13 +104,12 @@ int main(int, char**)
 #  else
   setup();
 
-  for(size_t i = 0; i < 10; i++)
+  for (size_t i = 0; i < 10; i++)
   {
     reach_pressure(allocations);
-    std::cout << "Pressure " <<  i << std::endl;
+    std::cout << "Pressure " << i << std::endl;
 
     reduce_pressure(allocations);
-
   }
 #  endif
 #else
