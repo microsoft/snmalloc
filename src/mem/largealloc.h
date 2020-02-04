@@ -80,7 +80,7 @@ namespace snmalloc
      */
     std::atomic<uint64_t> last_low_memory_epoch = 0;
     std::atomic_flag lazy_decommit_guard;
-    void lazy_decommit()
+    SNMALLOC_SLOW_PATH void lazy_decommit()
     {
       // If another thread is try to do lazy decommit, let it continue.  If
       // we try to parallelise this, we'll most likely end up waiting on the
@@ -93,6 +93,7 @@ namespace snmalloc
       // the memory that we can.  Start with the small size classes so that we
       // hit cached superslabs first.
       // FIXME: We probably shouldn't do this all at once.
+      // FIXME: We currently Decommit all the sizeclasses larger than 0.
       for (size_t large_class = 0; large_class < NUM_LARGE_CLASSES;
            large_class++)
       {
@@ -327,7 +328,8 @@ namespace snmalloc
     void* alloc(size_t large_class, size_t size)
     {
       size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
-      if (size == 0)
+      // For superslab size, we always commit the whole range.
+      if (large_class == 0)
         size = rsize;
 
       void* p = memory_provider.large_stack[large_class].pop();
@@ -362,7 +364,7 @@ namespace snmalloc
         bool decommitted =
           ((decommit_strategy == DecommitSuperLazy) &&
            (static_cast<Baseslab*>(p)->get_kind() == Decommitted)) ||
-          (large_class > 0) || (decommit_strategy != DecommitNone);
+          (large_class > 0) || (decommit_strategy == DecommitSuper);
 
         if (decommitted)
         {
@@ -392,6 +394,24 @@ namespace snmalloc
 
     void dealloc(void* p, size_t large_class)
     {
+      if constexpr (decommit_strategy == DecommitSuperLazy)
+      {
+        static_assert(
+          pal_supports<LowMemoryNotification, MemoryProvider>,
+          "A lazy decommit strategy cannot be implemented on platforms "
+          "without low memory notifications");
+      }
+
+      // Cross-reference largealloc's alloc() decommitted condition.
+      if ((decommit_strategy != DecommitNone) 
+          && (large_class != 0 || decommit_strategy == DecommitSuper))
+      {
+        size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
+
+        memory_provider.notify_not_using(
+        pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
+      }
+
       stats.superslab_push();
       memory_provider.large_stack[large_class].push(static_cast<Largeslab*>(p));
       memory_provider.lazy_decommit_if_needed();

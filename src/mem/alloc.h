@@ -930,8 +930,7 @@ namespace snmalloc
 
         if (super != nullptr)
         {
-          Slab* slab =
-            super->alloc_short_slab(sizeclass, large_allocator.memory_provider);
+          Slab* slab = super->alloc_short_slab(sizeclass);
           assert(super->is_full());
           return slab;
         }
@@ -941,8 +940,7 @@ namespace snmalloc
         if ((allow_reserve == NoReserve) && (super == nullptr))
           return nullptr;
 
-        Slab* slab =
-          super->alloc_short_slab(sizeclass, large_allocator.memory_provider);
+        Slab* slab = super->alloc_short_slab(sizeclass);
         reposition_superslab(super);
         return slab;
       }
@@ -952,8 +950,7 @@ namespace snmalloc
       if ((allow_reserve == NoReserve) && (super == nullptr))
         return nullptr;
 
-      Slab* slab =
-        super->alloc_slab(sizeclass, large_allocator.memory_provider);
+      Slab* slab = super->alloc_slab(sizeclass);
       reposition_superslab(super);
       return slab;
     }
@@ -1074,7 +1071,7 @@ namespace snmalloc
       SlabList* sl = &small_classes[sizeclass];
       Slab* slab = Metaslab::get_slab(p);
       Superslab::Action a =
-        slab->dealloc_slow(sl, super, p, large_allocator.memory_provider);
+        slab->dealloc_slow(sl, super, p);
       if (likely(a == Superslab::NoSlabReturn))
         return;
       stats().sizeclass_dealloc_slab(sizeclass);
@@ -1113,20 +1110,6 @@ namespace snmalloc
         case Superslab::Empty:
         {
           super_available.remove(super);
-
-          if constexpr (decommit_strategy == DecommitSuper)
-          {
-            large_allocator.memory_provider.notify_not_using(
-              pointer_offset(super, OS_PAGE_SIZE),
-              SUPERSLAB_SIZE - OS_PAGE_SIZE);
-          }
-          else if constexpr (decommit_strategy == DecommitSuperLazy)
-          {
-            static_assert(
-              pal_supports<LowMemoryNotification, MemoryProvider>,
-              "A lazy decommit strategy cannot be implemented on platforms "
-              "without low memory notifications");
-          }
 
           chunkmap().clear_slab(super);
           large_allocator.dealloc(super, 0);
@@ -1191,7 +1174,7 @@ namespace snmalloc
     {
       MEASURE_TIME(medium_dealloc, 4, 16);
       stats().sizeclass_dealloc(sizeclass);
-      bool was_full = slab->dealloc(p, large_allocator.memory_provider);
+      bool was_full = slab->dealloc(p);
 
 #ifdef CHECK_CLIENT
       if (!is_multiple_of_sizeclass(
@@ -1209,12 +1192,6 @@ namespace snmalloc
           sizeclass_t medium_class = sizeclass - NUM_SMALL_CLASSES;
           DLList<Mediumslab>* sc = &medium_classes[medium_class];
           sc->remove(slab);
-        }
-
-        if constexpr (decommit_strategy == DecommitSuper)
-        {
-          large_allocator.memory_provider.notify_not_using(
-            pointer_offset(slab, OS_PAGE_SIZE), SUPERSLAB_SIZE - OS_PAGE_SIZE);
         }
 
         chunkmap().clear_slab(slab);
@@ -1264,18 +1241,12 @@ namespace snmalloc
       MEASURE_TIME(large_dealloc, 4, 16);
 
       size_t size_bits = bits::next_pow2_bits(size);
-      size_t rsize = bits::one_at_bit(size_bits);
-      assert(rsize >= SUPERSLAB_SIZE);
+      assert(bits::one_at_bit(size_bits) >= SUPERSLAB_SIZE);
       size_t large_class = size_bits - SUPERSLAB_BITS;
 
       chunkmap().clear_large_size(p, size);
 
       stats().large_dealloc(large_class);
-
-      // Cross-reference largealloc's alloc() decommitted condition.
-      if ((decommit_strategy != DecommitNone) || (large_class > 0))
-        large_allocator.memory_provider.notify_not_using(
-          pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
 
       // Initialise in order to set the correct SlabKind.
       Largeslab* slab = static_cast<Largeslab*>(p);

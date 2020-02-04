@@ -68,8 +68,10 @@ namespace snmalloc
         }
         else
         {
+          // Allocate the last object on the current page if there is one,
+          // and then thread the next free list worth of allocations.
+          bool crossed_page_boundary = false;
           void* curr = nullptr;
-          bool commit = false;
           while (true)
           {
             size_t newbumpptr = bumpptr + rsize;
@@ -78,15 +80,12 @@ namespace snmalloc
 
             if (alignedbumpptr != alignednewbumpptr)
             {
-              // We have committed once already.
-              if (commit)
+              // We have crossed a page boundary already, so
+              // lets stop building our free list.
+              if (crossed_page_boundary)
                 break;
 
-              memory_provider.template notify_using<NoZero>(
-                pointer_offset(this, alignedbumpptr),
-                alignednewbumpptr - alignedbumpptr);
-
-              commit = true;
+              crossed_page_boundary = true;
             }
 
             if (curr == nullptr)
@@ -179,9 +178,8 @@ namespace snmalloc
     // This does not need to remove the "use" as done by the fast path.
     // Returns a complex return code for managing the superslab meta data.
     // i.e. This deallocation could make an entire superslab free.
-    template<typename MemoryProvider>
     SNMALLOC_SLOW_PATH typename Superslab::Action dealloc_slow(
-      SlabList* sl, Superslab* super, void* p, MemoryProvider& memory_provider)
+      SlabList* sl, Superslab* super, void* p)
     {
       Metaslab& meta = super->get_meta(this);
 
@@ -192,9 +190,9 @@ namespace snmalloc
         {
           // Dealloc on the superslab.
           if (is_short())
-            return super->dealloc_short_slab(memory_provider);
+            return super->dealloc_short_slab();
 
-          return super->dealloc_slab(this, memory_provider);
+          return super->dealloc_slab(this);
         }
         // Update the head and the sizeclass link.
         uint16_t index = pointer_to_index(p);
@@ -213,10 +211,11 @@ namespace snmalloc
       sl->remove(meta.get_link(this));
 
       if (is_short())
-        return super->dealloc_short_slab(memory_provider);
+        return super->dealloc_short_slab();
 
-      return super->dealloc_slab(this, memory_provider);
+      return super->dealloc_slab(this);
     }
+
     bool is_short()
     {
       return Metaslab::is_short(this);

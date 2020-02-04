@@ -87,16 +87,13 @@ namespace snmalloc
       assert(is_aligned_block<OS_PAGE_SIZE>(p, OS_PAGE_SIZE));
       size = bits::align_up(size, OS_PAGE_SIZE);
 
-      if constexpr (decommit_strategy == DecommitAll)
-        memory_provider.template notify_using<zero_mem>(p, size);
-      else if constexpr (zero_mem == YesZero)
+      if constexpr (zero_mem == YesZero)
         memory_provider.template zero<true>(p, size);
 
       return p;
     }
 
-    template<typename MemoryProvider>
-    bool dealloc(void* p, MemoryProvider& memory_provider)
+    bool dealloc(void* p)
     {
       assert(head > 0);
 
@@ -104,9 +101,6 @@ namespace snmalloc
       bool was_full = full();
       free++;
       stack[--head] = pointer_to_index(p);
-
-      if constexpr (decommit_strategy == DecommitAll)
-        memory_provider.notify_not_using(p, sizeclass_to_size(sizeclass));
 
       return was_full;
     }

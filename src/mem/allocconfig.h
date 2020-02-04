@@ -69,10 +69,6 @@ namespace snmalloc
      */
     DecommitSuper,
     /**
-     * Decommit all slabs once they are empty.
-     */
-    DecommitAll,
-    /**
      * Decommit superslabs only when we are informed of memory pressure by the
      * OS, do not decommit anything in normal operation.
      */
