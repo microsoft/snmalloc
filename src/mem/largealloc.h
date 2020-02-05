@@ -230,24 +230,12 @@ namespace snmalloc
         // Reserve 4 times the amount, and put aligned leftovers into the
         // large_stack
         size_t request = bits::max(size * 4, SUPERSLAB_SIZE * 8);
-        void* p = PAL::template reserve<committed>(request);
+        void* p = PAL::template reserve<false>(request);
 
         address_t p0 = address_cast(p);
         address_t start = bits::align_up(p0, align);
         address_t p1 = p0 + request;
         address_t end = start + size;
-
-        // Turn off pages for extra allocations.
-        // Will turn pages back on for stack entries.
-        if (committed)
-        {
-          if (start - p0 > 0)
-          {
-            PAL::notify_not_using(p, start - p0);
-          }
-          assert(p1 - end > 0);
-          PAL::notify_not_using(pointer_cast<void>(end), p1 - end);
-        }
 
         for (; end < bits::align_down(p1, align); end += size)
         {
@@ -285,7 +273,11 @@ namespace snmalloc
 
         // printf("Alloc %zx (size = %zx)\n", start, size);
 
-        return pointer_cast<void>(start);
+        void* result = pointer_cast<void>(start);  
+        if (committed)
+          PAL::template notify_using<NoZero>(result, size);
+
+        return result;
       }
     }
 
