@@ -18,7 +18,7 @@ namespace snmalloc
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
      */
-    static constexpr uint64_t pal_features = AlignedAllocation;
+    static constexpr uint64_t pal_features = 0;
     static void error(const char* const str)
     {
       UNUSED(str);
@@ -26,7 +26,7 @@ namespace snmalloc
     }
 
     template<bool committed>
-    void* reserve(size_t* size, size_t align) noexcept
+    void* reserve(size_t size) noexcept
     {
       if (oe_base == 0)
       {
@@ -36,21 +36,18 @@ namespace snmalloc
       }
 
       void* old_base = oe_base;
-      void* old_base2 = old_base;
       void* next_base;
       auto end = __oe_get_heap_end();
       do
       {
-        old_base2 = old_base;
-        auto new_base = pointer_align_up(old_base, align);
-        next_base = pointer_offset(new_base, *size);
+        auto new_base = old_base;
+        next_base = pointer_offset(new_base, size);
 
         if (next_base > end)
           error("Out of memory");
 
       } while (oe_base.compare_exchange_strong(old_base, next_base));
 
-      *size = pointer_diff(old_base2, next_base);
       return old_base;
     }
 

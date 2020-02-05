@@ -54,8 +54,12 @@ namespace snmalloc
     void notify_not_using(void* p, size_t size) noexcept
     {
       assert(is_aligned_block<OS_PAGE_SIZE>(p, size));
+#ifdef USE_POSIX_COMMIT_CHECKS
+      mprotect(p, size, PROT_NONE);
+#else
       UNUSED(p);
       UNUSED(size);
+#endif
     }
 
     /**
@@ -72,11 +76,13 @@ namespace snmalloc
 
       if constexpr (zero_mem == YesZero)
         static_cast<OS*>(this)->template zero<true>(p, size);
-      else
-      {
-        UNUSED(p);
-        UNUSED(size);
-      }
+
+#ifdef USE_POSIX_COMMIT_CHECKS
+      mprotect(p, size, PROT_READ | PROT_WRITE);
+#else
+      UNUSED(p);
+      UNUSED(size);
+#endif
     }
 
     /**
@@ -121,11 +127,11 @@ namespace snmalloc
      * greater than a page.
      */
     template<bool committed>
-    void* reserve(const size_t* size) noexcept
+    void* reserve(size_t size) noexcept
     {
       void* p = mmap(
         nullptr,
-        *size,
+        size,
         PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS,
         -1,

@@ -56,11 +56,11 @@ namespace snmalloc
      * See comment below.
      */
     template<bool committed>
-    void* reserve(const size_t* size)
+    void* reserve(size_t size)
     {
       void* p = mmap(
         nullptr,
-        *size,
+        size,
         PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS,
         pal_anon_id,

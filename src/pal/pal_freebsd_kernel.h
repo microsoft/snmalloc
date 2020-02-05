@@ -61,13 +61,12 @@ namespace snmalloc
     }
 
     template<bool committed>
-    void* reserve(size_t* size, size_t align)
+    void* reserve(size_t size, size_t align)
     {
-      size_t request = *size;
       vm_offset_t addr;
       if (vmem_xalloc(
             kernel_arena,
-            request,
+            size,
             align,
             0,
             0,
@@ -81,10 +80,10 @@ namespace snmalloc
       if (committed)
       {
         if (
-          kmem_back(kernel_object, addr, request, M_ZERO | M_WAITOK) !=
+          kmem_back(kernel_object, addr, size, M_ZERO | M_WAITOK) !=
           KERN_SUCCESS)
         {
-          vmem_xfree(kernel_arena, addr, request);
+          vmem_xfree(kernel_arena, addr, size);
           return nullptr;
         }
       }

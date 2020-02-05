@@ -32,8 +32,12 @@ int main()
 {
   MemoryProviderStateMixin<DefaultPal> mp;
 
-  size_t size = 1ULL << 28;
-  oe_base = mp.reserve<true>(&size, 0);
+  // 28 is large enough to produce a nested allocator.
+  // It is also large enough for the example to run in.
+  // For 1MiB superslabs, SUPERSLAB_BITS + 4 is not big enough for the example.
+  size_t large_class = 28 - SUPERSLAB_BITS;
+  size_t size = 1ULL << (SUPERSLAB_BITS + large_class);
+  oe_base = mp.reserve<true>(large_class);
   oe_end = (uint8_t*)oe_base + size;
   std::cout << "Allocated region " << oe_base << " - " << oe_end << std::endl;
 

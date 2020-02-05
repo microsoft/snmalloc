@@ -63,16 +63,12 @@ namespace snmalloc
 
     void new_block()
     {
-      size_t size = SUPERSLAB_SIZE;
-      void* r = reserve<false>(&size, SUPERSLAB_SIZE);
-
-      if (size < SUPERSLAB_SIZE)
-        error("out of memory");
-
+      // Reserve the smallest large_class which is SUPERSLAB_SIZE
+      void* r = reserve<false>(0);
       PAL::template notify_using<NoZero>(r, OS_PAGE_SIZE);
 
       bump = r;
-      remaining = size;
+      remaining = SUPERSLAB_SIZE;
     }
 
     /**
@@ -124,6 +120,24 @@ namespace snmalloc
         }
       }
       lazy_decommit_guard.clear();
+    }
+
+    void push_space(address_t start, size_t large_class)
+    {
+      void* p = pointer_cast<void>(start);
+      if (large_class > 0)
+        PAL::template notify_using<YesZero>(p, OS_PAGE_SIZE);
+      else
+      {
+        if (decommit_strategy == DecommitSuperLazy)
+        {
+          PAL::template notify_using<YesZero>(p, OS_PAGE_SIZE);
+          p = new (p) Decommittedslab();
+        }
+        else
+          PAL::template notify_using<YesZero>(p, SUPERSLAB_SIZE);
+      }
+      large_stack[large_class].push(reinterpret_cast<Largeslab*>(p));
     }
 
   public:
@@ -202,35 +216,68 @@ namespace snmalloc
     }
 
     template<bool committed>
-    void* reserve(size_t* size, size_t align) noexcept
+    void* reserve(size_t large_class) noexcept
     {
+      size_t size = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
+      size_t align = size;
+
       if constexpr (pal_supports<AlignedAllocation, PAL>)
       {
         return PAL::template reserve<committed>(size, align);
       }
       else
       {
-        size_t request = *size;
-        // Add align, so we can guarantee to provide at least size.
-        request += align;
-        // Alignment must be a power of 2.
-        assert(align == bits::next_pow2(align));
+        // Reserve 4 times the amount, and put aligned leftovers into the
+        // large_stack
+        size_t request = bits::max(size * 4, SUPERSLAB_SIZE * 8);
+        void* p = PAL::template reserve<false>(request);
 
-        void* p = PAL::template reserve<committed>(&request);
+        address_t p0 = address_cast(p);
+        address_t start = bits::align_up(p0, align);
+        address_t p1 = p0 + request;
+        address_t end = start + size;
 
-        *size = request;
-        auto p0 = address_cast(p);
-        auto start = bits::align_up(p0, align);
-
-        if (start > p0)
+        for (; end < bits::align_down(p1, align); end += size)
         {
-          uintptr_t end = bits::align_down(p0 + request, align);
-          *size = end - start;
-          PAL::notify_not_using(p, start - p0);
-          PAL::notify_not_using(pointer_cast<void>(end), (p0 + request) - end);
-          p = pointer_cast<void>(start);
+          push_space(end, large_class);
         }
-        return p;
+
+        // Put offcuts before alignment into the large stack
+        address_t offcut_end = start;
+        address_t offcut_start;
+        for (size_t i = large_class; i > 0;)
+        {
+          i--;
+          size_t offcut_align = bits::one_at_bit(SUPERSLAB_BITS) << i;
+          offcut_start = bits::align_up(p0, offcut_align);
+          if (offcut_start != offcut_end)
+          {
+            push_space(offcut_start, i);
+            offcut_end = offcut_start;
+          }
+        }
+
+        // Put offcuts after returned block into the large stack
+        offcut_start = end;
+        for (size_t i = large_class; i > 0;)
+        {
+          i--;
+          auto offcut_align = bits::one_at_bit(SUPERSLAB_BITS) << i;
+          offcut_end = bits::align_down(p1, offcut_align);
+          if (offcut_start != offcut_end)
+          {
+            push_space(offcut_start, i);
+            offcut_start = offcut_end;
+          }
+        }
+
+        // printf("Alloc %zx (size = %zx)\n", start, size);
+
+        void* result = pointer_cast<void>(start);
+        if (committed)
+          PAL::template notify_using<NoZero>(result, size);
+
+        return result;
       }
     }
 
@@ -281,9 +328,6 @@ namespace snmalloc
   template<class MemoryProvider>
   class LargeAlloc
   {
-    void* reserved_start = nullptr;
-    void* reserved_end = nullptr;
-
   public:
     // This will be a zero-size structure if stats are not enabled.
     Stats stats;
@@ -291,38 +335,6 @@ namespace snmalloc
     MemoryProvider& memory_provider;
 
     LargeAlloc(MemoryProvider& mp) : memory_provider(mp) {}
-
-    template<AllowReserve allow_reserve>
-    bool reserve_memory(size_t need, size_t add)
-    {
-      assert(reserved_start <= reserved_end);
-
-      /*
-       * Spell this comparison in terms of pointer subtraction like this,
-       * rather than "reserved_start + need < reserved_end" because the
-       * sum might not be representable on CHERI.
-       */
-      if (pointer_diff(reserved_start, reserved_end) < need)
-      {
-        if constexpr (allow_reserve == YesReserve)
-        {
-          stats.segment_create();
-          reserved_start =
-            memory_provider.template reserve<false>(&add, SUPERSLAB_SIZE);
-          reserved_end = pointer_offset(reserved_start, add);
-          reserved_start = pointer_align_up<SUPERSLAB_SIZE>(reserved_start);
-
-          if (add < need)
-            return false;
-        }
-        else
-        {
-          return false;
-        }
-      }
-
-      return true;
-    }
 
     template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
     void* alloc(size_t large_class, size_t size)
@@ -337,23 +349,8 @@ namespace snmalloc
 
       if (p == nullptr)
       {
-        assert(reserved_start <= reserved_end);
-        size_t add;
-
-        if ((rsize + SUPERSLAB_SIZE) < RESERVE_SIZE)
-          add = RESERVE_SIZE;
-        else
-          add = rsize + SUPERSLAB_SIZE;
-
-        if (!reserve_memory<allow_reserve>(rsize, add))
-          return nullptr;
-
-        p = reserved_start;
-        reserved_start = pointer_offset(p, rsize);
-
-        stats.superslab_fresh();
-        // All memory is zeroed since it comes from reserved space.
-        memory_provider.template notify_using<NoZero>(p, size);
+        p = memory_provider.template reserve<false>(large_class);
+        memory_provider.template notify_using<zero_mem>(p, size);
       }
       else
       {
@@ -389,6 +386,7 @@ namespace snmalloc
         }
       }
 
+      assert(p == pointer_align_up(p, rsize));
       return p;
     }
 

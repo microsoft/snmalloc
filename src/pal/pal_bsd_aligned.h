@@ -27,7 +27,7 @@ namespace snmalloc
      * Reserve memory at a specific alignment.
      */
     template<bool committed>
-    void* reserve(const size_t* size, size_t align) noexcept
+    void* reserve(size_t size, size_t align) noexcept
     {
       // Alignment must be a power of 2.
       assert(align == bits::next_pow2(align));
@@ -38,7 +38,7 @@ namespace snmalloc
 
       void* p = mmap(
         nullptr,
-        *size,
+        size,
         PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS | MAP_ALIGNED(log2align),
         -1,
