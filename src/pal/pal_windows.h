@@ -71,7 +71,7 @@ namespace snmalloc
      * PAL supports.  This PAL supports low-memory notifications.
      */
     static constexpr uint64_t pal_features = LowMemoryNotification
-#  if defined(PLATFORM_HAS_VIRTUALALLOC2) || defined(USE_SYSTEMATIC_TESTING)
+#  if defined(PLATFORM_HAS_VIRTUALALLOC2)
       | AlignedAllocation
 #  endif
       ;
@@ -149,7 +149,7 @@ namespace snmalloc
       return bump_ptr;
     }
     template<bool committed>
-    void* reserve(size_t* size, size_t align) noexcept
+    void* reserve(size_t size) noexcept
     {
       DWORD flags = MEM_RESERVE;
 
@@ -158,27 +158,16 @@ namespace snmalloc
 
       size_t retries = 1000;
       void* p;
-      size_t request = *size;
 
       do
       {
         p = VirtualAlloc(
-          (void*)systematic_bump_ptr(), request, flags, PAGE_READWRITE);
+          (void*)systematic_bump_ptr(), size, flags, PAGE_READWRITE);
 
-        systematic_bump_ptr() += request;
+        systematic_bump_ptr() += size;
         retries--;
       } while (p == nullptr && retries > 0);
 
-      uintptr_t aligned_p = bits::align_up((size_t)p, align);
-
-      if (aligned_p != (uintptr_t)p)
-      {
-        auto extra_bit = aligned_p - (uintptr_t)p;
-        uintptr_t end = (uintptr_t)p + request;
-        // Attempt to align end of the block.
-        VirtualAlloc((void*)end, extra_bit, flags, PAGE_READWRITE);
-      }
-      *size = request;
       return p;
     }
 #  elif defined(PLATFORM_HAS_VIRTUALALLOC2)
