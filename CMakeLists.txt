@@ -9,7 +9,7 @@ option(EXPOSE_EXTERNAL_RESERVE "Expose an interface to reserve memory using the 
 option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF)
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
 
-if (CMAKE_BUILD_TYPE STREQUAL "Release")
+if ((CMAKE_BUILD_TYPE STREQUAL "Release") AND (NOT SNMALLOC_CI_BUILD))
   option(USE_POSIX_COMMIT_CHECKS "Instrument Posix PAL to check for access to unused blocks of memory." Off)
 else ()
   option(USE_POSIX_COMMIT_CHECKS "Instrument Posix PAL to check for access to unused blocks of memory." On)

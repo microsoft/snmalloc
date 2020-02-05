@@ -273,7 +273,7 @@ namespace snmalloc
 
         // printf("Alloc %zx (size = %zx)\n", start, size);
 
-        void* result = pointer_cast<void>(start);  
+        void* result = pointer_cast<void>(start);
         if (committed)
           PAL::template notify_using<NoZero>(result, size);
 
