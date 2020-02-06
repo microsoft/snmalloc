@@ -35,15 +35,12 @@ endmacro()
 
 macro(clangformat_targets)
   # The clang-format tool is installed under a variety of different names.  Try
-  # to find a sensible one.  Only look for versions 6 to 8 explicitly - we don't
+  # to find a sensible one.  Only look for versions 9 explicitly - we don't
   # know whether our clang-format file will work with newer versions of the
-  # tool
+  # tool.  It does not work with older versions as AfterCaseLabel is not supported
+  # in earlier versions.
   find_program(CLANG_FORMAT NAMES
-    clang-format-8
-    clang-format-7.0
-    clang-format-6.0
-    clang-format70
-    clang-format60
+    clang-format-9
     clang-format)
 
   # If we've found a clang-format tool, generate a target for it, otherwise emit
