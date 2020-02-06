@@ -54,7 +54,7 @@ namespace snmalloc
 
     static constexpr size_t ADDRESS_BITS = is64() ? 48 : 32;
 
-    inline size_t clz(size_t x)
+    SNMALLOC_FAST_PATH size_t clz(size_t x)
     {
 #if defined(_MSC_VER)
 #  ifdef USE_LZCNT
@@ -193,7 +193,7 @@ namespace snmalloc
 #endif
     }
 
-    inline size_t next_pow2(size_t x)
+    SNMALLOC_FAST_PATH size_t next_pow2(size_t x)
     {
       // Correct for numbers [0..MAX_SIZE >> 1).
       // Returns 1 for x > (MAX_SIZE >> 1).
@@ -223,7 +223,7 @@ namespace snmalloc
       return BITS - clz_const(x - 1);
     }
 
-    static inline size_t align_down(size_t value, size_t alignment)
+    static SNMALLOC_FAST_PATH size_t align_down(size_t value, size_t alignment)
     {
       assert(next_pow2(alignment) == alignment);
 

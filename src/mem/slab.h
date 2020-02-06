@@ -45,6 +45,7 @@ namespace snmalloc
       assert(rsize == sizeclass_to_size(meta.sizeclass));
       assert(sl.get_head() == (SlabLink*)pointer_offset(this, meta.link));
       assert(!meta.is_full());
+      meta.debug_slab_invariant(this);
 
       void* p = nullptr;
       bool p_has_value = false;
@@ -156,7 +157,6 @@ namespace snmalloc
       if (meta.is_unused())
         error("Detected potential double free.");
 #endif
-      meta.debug_slab_invariant(this);
 
       if (unlikely(meta.return_object()))
         return false;
@@ -170,7 +170,7 @@ namespace snmalloc
 
       // Set the next pointer to the previous head.
       Metaslab::store_next(p, head);
-      meta.debug_slab_invariant(this);
+
       return true;
     }
 
@@ -182,6 +182,7 @@ namespace snmalloc
     dealloc_slow(SlabList* sl, Superslab* super, void* p)
     {
       Metaslab& meta = super->get_meta(this);
+      meta.debug_slab_invariant(this);
 
       if (meta.is_full())
       {

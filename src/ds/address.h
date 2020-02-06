@@ -61,7 +61,7 @@ namespace snmalloc
    * power of two.
    */
   template<size_t alignment, typename T = void>
-  inline T* pointer_align_down(void* p)
+  SNMALLOC_FAST_PATH T* pointer_align_down(void* p)
   {
     static_assert(alignment > 0);
     static_assert(bits::next_pow2_const(alignment) == alignment);
