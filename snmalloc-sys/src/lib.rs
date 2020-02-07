@@ -10,7 +10,7 @@ extern "C" {
     /// On failure, it returns a null pointer.
     /// The client must assure the following things:
     /// - `alignment` is greater than zero
-    /// - `alignment` is of the power of 2
+    /// - `alignment` is a power of 2
     /// The program may be forced to abort if the constrains are not full-filled.
     pub fn rust_alloc(alignment: size_t, size: size_t) -> *mut c_void;
 
