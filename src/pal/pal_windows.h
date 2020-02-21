@@ -21,22 +21,24 @@ namespace snmalloc
   class PALWindows
   {
     /**
-     * The number of times that the memory pressure notification has fired.
-     */
-    static inline std::atomic<uint64_t> pressure_epoch;
-    /**
      * A flag indicating that we have tried to register for low-memory
      * notifications.
      */
     static inline std::atomic<bool> registered_for_notifications;
     static inline HANDLE lowMemoryObject;
+
+    /**
+     * List of callbacks for low-memory notification
+     **/
+    static inline PalNotifier low_memory_callbacks;
+
     /**
      * Callback, used when the system delivers a low-memory notification.  This
-     * simply increments an atomic counter each time the notification is raised.
+     * calls all the handlers registered with the PAL.
      */
     static void CALLBACK low_memory(_In_ PVOID, _In_ BOOLEAN)
     {
-      pressure_epoch++;
+      low_memory_callbacks.notify_all();
     }
 
   public:
@@ -77,17 +79,6 @@ namespace snmalloc
       ;
 
     /**
-     * Counter values for the number of times that a low-pressure notification
-     * has been delivered.  Callers should compare this with a previous value
-     * to see if the low memory state has been triggered since they last
-     * checked.
-     */
-    uint64_t low_memory_epoch()
-    {
-      return pressure_epoch.load(std::memory_order_acquire);
-    }
-
-    /**
      * Check whether the low memory state is still in effect.  This is an
      * expensive operation and should not be on any fast paths.
      */
@@ -96,6 +87,17 @@ namespace snmalloc
       BOOL result;
       QueryMemoryResourceNotification(lowMemoryObject, &result);
       return result;
+    }
+
+    /**
+     * Register callback object for low-memory notifications.
+     * Client is responsible for allocation, and ensuring the object is live
+     * for the duration of the program.
+     **/
+    static void
+    register_for_low_memory_callback(PalNotificationObject* callback)
+    {
+      low_memory_callbacks.register_notification(callback);
     }
 
     static void error(const char* const str)
