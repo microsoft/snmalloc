@@ -58,7 +58,7 @@ namespace snmalloc
   class MemoryProviderStateMixin : public PAL
   {
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
-    void* bump = 0;
+    void* bump = nullptr;
     size_t remaining = 0;
 
   public:
@@ -67,30 +67,28 @@ namespace snmalloc
      */
     ModArray<NUM_LARGE_CLASSES, MPMCStack<Largeslab, RequiresInit>> large_stack;
 
-  static MemoryProviderStateMixin<PAL>* make() noexcept
-  {
-    // Temporary storage to start the allocator in.
-    MemoryProviderStateMixin<PAL> local;
+    static MemoryProviderStateMixin<PAL>* make() noexcept
+    {
+      // Temporary storage to start the allocator in.
+      MemoryProviderStateMixin<PAL> local;
 
-    // Allocate permanent storage for the allocator usung temporary allocator
-    MemoryProviderStateMixin<PAL>* allocated 
-      = local.alloc_chunk<MemoryProviderStateMixin<PAL>, 1>();
+      // Allocate permanent storage for the allocator usung temporary allocator
+      MemoryProviderStateMixin<PAL>* allocated =
+        local.alloc_chunk<MemoryProviderStateMixin<PAL>, 1>();
 
-    // Put temporary allocator we have used, into the permanent storage.
-    // memcpy is safe as this is entirely single threaded.
-    memcpy(allocated, &local, sizeof(MemoryProviderStateMixin<PAL>));
+      // Put temporary allocator we have used, into the permanent storage.
+      // memcpy is safe as this is entirely single threaded.
+      memcpy(allocated, &local, sizeof(MemoryProviderStateMixin<PAL>));
 
-    return allocated;
-  }
+      return allocated;
+    }
 
   private:
-
     /**
      * The last time we saw a low memory notification.
      */
     std::atomic<uint64_t> last_low_memory_epoch = 0;
     std::atomic_flag lazy_decommit_guard = {};
-
 
     void new_block()
     {
