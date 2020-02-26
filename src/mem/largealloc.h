@@ -57,9 +57,31 @@ namespace snmalloc
   template<class PAL>
   class MemoryProviderStateMixin : public PAL
   {
+    /**
+     * Flag to protect the bump allocator
+     **/
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
+
+    /**
+     * Pointer to block being bump allocated
+     **/
     void* bump = nullptr;
+
+    /**
+     * Space remaining in this block being bump allocated
+     **/
     size_t remaining = 0;
+
+    /**
+     * The last time we saw a low memory notification.
+     */
+    std::atomic<uint64_t> last_low_memory_epoch = 0;
+
+    /**
+     * Simple flag for checking if another instance of lazy-decommit is
+     * running
+     **/
+    std::atomic_flag lazy_decommit_guard = {};
 
   public:
     /**
@@ -67,9 +89,12 @@ namespace snmalloc
      */
     ModArray<NUM_LARGE_CLASSES, MPMCStack<Largeslab, RequiresInit>> large_stack;
 
+    /**
+     * Make a new memory provide for this PAL.
+     **/
     static MemoryProviderStateMixin<PAL>* make() noexcept
     {
-      // Temporary storage to start the allocator in.
+      // Temporary stack-based storage to start the allocator in.
       MemoryProviderStateMixin<PAL> local;
 
       // Allocate permanent storage for the allocator usung temporary allocator
@@ -84,12 +109,6 @@ namespace snmalloc
     }
 
   private:
-    /**
-     * The last time we saw a low memory notification.
-     */
-    std::atomic<uint64_t> last_low_memory_epoch = 0;
-    std::atomic_flag lazy_decommit_guard = {};
-
     void new_block()
     {
       // Reserve the smallest large_class which is SUPERSLAB_SIZE
@@ -289,8 +308,6 @@ namespace snmalloc
             offcut_start = offcut_end;
           }
         }
-
-        // printf("Alloc %zx (size = %zx)\n", start, size);
 
         void* result = pointer_cast<void>(start);
         if (committed)
