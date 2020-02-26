@@ -41,7 +41,7 @@ namespace snmalloc
 
     static Pool* make() noexcept
     {
-      return Pool::make(default_memory_provider);
+      return Pool::make(default_memory_provider());
     }
 
     template<typename... Args>

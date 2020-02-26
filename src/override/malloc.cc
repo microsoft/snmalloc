@@ -208,7 +208,7 @@ extern "C"
   SNMALLOC_EXPORT void*
     SNMALLOC_NAME_MANGLE(snmalloc_reserve_shared)(size_t* size, size_t align)
   {
-    return snmalloc::default_memory_provider.reserve<true>(size, align);
+    return snmalloc::default_memory_provider().reserve<true>(size, align);
   }
 #endif
 

@@ -57,7 +57,7 @@ bool has_pressure()
     return false;
   }
 
-  uint64_t current_epoch = default_memory_provider.low_memory_epoch();
+  uint64_t current_epoch = default_memory_provider().low_memory_epoch();
   bool result = epoch != current_epoch;
   epoch = current_epoch;
   return result;
