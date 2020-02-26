@@ -1,3 +1,4 @@
+#include <test/setup.h>
 
 #define SNMALLOC_EXTERNAL_THREAD_ALLOC
 #include <mem/globalalloc.h>
@@ -19,10 +20,12 @@ public:
   }
 };
 
-#include <override/malloc.cc>
+#include <snmalloc.h>
 
 int main()
 {
+  setup();
+
   MemoryProviderStateMixin<DefaultPal> mp;
 
   // 28 is large enough to produce a nested allocator.
@@ -35,6 +38,6 @@ int main()
   {
     auto r1 = a->alloc(100);
  
-    free(r1);
+    a->dealloc(r1);
   }
 }
