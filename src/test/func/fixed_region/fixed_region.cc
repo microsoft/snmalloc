@@ -17,9 +17,9 @@ extern "C" const void* __oe_get_heap_end()
   return oe_end;
 }
 
-extern "C" void* oe_memset(void* p, int c, size_t size)
+extern "C" void* oe_memset(void* p, size_t p_size, int c, size_t size)
 {
-  std::cout << "Memset " << p << " - " << size << std::endl;
+  std::cout << "Memset " << p << " (" << p_size << ") - " << size << std::endl;
 
   return memset(p, c, size);
 }
