@@ -19,7 +19,7 @@ extern "C" const void* __oe_get_heap_end()
 
 extern "C" void* oe_memset_s(void* p, size_t p_size, int c, size_t size)
 {
-  (void) p_size;
+  (void)p_size;
   return memset(p, c, size);
 }
 
