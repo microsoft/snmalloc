@@ -4,7 +4,7 @@
 #ifdef OPEN_ENCLAVE
 extern "C" const void* __oe_get_heap_base();
 extern "C" const void* __oe_get_heap_end();
-extern "C" void* oe_memset(void* p, size_t p_size, int c, size_t size);
+extern "C" void* oe_memset_s(void* p, size_t p_size, int c, size_t size);
 extern "C" void oe_abort();
 
 namespace snmalloc
@@ -54,7 +54,7 @@ namespace snmalloc
     template<bool page_aligned = false>
     void zero(void* p, size_t size) noexcept
     {
-      oe_memset(p, size, 0, size);
+      oe_memset_s(p, size, 0, size);
     }
   };
 }
