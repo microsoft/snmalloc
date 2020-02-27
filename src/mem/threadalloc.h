@@ -11,16 +11,6 @@ extern "C" void _malloc_thread_cleanup();
 
 namespace snmalloc
 {
-  /**
-   * A global fake allocator object.  This never allocates memory and, as a
-   * result, never owns any slabs.  On the slow paths, where it would fetch
-   * slabs to allocate from, it will discover that it is the placeholder and
-   * replace itself with the thread-local allocator, allocating one if
-   * required.  This avoids a branch on the fast path.
-   */
-  inline Alloc GlobalPlaceHolder(
-    default_memory_provider, SNMALLOC_DEFAULT_CHUNKMAP(), nullptr, true);
-
 #ifdef SNMALLOC_EXTERNAL_THREAD_ALLOC
   /**
    * Version of the `ThreadAlloc` interface that does no management of thread
@@ -39,15 +29,39 @@ namespace snmalloc
   public:
     static SNMALLOC_FAST_PATH Alloc* get_noncachable()
     {
-      return (Alloc*&)ThreadAllocUntyped::get();
+      return (Alloc*)ThreadAllocUntyped::get();
     }
 
     static SNMALLOC_FAST_PATH Alloc* get()
     {
-      return (Alloc*&)ThreadAllocUntyped::get();
+      return (Alloc*)ThreadAllocUntyped::get();
     }
   };
-#endif
+
+  /**
+   * Function passed as a template parameter to `Allocator` to allow lazy
+   * replacement.  In this case we are assuming the underlying external thread
+   * alloc is performing initialization, so this is not required, and just
+   * always returns nullptr to specify no new allocator is required.
+   */
+  SNMALLOC_FAST_PATH void* lazy_replacement(void* existing)
+  {
+    UNUSED(existing);
+    return nullptr;
+  }
+
+  using ThreadAlloc = ThreadAllocUntypedWrapper;
+#else
+  /**
+   * A global fake allocator object.  This never allocates memory and, as a
+   * result, never owns any slabs.  On the slow paths, where it would fetch
+   * slabs to allocate from, it will discover that it is the placeholder and
+   * replace itself with the thread-local allocator, allocating one if
+   * required.  This avoids a branch on the fast path.
+   */
+  inline GlobalVirtual dummy_memory_provider;
+  inline Alloc GlobalPlaceHolder(
+    dummy_memory_provider, SNMALLOC_DEFAULT_CHUNKMAP(), nullptr, true);
 
   /**
    * Common aspects of thread local allocator. Subclasses handle how releasing
@@ -73,12 +87,12 @@ namespace snmalloc
      **/
     static void register_cleanup()
     {
-#ifdef USE_SNMALLOC_STATS
+#  ifdef USE_SNMALLOC_STATS
       Singleton<int, atexit_print_stats>::get();
-#endif
+#  endif
     }
 
-#ifdef USE_SNMALLOC_STATS
+#  ifdef USE_SNMALLOC_STATS
     static void print_stats()
     {
       Stats s;
@@ -90,7 +104,7 @@ namespace snmalloc
     {
       return atexit(print_stats);
     }
-#endif
+#  endif
 
   public:
     /**
@@ -129,15 +143,15 @@ namespace snmalloc
      */
     static SNMALLOC_FAST_PATH Alloc* get()
     {
-#ifdef USE_MALLOC
+#  ifdef USE_MALLOC
       return get_reference();
-#else
+#  else
       auto alloc = get_reference();
       auto new_alloc = lazy_replacement(alloc);
       return (likely(new_alloc == nullptr)) ?
         alloc :
         reinterpret_cast<Alloc*>(new_alloc);
-#endif
+#  endif
     }
   };
 
@@ -186,7 +200,7 @@ namespace snmalloc
     }
   };
 
-#ifdef SNMALLOC_USE_THREAD_CLEANUP
+#  ifdef SNMALLOC_USE_THREAD_CLEANUP
   /**
    * Entry point that allows libc to call into the allocator for per-thread
    * cleanup.
@@ -196,11 +210,9 @@ namespace snmalloc
     ThreadAllocLibcCleanup::inner_release();
   }
   using ThreadAlloc = ThreadAllocLibcCleanup;
-#elif defined(SNMALLOC_EXTERNAL_THREAD_ALLOC)
-  using ThreadAlloc = ThreadAllocUntypedWrapper;
-#else
+#  else
   using ThreadAlloc = ThreadAllocThreadDestructor;
-#endif
+#  endif
 
   /**
    * Slow path for the placeholder replacement.  The simple check that this is
@@ -233,5 +245,5 @@ namespace snmalloc
     }
     return lazy_replacement_slow();
   }
-
+#endif
 } // namespace snmalloc

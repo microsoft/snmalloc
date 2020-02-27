@@ -57,10 +57,58 @@ namespace snmalloc
   template<class PAL>
   class MemoryProviderStateMixin : public PAL
   {
+    /**
+     * Flag to protect the bump allocator
+     **/
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
-    void* bump;
-    size_t remaining;
 
+    /**
+     * Pointer to block being bump allocated
+     **/
+    void* bump = nullptr;
+
+    /**
+     * Space remaining in this block being bump allocated
+     **/
+    size_t remaining = 0;
+
+    /**
+     * The last time we saw a low memory notification.
+     */
+    std::atomic<uint64_t> last_low_memory_epoch = 0;
+
+    /**
+     * Simple flag for checking if another instance of lazy-decommit is
+     * running
+     **/
+    std::atomic_flag lazy_decommit_guard = {};
+
+  public:
+    /**
+     * Stack of large allocations that have been returned for reuse.
+     */
+    ModArray<NUM_LARGE_CLASSES, MPMCStack<Largeslab, RequiresInit>> large_stack;
+
+    /**
+     * Make a new memory provide for this PAL.
+     **/
+    static MemoryProviderStateMixin<PAL>* make() noexcept
+    {
+      // Temporary stack-based storage to start the allocator in.
+      MemoryProviderStateMixin<PAL> local;
+
+      // Allocate permanent storage for the allocator usung temporary allocator
+      MemoryProviderStateMixin<PAL>* allocated =
+        local.alloc_chunk<MemoryProviderStateMixin<PAL>, 1>();
+
+      // Put temporary allocator we have used, into the permanent storage.
+      // memcpy is safe as this is entirely single threaded.
+      memcpy(allocated, &local, sizeof(MemoryProviderStateMixin<PAL>));
+
+      return allocated;
+    }
+
+  private:
     void new_block()
     {
       // Reserve the smallest large_class which is SUPERSLAB_SIZE
@@ -71,11 +119,6 @@ namespace snmalloc
       remaining = SUPERSLAB_SIZE;
     }
 
-    /**
-     * The last time we saw a low memory notification.
-     */
-    std::atomic<uint64_t> last_low_memory_epoch = 0;
-    std::atomic_flag lazy_decommit_guard;
     SNMALLOC_SLOW_PATH void lazy_decommit()
     {
       // If another thread is try to do lazy decommit, let it continue.  If
@@ -141,11 +184,6 @@ namespace snmalloc
     }
 
   public:
-    /**
-     * Stack of large allocations that have been returned for reuse.
-     */
-    ModArray<NUM_LARGE_CLASSES, MPMCStack<Largeslab, PreZeroed>> large_stack;
-
     /**
      * Primitive allocator for structure that are required before
      * the allocator can be running.
@@ -270,8 +308,6 @@ namespace snmalloc
             offcut_start = offcut_end;
           }
         }
-
-        // printf("Alloc %zx (size = %zx)\n", start, size);
 
         void* result = pointer_cast<void>(start);
         if (committed)
@@ -422,5 +458,8 @@ namespace snmalloc
    * The memory provider that will be used if no other provider is explicitly
    * passed as an argument.
    */
-  inline GlobalVirtual default_memory_provider;
+  inline GlobalVirtual& default_memory_provider()
+  {
+    return *(Singleton<GlobalVirtual*, GlobalVirtual::make>::get());
+  }
 } // namespace snmalloc

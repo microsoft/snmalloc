@@ -11,7 +11,7 @@ namespace snmalloc
 {
   class PALOpenEnclave
   {
-    std::atomic<void*> oe_base;
+    std::atomic<void*> oe_base = nullptr;
 
   public:
     /**

@@ -19,6 +19,8 @@ extern "C" const void* __oe_get_heap_end()
 
 extern "C" void* oe_memset(void* p, int c, size_t size)
 {
+  std::cout << "Memset " << p << " - " << size << std::endl;
+
   return memset(p, c, size);
 }
 
@@ -30,7 +32,7 @@ extern "C" void oe_abort()
 using namespace snmalloc;
 int main()
 {
-  MemoryProviderStateMixin<DefaultPal> mp;
+  auto& mp = *MemoryProviderStateMixin<DefaultPal>::make();
 
   // 28 is large enough to produce a nested allocator.
   // It is also large enough for the example to run in.

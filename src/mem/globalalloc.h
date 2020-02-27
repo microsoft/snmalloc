@@ -38,7 +38,7 @@ namespace snmalloc
 
     static AllocPool* make() noexcept
     {
-      return make(default_memory_provider);
+      return make(default_memory_provider());
     }
 
     Alloc* acquire()
