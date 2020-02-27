@@ -9,6 +9,7 @@
 #include "sizeclass.h"
 
 #include <new>
+#include <string.h>
 
 namespace snmalloc
 {
