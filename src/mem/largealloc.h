@@ -8,6 +8,7 @@
 #include "baseslab.h"
 #include "sizeclass.h"
 
+#include <string.h>
 #include <new>
 
 namespace snmalloc
