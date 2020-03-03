@@ -1,6 +1,7 @@
 #include <iostream>
 #include <snmalloc.h>
 #include <test/measuretime.h>
+#include <test/opt.h>
 #include <test/setup.h>
 #include <unordered_set>
 #include <vector>
@@ -37,29 +38,34 @@ public:
     tail = tail->next;
   }
 
-  void try_remove()
+  bool try_remove()
   {
     if (head->next == nullptr)
-      return;
+      return false;
 
     Node* next = head->next;
     ThreadAlloc::get()->dealloc(head);
     head = next;
+    return true;
   }
 };
 
+std::atomic<uint64_t> global_epoch = 0;
+
+void advance(PalNotificationObject* unused)
+{
+  UNUSED(unused);
+  global_epoch++;
+}
+
+PalNotificationObject update_epoch = {nullptr, &advance};
+
 bool has_pressure()
 {
-  static thread_local uint64_t epoch;
+  static thread_local uint64_t epoch = 0;
 
-  if constexpr (!pal_supports<LowMemoryNotification, GlobalVirtual>)
-  {
-    return false;
-  }
-
-  uint64_t current_epoch = default_memory_provider().low_memory_epoch();
-  bool result = epoch != current_epoch;
-  epoch = current_epoch;
+  bool result = epoch != global_epoch;
+  epoch = global_epoch;
   return result;
 }
 
@@ -79,7 +85,7 @@ void reach_pressure(Queue& allocations)
 void reduce_pressure(Queue& allocations)
 {
   size_t size = 4096;
-  for (size_t n = 0; n < 1000; n++)
+  for (size_t n = 0; n < 10000; n++)
   {
     allocations.try_remove();
     allocations.try_remove();
@@ -87,21 +93,51 @@ void reduce_pressure(Queue& allocations)
   }
 }
 
-int main(int, char**)
+/**
+ * Wrapper to handle Pals that don't have the method.
+ * Template parameter required to handle `if constexpr` always evaluating both
+ * sides.
+ **/
+template<typename PAL>
+void register_for_pal_notifications()
 {
-#ifndef NDEBUG
-  Queue allocations;
+  PAL::register_for_low_memory_callback(&update_epoch);
+}
 
-  if constexpr (!pal_supports<LowMemoryNotification, GlobalVirtual>)
+int main(int argc, char** argv)
+{
+  opt::Opt opt(argc, argv);
+
+  if constexpr (pal_supports<LowMemoryNotification, GlobalVirtual>)
+  {
+    register_for_pal_notifications<GlobalVirtual>();
+  }
+  else
   {
     std::cout << "Pal does not support low-memory notification! Test not run"
               << std::endl;
     return 0;
   }
 
+#ifdef NDEBUG
 #  if defined(WIN32) && !defined(SNMALLOC_VA_BITS_64)
   std::cout << "32-bit windows not supported for this test." << std::endl;
 #  else
+
+  bool interactive = opt.has("--interactive");
+
+  Queue allocations;
+
+  std::cout
+    << "Expected use:" << std::endl
+    << "  run first instances with --interactive. Wait for first to print "
+    << std::endl
+    << "   'No allocations left. Press any key to terminate'" << std::endl
+    << "watch working set, and start second instance working set of first "
+    << "should drop to almost zero," << std::endl
+    << "and second should climb to physical ram." << std::endl
+    << std::endl;
+
   setup();
 
   for (size_t i = 0; i < 10; i++)
@@ -110,6 +146,16 @@ int main(int, char**)
     std::cout << "Pressure " << i << std::endl;
 
     reduce_pressure(allocations);
+  }
+
+  // Deallocate everything
+  while (allocations.try_remove())
+    ;
+
+  if (interactive)
+  {
+    std::cout << "No allocations left. Press any key to terminate" << std::endl;
+    getchar();
   }
 #  endif
 #else
