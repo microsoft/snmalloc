@@ -97,9 +97,18 @@ namespace snmalloc
       MemoryProviderStateMixin<PAL>* allocated =
         local.alloc_chunk<MemoryProviderStateMixin<PAL>, 1>();
 
+#ifdef GCC_VERSION_EIGHT_PLUS
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wclass-memaccess"
+#endif
       // Put temporary allocator we have used, into the permanent storage.
-      // memcpy is safe as this is entirely single threaded.
+      // memcpy is safe as this is entirely single threaded: the move
+      // constructors were removed as unsafe to move std::atomic in a
+      // concurrent setting.
       memcpy(allocated, &local, sizeof(MemoryProviderStateMixin<PAL>));
+#ifdef GCC_VERSION_EIGHT_PLUS
+#  pragma GCC diagnostic pop
+#endif
 
       // Register this allocator for low-memory call-backs
       if constexpr (pal_supports<LowMemoryNotification, PAL>)

@@ -18,6 +18,12 @@
 #  define SNMALLOC_PURE __attribute__((const))
 #endif
 
+#if !defined(__clang__) && defined(__GNUC__)
+#  if __GNUC__ >= 8
+#    define GCC_VERSION_EIGHT_PLUS
+#  endif
+#endif
+
 #ifndef __has_builtin
 #  define __has_builtin(x) 0
 #endif
