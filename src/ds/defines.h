@@ -32,11 +32,12 @@
 
 namespace snmalloc
 {
+  // Forwards reference so that the platform can define how to handle errors.
   void error(const char* const str);
 } // namespace snmalloc
 
 #ifdef NDEBUG
-#  define SNMALLOC_ASSERT(expr) ((void 0))
+#  define SNMALLOC_ASSERT(expr) { }
 #else
 #  define SNMALLOC_ASSERT(expr) \
     { \
