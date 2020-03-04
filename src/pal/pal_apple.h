@@ -34,7 +34,7 @@ namespace snmalloc
     {
       if (page_aligned || is_aligned_block<OS_PAGE_SIZE>(p, size))
       {
-        assert(is_aligned_block<OS_PAGE_SIZE>(p, size));
+        SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, size));
         void* r = mmap(
           p,
           size,

@@ -6,6 +6,7 @@
 // #define USE_LZCNT
 
 #include "../aal/aal.h"
+#include "../pal/pal_consts.h"
 #include "defines.h"
 
 #include <atomic>
@@ -225,7 +226,7 @@ namespace snmalloc
 
     static SNMALLOC_FAST_PATH size_t align_down(size_t value, size_t alignment)
     {
-      assert(next_pow2(alignment) == alignment);
+      SNMALLOC_ASSERT(next_pow2(alignment) == alignment);
 
       size_t align_1 = alignment - 1;
       value &= ~align_1;
@@ -234,7 +235,7 @@ namespace snmalloc
 
     static inline size_t align_up(size_t value, size_t alignment)
     {
-      assert(next_pow2(alignment) == alignment);
+      SNMALLOC_ASSERT(next_pow2(alignment) == alignment);
 
       size_t align_1 = alignment - 1;
       value += align_1;

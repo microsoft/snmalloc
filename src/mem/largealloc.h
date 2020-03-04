@@ -389,7 +389,7 @@ namespace snmalloc
         }
       }
 
-      assert(p == pointer_align_up(p, rsize));
+      SNMALLOC_ASSERT(p == pointer_align_up(p, rsize));
       return p;
     }
 

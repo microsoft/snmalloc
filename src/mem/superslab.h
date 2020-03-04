@@ -45,7 +45,7 @@ namespace snmalloc
     size_t slab_to_index(Slab* slab)
     {
       auto res = (pointer_diff(this, slab) >> SLAB_BITS);
-      assert(res == static_cast<uint8_t>(res));
+      SNMALLOC_ASSERT(res == static_cast<uint8_t>(res));
       return static_cast<uint8_t>(res);
     }
 
@@ -110,7 +110,7 @@ namespace snmalloc
 
       for (size_t i = 0; i < SLAB_COUNT; i++)
       {
-        assert(meta[i].is_unused());
+        SNMALLOC_ASSERT(meta[i].is_unused());
       }
 #endif
     }
@@ -201,7 +201,7 @@ namespace snmalloc
       bool was_almost_full = is_almost_full();
       used -= 2;
 
-      assert(meta[index].is_unused());
+      SNMALLOC_ASSERT(meta[index].is_unused());
       if (was_almost_full || is_empty())
         return StatusChange;
 
@@ -214,7 +214,7 @@ namespace snmalloc
       bool was_full = is_full();
       used--;
 
-      assert(meta[0].is_unused());
+      SNMALLOC_ASSERT(meta[0].is_unused());
       if (was_full || is_empty())
         return StatusChange;
 

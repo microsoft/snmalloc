@@ -81,7 +81,7 @@ extern "C"
     void* p = SNMALLOC_NAME_MANGLE(malloc)(size);
     if (p != nullptr)
     {
-      assert(p == Alloc::external_pointer<Start>(p));
+      SNMALLOC_ASSERT(p == Alloc::external_pointer<Start>(p));
       sz = bits::min(size, sz);
       memcpy(p, ptr, sz);
       SNMALLOC_NAME_MANGLE(free)(ptr);
@@ -126,7 +126,7 @@ extern "C"
   SNMALLOC_EXPORT void*
     SNMALLOC_NAME_MANGLE(aligned_alloc)(size_t alignment, size_t size)
   {
-    assert((size % alignment) == 0);
+    SNMALLOC_ASSERT((size % alignment) == 0);
     return SNMALLOC_NAME_MANGLE(memalign)(alignment, size);
   }
 
@@ -198,7 +198,7 @@ extern "C"
     if (config)
     {
       *config = &ChunkmapPagemap::config;
-      assert(ChunkmapPagemap::cast_to_pagemap(&pm, *config) == &pm);
+      SNMALLOC_ASSERT(ChunkmapPagemap::cast_to_pagemap(&pm, *config) == &pm);
     }
     return &pm;
   }

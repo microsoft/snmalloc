@@ -77,7 +77,7 @@ namespace histogram
       else
       {
         auto i = get_index(value);
-        assert(i < BUCKETS);
+        SNMALLOC_ASSERT(i < BUCKETS);
         count[i]++;
       }
     }

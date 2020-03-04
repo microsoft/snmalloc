@@ -20,10 +20,8 @@ namespace snmalloc
   public:
     void invariant()
     {
-#ifndef NDEBUG
-      assert(back != nullptr);
-      assert(front != nullptr);
-#endif
+      SNMALLOC_ASSERT(back != nullptr);
+      SNMALLOC_ASSERT(front != nullptr);
     }
 
     void init(T* stub)
@@ -71,7 +69,7 @@ namespace snmalloc
       {
         front = next;
         Aal::prefetch(&(next->next));
-        assert(front);
+        SNMALLOC_ASSERT(front);
         std::atomic_thread_fence(std::memory_order_acquire);
         invariant();
         return std::pair(first, true);

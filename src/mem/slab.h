@@ -42,9 +42,10 @@ namespace snmalloc
       Metaslab& meta = get_meta();
       void* head = meta.head;
 
-      assert(rsize == sizeclass_to_size(meta.sizeclass));
-      assert(sl.get_head() == (SlabLink*)pointer_offset(this, meta.link));
-      assert(!meta.is_full());
+      SNMALLOC_ASSERT(rsize == sizeclass_to_size(meta.sizeclass));
+      SNMALLOC_ASSERT(
+        sl.get_head() == (SlabLink*)pointer_offset(this, meta.link));
+      SNMALLOC_ASSERT(!meta.is_full());
       meta.debug_slab_invariant(this);
 
       void* p = nullptr;
@@ -103,7 +104,7 @@ namespace snmalloc
             meta.allocated = meta.allocated + 1;
           }
 
-          assert(curr != nullptr);
+          SNMALLOC_ASSERT(curr != nullptr);
           Metaslab::store_next(curr, nullptr);
         }
       }
@@ -124,7 +125,7 @@ namespace snmalloc
         p = remove_cache_friendly_offset(p, meta.sizeclass);
       }
 
-      assert(is_start_of_object(Superslab::get(p), p));
+      SNMALLOC_ASSERT(is_start_of_object(Superslab::get(p), p));
 
       meta.debug_slab_invariant(this);
 
@@ -166,7 +167,7 @@ namespace snmalloc
 
       // Set the head to the memory being deallocated.
       meta.head = p;
-      assert(meta.valid_head());
+      SNMALLOC_ASSERT(meta.valid_head());
 
       // Set the next pointer to the previous head.
       Metaslab::store_next(p, head);
@@ -197,8 +198,8 @@ namespace snmalloc
         }
         // Update the head and the sizeclass link.
         uint16_t index = pointer_to_index(p);
-        assert(meta.head == nullptr);
-        //        assert(meta.fully_allocated(is_short()));
+        SNMALLOC_ASSERT(meta.head == nullptr);
+        //        SNMALLOC_ASSERT(meta.fully_allocated(is_short()));
         meta.link = index;
         meta.needed = meta.allocated - 1;
 

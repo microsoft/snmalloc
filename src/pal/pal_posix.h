@@ -53,7 +53,7 @@ namespace snmalloc
      */
     void notify_not_using(void* p, size_t size) noexcept
     {
-      assert(is_aligned_block<OS_PAGE_SIZE>(p, size));
+      SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, size));
 #ifdef USE_POSIX_COMMIT_CHECKS
       mprotect(p, size, PROT_NONE);
 #else
@@ -72,7 +72,8 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     void notify_using(void* p, size_t size) noexcept
     {
-      assert(is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
+      SNMALLOC_ASSERT(
+        is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
 
       if constexpr (zero_mem == YesZero)
         static_cast<OS*>(this)->template zero<true>(p, size);
@@ -101,7 +102,7 @@ namespace snmalloc
     {
       if (page_aligned || is_aligned_block<OS_PAGE_SIZE>(p, size))
       {
-        assert(is_aligned_block<OS_PAGE_SIZE>(p, size));
+        SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, size));
         void* r = mmap(
           p,
           size,

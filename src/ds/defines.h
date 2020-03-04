@@ -30,8 +30,27 @@
 
 #define UNUSED(x) ((void)(x))
 
+namespace snmalloc
+{
+  // Forwards reference so that the platform can define how to handle errors.
+  void error(const char* const str);
+} // namespace snmalloc
+
+#ifdef NDEBUG
+#  define SNMALLOC_ASSERT(expr) \
+    {}
+#else
+#  define SNMALLOC_ASSERT(expr) \
+    { \
+      if (!(expr)) \
+      { \
+        snmalloc::error("assert fail"); \
+      } \
+    }
+#endif
+
 #ifndef NDEBUG
-#  define SNMALLOC_ASSUME(x) assert(x)
+#  define SNMALLOC_ASSUME(x) SNMALLOC_ASSERT(x)
 #else
 #  if __has_builtin(__builtin_assume)
 #    define SNMALLOC_ASSUME(x) __builtin_assume((x))

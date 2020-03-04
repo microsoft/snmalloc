@@ -6,6 +6,7 @@
 #  define ALLOCATOR
 #endif
 
+#include "../pal/pal_consts.h"
 #include "../test/histogram.h"
 #include "allocstats.h"
 #include "chunkmap.h"
@@ -507,7 +508,7 @@ namespace snmalloc
           Allocator<MemoryProvider, ChunkMap, IsQueueInline, Replacement>);
         constexpr size_t initial_shift =
           bits::next_pow2_bits_const(allocator_size);
-        assert((initial_shift + (r * REMOTE_SLOT_BITS)) < 64);
+        SNMALLOC_ASSERT((initial_shift + (r * REMOTE_SLOT_BITS)) < 64);
         return (id >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
       }
 
@@ -518,7 +519,7 @@ namespace snmalloc
 
         Remote* r = static_cast<Remote*>(p);
         r->set_target_id(target_id);
-        assert(r->target_id() == target_id);
+        SNMALLOC_ASSERT(r->target_id() == target_id);
 
         RemoteList* l = &list[get_slot(target_id, 0)];
         l->last->non_atomic_next = r;
@@ -653,7 +654,7 @@ namespace snmalloc
     {
       if constexpr (IsQueueInline)
       {
-        assert(r == nullptr);
+        SNMALLOC_ASSERT(r == nullptr);
         (void)r;
       }
       else
@@ -684,13 +685,13 @@ namespace snmalloc
         // All medium size classes are page aligned.
         if (i > NUM_SMALL_CLASSES)
         {
-          assert(is_aligned_block<OS_PAGE_SIZE>(nullptr, size1));
+          SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(nullptr, size1));
         }
 
-        assert(sc1 == i);
-        assert(sc1 == sc2);
-        assert(size1 == size);
-        assert(size1 == size2);
+        SNMALLOC_ASSERT(sc1 == i);
+        SNMALLOC_ASSERT(sc1 == sc2);
+        SNMALLOC_ASSERT(size1 == size);
+        SNMALLOC_ASSERT(size1 == size2);
       }
 #endif
     }
@@ -826,7 +827,7 @@ namespace snmalloc
       }
       else
       {
-        assert(likely(p->target_id() != id()));
+        SNMALLOC_ASSERT(likely(p->target_id() != id()));
         Slab* slab = Metaslab::get_slab(p);
         Metaslab& meta = super->get_meta(slab);
         // Queue for remote dealloc elsewhere.
@@ -931,7 +932,7 @@ namespace snmalloc
         if (super != nullptr)
         {
           Slab* slab = super->alloc_short_slab(sizeclass);
-          assert(super->is_full());
+          SNMALLOC_ASSERT(super->is_full());
           return slab;
         }
 
@@ -1224,7 +1225,7 @@ namespace snmalloc
 
       size_t size_bits = bits::next_pow2_bits(size);
       size_t large_class = size_bits - SUPERSLAB_BITS;
-      assert(large_class < NUM_LARGE_CLASSES);
+      SNMALLOC_ASSERT(large_class < NUM_LARGE_CLASSES);
 
       void* p = large_allocator.template alloc<zero_mem, allow_reserve>(
         large_class, size);
@@ -1240,7 +1241,7 @@ namespace snmalloc
       MEASURE_TIME(large_dealloc, 4, 16);
 
       size_t size_bits = bits::next_pow2_bits(size);
-      assert(bits::one_at_bit(size_bits) >= SUPERSLAB_SIZE);
+      SNMALLOC_ASSERT(bits::one_at_bit(size_bits) >= SUPERSLAB_SIZE);
       size_t large_class = size_bits - SUPERSLAB_BITS;
 
       chunkmap().clear_large_size(p, size);
@@ -1261,7 +1262,7 @@ namespace snmalloc
     void remote_dealloc(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
     {
       MEASURE_TIME(remote_dealloc, 4, 16);
-      assert(target->id() != id());
+      SNMALLOC_ASSERT(target->id() != id());
 
       handle_message_queue();
 

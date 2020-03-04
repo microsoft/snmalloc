@@ -26,7 +26,7 @@ namespace snmalloc
       static Object obj;
 
       // If defined should be initially false;
-      assert(first == nullptr || *first == false);
+      SNMALLOC_ASSERT(first == nullptr || *first == false);
 
       if (unlikely(!initialised.load(std::memory_order_acquire)))
       {

@@ -2,11 +2,6 @@
 
 #include "pal_consts.h"
 
-namespace snmalloc
-{
-  void error(const char* const str);
-} // namespace snmalloc
-
 // If simultating OE, then we need the underlying platform
 #if !defined(OPEN_ENCLAVE) || defined(OPEN_ENCLAVE_SIMULATION)
 #  include "pal_apple.h"

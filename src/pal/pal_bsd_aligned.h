@@ -30,7 +30,7 @@ namespace snmalloc
     void* reserve(size_t size, size_t align) noexcept
     {
       // Alignment must be a power of 2.
-      assert(align == bits::next_pow2(align));
+      SNMALLOC_ASSERT(align == bits::next_pow2(align));
 
       align = bits::max<size_t>(4096, align);
 

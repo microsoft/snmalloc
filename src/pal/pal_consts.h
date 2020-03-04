@@ -1,5 +1,9 @@
 #pragma once
 
+#include "../ds/defines.h"
+
+#include <atomic>
+
 namespace snmalloc
 {
   /**

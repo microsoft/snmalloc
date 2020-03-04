@@ -82,14 +82,14 @@ namespace snmalloc
     bool is_full()
     {
       auto result = link == 1;
-      assert(!result || head == nullptr);
+      SNMALLOC_ASSERT(!result || head == nullptr);
       return result;
     }
 
     void set_full()
     {
-      assert(head == nullptr);
-      assert(link != 1);
+      SNMALLOC_ASSERT(head == nullptr);
+      SNMALLOC_ASSERT(link != 1);
       link = 1;
       // Set needed to 1, so that "return_object" will return true after calling
       // set_full
@@ -216,7 +216,7 @@ namespace snmalloc
       size_t accounted_for = needed * size + offset;
 
       // Block is not full
-      assert(SLAB_SIZE > accounted_for);
+      SNMALLOC_ASSERT(SLAB_SIZE > accounted_for);
 
       // Keep variable so it appears in debugger.
       size_t length = debug_slab_acyclic_free_list(slab);
@@ -228,13 +228,13 @@ namespace snmalloc
       {
         // Check we are looking at a correctly aligned block
         void* start = remove_cache_friendly_offset(curr, sizeclass);
-        assert(((pointer_diff(slab, start) - offset) % size) == 0);
+        SNMALLOC_ASSERT(((pointer_diff(slab, start) - offset) % size) == 0);
 
         // Account for free elements in free list
         accounted_for += size;
-        assert(SLAB_SIZE >= accounted_for);
+        SNMALLOC_ASSERT(SLAB_SIZE >= accounted_for);
         // We should never reach the link node in the free list.
-        assert(curr != pointer_offset(slab, link));
+        SNMALLOC_ASSERT(curr != pointer_offset(slab, link));
 
         // Iterate bump/free list segment
         curr = follow_next(curr);
@@ -242,7 +242,7 @@ namespace snmalloc
 
       auto bumpptr = (allocated * size) + offset;
       // Check we haven't allocaated more than gits in a slab
-      assert(bumpptr <= SLAB_SIZE);
+      SNMALLOC_ASSERT(bumpptr <= SLAB_SIZE);
 
       // Account for to be bump allocated space
       accounted_for += SLAB_SIZE - bumpptr;
@@ -251,15 +251,15 @@ namespace snmalloc
       {
         // The link should be the first allocation as we
         // haven't completely filled this block at any point.
-        assert(link == get_initial_offset(sizeclass, is_short));
+        SNMALLOC_ASSERT(link == get_initial_offset(sizeclass, is_short));
       }
 
-      assert(!is_full());
+      SNMALLOC_ASSERT(!is_full());
       // Add the link node.
       accounted_for += size;
 
       // All space accounted for
-      assert(SLAB_SIZE == accounted_for);
+      SNMALLOC_ASSERT(SLAB_SIZE == accounted_for);
 #else
       UNUSED(slab);
 #endif
