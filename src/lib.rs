@@ -37,7 +37,6 @@ unsafe impl GlobalAlloc for SnMalloc {
     /// On failure, it returns a null pointer.
     /// The client must assure the following things:
     /// - `alignment` is greater than zero
-    /// - `alignment` is less equal to `SUPERSLAB_SIZE` (defined in snmalloc)
     /// - Other constrains are the same as the rust standard library.
     /// The program may be forced to abort if the constrains are not full-filled.
     #[inline(always)]
