@@ -37,7 +37,8 @@ namespace snmalloc
 } // namespace snmalloc
 
 #ifdef NDEBUG
-#  define SNMALLOC_ASSERT(expr) { }
+#  define SNMALLOC_ASSERT(expr) \
+    {}
 #else
 #  define SNMALLOC_ASSERT(expr) \
     { \
