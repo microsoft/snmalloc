@@ -46,8 +46,8 @@ namespace snmalloc
 
     void init(RemoteAllocator* alloc, sizeclass_t sc, size_t rsize)
     {
-      assert(sc >= NUM_SMALL_CLASSES);
-      assert((sc - NUM_SMALL_CLASSES) < NUM_MEDIUM_CLASSES);
+      SNMALLOC_ASSERT(sc >= NUM_SMALL_CLASSES);
+      SNMALLOC_ASSERT((sc - NUM_SMALL_CLASSES) < NUM_MEDIUM_CLASSES);
 
       allocator = alloc;
       head = 0;
@@ -66,7 +66,7 @@ namespace snmalloc
       }
       else
       {
-        assert(free == medium_slab_free(sc));
+        SNMALLOC_ASSERT(free == medium_slab_free(sc));
       }
     }
 
@@ -78,13 +78,13 @@ namespace snmalloc
     template<ZeroMem zero_mem, typename MemoryProvider>
     void* alloc(size_t size, MemoryProvider& memory_provider)
     {
-      assert(!full());
+      SNMALLOC_ASSERT(!full());
 
       uint16_t index = stack[head++];
       void* p = pointer_offset(this, (static_cast<size_t>(index) << 8));
       free--;
 
-      assert(is_aligned_block<OS_PAGE_SIZE>(p, OS_PAGE_SIZE));
+      SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, OS_PAGE_SIZE));
       size = bits::align_up(size, OS_PAGE_SIZE);
 
       if constexpr (zero_mem == YesZero)
@@ -95,7 +95,7 @@ namespace snmalloc
 
     bool dealloc(void* p)
     {
-      assert(head > 0);
+      SNMALLOC_ASSERT(head > 0);
 
       // Returns true if the Mediumslab was full before this deallocation.
       bool was_full = full();

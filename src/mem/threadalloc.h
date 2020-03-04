@@ -222,9 +222,9 @@ namespace snmalloc
   SNMALLOC_SLOW_PATH inline void* lazy_replacement_slow()
   {
     auto*& local_alloc = ThreadAlloc::get_reference();
-    assert(local_alloc == &GlobalPlaceHolder);
+    SNMALLOC_ASSERT(local_alloc == &GlobalPlaceHolder);
     local_alloc = current_alloc_pool()->acquire();
-    assert(local_alloc != &GlobalPlaceHolder);
+    SNMALLOC_ASSERT(local_alloc != &GlobalPlaceHolder);
     ThreadAlloc::register_cleanup();
     return local_alloc;
   }

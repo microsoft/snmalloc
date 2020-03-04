@@ -1,4 +1,5 @@
 #pragma once
+#include "../pal/pal_consts.h"
 #include "bits.h"
 
 #include <cassert>
@@ -95,8 +96,8 @@ namespace snmalloc
   template<typename T = void>
   inline T* pointer_align_up(void* p, size_t alignment)
   {
-    assert(alignment > 0);
-    assert(bits::next_pow2(alignment) == alignment);
+    SNMALLOC_ASSERT(alignment > 0);
+    SNMALLOC_ASSERT(bits::next_pow2(alignment) == alignment);
 #if __has_builtin(__builtin_align_up)
     return static_cast<T*>(__builtin_align_up(p, alignment));
 #else
@@ -111,7 +112,7 @@ namespace snmalloc
    */
   inline size_t pointer_diff(void* base, void* cursor)
   {
-    assert(cursor >= base);
+    SNMALLOC_ASSERT(cursor >= base);
     return static_cast<size_t>(
       static_cast<char*>(cursor) - static_cast<char*>(base));
   }

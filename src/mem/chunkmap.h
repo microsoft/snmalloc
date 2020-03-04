@@ -183,7 +183,7 @@ namespace snmalloc
      */
     static void clear_slab(Superslab* slab)
     {
-      assert(get(slab) == CMSuperslab);
+      SNMALLOC_ASSERT(get(slab) == CMSuperslab);
       set(slab, static_cast<size_t>(CMNotOurs));
     }
     /**
@@ -191,7 +191,7 @@ namespace snmalloc
      */
     static void clear_slab(Mediumslab* slab)
     {
-      assert(get(slab) == CMMediumslab);
+      SNMALLOC_ASSERT(get(slab) == CMMediumslab);
       set(slab, static_cast<size_t>(CMNotOurs));
     }
     /**
@@ -220,7 +220,7 @@ namespace snmalloc
     {
       auto p = address_cast(vp);
       size_t rounded_size = bits::next_pow2(size);
-      assert(get(p) == bits::next_pow2_bits(size));
+      SNMALLOC_ASSERT(get(p) == bits::next_pow2_bits(size));
       auto count = rounded_size >> SUPERSLAB_BITS;
       PagemapProvider::pagemap().set_range(p, CMNotOurs, count);
     }

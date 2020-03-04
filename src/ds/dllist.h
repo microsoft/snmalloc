@@ -155,7 +155,7 @@ namespace snmalloc
 
       while (curr != item)
       {
-        assert(curr != Terminator());
+        SNMALLOC_ASSERT(curr != Terminator());
         curr = curr->next;
       }
 #else
@@ -171,7 +171,7 @@ namespace snmalloc
 
       while (curr != Terminator())
       {
-        assert(curr != item);
+        SNMALLOC_ASSERT(curr != item);
         curr = curr->next;
       }
 #else
@@ -187,7 +187,7 @@ namespace snmalloc
 
       while (item != Terminator())
       {
-        assert(item->prev == prev);
+        SNMALLOC_ASSERT(item->prev == prev);
         prev = item;
         item = item->next;
       }

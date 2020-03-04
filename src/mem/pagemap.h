@@ -395,7 +395,8 @@ namespace snmalloc
      */
     void* page_for_address(uintptr_t p)
     {
-      assert((reinterpret_cast<uintptr_t>(&top) & (OS_PAGE_SIZE - 1)) == 0);
+      SNMALLOC_ASSERT(
+        (reinterpret_cast<uintptr_t>(&top) & (OS_PAGE_SIZE - 1)) == 0);
       return reinterpret_cast<void*>(
         reinterpret_cast<uintptr_t>(&top[p >> SHIFT]) & ~(OS_PAGE_SIZE - 1));
     }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../pal/pal_consts.h"
 #include "allocconfig.h"
 
 namespace snmalloc
@@ -27,7 +28,7 @@ namespace snmalloc
     auto sc = static_cast<sizeclass_t>(
       bits::to_exp_mant_const<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(size));
 
-    assert(sc == static_cast<uint8_t>(sc));
+    SNMALLOC_ASSERT(sc == static_cast<uint8_t>(sc));
 
     return sc;
   }
@@ -56,17 +57,17 @@ namespace snmalloc
   {
     //    check_same<NUM_LARGE_CLASSES, Globals::num_large_classes>();
     // Must be called with a rounded size.
-    assert(sizeclass_to_size(size_to_sizeclass(rsize)) == rsize);
+    SNMALLOC_ASSERT(sizeclass_to_size(size_to_sizeclass(rsize)) == rsize);
     // Only works up to certain offsets, exhaustively tested upto
     // SUPERSLAB_SIZE.
-    assert(offset <= SUPERSLAB_SIZE);
+    SNMALLOC_ASSERT(offset <= SUPERSLAB_SIZE);
 
     size_t align = bits::ctz(rsize);
     size_t divider = rsize >> align;
     // Maximum of 24 bits for 16MiB super/medium slab
     if (INTERMEDIATE_BITS == 0 || divider == 1)
     {
-      assert(divider == 1);
+      SNMALLOC_ASSERT(divider == 1);
       return offset & ~(rsize - 1);
     }
 
@@ -100,17 +101,17 @@ namespace snmalloc
   inline static bool is_multiple_of_sizeclass(size_t rsize, size_t offset)
   {
     // Must be called with a rounded size.
-    assert(sizeclass_to_size(size_to_sizeclass(rsize)) == rsize);
+    SNMALLOC_ASSERT(sizeclass_to_size(size_to_sizeclass(rsize)) == rsize);
     // Only works up to certain offsets, exhaustively tested upto
     // SUPERSLAB_SIZE.
-    assert(offset <= SUPERSLAB_SIZE);
+    SNMALLOC_ASSERT(offset <= SUPERSLAB_SIZE);
 
     size_t align = bits::ctz(rsize);
     size_t divider = rsize >> align;
     // Maximum of 24 bits for 16MiB super/medium slab
     if (INTERMEDIATE_BITS == 0 || divider == 1)
     {
-      assert(divider == 1);
+      SNMALLOC_ASSERT(divider == 1);
       return (offset & (rsize - 1)) == 0;
     }
 
@@ -178,9 +179,9 @@ namespace snmalloc
   SNMALLOC_FAST_PATH static size_t aligned_size(size_t alignment, size_t size)
   {
     // Client responsible for checking alignment is not zero
-    assert(alignment != 0);
+    SNMALLOC_ASSERT(alignment != 0);
     // Client responsible for checking alignment is a power of two
-    assert(bits::next_pow2(alignment) == alignment);
+    SNMALLOC_ASSERT(bits::next_pow2(alignment) == alignment);
 
     return ((alignment - 1) | (size - 1)) + 1;
   }

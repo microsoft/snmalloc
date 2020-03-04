@@ -110,7 +110,7 @@ namespace snmalloc
     /// Notify platform that we will not be using these pages
     void notify_not_using(void* p, size_t size) noexcept
     {
-      assert(is_aligned_block<OS_PAGE_SIZE>(p, size));
+      SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, size));
 
       BOOL ok = VirtualFree(p, size, MEM_DECOMMIT);
 
@@ -122,7 +122,8 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     void notify_using(void* p, size_t size) noexcept
     {
-      assert(is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
+      SNMALLOC_ASSERT(
+        is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
 
       void* r = VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE);
 
@@ -136,7 +137,7 @@ namespace snmalloc
     {
       if (page_aligned || is_aligned_block<OS_PAGE_SIZE>(p, size))
       {
-        assert(is_aligned_block<OS_PAGE_SIZE>(p, size));
+        SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, size));
         notify_not_using(p, size);
         notify_using<YesZero>(p, size);
       }
