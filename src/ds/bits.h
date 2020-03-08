@@ -13,7 +13,9 @@
 #include <cassert>
 #include <cstdint>
 #include <type_traits>
-
+#if defined(_WIN32) && defined(__GNUC__)
+#define USE_CLZLL
+#endif
 #ifdef pause
 #  undef pause
 #endif
@@ -75,6 +77,8 @@ namespace snmalloc
 
       return BITS - index - 1;
 #  endif
+#elif defined(USE_CLZLL)
+      return static_cast<size_t>(__builtin_clzll(x));
 #else
       return static_cast<size_t>(__builtin_clzl(x));
 #endif
