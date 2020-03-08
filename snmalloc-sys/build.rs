@@ -51,6 +51,14 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib=c++");
     }
     
+    if cfg!(target_os = "openbsd") {
+        println!("cargo:rustc-link-lib=dylib=c++");
+    }
+    
+    if cfg!(target_os = "freebsd") {
+        println!("cargo:rustc-link-lib=dylib=c++");
+    }
+    
     if cfg!(target_os = "linux") {
         println!("cargo:rustc-link-lib=dylib=stdc++");
         println!("cargo:rustc-link-lib=dylib=atomic");

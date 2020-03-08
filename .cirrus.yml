@@ -1,0 +1,15 @@
+freebsd_instance:
+  image: freebsd-13-0-current-amd64-v20200220
+task:
+  name: cargo test (stable)
+  env:
+    HOME: /tmp # cargo needs it
+  install_script: |
+    pkg install -y rust
+    pkg install -y cmake
+    pkg install -y git
+  build_script: |
+    git submodule update --init
+    cargo build --all
+  test_script: cargo test --all --all-targets
+  
