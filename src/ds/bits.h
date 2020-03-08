@@ -1,7 +1,6 @@
 #pragma once
 
 #include <limits>
-#include <stddef.h>
 
 // #define USE_LZCNT
 
@@ -14,7 +13,7 @@
 #include <cstdint>
 #include <type_traits>
 #if defined(_WIN32) && defined(__GNUC__)
-#define USE_CLZLL
+#  define USE_CLZLL
 #endif
 #ifdef pause
 #  undef pause
