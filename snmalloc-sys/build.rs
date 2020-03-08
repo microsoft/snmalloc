@@ -16,6 +16,10 @@ fn main() {
         cfg = cfg.define("CMAKE_CXX_FLAGS_RELEASE", "/MD /O2 /Ob2 /DNDEBUG");
         cfg = cfg.define("CMAKE_C_FLAGS_RELEASE", "/MD /O2 /Ob2 /DNDEBUG");
     }
+    
+    if cfg!(all(windows, target_env = "gnu")) {
+        cfg = cfg.define("CMAKE_SH", "CMAKE_SH-NOTFOUND");
+    }
 
     let target = if cfg!(feature = "1mib") {
         "snmallocshim-1mib-rust"
@@ -32,15 +36,23 @@ fn main() {
     dst.push("./build");
 
     println!("cargo:rustc-link-lib={}", target);
-    if cfg!(windows) {
+    
+    if cfg!(all(windows, target_env = "msvc")) {
         println!("cargo:rustc-link-search=native={}/{}", dst.display(), build_type);
-        println!("cargo:rustc-link-lib=dylib=mincore");
     } else {
         println!("cargo:rustc-link-search=native={}", dst.display());
-        println!("cargo:rustc-link-lib=dylib=stdc++");
     }
-
+    
+    if cfg!(target_os = "windows") {
+        println!("cargo:rustc-link-lib=dylib=mincore");
+    }
+    
+    if cfg!(target_os = "macos") {
+        println!("cargo:rustc-link-lib=dylib=c++");
+    }
+    
     if cfg!(target_os = "linux") {
+        println!("cargo:rustc-link-lib=dylib=stdc++");
         println!("cargo:rustc-link-lib=dylib=atomic");
     }
 }

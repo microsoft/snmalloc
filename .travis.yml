@@ -1,4 +1,5 @@
 matrix:
+  env: ALLOW_FAILURES=0
   include:
     - os: windows
       language: rust
@@ -15,7 +16,19 @@ matrix:
       before_script:
         - rustup toolchain install nightly-x86_64-pc-windows-msvc
         - rustup default nightly-msvc
+    
+    - os: windows
+      language: rust
+      rust:
+        - stable
+      env: ALLOW_FAILURES=1
 
+    - os: windows
+      language: rust
+      rust:
+        - nightly
+      env: ALLOW_FAILURES=1
+        
     - os: linux
       language: rust
       rust:
@@ -53,6 +66,9 @@ matrix:
       language: rust
       rust:
         - nightly
+        
+  allow_failures:     
+    - env: ALLOW_FAILURES=1
 
 
 
