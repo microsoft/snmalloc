@@ -1,8 +1,14 @@
 # snmalloc-rs
-![travis ci](https://www.travis-ci.org/SchrodingerZhu/snmalloc-rs.svg?branch=master)
+
+**Caution: MinGW is not supported currently**
+
+MSVC/MinGW/Linux/MacOS: [![travis ci](https://www.travis-ci.org/SchrodingerZhu/snmalloc-rs.svg?branch=master)](https://travis-ci.com/SchrodingerZhu/snmalloc-rs)
+
+FreeBSD: [![Build Status](https://api.cirrus-ci.com/github/SchrodingerZhu/snmalloc-rs.svg)](https://cirrus-ci.com/github/SchrodingerZhu/snmalloc-rs)
 
 `snmalloc-rs` provides a wrapper for [`microsoft/snmalloc`](https://github.com/microsoft/snmalloc) to make it usable as a global allocator for rust.
 snmalloc is a research allocator. Its key design features are:
+
 - Memory that is freed by the same thread that allocated it does not require any synchronising operations.
 - Freeing memory in a different thread to initially allocated it, does not take any locks and instead uses a novel message passing scheme to return the memory to the original allocator, where it is recycled.
 - The allocator uses large ranges of pages to reduce the amount of meta-data required.
@@ -25,3 +31,9 @@ To set `SnMalloc` as the global allocator add this to your project:
 #[global_allocator]
 static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
 ```
+
+## Changelog
+### 0.2.6
+- fix `macos`/`freebsd ` support
+- add more ci tests
+- mark the `mingw` problem
