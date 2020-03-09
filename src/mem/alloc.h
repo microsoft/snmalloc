@@ -1277,12 +1277,13 @@ namespace snmalloc
         return;
       }
 
-      remote_dealloc_slow(target, p, sizeclass);
+      remote_dealloc_slow(target, p , sizeclass);
     }
 
-    SNMALLOC_SLOW_PATH void
-    remote_dealloc_slow(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH
+    void remote_dealloc_slow(RemoteAllocator* target, void* offseted, sizeclass_t sizeclass)
     {
+      MEASURE_TIME(remote_dealloc, 4, 16);
       SNMALLOC_ASSERT(target->id() != id());
 
       // Now that we've established that we're in the slow path (if we're a
@@ -1290,6 +1291,7 @@ namespace snmalloc
       // a real allocator and construct one if we aren't.
       if (void* replacement = Replacement(this))
       {
+        void* p = remove_cache_friendly_offset(offseted, sizeclass);
         // We have to do a dealloc, not a remote_dealloc here because this may
         // have been allocated with the allocator that we've just had returned.
         reinterpret_cast<Allocator*>(replacement)->dealloc(p);
