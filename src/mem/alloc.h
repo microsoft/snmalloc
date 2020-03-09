@@ -1277,14 +1277,13 @@ namespace snmalloc
         return;
       }
 
-      remote_dealloc_slow(target, p , sizeclass);
+      remote_dealloc_slow(target, p, sizeclass);
     }
 
     SNMALLOC_SLOW_PATH
     void remote_dealloc_slow(
       RemoteAllocator* target, void* offseted, sizeclass_t sizeclass)
     {
-      MEASURE_TIME(remote_dealloc, 4, 16);
       assert(target->id() != id());
 
       // Now that we've established that we're in the slow path (if we're a
