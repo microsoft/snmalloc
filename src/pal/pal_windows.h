@@ -5,8 +5,13 @@
 #include "../mem/allocconfig.h"
 
 #ifdef _WIN32
+#  ifndef _MSC_VER
+#    include <cstdio>
+#  endif
 #  define WIN32_LEAN_AND_MEAN
-#  define NOMINMAX
+#  ifndef NOMINMAX
+#    define NOMINMAX
+#  endif
 #  include <windows.h>
 // VirtualAlloc2 is exposed in RS5 headers.
 #  ifdef NTDDI_WIN10_RS5
