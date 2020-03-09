@@ -492,8 +492,8 @@ namespace snmalloc
       /**
        * The total amount of memory we are waiting for before we will dispatch
        * to other allocators. Zero or negative mean we should dispatch on the
-       * next remote deallocation. This is initialised to the 0 so that we 
-       * always hit a slow path to start with, when we hit the slow path and 
+       * next remote deallocation. This is initialised to the 0 so that we
+       * always hit a slow path to start with, when we hit the slow path and
        * need to dispatch everything, we can check if we are a real allocator
        * and lazily provide a real allocator.
        */
