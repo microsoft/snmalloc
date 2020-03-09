@@ -22,7 +22,7 @@ namespace snmalloc
     ;
 
   // Return remote small allocs when the local cache reaches this size.
-  static constexpr size_t REMOTE_CACHE =
+  static constexpr int64_t REMOTE_CACHE =
 #ifdef USE_REMOTE_CACHE
     USE_REMOTE_CACHE
 #else

@@ -135,7 +135,7 @@ namespace snmalloc
 
           // Post all remotes, including forwarded ones. If any allocator posts,
           // repeat the loop.
-          if (alloc->remote.size > 0)
+          if (alloc->remote.capacity < REMOTE_CACHE)
           {
             alloc->stats().remote_post();
             alloc->remote.post(alloc->id());
