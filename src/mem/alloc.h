@@ -1281,7 +1281,8 @@ namespace snmalloc
     }
 
     SNMALLOC_SLOW_PATH
-    void remote_dealloc_slow(RemoteAllocator* target, void* offseted, sizeclass_t sizeclass)
+    void remote_dealloc_slow(
+      RemoteAllocator* target, void* offseted, sizeclass_t sizeclass)
     {
       MEASURE_TIME(remote_dealloc, 4, 16);
       SNMALLOC_ASSERT(target->id() != id());
