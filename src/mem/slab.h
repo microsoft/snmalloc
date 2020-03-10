@@ -32,7 +32,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, typename MemoryProvider>
-    inline void* alloc(
+    SNMALLOC_FAST_PATH void* alloc(
       SlabList& sl,
       FreeListHead& fast_free_list,
       size_t rsize,
@@ -48,83 +48,103 @@ namespace snmalloc
       SNMALLOC_ASSERT(!meta.is_full());
       meta.debug_slab_invariant(this);
 
-      void* p = nullptr;
-      bool p_has_value = false;
-
-      if (head == nullptr)
+      if (unlikely(head == nullptr))
       {
-        size_t bumpptr = get_initial_offset(meta.sizeclass, is_short());
-        bumpptr += meta.allocated * rsize;
-        if (bumpptr == SLAB_SIZE)
+        return alloc_refill<zero_mem>(meta, sl, fast_free_list, rsize, memory_provider);
+      }
+
+      return alloc_pull_from_list<zero_mem>(meta, fast_free_list, rsize, memory_provider);
+    }
+
+    template<ZeroMem zero_mem, typename MemoryProvider>
+    SNMALLOC_FAST_PATH void* alloc_pull_from_list(
+      Metaslab& meta,
+      FreeListHead& fast_free_list,
+      size_t rsize,
+      MemoryProvider& memory_provider)
+    {
+      void* p = meta.head;
+
+      // Read the next slot from the memory that's about to be allocated.
+      void* next = Metaslab::follow_next(p);
+      // Put everything in allocators small_class free list.
+      meta.head = nullptr;
+      fast_free_list.value = next;
+      // Treat stealing the free list as allocating it all.
+      // Link is not in use, i.e. - 1 is required.
+      meta.needed = meta.allocated - 1;
+
+      p = remove_cache_friendly_offset(p, meta.sizeclass);
+
+      return alloc_finish<zero_mem>(meta, p, rsize, memory_provider);
+    }
+
+    template<ZeroMem zero_mem, typename MemoryProvider>
+    SNMALLOC_SLOW_PATH void* alloc_refill(
+      Metaslab& meta,
+      SlabList& sl,
+      FreeListHead& fast_free_list,
+      size_t rsize,
+      MemoryProvider& memory_provider)
+    {
+      size_t bumpptr = get_initial_offset(meta.sizeclass, is_short());
+      bumpptr += meta.allocated * rsize;
+      if (bumpptr == SLAB_SIZE)
+      {
+        // Everything is in use, so we need all entries to be
+        // return before we can reclaim this slab.
+        meta.needed = meta.allocated;
+
+        void* link = pointer_offset(this, meta.link);
+        void* p = remove_cache_friendly_offset(link, meta.sizeclass);
+
+        meta.set_full();
+        sl.pop();
+        return alloc_finish<zero_mem>(meta, p, rsize, memory_provider);
+      }
+      // Allocate the last object on the current page if there is one,
+      // and then thread the next free list worth of allocations.
+      bool crossed_page_boundary = false;
+      void* curr = nullptr;
+      while (true)
+      {
+        size_t newbumpptr = bumpptr + rsize;
+        auto alignedbumpptr = bits::align_up(bumpptr - 1, OS_PAGE_SIZE);
+        auto alignednewbumpptr = bits::align_up(newbumpptr, OS_PAGE_SIZE);
+
+        if (alignedbumpptr != alignednewbumpptr)
         {
-          // Everything is in use, so we need all entries to be
-          // return before we can reclaim this slab.
-          meta.needed = meta.allocated;
+          // We have crossed a page boundary already, so
+          // lets stop building our free list.
+          if (crossed_page_boundary)
+            break;
 
-          void* link = pointer_offset(this, meta.link);
-          p = remove_cache_friendly_offset(link, meta.sizeclass);
+          crossed_page_boundary = true;
+        }
 
-          meta.set_full();
-          sl.pop();
-          p_has_value = true;
+        if (curr == nullptr)
+        {
+          meta.head = pointer_offset(this, bumpptr);
         }
         else
         {
-          // Allocate the last object on the current page if there is one,
-          // and then thread the next free list worth of allocations.
-          bool crossed_page_boundary = false;
-          void* curr = nullptr;
-          while (true)
-          {
-            size_t newbumpptr = bumpptr + rsize;
-            auto alignedbumpptr = bits::align_up(bumpptr - 1, OS_PAGE_SIZE);
-            auto alignednewbumpptr = bits::align_up(newbumpptr, OS_PAGE_SIZE);
-
-            if (alignedbumpptr != alignednewbumpptr)
-            {
-              // We have crossed a page boundary already, so
-              // lets stop building our free list.
-              if (crossed_page_boundary)
-                break;
-
-              crossed_page_boundary = true;
-            }
-
-            if (curr == nullptr)
-            {
-              meta.head = pointer_offset(this, bumpptr);
-            }
-            else
-            {
-              Metaslab::store_next(
-                curr, (bumpptr == 1) ? nullptr : pointer_offset(this, bumpptr));
-            }
-            curr = pointer_offset(this, bumpptr);
-            bumpptr = newbumpptr;
-            meta.allocated = meta.allocated + 1;
-          }
-
-          SNMALLOC_ASSERT(curr != nullptr);
-          Metaslab::store_next(curr, nullptr);
+          Metaslab::store_next(
+            curr, (bumpptr == 1) ? nullptr : pointer_offset(this, bumpptr));
         }
+        curr = pointer_offset(this, bumpptr);
+        bumpptr = newbumpptr;
+        meta.allocated = meta.allocated + 1;
       }
 
-      if (!p_has_value)
-      {
-        p = meta.head;
+      SNMALLOC_ASSERT(curr != nullptr);
+      Metaslab::store_next(curr, nullptr);
 
-        // Read the next slot from the memory that's about to be allocated.
-        void* next = Metaslab::follow_next(p);
-        // Put everything in allocators small_class free list.
-        meta.head = nullptr;
-        fast_free_list.value = next;
-        // Treat stealing the free list as allocating it all.
-        // Link is not in use, i.e. - 1 is required.
-        meta.needed = meta.allocated - 1;
+      return alloc_pull_from_list<zero_mem>(meta, fast_free_list, rsize, memory_provider);
+    }
 
-        p = remove_cache_friendly_offset(p, meta.sizeclass);
-      }
-
+    template<ZeroMem zero_mem, typename MemoryProvider>
+    SNMALLOC_FAST_PATH void* alloc_finish(Metaslab& meta, void* p, size_t rsize, MemoryProvider& memory_provider)
+    {
       SNMALLOC_ASSERT(is_start_of_object(Superslab::get(p), p));
 
       meta.debug_slab_invariant(this);
