@@ -199,17 +199,14 @@ namespace snmalloc
       UNUSED(size);
       return free(p);
 #else
-
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
-
-      handle_message_queue();
 
       if (sizeclass < NUM_SMALL_CLASSES)
       {
         Superslab* super = Superslab::get(p);
         RemoteAllocator* target = super->get_allocator();
 
-        if (target == public_state())
+        if (likely(target == public_state()))
           small_dealloc(super, p, sizeclass);
         else
           remote_dealloc(target, p, sizeclass);
@@ -219,7 +216,7 @@ namespace snmalloc
         Mediumslab* slab = Mediumslab::get(p);
         RemoteAllocator* target = slab->get_allocator();
 
-        if (target == public_state())
+        if (likely(target == public_state()))
           medium_dealloc(slab, p, sizeclass);
         else
           remote_dealloc(target, p, sizeclass);
