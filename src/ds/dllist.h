@@ -66,6 +66,32 @@ namespace snmalloc
     T* tail = Terminator();
 
   public:
+    virtual ~DLList()
+    {
+      clear();
+    }
+
+    DLList() = default;
+
+    DLList(DLList&& o)
+    {
+      head = o.head;
+      tail = o.tail;
+
+      o.head = nullptr;
+      o.tail = nullptr;
+    }
+
+    DLList& operator=(DLList&& o)
+    {
+      head = o.head;
+      tail = o.tail;
+
+      o.head = nullptr;
+      o.tail = nullptr;
+      return *this;
+    }
+
     bool is_empty()
     {
       return head == Terminator();
@@ -76,9 +102,24 @@ namespace snmalloc
       return head;
     }
 
+    T* get_tail()
+    {
+      return tail;
+    }
+
     T* pop()
     {
       T* item = head;
+
+      if (item != Terminator())
+        remove(item);
+
+      return item;
+    }
+
+    T* pop_tail()
+    {
+      T* item = tail;
 
       if (item != Terminator())
         remove(item);
@@ -147,6 +188,16 @@ namespace snmalloc
 #endif
     }
 
+    void clear()
+    {
+      while (head != nullptr)
+      {
+        auto c = head;
+        remove(c);
+        delete c;
+      }
+    }
+
     void debug_check_contains(T* item)
     {
 #ifndef NDEBUG
@@ -155,7 +206,7 @@ namespace snmalloc
 
       while (curr != item)
       {
-        SNMALLOC_ASSERT(curr != Terminator());
+        assert(curr != Terminator());
         curr = curr->next;
       }
 #else
@@ -171,7 +222,7 @@ namespace snmalloc
 
       while (curr != Terminator())
       {
-        SNMALLOC_ASSERT(curr != item);
+        assert(curr != item);
         curr = curr->next;
       }
 #else
@@ -187,7 +238,7 @@ namespace snmalloc
 
       while (item != Terminator())
       {
-        SNMALLOC_ASSERT(item->prev == prev);
+        assert(item->prev == prev);
         prev = item;
         item = item->next;
       }
