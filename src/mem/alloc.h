@@ -850,6 +850,11 @@ namespace snmalloc
       remote.post(id());
     }
 
+    SNMALLOC_FAST_PATH bool has_messages()
+    {
+      return !(message_queue().is_empty());
+    }
+
     SNMALLOC_FAST_PATH void handle_message_queue()
     {
       // Inline the empty check, but not necessarily the full queue handling.
@@ -915,7 +920,7 @@ namespace snmalloc
     }
 
     template<AllowReserve allow_reserve>
-    Slab* alloc_slab(sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH Slab* alloc_slab(sizeclass_t sizeclass)
     {
       stats().sizeclass_alloc_slab(sizeclass);
       if (Superslab::is_short_sizeclass(sizeclass))
@@ -987,41 +992,65 @@ namespace snmalloc
         return p;
       }
 
-      return small_alloc_slow<zero_mem, allow_reserve>(sizeclass);
+      if (likely(!has_messages()))
+        return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass); 
+
+      return small_alloc_mq_slow<zero_mem, allow_reserve>(sizeclass);
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void* small_alloc_slow(sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH void* small_alloc_mq_slow(sizeclass_t sizeclass)
     {
-      if (IsFirstAllocation(this))
-      {
-        void* replacement = InitThreadAllocator();
-        return reinterpret_cast<Allocator*>(replacement)
-          ->template small_alloc_inner<zero_mem, allow_reserve>(sizeclass);
+      handle_message_queue();
+
+      return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass);
       }
 
-      stats().sizeclass_alloc(sizeclass);
-
-      handle_message_queue();
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_FAST_PATH void* small_alloc_new_free_list(sizeclass_t sizeclass)
+    {
       size_t rsize = sizeclass_to_size(sizeclass);
       auto& sl = small_classes[sizeclass];
 
       Slab* slab;
 
-      if (!sl.is_empty())
+      if (likely(!sl.is_empty()))
       {
+        stats().sizeclass_alloc(sizeclass);
+
         SlabLink* link = sl.get_head();
         slab = link->get_slab();
+        auto& ffl = small_fast_free_lists[sizeclass];
+        return slab->alloc<zero_mem>(
+          sl, ffl, rsize, large_allocator.memory_provider);
       }
-      else
+      
+      if (likely(!IsFirstAllocation(this)))
       {
-        slab = alloc_slab<allow_reserve>(sizeclass);
+        stats().sizeclass_alloc(sizeclass);
+        return small_alloc_new_slab<zero_mem, allow_reserve>(sizeclass);
+      }
+      return small_alloc_first_alloc<zero_mem, allow_reserve>(sizeclass);
+      }
 
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_SLOW_PATH void* small_alloc_first_alloc(sizeclass_t sizeclass)
+      {
+      auto replacement = InitThreadAllocator();
+      return reinterpret_cast<Allocator*>(replacement)
+        ->template small_alloc_inner<zero_mem, allow_reserve>(sizeclass);
+    }
+
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_SLOW_PATH
+    void* small_alloc_new_slab(sizeclass_t sizeclass)
+    {
+      size_t rsize = sizeclass_to_size(sizeclass);
+      auto& sl = small_classes[sizeclass];
+      Slab* slab = alloc_slab<allow_reserve>(sizeclass);
         if ((allow_reserve == NoReserve) && (slab == nullptr))
           return nullptr;
-
         sl.insert_back(slab->get_link());
-      }
       auto& ffl = small_fast_free_lists[sizeclass];
       return slab->alloc<zero_mem>(
         sl, ffl, rsize, large_allocator.memory_provider);
