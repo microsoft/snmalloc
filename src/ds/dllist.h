@@ -73,7 +73,7 @@ namespace snmalloc
 
     DLList() = default;
 
-    DLList(DLList&& o)
+    DLList(DLList&& o) noexcept
     {
       head = o.head;
       tail = o.tail;
@@ -82,7 +82,7 @@ namespace snmalloc
       o.tail = nullptr;
     }
 
-    DLList& operator=(DLList&& o)
+    DLList& operator=(DLList&& o) noexcept
     {
       head = o.head;
       tail = o.tail;
