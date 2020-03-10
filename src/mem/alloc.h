@@ -490,13 +490,14 @@ namespace snmalloc
     struct RemoteCache
     {
       /**
-       * The total amount of memory stored awaiting dispatch to other
-       * allocators.  This is initialised to the maximum size that we use
-       * before caching so that, when we hit the slow path and need to dispatch
-       * everything, we can check if we are a real allocator and lazily provide
-       * a real allocator.
+       * The total amount of memory we are waiting for before we will dispatch
+       * to other allocators. Zero or negative mean we should dispatch on the
+       * next remote deallocation. This is initialised to the 0 so that we
+       * always hit a slow path to start with, when we hit the slow path and
+       * need to dispatch everything, we can check if we are a real allocator
+       * and lazily provide a real allocator.
        */
-      size_t size = REMOTE_CACHE;
+      int64_t capacity = 0;
       RemoteList list[REMOTE_SLOTS];
 
       /// Used to find the index into the array of queues for remote
@@ -515,7 +516,7 @@ namespace snmalloc
       SNMALLOC_FAST_PATH void
       dealloc_sized(alloc_id_t target_id, void* p, size_t objectsize)
       {
-        this->size += objectsize;
+        this->capacity -= objectsize;
 
         Remote* r = static_cast<Remote*>(p);
         r->set_target_id(target_id);
@@ -535,7 +536,7 @@ namespace snmalloc
       void post(alloc_id_t id)
       {
         // When the cache gets big, post lists to their target allocators.
-        size = 0;
+        capacity = REMOTE_CACHE;
 
         size_t post_round = 0;
 
@@ -848,7 +849,7 @@ namespace snmalloc
       }
 
       // Our remote queues may be larger due to forwarding remote frees.
-      if (likely(remote.size < REMOTE_CACHE))
+      if (likely(remote.capacity > 0))
         return;
 
       stats().remote_post();
@@ -1264,20 +1265,26 @@ namespace snmalloc
       MEASURE_TIME(remote_dealloc, 4, 16);
       SNMALLOC_ASSERT(target->id() != id());
 
-      handle_message_queue();
-
-      void* offseted = apply_cache_friendly_offset(p, sizeclass);
-
       // Check whether this will overflow the cache first.  If we are a fake
       // allocator, then our cache will always be full and so we will never hit
       // this path.
       size_t sz = sizeclass_to_size(sizeclass);
-      if ((remote.size + sz) < REMOTE_CACHE)
+      if (remote.capacity > 0)
       {
+        void* offseted = apply_cache_friendly_offset(p, sizeclass);
         stats().remote_free(sizeclass);
         remote.dealloc_sized(target->id(), offseted, sz);
         return;
       }
+
+      remote_dealloc_slow(target, p, sizeclass);
+    }
+
+    SNMALLOC_SLOW_PATH void
+    remote_dealloc_slow(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
+    {
+      assert(target->id() != id());
+
       // Now that we've established that we're in the slow path (if we're a
       // real allocator, we will have to empty our cache now), check if we are
       // a real allocator and construct one if we aren't.
@@ -1289,7 +1296,10 @@ namespace snmalloc
         return;
       }
 
+      handle_message_queue();
+
       stats().remote_free(sizeclass);
+      void* offseted = apply_cache_friendly_offset(p, sizeclass);
       remote.dealloc(target->id(), offseted, sizeclass);
 
       stats().remote_post();
