@@ -44,11 +44,17 @@ namespace snmalloc
    * alloc is performing initialization, so this is not required, and just
    * always returns nullptr to specify no new allocator is required.
    */
-  SNMALLOC_FAST_PATH void* lazy_replacement(void* existing)
+  SNMALLOC_FAST_PATH bool first_allocation(void* existing)
   {
     UNUSED(existing);
+    return false;
+  }
+
+  SNMALLOC_FAST_PATH void* init_thread_allocator()
+  {
     return nullptr;
   }
+
 
   using ThreadAlloc = ThreadAllocUntypedWrapper;
 #else
@@ -147,10 +153,11 @@ namespace snmalloc
       return get_reference();
 #  else
       auto alloc = get_reference();
-      auto new_alloc = lazy_replacement(alloc);
-      return (likely(new_alloc == nullptr)) ?
-        alloc :
-        reinterpret_cast<Alloc*>(new_alloc);
+      if (unlikely(first_allocation(alloc)))
+      {
+        alloc = reinterpret_cast<Alloc*>(init_thread_allocator());
+      }
+      return alloc;
 #  endif
     }
   };
@@ -219,7 +226,7 @@ namespace snmalloc
    * the global placeholder is inlined, the rest of it is only hit in a very
    * unusual case and so should go off the fast path.
    */
-  SNMALLOC_SLOW_PATH inline void* lazy_replacement_slow()
+  SNMALLOC_SLOW_PATH inline void* init_thread_allocator()
   {
     auto*& local_alloc = ThreadAlloc::get_reference();
     SNMALLOC_ASSERT(local_alloc == &GlobalPlaceHolder);
@@ -237,13 +244,9 @@ namespace snmalloc
    * so.  If we have not allocated a per-thread allocator yet, then this
    * function will allocate one.
    */
-  SNMALLOC_FAST_PATH void* lazy_replacement(void* existing)
+  SNMALLOC_FAST_PATH bool first_allocation(void* existing)
   {
-    if (existing != &GlobalPlaceHolder)
-    {
-      return nullptr;
-    }
-    return lazy_replacement_slow();
+    return existing != &GlobalPlaceHolder;
   }
 #endif
 } // namespace snmalloc
