@@ -246,7 +246,7 @@ namespace snmalloc
    */
   SNMALLOC_FAST_PATH bool first_allocation(void* existing)
   {
-    return existing != &GlobalPlaceHolder;
+    return existing == &GlobalPlaceHolder;
   }
 #endif
 } // namespace snmalloc

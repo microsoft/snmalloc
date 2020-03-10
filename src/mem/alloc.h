@@ -996,8 +996,9 @@ namespace snmalloc
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_slow(sizeclass_t sizeclass)
     {
-      if (void* replacement = Replacement(this))
+      if (IsFirstAllocation(this))
       {
+        void* replacement = InitThreadAllocator();
         return reinterpret_cast<Allocator*>(replacement)
           ->template small_alloc_inner<zero_mem, allow_reserve>(sizeclass);
       }
