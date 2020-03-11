@@ -38,13 +38,22 @@ fn main() {
     println!("cargo:rustc-link-lib={}", target);
     
     if cfg!(all(windows, target_env = "msvc")) {
+        println!("cargo:rustc-link-lib=dylib=mincore");
         println!("cargo:rustc-link-search=native={}/{}", dst.display(), build_type);
     } else {
         println!("cargo:rustc-link-search=native={}", dst.display());
     }
     
-    if cfg!(target_os = "windows") {
-        println!("cargo:rustc-link-lib=dylib=mincore");
+    if cfg!(all(windows, target_env = "gnu")) {
+        let path = std::env::var("MINGW64_BIN").unwrap_or_else(|_| {
+            eprintln!("please set MINGW64_BIN so that we can link atomic library");
+            std::process::exit(1);
+        });
+        println!("cargo:rustc-link-search=native={}", path);
+        println!("cargo:rustc-link-lib=dylib=stdc++");
+        println!("cargo:rustc-link-lib=dylib=atomic-1"); // TODO: fix me
+        println!("cargo:rustc-link-lib=dylib=pthread");
+        println!("cargo:rustc-link-lib=dylib=gcc_s");
     }
     
     if cfg!(target_os = "macos") {
