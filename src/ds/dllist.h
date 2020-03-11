@@ -53,7 +53,7 @@ namespace snmalloc
     }
   };
 
-  template<class T, class Terminator = std::nullptr_t>
+  template<class T, class Terminator = std::nullptr_t, bool delete_on_clear = false>
   class DLList
   {
   private:
@@ -194,7 +194,9 @@ namespace snmalloc
       {
         auto c = head;
         remove(c);
-        delete c;
+        if (delete_on_clear) {
+          delete c;
+        }
       }
     }
 
