@@ -194,7 +194,8 @@ namespace snmalloc
       {
         auto c = head;
         remove(c);
-        if (delete_on_clear) {
+        if (delete_on_clear)
+        {
           delete c;
         }
       }
