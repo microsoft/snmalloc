@@ -9,7 +9,6 @@
 #include "defines.h"
 
 #include <atomic>
-#include <cassert>
 #include <cstdint>
 #include <type_traits>
 #if defined(_WIN32) && defined(__GNUC__)
