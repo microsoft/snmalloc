@@ -5,6 +5,11 @@
 #include <iostream>
 #include <snmalloc.h>
 
+#ifdef assert
+#  undef assert
+#endif
+#define assert please_use_SNMALLOC_ASSERT
+
 void* oe_base;
 void* oe_end;
 extern "C" const void* __oe_get_heap_base()

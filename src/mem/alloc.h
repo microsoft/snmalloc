@@ -1283,7 +1283,7 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void
     remote_dealloc_slow(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
     {
-      assert(target->id() != id());
+      SNMALLOC_ASSERT(target->id() != id());
 
       // Now that we've established that we're in the slow path (if we're a
       // real allocator, we will have to empty our cache now), check if we are

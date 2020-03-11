@@ -2,7 +2,6 @@
 #include "../pal/pal_consts.h"
 #include "bits.h"
 
-#include <cassert>
 #include <cstdint>
 
 namespace snmalloc
