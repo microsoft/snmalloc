@@ -858,7 +858,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void handle_message_queue()
     {
       // Inline the empty check, but not necessarily the full queue handling.
-      if (likely(message_queue().is_empty()))
+      if (likely(!has_messages()))
         return;
 
       handle_message_queue_inner();
@@ -1004,7 +1004,7 @@ namespace snmalloc
       handle_message_queue();
 
       return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass);
-      }
+    }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_FAST_PATH void* small_alloc_new_free_list(sizeclass_t sizeclass)
@@ -1031,11 +1031,11 @@ namespace snmalloc
         return small_alloc_new_slab<zero_mem, allow_reserve>(sizeclass);
       }
       return small_alloc_first_alloc<zero_mem, allow_reserve>(sizeclass);
-      }
+    }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_first_alloc(sizeclass_t sizeclass)
-      {
+    {
       auto replacement = InitThreadAllocator();
       return reinterpret_cast<Allocator*>(replacement)
         ->template small_alloc_inner<zero_mem, allow_reserve>(sizeclass);
