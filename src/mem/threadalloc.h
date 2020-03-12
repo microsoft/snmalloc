@@ -229,7 +229,13 @@ namespace snmalloc
   SNMALLOC_SLOW_PATH inline void* init_thread_allocator()
   {
     auto*& local_alloc = ThreadAlloc::get_reference();
-    SNMALLOC_ASSERT(local_alloc == &GlobalPlaceHolder);
+    if (local_alloc != &GlobalPlaceHolder)
+    {
+      // If someone reuses a noncachable call, then we can end up here.
+      // The allocator has already been initialised. Could either error
+      // to say stop doing this, or just give them the initialised version.
+      return local_alloc;
+    }
     local_alloc = current_alloc_pool()->acquire();
     SNMALLOC_ASSERT(local_alloc != &GlobalPlaceHolder);
     ThreadAlloc::register_cleanup();
