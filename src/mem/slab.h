@@ -156,6 +156,10 @@ namespace snmalloc
         else
           memory_provider.template zero<true>(p, rsize);
       }
+      else
+      {
+        UNUSED(rsize);
+      }
 
       return p;
     }
