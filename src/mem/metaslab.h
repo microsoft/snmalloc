@@ -13,7 +13,7 @@ namespace snmalloc
     SlabLink* prev;
     SlabLink* next;
 
-    Slab* get_slab()
+    SNMALLOC_FAST_PATH Slab* get_slab()
     {
       return pointer_align_down<SLAB_SIZE, Slab>(this);
     }
@@ -86,7 +86,7 @@ namespace snmalloc
       return result;
     }
 
-    void set_full()
+    SNMALLOC_FAST_PATH void set_full()
     {
       SNMALLOC_ASSERT(head == nullptr);
       SNMALLOC_ASSERT(link != 1);

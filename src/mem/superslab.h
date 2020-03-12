@@ -160,10 +160,12 @@ namespace snmalloc
       if ((used & 1) == 1)
         return alloc_slab(sizeclass);
 
-      meta[0].allocated = 1;
       meta[0].head = nullptr;
+      // Set up meta data as if the entire slab has been turned into a free list.
+      meta[0].allocated = (uint16_t)((SLAB_SIZE - get_initial_offset(sizeclass, true)) / sizeclass_to_size(sizeclass));
+      meta[0].link = 1;
+      meta[0].needed = 1;
       meta[0].sizeclass = static_cast<uint8_t>(sizeclass);
-      meta[0].link = get_initial_offset(sizeclass, true);
 
       used++;
       return reinterpret_cast<Slab*>(this);
@@ -178,9 +180,11 @@ namespace snmalloc
       uint8_t n = meta[h].next;
 
       meta[h].head = nullptr;
-      meta[h].allocated = 1;
+      // Set up meta data as if the entire slab has been turned into a free list.
+      meta[h].allocated = (uint16_t)((SLAB_SIZE - get_initial_offset(sizeclass, false)) / sizeclass_to_size(sizeclass));
+      meta[h].needed = 1;
+      meta[h].link = 1;
       meta[h].sizeclass = static_cast<uint8_t>(sizeclass);
-      meta[h].link = get_initial_offset(sizeclass, false);
 
       head = h + n + 1;
       used += 2;

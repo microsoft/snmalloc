@@ -40,7 +40,7 @@ namespace snmalloc
     {
       // Read the head from the metadata stored in the superslab.
       Metaslab& meta = get_meta();
-      void* head = meta.head;
+      SNMALLOC_ASSERT(meta.link != 1);
 
       SNMALLOC_ASSERT(rsize == sizeclass_to_size(meta.sizeclass));
       SNMALLOC_ASSERT(
@@ -48,69 +48,37 @@ namespace snmalloc
       SNMALLOC_ASSERT(!meta.is_full());
       meta.debug_slab_invariant(this);
 
-      if (unlikely(head == nullptr))
-      {
-        return alloc_refill<zero_mem>(meta, sl, fast_free_list, rsize, memory_provider);
-      }
-
-      return alloc_pull_from_list<zero_mem>(meta, fast_free_list, rsize, memory_provider);
-    }
-
-    template<ZeroMem zero_mem, typename MemoryProvider>
-    SNMALLOC_FAST_PATH void* alloc_pull_from_list(
-      Metaslab& meta,
-      FreeListHead& fast_free_list,
-      size_t rsize,
-      MemoryProvider& memory_provider)
-    {
-      void* p = meta.head;
-
-      // Read the next slot from the memory that's about to be allocated.
-      void* next = Metaslab::follow_next(p);
       // Put everything in allocators small_class free list.
+      fast_free_list.value = meta.head;
       meta.head = nullptr;
-      fast_free_list.value = next;
-      // Treat stealing the free list as allocating it all.
-      // Link is not in use, i.e. - 1 is required.
-      meta.needed = meta.allocated - 1;
 
-      p = remove_cache_friendly_offset(p, meta.sizeclass);
+      // Return the link as the node for this allocation.
+      void* link = pointer_offset(this, meta.link);
+      void* p = remove_cache_friendly_offset(link, meta.sizeclass);
+
+      // Treat stealing the free list as allocating it all.
+      meta.needed = meta.allocated;
+      meta.set_full();
+      sl.pop();
 
       return alloc_finish<zero_mem>(meta, p, rsize, memory_provider);
     }
 
-    template<ZeroMem zero_mem, typename MemoryProvider>
-    SNMALLOC_SLOW_PATH void* alloc_refill(
-      Metaslab& meta,
-      SlabList& sl,
+    static
+    SNMALLOC_SLOW_PATH void alloc_new_list(
+      void*& bumpptr,
       FreeListHead& fast_free_list,
-      size_t rsize,
-      MemoryProvider& memory_provider)
+      size_t rsize)
     {
-      size_t bumpptr = get_initial_offset(meta.sizeclass, is_short());
-      bumpptr += meta.allocated * rsize;
-      if (bumpptr == SLAB_SIZE)
-      {
-        // Everything is in use, so we need all entries to be
-        // return before we can reclaim this slab.
-        meta.needed = meta.allocated;
-
-        void* link = pointer_offset(this, meta.link);
-        void* p = remove_cache_friendly_offset(link, meta.sizeclass);
-
-        meta.set_full();
-        sl.pop();
-        return alloc_finish<zero_mem>(meta, p, rsize, memory_provider);
-      }
       // Allocate the last object on the current page if there is one,
       // and then thread the next free list worth of allocations.
       bool crossed_page_boundary = false;
       void* curr = nullptr;
       while (true)
       {
-        size_t newbumpptr = bumpptr + rsize;
-        auto alignedbumpptr = bits::align_up(bumpptr - 1, OS_PAGE_SIZE);
-        auto alignednewbumpptr = bits::align_up(newbumpptr, OS_PAGE_SIZE);
+        void* newbumpptr = pointer_offset(bumpptr, rsize);
+        auto alignedbumpptr = bits::align_up(address_cast(bumpptr) - 1, OS_PAGE_SIZE);
+        auto alignednewbumpptr = bits::align_up(address_cast(newbumpptr), OS_PAGE_SIZE);
 
         if (alignedbumpptr != alignednewbumpptr)
         {
@@ -124,22 +92,18 @@ namespace snmalloc
 
         if (curr == nullptr)
         {
-          meta.head = pointer_offset(this, bumpptr);
+          fast_free_list.value = bumpptr;
         }
         else
         {
-          Metaslab::store_next(
-            curr, (bumpptr == 1) ? nullptr : pointer_offset(this, bumpptr));
+          Metaslab::store_next(curr, bumpptr);
         }
-        curr = pointer_offset(this, bumpptr);
+        curr = bumpptr;
         bumpptr = newbumpptr;
-        meta.allocated = meta.allocated + 1;
       }
 
       SNMALLOC_ASSERT(curr != nullptr);
       Metaslab::store_next(curr, nullptr);
-
-      return alloc_pull_from_list<zero_mem>(meta, fast_free_list, rsize, memory_provider);
     }
 
     template<ZeroMem zero_mem, typename MemoryProvider>

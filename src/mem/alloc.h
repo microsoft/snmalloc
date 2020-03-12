@@ -87,6 +87,13 @@ namespace snmalloc
     LargeAlloc<MemoryProvider> large_allocator;
     ChunkMap chunk_map;
 
+    /**
+     * Per size class bumpptr for building new free lists
+     * If aligned to a SLAB start, then it is empty, and a new
+     * slab is required.
+     ***/
+    void* bump_ptrs[NUM_SMALL_CLASSES] = {0};
+
   public:
     Stats& stats()
     {
@@ -722,6 +729,26 @@ namespace snmalloc
         }
       }
 
+      // Dump bump allocators back into memory
+      for (size_t i = 0; i < NUM_SMALL_CLASSES; i++)
+      {
+        auto& bp = bump_ptrs[i];
+        auto rsize = sizeclass_to_size(i);
+        FreeListHead ffl;
+        while (pointer_align_up(bp, SLAB_SIZE) != bp)
+        {
+          Slab::alloc_new_list(bp, ffl, rsize);
+          void* prev = ffl.value;
+          while (prev != nullptr)
+          {
+            auto n = Metaslab::follow_next(prev);
+            Superslab* super = Superslab::get(prev);
+            small_dealloc_offseted_inner(super, prev, i);
+            prev = n;
+          }
+        }
+      }
+
       for (size_t i = 0; i < NUM_SMALL_CLASSES; i++)
       {
         auto prev = small_fast_free_lists[i].value;
@@ -993,7 +1020,7 @@ namespace snmalloc
       }
 
       if (likely(!has_messages()))
-        return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass); 
+        return small_alloc_next_free_list<zero_mem, allow_reserve>(sizeclass); 
 
       return small_alloc_mq_slow<zero_mem, allow_reserve>(sizeclass);
     }
@@ -1003,11 +1030,11 @@ namespace snmalloc
     {
       handle_message_queue_inner();
 
-      return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass);
+      return small_alloc_next_free_list<zero_mem, allow_reserve>(sizeclass);
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_FAST_PATH void* small_alloc_new_free_list(sizeclass_t sizeclass)
+    SNMALLOC_FAST_PATH void* small_alloc_next_free_list(sizeclass_t sizeclass)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
       auto& sl = small_classes[sizeclass];
@@ -1024,11 +1051,17 @@ namespace snmalloc
         return slab->alloc<zero_mem>(
           sl, ffl, rsize, large_allocator.memory_provider);
       }
-      
+      return small_alloc_rare<zero_mem, allow_reserve>(sizeclass);
+    }
+
+
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_SLOW_PATH void* small_alloc_rare(sizeclass_t sizeclass)
+    {
       if (likely(!IsFirstAllocation(this)))
       {
         stats().sizeclass_alloc(sizeclass);
-        return small_alloc_new_slab<zero_mem, allow_reserve>(sizeclass);
+        return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass);
       }
       return small_alloc_first_alloc<zero_mem, allow_reserve>(sizeclass);
     }
@@ -1042,18 +1075,45 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_FAST_PATH
+    void* small_alloc_new_free_list(sizeclass_t sizeclass)
+    {
+      auto& bp = bump_ptrs[sizeclass];
+      if (unlikely(pointer_align_up(bp, SLAB_SIZE) == bp))
+      {
+        // Fetch new slab
+        return small_alloc_new_slab<zero_mem, allow_reserve>(sizeclass);
+      }
+      auto rsize = sizeclass_to_size(sizeclass);
+      auto& ffl = small_fast_free_lists[sizeclass];
+      assert(ffl.value == nullptr);
+      Slab::alloc_new_list(bp, ffl, rsize);
+
+      void* p = remove_cache_friendly_offset(ffl.value, sizeclass);
+      ffl.value = Metaslab::follow_next(p);
+
+      if constexpr (zero_mem == YesZero)
+      {
+        large_allocator.memory_provider.zero(p, sizeclass_to_size(sizeclass));
+      }
+      return p;
+    }
+
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH
     void* small_alloc_new_slab(sizeclass_t sizeclass)
     {
-      size_t rsize = sizeclass_to_size(sizeclass);
-      auto& sl = small_classes[sizeclass];
-      Slab* slab = alloc_slab<allow_reserve>(sizeclass);
+      auto& bp = bump_ptrs[sizeclass];
+      if (unlikely(pointer_align_up(bp, SLAB_SIZE) == bp))
+      {
+        // Fetch new slab
+        Slab* slab = alloc_slab<allow_reserve>(sizeclass);
         if ((allow_reserve == NoReserve) && (slab == nullptr))
           return nullptr;
-        sl.insert_back(slab->get_link());
-      auto& ffl = small_fast_free_lists[sizeclass];
-      return slab->alloc<zero_mem>(
-        sl, ffl, rsize, large_allocator.memory_provider);
+        bp = pointer_offset(slab, get_initial_offset(sizeclass, slab->is_short()));
+      }
+
+      return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass);
     }
 
     SNMALLOC_FAST_PATH void
