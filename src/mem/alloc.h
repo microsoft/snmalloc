@@ -1001,7 +1001,7 @@ namespace snmalloc
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_mq_slow(sizeclass_t sizeclass)
     {
-      handle_message_queue();
+      handle_message_queue_inner();
 
       return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass);
     }
