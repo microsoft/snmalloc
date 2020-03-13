@@ -1,7 +1,4 @@
 # snmalloc-rs
-
-**Caution: MinGW is not supported currently**
-
 MSVC/MinGW/Linux/MacOS: [![travis ci](https://www.travis-ci.org/SchrodingerZhu/snmalloc-rs.svg?branch=master)](https://travis-ci.com/SchrodingerZhu/snmalloc-rs)
 
 FreeBSD: [![Build Status](https://api.cirrus-ci.com/github/SchrodingerZhu/snmalloc-rs.svg)](https://cirrus-ci.com/github/SchrodingerZhu/snmalloc-rs)
@@ -31,8 +28,21 @@ To set `SnMalloc` as the global allocator add this to your project:
 #[global_allocator]
 static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
 ```
-
+## For MinGW Users
+`mingw` version is only tested on nighly branch. Due to the complexity of locating GNU libraries on Windows environment,
+the library requests you to provide a `MINGW64_BIN` environment variable during compiling. Since `GCC` does not provide a option for us 
+to link `libatomic` statically, I have to use dynamic linking. Hence, please make sure the following libs are in your `PATH`:
+- `winpthread`
+- `atomic`
+- `stdc++`
+- `gcc_s` 
+This is the best thing I can do for current stage, if you have any better solution, please do help me to provide a better support for
+`MinGW`
 ## Changelog
+### 0.2.7
+- partially fixed `mingw`
+- **upstream** remote dealloc refactor (higher performance)
+- **upstream** remove extra assertions
 ### 0.2.6
 - fix `macos`/`freebsd ` support
 - add more ci tests

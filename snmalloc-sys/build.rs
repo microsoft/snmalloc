@@ -52,7 +52,7 @@ fn main() {
         println!("cargo:rustc-link-search=native={}", path);
         println!("cargo:rustc-link-lib=dylib=stdc++");
         println!("cargo:rustc-link-lib=dylib=atomic-1"); // TODO: fix me
-        println!("cargo:rustc-link-lib=dylib=pthread");
+        println!("cargo:rustc-link-lib=dylib=winpthread");
         println!("cargo:rustc-link-lib=dylib=gcc_s");
     }
     
