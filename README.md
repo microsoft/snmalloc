@@ -36,6 +36,7 @@ to link `libatomic` statically, I have to use dynamic linking. Hence, please mak
 - `atomic`
 - `stdc++`
 - `gcc_s` 
+
 This is the best thing I can do for current stage, if you have any better solution, please do help me to provide a better support for
 `MinGW`
 ## Changelog
