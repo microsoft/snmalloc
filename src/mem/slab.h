@@ -44,7 +44,7 @@ namespace snmalloc
 
       SNMALLOC_ASSERT(rsize == sizeclass_to_size(meta.sizeclass));
       SNMALLOC_ASSERT(
-        sl.get_head() == (SlabLink*)pointer_offset(this, meta.link));
+        sl.get_next() == (SlabLink*)pointer_offset(this, meta.link));
       SNMALLOC_ASSERT(!meta.is_full());
       meta.debug_slab_invariant(this);
 
@@ -59,13 +59,13 @@ namespace snmalloc
       // Treat stealing the free list as allocating it all.
       meta.needed = meta.allocated;
       meta.set_full();
-      sl.pop();
+      sl.get_next()->remove();
 
       return alloc_finish<zero_mem>(meta, p, rsize, memory_provider);
     }
 
     static
-    SNMALLOC_SLOW_PATH void alloc_new_list(
+    SNMALLOC_FAST_PATH void alloc_new_list(
       void*& bumpptr,
       FreeListHead& fast_free_list,
       size_t rsize)
@@ -192,13 +192,13 @@ namespace snmalloc
         meta.needed = meta.allocated - 1;
 
         // Push on the list of slabs for this sizeclass.
-        sl->insert_back(meta.get_link(this));
+        sl->insert_prev(meta.get_link(this));
         meta.debug_slab_invariant(this);
         return Superslab::NoSlabReturn;
       }
 
       // Remove from the sizeclass list and dealloc on the superslab.
-      sl->remove(meta.get_link(this));
+      meta.get_link(this)->remove();
 
       if (is_short())
         return super->dealloc_short_slab();

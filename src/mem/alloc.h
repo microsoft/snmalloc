@@ -1034,7 +1034,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_FAST_PATH void* small_alloc_next_free_list(sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH void* small_alloc_next_free_list(sizeclass_t sizeclass)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
       auto& sl = small_classes[sizeclass];
@@ -1045,8 +1045,8 @@ namespace snmalloc
       {
         stats().sizeclass_alloc(sizeclass);
 
-        SlabLink* link = sl.get_head();
-        slab = link->get_slab();
+        SlabLink* link = sl.get_next();
+        slab = get_slab(link);
         auto& ffl = small_fast_free_lists[sizeclass];
         return slab->alloc<zero_mem>(
           sl, ffl, rsize, large_allocator.memory_provider);
@@ -1083,9 +1083,9 @@ namespace snmalloc
       {
         return small_alloc_build_free_list<zero_mem, allow_reserve>(sizeclass);
       }
-        // Fetch new slab
-        return small_alloc_new_slab<zero_mem, allow_reserve>(sizeclass);
-      }
+      // Fetch new slab
+      return small_alloc_new_slab<zero_mem, allow_reserve>(sizeclass);
+    }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_FAST_PATH
@@ -1112,12 +1112,12 @@ namespace snmalloc
     void* small_alloc_new_slab(sizeclass_t sizeclass)
     {
       auto& bp = bump_ptrs[sizeclass];
-        // Fetch new slab
-        Slab* slab = alloc_slab<allow_reserve>(sizeclass);
-        if ((allow_reserve == NoReserve) && (slab == nullptr))
-          return nullptr;
-        bp = pointer_offset(slab, get_initial_offset(sizeclass, slab->is_short()));
-
+      // Fetch new slab
+      Slab* slab = alloc_slab<allow_reserve>(sizeclass);
+      if ((allow_reserve == NoReserve) && (slab == nullptr))
+        return nullptr;
+      bp = pointer_offset(slab, get_initial_offset(sizeclass, slab->is_short()));
+    
       return small_alloc_build_free_list<zero_mem, allow_reserve>(sizeclass);
     }
 

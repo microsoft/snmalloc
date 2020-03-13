@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds/dllist.h"
+#include "../ds/cdllist.h"
 #include "../ds/helpers.h"
 #include "sizeclass.h"
 
@@ -8,18 +9,14 @@ namespace snmalloc
 {
   class Slab;
 
-  struct SlabLink
+  using SlabList = CDLLNode;
+  using SlabLink = CDLLNode;
+
+  SNMALLOC_FAST_PATH Slab* get_slab(SlabLink* sl)
   {
-    SlabLink* prev;
-    SlabLink* next;
+    return pointer_align_down<SLAB_SIZE, Slab>(sl);
+  }
 
-    SNMALLOC_FAST_PATH Slab* get_slab()
-    {
-      return pointer_align_down<SLAB_SIZE, Slab>(this);
-    }
-  };
-
-  using SlabList = DLList<SlabLink>;
 
   static_assert(
     sizeof(SlabLink) <= MIN_ALLOC_SIZE,
