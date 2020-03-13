@@ -12,10 +12,6 @@
 
 #if defined(__arm__) || defined(__aarch64__)
 #  define PLATFORM_IS_ARM
-   /**
-    * on ARM cpu counters are accessible only in privileged mode
-    */
-#  define SNMALLOC_NO_ALL_CPUCOUNTERS
 #endif
 
 namespace snmalloc
@@ -31,6 +27,10 @@ namespace snmalloc
      * and so may use bit operations on pointer values.
      */
     IntegerPointers = (1 << 0),
+    /**
+     * This architecture cannot access cpu cycles counters from userspace
+     */
+    NoCpuCycleCounters = (1 << 1),
   };
 
   /**
@@ -68,12 +68,14 @@ namespace snmalloc
      */
     static inline uint64_t tick()
     {
-#if defined(SNMALLOC_NO_ALL_CPUCOUNTERS)
-      struct timespec n = {0, 0ul};
-      clock_gettime(CLOCK_MONOTONIC, &n);
+      if constexpr((Arch::aal_features & NoCpuCycleCounters) == NoCpuCycleCounters)
+      {
+        struct timespec n = {0, 0ul};
+        clock_gettime(CLOCK_MONOTONIC, &n);
 
-      return static_cast<uint64_t>((n.tv_sec) * (1000000000 * n.tv_nsec));
-#elif __has_builtin(__builtin_readcyclecounter) && \
+        return static_cast<uint64_t>((n.tv_sec) * (1000000000 * n.tv_nsec));
+      }
+#if __has_builtin(__builtin_readcyclecounter) && \
   !defined(SNMALLOC_NO_AAL_BUILTINS)
       return __builtin_readcyclecounter();
 #else
