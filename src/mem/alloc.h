@@ -1079,11 +1079,19 @@ namespace snmalloc
     void* small_alloc_new_free_list(sizeclass_t sizeclass)
     {
       auto& bp = bump_ptrs[sizeclass];
-      if (unlikely(pointer_align_up(bp, SLAB_SIZE) == bp))
+      if (likely(pointer_align_up(bp, SLAB_SIZE) != bp))
       {
+        return small_alloc_build_free_list<zero_mem, allow_reserve>(sizeclass);
+      }
         // Fetch new slab
         return small_alloc_new_slab<zero_mem, allow_reserve>(sizeclass);
       }
+
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_FAST_PATH
+    void* small_alloc_build_free_list(sizeclass_t sizeclass)
+    {
+      auto& bp = bump_ptrs[sizeclass];
       auto rsize = sizeclass_to_size(sizeclass);
       auto& ffl = small_fast_free_lists[sizeclass];
       assert(ffl.value == nullptr);
@@ -1104,16 +1112,13 @@ namespace snmalloc
     void* small_alloc_new_slab(sizeclass_t sizeclass)
     {
       auto& bp = bump_ptrs[sizeclass];
-      if (unlikely(pointer_align_up(bp, SLAB_SIZE) == bp))
-      {
         // Fetch new slab
         Slab* slab = alloc_slab<allow_reserve>(sizeclass);
         if ((allow_reserve == NoReserve) && (slab == nullptr))
           return nullptr;
         bp = pointer_offset(slab, get_initial_offset(sizeclass, slab->is_short()));
-      }
 
-      return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass);
+      return small_alloc_build_free_list<zero_mem, allow_reserve>(sizeclass);
     }
 
     SNMALLOC_FAST_PATH void
