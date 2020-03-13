@@ -9,6 +9,10 @@
 #  define PLATFORM_IS_X86
 #endif
 
+#if defined(__arm__) || defined(__aarch64__)
+#  define PLATFORM_IS_ARM
+#endif
+
 namespace snmalloc
 {
   /**
@@ -70,8 +74,10 @@ namespace snmalloc
 
 } // namespace snmalloc
 
-#ifdef PLATFORM_IS_X86
+#if defined(PLATFORM_IS_X86)
 #  include "aal_x86.h"
+#elif defined(PLATFORM_IS_ARM)
+#  include "aal_arm.h"
 #endif
 
 namespace snmalloc

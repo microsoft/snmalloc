@@ -1,6 +1,7 @@
 #pragma once
 
 #include <limits>
+#include <cstddef>
 
 // #define USE_LZCNT
 

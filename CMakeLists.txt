@@ -136,7 +136,8 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
      add_compile_options(-march=native)
     elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86")
      add_compile_options(-march=native)
-    # XXX elseif ARM?
+    elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
+     add_compile_options(-march=native)
     endif()
   endif()
 

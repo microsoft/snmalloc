@@ -4,6 +4,7 @@
 #include "../mem/allocconfig.h"
 
 #include <string.h>
+#include <stdlib.h>
 #include <sys/mman.h>
 
 extern "C" int puts(const char* str);
