@@ -31,21 +31,13 @@ namespace snmalloc
     /**
      * Issue a prefetch hint at the specified address.
      */
-    static inline void prefetch(void* ptr)
+    static inline void prefetch(void*)
     {
-      __builtin_prefetch(ptr, 0, 1);
     }
 
-    /**
-     * Return a cycle counter value.
-     * on ARM cpu counters are accessible only in privileged mode
-     */
     static inline uint64_t tick()
     {
-      struct timespec n = {0, 0ul};
-      clock_gettime(CLOCK_MONOTONIC, &n);
-
-      return static_cast<uint64_t>((n.tv_sec) * (1000000000ul * n.tv_nsec));
+      return 0ull;
     }
   };
 

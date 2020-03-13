@@ -94,7 +94,9 @@ if (WIN32)
 endif()
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  target_compile_options(snmalloc_lib INTERFACE -mcx16)
+  if (NOT ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
+    target_compile_options(snmalloc_lib INTERFACE -mcx16)
+  endif()
 endif ()
 
 # Have to set this globally, as can't be set on an interface target.
