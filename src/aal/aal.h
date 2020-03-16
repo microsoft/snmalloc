@@ -68,12 +68,17 @@ namespace snmalloc
      */
     static inline uint64_t tick()
     {
-      if constexpr((Arch::aal_features & NoCpuCycleCounters) == NoCpuCycleCounters)
+      if constexpr (
+        (Arch::aal_features & NoCpuCycleCounters) == NoCpuCycleCounters)
       {
+#ifdef _WIN32
+#  error "Implement Windows Version"
+#else
         struct timespec n = {0, 0ul};
         clock_gettime(CLOCK_MONOTONIC, &n);
 
         return static_cast<uint64_t>((n.tv_sec) * (1000000000 * n.tv_nsec));
+#endif
       }
 #if __has_builtin(__builtin_readcyclecounter) && \
   !defined(SNMALLOC_NO_AAL_BUILTINS)
