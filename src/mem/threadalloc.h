@@ -80,7 +80,7 @@ namespace snmalloc
    */
   class ThreadAllocCommon
   {
-    friend void* lazy_replacement_slow();
+    friend void* init_thread_allocator();
 
   protected:
     static inline void inner_release()
