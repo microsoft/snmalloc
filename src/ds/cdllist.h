@@ -12,7 +12,7 @@ namespace snmalloc
    *
    * This code assumes there is always one element in the list. The client
    * must ensure there is a sentinal element.
-   **/
+   */
   class CDLLNode
   {
     CDLLNode* next;
@@ -21,7 +21,7 @@ namespace snmalloc
   public:
     /**
      * Single element cyclic list.  This is the empty case.
-     **/
+     */
     CDLLNode()
     {
       next = this;
@@ -35,7 +35,7 @@ namespace snmalloc
 
     /**
      * Removes this element from the cyclic list is it part of.
-     **/
+     */
     SNMALLOC_FAST_PATH void remove()
     {
       SNMALLOC_ASSERT(!is_empty());
@@ -86,7 +86,7 @@ namespace snmalloc
      * Checks the lists invariants
      *   x->next->prev = x
      * for all x in the list.
-     **/
+     */
     void debug_check()
     {
 #ifndef NDEBUG

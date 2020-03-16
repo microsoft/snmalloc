@@ -34,7 +34,7 @@ namespace snmalloc
 
     /**
      * List of callbacks for low-memory notification
-     **/
+     */
     static inline PalNotifier low_memory_callbacks;
 
     /**
@@ -98,7 +98,7 @@ namespace snmalloc
      * Register callback object for low-memory notifications.
      * Client is responsible for allocation, and ensuring the object is live
      * for the duration of the program.
-     **/
+     */
     static void
     register_for_low_memory_callback(PalNotificationObject* callback)
     {

@@ -64,7 +64,7 @@ namespace snmalloc
      *  - empty adding the entry to the free list, or
      *  - was full before the subtraction
      * this returns true, otherwise returns false.
-     **/
+     */
     bool return_object()
     {
       return (--needed) == 0;
@@ -157,7 +157,7 @@ namespace snmalloc
      * https://en.wikipedia.org/wiki/Cycle_detection#Floyd's_Tortoise_and_Hare
      * We don't expect a cycle, so worst case is only followed by a crash, so
      * slow doesn't mater.
-     **/
+     */
     size_t debug_slab_acyclic_free_list(Slab* slab)
     {
 #ifndef NDEBUG
