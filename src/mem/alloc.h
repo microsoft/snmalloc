@@ -714,7 +714,7 @@ namespace snmalloc
      *
      * If result pointer is null, then this code raises a Pal::error on the
      * particular check that fails, if any do fail.
-     */
+     **/
     void debug_is_empty(bool* result)
     {
       auto test = [&result](auto& queue) {
@@ -890,7 +890,7 @@ namespace snmalloc
     /**
      * Check if this allocator has messages to deallocate blocks from another
      * thread
-     */
+     **/
     SNMALLOC_FAST_PATH bool has_messages()
     {
       return !(message_queue().is_empty());
@@ -1042,7 +1042,7 @@ namespace snmalloc
     /**
      * Slow path for handling message queue, before dealing with small
      * allocation request.
-     */
+     **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_mq_slow(sizeclass_t sizeclass)
     {
@@ -1053,7 +1053,7 @@ namespace snmalloc
 
     /**
      * Attempt to find a new free list to allocate from
-     */
+     **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_next_free_list(sizeclass_t sizeclass)
     {
@@ -1079,7 +1079,7 @@ namespace snmalloc
      * Called when there are no available free list to service this request
      * Could be due to using the dummy allocator, or needing to bump allocate a
      * new free list.
-     */
+     **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_rare(sizeclass_t sizeclass)
     {
@@ -1094,7 +1094,7 @@ namespace snmalloc
     /**
      * Called on first allocation to set up the thread local allocator,
      * then directs the allocation request to the newly created allocator.
-     */
+     **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_first_alloc(sizeclass_t sizeclass)
     {
@@ -1106,7 +1106,7 @@ namespace snmalloc
     /**
      * Called to create a new free list, and service the request from that new
      * list.
-     */
+     **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_FAST_PATH void* small_alloc_new_free_list(sizeclass_t sizeclass)
     {
@@ -1122,7 +1122,7 @@ namespace snmalloc
     /**
      * Creates a new free list from the thread local bump allocator and service
      * the request from that new list.
-     */
+     **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_FAST_PATH void* small_alloc_build_free_list(sizeclass_t sizeclass)
     {
@@ -1146,7 +1146,7 @@ namespace snmalloc
      * Allocates a new slab to allocate from, set it to be the bump allocator
      * for this size class, and then builds a new free list from the thread
      * local bump allocator and service the request from that new list.
-     */
+     **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_new_slab(sizeclass_t sizeclass)
     {

@@ -60,23 +60,23 @@ namespace snmalloc
   {
     /**
      * Flag to protect the bump allocator
-     */
+     **/
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
 
     /**
      * Pointer to block being bump allocated
-     */
+     **/
     void* bump = nullptr;
 
     /**
      * Space remaining in this block being bump allocated
-     */
+     **/
     size_t remaining = 0;
 
     /**
      * Simple flag for checking if another instance of lazy-decommit is
      * running
-     */
+     **/
     std::atomic_flag lazy_decommit_guard = {};
 
   public:
@@ -87,7 +87,7 @@ namespace snmalloc
 
     /**
      * Make a new memory provide for this PAL.
-     */
+     **/
     static MemoryProviderStateMixin<PAL>* make() noexcept
     {
       // Temporary stack-based storage to start the allocator in.
@@ -197,7 +197,7 @@ namespace snmalloc
 
     /***
      * Method for callback object to perform lazy decommit.
-     */
+     **/
     static void process(PalNotificationObject* p)
     {
       // Unsafe downcast here. Don't want vtable and RTTI.

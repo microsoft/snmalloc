@@ -43,7 +43,7 @@ namespace snmalloc
    * replacement. This function returns true, if the allocator passed in
    * requires initialisation. As the TLS state is managed externally,
    * this will always return false.
-   */
+   **/
   SNMALLOC_FAST_PATH bool needs_initialisation(void* existing)
   {
     UNUSED(existing);
@@ -54,7 +54,7 @@ namespace snmalloc
    * Function passed as a tempalte parameter to `Allocator` to allow lazy
    * replacement.  There is nothing to initialise in this case, so we expect
    * this to never be called.
-   */
+   **/
   SNMALLOC_FAST_PATH void* init_thread_allocator()
   {
     return nullptr;
@@ -94,7 +94,7 @@ namespace snmalloc
 
     /**
      * Default clean up does nothing except print statistics if enabled.
-     */
+     **/
     static void register_cleanup()
     {
 #  ifdef USE_SNMALLOC_STATS
@@ -254,7 +254,7 @@ namespace snmalloc
    * replacement. This function returns true, if the allocated passed in,
    * is the placeholder allocator.  If it returns true, then
    * `init_thread_allocator` should be called.
-   */
+   **/
   SNMALLOC_FAST_PATH bool needs_initialisation(void* existing)
   {
     return existing == &GlobalPlaceHolder;
