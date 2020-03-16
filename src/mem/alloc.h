@@ -1129,7 +1129,7 @@ namespace snmalloc
       auto& bp = bump_ptrs[sizeclass];
       auto rsize = sizeclass_to_size(sizeclass);
       auto& ffl = small_fast_free_lists[sizeclass];
-      assert(ffl.value == nullptr);
+      SNMALLOC_ASSERT(ffl.value == nullptr);
       Slab::alloc_new_list(bp, ffl, rsize);
 
       void* p = remove_cache_friendly_offset(ffl.value, sizeclass);
