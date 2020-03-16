@@ -33,9 +33,9 @@ namespace snmalloc
 
     /**
      * Takes a free list out of a slabs meta data.
-     * Returns the link as the allocation, and places the free list into the 
+     * Returns the link as the allocation, and places the free list into the
      * `fast_free_list` for further allocations.
-     **/  
+     **/
     template<ZeroMem zero_mem, typename MemoryProvider>
     SNMALLOC_FAST_PATH void* alloc(
       SlabList& sl,
@@ -89,13 +89,10 @@ namespace snmalloc
      * Given a bumpptr and a fast_free_list head reference, builds a new free
      * list, and stores it in the fast_free_list. It will only create a page
      * worth of allocations, or one if the allocation size is larger than a
-     * page. 
+     * page.
      **/
-    static
-    SNMALLOC_FAST_PATH void alloc_new_list(
-      void*& bumpptr,
-      FreeListHead& fast_free_list,
-      size_t rsize)
+    static SNMALLOC_FAST_PATH void
+    alloc_new_list(void*& bumpptr, FreeListHead& fast_free_list, size_t rsize)
     {
       // Allocate the last object on the current page if there is one,
       // and then thread the next free list worth of allocations.
@@ -104,8 +101,10 @@ namespace snmalloc
       while (true)
       {
         void* newbumpptr = pointer_offset(bumpptr, rsize);
-        auto alignedbumpptr = bits::align_up(address_cast(bumpptr) - 1, OS_PAGE_SIZE);
-        auto alignednewbumpptr = bits::align_up(address_cast(newbumpptr), OS_PAGE_SIZE);
+        auto alignedbumpptr =
+          bits::align_up(address_cast(bumpptr) - 1, OS_PAGE_SIZE);
+        auto alignednewbumpptr =
+          bits::align_up(address_cast(newbumpptr), OS_PAGE_SIZE);
 
         if (alignedbumpptr != alignednewbumpptr)
         {

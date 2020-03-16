@@ -1,8 +1,9 @@
 #pragma once
 
+#include "defines.h"
+
 #include <cstdint>
 #include <type_traits>
-#include "defines.h"
 
 namespace snmalloc
 {
@@ -44,7 +45,7 @@ namespace snmalloc
       // As this is no longer in the list, check invariant for
       // neighbouring element.
       next->debug_check();
-      
+
 #ifndef NDEBUG
       next = nullptr;
       prev = nullptr;

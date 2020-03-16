@@ -50,8 +50,8 @@ namespace snmalloc
   };
 
   /**
-   * Allocator.  This class is parameterised on five template parameters.  
-   * 
+   * Allocator.  This class is parameterised on five template parameters.
+   *
    * The first two template parameter provides a hook to allow the allocator in
    * use to be dynamically modified.  This is used to implement a trick from
    * mimalloc that avoids a conditional branch on the fast path.  We
@@ -61,7 +61,7 @@ namespace snmalloc
    * allocator if it is has been been initialised already. Splitting into two
    * functions allows for the code to be structured into tail calls to improve
    * codegen.
-   * 
+   *
    * The `MemoryProvider` defines the source of memory for this allocator.
    * Allocators try to reuse address space by allocating from existing slabs or
    * reusing freed large allocations.  When they need to allocate a new chunk
@@ -81,12 +81,14 @@ namespace snmalloc
     void* (*InitThreadAllocator)(),
     class MemoryProvider = GlobalVirtual,
     class ChunkMap = SNMALLOC_DEFAULT_CHUNKMAP,
-    bool IsQueueInline = true
-    >
-  class Allocator
-  : public FastFreeLists,
-    public Pooled<
-      Allocator<NeedsInitialisation, InitThreadAllocator, MemoryProvider, ChunkMap, IsQueueInline>>
+    bool IsQueueInline = true>
+  class Allocator : public FastFreeLists,
+                    public Pooled<Allocator<
+                      NeedsInitialisation,
+                      InitThreadAllocator,
+                      MemoryProvider,
+                      ChunkMap,
+                      IsQueueInline>>
   {
     LargeAlloc<MemoryProvider> large_allocator;
     ChunkMap chunk_map;
@@ -95,7 +97,7 @@ namespace snmalloc
      * Per size class bumpptr for building new free lists
      * If aligned to a SLAB start, then it is empty, and a new
      * slab is required.
-     ***/
+     */
     void* bump_ptrs[NUM_SMALL_CLASSES] = {0};
 
   public:
@@ -510,8 +512,12 @@ namespace snmalloc
       /// r is used for which round of sending this is.
       inline size_t get_slot(size_t id, size_t r)
       {
-        constexpr size_t allocator_size = sizeof(
-          Allocator<NeedsInitialisation, InitThreadAllocator, MemoryProvider, ChunkMap, IsQueueInline>);
+        constexpr size_t allocator_size = sizeof(Allocator<
+                                                 NeedsInitialisation,
+                                                 InitThreadAllocator,
+                                                 MemoryProvider,
+                                                 ChunkMap,
+                                                 IsQueueInline>);
         constexpr size_t initial_shift =
           bits::next_pow2_bits_const(allocator_size);
         SNMALLOC_ASSERT((initial_shift + (r * REMOTE_SLOT_BITS)) < 64);
@@ -1028,14 +1034,14 @@ namespace snmalloc
       }
 
       if (likely(!has_messages()))
-        return small_alloc_next_free_list<zero_mem, allow_reserve>(sizeclass); 
+        return small_alloc_next_free_list<zero_mem, allow_reserve>(sizeclass);
 
       return small_alloc_mq_slow<zero_mem, allow_reserve>(sizeclass);
     }
 
     /**
      * Slow path for handling message queue, before dealing with small
-     * allocation request. 
+     * allocation request.
      **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_mq_slow(sizeclass_t sizeclass)
@@ -1070,7 +1076,7 @@ namespace snmalloc
     }
 
     /**
-     * Called when, there are no available free list to service this request
+     * Called when there are no available free list to service this request
      * Could be due to using the dummy allocator, or needing to bump allocate a
      * new free list.
      **/
@@ -1102,8 +1108,7 @@ namespace snmalloc
      * list.
      **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_FAST_PATH
-    void* small_alloc_new_free_list(sizeclass_t sizeclass)
+    SNMALLOC_FAST_PATH void* small_alloc_new_free_list(sizeclass_t sizeclass)
     {
       auto& bp = bump_ptrs[sizeclass];
       if (likely(pointer_align_up(bp, SLAB_SIZE) != bp))
@@ -1119,8 +1124,7 @@ namespace snmalloc
      * the request from that new list.
      **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_FAST_PATH
-    void* small_alloc_build_free_list(sizeclass_t sizeclass)
+    SNMALLOC_FAST_PATH void* small_alloc_build_free_list(sizeclass_t sizeclass)
     {
       auto& bp = bump_ptrs[sizeclass];
       auto rsize = sizeclass_to_size(sizeclass);
@@ -1140,20 +1144,20 @@ namespace snmalloc
 
     /**
      * Allocates a new slab to allocate from, set it to be the bump allocator
-     * for this size class, and then builds a new free list from the thread 
+     * for this size class, and then builds a new free list from the thread
      * local bump allocator and service the request from that new list.
      **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH
-    void* small_alloc_new_slab(sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH void* small_alloc_new_slab(sizeclass_t sizeclass)
     {
       auto& bp = bump_ptrs[sizeclass];
       // Fetch new slab
       Slab* slab = alloc_slab<allow_reserve>(sizeclass);
       if ((allow_reserve == NoReserve) && (slab == nullptr))
         return nullptr;
-      bp = pointer_offset(slab, get_initial_offset(sizeclass, slab->is_short()));
-    
+      bp =
+        pointer_offset(slab, get_initial_offset(sizeclass, slab->is_short()));
+
       return small_alloc_build_free_list<zero_mem, allow_reserve>(sizeclass);
     }
 

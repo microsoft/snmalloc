@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../ds/dllist.h"
 #include "../ds/cdllist.h"
+#include "../ds/dllist.h"
 #include "../ds/helpers.h"
 #include "sizeclass.h"
 
@@ -16,7 +16,6 @@ namespace snmalloc
   {
     return pointer_align_down<SLAB_SIZE, Slab>(sl);
   }
-
 
   static_assert(
     sizeof(SlabLink) <= MIN_ALLOC_SIZE,

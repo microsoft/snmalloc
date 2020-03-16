@@ -1,10 +1,12 @@
 /**
- * The first operation a thread performs takes a different path to every subsequent operation
- * as it must lazily initialise the thread local allocator. This tests performs all sizes of
- * allocation, and deallocation as the first operation.
- ***/
+ * The first operation a thread performs takes a different path to every
+ * subsequent operation as it must lazily initialise the thread local allocator.
+ * This tests performs all sizes of allocation, and deallocation as the first
+ * operation.
+ */
 
 #include "test/setup.h"
+
 #include <snmalloc.h>
 #include <thread>
 
@@ -25,7 +27,7 @@ void alloc3(size_t size)
 {
   auto a = snmalloc::ThreadAlloc::get_noncachable();
   void* r = a->alloc(size);
-  a->dealloc(r,size);
+  a->dealloc(r, size);
 }
 
 void alloc4(size_t size)
@@ -42,7 +44,7 @@ void dealloc1(void* p, size_t)
 
 void dealloc2(void* p, size_t size)
 {
-  snmalloc::ThreadAlloc::get_noncachable()->dealloc(p,size);
+  snmalloc::ThreadAlloc::get_noncachable()->dealloc(p, size);
 }
 
 void dealloc3(void* p, size_t)
@@ -61,7 +63,7 @@ void f(size_t size)
   auto t2 = std::thread(alloc2, size);
   auto t3 = std::thread(alloc3, size);
   auto t4 = std::thread(alloc4, size);
-  
+
   auto a = snmalloc::ThreadAlloc::get();
   auto p1 = a->alloc(size);
   auto p2 = a->alloc(size);
@@ -108,6 +110,3 @@ int main(int, char**)
     f((7ULL << exp) - 1);
   }
 }
-
-
-

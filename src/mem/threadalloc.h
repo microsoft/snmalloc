@@ -40,8 +40,8 @@ namespace snmalloc
 
   /**
    * Function passed as a template parameter to `Allocator` to allow lazy
-   * replacement. This function returns true, if the allocated passed in,
-   * is the placeholder allocator. As the TLS state is managed externally,
+   * replacement. This function returns true, if the allocator passed in
+   * requires initialisation. As the TLS state is managed externally,
    * this will always return false.
    **/
   SNMALLOC_FAST_PATH bool needs_initialisation(void* existing)
@@ -59,7 +59,6 @@ namespace snmalloc
   {
     return nullptr;
   }
-
 
   using ThreadAlloc = ThreadAllocUntypedWrapper;
 #else
@@ -227,11 +226,12 @@ namespace snmalloc
 #  endif
 
   /**
-   * Slow path for the placeholder replacement. 
+   * Slow path for the placeholder replacement.
    * Function passed as a tempalte parameter to `Allocator` to allow lazy
    * replacement.  This function initialises the thread local state if requried.
    * The simple check that this is the global placeholder is inlined, the rest
-   * of it is only hit in a very unusual case and so should go off the fast path.
+   * of it is only hit in a very unusual case and so should go off the fast
+   * path.
    */
   SNMALLOC_SLOW_PATH inline void* init_thread_allocator()
   {

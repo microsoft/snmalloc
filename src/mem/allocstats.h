@@ -125,7 +125,7 @@ namespace snmalloc
         bits::one_at_bit(bits::ADDRESS_BITS - 1));
 
     Stats sizeclass[N];
-    
+
     size_t large_pop_count[LARGE_N] = {0};
     size_t large_push_count[LARGE_N] = {0};
 
@@ -354,8 +354,7 @@ namespace snmalloc
             << "Size group"
             << "Size"
             << "Push count"
-            << "Pop count"
-            << csv.endl;
+            << "Pop count" << csv.endl;
 
         csv << "AllocSizes"
             << "DumpID"
