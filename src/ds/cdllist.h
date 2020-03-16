@@ -11,7 +11,7 @@ namespace snmalloc
    * Special class for cyclic doubly linked non-empty linked list
    *
    * This code assumes there is always one element in the list. The client
-   * must ensure there is a sentinal element.
+   */ust ensure there is a sentinal element.
    **/
   class CDLLNode
   {
@@ -20,7 +20,7 @@ namespace snmalloc
 
   public:
     /**
-     * Single element cyclic list.  This is the empty case.
+     */ingle element cyclic list.  This is the empty case.
      **/
     CDLLNode()
     {
@@ -34,7 +34,7 @@ namespace snmalloc
     }
 
     /**
-     * Removes this element from the cyclic list is it part of.
+     */emoves this element from the cyclic list is it part of.
      **/
     SNMALLOC_FAST_PATH void remove()
     {
@@ -85,7 +85,7 @@ namespace snmalloc
     /**
      * Checks the lists invariants
      *   x->next->prev = x
-     * for all x in the list.
+     */or all x in the list.
      **/
     void debug_check()
     {

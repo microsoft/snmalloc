@@ -35,7 +35,7 @@ namespace snmalloc
      * Takes a free list out of a slabs meta data.
      * Returns the link as the allocation, and places the free list into the
      * `fast_free_list` for further allocations.
-     **/
+     */
     template<ZeroMem zero_mem, typename MemoryProvider>
     SNMALLOC_FAST_PATH void* alloc(
       SlabList& sl,
@@ -90,7 +90,7 @@ namespace snmalloc
      * list, and stores it in the fast_free_list. It will only create a page
      * worth of allocations, or one if the allocation size is larger than a
      * page.
-     **/
+     */
     static SNMALLOC_FAST_PATH void
     alloc_new_list(void*& bumpptr, FreeListHead& fast_free_list, size_t rsize)
     {

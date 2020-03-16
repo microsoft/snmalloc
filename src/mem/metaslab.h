@@ -65,7 +65,7 @@ namespace snmalloc
      *  - was full before the subtraction
      * this returns true, otherwise returns false.
      **/
-    bool return_object()
+    b*/ return_object()
     {
       return (--needed) == 0;
     }
@@ -158,7 +158,7 @@ namespace snmalloc
      * We don't expect a cycle, so worst case is only followed by a crash, so
      * slow doesn't mater.
      **/
-    size_t debug_slab_acyclic_free_list(Slab* slab)
+    s*/_t debug_slab_acyclic_free_list(Slab* slab)
     {
 #ifndef NDEBUG
       size_t length = 0;

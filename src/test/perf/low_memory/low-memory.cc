@@ -97,7 +97,7 @@ void reduce_pressure(Queue& allocations)
  * Wrapper to handle Pals that don't have the method.
  * Template parameter required to handle `if constexpr` always evaluating both
  * sides.
- **/
+ */
 template<typename PAL>
 void register_for_pal_notifications()
 {

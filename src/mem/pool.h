@@ -15,7 +15,7 @@ namespace snmalloc
    * concurrency safe.
    *
    * This is used to bootstrap the allocation of allocators.
-   **/
+   */
   template<class T, class MemoryProvider = GlobalVirtual>
   class Pool
   {

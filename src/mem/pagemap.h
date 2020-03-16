@@ -319,7 +319,7 @@ namespace snmalloc
   /**
    * Simple pagemap that for each GRANULARITY_BITS of the address range
    * stores a T.
-   **/
+   */
   template<size_t GRANULARITY_BITS, typename T>
   class alignas(OS_PAGE_SIZE) FlatPagemap
   {
