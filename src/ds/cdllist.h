@@ -18,6 +18,9 @@ namespace snmalloc
     CDLLNode* prev;
 
   public:
+    /**
+     * Single element cyclic list.  This is the empty case.
+     **/
     CDLLNode()
     {
       next = this;
@@ -29,12 +32,17 @@ namespace snmalloc
       return next == this;
     }
 
+    /**
+     * Removes this element from the cyclic list is it part of.
+     **/
     SNMALLOC_FAST_PATH void remove()
     {
       SNMALLOC_ASSERT(!is_empty());
       debug_check();
       next->prev = prev;
       prev->next = next;
+      // As this is no longer in the list, check invariant for
+      // neighbouring element.
       next->debug_check();
       
 #ifndef NDEBUG
@@ -73,6 +81,11 @@ namespace snmalloc
       debug_check();
     }
 
+    /**
+     * Checks the lists invariants
+     *   x->next->prev = x
+     * for all x in the list.
+     **/
     void debug_check()
     {
 #ifndef NDEBUG

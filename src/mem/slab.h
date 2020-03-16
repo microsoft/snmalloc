@@ -31,6 +31,11 @@ namespace snmalloc
       return get_meta().get_link(this);
     }
 
+    /**
+     * Takes a free list out of a slabs meta data.
+     * Returns the link as the allocation, and places the free list into the 
+     * `fast_free_list` for further allocations.
+     **/  
     template<ZeroMem zero_mem, typename MemoryProvider>
     SNMALLOC_FAST_PATH void* alloc(
       SlabList& sl,
@@ -61,9 +66,31 @@ namespace snmalloc
       meta.set_full();
       sl.get_next()->remove();
 
-      return alloc_finish<zero_mem>(meta, p, rsize, memory_provider);
+      SNMALLOC_ASSERT(is_start_of_object(Superslab::get(p), p));
+
+      meta.debug_slab_invariant(this);
+
+      if constexpr (zero_mem == YesZero)
+      {
+        if (rsize < PAGE_ALIGNED_SIZE)
+          memory_provider.zero(p, rsize);
+        else
+          memory_provider.template zero<true>(p, rsize);
+      }
+      else
+      {
+        UNUSED(rsize);
+      }
+
+      return p;
     }
 
+    /**
+     * Given a bumpptr and a fast_free_list head reference, builds a new free
+     * list, and stores it in the fast_free_list. It will only create a page
+     * worth of allocations, or one if the allocation size is larger than a
+     * page. 
+     **/
     static
     SNMALLOC_FAST_PATH void alloc_new_list(
       void*& bumpptr,
@@ -104,28 +131,6 @@ namespace snmalloc
 
       SNMALLOC_ASSERT(curr != nullptr);
       Metaslab::store_next(curr, nullptr);
-    }
-
-    template<ZeroMem zero_mem, typename MemoryProvider>
-    SNMALLOC_FAST_PATH void* alloc_finish(Metaslab& meta, void* p, size_t rsize, MemoryProvider& memory_provider)
-    {
-      SNMALLOC_ASSERT(is_start_of_object(Superslab::get(p), p));
-
-      meta.debug_slab_invariant(this);
-
-      if constexpr (zero_mem == YesZero)
-      {
-        if (rsize < PAGE_ALIGNED_SIZE)
-          memory_provider.zero(p, rsize);
-        else
-          memory_provider.template zero<true>(p, rsize);
-      }
-      else
-      {
-        UNUSED(rsize);
-      }
-
-      return p;
     }
 
     bool is_start_of_object(Superslab* super, void* p)

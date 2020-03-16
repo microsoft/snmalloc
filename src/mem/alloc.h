@@ -50,8 +50,19 @@ namespace snmalloc
   };
 
   /**
-   * Allocator.  This class is parameterised on three template parameters.  The
-   * `MemoryProvider` defines the source of memory for this allocator.
+   * Allocator.  This class is parameterised on five template parameters.  
+   * 
+   * The first two template parameter provides a hook to allow the allocator in
+   * use to be dynamically modified.  This is used to implement a trick from
+   * mimalloc that avoids a conditional branch on the fast path.  We
+   * initialise the thread-local allocator pointer with the address of a global
+   * allocator, which never owns any memory.  The first returns true, if is
+   * passed the global allocator.  The second initialises the thread-local
+   * allocator if it is has been been initialised already. Splitting into two
+   * functions allows for the code to be structured into tail calls to improve
+   * codegen.
+   * 
+   * The `MemoryProvider` defines the source of memory for this allocator.
    * Allocators try to reuse address space by allocating from existing slabs or
    * reusing freed large allocations.  When they need to allocate a new chunk
    * of memory they request space from the `MemoryProvider`.
@@ -60,17 +71,10 @@ namespace snmalloc
    * to associate metadata with large (16MiB, by default) regions, allowing an
    * allocator to find the allocator responsible for that region.
    *
-   * The next template parameter, `IsQueueInline`, defines whether the
+   * The final template parameter, `IsQueueInline`, defines whether the
    * message queue for this allocator should be stored as a field of the
    * allocator (`true`) or provided externally, allowing it to be anywhere else
    * in the address space (`false`).
-   *
-   * The final template parameter provides a hook to allow the allocator in use
-   * to be dynamically modified.  This is used to implement a trick from
-   * mimalloc that avoids a conditional branch on the fast path.  We initialise
-   * the thread-local allocator pointer with the address of a global allocator,
-   * which never owns any memory.  When we try to allocate memory, we call the
-   * replacement function.
    */
   template<
     bool (*IsFirstAllocation)(void*),
@@ -877,6 +881,10 @@ namespace snmalloc
       remote.post(id());
     }
 
+    /**
+     * Check if this allocator has messages to deallocate blocks from another
+     * thread
+     **/
     SNMALLOC_FAST_PATH bool has_messages()
     {
       return !(message_queue().is_empty());
@@ -1025,6 +1033,10 @@ namespace snmalloc
       return small_alloc_mq_slow<zero_mem, allow_reserve>(sizeclass);
     }
 
+    /**
+     * Slow path for handling message queue, before dealing with small
+     * allocation request. 
+     **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_mq_slow(sizeclass_t sizeclass)
     {
@@ -1033,6 +1045,9 @@ namespace snmalloc
       return small_alloc_next_free_list<zero_mem, allow_reserve>(sizeclass);
     }
 
+    /**
+     * Attempt to find a new free list to allocate from
+     **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_next_free_list(sizeclass_t sizeclass)
     {
@@ -1054,7 +1069,11 @@ namespace snmalloc
       return small_alloc_rare<zero_mem, allow_reserve>(sizeclass);
     }
 
-
+    /**
+     * Called when, there are no available free list to service this request
+     * Could be due to using the dummy allocator, or needing to bump allocate a
+     * new free list.
+     **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_rare(sizeclass_t sizeclass)
     {
@@ -1066,6 +1085,10 @@ namespace snmalloc
       return small_alloc_first_alloc<zero_mem, allow_reserve>(sizeclass);
     }
 
+    /**
+     * Called on first allocation to set up the thread local allocator,
+     * then directs the allocation request to the newly created allocator.
+     **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_first_alloc(sizeclass_t sizeclass)
     {
@@ -1074,6 +1097,10 @@ namespace snmalloc
         ->template small_alloc_inner<zero_mem, allow_reserve>(sizeclass);
     }
 
+    /**
+     * Called to create a new free list, and service the request from that new
+     * list.
+     **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_FAST_PATH
     void* small_alloc_new_free_list(sizeclass_t sizeclass)
@@ -1087,6 +1114,10 @@ namespace snmalloc
       return small_alloc_new_slab<zero_mem, allow_reserve>(sizeclass);
     }
 
+    /**
+     * Creates a new free list from the thread local bump allocator and service
+     * the request from that new list.
+     **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_FAST_PATH
     void* small_alloc_build_free_list(sizeclass_t sizeclass)
@@ -1107,6 +1138,11 @@ namespace snmalloc
       return p;
     }
 
+    /**
+     * Allocates a new slab to allocate from, set it to be the bump allocator
+     * for this size class, and then builds a new free list from the thread 
+     * local bump allocator and service the request from that new list.
+     **/
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH
     void* small_alloc_new_slab(sizeclass_t sizeclass)

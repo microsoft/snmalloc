@@ -40,16 +40,21 @@ namespace snmalloc
 
   /**
    * Function passed as a template parameter to `Allocator` to allow lazy
-   * replacement.  In this case we are assuming the underlying external thread
-   * alloc is performing initialization, so this is not required, and just
-   * always returns nullptr to specify no new allocator is required.
-   */
+   * replacement. This function returns true, if the allocated passed in,
+   * is the placeholder allocator. As the TLS state is managed externally,
+   * this will always return false.
+   **/
   SNMALLOC_FAST_PATH bool first_allocation(void* existing)
   {
     UNUSED(existing);
     return false;
   }
 
+  /**
+   * Function passed as a tempalte parameter to `Allocator` to allow lazy
+   * replacement.  There is nothing to initialise in this case, so we expect
+   * this to never be called.
+   **/
   SNMALLOC_FAST_PATH void* init_thread_allocator()
   {
     return nullptr;
@@ -222,9 +227,11 @@ namespace snmalloc
 #  endif
 
   /**
-   * Slow path for the placeholder replacement.  The simple check that this is
-   * the global placeholder is inlined, the rest of it is only hit in a very
-   * unusual case and so should go off the fast path.
+   * Slow path for the placeholder replacement. 
+   * Function passed as a tempalte parameter to `Allocator` to allow lazy
+   * replacement.  This function initialises the thread local state if requried.
+   * The simple check that this is the global placeholder is inlined, the rest
+   * of it is only hit in a very unusual case and so should go off the fast path.
    */
   SNMALLOC_SLOW_PATH inline void* init_thread_allocator()
   {
@@ -244,12 +251,10 @@ namespace snmalloc
 
   /**
    * Function passed as a template parameter to `Allocator` to allow lazy
-   * replacement.  This is called on all of the slow paths in `Allocator`.  If
-   * the caller is the global placeholder allocator then this function will
-   * check if we've already allocated a per-thread allocator, returning it if
-   * so.  If we have not allocated a per-thread allocator yet, then this
-   * function will allocate one.
-   */
+   * replacement. This function returns true, if the allocated passed in,
+   * is the placeholder allocator.  If it returns true, then
+   * `init_thread_allocator` should be called.
+   **/
   SNMALLOC_FAST_PATH bool first_allocation(void* existing)
   {
     return existing == &GlobalPlaceHolder;
