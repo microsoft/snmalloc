@@ -98,7 +98,7 @@ namespace snmalloc
      * If aligned to a SLAB start, then it is empty, and a new
      * slab is required.
      */
-    void* bump_ptrs[NUM_SMALL_CLASSES] = {0};
+    void* bump_ptrs[NUM_SMALL_CLASSES] = {nullptr};
 
   public:
     Stats& stats()

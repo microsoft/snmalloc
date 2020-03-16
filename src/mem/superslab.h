@@ -166,7 +166,7 @@ namespace snmalloc
       // returned all the elements, but this is a slab that is still being bump
       // allocated from. Hence, the bump allocator slab will never be returned
       // for use in another size class.
-      meta[0].allocated = (uint16_t)(
+      meta[0].allocated = static_cast<uint16_t>(
         (SLAB_SIZE - get_initial_offset(sizeclass, true)) /
         sizeclass_to_size(sizeclass));
       meta[0].link = 1;
@@ -191,7 +191,7 @@ namespace snmalloc
       // returned all the elements, but this is a slab that is still being bump
       // allocated from. Hence, the bump allocator slab will never be returned
       // for use in another size class.
-      meta[h].allocated = (uint16_t)(
+      meta[h].allocated = static_cast<uint16_t>(
         (SLAB_SIZE - get_initial_offset(sizeclass, false)) /
         sizeclass_to_size(sizeclass));
       meta[h].needed = 1;
