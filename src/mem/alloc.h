@@ -77,7 +77,7 @@ namespace snmalloc
    * in the address space (`false`).
    */
   template<
-    bool (*IsFirstAllocation)(void*),
+    bool (*NeedsInitialisation)(void*),
     void* (*InitThreadAllocator)(),
     class MemoryProvider = GlobalVirtual,
     class ChunkMap = SNMALLOC_DEFAULT_CHUNKMAP,
@@ -86,7 +86,7 @@ namespace snmalloc
   class Allocator
   : public FastFreeLists,
     public Pooled<
-      Allocator<IsFirstAllocation, InitThreadAllocator, MemoryProvider, ChunkMap, IsQueueInline>>
+      Allocator<NeedsInitialisation, InitThreadAllocator, MemoryProvider, ChunkMap, IsQueueInline>>
   {
     LargeAlloc<MemoryProvider> large_allocator;
     ChunkMap chunk_map;
@@ -511,7 +511,7 @@ namespace snmalloc
       inline size_t get_slot(size_t id, size_t r)
       {
         constexpr size_t allocator_size = sizeof(
-          Allocator<IsFirstAllocation, InitThreadAllocator, MemoryProvider, ChunkMap, IsQueueInline>);
+          Allocator<NeedsInitialisation, InitThreadAllocator, MemoryProvider, ChunkMap, IsQueueInline>);
         constexpr size_t initial_shift =
           bits::next_pow2_bits_const(allocator_size);
         SNMALLOC_ASSERT((initial_shift + (r * REMOTE_SLOT_BITS)) < 64);
@@ -1077,7 +1077,7 @@ namespace snmalloc
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_rare(sizeclass_t sizeclass)
     {
-      if (likely(!IsFirstAllocation(this)))
+      if (likely(!NeedsInitialisation(this)))
       {
         stats().sizeclass_alloc(sizeclass);
         return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass);
@@ -1271,7 +1271,7 @@ namespace snmalloc
       }
       else
       {
-        if (IsFirstAllocation(this))
+        if (NeedsInitialisation(this))
         {
           void* replacement = InitThreadAllocator();
           return reinterpret_cast<Allocator*>(replacement)
@@ -1344,7 +1344,7 @@ namespace snmalloc
           zero_mem == YesZero ? "zeromem" : "nozeromem",
           allow_reserve == NoReserve ? "noreserve" : "reserve"));
 
-      if (IsFirstAllocation(this))
+      if (NeedsInitialisation(this))
       {
         void* replacement = InitThreadAllocator();
         return reinterpret_cast<Allocator*>(replacement)
@@ -1368,7 +1368,7 @@ namespace snmalloc
     {
       MEASURE_TIME(large_dealloc, 4, 16);
 
-      if (IsFirstAllocation(this))
+      if (NeedsInitialisation(this))
       {
         void* replacement = InitThreadAllocator();
         return reinterpret_cast<Allocator*>(replacement)
@@ -1421,7 +1421,7 @@ namespace snmalloc
       // Now that we've established that we're in the slow path (if we're a
       // real allocator, we will have to empty our cache now), check if we are
       // a real allocator and construct one if we aren't.
-      if (IsFirstAllocation(this))
+      if (NeedsInitialisation(this))
       {
         void* replacement = InitThreadAllocator();
         // We have to do a dealloc, not a remote_dealloc here because this may

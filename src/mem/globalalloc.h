@@ -6,23 +6,23 @@
 
 namespace snmalloc
 {
-  inline bool first_allocation(void*);
+  inline bool needs_initialisation(void*);
   void* init_thread_allocator();
 
   using Alloc =
-    Allocator<first_allocation, init_thread_allocator, GlobalVirtual, SNMALLOC_DEFAULT_CHUNKMAP, true>;
+    Allocator<needs_initialisation, init_thread_allocator, GlobalVirtual, SNMALLOC_DEFAULT_CHUNKMAP, true>;
 
   template<class MemoryProvider>
   class AllocPool : Pool<
                       Allocator<
-                        first_allocation, init_thread_allocator,
+                        needs_initialisation, init_thread_allocator,
                         MemoryProvider,
                         SNMALLOC_DEFAULT_CHUNKMAP,
                         true>,
                       MemoryProvider>
   {
     using Alloc = Allocator<
-      first_allocation, init_thread_allocator, MemoryProvider,
+      needs_initialisation, init_thread_allocator, MemoryProvider,
       SNMALLOC_DEFAULT_CHUNKMAP,
       true
       >;

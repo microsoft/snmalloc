@@ -44,7 +44,7 @@ namespace snmalloc
    * is the placeholder allocator. As the TLS state is managed externally,
    * this will always return false.
    **/
-  SNMALLOC_FAST_PATH bool first_allocation(void* existing)
+  SNMALLOC_FAST_PATH bool needs_initialisation(void* existing)
   {
     UNUSED(existing);
     return false;
@@ -158,7 +158,7 @@ namespace snmalloc
       return get_reference();
 #  else
       auto alloc = get_reference();
-      if (unlikely(first_allocation(alloc)))
+      if (unlikely(needs_initialisation(alloc)))
       {
         alloc = reinterpret_cast<Alloc*>(init_thread_allocator());
       }
@@ -255,7 +255,7 @@ namespace snmalloc
    * is the placeholder allocator.  If it returns true, then
    * `init_thread_allocator` should be called.
    **/
-  SNMALLOC_FAST_PATH bool first_allocation(void* existing)
+  SNMALLOC_FAST_PATH bool needs_initialisation(void* existing)
   {
     return existing == &GlobalPlaceHolder;
   }
