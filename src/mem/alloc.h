@@ -269,7 +269,7 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void dealloc_sized_slow(void* p, size_t size)
     {
       if (size == 0)
-        dealloc(p, 1);
+        return dealloc(p, 1);
 
       if (likely(size <= sizeclass_to_size(NUM_SIZECLASSES - 1)))
       {
