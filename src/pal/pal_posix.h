@@ -3,6 +3,7 @@
 #include "../ds/address.h"
 #include "../mem/allocconfig.h"
 
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 
