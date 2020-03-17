@@ -1,8 +1,8 @@
 #pragma once
 #include "../ds/defines.h"
 
+#include <chrono>
 #include <cstdint>
-#include <ctime>
 
 #if defined(__i386__) || defined(_M_IX86) || defined(_X86_) || \
   defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || \
@@ -71,14 +71,11 @@ namespace snmalloc
       if constexpr (
         (Arch::aal_features & NoCpuCycleCounters) == NoCpuCycleCounters)
       {
-#ifdef _WIN32
-#  error "Implement Windows Version"
-#else
-        struct timespec n = {0, 0ul};
-        clock_gettime(CLOCK_MONOTONIC, &n);
-
-        return static_cast<uint64_t>((n.tv_sec) * (1000000000 * n.tv_nsec));
-#endif
+        auto tick = std::chrono::high_resolution_clock::now();
+        return static_cast<uint64_t>(
+          std::chrono::duration_cast<std::chrono::nanoseconds>(
+            tick.time_since_epoch())
+            .count());
       }
 #if __has_builtin(__builtin_readcyclecounter) && \
   !defined(SNMALLOC_NO_AAL_BUILTINS)
