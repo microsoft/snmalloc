@@ -28,7 +28,7 @@ namespace snmalloc
      */
     IntegerPointers = (1 << 0),
     /**
-     * This architecture cannot access cpu cycles counters from userspace
+     * This architecture cannot access cpu cycles counters.
      */
     NoCpuCycleCounters = (1 << 1),
   };
