@@ -94,7 +94,7 @@ jobs:
       CMAKE_CXX_FLAGS="-std=c++17"
       if [[ "$CXX" == clang++* ]]; then CMAKE_CXX_FLAGS+=" -stdlib=libstdc++"; fi
 
-    displayName: 'Install Build Dependencies'
+    displayName: 'Select compiler version'
 
   - task: CMake@1
     displayName: 'CMake .. $(CMakeArgs) -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS" -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
@@ -251,17 +251,8 @@ jobs:
   displayName: Format
   pool:
     vmImage: 'ubuntu-18.04'
+  container: snmallocciteam/build_linux_x64:latest
   steps:
-  - script: |
-      set -eo pipefail
-      wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-      sudo apt-add-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main"
-      sudo apt-get update
-      sudo apt-get install -y clang-format-9 clang-tidy-9
-      sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-9 100
-
-    displayName: 'Install clang'
-
   - task: CMake@1
     displayName: 'CMake ..'
     inputs:
