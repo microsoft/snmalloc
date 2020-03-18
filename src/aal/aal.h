@@ -77,12 +77,15 @@ namespace snmalloc
             tick.time_since_epoch())
             .count());
       }
+      else
+      {
 #if __has_builtin(__builtin_readcyclecounter) && \
   !defined(SNMALLOC_NO_AAL_BUILTINS)
-      return __builtin_readcyclecounter();
+        return __builtin_readcyclecounter();
 #else
-      return Arch::tick();
+        return Arch::tick();
 #endif
+      }
     }
   };
 

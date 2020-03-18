@@ -76,15 +76,15 @@ namespace snmalloc
       SNMALLOC_ASSERT(
         is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
 
-      if constexpr (zero_mem == YesZero)
-        static_cast<OS*>(this)->template zero<true>(p, size);
-
 #ifdef USE_POSIX_COMMIT_CHECKS
       mprotect(p, size, PROT_READ | PROT_WRITE);
 #else
       UNUSED(p);
       UNUSED(size);
 #endif
+
+      if constexpr (zero_mem == YesZero)
+        static_cast<OS*>(this)->template zero<true>(p, size);
     }
 
     /**
