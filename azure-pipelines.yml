@@ -8,21 +8,21 @@ jobs:
 - job:
   displayName: Linux
   pool:
-    vmImage: 'ubuntu-16.04'
+    vmImage: 'ubuntu-18.04'
   container: snmallocciteam/build_linux_x64:latest
 
   strategy:
     matrix:
-      Clang-6 Debug:
-        CC: clang-6.0
-        CXX: clang++-6.0
+      Clang-7 Debug:
+        CC: clang-7
+        CXX: clang++-7
         BuildType: Debug
         SelfHost: false
         CMakeArgs: ''
 
-      Clang-6 Release:
-        CC: clang-6.0
-        CXX: clang++-6.0
+      Clang-7 Release:
+        CC: clang-7
+        CXX: clang++-7
         BuildType: Release
         SelfHost: false
         CMakeArgs: ''
@@ -42,15 +42,15 @@ jobs:
         CMakeArgs: ''
 
       Self Host:
-        CC: clang-6.0
-        CXX: clang++-6.0
+        CC: clang-7
+        CXX: clang++-7
         BuildType: Debug
         SelfHost: true
         CMakeArgs: ''
 
       Cache Friendly:
-        CC: clang-6.0
-        CXX: clang++-6.0
+        CC: clang-7
+        CXX: clang++-7
         BuildType: Debug
         SelfHost: false
         CMakeArgs: '-DCACHE_FRIENDLY_OFFSET=64'
