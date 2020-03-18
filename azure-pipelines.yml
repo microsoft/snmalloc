@@ -253,10 +253,14 @@ jobs:
     vmImage: 'ubuntu-18.04'
   container: snmallocciteam/build_linux_x64:latest
   steps:
-  - task: CMake@1
-    displayName: 'CMake ..'
-    inputs:
-      cmakeArgs: '-GNinja ..'
+  - script: |
+      mkdir build
+      cd build
+      cmake -GNinja ..
+      
+    env:
+      CC: /usr/bin/gcc-8
+      CXX: /usr/bin/gcc++-8
 
   - script: |
       set -eo pipefail
