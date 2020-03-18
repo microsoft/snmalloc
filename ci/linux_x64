@@ -1,0 +1,7 @@
+FROM ubuntu:18.04
+
+RUN apt update
+RUN apt install -y software-properties-common
+RUN add-apt-repository ppa:ubuntu-toolchain-r/test
+RUN apt update
+RUN apt install -y ninja-build libc++-dev libc++abi-dev libc++abi1 libstdc++-7-dev gcc-8 g++-8
