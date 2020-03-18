@@ -4,7 +4,7 @@ RUN apt update \
     && apt install -y software-properties-common \
     && add-apt-repository ppa:ubuntu-toolchain-r/test \
     && apt update \
-    && apt install --no-install-recommends -y sudo cmake ninja-build \
+    && apt install --no-install-recommends -y sudo cmake ninja-build git \
     && apt install --no-install-recommends -y g++-8 \
     && apt install --no-install-recommends -y clang++-7 \
     && apt install --no-install-recommends -y clang++-8 \
