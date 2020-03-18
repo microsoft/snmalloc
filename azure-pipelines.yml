@@ -256,11 +256,11 @@ jobs:
   - task: CMake@1
     displayName: 'CMake ..'
     inputs:
-      cmakeArgs: '..'
+      cmakeArgs: '-GNinja ..'
 
   - script: |
       set -eo pipefail
-      make clangformat
+      ninja clangformat
       git diff --exit-code $(Build.SourceVersion)
 
     workingDirectory: build
