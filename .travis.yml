@@ -51,6 +51,36 @@ matrix:
         - CC=gcc-9
         - CXX=g++-9
 
+    - os: linux
+      arch: arm64
+      language: rust
+      rust:
+        - stable
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-9
+      env:
+        - CC=gcc-9
+        - CXX=g++-9
+
+    - os: linux
+      arch: arm64
+      language: rust
+      rust:
+        - nightly
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - g++-9
+      env:
+        - CC=gcc-9
+        - CXX=g++-9
+
     - os: osx
       language: rust
       rust:
