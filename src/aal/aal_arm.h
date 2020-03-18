@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(__arch64__)
+#if defined(__aarch64__)
 #  define SNMALLOC_VA_BITS_64
 #else
 #  define SNMALLOC_VA_BITS_32
