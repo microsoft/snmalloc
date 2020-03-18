@@ -24,6 +24,7 @@ matrix:
         - rustup default nightly-msvc
 
     - os: linux
+      dist: bionic
       language: rust
       rust:
         - stable
@@ -38,6 +39,7 @@ matrix:
         - CXX=g++-9
 
     - os: linux
+      dist: bionic
       language: rust
       rust:
           - nightly
@@ -52,6 +54,7 @@ matrix:
         - CXX=g++-9
 
     - os: linux
+      dist: bionic
       arch: arm64
       language: rust
       rust:
@@ -67,6 +70,7 @@ matrix:
         - CXX=g++-9
 
     - os: linux
+      dist: bionic
       arch: arm64
       language: rust
       rust:
