@@ -27,6 +27,34 @@ jobs:
         SelfHost: false
         CMakeArgs: ''
 
+      Clang-8 Debug:
+        CC: clang-8
+        CXX: clang++-8
+        BuildType: Debug
+        SelfHost: false
+        CMakeArgs: ''
+
+      Clang-8 Release:
+        CC: clang-8
+        CXX: clang++-8
+        BuildType: Release
+        SelfHost: false
+        CMakeArgs: ''
+
+      Clang-9 Debug:
+        CC: clang-9
+        CXX: clang++-9
+        BuildType: Debug
+        SelfHost: false
+        CMakeArgs: ''
+
+      Clang-9 Release:
+        CC: clang-9
+        CXX: clang++-9
+        BuildType: Release
+        SelfHost: false
+        CMakeArgs: ''
+
       GCC-8 Debug:
         CC: gcc-8
         CXX: g++-8
