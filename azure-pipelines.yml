@@ -257,10 +257,10 @@ jobs:
       mkdir build
       cd build
       cmake -GNinja ..
-      
+
     env:
       CC: /usr/bin/gcc-8
-      CXX: /usr/bin/gcc++-8
+      CXX: /usr/bin/g++-8
 
   - script: |
       set -eo pipefail
