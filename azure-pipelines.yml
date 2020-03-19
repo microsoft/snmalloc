@@ -124,6 +124,21 @@ jobs:
     displayName: 'Test'
 
 - job:
+  displayName: 'ARM Linux'
+  pool:
+    vmImage: 'ubuntu-18.04'
+  steps:
+  - script: |
+      sudo docker run --rm --privileged multiarch/qemu-user-static:register --reset
+    displayName: 'Enable QEmu'
+
+  - script: sudo docker run  -v $PWD:/src snmallocciteam/build_linux_arm64:latest ci/scripts/build.sh
+    displayName: 'Build snmalloc'
+
+  - script: sudo docker run  -v $PWD:/src snmallocciteam/build_linux_arm64:latest ci/scripts/test.sh
+    displayName: 'Test snmalloc'
+
+- job:
   displayName: Windows
   pool:
     vmImage: 'vs2017-win2016'
