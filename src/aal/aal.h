@@ -7,7 +7,12 @@
 #if defined(__i386__) || defined(_M_IX86) || defined(_X86_) || \
   defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || \
   defined(_M_AMD64)
-#  define PLATFORM_IS_X86
+#  if defined(SNMALLOC_SGX)
+#    define PLATFORM_IS_X86_SGX
+#    define SNMALLOC_NO_AAL_BUILTINS
+#  else
+#    define PLATFORM_IS_X86
+#  endif
 #endif
 
 #if defined(__arm__) || defined(__aarch64__)
@@ -93,6 +98,8 @@ namespace snmalloc
 
 #if defined(PLATFORM_IS_X86)
 #  include "aal_x86.h"
+#elif defined(PLATFORM_IS_X86_SGX)
+#  include "aal_x86_sgx.h"
 #elif defined(PLATFORM_IS_ARM)
 #  include "aal_arm.h"
 #endif
