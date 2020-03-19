@@ -94,7 +94,15 @@ if (WIN32)
 endif()
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  target_compile_options(snmalloc_lib INTERFACE -mcx16)
+  if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
+    target_compile_options(snmalloc_lib INTERFACE -mcx16)
+  elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "amd64")
+   target_compile_options(snmalloc_lib INTERFACE -mcx16)
+  elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AMD64")
+   target_compile_options(snmalloc_lib INTERFACE -mcx16)
+  elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86")
+   target_compile_options(snmalloc_lib INTERFACE -mcx16)
+  endif()
 endif ()
 
 # Have to set this globally, as can't be set on an interface target.
@@ -136,7 +144,8 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
      add_compile_options(-march=native)
     elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86")
      add_compile_options(-march=native)
-    # XXX elseif ARM?
+    elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
+     add_compile_options(-march=native)
     endif()
   endif()
 

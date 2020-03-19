@@ -1,12 +1,17 @@
 #pragma once
 #include "../ds/defines.h"
 
+#include <chrono>
 #include <cstdint>
 
 #if defined(__i386__) || defined(_M_IX86) || defined(_X86_) || \
   defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || \
   defined(_M_AMD64)
 #  define PLATFORM_IS_X86
+#endif
+
+#if defined(__arm__) || defined(__aarch64__)
+#  define PLATFORM_IS_ARM
 #endif
 
 namespace snmalloc
@@ -22,6 +27,10 @@ namespace snmalloc
      * and so may use bit operations on pointer values.
      */
     IntegerPointers = (1 << 0),
+    /**
+     * This architecture cannot access cpu cycles counters.
+     */
+    NoCpuCycleCounters = (1 << 1),
   };
 
   /**
@@ -59,19 +68,33 @@ namespace snmalloc
      */
     static inline uint64_t tick()
     {
+      if constexpr (
+        (Arch::aal_features & NoCpuCycleCounters) == NoCpuCycleCounters)
+      {
+        auto tick = std::chrono::high_resolution_clock::now();
+        return static_cast<uint64_t>(
+          std::chrono::duration_cast<std::chrono::nanoseconds>(
+            tick.time_since_epoch())
+            .count());
+      }
+      else
+      {
 #if __has_builtin(__builtin_readcyclecounter) && \
   !defined(SNMALLOC_NO_AAL_BUILTINS)
-      return __builtin_readcyclecounter();
+        return __builtin_readcyclecounter();
 #else
-      return Arch::tick();
+        return Arch::tick();
 #endif
+      }
     }
   };
 
 } // namespace snmalloc
 
-#ifdef PLATFORM_IS_X86
+#if defined(PLATFORM_IS_X86)
 #  include "aal_x86.h"
+#elif defined(PLATFORM_IS_ARM)
+#  include "aal_arm.h"
 #endif
 
 namespace snmalloc

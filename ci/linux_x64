@@ -1,0 +1,16 @@
+FROM ubuntu:18.04
+
+RUN apt update \
+    && apt install -y software-properties-common \
+    && add-apt-repository ppa:ubuntu-toolchain-r/test \
+    && apt update \
+    && apt install --no-install-recommends -y sudo cmake ninja-build git \
+    && apt install --no-install-recommends -y g++-8 \
+    && apt install --no-install-recommends -y clang++-7 \
+    && apt install --no-install-recommends -y clang++-8 \
+    && apt install --no-install-recommends -y clang++-9 \
+    && apt install --no-install-recommends -y clang-format-9 clang-tidy-9 \
+    && update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-9 100 \
+    && apt remove -y software-properties-common \
+    && apt -y autoremove \
+    && apt -y clean
