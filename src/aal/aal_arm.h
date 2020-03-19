@@ -2,10 +2,14 @@
 
 #if defined(__aarch64__)
 #  define SNMALLOC_VA_BITS_64
-#  include <arm64_neon.h>
+#  ifdef _MSC_VER
+#    include <arm64_neon.h>
+#  endif
 #else
 #  define SNMALLOC_VA_BITS_32
-#  include <arm_neon.h>
+#  ifdef _MSC_VER
+#    include <arm_neon.h>
+#  endif
 #endif
 
 #include <iostream>
@@ -29,12 +33,20 @@ namespace snmalloc
      */
     static inline void pause()
     {
+#ifdef _MSC_VER
       __yield();
+#else
+      __asm__ volatile("yield");
+#endif
     }
 
     static inline void prefetch(void* ptr)
     {
+#ifdef _MSC_VER
       __prefetch(ptr);
+#else
+      __asm__ inline("prfm pldl1keep, [%0]" : "=r"(ptr));
+#endif
     }
   };
 
