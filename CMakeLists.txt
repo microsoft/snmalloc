@@ -7,6 +7,7 @@ option(USE_MEASURE "Measure performance with histograms" OFF)
 option(EXPOSE_EXTERNAL_PAGEMAP "Expose the global pagemap" OFF)
 option(EXPOSE_EXTERNAL_RESERVE "Expose an interface to reserve memory using the default memory provider" OFF)
 option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF)
+option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory on Linux" Off)
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
 
 if ((CMAKE_BUILD_TYPE STREQUAL "Release") AND (NOT SNMALLOC_CI_BUILD))
@@ -110,6 +111,10 @@ set(CMAKE_CXX_STANDARD 17)
 
 if(USE_SNMALLOC_STATS)
   target_compile_definitions(snmalloc_lib INTERFACE -DUSE_SNMALLOC_STATS)
+endif()
+
+if(SNMALLOC_QEMU_WORKAROUND)
+  target_compile_definitions(snmalloc_lib INTERFACE -DSNMALLOC_QEMU_WORKAROUND)
 endif()
 
 if(USE_MEASURE)
