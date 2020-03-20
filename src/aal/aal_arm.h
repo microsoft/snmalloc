@@ -45,7 +45,7 @@ namespace snmalloc
 #ifdef _MSC_VER
       __prefetch(ptr);
 #else
-      __asm__ inline("prfm pldl1keep, [%0]" : "=r"(ptr));
+      __asm__ volatile("prfm pldl1keep, [%0]" : "=r"(ptr));
 #endif
     }
   };
