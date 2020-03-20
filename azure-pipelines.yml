@@ -103,25 +103,43 @@ jobs:
     displayName: 'Test'
 
 - job:
-  displayName: 'ARM64 Linux'
+  displayName: 'ARM Linux'
   pool:
     vmImage: 'ubuntu-18.04'
   
   strategy:
     matrix:
-      Clang-9 Debug:
+      64-bit Clang-9 Debug:
         CC: clang-9
         CXX: clang++-9
         BuildType: Debug
         SelfHost: false
         CMakeArgs: ''
+        Image: snmallocciteam/build_linux_arm64:latest
 
-      Clang-9 Release:
+      64-bit Clang-9 Release:
         CC: clang-9
         CXX: clang++-9
         BuildType: Release
         SelfHost: false
         CMakeArgs: ''
+        Image: snmallocciteam/build_linux_arm64:latest
+
+      32-bit Clang-9 Debug:
+        CC: clang-9
+        CXX: clang++-9
+        BuildType: Debug
+        SelfHost: false
+        CMakeArgs: ''
+        Image: snmallocciteam/build_linux_armhf:latest
+
+      32-bit Clang-9 Release:
+        CC: clang-9
+        CXX: clang++-9
+        BuildType: Release
+        SelfHost: false
+        CMakeArgs: ''
+        Image: snmallocciteam/build_linux_armhf:latest
   
   steps:
   - script: |
@@ -134,7 +152,7 @@ jobs:
       -e CXX=$(CXX) \
       -e BUILD_TYPE=$(BuildType) \
       -e CMAKE_ARGS=$(CMakeArgs) \
-      snmallocciteam/build_linux_arm64:latest \
+      $(Image) \
       ci/scripts/build.sh
     displayName: 'Build'
 
@@ -142,7 +160,7 @@ jobs:
       sudo docker run -v $PWD:/src \
       -e BUILD_TYPE=$(BuildType) \
       -e SELF_HOST=$(SelfHost) \
-      snmallocciteam/build_linux_arm64:latest \
+      $(Image) \
       ci/scripts/test.sh
     displayName: 'Test'
 

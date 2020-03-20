@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.8)
 project(snmalloc C CXX)
 
+include(CheckCXXCompilerFlag)
+
 option(USE_SNMALLOC_STATS "Track allocation stats" OFF)
 option(SNMALLOC_CI_BUILD "Disable features not sensible for CI" OFF)
 option(USE_MEASURE "Measure performance with histograms" OFF)
@@ -145,12 +147,14 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
   else()
     add_compile_options(-fno-exceptions -fno-rtti -g -ftls-model=initial-exec -fomit-frame-pointer)
-    if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
-     add_compile_options(-march=native)
-    elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86")
-     add_compile_options(-march=native)
-    elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
-     add_compile_options(-march=native)
+
+    if((${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64") OR
+       (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86") OR
+       (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm"))
+      check_cxx_compiler_flag(-march=native SUPPORT_MARCH_NATIVE)
+      if (SUPPORT_MARCH_NATIVE)
+        add_compile_options(-march=native)
+      endif()
     endif()
   endif()
 
