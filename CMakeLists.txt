@@ -145,12 +145,15 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
   else()
     add_compile_options(-fno-exceptions -fno-rtti -g -ftls-model=initial-exec -fomit-frame-pointer)
-    if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
-     add_compile_options(-march=native)
-    elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86")
-     add_compile_options(-march=native)
-    elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
-     add_compile_options(-march=native)
+
+    include(CheckCXXCompilerFlag)
+
+    if((${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64") OR
+       (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86") OR
+       (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm"))
+      if (check_cxx_compiler_flag("-march=native" IGNORE))
+        add_compile_options(-march=native)
+      endif()
     endif()
   endif()
 
