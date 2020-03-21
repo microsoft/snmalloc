@@ -40,6 +40,13 @@ to link `libatomic` statically, I have to use dynamic linking. Hence, please mak
 This is the best thing I can do for current stage, if you have any better solution, please do help me to provide a better support for
 `MinGW`
 ## Changelog
+
+### 0.2.8
+
+- More CI (**ARM64 on QEMU**)
+- **upstream** ARM(32/64) support
+- **upstream** x86-SGX support
+
 ### 0.2.7
 - partially fixed `mingw`
 - **upstream** remote dealloc refactor (higher performance)
