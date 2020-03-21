@@ -137,6 +137,7 @@ You will also need to compile the relevant parts of snmalloc itself. Create a ne
 #define NO_BOOTSTRAP_ALLOCATOR
 
 #include "snmalloc/src/override/malloc.cc"
+#include "snmalloc/src/override/new.cc"
 ```
 
 # Porting snmalloc to a new platform
