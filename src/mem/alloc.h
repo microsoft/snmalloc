@@ -1030,6 +1030,9 @@ namespace snmalloc
 
         sl.insert_back(slab->get_link());
       }
+      auto& ffl = small_fast_free_lists[sizeclass];
+      return slab->alloc<zero_mem>(
+        sl, ffl, rsize, large_allocator.memory_provider);
     }
 
     SNMALLOC_FAST_PATH void
