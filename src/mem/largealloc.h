@@ -127,7 +127,8 @@ namespace snmalloc
       void* r = reserve<false>(0);
 
       if (r == nullptr)
-        Pal::error("Unrecoverable internal error: \
+        Pal::error(
+          "Unrecoverable internal error: \
           failed to allocator internal data structure.");
 
       PAL::template notify_using<NoZero>(r, OS_PAGE_SIZE);
