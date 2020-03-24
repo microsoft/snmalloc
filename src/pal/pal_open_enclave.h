@@ -45,7 +45,7 @@ namespace snmalloc
         next_base = pointer_offset(new_base, size);
 
         if (next_base > end)
-          error("Out of memory");
+          return nullptr;
 
       } while (!oe_base.compare_exchange_strong(old_base, next_base));
 
