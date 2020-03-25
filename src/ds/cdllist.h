@@ -22,14 +22,14 @@ namespace snmalloc
      */
     ptrdiff_t to_next = 0;
 
-// TODO: CHERI will need a real pointer too
-//    CDLLNode* next = nullptr;
+    // TODO: CHERI will need a real pointer too
+    //    CDLLNode* next = nullptr;
     CDLLNode* prev = nullptr;
 
     void set_next(CDLLNode* c)
     {
-// TODO: CHERI will need a real pointer too
-//      next = c;
+      // TODO: CHERI will need a real pointer too
+      //      next = c;
       to_next = pointer_diff_signed(this, c);
     }
 
@@ -69,8 +69,8 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH CDLLNode* get_next()
     {
-// TODO: CHERI will require a real pointer
-//    return next;
+      // TODO: CHERI will require a real pointer
+      //    return next;
       return pointer_offset_signed(this, to_next);
     }
 

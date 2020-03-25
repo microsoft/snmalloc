@@ -1012,7 +1012,8 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_FAST_PATH void* small_alloc_inner(sizeclass_t sizeclass, size_t size)
+    SNMALLOC_FAST_PATH void*
+    small_alloc_inner(sizeclass_t sizeclass, size_t size)
     {
       SNMALLOC_ASSUME(sizeclass < NUM_SMALL_CLASSES);
       auto& fl = small_fast_free_lists[sizeclass];
@@ -1033,7 +1034,8 @@ namespace snmalloc
       }
 
       if (likely(!has_messages()))
-        return small_alloc_next_free_list<zero_mem, allow_reserve>(sizeclass, size);
+        return small_alloc_next_free_list<zero_mem, allow_reserve>(
+          sizeclass, size);
 
       return small_alloc_mq_slow<zero_mem, allow_reserve>(sizeclass, size);
     }
@@ -1043,18 +1045,21 @@ namespace snmalloc
      * allocation request.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void* small_alloc_mq_slow(sizeclass_t sizeclass, size_t size)
+    SNMALLOC_SLOW_PATH void*
+    small_alloc_mq_slow(sizeclass_t sizeclass, size_t size)
     {
       handle_message_queue_inner();
 
-      return small_alloc_next_free_list<zero_mem, allow_reserve>(sizeclass, size);
+      return small_alloc_next_free_list<zero_mem, allow_reserve>(
+        sizeclass, size);
     }
 
     /**
      * Attempt to find a new free list to allocate from
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void* small_alloc_next_free_list(sizeclass_t sizeclass, size_t size)
+    SNMALLOC_SLOW_PATH void*
+    small_alloc_next_free_list(sizeclass_t sizeclass, size_t size)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
       auto& sl = small_classes[sizeclass];
@@ -1081,7 +1086,8 @@ namespace snmalloc
      * new free list.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void* small_alloc_rare(sizeclass_t sizeclass, size_t size)
+    SNMALLOC_SLOW_PATH void*
+    small_alloc_rare(sizeclass_t sizeclass, size_t size)
     {
       if (likely(!NeedsInitialisation(this)))
       {
@@ -1097,7 +1103,8 @@ namespace snmalloc
      * then directs the allocation request to the newly created allocator.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void* small_alloc_first_alloc(sizeclass_t sizeclass, size_t size)
+    SNMALLOC_SLOW_PATH void*
+    small_alloc_first_alloc(sizeclass_t sizeclass, size_t size)
     {
       auto replacement = InitThreadAllocator();
       return reinterpret_cast<Allocator*>(replacement)

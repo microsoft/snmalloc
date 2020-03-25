@@ -68,7 +68,7 @@ namespace snmalloc
    * slabs to allocate from, it will discover that it is the placeholder and
    * replace itself with the thread-local allocator, allocating one if
    * required.  This avoids a branch on the fast path.
-   * 
+   *
    * The fake allocator is a zero initialised area of memory of the correct
    * size. All data structures used potentially before initialisation must be
    * okay with zero init to move to the slow path, that is, zero must signify
