@@ -15,8 +15,23 @@ namespace snmalloc
    */
   class CDLLNode
   {
-    CDLLNode* next;
-    CDLLNode* prev;
+    /**
+     * to_next is used to handle a zero initialised data structure.
+     * This means that `is_empty` works even when the constructor hasn't
+     * been run.
+     */
+    ptrdiff_t to_next = 0;
+
+// TODO: CHERI will need a real pointer too
+//    CDLLNode* next = nullptr;
+    CDLLNode* prev = nullptr;
+
+    void set_next(CDLLNode* c)
+    {
+// TODO: CHERI will need a real pointer too
+//      next = c;
+      to_next = pointer_diff(c, this);
+    }
 
   public:
     /**
@@ -24,13 +39,13 @@ namespace snmalloc
      */
     CDLLNode()
     {
-      next = this;
+      set_next(this);
       prev = this;
     }
 
     SNMALLOC_FAST_PATH bool is_empty()
     {
-      return next == this;
+      return to_next == 0;
     }
 
     /**
@@ -40,21 +55,23 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(!is_empty());
       debug_check();
-      next->prev = prev;
-      prev->next = next;
+      get_next()->prev = prev;
+      prev->set_next(get_next());
       // As this is no longer in the list, check invariant for
       // neighbouring element.
-      next->debug_check();
+      get_next()->debug_check();
 
 #ifndef NDEBUG
-      next = nullptr;
+      set_next(nullptr);
       prev = nullptr;
 #endif
     }
 
     SNMALLOC_FAST_PATH CDLLNode* get_next()
     {
-      return next;
+// TODO: CHERI will require a real pointer
+//    return next;
+      return pointer_offset(this, to_next);
     }
 
     SNMALLOC_FAST_PATH CDLLNode* get_prev()
@@ -65,10 +82,10 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void insert_next(CDLLNode* item)
     {
       debug_check();
-      item->next = next;
-      next->prev = item;
+      item->set_next(get_next());
+      get_next()->prev = item;
       item->prev = this;
-      next = item;
+      set_next(item);
       debug_check();
     }
 
@@ -76,8 +93,8 @@ namespace snmalloc
     {
       debug_check();
       item->prev = prev;
-      prev->next = item;
-      item->next = this;
+      prev->set_next(item);
+      item->set_next(this);
       prev = item;
       debug_check();
     }
@@ -90,14 +107,14 @@ namespace snmalloc
     void debug_check()
     {
 #ifndef NDEBUG
-      CDLLNode* item = this->next;
+      CDLLNode* item = get_next();
       CDLLNode* p = this;
 
       do
       {
         SNMALLOC_ASSERT(item->prev == p);
         p = item;
-        item = item->next;
+        item = item->get_next();
       } while (item != this);
 #endif
     }
