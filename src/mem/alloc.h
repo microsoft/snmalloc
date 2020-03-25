@@ -165,8 +165,6 @@ namespace snmalloc
       else
         return calloc(1, size);
 #else
-      stats().alloc_request(size);
-
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
@@ -1010,17 +1008,18 @@ namespace snmalloc
 
       SNMALLOC_ASSUME(size <= SLAB_SIZE);
       sizeclass_t sizeclass = size_to_sizeclass(size);
-      return small_alloc_inner<zero_mem, allow_reserve>(sizeclass);
+      return small_alloc_inner<zero_mem, allow_reserve>(sizeclass, size);
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_FAST_PATH void* small_alloc_inner(sizeclass_t sizeclass)
+    SNMALLOC_FAST_PATH void* small_alloc_inner(sizeclass_t sizeclass, size_t size)
     {
       SNMALLOC_ASSUME(sizeclass < NUM_SMALL_CLASSES);
       auto& fl = small_fast_free_lists[sizeclass];
       void* head = fl.value;
       if (likely(head != nullptr))
       {
+        stats().alloc_request(size);
         stats().sizeclass_alloc(sizeclass);
         // Read the next slot from the memory that's about to be allocated.
         fl.value = Metaslab::follow_next(head);
@@ -1034,9 +1033,9 @@ namespace snmalloc
       }
 
       if (likely(!has_messages()))
-        return small_alloc_next_free_list<zero_mem, allow_reserve>(sizeclass);
+        return small_alloc_next_free_list<zero_mem, allow_reserve>(sizeclass, size);
 
-      return small_alloc_mq_slow<zero_mem, allow_reserve>(sizeclass);
+      return small_alloc_mq_slow<zero_mem, allow_reserve>(sizeclass, size);
     }
 
     /**
@@ -1044,18 +1043,18 @@ namespace snmalloc
      * allocation request.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void* small_alloc_mq_slow(sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH void* small_alloc_mq_slow(sizeclass_t sizeclass, size_t size)
     {
       handle_message_queue_inner();
 
-      return small_alloc_next_free_list<zero_mem, allow_reserve>(sizeclass);
+      return small_alloc_next_free_list<zero_mem, allow_reserve>(sizeclass, size);
     }
 
     /**
      * Attempt to find a new free list to allocate from
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void* small_alloc_next_free_list(sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH void* small_alloc_next_free_list(sizeclass_t sizeclass, size_t size)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
       auto& sl = small_classes[sizeclass];
@@ -1064,6 +1063,7 @@ namespace snmalloc
 
       if (likely(!sl.is_empty()))
       {
+        stats().alloc_request(size);
         stats().sizeclass_alloc(sizeclass);
 
         SlabLink* link = sl.get_next();
@@ -1072,7 +1072,7 @@ namespace snmalloc
         return slab->alloc<zero_mem>(
           sl, ffl, rsize, large_allocator.memory_provider);
       }
-      return small_alloc_rare<zero_mem, allow_reserve>(sizeclass);
+      return small_alloc_rare<zero_mem, allow_reserve>(sizeclass, size);
     }
 
     /**
@@ -1081,14 +1081,15 @@ namespace snmalloc
      * new free list.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void* small_alloc_rare(sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH void* small_alloc_rare(sizeclass_t sizeclass, size_t size)
     {
       if (likely(!NeedsInitialisation(this)))
       {
+        stats().alloc_request(size);
         stats().sizeclass_alloc(sizeclass);
         return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass);
       }
-      return small_alloc_first_alloc<zero_mem, allow_reserve>(sizeclass);
+      return small_alloc_first_alloc<zero_mem, allow_reserve>(sizeclass, size);
     }
 
     /**
@@ -1096,11 +1097,11 @@ namespace snmalloc
      * then directs the allocation request to the newly created allocator.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void* small_alloc_first_alloc(sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH void* small_alloc_first_alloc(sizeclass_t sizeclass, size_t size)
     {
       auto replacement = InitThreadAllocator();
       return reinterpret_cast<Allocator*>(replacement)
-        ->template small_alloc_inner<zero_mem, allow_reserve>(sizeclass);
+        ->template small_alloc_inner<zero_mem, allow_reserve>(sizeclass, size);
     }
 
     /**
@@ -1297,6 +1298,7 @@ namespace snmalloc
           sc->insert(slab);
       }
 
+      stats().alloc_request(size);
       stats().sizeclass_alloc(sizeclass);
       return p;
     }
@@ -1364,6 +1366,7 @@ namespace snmalloc
 
       chunkmap().set_large_size(p, size);
 
+      stats().alloc_request(size);
       stats().large_alloc(large_class);
       return p;
     }

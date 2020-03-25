@@ -30,7 +30,7 @@ namespace snmalloc
     {
 // TODO: CHERI will need a real pointer too
 //      next = c;
-      to_next = pointer_diff(c, this);
+      to_next = pointer_diff_signed(this, c);
     }
 
   public:
@@ -71,7 +71,7 @@ namespace snmalloc
     {
 // TODO: CHERI will require a real pointer
 //    return next;
-      return pointer_offset(this, to_next);
+      return pointer_offset_signed(this, to_next);
     }
 
     SNMALLOC_FAST_PATH CDLLNode* get_prev()

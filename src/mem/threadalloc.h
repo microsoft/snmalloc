@@ -68,10 +68,19 @@ namespace snmalloc
    * slabs to allocate from, it will discover that it is the placeholder and
    * replace itself with the thread-local allocator, allocating one if
    * required.  This avoids a branch on the fast path.
+   * 
+   * The fake allocator is a zero initialised area of memory of the correct
+   * size. All data structures used potentially before initialisation must be
+   * okay with zero init to move to the slow path, that is, zero must signify
+   * empty.
    */
-  inline GlobalVirtual dummy_memory_provider;
-  inline Alloc GlobalPlaceHolder(
-    dummy_memory_provider, SNMALLOC_DEFAULT_CHUNKMAP(), nullptr, true);
+  inline const char GlobalPlaceHolder[sizeof(Alloc)] = {0};
+
+  inline Alloc* get_GlobalPlaceHolder()
+  {
+    auto a = reinterpret_cast<const Alloc*>(&GlobalPlaceHolder);
+    return const_cast<Alloc*>(a);
+  }
 
   /**
    * Common aspects of thread local allocator. Subclasses handle how releasing
@@ -85,10 +94,10 @@ namespace snmalloc
     static inline void inner_release()
     {
       auto& per_thread = get_reference();
-      if (per_thread != &GlobalPlaceHolder)
+      if (per_thread != get_GlobalPlaceHolder())
       {
         current_alloc_pool()->release(per_thread);
-        per_thread = &GlobalPlaceHolder;
+        per_thread = get_GlobalPlaceHolder();
       }
     }
 
@@ -123,7 +132,7 @@ namespace snmalloc
      */
     static inline Alloc*& get_reference()
     {
-      static thread_local Alloc* alloc = &GlobalPlaceHolder;
+      static thread_local Alloc* alloc = get_GlobalPlaceHolder();
       return alloc;
     }
 
@@ -236,7 +245,7 @@ namespace snmalloc
   SNMALLOC_SLOW_PATH inline void* init_thread_allocator()
   {
     auto*& local_alloc = ThreadAlloc::get_reference();
-    if (local_alloc != &GlobalPlaceHolder)
+    if (local_alloc != get_GlobalPlaceHolder())
     {
       // If someone reuses a noncachable call, then we can end up here.
       // The allocator has already been initialised. Could either error
@@ -244,7 +253,7 @@ namespace snmalloc
       return local_alloc;
     }
     local_alloc = current_alloc_pool()->acquire();
-    SNMALLOC_ASSERT(local_alloc != &GlobalPlaceHolder);
+    SNMALLOC_ASSERT(local_alloc != get_GlobalPlaceHolder());
     ThreadAlloc::register_cleanup();
     return local_alloc;
   }
@@ -257,7 +266,7 @@ namespace snmalloc
    */
   SNMALLOC_FAST_PATH bool needs_initialisation(void* existing)
   {
-    return existing == &GlobalPlaceHolder;
+    return existing == get_GlobalPlaceHolder();
   }
 #endif
 } // namespace snmalloc

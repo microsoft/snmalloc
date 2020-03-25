@@ -25,6 +25,15 @@ namespace snmalloc
   }
 
   /**
+   * Perform pointer arithmetic and return the adjusted pointer.
+   */
+  template<typename T>
+  inline T* pointer_offset_signed(T* base, ptrdiff_t diff)
+  {
+    return reinterpret_cast<T*>(reinterpret_cast<char*>(base) + diff);
+  }
+
+  /**
    * Cast from a pointer type to an address.
    */
   template<typename T>
@@ -115,4 +124,15 @@ namespace snmalloc
     return static_cast<size_t>(
       static_cast<char*>(cursor) - static_cast<char*>(base));
   }
+
+  /**
+   * Compute the difference in pointers in units of char. This can be used
+   * across allocations.
+   */
+  inline ptrdiff_t pointer_diff_signed(void* base, void* cursor)
+  {
+    return static_cast<ptrdiff_t>(
+      static_cast<char*>(cursor) - static_cast<char*>(base));
+  }
+
 } // namespace snmalloc
