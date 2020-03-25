@@ -125,6 +125,12 @@ namespace snmalloc
     {
       // Reserve the smallest large_class which is SUPERSLAB_SIZE
       void* r = reserve<false>(0);
+
+      if (r == nullptr)
+        Pal::error(
+          "Unrecoverable internal error: \
+          failed to allocator internal data structure.");
+
       PAL::template notify_using<NoZero>(r, OS_PAGE_SIZE);
 
       bump = r;
@@ -274,6 +280,9 @@ namespace snmalloc
         size_t request = bits::max(size * 4, SUPERSLAB_SIZE * 8);
         void* p = PAL::template reserve<false>(request);
 
+        if (p == nullptr)
+          return nullptr;
+
         address_t p0 = address_cast(p);
         address_t start = bits::align_up(p0, align);
         address_t p1 = p0 + request;
@@ -354,6 +363,8 @@ namespace snmalloc
       if (p == nullptr)
       {
         p = memory_provider.template reserve<false>(large_class);
+        if (p == nullptr)
+          return nullptr;
         memory_provider.template notify_using<zero_mem>(p, size);
       }
       else
