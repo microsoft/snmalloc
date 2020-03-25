@@ -75,9 +75,11 @@ namespace snmalloc
    * empty.
    */
   inline const char GlobalPlaceHolder[sizeof(Alloc)] = {0};
-
   inline Alloc* get_GlobalPlaceHolder()
   {
+    // This cast is not legal.  Effectively, we want a minimal constructor
+    // for the global allocator as zero, and then a second constructor for
+    // the rest.  This is UB.
     auto a = reinterpret_cast<const Alloc*>(&GlobalPlaceHolder);
     return const_cast<Alloc*>(a);
   }
