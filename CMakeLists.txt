@@ -1,12 +1,15 @@
 cmake_minimum_required(VERSION 3.8)
 project(snmalloc C CXX)
 
+include(CheckCXXCompilerFlag)
+
 option(USE_SNMALLOC_STATS "Track allocation stats" OFF)
 option(SNMALLOC_CI_BUILD "Disable features not sensible for CI" OFF)
 option(USE_MEASURE "Measure performance with histograms" OFF)
 option(EXPOSE_EXTERNAL_PAGEMAP "Expose the global pagemap" OFF)
 option(EXPOSE_EXTERNAL_RESERVE "Expose an interface to reserve memory using the default memory provider" OFF)
 option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF)
+option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory on Linux" Off)
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
 
 if ((CMAKE_BUILD_TYPE STREQUAL "Release") AND (NOT SNMALLOC_CI_BUILD))
@@ -112,6 +115,10 @@ if(USE_SNMALLOC_STATS)
   target_compile_definitions(snmalloc_lib INTERFACE -DUSE_SNMALLOC_STATS)
 endif()
 
+if(SNMALLOC_QEMU_WORKAROUND)
+  target_compile_definitions(snmalloc_lib INTERFACE -DSNMALLOC_QEMU_WORKAROUND)
+endif()
+
 if(USE_MEASURE)
   target_compile_definitions(snmalloc_lib INTERFACE -DUSE_MEASURE)
 endif()
@@ -140,12 +147,14 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
   else()
     add_compile_options(-fno-exceptions -fno-rtti -g -ftls-model=initial-exec -fomit-frame-pointer)
-    if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
-     add_compile_options(-march=native)
-    elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86")
-     add_compile_options(-march=native)
-    elseif(${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm")
-     add_compile_options(-march=native)
+
+    if((${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64") OR
+       (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86") OR
+       (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm"))
+      check_cxx_compiler_flag(-march=native SUPPORT_MARCH_NATIVE)
+      if (SUPPORT_MARCH_NATIVE)
+        add_compile_options(-march=native)
+      endif()
     endif()
   endif()
 

@@ -31,6 +31,7 @@ namespace snmalloc
       if (oe_base == 0)
       {
         void* dummy = NULL;
+        // If this CAS fails then another thread has initialised this.
         oe_base.compare_exchange_strong(
           dummy, const_cast<void*>(__oe_get_heap_base()));
       }
@@ -44,9 +45,9 @@ namespace snmalloc
         next_base = pointer_offset(new_base, size);
 
         if (next_base > end)
-          error("Out of memory");
+          return nullptr;
 
-      } while (oe_base.compare_exchange_strong(old_base, next_base));
+      } while (!oe_base.compare_exchange_strong(old_base, next_base));
 
       return old_base;
     }

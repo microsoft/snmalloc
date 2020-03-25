@@ -85,42 +85,83 @@ jobs:
 
   steps:
   - script: |
-      sudo update-alternatives --install /usr/bin/cc cc /usr/bin/$(CC) 100
-      sudo update-alternatives --set cc /usr/bin/$(CC)
-
-      sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/$(CXX) 100
-      sudo update-alternatives --set c++ /usr/bin/$(CXX)
-
-      CMAKE_CXX_FLAGS="-std=c++17"
-      if [[ "$CXX" == clang++* ]]; then CMAKE_CXX_FLAGS+=" -stdlib=libstdc++"; fi
-
-    displayName: 'Select compiler version'
-
-  - task: CMake@1
-    displayName: 'CMake .. $(CMakeArgs) -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS" -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
-    inputs:
-      cmakeArgs: '.. $(CMakeArgs) -GNinja -DCMAKE_BUILD_TYPE=$(BuildType) -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS" -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
+      ci/scripts/build.sh
+    env:
+      CC: $(CC)
+      CXX: $(CXX)
+      BUILD_TYPE: $(BuildType)
+      CMAKE_ARGS: $(CMakeArgs)
+    failOnStderr: true
+    displayName: 'Build'
 
   - script: |
-      ninja
-
-    workingDirectory: build
+      ci/scripts/test.sh
+    env:
+      SELF_HOST: $(SelfHost)
+      BUILD_TYPE: $(BuildType)
     failOnStderr: true
-    displayName: 'Compile'
+    displayName: 'Test'
+
+- job:
+  displayName: 'ARM Linux'
+  pool:
+    vmImage: 'ubuntu-18.04'
+  
+  strategy:
+    matrix:
+      64-bit Clang-9 Debug:
+        CC: clang-9
+        CXX: clang++-9
+        BuildType: Debug
+        SelfHost: false
+        CMakeArgs: ''
+        Image: snmallocciteam/build_linux_arm64:latest
+
+      64-bit Clang-9 Release:
+        CC: clang-9
+        CXX: clang++-9
+        BuildType: Release
+        SelfHost: false
+        CMakeArgs: ''
+        Image: snmallocciteam/build_linux_arm64:latest
+
+      32-bit Clang-9 Debug:
+        CC: clang-9
+        CXX: clang++-9
+        BuildType: Debug
+        SelfHost: false
+        CMakeArgs: ''
+        Image: snmallocciteam/build_linux_armhf:latest
+
+      32-bit Clang-9 Release:
+        CC: clang-9
+        CXX: clang++-9
+        BuildType: Release
+        SelfHost: false
+        CMakeArgs: ''
+        Image: snmallocciteam/build_linux_armhf:latest
+  
+  steps:
+  - script: |
+      sudo docker run --rm --privileged multiarch/qemu-user-static:register --reset
+    displayName: 'Enable QEmu'
 
   - script: |
-      if [ $(SelfHost) = false ]; then
-        ctest -j 4 --output-on-failure -C $(BuildType)
-      else
-        sudo cp libsnmallocshim.so libsnmallocshim-1mib.so /usr/local/lib/
-        ninja clean
-        LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
-        ninja clean
-        LD_PRELOAD=/usr/local/lib/libsnmallocshim-1mib.so ninja
-      fi
+      sudo docker run -v $PWD:/src \
+      -e CC=$(CC) \
+      -e CXX=$(CXX) \
+      -e BUILD_TYPE=$(BuildType) \
+      -e CMAKE_ARGS=$(CMakeArgs) \
+      $(Image) \
+      ci/scripts/build.sh
+    displayName: 'Build'
 
-    workingDirectory: build
-    failOnStderr: true
+  - script: |
+      sudo docker run -v $PWD:/src \
+      -e BUILD_TYPE=$(BuildType) \
+      -e SELF_HOST=$(SelfHost) \
+      $(Image) \
+      ci/scripts/test.sh
     displayName: 'Test'
 
 - job:

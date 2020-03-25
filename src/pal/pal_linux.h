@@ -37,12 +37,16 @@ namespace snmalloc
     template<bool page_aligned = false>
     void zero(void* p, size_t size) noexcept
     {
+// QEMU does not seem to be giving the desired behaviour for MADV_DONTNEED.
+// switch back to memset only for QEMU.
+#  ifndef SNMALLOC_QEMU_WORKAROUND
       if (page_aligned || is_aligned_block<OS_PAGE_SIZE>(p, size))
       {
         SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, size));
         madvise(p, size, MADV_DONTNEED);
       }
       else
+#  endif
       {
         ::memset(p, 0, size);
       }

@@ -915,7 +915,7 @@ namespace snmalloc
         large_allocator.template alloc<NoZero, allow_reserve>(
           0, SUPERSLAB_SIZE));
 
-      if ((allow_reserve == NoReserve) && (super == nullptr))
+      if (super == nullptr)
         return super;
 
       super->init(public_state());
@@ -977,7 +977,7 @@ namespace snmalloc
 
         super = get_superslab<allow_reserve>();
 
-        if ((allow_reserve == NoReserve) && (super == nullptr))
+        if (super == nullptr)
           return nullptr;
 
         Slab* slab = super->alloc_short_slab(sizeclass);
@@ -987,7 +987,7 @@ namespace snmalloc
 
       Superslab* super = get_superslab<allow_reserve>();
 
-      if ((allow_reserve == NoReserve) && (super == nullptr))
+      if (super == nullptr)
         return nullptr;
 
       Slab* slab = super->alloc_slab(sizeclass);
@@ -1154,7 +1154,7 @@ namespace snmalloc
       auto& bp = bump_ptrs[sizeclass];
       // Fetch new slab
       Slab* slab = alloc_slab<allow_reserve>(sizeclass);
-      if ((allow_reserve == NoReserve) && (slab == nullptr))
+      if (slab == nullptr)
         return nullptr;
       bp =
         pointer_offset(slab, get_initial_offset(sizeclass, slab->is_short()));
@@ -1287,7 +1287,7 @@ namespace snmalloc
           large_allocator.template alloc<NoZero, allow_reserve>(
             0, SUPERSLAB_SIZE));
 
-        if ((allow_reserve == NoReserve) && (slab == nullptr))
+        if (slab == nullptr)
           return nullptr;
 
         slab->init(public_state(), sizeclass, rsize);
@@ -1363,11 +1363,13 @@ namespace snmalloc
 
       void* p = large_allocator.template alloc<zero_mem, allow_reserve>(
         large_class, size);
+      if (likely(p != nullptr))
+      {
+        chunkmap().set_large_size(p, size);
 
-      chunkmap().set_large_size(p, size);
-
-      stats().alloc_request(size);
-      stats().large_alloc(large_class);
+        stats().alloc_request(size);
+        stats().large_alloc(large_class);
+      }
       return p;
     }
 

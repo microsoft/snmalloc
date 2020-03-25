@@ -8,7 +8,7 @@
 #  include <emmintrin.h>
 #endif
 
-#if defined(__linux__) && !defined(OPEN_ENCLAVE)
+#if defined(__linux__)
 #  include <x86intrin.h>
 #endif
 

@@ -12,7 +12,9 @@
 #  include "pal_openbsd.h"
 #  include "pal_windows.h"
 #endif
-#include "pal_open_enclave.h"
+#if defined(OPEN_ENCLAVE)
+#  include "pal_open_enclave.h"
+#endif
 #include "pal_plain.h"
 
 namespace snmalloc

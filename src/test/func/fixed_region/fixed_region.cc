@@ -1,4 +1,4 @@
-
+#define SNMALLOC_SGX
 #define OPEN_ENCLAVE
 #define OPEN_ENCLAVE_SIMULATION
 #define USE_RESERVE_MULTIPLE 1
@@ -24,8 +24,7 @@ extern "C" const void* __oe_get_heap_end()
 
 extern "C" void* oe_memset_s(void* p, size_t p_size, int c, size_t size)
 {
-  std::cout << "Memset " << p << " (" << p_size << ") - " << size << std::endl;
-
+  UNUSED(p_size);
   return memset(p, c, size);
 }
 
@@ -50,10 +49,14 @@ int main()
 
   auto a = ThreadAlloc::get();
 
-  for (size_t i = 0; i < 1000; i++)
+  while (true)
   {
     auto r1 = a->alloc(100);
-    std::cout << "Allocated object " << r1 << std::endl;
+
+    // Run until we exhaust the fixed region.
+    // This should return null.
+    if (r1 == nullptr)
+      return 0;
 
     if (oe_base > r1)
       abort();
