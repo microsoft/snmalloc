@@ -63,12 +63,15 @@ namespace snmalloc
   template<size_t alignment, typename T = void>
   SNMALLOC_FAST_PATH T* pointer_align_down(void* p)
   {
-    static_assert(alignment > 0);
-    static_assert(bits::next_pow2_const(alignment) == alignment);
+    if constexp (alignment == 1)
+      return static_cast<T*>(p);
+    else
+      static_assert(alignment > 0);
+      static_assert(bits::next_pow2_const(alignment) == alignment);
 #if __has_builtin(__builtin_align_down)
-    return static_cast<T*>(__builtin_align_down(p, alignment));
+      return static_cast<T*>(__builtin_align_down(p, alignment));
 #else
-    return pointer_cast<T>(bits::align_down(address_cast(p), alignment));
+      return pointer_cast<T>(bits::align_down(address_cast(p), alignment));
 #endif
   }
 
@@ -79,13 +82,17 @@ namespace snmalloc
   template<size_t alignment, typename T = void>
   inline T* pointer_align_up(void* p)
   {
-    static_assert(alignment > 0);
-    static_assert(bits::next_pow2_const(alignment) == alignment);
+    if constexp (alignment == 1)
+      return static_cast<T*>(p);
+    else
+      static_assert(alignment > 0);
+      static_assert(bits::next_pow2_const(alignment) == alignment);
 #if __has_builtin(__builtin_align_up)
-    return static_cast<T*>(__builtin_align_up(p, alignment));
+      return static_cast<T*>(__builtin_align_up(p, alignment));
 #else
-    return pointer_cast<T>(bits::align_up(address_cast(p), alignment));
+      return pointer_cast<T>(bits::align_up(address_cast(p), alignment));
 #endif
+   }
   }
 
   /**
