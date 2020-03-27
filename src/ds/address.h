@@ -63,7 +63,7 @@ namespace snmalloc
   template<size_t alignment, typename T = void>
   SNMALLOC_FAST_PATH T* pointer_align_down(void* p)
   {
-    if constexp (alignment == 1)
+    if constexpr (alignment == 1)
       return static_cast<T*>(p);
     else
       static_assert(alignment > 0);
@@ -82,7 +82,7 @@ namespace snmalloc
   template<size_t alignment, typename T = void>
   inline T* pointer_align_up(void* p)
   {
-    if constexp (alignment == 1)
+    if constexpr (alignment == 1)
       return static_cast<T*>(p);
     else
       static_assert(alignment > 0);
