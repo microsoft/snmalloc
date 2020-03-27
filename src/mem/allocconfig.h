@@ -35,7 +35,7 @@ namespace snmalloc
 #ifdef USE_REMOTE_BATCH
     REMOTE_BATCH
 #else
-    64
+    4096
 #endif
     ;
 
