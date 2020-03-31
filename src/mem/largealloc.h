@@ -185,18 +185,19 @@ namespace snmalloc
 
     void push_space(address_t start, size_t large_class)
     {
+      // All fresh pages so can use "NoZero"
       void* p = pointer_cast<void>(start);
       if (large_class > 0)
-        PAL::template notify_using<YesZero>(p, OS_PAGE_SIZE);
+        PAL::template notify_using<NoZero>(p, OS_PAGE_SIZE);
       else
       {
         if (decommit_strategy == DecommitSuperLazy)
         {
-          PAL::template notify_using<YesZero>(p, OS_PAGE_SIZE);
+          PAL::template notify_using<NoZero>(p, OS_PAGE_SIZE);
           p = new (p) Decommittedslab();
         }
         else
-          PAL::template notify_using<YesZero>(p, SUPERSLAB_SIZE);
+          PAL::template notify_using<NoZero>(p, SUPERSLAB_SIZE);
       }
       large_stack[large_class].push(reinterpret_cast<Largeslab*>(p));
     }
