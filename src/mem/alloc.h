@@ -222,6 +222,9 @@ namespace snmalloc
           error("Deallocating with incorrect size supplied.");
         }
       }
+#else
+      UNUSED(p);
+      UNUSED(size);
 #endif
     }
 
