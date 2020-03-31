@@ -210,6 +210,24 @@ namespace snmalloc
       UNUSED(size);
       return free(p);
 #else
+#  if defined(CHECK_CLIENT)
+      auto asize = alloc_size(p);
+      auto asc = size_to_sizeclass(asize);
+      if (size_to_sizeclass(size) != asc)
+      {
+        // Correction for large classes.
+        if (asc > NUM_SIZECLASSES)
+        {
+          if (bits::next_pow2(size) != asize)
+            error("Deallocating with incorrect size supplied.");
+        }
+        // Correction for zero sized allocations.
+        else if ((size != 0) && (asc != 0))
+        {
+          error("Deallocating with incorrect size supplied.");
+        }
+      }
+#  endif
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
 
       if (sizeclass < NUM_SMALL_CLASSES)
@@ -249,6 +267,24 @@ namespace snmalloc
       UNUSED(size);
       return free(p);
 #else
+#  if defined(CHECK_CLIENT)
+      auto asize = alloc_size(p);
+      auto asc = size_to_sizeclass(asize);
+      if (size_to_sizeclass(size) != asc)
+      {
+        // Correction for large classes.
+        if (asc > NUM_SIZECLASSES)
+        {
+          if (bits::next_pow2(size) != asize)
+            error("Deallocating with incorrect size supplied.");
+        }
+        // Correction for zero sized allocations.
+        else if ((size != 0) && (asc != 0))
+        {
+          error("Deallocating with incorrect size supplied.");
+        }
+      }
+#  endif
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
       {
         Superslab* super = Superslab::get(p);
