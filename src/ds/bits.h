@@ -329,7 +329,7 @@ namespace snmalloc
      *
      * `std::min` is in `<algorithm>`, so pulls in a lot of unneccessary code
      * We write our own to reduce the code that potentially needs reviewing.
-     **/
+     */
     template<typename T>
     constexpr inline T min(T t1, T t2)
     {
@@ -341,7 +341,7 @@ namespace snmalloc
      *
      * `std::max` is in `<algorithm>`, so pulls in a lot of unneccessary code
      * We write our own to reduce the code that potentially needs reviewing.
-     **/
+     */
     template<typename T>
     constexpr inline T max(T t1, T t2)
     {

@@ -33,7 +33,10 @@ This document outlines the changes that have diverged from
   4.  We now store a direct pointer to the next element in each slabs free list
       rather than a relative offset into the slab.  This enables list
       calculation on the fast path.
-
+ 
+  5.  There is a single bump-ptr per size class that is part of the
+      allocator structure.  The per size class slab list now only contains slabs
+      with free list, and not if it only has a bump ptr.
 
 [2-4]  Are changes that are directly inspired by
 (mimalloc)[http://github.com/microsoft/mimalloc].

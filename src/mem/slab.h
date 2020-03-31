@@ -31,8 +31,13 @@ namespace snmalloc
       return get_meta().get_link(this);
     }
 
+    /**
+     * Takes a free list out of a slabs meta data.
+     * Returns the link as the allocation, and places the free list into the
+     * `fast_free_list` for further allocations.
+     */
     template<ZeroMem zero_mem, typename MemoryProvider>
-    inline void* alloc(
+    SNMALLOC_FAST_PATH void* alloc(
       SlabList& sl,
       FreeListHead& fast_free_list,
       size_t rsize,
@@ -40,90 +45,26 @@ namespace snmalloc
     {
       // Read the head from the metadata stored in the superslab.
       Metaslab& meta = get_meta();
-      void* head = meta.head;
+      SNMALLOC_ASSERT(meta.link != 1);
 
       SNMALLOC_ASSERT(rsize == sizeclass_to_size(meta.sizeclass));
       SNMALLOC_ASSERT(
-        sl.get_head() == (SlabLink*)pointer_offset(this, meta.link));
+        sl.get_next() == (SlabLink*)pointer_offset(this, meta.link));
       SNMALLOC_ASSERT(!meta.is_full());
       meta.debug_slab_invariant(this);
 
-      void* p = nullptr;
-      bool p_has_value = false;
+      // Put everything in allocators small_class free list.
+      fast_free_list.value = meta.head;
+      meta.head = nullptr;
 
-      if (head == nullptr)
-      {
-        size_t bumpptr = get_initial_offset(meta.sizeclass, is_short());
-        bumpptr += meta.allocated * rsize;
-        if (bumpptr == SLAB_SIZE)
-        {
-          // Everything is in use, so we need all entries to be
-          // return before we can reclaim this slab.
-          meta.needed = meta.allocated;
+      // Return the link as the node for this allocation.
+      void* link = pointer_offset(this, meta.link);
+      void* p = remove_cache_friendly_offset(link, meta.sizeclass);
 
-          void* link = pointer_offset(this, meta.link);
-          p = remove_cache_friendly_offset(link, meta.sizeclass);
-
-          meta.set_full();
-          sl.pop();
-          p_has_value = true;
-        }
-        else
-        {
-          // Allocate the last object on the current page if there is one,
-          // and then thread the next free list worth of allocations.
-          bool crossed_page_boundary = false;
-          void* curr = nullptr;
-          while (true)
-          {
-            size_t newbumpptr = bumpptr + rsize;
-            auto alignedbumpptr = bits::align_up(bumpptr - 1, OS_PAGE_SIZE);
-            auto alignednewbumpptr = bits::align_up(newbumpptr, OS_PAGE_SIZE);
-
-            if (alignedbumpptr != alignednewbumpptr)
-            {
-              // We have crossed a page boundary already, so
-              // lets stop building our free list.
-              if (crossed_page_boundary)
-                break;
-
-              crossed_page_boundary = true;
-            }
-
-            if (curr == nullptr)
-            {
-              meta.head = pointer_offset(this, bumpptr);
-            }
-            else
-            {
-              Metaslab::store_next(
-                curr, (bumpptr == 1) ? nullptr : pointer_offset(this, bumpptr));
-            }
-            curr = pointer_offset(this, bumpptr);
-            bumpptr = newbumpptr;
-            meta.allocated = meta.allocated + 1;
-          }
-
-          SNMALLOC_ASSERT(curr != nullptr);
-          Metaslab::store_next(curr, nullptr);
-        }
-      }
-
-      if (!p_has_value)
-      {
-        p = meta.head;
-
-        // Read the next slot from the memory that's about to be allocated.
-        void* next = Metaslab::follow_next(p);
-        // Put everything in allocators small_class free list.
-        meta.head = nullptr;
-        fast_free_list.value = next;
-        // Treat stealing the free list as allocating it all.
-        // Link is not in use, i.e. - 1 is required.
-        meta.needed = meta.allocated - 1;
-
-        p = remove_cache_friendly_offset(p, meta.sizeclass);
-      }
+      // Treat stealing the free list as allocating it all.
+      meta.needed = meta.allocated;
+      meta.set_full();
+      sl.get_next()->remove();
 
       SNMALLOC_ASSERT(is_start_of_object(Superslab::get(p), p));
 
@@ -136,8 +77,59 @@ namespace snmalloc
         else
           memory_provider.template zero<true>(p, rsize);
       }
+      else
+      {
+        UNUSED(rsize);
+      }
 
       return p;
+    }
+
+    /**
+     * Given a bumpptr and a fast_free_list head reference, builds a new free
+     * list, and stores it in the fast_free_list. It will only create a page
+     * worth of allocations, or one if the allocation size is larger than a
+     * page.
+     */
+    static SNMALLOC_FAST_PATH void
+    alloc_new_list(void*& bumpptr, FreeListHead& fast_free_list, size_t rsize)
+    {
+      // Allocate the last object on the current page if there is one,
+      // and then thread the next free list worth of allocations.
+      bool crossed_page_boundary = false;
+      void* curr = nullptr;
+      while (true)
+      {
+        void* newbumpptr = pointer_offset(bumpptr, rsize);
+        auto alignedbumpptr =
+          bits::align_up(address_cast(bumpptr) - 1, OS_PAGE_SIZE);
+        auto alignednewbumpptr =
+          bits::align_up(address_cast(newbumpptr), OS_PAGE_SIZE);
+
+        if (alignedbumpptr != alignednewbumpptr)
+        {
+          // We have crossed a page boundary already, so
+          // lets stop building our free list.
+          if (crossed_page_boundary)
+            break;
+
+          crossed_page_boundary = true;
+        }
+
+        if (curr == nullptr)
+        {
+          fast_free_list.value = bumpptr;
+        }
+        else
+        {
+          Metaslab::store_next(curr, bumpptr);
+        }
+        curr = bumpptr;
+        bumpptr = newbumpptr;
+      }
+
+      SNMALLOC_ASSERT(curr != nullptr);
+      Metaslab::store_next(curr, nullptr);
     }
 
     bool is_start_of_object(Superslab* super, void* p)
@@ -204,13 +196,13 @@ namespace snmalloc
         meta.needed = meta.allocated - 1;
 
         // Push on the list of slabs for this sizeclass.
-        sl->insert_back(meta.get_link(this));
+        sl->insert_prev(meta.get_link(this));
         meta.debug_slab_invariant(this);
         return Superslab::NoSlabReturn;
       }
 
       // Remove from the sizeclass list and dealloc on the superslab.
-      sl->remove(meta.get_link(this));
+      meta.get_link(this)->remove();
 
       if (is_short())
         return super->dealloc_short_slab();

@@ -6,24 +6,32 @@
 
 namespace snmalloc
 {
-  inline void* lazy_replacement(void*);
-  using Alloc =
-    Allocator<GlobalVirtual, SNMALLOC_DEFAULT_CHUNKMAP, true, lazy_replacement>;
+  inline bool needs_initialisation(void*);
+  void* init_thread_allocator();
+
+  using Alloc = Allocator<
+    needs_initialisation,
+    init_thread_allocator,
+    GlobalVirtual,
+    SNMALLOC_DEFAULT_CHUNKMAP,
+    true>;
 
   template<class MemoryProvider>
   class AllocPool : Pool<
                       Allocator<
+                        needs_initialisation,
+                        init_thread_allocator,
                         MemoryProvider,
                         SNMALLOC_DEFAULT_CHUNKMAP,
-                        true,
-                        lazy_replacement>,
+                        true>,
                       MemoryProvider>
   {
     using Alloc = Allocator<
+      needs_initialisation,
+      init_thread_allocator,
       MemoryProvider,
       SNMALLOC_DEFAULT_CHUNKMAP,
-      true,
-      lazy_replacement>;
+      true>;
     using Parent = Pool<Alloc, MemoryProvider>;
 
   public:

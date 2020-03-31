@@ -48,7 +48,7 @@ namespace snmalloc
    *
    * Wraps on read. This allows code to trust the value is in range, even when
    * there is a memory corruption.
-   **/
+   */
   template<size_t length, typename T>
   class Mod
   {

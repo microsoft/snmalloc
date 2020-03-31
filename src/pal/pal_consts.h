@@ -62,7 +62,7 @@ namespace snmalloc
    * This struct is used to represent callbacks for notification from the
    * platform. It contains a next pointer as client is responsible for
    * allocation as we cannot assume an allocator at this point.
-   **/
+   */
   struct PalNotificationObject
   {
     std::atomic<PalNotificationObject*> pal_next;
@@ -72,12 +72,12 @@ namespace snmalloc
 
   /***
    * Wrapper for managing notifications for PAL events
-   **/
+   */
   class PalNotifier
   {
     /**
      * List of callbacks to notify
-     **/
+     */
     std::atomic<PalNotificationObject*> callbacks = nullptr;
 
   public:
@@ -86,7 +86,7 @@ namespace snmalloc
      *
      * The object should never be deallocated by the client after calling
      * this.
-     **/
+     */
     void register_notification(PalNotificationObject* callback)
     {
       callback->pal_next = nullptr;
@@ -105,7 +105,7 @@ namespace snmalloc
 
     /**
      * Calls the pal_notify of all the registered objects.
-     **/
+     */
     void notify_all()
     {
       PalNotificationObject* curr = callbacks;

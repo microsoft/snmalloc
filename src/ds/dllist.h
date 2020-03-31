@@ -94,12 +94,12 @@ namespace snmalloc
       return *this;
     }
 
-    bool is_empty()
+    SNMALLOC_FAST_PATH bool is_empty()
     {
       return head == Terminator();
     }
 
-    T* get_head()
+    SNMALLOC_FAST_PATH T* get_head()
     {
       return head;
     }
@@ -109,7 +109,7 @@ namespace snmalloc
       return tail;
     }
 
-    T* pop()
+    SNMALLOC_FAST_PATH T* pop()
     {
       T* item = head;
 
@@ -169,7 +169,7 @@ namespace snmalloc
 #endif
     }
 
-    void remove(T* item)
+    SNMALLOC_FAST_PATH void remove(T* item)
     {
 #ifndef NDEBUG
       debug_check_contains(item);

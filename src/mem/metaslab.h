@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../ds/cdllist.h"
 #include "../ds/dllist.h"
 #include "../ds/helpers.h"
 #include "sizeclass.h"
@@ -8,18 +9,13 @@ namespace snmalloc
 {
   class Slab;
 
-  struct SlabLink
+  using SlabList = CDLLNode;
+  using SlabLink = CDLLNode;
+
+  SNMALLOC_FAST_PATH Slab* get_slab(SlabLink* sl)
   {
-    SlabLink* prev;
-    SlabLink* next;
-
-    Slab* get_slab()
-    {
-      return pointer_align_down<SLAB_SIZE, Slab>(this);
-    }
-  };
-
-  using SlabList = DLList<SlabLink>;
+    return pointer_align_down<SLAB_SIZE, Slab>(sl);
+  }
 
   static_assert(
     sizeof(SlabLink) <= MIN_ALLOC_SIZE,
@@ -68,7 +64,7 @@ namespace snmalloc
      *  - empty adding the entry to the free list, or
      *  - was full before the subtraction
      * this returns true, otherwise returns false.
-     **/
+     */
     bool return_object()
     {
       return (--needed) == 0;
@@ -86,7 +82,7 @@ namespace snmalloc
       return result;
     }
 
-    void set_full()
+    SNMALLOC_FAST_PATH void set_full()
     {
       SNMALLOC_ASSERT(head == nullptr);
       SNMALLOC_ASSERT(link != 1);
@@ -161,7 +157,7 @@ namespace snmalloc
      * https://en.wikipedia.org/wiki/Cycle_detection#Floyd's_Tortoise_and_Hare
      * We don't expect a cycle, so worst case is only followed by a crash, so
      * slow doesn't mater.
-     **/
+     */
     size_t debug_slab_acyclic_free_list(Slab* slab)
     {
 #ifndef NDEBUG

@@ -40,13 +40,23 @@ namespace snmalloc
 
   /**
    * Function passed as a template parameter to `Allocator` to allow lazy
-   * replacement.  In this case we are assuming the underlying external thread
-   * alloc is performing initialization, so this is not required, and just
-   * always returns nullptr to specify no new allocator is required.
+   * replacement. This function returns true, if the allocator passed in
+   * requires initialisation. As the TLS state is managed externally,
+   * this will always return false.
    */
-  SNMALLOC_FAST_PATH void* lazy_replacement(void* existing)
+  SNMALLOC_FAST_PATH bool needs_initialisation(void* existing)
   {
     UNUSED(existing);
+    return false;
+  }
+
+  /**
+   * Function passed as a tempalte parameter to `Allocator` to allow lazy
+   * replacement.  There is nothing to initialise in this case, so we expect
+   * this to never be called.
+   */
+  SNMALLOC_FAST_PATH void* init_thread_allocator()
+  {
     return nullptr;
   }
 
@@ -58,10 +68,21 @@ namespace snmalloc
    * slabs to allocate from, it will discover that it is the placeholder and
    * replace itself with the thread-local allocator, allocating one if
    * required.  This avoids a branch on the fast path.
+   *
+   * The fake allocator is a zero initialised area of memory of the correct
+   * size. All data structures used potentially before initialisation must be
+   * okay with zero init to move to the slow path, that is, zero must signify
+   * empty.
    */
-  inline GlobalVirtual dummy_memory_provider;
-  inline Alloc GlobalPlaceHolder(
-    dummy_memory_provider, SNMALLOC_DEFAULT_CHUNKMAP(), nullptr, true);
+  inline const char GlobalPlaceHolder[sizeof(Alloc)] = {0};
+  inline Alloc* get_GlobalPlaceHolder()
+  {
+    // This cast is not legal.  Effectively, we want a minimal constructor
+    // for the global allocator as zero, and then a second constructor for
+    // the rest.  This is UB.
+    auto a = reinterpret_cast<const Alloc*>(&GlobalPlaceHolder);
+    return const_cast<Alloc*>(a);
+  }
 
   /**
    * Common aspects of thread local allocator. Subclasses handle how releasing
@@ -69,22 +90,22 @@ namespace snmalloc
    */
   class ThreadAllocCommon
   {
-    friend void* lazy_replacement_slow();
+    friend void* init_thread_allocator();
 
   protected:
     static inline void inner_release()
     {
       auto& per_thread = get_reference();
-      if (per_thread != &GlobalPlaceHolder)
+      if (per_thread != get_GlobalPlaceHolder())
       {
         current_alloc_pool()->release(per_thread);
-        per_thread = &GlobalPlaceHolder;
+        per_thread = get_GlobalPlaceHolder();
       }
     }
 
     /**
      * Default clean up does nothing except print statistics if enabled.
-     **/
+     */
     static void register_cleanup()
     {
 #  ifdef USE_SNMALLOC_STATS
@@ -113,7 +134,7 @@ namespace snmalloc
      */
     static inline Alloc*& get_reference()
     {
-      static thread_local Alloc* alloc = &GlobalPlaceHolder;
+      static thread_local Alloc* alloc = get_GlobalPlaceHolder();
       return alloc;
     }
 
@@ -147,10 +168,11 @@ namespace snmalloc
       return get_reference();
 #  else
       auto alloc = get_reference();
-      auto new_alloc = lazy_replacement(alloc);
-      return (likely(new_alloc == nullptr)) ?
-        alloc :
-        reinterpret_cast<Alloc*>(new_alloc);
+      if (unlikely(needs_initialisation(alloc)))
+      {
+        alloc = reinterpret_cast<Alloc*>(init_thread_allocator());
+      }
+      return alloc;
 #  endif
     }
   };
@@ -215,35 +237,38 @@ namespace snmalloc
 #  endif
 
   /**
-   * Slow path for the placeholder replacement.  The simple check that this is
-   * the global placeholder is inlined, the rest of it is only hit in a very
-   * unusual case and so should go off the fast path.
+   * Slow path for the placeholder replacement.
+   * Function passed as a tempalte parameter to `Allocator` to allow lazy
+   * replacement.  This function initialises the thread local state if requried.
+   * The simple check that this is the global placeholder is inlined, the rest
+   * of it is only hit in a very unusual case and so should go off the fast
+   * path.
    */
-  SNMALLOC_SLOW_PATH inline void* lazy_replacement_slow()
+  SNMALLOC_SLOW_PATH inline void* init_thread_allocator()
   {
     auto*& local_alloc = ThreadAlloc::get_reference();
-    SNMALLOC_ASSERT(local_alloc == &GlobalPlaceHolder);
+    if (local_alloc != get_GlobalPlaceHolder())
+    {
+      // If someone reuses a noncachable call, then we can end up here.
+      // The allocator has already been initialised. Could either error
+      // to say stop doing this, or just give them the initialised version.
+      return local_alloc;
+    }
     local_alloc = current_alloc_pool()->acquire();
-    SNMALLOC_ASSERT(local_alloc != &GlobalPlaceHolder);
+    SNMALLOC_ASSERT(local_alloc != get_GlobalPlaceHolder());
     ThreadAlloc::register_cleanup();
     return local_alloc;
   }
 
   /**
    * Function passed as a template parameter to `Allocator` to allow lazy
-   * replacement.  This is called on all of the slow paths in `Allocator`.  If
-   * the caller is the global placeholder allocator then this function will
-   * check if we've already allocated a per-thread allocator, returning it if
-   * so.  If we have not allocated a per-thread allocator yet, then this
-   * function will allocate one.
+   * replacement. This function returns true, if the allocated passed in,
+   * is the placeholder allocator.  If it returns true, then
+   * `init_thread_allocator` should be called.
    */
-  SNMALLOC_FAST_PATH void* lazy_replacement(void* existing)
+  SNMALLOC_FAST_PATH bool needs_initialisation(void* existing)
   {
-    if (existing != &GlobalPlaceHolder)
-    {
-      return nullptr;
-    }
-    return lazy_replacement_slow();
+    return existing == get_GlobalPlaceHolder();
   }
 #endif
 } // namespace snmalloc

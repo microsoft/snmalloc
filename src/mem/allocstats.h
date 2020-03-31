@@ -125,7 +125,9 @@ namespace snmalloc
         bits::one_at_bit(bits::ADDRESS_BITS - 1));
 
     Stats sizeclass[N];
-    Stats large[LARGE_N];
+
+    size_t large_pop_count[LARGE_N] = {0};
+    size_t large_push_count[LARGE_N] = {0};
 
     size_t remote_freed = 0;
     size_t remote_posted = 0;
@@ -159,7 +161,7 @@ namespace snmalloc
 
       for (size_t i = 0; i < LARGE_N; i++)
       {
-        if (!large[i].is_empty())
+        if (large_push_count[i] != large_pop_count[i])
           return false;
       }
 
@@ -194,7 +196,7 @@ namespace snmalloc
       UNUSED(sc);
 
 #ifdef USE_SNMALLOC_STATS
-      large[sc].count.inc();
+      large_pop_count[sc]++;
 #endif
     }
 
@@ -223,7 +225,7 @@ namespace snmalloc
       UNUSED(sc);
 
 #ifdef USE_SNMALLOC_STATS
-      large[sc].count.dec();
+      large_push_count[sc]++;
 #endif
     }
 
@@ -289,7 +291,10 @@ namespace snmalloc
         sizeclass[i].add(that.sizeclass[i]);
 
       for (size_t i = 0; i < LARGE_N; i++)
-        large[i].add(that.large[i]);
+      {
+        large_push_count[i] += that.large_push_count[i];
+        large_pop_count[i] += that.large_pop_count[i];
+      }
 
       for (size_t i = 0; i < TOTAL_BUCKETS; i++)
         bucketed_requests[i] += that.bucketed_requests[i];
@@ -343,6 +348,14 @@ namespace snmalloc
             << "Average Slab Usage"
             << "Average wasted space" << csv.endl;
 
+        csv << "LargeBucketedStats"
+            << "DumpID"
+            << "AllocatorID"
+            << "Size group"
+            << "Size"
+            << "Push count"
+            << "Pop count" << csv.endl;
+
         csv << "AllocSizes"
             << "DumpID"
             << "AllocatorID"
@@ -367,13 +380,12 @@ namespace snmalloc
 
       for (uint8_t i = 0; i < LARGE_N; i++)
       {
-        if (large[i].count.is_unused())
+        if ((large_push_count[i] == 0) && (large_pop_count[i] == 0))
           continue;
 
-        csv << "BucketedStats" << dumpid << allocatorid << (i + N)
-            << large_sizeclass_to_size(i);
-
-        large[i].print(csv, large_sizeclass_to_size(i));
+        csv << "LargeBucketedStats" << dumpid << allocatorid << (i + N)
+            << large_sizeclass_to_size(i) << large_push_count[i]
+            << large_pop_count[i] << csv.endl;
       }
 
       size_t low = 0;
