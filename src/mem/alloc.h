@@ -78,7 +78,8 @@ namespace snmalloc
    */
   template<
     bool (*NeedsInitialisation)(void*),
-    void* (*InitThreadAllocator)(),
+    std::pair<void*, bool> (*InitThreadAllocator)(),
+    void (*ReleaseThreadAllocator)(),
     class MemoryProvider = GlobalVirtual,
     class ChunkMap = SNMALLOC_DEFAULT_CHUNKMAP,
     bool IsQueueInline = true>
@@ -86,6 +87,7 @@ namespace snmalloc
                     public Pooled<Allocator<
                       NeedsInitialisation,
                       InitThreadAllocator,
+                      ReleaseThreadAllocator,
                       MemoryProvider,
                       ChunkMap,
                       IsQueueInline>>
@@ -513,6 +515,7 @@ namespace snmalloc
         constexpr size_t allocator_size = sizeof(Allocator<
                                                  NeedsInitialisation,
                                                  InitThreadAllocator,
+                                                 ReleaseThreadAllocator,
                                                  MemoryProvider,
                                                  ChunkMap,
                                                  IsQueueInline>);
@@ -1107,8 +1110,14 @@ namespace snmalloc
     small_alloc_first_alloc(sizeclass_t sizeclass, size_t size)
     {
       auto replacement = InitThreadAllocator();
-      return reinterpret_cast<Allocator*>(replacement)
-        ->template small_alloc_inner<zero_mem, allow_reserve>(sizeclass, size);
+      auto result = reinterpret_cast<Allocator*>(replacement.first)
+                      ->template small_alloc_inner<zero_mem, allow_reserve>(
+                        sizeclass, size);
+      if (replacement.second)
+      {
+        ReleaseThreadAllocator();
+      }
+      return result;
     }
 
     /**
@@ -1285,10 +1294,15 @@ namespace snmalloc
       {
         if (NeedsInitialisation(this))
         {
-          void* replacement = InitThreadAllocator();
-          return reinterpret_cast<Allocator*>(replacement)
-            ->template medium_alloc<zero_mem, allow_reserve>(
-              sizeclass, rsize, size);
+          auto replacement = InitThreadAllocator();
+          auto result = reinterpret_cast<Allocator*>(replacement.first)
+                          ->template medium_alloc<zero_mem, allow_reserve>(
+                            sizeclass, rsize, size);
+          if (replacement.second)
+          {
+            ReleaseThreadAllocator();
+          }
+          return result;
         }
         slab = reinterpret_cast<Mediumslab*>(
           large_allocator.template alloc<NoZero, allow_reserve>(
@@ -1359,9 +1373,14 @@ namespace snmalloc
 
       if (NeedsInitialisation(this))
       {
-        void* replacement = InitThreadAllocator();
-        return reinterpret_cast<Allocator*>(replacement)
-          ->template large_alloc<zero_mem, allow_reserve>(size);
+        auto replacement = InitThreadAllocator();
+        auto result = reinterpret_cast<Allocator*>(replacement.first)
+                        ->template large_alloc<zero_mem, allow_reserve>(size);
+        if (replacement.second)
+        {
+          ReleaseThreadAllocator();
+        }
+        return result;
       }
 
       size_t size_bits = bits::next_pow2_bits(size);
@@ -1386,9 +1405,13 @@ namespace snmalloc
 
       if (NeedsInitialisation(this))
       {
-        void* replacement = InitThreadAllocator();
-        return reinterpret_cast<Allocator*>(replacement)
-          ->large_dealloc(p, size);
+        auto replacement = InitThreadAllocator();
+        reinterpret_cast<Allocator*>(replacement.first)->large_dealloc(p, size);
+        if (replacement.second)
+        {
+          ReleaseThreadAllocator();
+        }
+        return;
       }
 
       size_t size_bits = bits::next_pow2_bits(size);
@@ -1439,10 +1462,12 @@ namespace snmalloc
       // a real allocator and construct one if we aren't.
       if (NeedsInitialisation(this))
       {
-        void* replacement = InitThreadAllocator();
-        // We have to do a dealloc, not a remote_dealloc here because this may
-        // have been allocated with the allocator that we've just had returned.
-        reinterpret_cast<Allocator*>(replacement)->dealloc(p);
+        auto replacement = InitThreadAllocator();
+        reinterpret_cast<Allocator*>(replacement.first)->dealloc(p);
+        if (replacement.second)
+        {
+          ReleaseThreadAllocator();
+        }
         return;
       }
 

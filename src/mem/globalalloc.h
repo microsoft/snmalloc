@@ -7,11 +7,13 @@
 namespace snmalloc
 {
   inline bool needs_initialisation(void*);
-  void* init_thread_allocator();
+  std::pair<void*, bool> init_thread_allocator();
+  void release_thread_allocator();
 
   using Alloc = Allocator<
     needs_initialisation,
     init_thread_allocator,
+    release_thread_allocator,
     GlobalVirtual,
     SNMALLOC_DEFAULT_CHUNKMAP,
     true>;
@@ -21,6 +23,7 @@ namespace snmalloc
                       Allocator<
                         needs_initialisation,
                         init_thread_allocator,
+                        release_thread_allocator,
                         MemoryProvider,
                         SNMALLOC_DEFAULT_CHUNKMAP,
                         true>,
@@ -29,6 +32,7 @@ namespace snmalloc
     using Alloc = Allocator<
       needs_initialisation,
       init_thread_allocator,
+      release_thread_allocator,
       MemoryProvider,
       SNMALLOC_DEFAULT_CHUNKMAP,
       true>;
