@@ -83,17 +83,22 @@ void f(size_t size)
   t6.join();
   t7.join();
   t8.join();
+  printf(".");
+  fflush(stdout);
 }
 
 int main(int, char**)
 {
   setup();
+  printf(".");
+  fflush(stdout);
 
   f(0);
   f(1);
   f(3);
   f(5);
   f(7);
+  printf("\n");
   for (size_t exp = 1; exp < snmalloc::SUPERSLAB_BITS; exp++)
   {
     f(1ULL << exp);
@@ -108,5 +113,6 @@ int main(int, char**)
     f((3ULL << exp) - 1);
     f((5ULL << exp) - 1);
     f((7ULL << exp) - 1);
+    printf("\n");
   }
 }
