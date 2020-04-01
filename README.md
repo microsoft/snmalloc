@@ -40,7 +40,9 @@ to link `libatomic` statically, I have to use dynamic linking. Hence, please mak
 This is the best thing I can do for current stage, if you have any better solution, please do help me to provide a better support for
 `MinGW`
 ## Changelog
-
+### 0.2.9                                                                                                 - **upstream** fix OpenEnclave
+- **upstream** adjust remote batch size (performance improved dramatically, see [benchmark](https://github.com/microsoft/snmalloc/pull/158#issuecomment-605816017)
+- **upstream** improve slow path performance for allocation
 ### 0.2.8
 
 - More CI (**ARM64 on QEMU**)
@@ -51,7 +53,5 @@ This is the best thing I can do for current stage, if you have any better soluti
 - partially fixed `mingw`
 - **upstream** remote dealloc refactor (higher performance)
 - **upstream** remove extra assertions
-### 0.2.6
-- fix `macos`/`freebsd ` support
-- add more ci tests
-- mark the `mingw` problem
+
+for older versions, see [CHANGELOG](CHANGELOG.md) 
