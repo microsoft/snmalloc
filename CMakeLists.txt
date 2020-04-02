@@ -147,6 +147,10 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
   else()
     add_compile_options(-fno-exceptions -fno-rtti -g -ftls-model=initial-exec -fomit-frame-pointer)
+    if(SNMALLOC_CI_BUILD OR (${CMAKE_BUILD_TYPE} MATCHES "Debug"))
+      # Get better stack traces in CI and Debug.
+      target_link_libraries(snmalloc_lib INTERFACE "-rdynamic")
+    endif()
 
     if((${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64") OR
        (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86") OR

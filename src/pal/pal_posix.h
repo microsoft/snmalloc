@@ -2,10 +2,12 @@
 
 #include "../ds/address.h"
 #include "../mem/allocconfig.h"
-
+#include <execinfo.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <unistd.h>
 
 extern "C" int puts(const char* str);
 
@@ -40,7 +42,16 @@ namespace snmalloc
      */
     static void error(const char* const str) noexcept
     {
+      constexpr int SIZE = 1024;
+      void *buffer[SIZE];
+
       puts(str);
+      fflush(stdout);
+
+      auto nptrs = backtrace(buffer, SIZE);
+      backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
+      fflush(stdout);
+
       abort();
     }
 
