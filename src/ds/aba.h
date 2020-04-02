@@ -2,13 +2,24 @@
 
 #include "bits.h"
 
+/**
+ * This file contains an abstraction of ABA protection. This API should be
+ * implementable with double-word compare and exchange or with load-link
+ * store conditional.
+ *
+ * We provide a lock based implementation.
+ */
 namespace snmalloc
 {
+#ifdef PLATFORM_IS_X86
+  // LL/SC typically can only perform one operation at a time
+  // check this on other platforms using a thread_local.
+  inline thread_local bool operation_in_flight = false;
+
   template<typename T, Construction c = RequiresInit>
   class ABA
   {
   public:
-#ifdef PLATFORM_IS_X86
     struct alignas(2 * sizeof(std::size_t)) Linked
     {
       T* ptr;
@@ -28,21 +39,12 @@ namespace snmalloc
       sizeof(Linked) == (2 * sizeof(std::size_t)),
       "Expecting ABA to be the size of two pointers");
 
-    using Cmp = Linked;
-#else
-    using Cmp = T*;
-#endif
-
   private:
-#ifdef PLATFORM_IS_X86
     union
     {
       alignas(2 * sizeof(std::size_t)) std::atomic<Linked> linked;
       Independent independent;
     };
-#else
-    std::atomic<T*> raw;
-#endif
 
   public:
     ABA()
@@ -53,66 +55,102 @@ namespace snmalloc
 
     void init(T* x)
     {
-#ifdef PLATFORM_IS_X86
       independent.ptr.store(x, std::memory_order_relaxed);
       independent.aba.store(0, std::memory_order_relaxed);
-#else
-      raw.store(x, std::memory_order_relaxed);
-#endif
     }
 
-    T* peek()
-    {
-      return
-#ifdef PLATFORM_IS_X86
-        independent.ptr.load(std::memory_order_relaxed);
-#else
-        raw.load(std::memory_order_relaxed);
-#endif
-    }
+    struct Cmp;
 
     Cmp read()
     {
+      if (operation_in_flight)
+        error("Only one inflight ABA operation at a time is allowed.");
+      operation_in_flight = true;
+
       return
-#ifdef PLATFORM_IS_X86
-        Cmp{independent.ptr.load(std::memory_order_relaxed),
-            independent.aba.load(std::memory_order_relaxed)};
-#else
-        raw.load(std::memory_order_relaxed);
-#endif
+        Cmp{{independent.ptr.load(std::memory_order_relaxed),
+            independent.aba.load(std::memory_order_relaxed)},
+            this};
     }
 
-    static T* ptr(Cmp& from)
-    {
-#ifdef PLATFORM_IS_X86
-      return from.ptr;
-#else
-      return from;
-#endif
-    }
+    struct Cmp {
+      Linked old;
+      ABA* parent;
 
-    bool compare_exchange(Cmp& expect, T* value)
-    {
-#ifdef PLATFORM_IS_X86
+      T* ptr()
+      {
+        return old.ptr;
+      }
+
+      bool store_conditional(T* value)
+      {
 #  if defined(_MSC_VER) && defined(SNMALLOC_VA_BITS_64)
-      return _InterlockedCompareExchange128(
-        (volatile __int64*)&linked,
-        (__int64)(expect.aba + (uintptr_t)1),
-        (__int64)value,
-        (__int64*)&expect);
+        auto result = _InterlockedCompareExchange128(
+          (volatile __int64*)parent,
+          (__int64)(old.aba + (uintptr_t)1),
+          (__int64)value,
+          (__int64*)&old);
 #  else
 #    if defined(__GNUC__) && !defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_16)
 #error You must compile with -mcx16 to enable 16-byte atomic compare and swap.
 #    endif
-      Cmp xchg{value, expect.aba + 1};
+        Linked xchg{value, old.aba + 1};
+        std::atomic<Linked>& addr = parent->linked;
 
-      return linked.compare_exchange_weak(
-        expect, xchg, std::memory_order_relaxed, std::memory_order_relaxed);
+        auto result = addr.compare_exchange_weak(
+          old, xchg, std::memory_order_relaxed, std::memory_order_relaxed);
 #  endif
-#else
-      return raw.compare_exchange_weak(
-        expect, value, std::memory_order_relaxed, std::memory_order_relaxed);
-#endif
-    }
+        return result;
+      }
+
+      ~Cmp()
+      {
+        operation_in_flight = false;
+      }
+
+      Cmp(const Cmp&) = delete;
+    };
   };
+#else
+  /**
+   * Naive implementation of ABA protection using a spin lock.
+   */
+  template<typename T, Construction c = RequiresInit>
+  class ABA
+  {
+    std::atomic<T*> ptr = nullptr;
+    std::atomic_flag lock = ATOMIC_FLAG_INIT;
+  public:
+    struct Cmp;
+
+    Cmp read()
+    {
+      while (lock.test_and_set(std::memory_order_acquire))
+        Aal::pause();
+
+      return Cmp{this};
+    }
+
+    struct Cmp
+    {
+      ABA* parent;
+    public:
+      T* ptr()
+      {
+        return parent->ptr;
+      }
+
+      bool store_conditional(T* t)
+      {
+        parent->ptr = t;
+        return true;
+      }
+
+      ~Cmp()
+      {
+        parent->lock.clear(std::memory_order_release);
+      }
+    };
+  };
+#endif
 } // namespace snmalloc
