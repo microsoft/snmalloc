@@ -47,7 +47,8 @@ namespace snmalloc
     { \
       if (!(expr)) \
       { \
-        snmalloc::error("assert fail: " #expr " in " __FILE__ " on " TOSTRING(__LINE__)); \
+        snmalloc::error("assert fail: " #expr " in " __FILE__ \
+                        " on " TOSTRING(__LINE__)); \
       } \
     }
 #endif

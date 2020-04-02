@@ -2,9 +2,10 @@
 
 #include "../ds/address.h"
 #include "../mem/allocconfig.h"
+
 #include <execinfo.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -43,7 +44,7 @@ namespace snmalloc
     static void error(const char* const str) noexcept
     {
       constexpr int SIZE = 1024;
-      void *buffer[SIZE];
+      void* buffer[SIZE];
 
       puts(str);
       fflush(stdout);

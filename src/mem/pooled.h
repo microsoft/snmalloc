@@ -30,6 +30,5 @@ namespace snmalloc
     {
       in_use.clear();
     }
-
   };
 } // namespace snmalloc

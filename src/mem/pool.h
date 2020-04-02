@@ -92,7 +92,7 @@ namespace snmalloc
 
     /**
      * Return to the pool a list of object previously retrieved by `extract`
-     * 
+     *
      * Do not return objects from `acquire`.
      */
     void restore(T* first, T* last)
