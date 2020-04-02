@@ -94,42 +94,23 @@ namespace snmalloc
     static SNMALLOC_FAST_PATH void
     alloc_new_list(void*& bumpptr, FreeListHead& fast_free_list, size_t rsize)
     {
-      // Allocate the last object on the current page if there is one,
-      // and then thread the next free list worth of allocations.
-      bool crossed_page_boundary = false;
-      void* curr = nullptr;
-      while (true)
+      fast_free_list.value = bumpptr;
+      void* newbumpptr = pointer_offset(bumpptr, rsize);
+      void* slab_end = pointer_align_up<SLAB_SIZE>(newbumpptr);
+      void* slab_end2 =
+        pointer_align_up<OS_PAGE_SIZE>(pointer_offset(bumpptr, rsize * 32));
+      if (slab_end2 < slab_end)
+        slab_end = slab_end2;
+
+      while (newbumpptr < slab_end)
       {
-        void* newbumpptr = pointer_offset(bumpptr, rsize);
-        auto alignedbumpptr =
-          bits::align_up(address_cast(bumpptr) - 1, OS_PAGE_SIZE);
-        auto alignednewbumpptr =
-          bits::align_up(address_cast(newbumpptr), OS_PAGE_SIZE);
-
-        if (alignedbumpptr != alignednewbumpptr)
-        {
-          // We have crossed a page boundary already, so
-          // lets stop building our free list.
-          if (crossed_page_boundary)
-            break;
-
-          crossed_page_boundary = true;
-        }
-
-        if (curr == nullptr)
-        {
-          fast_free_list.value = bumpptr;
-        }
-        else
-        {
-          Metaslab::store_next(curr, bumpptr);
-        }
-        curr = bumpptr;
+        Metaslab::store_next(bumpptr, newbumpptr);
         bumpptr = newbumpptr;
+        newbumpptr = pointer_offset(bumpptr, rsize);
       }
 
-      SNMALLOC_ASSERT(curr != nullptr);
-      Metaslab::store_next(curr, nullptr);
+      Metaslab::store_next(bumpptr, nullptr);
+      bumpptr = newbumpptr;
     }
 
     bool is_start_of_object(Superslab* super, void* p)
