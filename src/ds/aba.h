@@ -67,13 +67,13 @@ namespace snmalloc
         error("Only one inflight ABA operation at a time is allowed.");
       operation_in_flight = true;
 
-      return
-        Cmp{{independent.ptr.load(std::memory_order_relaxed),
-            independent.aba.load(std::memory_order_relaxed)},
-            this};
+      return Cmp{{independent.ptr.load(std::memory_order_relaxed),
+                  independent.aba.load(std::memory_order_relaxed)},
+                 this};
     }
 
-    struct Cmp {
+    struct Cmp
+    {
       Linked old;
       ABA* parent;
 
@@ -120,6 +120,7 @@ namespace snmalloc
   {
     std::atomic<T*> ptr = nullptr;
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
+
   public:
     struct Cmp;
 
@@ -134,6 +135,7 @@ namespace snmalloc
     struct Cmp
     {
       ABA* parent;
+
     public:
       T* ptr()
       {
