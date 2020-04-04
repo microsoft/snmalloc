@@ -17,6 +17,8 @@
 #include "sizeclasstable.h"
 #include "slab.h"
 
+#include <functional>
+
 namespace snmalloc
 {
   enum Boundary
@@ -78,8 +80,7 @@ namespace snmalloc
    */
   template<
     bool (*NeedsInitialisation)(void*),
-    std::pair<void*, bool> (*InitThreadAllocator)(),
-    void (*ReleaseThreadAllocator)(),
+    void* (*InitThreadAllocator)(std::function<void*(void*)>&),
     class MemoryProvider = GlobalVirtual,
     class ChunkMap = SNMALLOC_DEFAULT_CHUNKMAP,
     bool IsQueueInline = true>
@@ -87,7 +88,6 @@ namespace snmalloc
                     public Pooled<Allocator<
                       NeedsInitialisation,
                       InitThreadAllocator,
-                      ReleaseThreadAllocator,
                       MemoryProvider,
                       ChunkMap,
                       IsQueueInline>>
@@ -515,7 +515,6 @@ namespace snmalloc
         constexpr size_t allocator_size = sizeof(Allocator<
                                                  NeedsInitialisation,
                                                  InitThreadAllocator,
-                                                 ReleaseThreadAllocator,
                                                  MemoryProvider,
                                                  ChunkMap,
                                                  IsQueueInline>);
@@ -1098,7 +1097,7 @@ namespace snmalloc
         stats().sizeclass_alloc(sizeclass);
         return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass);
       }
-      return small_alloc_first_alloc<zero_mem, allow_reserve>(sizeclass, size);
+      return small_alloc_first_alloc<zero_mem, allow_reserve>(size);
     }
 
     /**
@@ -1106,18 +1105,12 @@ namespace snmalloc
      * then directs the allocation request to the newly created allocator.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void*
-    small_alloc_first_alloc(sizeclass_t sizeclass, size_t size)
+    SNMALLOC_SLOW_PATH void* small_alloc_first_alloc(size_t size)
     {
-      auto replacement = InitThreadAllocator();
-      auto result = reinterpret_cast<Allocator*>(replacement.first)
-                      ->template small_alloc_inner<zero_mem, allow_reserve>(
-                        sizeclass, size);
-      if (replacement.second)
-      {
-        ReleaseThreadAllocator();
-      }
-      return result;
+      std::function<void*(void*)> f = [size](void* alloc) {
+        return reinterpret_cast<Allocator*>(alloc)->alloc(size);
+      };
+      return InitThreadAllocator(f);
     }
 
     /**
@@ -1294,15 +1287,10 @@ namespace snmalloc
       {
         if (NeedsInitialisation(this))
         {
-          auto replacement = InitThreadAllocator();
-          auto result = reinterpret_cast<Allocator*>(replacement.first)
-                          ->template medium_alloc<zero_mem, allow_reserve>(
-                            sizeclass, rsize, size);
-          if (replacement.second)
-          {
-            ReleaseThreadAllocator();
-          }
-          return result;
+          std::function<void*(void*)> f = [size](void* alloc) {
+            return reinterpret_cast<Allocator*>(alloc)->alloc(size);
+          };
+          return InitThreadAllocator(f);
         }
         slab = reinterpret_cast<Mediumslab*>(
           large_allocator.template alloc<NoZero, allow_reserve>(
@@ -1373,14 +1361,10 @@ namespace snmalloc
 
       if (NeedsInitialisation(this))
       {
-        auto replacement = InitThreadAllocator();
-        auto result = reinterpret_cast<Allocator*>(replacement.first)
-                        ->template large_alloc<zero_mem, allow_reserve>(size);
-        if (replacement.second)
-        {
-          ReleaseThreadAllocator();
-        }
-        return result;
+        std::function<void*(void*)> f = [size](void* alloc) {
+          return reinterpret_cast<Allocator*>(alloc)->alloc(size);
+        };
+        return InitThreadAllocator(f);
       }
 
       size_t size_bits = bits::next_pow2_bits(size);
@@ -1405,12 +1389,11 @@ namespace snmalloc
 
       if (NeedsInitialisation(this))
       {
-        auto replacement = InitThreadAllocator();
-        reinterpret_cast<Allocator*>(replacement.first)->large_dealloc(p, size);
-        if (replacement.second)
-        {
-          ReleaseThreadAllocator();
-        }
+        std::function<void*(void*)> f = [p](void* alloc) {
+          reinterpret_cast<Allocator*>(alloc)->dealloc(p);
+          return nullptr;
+        };
+        InitThreadAllocator(f);
         return;
       }
 
@@ -1462,12 +1445,11 @@ namespace snmalloc
       // a real allocator and construct one if we aren't.
       if (NeedsInitialisation(this))
       {
-        auto replacement = InitThreadAllocator();
-        reinterpret_cast<Allocator*>(replacement.first)->dealloc(p);
-        if (replacement.second)
-        {
-          ReleaseThreadAllocator();
-        }
+        std::function<void*(void*)> f = [p](void* alloc) {
+          reinterpret_cast<Allocator*>(alloc)->dealloc(p);
+          return nullptr;
+        };
+        InitThreadAllocator(f);
         return;
       }
 

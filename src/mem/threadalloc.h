@@ -51,16 +51,14 @@ namespace snmalloc
   }
 
   /**
-   * Function passed as a tempalte parameter to `Allocator` to allow lazy
+   * Function passed as a template parameter to `Allocator` to allow lazy
    * replacement.  There is nothing to initialise in this case, so we expect
    * this to never be called.
    */
-  SNMALLOC_FAST_PATH std::pair<void*, bool> init_thread_allocator()
+  SNMALLOC_FAST_PATH void* init_thread_allocator(std::function<void*(void*)>& f)
   {
-    return std::pair(nullptr, false);
+    return f(nullptr);
   }
-
-  SNMALLOC_FAST_PATH void release_thread_allocator() {}
 
   using ThreadAlloc = ThreadAllocUntypedWrapper;
 #else
@@ -92,10 +90,18 @@ namespace snmalloc
    */
   class ThreadAllocCommon
   {
-    friend std::pair<void*, bool> init_thread_allocator();
-    friend void release_thread_allocator();
+    friend void* init_thread_allocator(std::function<void*(void*)>&);
 
   protected:
+    /**
+     * Thread local variable that is set to true, once `inner_release`
+     * has been run.  If we try to reinitialise the allocator once
+     * `inner_release` has run, then we can stay on hte slow path so we don't
+     * leak allocators.
+     *
+     * This is required to allow for the allocator to be called during
+     * destructors of other thread_local state.
+     */
     inline static thread_local bool has_run = false;
 
     static inline void inner_release()
@@ -174,13 +180,17 @@ namespace snmalloc
 #  ifdef USE_MALLOC
       return get_reference();
 #  else
-      auto alloc = get_reference();
+      auto& alloc = get_reference();
       if (unlikely(needs_initialisation(alloc)))
       {
-        auto res = init_thread_allocator();
-        if (res.second)
-          error("Cannot use this API during TLS teardown.");
-        alloc = reinterpret_cast<Alloc*>(res.first);
+        // Check if we have already run the destructor for the TLS.  If so, then
+        // we need the caller to handle this specially as we are in teardown.
+        bool during_teardown = register_cleanup();
+        if (during_teardown)
+          // Caller will always hit slow path.
+          return get_GlobalPlaceHolder();
+
+        alloc = current_alloc_pool()->acquire();
       }
       return alloc;
 #  endif
@@ -257,30 +267,23 @@ namespace snmalloc
    * path.
    * The second component of the return indicates if this TLS is being torndown.
    */
-  SNMALLOC_SLOW_PATH inline std::pair<void*, bool> init_thread_allocator()
+  SNMALLOC_SLOW_PATH inline void*
+  init_thread_allocator(std::function<void*(void*)>& f)
   {
     auto*& local_alloc = ThreadAlloc::get_reference();
-    if (local_alloc != get_GlobalPlaceHolder())
+    // If someone reuses a noncachable call, then we can end up here
+    // with an already initialised allocator. Could either error
+    // to say stop doing this, or just give them the initialised version.
+    if (local_alloc == get_GlobalPlaceHolder())
     {
-      // If someone reuses a noncachable call, then we can end up here.
-      // The allocator has already been initialised. Could either error
-      // to say stop doing this, or just give them the initialised version.
-      return std::pair(local_alloc, false);
+      local_alloc = current_alloc_pool()->acquire();
     }
-    local_alloc = current_alloc_pool()->acquire();
-    SNMALLOC_ASSERT(local_alloc != get_GlobalPlaceHolder());
     // Check if we have already run the destructor for the TLS.  If so, then
     // we need the caller to handle this specially as we are in teardown.
-    return std::pair(local_alloc, ThreadAlloc::register_cleanup());
-  }
-
-  /**
-   * Used to return allocator if during TLS teardown. Otherwise, we leak
-   * allocators.
-   */
-  SNMALLOC_SLOW_PATH inline void release_thread_allocator()
-  {
-    ThreadAlloc::inner_release();
+    auto result = f(local_alloc);
+    if (ThreadAlloc::register_cleanup())
+      ThreadAlloc::inner_release();
+    return result;
   }
 
   /**
