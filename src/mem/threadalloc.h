@@ -267,7 +267,7 @@ namespace snmalloc
    * path.
    * The second component of the return indicates if this TLS is being torndown.
    */
-  SNMALLOC_SLOW_PATH inline void*
+  SNMALLOC_FAST_PATH void*
   init_thread_allocator(std::function<void*(void*)>& f)
   {
     auto*& local_alloc = ThreadAlloc::get_reference();
