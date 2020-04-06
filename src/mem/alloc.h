@@ -62,7 +62,10 @@ namespace snmalloc
    * passed the global allocator.  The second initialises the thread-local
    * allocator if it is has been been initialised already. Splitting into two
    * functions allows for the code to be structured into tail calls to improve
-   * codegen.
+   * codegen.  The second template takes a function that takes the allocator
+   * that is initialised, and the value returned, is returned by 
+   * `InitThreadAllocator`.  This is used incase we are running during teardown
+   * and the thread local allocator cannot be kept alive.
    *
    * The `MemoryProvider` defines the source of memory for this allocator.
    * Allocators try to reuse address space by allocating from existing slabs or
@@ -1107,7 +1110,7 @@ namespace snmalloc
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_first_alloc(size_t size)
     {
-      std::function<void*(void*)> f = [size](void* alloc) {
+      std::function<void*(void*)> f = inline [size](void* alloc) {
         return reinterpret_cast<Allocator*>(alloc)->alloc(size);
       };
       return InitThreadAllocator(f);

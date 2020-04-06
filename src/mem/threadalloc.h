@@ -57,6 +57,7 @@ namespace snmalloc
    */
   SNMALLOC_FAST_PATH void* init_thread_allocator(std::function<void*(void*)>& f)
   {
+    error("Critical Error: This should never be called.");
     return f(nullptr);
   }
 
@@ -96,7 +97,7 @@ namespace snmalloc
     /**
      * Thread local variable that is set to true, once `inner_release`
      * has been run.  If we try to reinitialise the allocator once
-     * `inner_release` has run, then we can stay on hte slow path so we don't
+     * `inner_release` has run, then we can stay on the slow path so we don't
      * leak allocators.
      *
      * This is required to allow for the allocator to be called during
@@ -173,9 +174,7 @@ namespace snmalloc
     /**
      * Public interface, returns the allocator for this thread, constructing
      * one if necessary.
-     *
-     * The returned Alloc* is guaranteed to be initialised.  This incurs a cost,
-     * so use `get_noncachable` if you can meet its criteria.
+     * This incurs a cost, so use `get_noncachable` if you can meet its criteria.
      */
     static SNMALLOC_FAST_PATH Alloc* get()
     {
@@ -183,7 +182,7 @@ namespace snmalloc
       return get_reference();
 #  else
       auto*& alloc = get_reference();
-      if (unlikely(needs_initialisation(alloc)))
+      if (unlikely(needs_initialisation(alloc)) && !has_run)
       {
         std::function<void*(void*)> f = [](void*) { return nullptr; };
         // Call `init_thread_allocator` to perform down call in case

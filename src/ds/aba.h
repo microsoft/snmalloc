@@ -12,10 +12,11 @@
 namespace snmalloc
 {
 #ifdef PLATFORM_IS_X86
+#  ifndef NDEBUG
   // LL/SC typically can only perform one operation at a time
   // check this on other platforms using a thread_local.
   inline thread_local bool operation_in_flight = false;
-
+#  endif
   template<typename T, Construction c = RequiresInit>
   class ABA
   {
@@ -63,10 +64,11 @@ namespace snmalloc
 
     Cmp read()
     {
+#  ifndef NDEBUG
       if (operation_in_flight)
         error("Only one inflight ABA operation at a time is allowed.");
       operation_in_flight = true;
-
+#  endif
       return Cmp{{independent.ptr.load(std::memory_order_relaxed),
                   independent.aba.load(std::memory_order_relaxed)},
                  this};
@@ -105,7 +107,9 @@ namespace snmalloc
 
       ~Cmp()
       {
+#  ifndef NDEBUG
         operation_in_flight = false;
+#  endif
       }
 
       Cmp(const Cmp&) = delete;
@@ -129,6 +133,12 @@ namespace snmalloc
       while (lock.test_and_set(std::memory_order_acquire))
         Aal::pause();
 
+#  ifndef NDEBUG
+      if (operation_in_flight)
+        error("Only one inflight ABA operation at a time is allowed.");
+      operation_in_flight = true;
+#  endif
+
       return Cmp{this};
     }
 
@@ -151,6 +161,10 @@ namespace snmalloc
       ~Cmp()
       {
         parent->lock.clear(std::memory_order_release);
+#  ifndef NDEBUG
+        operation_in_flight = false;
+#  endif
+
       }
     };
   };
