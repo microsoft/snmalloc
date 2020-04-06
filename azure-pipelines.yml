@@ -243,9 +243,10 @@ jobs:
 
   - script: |
       call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat"
+      mkdir build
+      cd build
       cmake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On
       cmake --build . --config ${BuildType}
-    workingDirectory: build
     displayName: 'build'
 
   - script: |
