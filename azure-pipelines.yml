@@ -224,11 +224,11 @@ jobs:
     matrix:
       64-bit Debug Clang:
         BuildType: Debug
-        CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe" -DCMAKE_CXX_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe"'
+        CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe" -DCMAKE_CXX_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe" -DCMAKE_RC_COMPILER="C:/Program Files/LLVM/bin/llvm-rc"'
         JFlag: -j 4
       64-bit Release Clang:
         BuildType: Release
-        CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe" -DCMAKE_CXX_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe"'
+        CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe" -DCMAKE_CXX_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe" -DCMAKE_RC_COMPILER="C:/Program Files/LLVM/bin/llvm-rc"'
         JFlag: -j 4
 
   steps:
@@ -239,7 +239,6 @@ jobs:
 
   - script: |
       choco install --accept-license -y Ninja llvm
-      set "PATH=%PATH%;C:/Program Files/LLVM/bin/"
     displayName: 'Dependencies'
 
   - task: CMake@1
