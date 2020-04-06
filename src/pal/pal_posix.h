@@ -38,21 +38,26 @@ namespace snmalloc
      */
     static constexpr uint64_t pal_features = LazyCommit;
 
+    static void print_stack_trace()
+    {
+      constexpr int SIZE = 1024;
+      void* buffer[SIZE];
+      auto nptrs = backtrace(buffer, SIZE);
+      fflush(stdout);
+      backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
+      puts("");
+      fflush(stdout);
+    }
+
     /**
      * Report a fatal error an exit.
      */
     static void error(const char* const str) noexcept
     {
-      constexpr int SIZE = 1024;
-      void* buffer[SIZE];
 
       puts(str);
       fflush(stdout);
-
-      auto nptrs = backtrace(buffer, SIZE);
-      backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
-      fflush(stdout);
-
+      print_stack_trace();
       abort();
     }
 
