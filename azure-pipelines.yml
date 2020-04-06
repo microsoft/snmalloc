@@ -239,18 +239,13 @@ jobs:
 
   - script: |
       choco install --accept-license -y Ninja llvm
-      call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat"
     displayName: 'Dependencies'
 
-  - task: CMake@1
-    displayName: 'CMake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
-    inputs:
-      cmakeArgs: '.. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
-
-  - task: CMake@1
-    displayName: 'CMake --build . --config ${BuildType}'
-    inputs:
-      cmakeArgs: '--build . --config ${BuildType}'
+  - script: |
+      call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Common7\Tools\VsDevCmd.bat"
+      cmake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On
+      cmake --build . --config ${BuildType}
+    displayName: 'build'
 
   - script: |
       set PATH=%PATH%;"C:\Program Files\LLVM\bin\"
