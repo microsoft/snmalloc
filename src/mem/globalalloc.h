@@ -174,8 +174,7 @@ namespace snmalloc
 #endif
     }
 
-    void
-    debug_in_use(size_t count)
+    void debug_in_use(size_t count)
     {
       auto alloc = Parent::iterate();
       while (alloc != nullptr)
@@ -186,7 +185,7 @@ namespace snmalloc
           {
             error("ERROR: allocator in use.");
           }
-          count --;
+          count--;
         }
         alloc = Parent::iterate(alloc);
 

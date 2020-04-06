@@ -185,7 +185,7 @@ namespace snmalloc
       auto*& alloc = get_reference();
       if (unlikely(needs_initialisation(alloc)))
       {
-        std::function<void*(void*)> f = [](void*){return nullptr;};
+        std::function<void*(void*)> f = [](void*) { return nullptr; };
         // Call `init_thread_allocator` to perform down call in case
         // register_clean_up does more.
         // During teardown for the destructor based ThreadAlloc this will set
@@ -267,8 +267,7 @@ namespace snmalloc
    * path.
    * The second component of the return indicates if this TLS is being torndown.
    */
-  SNMALLOC_FAST_PATH void*
-  init_thread_allocator(std::function<void*(void*)>& f)
+  SNMALLOC_FAST_PATH void* init_thread_allocator(std::function<void*(void*)>& f)
   {
     auto*& local_alloc = ThreadAlloc::get_reference();
     // If someone reuses a noncachable call, then we can end up here
