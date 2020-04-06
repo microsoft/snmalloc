@@ -55,7 +55,6 @@ namespace snmalloc
     static void error(const char* const str) noexcept
     {
       puts(str);
-      fflush(stdout);
       print_stack_trace();
       abort();
     }

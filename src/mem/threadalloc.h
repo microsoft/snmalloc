@@ -277,9 +277,9 @@ namespace snmalloc
     {
       local_alloc = current_alloc_pool()->acquire();
     }
-    // Check if we have already run the destructor for the TLS.  If so, then
-    // we need the caller to handle this specially as we are in teardown.
     auto result = f(local_alloc);
+    // Check if we have already run the destructor for the TLS.  If so, 
+    // we need to deallocate the allocator.
     if (ThreadAlloc::register_cleanup())
       ThreadAlloc::inner_release();
     return result;

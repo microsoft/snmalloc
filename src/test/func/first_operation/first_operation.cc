@@ -18,7 +18,7 @@
  */
 void get_test()
 {
-  // This should get the GlobalPlaceHolder is using lazy init
+  // This should get the GlobalPlaceHolder if using lazy init
   auto a1 = snmalloc::ThreadAlloc::get_noncachable();
 
   // This should get a real allocator
