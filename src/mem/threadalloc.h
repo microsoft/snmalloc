@@ -174,7 +174,8 @@ namespace snmalloc
     /**
      * Public interface, returns the allocator for this thread, constructing
      * one if necessary.
-     * This incurs a cost, so use `get_noncachable` if you can meet its criteria.
+     * This incurs a cost, so use `get_noncachable` if you can meet its
+     * criteria.
      */
     static SNMALLOC_FAST_PATH Alloc* get()
     {
@@ -277,7 +278,7 @@ namespace snmalloc
       local_alloc = current_alloc_pool()->acquire();
     }
     auto result = f(local_alloc);
-    // Check if we have already run the destructor for the TLS.  If so, 
+    // Check if we have already run the destructor for the TLS.  If so,
     // we need to deallocate the allocator.
     if (ThreadAlloc::register_cleanup())
       ThreadAlloc::inner_release();

@@ -164,7 +164,6 @@ namespace snmalloc
 #  ifndef NDEBUG
         operation_in_flight = false;
 #  endif
-
       }
     };
   };
