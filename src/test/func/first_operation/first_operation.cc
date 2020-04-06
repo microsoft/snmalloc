@@ -64,7 +64,7 @@ void f(size_t size)
   auto t3 = std::thread(alloc3, size);
   auto t4 = std::thread(alloc4, size);
 
-  auto a = snmalloc::ThreadAlloc::get();
+  auto a = snmalloc::current_alloc_pool()->acquire();
   auto p1 = a->alloc(size);
   auto p2 = a->alloc(size);
   auto p3 = a->alloc(size);
@@ -83,6 +83,8 @@ void f(size_t size)
   t6.join();
   t7.join();
   t8.join();
+  snmalloc::current_alloc_pool()->release(a);
+  snmalloc::current_alloc_pool()->debug_in_use(0);
   printf(".");
   fflush(stdout);
 }

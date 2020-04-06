@@ -30,5 +30,13 @@ namespace snmalloc
     {
       in_use.clear();
     }
+
+    bool debug_is_in_use()
+    {
+      bool result = in_use.test_and_set();
+      if (!result)
+        in_use.clear();
+      return result;
+    }
   };
 } // namespace snmalloc

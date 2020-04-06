@@ -173,6 +173,29 @@ namespace snmalloc
       UNUSED(result);
 #endif
     }
+
+    void
+    debug_in_use(size_t count)
+    {
+      auto alloc = Parent::iterate();
+      while (alloc != nullptr)
+      {
+        if (alloc->debug_is_in_use())
+        {
+          if (count == 0)
+          {
+            error("ERROR: allocator in use.");
+          }
+          count --;
+        }
+        alloc = Parent::iterate(alloc);
+
+        if (count != 0)
+        {
+          error("Error: two few allocators in use.");
+        }
+      }
+    }
   };
 
   inline AllocPool<GlobalVirtual>*& current_alloc_pool()
