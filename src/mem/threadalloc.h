@@ -186,7 +186,7 @@ namespace snmalloc
         std::function<void*(void*)> f = [](void*){return nullptr;};
         // Call `init_thread_allocator` to perform down call in case
         // register_clean_up does more.
-        // During teardown for the destructor based one this will set
+        // During teardown for the destructor based ThreadAlloc this will set
         // alloc to GlobalPlaceHolder;
         init_thread_allocator(f);
       }
