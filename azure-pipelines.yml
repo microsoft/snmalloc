@@ -224,11 +224,11 @@ jobs:
     matrix:
       64-bit Debug Clang:
         BuildType: Debug
-        CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="C:/Program Files/LLVM/bin/clang.exe" -DCMAKE_CXX_COMPILER="C:/Program Files/LLVM/bin/clang++.exe"'
+        CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe" -DCMAKE_CXX_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe"'
         JFlag: -j 4
       64-bit Release Clang:
         BuildType: Release
-        CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="C:/Program Files/LLVM/bin/clang.exe" -DCMAKE_CXX_COMPILER="C:/Program Files/LLVM/bin/clang++.exe"'
+        CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe" -DCMAKE_CXX_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe"'
         JFlag: -j 4
 
   steps:
