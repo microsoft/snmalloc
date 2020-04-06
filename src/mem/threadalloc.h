@@ -180,17 +180,15 @@ namespace snmalloc
 #  ifdef USE_MALLOC
       return get_reference();
 #  else
-      auto& alloc = get_reference();
+      auto*& alloc = get_reference();
       if (unlikely(needs_initialisation(alloc)))
       {
-        // Check if we have already run the destructor for the TLS.  If so, then
-        // we need the caller to handle this specially as we are in teardown.
-        bool during_teardown = register_cleanup();
-        if (during_teardown)
-          // Caller will always hit slow path.
-          return get_GlobalPlaceHolder();
-
-        alloc = current_alloc_pool()->acquire();
+        std::function<void*(void*)> f = [](void*){return nullptr;};
+        // Call `init_thread_allocator` to perform down call in case
+        // register_clean_up does more.
+        // During teardown for the destructor based one this will set
+        // alloc to GlobalPlaceHolder;
+        init_thread_allocator(f);
       }
       return alloc;
 #  endif
