@@ -147,7 +147,9 @@ namespace snmalloc
      */
     static inline Alloc*& get_reference()
     {
-      static thread_local Alloc* alloc = get_GlobalPlaceHolder();
+      // Inline casting as codegen doesn't create a lazy init like this.
+      static thread_local Alloc* alloc =
+        const_cast<Alloc*>(reinterpret_cast<const Alloc*>(&GlobalPlaceHolder));
       return alloc;
     }
 
