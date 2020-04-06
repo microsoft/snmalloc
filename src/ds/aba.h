@@ -11,12 +11,12 @@
  */
 namespace snmalloc
 {
-#ifdef PLATFORM_IS_X86
-#  ifndef NDEBUG
+#ifndef NDEBUG
   // LL/SC typically can only perform one operation at a time
   // check this on other platforms using a thread_local.
   inline thread_local bool operation_in_flight = false;
-#  endif
+#endif
+#ifdef PLATFORM_IS_X86
   template<typename T, Construction c = RequiresInit>
   class ABA
   {
