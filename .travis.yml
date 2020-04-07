@@ -48,10 +48,11 @@ matrix:
           sources:
             - ubuntu-toolchain-r-test
           packages:
-            - g++-9
+            - gcc-10
+            - g++-10
       env:
-        - CC=gcc-9
-        - CXX=g++-9
+        - CC=gcc-10
+        - CXX=g++-10
 
     - os: linux
       dist: bionic
@@ -59,15 +60,6 @@ matrix:
       language: rust
       rust:
         - stable
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-9
-      env:
-        - CC=gcc-9
-        - CXX=g++-9
 
     - os: linux
       dist: bionic
@@ -75,15 +67,6 @@ matrix:
       language: rust
       rust:
         - nightly
-      addons:
-        apt:
-          sources:
-            - ubuntu-toolchain-r-test
-          packages:
-            - g++-9
-      env:
-        - CC=gcc-9
-        - CXX=g++-9
 
     - os: osx
       language: rust
