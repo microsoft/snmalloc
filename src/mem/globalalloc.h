@@ -10,9 +10,7 @@ namespace snmalloc
   void* init_thread_allocator(std::function<void*(void*)>&);
 
   template<class MemoryProvider, class Alloc>
-  class AllocPool : Pool<
-                      Alloc,
-                      MemoryProvider>
+  class AllocPool : Pool<Alloc, MemoryProvider>
   {
     using Parent = Pool<Alloc, MemoryProvider>;
 

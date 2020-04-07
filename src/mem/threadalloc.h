@@ -55,21 +55,21 @@ namespace snmalloc
    * replacement.  There is nothing to initialise in this case, so we expect
    * this to never be called.
    */
-#ifdef _MSC_VER
+#  ifdef _MSC_VER
 // 32Bit Windows release MSVC is determining this as having unreachable code for
 // f(nullptr), which is true.  But other platforms don't. Disabling the warning
 // seems simplist.
-#  pragma warning(push)
-#  pragma warning(disable: 4702)
-#endif
+#    pragma warning(push)
+#    pragma warning(disable : 4702)
+#  endif
   SNMALLOC_FAST_PATH void* init_thread_allocator(std::function<void*(void*)>& f)
   {
     error("Critical Error: This should never be called.");
     return f(nullptr);
   }
-#ifdef _MSC_VER
-#  pragma warning(pop)
-#endif
+#  ifdef _MSC_VER
+#    pragma warning(pop)
+#  endif
 
   using ThreadAlloc = ThreadAllocUntypedWrapper;
 #else
@@ -113,7 +113,7 @@ namespace snmalloc
      * This is required to allow for the allocator to be called during
      * destructors of other thread_local state.
      */
-    inline static thread_local bool has_run = false;
+    inline static thread_local bool destructor_has_run = false;
 
     static inline void inner_release()
     {
@@ -121,7 +121,7 @@ namespace snmalloc
       if (per_thread != get_GlobalPlaceHolder())
       {
         current_alloc_pool()->release(per_thread);
-        has_run = true;
+        destructor_has_run = true;
         per_thread = get_GlobalPlaceHolder();
       }
     }
@@ -193,7 +193,7 @@ namespace snmalloc
       return get_reference();
 #  else
       auto*& alloc = get_reference();
-      if (unlikely(needs_initialisation(alloc)) && !has_run)
+      if (unlikely(needs_initialisation(alloc)) && !destructor_has_run)
       {
         std::function<void*(void*)> f = [](void*) { return nullptr; };
         // Call `init_thread_allocator` to perform down call in case
@@ -250,7 +250,7 @@ namespace snmalloc
 
       ThreadAllocCommon::register_cleanup();
 
-      return has_run;
+      return destructor_has_run;
     }
   };
 
