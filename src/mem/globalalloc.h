@@ -9,29 +9,11 @@ namespace snmalloc
   inline bool needs_initialisation(void*);
   void* init_thread_allocator(std::function<void*(void*)>&);
 
-  using Alloc = Allocator<
-    needs_initialisation,
-    init_thread_allocator,
-    GlobalVirtual,
-    SNMALLOC_DEFAULT_CHUNKMAP,
-    true>;
-
-  template<class MemoryProvider>
+  template<class MemoryProvider, class Alloc>
   class AllocPool : Pool<
-                      Allocator<
-                        needs_initialisation,
-                        init_thread_allocator,
-                        MemoryProvider,
-                        SNMALLOC_DEFAULT_CHUNKMAP,
-                        true>,
+                      Alloc,
                       MemoryProvider>
   {
-    using Alloc = Allocator<
-      needs_initialisation,
-      init_thread_allocator,
-      MemoryProvider,
-      SNMALLOC_DEFAULT_CHUNKMAP,
-      true>;
     using Parent = Pool<Alloc, MemoryProvider>;
 
   public:
@@ -197,17 +179,24 @@ namespace snmalloc
     }
   };
 
-  inline AllocPool<GlobalVirtual>*& current_alloc_pool()
+  using Alloc = Allocator<
+    needs_initialisation,
+    init_thread_allocator,
+    GlobalVirtual,
+    SNMALLOC_DEFAULT_CHUNKMAP,
+    true>;
+
+  inline AllocPool<GlobalVirtual, Alloc>*& current_alloc_pool()
   {
     return Singleton<
-      AllocPool<GlobalVirtual>*,
-      AllocPool<GlobalVirtual>::make>::get();
+      AllocPool<GlobalVirtual, Alloc>*,
+      AllocPool<GlobalVirtual, Alloc>::make>::get();
   }
 
-  template<class MemoryProvider>
-  inline AllocPool<MemoryProvider>* make_alloc_pool(MemoryProvider& mp)
+  template<class MemoryProvider, class Alloc>
+  inline AllocPool<MemoryProvider, Alloc>* make_alloc_pool(MemoryProvider& mp)
   {
-    return AllocPool<MemoryProvider>::make(mp);
+    return AllocPool<MemoryProvider, Alloc>::make(mp);
   }
 
 } // namespace snmalloc

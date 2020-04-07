@@ -111,7 +111,7 @@ namespace snmalloc
       return large_allocator.stats;
     }
 
-    template<class MP>
+    template<class MP, class Alloc>
     friend class AllocPool;
 
     /**
