@@ -17,6 +17,8 @@
 #include "sizeclasstable.h"
 #include "slab.h"
 
+#include <functional>
+
 namespace snmalloc
 {
   enum Boundary
@@ -60,7 +62,10 @@ namespace snmalloc
    * passed the global allocator.  The second initialises the thread-local
    * allocator if it is has been been initialised already. Splitting into two
    * functions allows for the code to be structured into tail calls to improve
-   * codegen.
+   * codegen.  The second template takes a function that takes the allocator
+   * that is initialised, and the value returned, is returned by
+   * `InitThreadAllocator`.  This is used incase we are running during teardown
+   * and the thread local allocator cannot be kept alive.
    *
    * The `MemoryProvider` defines the source of memory for this allocator.
    * Allocators try to reuse address space by allocating from existing slabs or
@@ -78,7 +83,7 @@ namespace snmalloc
    */
   template<
     bool (*NeedsInitialisation)(void*),
-    void* (*InitThreadAllocator)(),
+    void* (*InitThreadAllocator)(std::function<void*(void*)>&),
     class MemoryProvider = GlobalVirtual,
     class ChunkMap = SNMALLOC_DEFAULT_CHUNKMAP,
     bool IsQueueInline = true>
@@ -106,7 +111,7 @@ namespace snmalloc
       return large_allocator.stats;
     }
 
-    template<class MP>
+    template<class MP, class Alloc>
     friend class AllocPool;
 
     /**
@@ -1126,7 +1131,7 @@ namespace snmalloc
         stats().sizeclass_alloc(sizeclass);
         return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass);
       }
-      return small_alloc_first_alloc<zero_mem, allow_reserve>(sizeclass, size);
+      return small_alloc_first_alloc<zero_mem, allow_reserve>(size);
     }
 
     /**
@@ -1134,12 +1139,12 @@ namespace snmalloc
      * then directs the allocation request to the newly created allocator.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void*
-    small_alloc_first_alloc(sizeclass_t sizeclass, size_t size)
+    SNMALLOC_SLOW_PATH void* small_alloc_first_alloc(size_t size)
     {
-      auto replacement = InitThreadAllocator();
-      return reinterpret_cast<Allocator*>(replacement)
-        ->template small_alloc_inner<zero_mem, allow_reserve>(sizeclass, size);
+      std::function<void*(void*)> f = [size](void* alloc) {
+        return reinterpret_cast<Allocator*>(alloc)->alloc(size);
+      };
+      return InitThreadAllocator(f);
     }
 
     /**
@@ -1316,10 +1321,10 @@ namespace snmalloc
       {
         if (NeedsInitialisation(this))
         {
-          void* replacement = InitThreadAllocator();
-          return reinterpret_cast<Allocator*>(replacement)
-            ->template medium_alloc<zero_mem, allow_reserve>(
-              sizeclass, rsize, size);
+          std::function<void*(void*)> f = [size](void* alloc) {
+            return reinterpret_cast<Allocator*>(alloc)->alloc(size);
+          };
+          return InitThreadAllocator(f);
         }
         slab = reinterpret_cast<Mediumslab*>(
           large_allocator.template alloc<NoZero, allow_reserve>(
@@ -1390,9 +1395,10 @@ namespace snmalloc
 
       if (NeedsInitialisation(this))
       {
-        void* replacement = InitThreadAllocator();
-        return reinterpret_cast<Allocator*>(replacement)
-          ->template large_alloc<zero_mem, allow_reserve>(size);
+        std::function<void*(void*)> f = [size](void* alloc) {
+          return reinterpret_cast<Allocator*>(alloc)->alloc(size);
+        };
+        return InitThreadAllocator(f);
       }
 
       size_t size_bits = bits::next_pow2_bits(size);
@@ -1417,9 +1423,12 @@ namespace snmalloc
 
       if (NeedsInitialisation(this))
       {
-        void* replacement = InitThreadAllocator();
-        return reinterpret_cast<Allocator*>(replacement)
-          ->large_dealloc(p, size);
+        std::function<void*(void*)> f = [p](void* alloc) {
+          reinterpret_cast<Allocator*>(alloc)->dealloc(p);
+          return nullptr;
+        };
+        InitThreadAllocator(f);
+        return;
       }
 
       size_t size_bits = bits::next_pow2_bits(size);
@@ -1470,10 +1479,11 @@ namespace snmalloc
       // a real allocator and construct one if we aren't.
       if (NeedsInitialisation(this))
       {
-        void* replacement = InitThreadAllocator();
-        // We have to do a dealloc, not a remote_dealloc here because this may
-        // have been allocated with the allocator that we've just had returned.
-        reinterpret_cast<Allocator*>(replacement)->dealloc(p);
+        std::function<void*(void*)> f = [p](void* alloc) {
+          reinterpret_cast<Allocator*>(alloc)->dealloc(p);
+          return nullptr;
+        };
+        InitThreadAllocator(f);
         return;
       }
 

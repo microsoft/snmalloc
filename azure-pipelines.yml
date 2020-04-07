@@ -224,7 +224,11 @@ jobs:
     matrix:
       64-bit Debug Clang:
         BuildType: Debug
-        CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="C:/Program Files/LLVM/bin/clang.exe" -DCMAKE_CXX_COMPILER="C:/Program Files/LLVM/bin/clang++.exe"'
+        CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe" -DCMAKE_CXX_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe" -DCMAKE_RC_COMPILER="C:/Program Files/LLVM/bin/llvm-rc"'
+        JFlag: -j 4
+      64-bit Release Clang:
+        BuildType: Release
+        CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe" -DCMAKE_CXX_COMPILER="C:/Program Files/LLVM/bin/clang-cl.exe" -DCMAKE_RC_COMPILER="C:/Program Files/LLVM/bin/llvm-rc"'
         JFlag: -j 4
 
   steps:
@@ -237,15 +241,13 @@ jobs:
       choco install --accept-license -y Ninja llvm
     displayName: 'Dependencies'
 
-  - task: CMake@1
-    displayName: 'CMake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
-    inputs:
-      cmakeArgs: '.. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On'
-
-  - task: CMake@1
-    displayName: 'CMake --build . --config ${BuildType}'
-    inputs:
-      cmakeArgs: '--build . --config ${BuildType}'
+  - script: |
+      call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+      mkdir build
+      cd build
+      cmake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On
+      cmake --build . --config ${BuildType}
+    displayName: 'build'
 
   - script: |
       set PATH=%PATH%;"C:\Program Files\LLVM\bin\"

@@ -50,7 +50,10 @@ namespace snmalloc
       T* p = stack.pop();
 
       if (p != nullptr)
+      {
+        p->set_in_use();
         return p;
+      }
 
       p = memory_provider
             .template alloc_chunk<T, bits::next_pow2_const(sizeof(T))>(
@@ -60,14 +63,21 @@ namespace snmalloc
       p->list_next = list;
       list = p;
 
+      p->set_in_use();
       return p;
     }
 
+    /**
+     * Return to the pool an object previously retrieved by `acquire`
+     *
+     * Do not return objects from `extract`.
+     */
     void release(T* p)
     {
       // The object's destructor is not run. If the object is "reallocated", it
       // is returned without the constructor being run, so the object is reused
       // without re-initialisation.
+      p->reset_in_use();
       stack.push(p);
     }
 
@@ -80,6 +90,11 @@ namespace snmalloc
       return p->next;
     }
 
+    /**
+     * Return to the pool a list of object previously retrieved by `extract`
+     *
+     * Do not return objects from `acquire`.
+     */
     void restore(T* first, T* last)
     {
       // Pushes a linked list of objects onto the stack. Use to put a linked

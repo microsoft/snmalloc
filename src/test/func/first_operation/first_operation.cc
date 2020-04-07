@@ -10,6 +10,39 @@
 #include <snmalloc.h>
 #include <thread>
 
+/**
+ * This test is checking lazy init is correctly done with `get`.
+ *
+ * The test is written so platforms that do not do lazy init can satify the
+ * test.
+ */
+void get_test()
+{
+  // This should get the GlobalPlaceHolder if using lazy init
+  auto a1 = snmalloc::ThreadAlloc::get_noncachable();
+
+  // This should get a real allocator
+  auto a2 = snmalloc::ThreadAlloc::get();
+
+  // Trigger potential lazy_init if `get` didn't (shouldn't happen).
+  a2->dealloc(a2->alloc(5));
+
+  // Get an allocated allocator.
+  auto a3 = snmalloc::ThreadAlloc::get_noncachable();
+
+  if (a1 != a3)
+  {
+    printf("Lazy test!\n");
+    // If the allocators are different then lazy_init has occurred.
+    // This should have been caused by the call to `get` rather than
+    // the allocations.
+    if (a2 != a3)
+    {
+      abort();
+    }
+  }
+}
+
 void alloc1(size_t size)
 {
   void* r = snmalloc::ThreadAlloc::get_noncachable()->alloc(size);
@@ -64,7 +97,7 @@ void f(size_t size)
   auto t3 = std::thread(alloc3, size);
   auto t4 = std::thread(alloc4, size);
 
-  auto a = snmalloc::ThreadAlloc::get();
+  auto a = snmalloc::current_alloc_pool()->acquire();
   auto p1 = a->alloc(size);
   auto p2 = a->alloc(size);
   auto p3 = a->alloc(size);
@@ -83,17 +116,27 @@ void f(size_t size)
   t6.join();
   t7.join();
   t8.join();
+  snmalloc::current_alloc_pool()->release(a);
+  snmalloc::current_alloc_pool()->debug_in_use(0);
+  printf(".");
+  fflush(stdout);
 }
 
 int main(int, char**)
 {
   setup();
+  printf(".");
+  fflush(stdout);
+
+  std::thread t(get_test);
+  t.join();
 
   f(0);
   f(1);
   f(3);
   f(5);
   f(7);
+  printf("\n");
   for (size_t exp = 1; exp < snmalloc::SUPERSLAB_BITS; exp++)
   {
     f(1ULL << exp);
@@ -108,5 +151,6 @@ int main(int, char**)
     f((3ULL << exp) - 1);
     f((5ULL << exp) - 1);
     f((7ULL << exp) - 1);
+    printf("\n");
   }
 }

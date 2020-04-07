@@ -36,6 +36,9 @@ namespace snmalloc
   void error(const char* const str);
 } // namespace snmalloc
 
+#define TOSTRING(expr) TOSTRING2(expr)
+#define TOSTRING2(expr) #expr
+
 #ifdef NDEBUG
 #  define SNMALLOC_ASSERT(expr) \
     {}
@@ -44,7 +47,8 @@ namespace snmalloc
     { \
       if (!(expr)) \
       { \
-        snmalloc::error("assert fail"); \
+        snmalloc::error("assert fail: " #expr " in " __FILE__ \
+                        " on " TOSTRING(__LINE__)); \
       } \
     }
 #endif

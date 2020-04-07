@@ -29,9 +29,9 @@ namespace snmalloc
 
       do
       {
-        T* top = ABAT::ptr(cmp);
+        T* top = cmp.ptr();
         last->next.store(top, std::memory_order_release);
-      } while (!stack.compare_exchange(cmp, first));
+      } while (!cmp.store_conditional(first));
     }
 
     T* pop()
@@ -44,13 +44,13 @@ namespace snmalloc
 
       do
       {
-        top = ABAT::ptr(cmp);
+        top = cmp.ptr();
 
         if (top == nullptr)
           break;
 
         next = top->next.load(std::memory_order_acquire);
-      } while (!stack.compare_exchange(cmp, next));
+      } while (!cmp.store_conditional(next));
 
       return top;
     }
@@ -63,11 +63,11 @@ namespace snmalloc
 
       do
       {
-        top = ABAT::ptr(cmp);
+        top = cmp.ptr();
 
         if (top == nullptr)
           break;
-      } while (!stack.compare_exchange(cmp, nullptr));
+      } while (!cmp.store_conditional(nullptr));
 
       return top;
     }

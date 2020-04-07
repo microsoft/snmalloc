@@ -3,9 +3,12 @@
 #include "../ds/address.h"
 #include "../mem/allocconfig.h"
 
+#include <execinfo.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <unistd.h>
 
 extern "C" int puts(const char* str);
 
@@ -35,12 +38,24 @@ namespace snmalloc
      */
     static constexpr uint64_t pal_features = LazyCommit;
 
+    static void print_stack_trace()
+    {
+      constexpr int SIZE = 1024;
+      void* buffer[SIZE];
+      auto nptrs = backtrace(buffer, SIZE);
+      fflush(stdout);
+      backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
+      puts("");
+      fflush(stdout);
+    }
+
     /**
      * Report a fatal error an exit.
      */
     static void error(const char* const str) noexcept
     {
       puts(str);
+      print_stack_trace();
       abort();
     }
 
