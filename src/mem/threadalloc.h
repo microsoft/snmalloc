@@ -55,11 +55,21 @@ namespace snmalloc
    * replacement.  There is nothing to initialise in this case, so we expect
    * this to never be called.
    */
+#ifdef _MSC_VER
+// 32Bit Windows release MSVC is determining this as having unreachable code for
+// f(nullptr), which is true.  But other platforms don't. Disabling the warning
+// seems simplist.
+#  pragma warning(push)
+#  pragma warning(disable: 4702)
+#endif
   SNMALLOC_FAST_PATH void* init_thread_allocator(std::function<void*(void*)>& f)
   {
     error("Critical Error: This should never be called.");
     return f(nullptr);
   }
+#ifdef _MSC_VER
+#  pragma warning(pop)
+#endif
 
   using ThreadAlloc = ThreadAllocUntypedWrapper;
 #else
