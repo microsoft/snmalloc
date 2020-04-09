@@ -114,6 +114,12 @@ namespace snmalloc
 
       Cmp(const Cmp&) = delete;
     };
+
+    // This method is used in Verona
+    T* peek()
+    {
+      return independent.ptr.load(std::memory_order_relaxed);
+    }
   };
 #else
   /**
@@ -166,6 +172,12 @@ namespace snmalloc
 #  endif
       }
     };
+
+    // This method is used in Verona
+    T* peek()
+    {
+      return ptr.load(std::memory_order_relaxed);
+    }
   };
 #endif
 } // namespace snmalloc
