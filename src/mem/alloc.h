@@ -83,7 +83,7 @@ namespace snmalloc
    */
   template<
     bool (*NeedsInitialisation)(void*),
-    void* (*InitThreadAllocator)(std::function<void*(void*)>&),
+    void* (*InitThreadAllocator)(function_ref<void*(void*)>),
     class MemoryProvider = GlobalVirtual,
     class ChunkMap = SNMALLOC_DEFAULT_CHUNKMAP,
     bool IsQueueInline = true>
@@ -1141,10 +1141,9 @@ namespace snmalloc
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_first_alloc(size_t size)
     {
-      std::function<void*(void*)> f = [size](void* alloc) {
+      return InitThreadAllocator([size](void* alloc) {
         return reinterpret_cast<Allocator*>(alloc)->alloc(size);
-      };
-      return InitThreadAllocator(f);
+      });
     }
 
     /**
@@ -1321,10 +1320,9 @@ namespace snmalloc
       {
         if (NeedsInitialisation(this))
         {
-          std::function<void*(void*)> f = [size](void* alloc) {
+          return InitThreadAllocator([size](void* alloc) {
             return reinterpret_cast<Allocator*>(alloc)->alloc(size);
-          };
-          return InitThreadAllocator(f);
+          });
         }
         slab = reinterpret_cast<Mediumslab*>(
           large_allocator.template alloc<NoZero, allow_reserve>(
@@ -1395,10 +1393,9 @@ namespace snmalloc
 
       if (NeedsInitialisation(this))
       {
-        std::function<void*(void*)> f = [size](void* alloc) {
+        return InitThreadAllocator([size](void* alloc) {
           return reinterpret_cast<Allocator*>(alloc)->alloc(size);
-        };
-        return InitThreadAllocator(f);
+        });
       }
 
       size_t size_bits = bits::next_pow2_bits(size);
@@ -1423,11 +1420,10 @@ namespace snmalloc
 
       if (NeedsInitialisation(this))
       {
-        std::function<void*(void*)> f = [p](void* alloc) {
+        InitThreadAllocator([p](void* alloc) {
           reinterpret_cast<Allocator*>(alloc)->dealloc(p);
           return nullptr;
-        };
-        InitThreadAllocator(f);
+        });
         return;
       }
 
@@ -1479,11 +1475,10 @@ namespace snmalloc
       // a real allocator and construct one if we aren't.
       if (NeedsInitialisation(this))
       {
-        std::function<void*(void*)> f = [p](void* alloc) {
+        InitThreadAllocator([p](void* alloc) {
           reinterpret_cast<Allocator*>(alloc)->dealloc(p);
           return nullptr;
-        };
-        InitThreadAllocator(f);
+        });
         return;
       }
 
