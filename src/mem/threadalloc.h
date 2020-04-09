@@ -62,7 +62,7 @@ namespace snmalloc
 #    pragma warning(push)
 #    pragma warning(disable : 4702)
 #  endif
-  SNMALLOC_FAST_PATH void* init_thread_allocator(std::function<void*(void*)>& f)
+  SNMALLOC_FAST_PATH void* init_thread_allocator(AllocFreeClosure<void*>& f)
   {
     error("Critical Error: This should never be called.");
     return f(nullptr);
@@ -101,7 +101,7 @@ namespace snmalloc
    */
   class ThreadAllocCommon
   {
-    friend void* init_thread_allocator(std::function<void*(void*)>&);
+    friend void* init_thread_allocator(AllocFreeClosure<void*>&);
 
   protected:
     /**
@@ -181,6 +181,10 @@ namespace snmalloc
       return get_reference();
     }
 
+    static void* dummy_callback(void*, size_t)
+    {
+      return nullptr;
+    }
     /**
      * Public interface, returns the allocator for this thread, constructing
      * one if necessary.
@@ -195,12 +199,12 @@ namespace snmalloc
       auto*& alloc = get_reference();
       if (unlikely(needs_initialisation(alloc)) && !destructor_has_run)
       {
-        std::function<void*(void*)> f = [](void*) { return nullptr; };
+        ClosureInst<size_t, dummy_callback> c(0);
         // Call `init_thread_allocator` to perform down call in case
         // register_clean_up does more.
         // During teardown for the destructor based ThreadAlloc this will set
         // alloc to GlobalPlaceHolder;
-        init_thread_allocator(f);
+        init_thread_allocator(c);
       }
       return alloc;
 #  endif
@@ -277,7 +281,7 @@ namespace snmalloc
    * path.
    * The second component of the return indicates if this TLS is being torndown.
    */
-  SNMALLOC_FAST_PATH void* init_thread_allocator(std::function<void*(void*)>& f)
+  SNMALLOC_FAST_PATH void* init_thread_allocator(AllocFreeClosure<void*>& f)
   {
     auto*& local_alloc = ThreadAlloc::get_reference();
     // If someone reuses a noncachable call, then we can end up here

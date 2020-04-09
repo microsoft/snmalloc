@@ -6,9 +6,6 @@
 
 namespace snmalloc
 {
-  inline bool needs_initialisation(void*);
-  void* init_thread_allocator(std::function<void*(void*)>&);
-
   template<class MemoryProvider, class Alloc>
   class AllocPool : Pool<Alloc, MemoryProvider>
   {
@@ -176,6 +173,9 @@ namespace snmalloc
       }
     }
   };
+
+  inline bool needs_initialisation(void*);
+  void* init_thread_allocator(AllocFreeClosure<void*>& s);
 
   using Alloc = Allocator<
     needs_initialisation,

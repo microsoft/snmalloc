@@ -17,8 +17,6 @@
 #include "sizeclasstable.h"
 #include "slab.h"
 
-#include <functional>
-
 namespace snmalloc
 {
   enum Boundary
@@ -62,8 +60,8 @@ namespace snmalloc
    * passed the global allocator.  The second initialises the thread-local
    * allocator if it is has been been initialised already. Splitting into two
    * functions allows for the code to be structured into tail calls to improve
-   * codegen.  The second template takes a function that takes the allocator
-   * that is initialised, and the value returned, is returned by
+   * codegen.  The second template takes a AllocFreeClosure that takes the
+   * allocator that is initialised, and the value returned, is returned by
    * `InitThreadAllocator`.  This is used incase we are running during teardown
    * and the thread local allocator cannot be kept alive.
    *
@@ -82,8 +80,8 @@ namespace snmalloc
    * in the address space (`false`).
    */
   template<
-    bool (*NeedsInitialisation)(void*),
-    void* (*InitThreadAllocator)(std::function<void*(void*)>&),
+    auto NeedsInitialisation,
+    auto InitThreadAllocator,
     class MemoryProvider = GlobalVirtual,
     class ChunkMap = SNMALLOC_DEFAULT_CHUNKMAP,
     bool IsQueueInline = true>
@@ -1135,16 +1133,31 @@ namespace snmalloc
     }
 
     /**
+     * Alloc callback used if allocator needs initialising.
+     */
+    static void* alloc_callback(void* alloc, size_t size)
+    {
+      return reinterpret_cast<Allocator*>(alloc)->alloc(size);
+    }
+
+    /**
+     * Dealloc callback used if allocator needs initialising.
+     */
+    static void* dealloc_callback(void* alloc, void* p)
+    {
+      reinterpret_cast<Allocator*>(alloc)->dealloc(p);
+      return nullptr;
+    }
+
+    /**
      * Called on first allocation to set up the thread local allocator,
      * then directs the allocation request to the newly created allocator.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH void* small_alloc_first_alloc(size_t size)
     {
-      std::function<void*(void*)> f = [size](void* alloc) {
-        return reinterpret_cast<Allocator*>(alloc)->alloc(size);
-      };
-      return InitThreadAllocator(f);
+      ClosureInst<size_t, alloc_callback> c(size);
+      return InitThreadAllocator(c);
     }
 
     /**
@@ -1321,10 +1334,8 @@ namespace snmalloc
       {
         if (NeedsInitialisation(this))
         {
-          std::function<void*(void*)> f = [size](void* alloc) {
-            return reinterpret_cast<Allocator*>(alloc)->alloc(size);
-          };
-          return InitThreadAllocator(f);
+          ClosureInst<size_t, alloc_callback> c(size);
+          return InitThreadAllocator(c);
         }
         slab = reinterpret_cast<Mediumslab*>(
           large_allocator.template alloc<NoZero, allow_reserve>(
@@ -1395,10 +1406,8 @@ namespace snmalloc
 
       if (NeedsInitialisation(this))
       {
-        std::function<void*(void*)> f = [size](void* alloc) {
-          return reinterpret_cast<Allocator*>(alloc)->alloc(size);
-        };
-        return InitThreadAllocator(f);
+        ClosureInst<size_t, alloc_callback> c(size);
+        return InitThreadAllocator(c);
       }
 
       size_t size_bits = bits::next_pow2_bits(size);
@@ -1423,11 +1432,8 @@ namespace snmalloc
 
       if (NeedsInitialisation(this))
       {
-        std::function<void*(void*)> f = [p](void* alloc) {
-          reinterpret_cast<Allocator*>(alloc)->dealloc(p);
-          return nullptr;
-        };
-        InitThreadAllocator(f);
+        ClosureInst<void*, dealloc_callback> c(p);
+        InitThreadAllocator(c);
         return;
       }
 
@@ -1479,11 +1485,9 @@ namespace snmalloc
       // a real allocator and construct one if we aren't.
       if (NeedsInitialisation(this))
       {
-        std::function<void*(void*)> f = [p](void* alloc) {
-          reinterpret_cast<Allocator*>(alloc)->dealloc(p);
-          return nullptr;
-        };
-        InitThreadAllocator(f);
+        ClosureInst<void*, dealloc_callback> c(p);
+
+        InitThreadAllocator(c);
         return;
       }
 

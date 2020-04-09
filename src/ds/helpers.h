@@ -101,4 +101,51 @@ namespace snmalloc
       f();
     }
   };
+
+  /**
+   * Mini-wrapper to std::function to ensure it is allocation free
+   * closure.
+   * This is used for the allocator initialisation callbacks the types
+   * are quite specialised, but could be generalised if required.
+   */
+  template<typename Args>
+  class AllocFreeClosure
+  {
+    template<typename Closure, void*(Args, Closure)>
+    friend class ClosureInst;
+
+  private:
+    void* (*cp)(AllocFreeClosure*, Args);
+    SNMALLOC_FAST_PATH AllocFreeClosure(Args (*cp)(AllocFreeClosure*, Args))
+    : cp(cp)
+    {}
+
+  public:
+    SNMALLOC_FAST_PATH void* operator()(Args alloc)
+    {
+      return cp(this, alloc);
+    }
+  };
+
+  /**
+   * Builds a closure for std::function that is guarantee not to allocate.
+   * This is used for the allocator initialisation callbacks the types
+   * are quite specialised, but could be generalised if required.
+   */
+  template<typename Closure, void* f(void*, Closure)>
+  class ClosureInst : public AllocFreeClosure<void*>
+  {
+    Closure arg;
+
+    SNMALLOC_FAST_PATH static void* my(AllocFreeClosure* that, void* alloc)
+    {
+      ClosureInst* me = reinterpret_cast<ClosureInst*>(that);
+      return f(alloc, me->arg);
+    }
+
+  public:
+    SNMALLOC_FAST_PATH ClosureInst(Closure arg)
+    : AllocFreeClosure(&my), arg(arg)
+    {}
+  };
 } // namespace snmalloc
