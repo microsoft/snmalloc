@@ -21,7 +21,8 @@ namespace snmalloc
   // GCC is outputing a function call to libatomic, rather than just the x86
   // instruction, this causes problems for linking later. For this case
   // fall back to locked implementation.
-#if defined(PLATFORM_IS_X86) && !(defined(GCC_NOT_CLANG) && defined(OPEN_ENCLAVE))
+#if defined(PLATFORM_IS_X86) && \
+  !(defined(GCC_NOT_CLANG) && defined(OPEN_ENCLAVE))
   template<typename T, Construction c = RequiresInit>
   class ABA
   {
