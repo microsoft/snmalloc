@@ -120,8 +120,9 @@ namespace snmalloc
     // copy / move constructors.
     template<
       typename Fn,
-      typename = std::enable_if_t<
-        !std::is_same_v<std::decay_t<Fn>, function_ref>> function_ref(Fn&& fn)
+      typename =
+        std::enable_if_t<!std::is_same_v<std::decay_t<Fn>, function_ref>>>
+    function_ref(Fn&& fn)
     {
       data_ = static_cast<void*>(&fn);
       fn_ = execute<Fn>;
