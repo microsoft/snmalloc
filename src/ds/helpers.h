@@ -108,7 +108,7 @@ namespace snmalloc
    * allocation. This is useful in the allocator code paths, where we can't
    * safely use std::function.
    *
-   * Inspired off the C++ proposal:
+   * Inspired by the C++ proposal:
    * http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p0792r2.html
    */
   template<typename Fn>
@@ -116,12 +116,17 @@ namespace snmalloc
   template<typename R, typename... Args>
   struct function_ref<R(Args...)>
   {
-    template<typename Fn>
-    function_ref(Fn&& fn)
+    // The enable_if is used to stop this constructor from shadowing the default
+    // copy / move constructors.
+    template<
+      typename Fn,
+      typename = std::enable_if_t<
+        !std::is_same_v<std::decay_t<Fn>, function_ref>> function_ref(Fn&& fn)
     {
       data_ = static_cast<void*>(&fn);
       fn_ = execute<Fn>;
     }
+
     R operator()(Args... args) const
     {
       return fn_(data_, args...);
