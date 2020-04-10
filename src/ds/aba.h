@@ -7,7 +7,8 @@
  * implementable with double-word compare and exchange or with load-link
  * store conditional.
  *
- * We provide a lock based implementation.
+ * We provide a lock based implementation as a backup for other platforms
+ * without appropriate intrinsics.
  */
 namespace snmalloc
 {
@@ -16,7 +17,12 @@ namespace snmalloc
   // check this on other platforms using a thread_local.
   inline thread_local bool operation_in_flight = false;
 #endif
-#ifdef PLATFORM_IS_X86
+  // The !(defined(GCC_NOT_CLANG) && defined(OPEN_ENCLAVE)) is required as
+  // GCC is outputing a function call to libatomic, rather than just the x86
+  // instruction, this causes problems for linking later. For this case
+  // fall back to locked implementation.
+#if defined(PLATFORM_IS_X86) && \
+  !(defined(GCC_NOT_CLANG) && defined(OPEN_ENCLAVE))
   template<typename T, Construction c = RequiresInit>
   class ABA
   {
