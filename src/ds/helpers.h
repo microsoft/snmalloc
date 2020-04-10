@@ -13,18 +13,18 @@ namespace snmalloc
   template<class Object, Object init() noexcept>
   class Singleton
   {
+    inline static std::atomic_flag flag;
+    inline static std::atomic<bool> initialised = false;
+    inline static Object obj;
+
   public:
     /**
      * If argument is non-null, then it is assigned the value
      * true, if this is the first call to get.
      * At most one call will be first.
      */
-    inline static Object& get(bool* first = nullptr)
+    inline SNMALLOC_SLOW_PATH static Object& get(bool* first = nullptr)
     {
-      static std::atomic_flag flag;
-      static std::atomic<bool> initialised;
-      static Object obj;
-
       // If defined should be initially false;
       SNMALLOC_ASSERT(first == nullptr || *first == false);
 
