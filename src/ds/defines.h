@@ -62,6 +62,12 @@ namespace snmalloc
 #else
 #  if __has_builtin(__builtin_assume)
 #    define SNMALLOC_ASSUME(x) __builtin_assume((x))
+#  elif defined(_MSC_VER)
+#    define SNMALLOC_ASSUME(x) __assume((x));
+#  elif defined(__GNUC__)
+#    define SNMALLOC_ASSUME(x) \
+      if (!(x)) \
+        __builtin_unreachable();
 #  else
 #    define SNMALLOC_ASSUME(x) \
       do \
