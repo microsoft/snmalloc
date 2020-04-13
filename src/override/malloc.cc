@@ -43,10 +43,18 @@ extern "C"
     return ThreadAlloc::get_noncachable()->alloc<ZeroMem::YesZero>(sz);
   }
 
+#ifndef __ANDROID__
   SNMALLOC_EXPORT size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(void* ptr)
   {
     return Alloc::alloc_size(ptr);
   }
+#else
+  SNMALLOC_EXPORT
+  size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(const void* ptr)
+  {
+    return Alloc::alloc_size(const_cast<void*>(ptr));
+  }
+#endif
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(realloc)(void* ptr, size_t size)
   {
