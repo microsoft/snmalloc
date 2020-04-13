@@ -1,8 +1,17 @@
 ## Changelog
+### 0.2.10
+
+- follow upstream 0.4.0
+- **upstream** defense TLS teardown
+- **upstream** adjust GCC warning
+- **upstream** other release optimizations
+
 ### 0.2.9
+
 - **upstream** fix OpenEnclave
 - **upstream** adjust remote batch size (performance improved dramatically, see [benchmark](https://github.com/microsoft/snmalloc/pull/158#issuecomment-605816017)
 - **upstream** improve slow path performance for allocation
+
 ### 0.2.8
 
 - More CI (**ARM64 on QEMU**)
