@@ -1131,7 +1131,7 @@ namespace snmalloc
         stats().sizeclass_alloc(sizeclass);
         return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass);
       }
-      return small_alloc_first_alloc<zero_mem, allow_reserve>(size);
+      return small_alloc_first_alloc<zero_mem, allow_reserve>(sizeclass, size);
     }
 
     /**
@@ -1139,10 +1139,13 @@ namespace snmalloc
      * then directs the allocation request to the newly created allocator.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void* small_alloc_first_alloc(size_t size)
+    SNMALLOC_SLOW_PATH void*
+    small_alloc_first_alloc(sizeclass_t sizeclass, size_t size)
     {
-      return InitThreadAllocator([size](void* alloc) {
-        return reinterpret_cast<Allocator*>(alloc)->alloc(size);
+      return InitThreadAllocator([sizeclass, size](void* alloc) {
+        return reinterpret_cast<Allocator*>(alloc)
+          ->template small_alloc_inner<zero_mem, allow_reserve>(
+            sizeclass, size);
       });
     }
 
@@ -1320,8 +1323,9 @@ namespace snmalloc
       {
         if (NeedsInitialisation(this))
         {
-          return InitThreadAllocator([size](void* alloc) {
-            return reinterpret_cast<Allocator*>(alloc)->alloc(size);
+          return InitThreadAllocator([size, rsize, sizeclass](void* alloc) {
+            return reinterpret_cast<Allocator*>(alloc)
+              ->medium_alloc<zero_mem, allow_reserve>(sizeclass, rsize, size);
           });
         }
         slab = reinterpret_cast<Mediumslab*>(
@@ -1394,7 +1398,8 @@ namespace snmalloc
       if (NeedsInitialisation(this))
       {
         return InitThreadAllocator([size](void* alloc) {
-          return reinterpret_cast<Allocator*>(alloc)->alloc(size);
+          return reinterpret_cast<Allocator*>(alloc)
+            ->large_alloc<zero_mem, allow_reserve>(size);
         });
       }
 
@@ -1420,8 +1425,8 @@ namespace snmalloc
 
       if (NeedsInitialisation(this))
       {
-        InitThreadAllocator([p](void* alloc) {
-          reinterpret_cast<Allocator*>(alloc)->dealloc(p);
+        InitThreadAllocator([p, size](void* alloc) {
+          reinterpret_cast<Allocator*>(alloc)->large_dealloc(p, size);
           return nullptr;
         });
         return;
