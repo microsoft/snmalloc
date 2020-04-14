@@ -70,6 +70,52 @@ void alloc4(size_t size)
   a->dealloc(r);
 }
 
+void check_calloc(void* p, size_t size)
+{
+  if (p != nullptr)
+  {
+    for (size_t i = 0; i < size; i++)
+    {
+      if (((uint8_t*)p)[i] != 0)
+        abort();
+      //      ((uint8_t*)p)[i] = 0x5a;
+    }
+  }
+}
+
+void calloc1(size_t size)
+{
+  void* r =
+    snmalloc::ThreadAlloc::get_noncachable()->alloc<snmalloc::ZeroMem::YesZero>(
+      size);
+  check_calloc(r, size);
+  snmalloc::ThreadAlloc::get_noncachable()->dealloc(r);
+}
+
+void calloc2(size_t size)
+{
+  auto a = snmalloc::ThreadAlloc::get_noncachable();
+  void* r = a->alloc<snmalloc::ZeroMem::YesZero>(size);
+  check_calloc(r, size);
+  a->dealloc(r);
+}
+
+void calloc3(size_t size)
+{
+  auto a = snmalloc::ThreadAlloc::get_noncachable();
+  void* r = a->alloc<snmalloc::ZeroMem::YesZero>(size);
+  check_calloc(r, size);
+  a->dealloc(r, size);
+}
+
+void calloc4(size_t size)
+{
+  auto a = snmalloc::ThreadAlloc::get();
+  void* r = a->alloc<snmalloc::ZeroMem::YesZero>(size);
+  check_calloc(r, size);
+  a->dealloc(r);
+}
+
 void dealloc1(void* p, size_t)
 {
   snmalloc::ThreadAlloc::get_noncachable()->dealloc(p);
@@ -97,16 +143,21 @@ void f(size_t size)
   auto t3 = std::thread(alloc3, size);
   auto t4 = std::thread(alloc4, size);
 
+  auto t5 = std::thread(calloc1, size);
+  auto t6 = std::thread(calloc2, size);
+  auto t7 = std::thread(calloc3, size);
+  auto t8 = std::thread(calloc4, size);
+
   auto a = snmalloc::current_alloc_pool()->acquire();
   auto p1 = a->alloc(size);
   auto p2 = a->alloc(size);
   auto p3 = a->alloc(size);
   auto p4 = a->alloc(size);
 
-  auto t5 = std::thread(dealloc1, p1, size);
-  auto t6 = std::thread(dealloc2, p2, size);
-  auto t7 = std::thread(dealloc3, p3, size);
-  auto t8 = std::thread(dealloc4, p4, size);
+  auto t9 = std::thread(dealloc1, p1, size);
+  auto t10 = std::thread(dealloc2, p2, size);
+  auto t11 = std::thread(dealloc3, p3, size);
+  auto t12 = std::thread(dealloc4, p4, size);
 
   t1.join();
   t2.join();
@@ -116,6 +167,10 @@ void f(size_t size)
   t6.join();
   t7.join();
   t8.join();
+  t9.join();
+  t10.join();
+  t11.join();
+  t12.join();
   snmalloc::current_alloc_pool()->release(a);
   snmalloc::current_alloc_pool()->debug_in_use(0);
   printf(".");
