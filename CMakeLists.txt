@@ -33,14 +33,6 @@ macro(warnings_high)
       add_compile_options(-Wsign-conversion)
     endif ()
     add_compile_options(-Wall -Wextra -Werror -Wundef)
-    # There are a few places with subtle reasons for array access being correct
-    # GCC's warnings are too aggressive and incorrectly assume the code is wrong.
-    # Disabling only in Release is so the ASSUME can be mapped to assert and check
-    # at runtime in debug.  This ensures we are covering the cases of concern with 
-    # debug checks, but not incurring runtime penalties in release.
-    if ((CMAKE_CXX_COMPILER_ID STREQUAL "GNU") AND (CMAKE_BUILD_TYPE STREQUAL "Release"))
-      add_compile_options(-Wno-array-bounds)
-    endif ()
   endif()
 endmacro()
 
