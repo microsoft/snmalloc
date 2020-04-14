@@ -296,6 +296,20 @@ void test_calloc_16M()
   alloc->dealloc(p1);
 }
 
+void test_calloc_large_bug()
+{
+  auto alloc = ThreadAlloc::get();
+  // Perform large calloc, to check for correct zeroing from PAL.
+  // Some PALS have special paths for PAGE aligned zeroing of large
+  // allocations.  This is a large allocation that is intentionally
+  // not a multiple of page size.
+  const size_t size = (SUPERSLAB_SIZE << 3) - 7;
+
+  void* p1 = alloc->alloc<YesZero>(size);
+  SNMALLOC_ASSERT(Alloc::alloc_size(Alloc::external_pointer(p1)) >= size);
+  alloc->dealloc(p1);
+}
+
 int main(int argc, char** argv)
 {
   setup();
@@ -309,6 +323,7 @@ int main(int argc, char** argv)
   UNUSED(argv);
 #endif
 
+  test_calloc_large_bug();
   test_external_pointer_dealloc_bug();
   test_external_pointer_large();
   test_alloc_dealloc_64k();
