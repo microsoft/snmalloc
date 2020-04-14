@@ -366,7 +366,8 @@ namespace snmalloc
         p = memory_provider.template reserve<false>(large_class);
         if (p == nullptr)
           return nullptr;
-        memory_provider.template notify_using<zero_mem>(p, size);
+        memory_provider.template notify_using<zero_mem>(
+          p, bits::align_up(size, OS_PAGE_SIZE));
       }
       else
       {
