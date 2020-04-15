@@ -1,0 +1,7 @@
+FROM multiarch/ubuntu-core:x86-bionic
+
+WORKDIR /src
+
+RUN apt update \
+    && apt install --no-install-recommends -y ninja-build clang++-9 cmake \
+    && apt -y clean
