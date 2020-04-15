@@ -108,7 +108,7 @@ jobs:
         CMakeArgs: ''
         Image: plietar/snmalloc-build_linux_x86:latest
 
-  container: $(Image)
+  container: $[ variables['Image'] ]
   steps:
   - script: |
       ci/scripts/build.sh
