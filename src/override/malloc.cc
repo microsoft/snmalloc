@@ -43,7 +43,8 @@ extern "C"
     return ThreadAlloc::get_noncachable()->alloc<ZeroMem::YesZero>(sz);
   }
 
-  SNMALLOC_EXPORT size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(const void* ptr)
+  SNMALLOC_EXPORT
+    size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(const void* ptr)
   {
     return Alloc::alloc_size(ptr);
   }

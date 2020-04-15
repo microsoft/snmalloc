@@ -41,7 +41,8 @@ namespace snmalloc
 
     static Mediumslab* get(const void* p)
     {
-      return pointer_align_down<SUPERSLAB_SIZE, Mediumslab>(p);
+      return pointer_align_down<SUPERSLAB_SIZE, Mediumslab>(
+        const_cast<void*>(p));
     }
 
     void init(RemoteAllocator* alloc, sizeclass_t sc, size_t rsize)
