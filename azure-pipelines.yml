@@ -111,21 +111,21 @@ jobs:
   container: $[ variables['Image'] ]
   steps:
   - script: |
+      set -eo pipefail
       ci/scripts/build.sh
     env:
       CC: $(CC)
       CXX: $(CXX)
       BUILD_TYPE: $(BuildType)
       CMAKE_ARGS: $(CMakeArgs)
-    failOnStderr: true
     displayName: 'Build'
 
   - script: |
+      set -eo pipefail
       ci/scripts/test.sh
     env:
       SELF_HOST: $(SelfHost)
       BUILD_TYPE: $(BuildType)
-    failOnStderr: true
     displayName: 'Test'
 
 - job:
