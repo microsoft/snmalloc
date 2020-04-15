@@ -98,7 +98,7 @@ jobs:
         BuildType: Debug
         SelfHost: false
         CMakeArgs: ''
-        Image: plietar/snmalloc-build_linux_x86:latest
+        Image: snmallocciteam/build_linux_x86:latest
 
       32-bit Clang-9 Release:
         CC: clang-9
@@ -106,7 +106,7 @@ jobs:
         BuildType: Release
         SelfHost: false
         CMakeArgs: ''
-        Image: plietar/snmalloc-build_linux_x86:latest
+        Image: snmallocciteam/build_linux_x86:latest
 
   container: $[ variables['Image'] ]
   steps:
