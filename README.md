@@ -105,6 +105,16 @@ your toolchain:
 LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
 ```
 
+## Cross Compile for Android
+Android support is out-of-the-box.
+
+To cross-compile the library for arm android, you can simply invoke CMake with the toolchain file and the andorid api settings (for more infomation, check this [document](https://developer.android.com/ndk/guides/cmake)).
+
+For example, you can cross-compile for `arm64-v8a` with the following command:
+```
+cmake /path/to/snmalloc -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a
+```
+
 # CMake Feature Flags
 
 These can be added to your cmake command line.
