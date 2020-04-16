@@ -12,6 +12,25 @@ fn main() {
     cfg = cfg.define("SNMALLOC_RUST_SUPPORT", "ON")
         .profile(build_type);
 
+    let triple = std::env::var("TARGET").unwrap();
+    if triple.contains("android") {
+        if let Ok(ndk) = std::env::var("ANDROID_NDK") {
+            cfg = cfg.define("CMAKE_TOOLCHAIN_FILE", format!("{}/build/cmake/android.toolchain.cmake", ndk));
+        } else {
+            eprintln!("please set ANDROID_NDK environment variable");
+            std::process::abort();
+        }
+        if cfg!(target_arch="aarch64") {
+            cfg = cfg.define("ANDROID_ABI", "arm64-v8a");
+        } else if cfg!(target_arch="arm") {
+            cfg = cfg.define("ANDROID_ABI", "armeabi-v7a");
+        } else if cfg!(target_arch="x86") {
+            cfg = cfg.define("ANDROID_ABI", "x86");
+        } else if cfg!(target_arch="x86_64") {
+            cfg = cfg.define("ANDROID_ABI", "x86_64");
+        }
+    }
+
     if cfg!(all(windows, target_env = "msvc")) {
         cfg = cfg.define("CMAKE_CXX_FLAGS_RELEASE", "/MD /O2 /Ob2 /DNDEBUG");
         cfg = cfg.define("CMAKE_C_FLAGS_RELEASE", "/MD /O2 /Ob2 /DNDEBUG");
@@ -47,7 +66,7 @@ fn main() {
     if cfg!(all(windows, target_env = "gnu")) {
         let path = std::env::var("MINGW64_BIN").unwrap_or_else(|_| {
             eprintln!("please set MINGW64_BIN so that we can link atomic library");
-            std::process::exit(1);
+            std::process::abort();
         });
         println!("cargo:rustc-link-search=native={}", path);
         println!("cargo:rustc-link-lib=dylib=stdc++");
