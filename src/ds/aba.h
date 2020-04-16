@@ -99,9 +99,11 @@ namespace snmalloc
           (__int64)value,
           (__int64*)&old);
 #  else
-#    if defined(__GNUC__) && !defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_16)
+#    if defined(__GNUC__) && defined(SNMALLOC_VA_BITS_64) && \
+      !defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_16)
 #error You must compile with -mcx16 to enable 16-byte atomic compare and swap.
 #    endif
+
         Linked xchg{value, old.aba + 1};
         std::atomic<Linked>& addr = parent->linked;
 

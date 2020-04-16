@@ -9,97 +9,123 @@ jobs:
   displayName: Linux
   pool:
     vmImage: 'ubuntu-18.04'
-  container: snmallocciteam/build_linux_x64:latest
 
   strategy:
     matrix:
-      Clang-7 Debug:
+      64-bit Clang-7 Debug:
         CC: clang-7
         CXX: clang++-7
         BuildType: Debug
         SelfHost: false
         CMakeArgs: ''
+        Image: snmallocciteam/build_linux_x64:latest
 
-      Clang-7 Release:
+      64-bit Clang-7 Release:
         CC: clang-7
         CXX: clang++-7
         BuildType: Release
         SelfHost: false
         CMakeArgs: ''
+        Image: snmallocciteam/build_linux_x64:latest
 
-      Clang-8 Debug:
+      64-bit Clang-8 Debug:
         CC: clang-8
         CXX: clang++-8
         BuildType: Debug
         SelfHost: false
         CMakeArgs: ''
+        Image: snmallocciteam/build_linux_x64:latest
 
-      Clang-8 Release:
+      64-bit Clang-8 Release:
         CC: clang-8
         CXX: clang++-8
         BuildType: Release
         SelfHost: false
         CMakeArgs: ''
+        Image: snmallocciteam/build_linux_x64:latest
 
-      Clang-9 Debug:
+      64-bit Clang-9 Debug:
         CC: clang-9
         CXX: clang++-9
         BuildType: Debug
         SelfHost: false
         CMakeArgs: ''
+        Image: snmallocciteam/build_linux_x64:latest
 
-      Clang-9 Release:
+      64-bit Clang-9 Release:
         CC: clang-9
         CXX: clang++-9
         BuildType: Release
         SelfHost: false
         CMakeArgs: ''
+        Image: snmallocciteam/build_linux_x64:latest
 
-      GCC-8 Debug:
+      64-bit GCC-8 Debug:
         CC: gcc-8
         CXX: g++-8
         BuildType: Debug
         SelfHost: false
         CMakeArgs: ''
+        Image: snmallocciteam/build_linux_x64:latest
 
-      GCC-8 Release:
+      64-bit GCC-8 Release:
         CC: gcc-8
         CXX: g++-8
         BuildType: Release
         SelfHost: false
         CMakeArgs: ''
+        Image: snmallocciteam/build_linux_x64:latest
 
-      Self Host:
+      64-bit Self Host:
         CC: clang-7
         CXX: clang++-7
         BuildType: Debug
         SelfHost: true
         CMakeArgs: ''
+        Image: snmallocciteam/build_linux_x64:latest
 
-      Cache Friendly:
+      64-bit Cache Friendly:
         CC: clang-7
         CXX: clang++-7
         BuildType: Debug
         SelfHost: false
         CMakeArgs: '-DCACHE_FRIENDLY_OFFSET=64'
+        Image: snmallocciteam/build_linux_x64:latest
 
+      32-bit Clang-9 Debug:
+        CC: clang-9
+        CXX: clang++-9
+        BuildType: Debug
+        SelfHost: false
+        CMakeArgs: ''
+        Image: snmallocciteam/build_linux_x86:latest
+
+      32-bit Clang-9 Release:
+        CC: clang-9
+        CXX: clang++-9
+        BuildType: Release
+        SelfHost: false
+        CMakeArgs: ''
+        Image: snmallocciteam/build_linux_x86:latest
+
+  container: $[ variables['Image'] ]
   steps:
   - script: |
+      set -eo pipefail
       ci/scripts/build.sh
     env:
       CC: $(CC)
       CXX: $(CXX)
       BUILD_TYPE: $(BuildType)
       CMAKE_ARGS: $(CMakeArgs)
-    failOnStderr: true
     displayName: 'Build'
 
   - script: |
+      set -eo pipefail
       ci/scripts/test.sh
     env:
       SELF_HOST: $(SelfHost)
       BUILD_TYPE: $(BuildType)
-    failOnStderr: true
     displayName: 'Test'
 
 - job:
