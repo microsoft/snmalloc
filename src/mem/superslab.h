@@ -65,9 +65,10 @@ namespace snmalloc
       StatusChange = 2
     };
 
-    static Superslab* get(void* p)
+    static Superslab* get(const void* p)
     {
-      return pointer_align_down<SUPERSLAB_SIZE, Superslab>(p);
+      return pointer_align_down<SUPERSLAB_SIZE, Superslab>(
+        const_cast<void*>(p));
     }
 
     static bool is_short_sizeclass(sizeclass_t sizeclass)

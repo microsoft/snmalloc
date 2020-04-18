@@ -14,6 +14,10 @@ using namespace snmalloc;
 #  define SNMALLOC_NAME_MANGLE(a) a
 #endif
 
+#ifndef MALLOC_USABLE_SIZE_QUALIFIER
+#  define MALLOC_USABLE_SIZE_QUALIFIER
+#endif
+
 extern "C"
 {
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(__malloc_end_pointer)(void* ptr)
@@ -43,7 +47,9 @@ extern "C"
     return ThreadAlloc::get_noncachable()->alloc<ZeroMem::YesZero>(sz);
   }
 
-  SNMALLOC_EXPORT size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(void* ptr)
+  SNMALLOC_EXPORT
+  size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(
+    MALLOC_USABLE_SIZE_QUALIFIER void* ptr)
   {
     return Alloc::alloc_size(ptr);
   }

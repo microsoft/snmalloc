@@ -140,9 +140,9 @@ namespace snmalloc
       return (slab_end - allocation_start) % size == 0;
     }
 
-    static Slab* get_slab(void* p)
+    static Slab* get_slab(const void* p)
     {
-      return pointer_align_down<SLAB_SIZE, Slab>(p);
+      return pointer_align_down<SLAB_SIZE, Slab>(const_cast<void*>(p));
     }
 
     static bool is_short(Slab* p)

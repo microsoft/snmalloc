@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.8)
 project(snmalloc C CXX)
 
 include(CheckCXXCompilerFlag)
+include(CheckCSourceCompiles)
 
 option(USE_SNMALLOC_STATS "Track allocation stats" OFF)
 option(SNMALLOC_CI_BUILD "Disable features not sensible for CI" OFF)
@@ -11,6 +12,12 @@ option(EXPOSE_EXTERNAL_RESERVE "Expose an interface to reserve memory using the 
 option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF)
 option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory on Linux" Off)
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
+
+CHECK_C_SOURCE_COMPILES("
+#include <malloc.h>
+size_t malloc_usable_size(const void* ptr) { return 0; }
+int main() { return 0; }
+" CONST_QUALIFIED_MALLOC_USABLE_SIZE)
 
 if ((CMAKE_BUILD_TYPE STREQUAL "Release") AND (NOT SNMALLOC_CI_BUILD))
   option(USE_POSIX_COMMIT_CHECKS "Instrument Posix PAL to check for access to unused blocks of memory." Off)
@@ -133,6 +140,10 @@ endif()
 
 if(USE_POSIX_COMMIT_CHECKS)
   target_compile_definitions(snmalloc_lib INTERFACE -DUSE_POSIX_COMMIT_CHECKS)
+endif()
+
+if(CONST_QUALIFIED_MALLOC_USABLE_SIZE)
+  target_compile_definitions(snmalloc_lib INTERFACE -DMALLOC_USABLE_SIZE_QUALIFIER=const)
 endif()
 
 

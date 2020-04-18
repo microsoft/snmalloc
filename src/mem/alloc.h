@@ -457,7 +457,7 @@ namespace snmalloc
       return pointer_cast<void>(external_address<location>(p));
     }
 
-    static size_t alloc_size(void* p)
+    static size_t alloc_size(const void* p)
     {
       // This must be called on an external pointer.
       size_t size = ChunkMap::get(address_cast(p));
