@@ -1,4 +1,11 @@
 ## Changelog
+## 0.2.11
+
+- add android support
+- **upstream** support x86
+- **upstream** support android
+- **upstream** fix callback
+
 ### 0.2.10
 
 - follow upstream 0.4.0

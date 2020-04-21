@@ -39,7 +39,24 @@ to link `libatomic` statically, I have to use dynamic linking. Hence, please mak
 
 This is the best thing I can do for current stage, if you have any better solution, please do help me to provide a better support for
 `MinGW`
+
+## For Androud Cross-Compilation
+
+- `ANDROID_NDK` must be provided as an environment variable
+- `ANDROID_PLATFORM` can be passed as an optional environment variable
+- `ANDROID_ABI` used by CMake is detected automatically
+- feature `android-lld` can be used to set the linker of `snmalloc` to `lld`
+- feature `androud-shared-std` can be used to set the STL library of `snmalloc` to `c++_shared` (it uses `c++_static` by default)
+
 ## Changelog
+
+## 0.2.11
+
+- add android support
+- **upstream** support x86
+- **upstream** support android
+- **upstream** fix callback
+
 ## 0.2.10
 
 - follow upstream 0.4.0
@@ -52,10 +69,6 @@ This is the best thing I can do for current stage, if you have any better soluti
 - **upstream** fix OpenEnclave
 - **upstream** adjust remote batch size (performance improved dramatically, see [benchmark](https://github.com/microsoft/snmalloc/pull/158#issuecomment-605816017)
 - **upstream** improve slow path performance for allocation
-### 0.2.8
 
-- More CI (**ARM64 on QEMU**)
-- **upstream** ARM(32/64) support
-- **upstream** x86-SGX support
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 
