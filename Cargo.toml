@@ -22,3 +22,5 @@ snmalloc-sys = {version = "0.2.10", path = "snmalloc-sys"}
 1mib = ["snmalloc-sys/1mib"]
 debug = ["snmalloc-sys/debug"]
 cache-friendly = ["snmalloc-sys/cache-friendly"]
+android-lld = ["snmalloc-sys/android-lld"]
+android-shared-stl = ["snmalloc-sys/android-shared-stl"]

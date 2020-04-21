@@ -23,3 +23,5 @@ default-features = false
 1mib = []
 debug = []
 cache-friendly = []
+android-lld = []
+android-shared-stl = []

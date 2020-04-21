@@ -20,14 +20,33 @@ fn main() {
             eprintln!("please set ANDROID_NDK environment variable");
             std::process::abort();
         }
-        if cfg!(target_arch="aarch64") {
+
+        if let Ok(platform) = std::env::var("ANDROID_PLATFORM") {
+            cfg = cfg.define("ANDROID_PLATFORM", platform);
+        }
+
+        if cfg!(feature = "android-lld") {
+            cfg = cfg.define("ANDROID_LD", "lld");
+        }
+
+        if cfg!(feature = "android-shared-stl") {
+            println!("cargo:rustc-link-lib=dylib=c++_shared");
+            cfg = cfg.define("ANDROID_STL", "c++_shared");
+        }
+
+        if triple.contains("aarch64") {
             cfg = cfg.define("ANDROID_ABI", "arm64-v8a");
-        } else if cfg!(target_arch="arm") {
-            cfg = cfg.define("ANDROID_ABI", "armeabi-v7a");
-        } else if cfg!(target_arch="x86") {
-            cfg = cfg.define("ANDROID_ABI", "x86");
-        } else if cfg!(target_arch="x86_64") {
+        } else if triple.contains("armv7") {
+            cfg = cfg.define("ANDROID_ABI", "armeabi-v7a")
+                .define("ANDROID_ARM_MODE", "arm");
+        } else if triple.contains("x86_64") {
             cfg = cfg.define("ANDROID_ABI", "x86_64");
+        } else if triple.contains("i686") {
+            cfg = cfg.define("ANDROID_ABI", "x86_64");
+        } else if triple.contains("neon") {
+            cfg = cfg.define("ANDROID_ABI", "armeabi-v7a with NEON")
+        } else if triple.contains("arm") {
+            cfg = cfg.define("ANDROID_ABI", "armeabi-v7a");
         }
     }
 
