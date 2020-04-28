@@ -106,7 +106,7 @@ fn main() {
             });
 
         println!("cargo:rustc-link-lib=dylib=stdc++");
-        println!("cargo:rustc-link-lib=dylib=atomic-1");
+        println!("cargo:rustc-link-lib=dylib=atomic");
         println!("cargo:rustc-link-lib=dylib=winpthread");
         println!("cargo:rustc-link-lib=dylib=gcc_s");
     }
