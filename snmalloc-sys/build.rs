@@ -83,13 +83,30 @@ fn main() {
     }
     
     if cfg!(all(windows, target_env = "gnu")) {
-        let path = std::env::var("MINGW64_BIN").unwrap_or_else(|_| {
-            eprintln!("please set MINGW64_BIN so that we can link atomic library");
-            std::process::abort();
-        });
-        println!("cargo:rustc-link-search=native={}", path);
+        let stdout = std::process::Command::new("gcc")
+            .args(&["-print-search-dirs"])
+            .output().unwrap_or_else(|_| {
+                eprintln!("Cannot run gcc.exe");
+                std::process::abort();
+            })
+            .stdout;
+
+        let outputs = String::from_utf8(stdout)
+            .unwrap_or_else(|_| {
+                eprintln!("gcc output contains non-utf8 characters");
+                std::process::abort();
+            });
+
+        outputs.lines()
+            .filter(|line| line.starts_with("libraries: ="))
+            .map(|line| line.split_at("libraries: =".len()).1)
+            .flat_map(|line| line.split(";"))
+            .for_each(|path| {
+                println!("cargo:rustc-link-search=native={}", path);
+            });
+
         println!("cargo:rustc-link-lib=dylib=stdc++");
-        println!("cargo:rustc-link-lib=dylib=atomic-1"); // TODO: fix me
+        println!("cargo:rustc-link-lib=dylib=atomic-1");
         println!("cargo:rustc-link-lib=dylib=winpthread");
         println!("cargo:rustc-link-lib=dylib=gcc_s");
     }
