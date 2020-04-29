@@ -1,5 +1,10 @@
 ## Changelog
-## 0.2.11
+
+### 0.2.12
+
+- improve mingw support
+
+### 0.2.11
 
 - add android support
 - **upstream** support x86
@@ -26,10 +31,13 @@
 - **upstream** x86-SGX support
 
 ### 0.2.7
+
 - partially fixed `mingw`
 - **upstream** remote dealloc refactor (higher performance)
 - **upstream** remove extra assertions
+
 ### 0.2.6
+
 - fix `macos`/`freebsd ` support
 - add more ci tests
 - mark the `mingw` problem

@@ -10,13 +10,16 @@ snmalloc is a research allocator. Its key design features are:
 - Freeing memory in a different thread to initially allocated it, does not take any locks and instead uses a novel message passing scheme to return the memory to the original allocator, where it is recycled.
 - The allocator uses large ranges of pages to reduce the amount of meta-data required.
 
-Some old benchmark results are available in the [`snmalloc` paper](https://github.com/microsoft/snmalloc/blob/master/snmalloc.pdf).
+Some old benchmark results are available in the [`snmalloc` paper](https://github.com/microsoft/snmalloc/blob/master/snmalloc.pdf). Some recent benchmark results are listed at 
+[bench_suite](https://github.com/SchrodingerZhu/bench_suite).
 There are three features defined in this crate:
+
 - `debug`: Enable the `Debug` mode in `snmalloc`.
 - `1mib`: Use the `1mib` chunk configuration.
 - `cache-friendly`: Make the allocator more cache friendly (setting `CACHE_FRIENDLY_OFFSET` to `64` in building the library).
 
 To use `snmalloc-rs` add it as a dependency:
+
 ```toml
 # Cargo.toml
 [dependencies]
@@ -24,21 +27,23 @@ snmalloc-rs = "0.2"
 ```
 
 To set `SnMalloc` as the global allocator add this to your project:
+
 ```rust
 #[global_allocator]
 static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
 ```
+
 ## For MinGW Users
-`mingw` version is only tested on nighly branch. Due to the complexity of locating GNU libraries on Windows environment,
-the library requests you to provide a `MINGW64_BIN` environment variable during compiling. Since `GCC` does not provide a option for us 
-to link `libatomic` statically, I have to use dynamic linking. Hence, please make sure the following libs are in your `PATH`:
+
+`mingw` version is only tested on nightly branch with MSYS environment. We are using dynamic linking method. 
+Hence, please make sure the following libs are in your `PATH`:
+
 - `winpthread`
 - `atomic`
 - `stdc++`
 - `gcc_s` 
 
-This is the best thing I can do for current stage, if you have any better solution, please do help me to provide a better support for
-`MinGW`
+**Notice:** since version `0.2.12`, we no longer require you to provide additional environment variables for `mingw` target.
 
 ## For Androud Cross-Compilation
 
@@ -46,29 +51,26 @@ This is the best thing I can do for current stage, if you have any better soluti
 - `ANDROID_PLATFORM` can be passed as an optional environment variable
 - `ANDROID_ABI` used by CMake is detected automatically
 - feature `android-lld` can be used to set the linker of `snmalloc` to `lld`
-- feature `androud-shared-std` can be used to set the STL library of `snmalloc` to `c++_shared` (it uses `c++_static` by default)
+- feature `android-shared-std` can be used to set the STL library of `snmalloc` to `c++_shared` (it uses `c++_static` by default)
 
 ## Changelog
 
-## 0.2.11
+### 0.2.12
+
+- improve mingw support
+
+### 0.2.11
 
 - add android support
 - **upstream** support x86
 - **upstream** support android
 - **upstream** fix callback
 
-## 0.2.10
+### 0.2.10
 
 - follow upstream 0.4.0
 - **upstream** defense TLS teardown
 - **upstream** adjust GCC warning
 - **upstream** other release optimizations
-
-### 0.2.9   
-
-- **upstream** fix OpenEnclave
-- **upstream** adjust remote batch size (performance improved dramatically, see [benchmark](https://github.com/microsoft/snmalloc/pull/158#issuecomment-605816017)
-- **upstream** improve slow path performance for allocation
-
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 
