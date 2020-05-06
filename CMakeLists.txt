@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.8)
 project(snmalloc C CXX)
 
+if (NOT CMAKE_BUILD_TYPE)
+  message(STATUS "No build type selected, default to: Release")
+  set(CMAKE_BUILD_TYPE "Release")
+endif()
+
 include(CheckCXXCompilerFlag)
 include(CheckCSourceCompiles)
 
