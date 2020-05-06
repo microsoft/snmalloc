@@ -221,7 +221,7 @@ void test_external_pointer_large()
 
   for (size_t i = 0; i < count; i++)
   {
-    size_t b = snmalloc::bits::is64() ? 28 : 26;
+    size_t b = SUPERSLAB_BITS + 3;
     size_t rand = r.next() & ((1 << b) - 1);
     size_t size = (1 << 24) + rand;
     total_size += size;
