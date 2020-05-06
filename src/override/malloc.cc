@@ -81,7 +81,7 @@ extern "C"
 #endif
     size_t sz = Alloc::alloc_size(ptr);
     // Keep the current allocation if the given size is in the same sizeclass.
-    if (sz == sizeclass_to_size(size_to_sizeclass(size)))
+    if (sz == round_size(size))
       return ptr;
 
     void* p = SNMALLOC_NAME_MANGLE(malloc)(size);

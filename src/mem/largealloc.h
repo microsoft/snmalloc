@@ -399,6 +399,8 @@ namespace snmalloc
           if constexpr (zero_mem == YesZero)
             memory_provider.template zero<true>(
               p, bits::align_up(size, OS_PAGE_SIZE));
+          else
+            UNUSED(size);
         }
       }
 
