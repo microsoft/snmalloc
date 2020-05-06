@@ -35,6 +35,11 @@ extern "C"
     ThreadAlloc::get_noncachable()->dealloc(ptr);
   }
 
+  SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(cfree)(void* ptr)
+  {
+    SNMALLOC_NAME_MANGLE(free)(ptr);
+  }
+
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(calloc)(size_t nmemb, size_t size)
   {
     bool overflow = false;
