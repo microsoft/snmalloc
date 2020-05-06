@@ -19,7 +19,7 @@ namespace snmalloc
     union
     {
       Remote* non_atomic_next;
-      std::atomic<Remote*> next = nullptr;
+      std::atomic<Remote*> next{nullptr};
     };
 
     alloc_id_t allocator_id;

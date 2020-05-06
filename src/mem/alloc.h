@@ -284,6 +284,7 @@ namespace snmalloc
       UNUSED(size);
       return free(p);
 #else
+      SNMALLOC_ASSERT(p != nullptr);
       check_size(p, size);
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
       {

@@ -188,7 +188,7 @@ namespace snmalloc
       {
         PagemapEntry* value = get_node<create_addr>(e, result);
         if (unlikely(!result))
-          return std::pair(nullptr, 0);
+          return {nullptr, 0};
 
         shift -= BITS_PER_INDEX_LEVEL;
         ix = (static_cast<size_t>(addr) >> shift) & ENTRIES_MASK;
@@ -208,11 +208,11 @@ namespace snmalloc
       Leaf* leaf = reinterpret_cast<Leaf*>(get_node<create_addr>(e, result));
 
       if (unlikely(!result))
-        return std::pair(nullptr, 0);
+        return {nullptr, 0};
 
       shift -= BITS_FOR_LEAF;
       ix = (static_cast<size_t>(addr) >> shift) & LEAF_MASK;
-      return std::pair(leaf, ix);
+      return {leaf, ix};
     }
 
     template<bool create_addr>

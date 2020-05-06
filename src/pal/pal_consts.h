@@ -78,7 +78,7 @@ namespace snmalloc
     /**
      * List of callbacks to notify
      */
-    std::atomic<PalNotificationObject*> callbacks = nullptr;
+    std::atomic<PalNotificationObject*> callbacks{nullptr};
 
   public:
     /**

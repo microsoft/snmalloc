@@ -14,7 +14,7 @@ namespace snmalloc
       std::is_same<decltype(T::next), std::atomic<T*>>::value,
       "T->next must be a std::atomic<T*>");
 
-    std::atomic<T*> back = nullptr;
+    std::atomic<T*> back{nullptr};
     T* front = nullptr;
 
   public:
@@ -72,10 +72,10 @@ namespace snmalloc
         SNMALLOC_ASSERT(front);
         std::atomic_thread_fence(std::memory_order_acquire);
         invariant();
-        return std::pair(first, true);
+        return {first, true};
       }
 
-      return std::pair(nullptr, false);
+      return {nullptr, false};
     }
   };
 } // namespace snmalloc
