@@ -366,8 +366,7 @@ namespace snmalloc
         p = memory_provider.template reserve<false>(large_class);
         if (p == nullptr)
           return nullptr;
-        memory_provider.template notify_using<zero_mem>(
-          p, bits::align_up(size, OS_PAGE_SIZE));
+        memory_provider.template notify_using<zero_mem>(p, rsize);
       }
       else
       {
@@ -390,8 +389,7 @@ namespace snmalloc
           // Passing zero_mem ensures the PAL provides zeroed pages if
           // required.
           memory_provider.template notify_using<zero_mem>(
-            pointer_offset(p, OS_PAGE_SIZE),
-            bits::align_up(size, OS_PAGE_SIZE) - OS_PAGE_SIZE);
+            pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
         }
         else
         {
