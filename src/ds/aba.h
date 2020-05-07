@@ -121,7 +121,7 @@ namespace snmalloc
       }
 
       Cmp(const Cmp&) = delete;
-      Cmp(Cmp&&) = default;
+      Cmp(Cmp&&) noexcept = default;
     };
 
     // This method is used in Verona
