@@ -14,7 +14,7 @@ namespace snmalloc
   class Singleton
   {
     inline static std::atomic_flag flag;
-    inline static std::atomic<bool> initialised = false;
+    inline static std::atomic<bool> initialised{false};
     inline static Object obj;
 
   public:

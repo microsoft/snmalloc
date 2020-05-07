@@ -63,6 +63,6 @@ namespace snmalloc
    */
   inline SlowAllocator get_slow_allocator()
   {
-    return SlowAllocator{};
+    return {};
   }
 } // namespace snmalloc
