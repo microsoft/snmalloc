@@ -43,6 +43,8 @@ void operator delete(void* p)EXCEPTSPEC
 
 void operator delete(void* p, size_t size)EXCEPTSPEC
 {
+  if (p == nullptr)
+    return;
   ThreadAlloc::get_noncachable()->dealloc(p, size);
 }
 
@@ -58,6 +60,8 @@ void operator delete[](void* p) EXCEPTSPEC
 
 void operator delete[](void* p, size_t size) EXCEPTSPEC
 {
+  if (p == nullptr)
+    return;
   ThreadAlloc::get_noncachable()->dealloc(p, size);
 }
 
