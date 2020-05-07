@@ -18,7 +18,7 @@ void test_align_size()
        size < snmalloc::sizeclass_to_size(snmalloc::NUM_SIZECLASSES - 1);
        size++)
   {
-    size_t rsize = snmalloc::sizeclass_to_size(size_to_sizeclass(size));
+    size_t rsize = snmalloc::round_size(size);
 
     if (rsize < size)
     {
