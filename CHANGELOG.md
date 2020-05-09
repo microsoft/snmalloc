@@ -1,5 +1,9 @@
 ## Changelog
 
+### 0.2.13
+
+- **upstream** large realloc fix and minor updates
+
 ### 0.2.12
 
 - improve mingw support

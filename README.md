@@ -45,7 +45,7 @@ Hence, please make sure the following libs are in your `PATH`:
 
 **Notice:** since version `0.2.12`, we no longer require you to provide additional environment variables for `mingw` target.
 
-## For Androud Cross-Compilation
+## For Android Cross-Compilation
 
 - `ANDROID_NDK` must be provided as an environment variable
 - `ANDROID_PLATFORM` can be passed as an optional environment variable
@@ -54,6 +54,10 @@ Hence, please make sure the following libs are in your `PATH`:
 - feature `android-shared-std` can be used to set the STL library of `snmalloc` to `c++_shared` (it uses `c++_static` by default)
 
 ## Changelog
+
+### 0.2.13
+
+- **upstream** large realloc fix and minor updates
 
 ### 0.2.12
 
@@ -66,11 +70,5 @@ Hence, please make sure the following libs are in your `PATH`:
 - **upstream** support android
 - **upstream** fix callback
 
-### 0.2.10
-
-- follow upstream 0.4.0
-- **upstream** defense TLS teardown
-- **upstream** adjust GCC warning
-- **upstream** other release optimizations
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 
