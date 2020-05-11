@@ -228,7 +228,10 @@ extern "C"
     if (config)
     {
       *config = &ChunkmapPagemap::config;
-      SNMALLOC_ASSERT(ChunkmapPagemap::cast_to_pagemap(&pm, *config) == &pm);
+      if (ChunkmapPagemap::cast_to_pagemap(&pm, *config) != &pm)
+      {
+        error("Page map is not of correct type.");
+      }
     }
     return &pm;
   }

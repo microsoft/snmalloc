@@ -43,18 +43,7 @@ namespace snmalloc
   static_assert(
     SUPERSLAB_BITS > CMMediumslab, "Large allocations may be too small");
 
-#ifndef SNMALLOC_MAX_FLATPAGEMAP_SIZE
-// Use flat map is under a single node.
-#  define SNMALLOC_MAX_FLATPAGEMAP_SIZE PAGEMAP_NODE_SIZE
-#endif
-  static constexpr bool USE_FLATPAGEMAP = pal_supports<LazyCommit> ||
-    (SNMALLOC_MAX_FLATPAGEMAP_SIZE >=
-     sizeof(FlatPagemap<SUPERSLAB_BITS, uint8_t>));
-
-  using ChunkmapPagemap = std::conditional_t<
-    USE_FLATPAGEMAP,
-    FlatPagemap<SUPERSLAB_BITS, uint8_t>,
-    Pagemap<SUPERSLAB_BITS, uint8_t, 0>>;
+  using ChunkmapPagemap = PagemapV2<SUPERSLAB_BITS, uint8_t>;
 
   /**
    * Mixin used by `ChunkMap` to directly access the pagemap via a global
@@ -76,7 +65,7 @@ namespace snmalloc
      * The global pagemap variable.  The name of this symbol will include the
      * type of `T`.
      */
-    inline static T global_pagemap;
+    inline static ChunkmapPagemap global_pagemap{};
 
   public:
     /**
