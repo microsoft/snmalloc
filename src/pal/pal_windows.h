@@ -2,7 +2,6 @@
 
 #include "../ds/address.h"
 #include "../ds/bits.h"
-#include "../mem/allocconfig.h"
 
 #ifdef _WIN32
 #  ifndef _MSC_VER
@@ -83,6 +82,8 @@ namespace snmalloc
 #  endif
       ;
 
+    static constexpr size_t page_size = 0x1000;
+
     /**
      * Check whether the low memory state is still in effect.  This is an
      * expensive operation and should not be on any fast paths.
@@ -115,7 +116,7 @@ namespace snmalloc
     /// Notify platform that we will not be using these pages
     void notify_not_using(void* p, size_t size) noexcept
     {
-      SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, size));
+      SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
 
       BOOL ok = VirtualFree(p, size, MEM_DECOMMIT);
 
@@ -128,7 +129,7 @@ namespace snmalloc
     void notify_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(
-        is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
+        is_aligned_block<page_size>(p, size) || (zero_mem == NoZero));
 
       void* r = VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE);
 
@@ -140,9 +141,9 @@ namespace snmalloc
     template<bool page_aligned = false>
     void zero(void* p, size_t size) noexcept
     {
-      if (page_aligned || is_aligned_block<OS_PAGE_SIZE>(p, size))
+      if (page_aligned || is_aligned_block<page_size>(p, size))
       {
-        SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, size));
+        SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
         notify_not_using(p, size);
         notify_using<YesZero>(p, size);
       }

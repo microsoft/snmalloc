@@ -19,6 +19,9 @@ namespace snmalloc
      * PAL supports.
      */
     static constexpr uint64_t pal_features = 0;
+
+    static constexpr size_t page_size = 0x1000;
+
     [[noreturn]] static void error(const char* const str)
     {
       UNUSED(str);

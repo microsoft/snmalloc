@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../ds/address.h"
-#include "../mem/allocconfig.h"
 #if defined(BACKTRACE_HEADER)
 #  include BACKTRACE_HEADER
 #endif
@@ -39,6 +38,8 @@ namespace snmalloc
      */
     static constexpr uint64_t pal_features = LazyCommit;
 
+    static constexpr size_t page_size = 0x1000;
+
     static void print_stack_trace()
     {
 #ifdef BACKTRACE_HEADER
@@ -72,7 +73,7 @@ namespace snmalloc
      */
     void notify_not_using(void* p, size_t size) noexcept
     {
-      SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, size));
+      SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
 #ifdef USE_POSIX_COMMIT_CHECKS
       mprotect(p, size, PROT_NONE);
 #else
@@ -92,7 +93,7 @@ namespace snmalloc
     void notify_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(
-        is_aligned_block<OS_PAGE_SIZE>(p, size) || (zero_mem == NoZero));
+        is_aligned_block<OS::page_size>(p, size) || (zero_mem == NoZero));
 
 #ifdef USE_POSIX_COMMIT_CHECKS
       mprotect(p, size, PROT_READ | PROT_WRITE);
@@ -119,9 +120,9 @@ namespace snmalloc
     template<bool page_aligned = false>
     void zero(void* p, size_t size) noexcept
     {
-      if (page_aligned || is_aligned_block<OS_PAGE_SIZE>(p, size))
+      if (page_aligned || is_aligned_block<OS::page_size>(p, size))
       {
-        SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, size));
+        SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
         void* r = mmap(
           p,
           size,
