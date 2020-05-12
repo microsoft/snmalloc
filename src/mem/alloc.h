@@ -733,12 +733,6 @@ namespace snmalloc
         size_t size1 = sizeclass_to_size(sc1);
         size_t size2 = sizeclass_to_size(sc2);
 
-        // All medium size classes are page aligned.
-        if (i > NUM_SMALL_CLASSES)
-        {
-          SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(nullptr, size1));
-        }
-
         SNMALLOC_ASSERT(sc1 == i);
         SNMALLOC_ASSERT(sc1 == sc2);
         SNMALLOC_ASSERT(size1 == size);

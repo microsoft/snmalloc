@@ -85,11 +85,10 @@ namespace snmalloc
       void* p = pointer_offset(this, (static_cast<size_t>(index) << 8));
       free--;
 
-      SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, OS_PAGE_SIZE));
-      size = bits::align_up(size, OS_PAGE_SIZE);
-
       if constexpr (zero_mem == YesZero)
-        memory_provider.template zero<true>(p, size);
+        memory_provider.zero(p, size);
+      else
+        UNUSED(size);
 
       return p;
     }
