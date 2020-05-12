@@ -86,7 +86,7 @@ void test_tasks_f(size_t id)
 
     *res = size;
     size_t* out =
-      contention[n % swapsize].exchange(res, std::memory_order_relaxed);
+      contention[n % swapsize].exchange(res, std::memory_order_acq_rel);
 
     if (out != nullptr)
     {
