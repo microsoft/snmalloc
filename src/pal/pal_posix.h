@@ -2,9 +2,8 @@
 
 #include "../ds/address.h"
 #include "../mem/allocconfig.h"
-#if __has_include(<execinfo.h>)
-#  define SNMALLOC_HAS_BACKTRACE 1
-#  include <execinfo.h>
+#if defined(BACKTRACE_HEADER)
+#  include BACKTRACE_HEADER
 #endif
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,7 +41,7 @@ namespace snmalloc
 
     static void print_stack_trace()
     {
-#ifdef SNMALLOC_HAS_BACKTRACE
+#ifdef BACKTRACE_HEADER
       constexpr int SIZE = 1024;
       void* buffer[SIZE];
       auto nptrs = backtrace(buffer, SIZE);

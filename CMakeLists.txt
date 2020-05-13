@@ -176,6 +176,14 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         add_compile_options(-march=native)
       endif()
     endif()
+
+    find_package(Backtrace)
+    if(${Backtrace_FOUND})
+      target_compile_definitions(snmalloc_lib INTERFACE -DBACKTRACE_HEADER="${Backtrace_HEADER}")
+      target_link_libraries(snmalloc_lib INTERFACE ${Backtrace_LIBRARIES})
+      target_include_directories(snmalloc_lib INTERFACE ${Backtrace_INCLUD_DIRS})
+    endif()
+
   endif()
 
   macro(subdirlist result curdir)
