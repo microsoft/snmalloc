@@ -44,6 +44,13 @@ namespace snmalloc
     StrictProvenance = (1 << 2),
   };
 
+  enum AalName : int
+  {
+    ARM,
+    X86,
+    X86_SGX,
+  };
+
   /**
    * Architecture Abstraction Layer. Includes default implementations of some
    * functions using compiler builtins.  Falls back to the definitions in the
