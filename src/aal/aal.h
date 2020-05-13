@@ -23,6 +23,9 @@
 #  define PLATFORM_IS_POWERPC
 #endif
 
+#if defined(__mips__)
+#  define PLATFORM_IS_MIPS
+#endif
 namespace snmalloc
 {
   /**
@@ -51,6 +54,7 @@ namespace snmalloc
   enum AalName : int
   {
     ARM,
+    MIPS,
     PowerPC,
     X86,
     X86_SGX,
@@ -147,6 +151,8 @@ namespace snmalloc
 #  include "aal_arm.h"
 #elif defined(PLATFORM_IS_POWERPC)
 #  include "aal_powerpc.h"
+#elif defined(PLATFORM_IS_MIPS)
+#  include "aal_mips.h"
 #endif
 
 namespace snmalloc
