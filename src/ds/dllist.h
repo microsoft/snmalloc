@@ -17,7 +17,7 @@ namespace snmalloc
      * are always the same, invalid pointer values with different sentinels are
      * always different.
      */
-    template<uintptr_t OtherSentinel>
+    template<address_t OtherSentinel>
     constexpr bool operator==(const InvalidPointer<OtherSentinel>&)
     {
       return Sentinel == OtherSentinel;
@@ -27,7 +27,7 @@ namespace snmalloc
      * are always the same, invalid pointer values with different sentinels are
      * always different.
      */
-    template<uintptr_t OtherSentinel>
+    template<address_t OtherSentinel>
     constexpr bool operator!=(const InvalidPointer<OtherSentinel>&)
     {
       return Sentinel != OtherSentinel;
