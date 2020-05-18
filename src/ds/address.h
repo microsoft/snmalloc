@@ -51,8 +51,7 @@ namespace snmalloc
   {
     static_assert(bits::next_pow2_const(alignment) == alignment);
 
-    return ((static_cast<size_t>(address_cast(p)) | size) & (alignment - 1)) ==
-      0;
+    return ((address_cast(p) | size) & (alignment - 1)) == 0;
   }
 
   /**
