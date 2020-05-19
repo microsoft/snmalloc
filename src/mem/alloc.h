@@ -847,8 +847,12 @@ namespace snmalloc
     void init_message_queue()
     {
       // Manufacture an allocation to prime the queue
-      // Using an actual allocation removes a conditional of a critical path.
+      // Using an actual allocation removes a conditional from a critical path.
       Remote* dummy = reinterpret_cast<Remote*>(alloc<YesZero>(MIN_ALLOC_SIZE));
+      if (dummy == nullptr)
+      {
+        error("Critical error: Out-of-memory during initialisation.");
+      }
       dummy->set_target_id(id());
       message_queue().init(dummy);
     }
