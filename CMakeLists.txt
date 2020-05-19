@@ -15,8 +15,10 @@ option(USE_MEASURE "Measure performance with histograms" OFF)
 option(EXPOSE_EXTERNAL_PAGEMAP "Expose the global pagemap" OFF)
 option(EXPOSE_EXTERNAL_RESERVE "Expose an interface to reserve memory using the default memory provider" OFF)
 option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF)
+option(SNMALLOC_STATIC_LIBRARY   "Build static libraries" ON)
 option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory on Linux" Off)
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
+set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
 
 CHECK_C_SOURCE_COMPILES("
 #include <malloc.h>
@@ -227,6 +229,15 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     endif()
 
   endmacro()
+
+  if (SNMALLOC_STATIC_LIBRARY)
+    add_shim(snmallocshim-static STATIC src/override/malloc.cc)
+    add_shim(snmallocshim-1mib-static STATIC src/override/malloc.cc)
+    target_compile_definitions(snmallocshim-1mib-static PRIVATE IS_ADDRESS_SPACE_CONSTRAINED
+            SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
+    target_compile_definitions(snmallocshim-static PRIVATE
+            SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
+  endif ()
 
   if(NOT WIN32)
     set(SHARED_FILES src/override/new.cc src/override/malloc.cc)
