@@ -181,8 +181,8 @@ namespace snmalloc
     Slab* alloc_slab(sizeclass_t sizeclass)
     {
       uint8_t h = head;
-      Slab* slab = pointer_cast<Slab>(
-        address_cast(this) + (static_cast<size_t>(h) << SLAB_BITS));
+      Slab* slab = pointer_offset(
+        reinterpret_cast<Slab*>(this), (static_cast<size_t>(h) << SLAB_BITS));
 
       uint8_t n = meta[h].next;
 

@@ -43,16 +43,6 @@ namespace snmalloc
   }
 
   /**
-   * Cast from an address back to a pointer of the specified type.  All uses of
-   * this will eventually need auditing for CHERI compatibility.
-   */
-  template<typename T>
-  inline T* pointer_cast(address_t address)
-  {
-    return reinterpret_cast<T*>(address);
-  }
-
-  /**
    * Test if a pointer is aligned to a given size, which must be a power of
    * two.
    */
@@ -81,7 +71,8 @@ namespace snmalloc
 #if __has_builtin(__builtin_align_down)
       return static_cast<T*>(__builtin_align_down(p, alignment));
 #else
-      return pointer_cast<T>(bits::align_down(address_cast(p), alignment));
+      return reinterpret_cast<T*>(
+        bits::align_down(reinterpret_cast<uintptr_t>(p), alignment));
 #endif
     }
   }
@@ -102,9 +93,27 @@ namespace snmalloc
 #if __has_builtin(__builtin_align_up)
       return static_cast<T*>(__builtin_align_up(p, alignment));
 #else
-      return pointer_cast<T>(bits::align_up(address_cast(p), alignment));
+      return reinterpret_cast<T*>(
+        bits::align_up(reinterpret_cast<uintptr_t>(p), alignment));
 #endif
     }
+  }
+
+  /**
+   * Align a pointer down to a dynamically specified granularity, which must be
+   * a power of two.
+   */
+  template<typename T = void>
+  SNMALLOC_FAST_PATH T* pointer_align_down(void* p, size_t alignment)
+  {
+    SNMALLOC_ASSERT(alignment > 0);
+    SNMALLOC_ASSERT(bits::next_pow2(alignment) == alignment);
+#if __has_builtin(__builtin_align_down)
+    return static_cast<T*>(__builtin_align_down(p, alignment));
+#else
+    return reinterpret_cast<T*>(
+      bits::align_down(reinterpret_cast<uintptr_t>(p), alignment));
+#endif
   }
 
   /**
@@ -119,7 +128,8 @@ namespace snmalloc
 #if __has_builtin(__builtin_align_up)
     return static_cast<T*>(__builtin_align_up(p, alignment));
 #else
-    return pointer_cast<T>(bits::align_up(address_cast(p), alignment));
+    return reinterpret_cast<T*>(
+      bits::align_up(reinterpret_cast<uintptr_t>(p), alignment));
 #endif
   }
 

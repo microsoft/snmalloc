@@ -394,7 +394,7 @@ namespace snmalloc
     }
 
     template<Boundary location = Start>
-    static address_t external_address(void* p)
+    static void* external_pointer(void* p)
     {
 #ifdef USE_MALLOC
       error("Unsupported");
@@ -423,12 +423,13 @@ namespace snmalloc
         return external_pointer<location>(p, sc, slab_end);
       }
 
-      auto ss = address_cast(super);
+      auto ss = super;
 
       while (size > 64)
       {
         // This is a large alloc redirect.
-        ss = ss - (1ULL << (size - 64));
+        ss = pointer_offset_signed(
+          ss, -(static_cast<ptrdiff_t>(1) << (size - 64)));
         size = ChunkMap::get(ss);
       }
 
@@ -436,26 +437,20 @@ namespace snmalloc
       {
         if constexpr ((location == End) || (location == OnePastEnd))
           // We don't know the End, so return MAX_PTR
-          return UINTPTR_MAX;
+          return pointer_offset<void>(nullptr, UINTPTR_MAX);
         else
           // We don't know the Start, so return MIN_PTR
-          return 0;
+          return nullptr;
       }
 
       // This is a large alloc, mask off to the slab size.
       if constexpr (location == Start)
         return ss;
       else if constexpr (location == End)
-        return (ss + (1ULL << size) - 1ULL);
+        return pointer_offset(ss, (1ULL << size) - 1ULL);
       else
-        return (ss + (1ULL << size));
+        return pointer_offset(ss, 1ULL << size);
 #endif
-    }
-
-    template<Boundary location = Start>
-    static void* external_pointer(void* p)
-    {
-      return pointer_cast<void>(external_address<location>(p));
     }
 
     static size_t alloc_size(const void* p)
@@ -824,24 +819,24 @@ namespace snmalloc
     }
 
     template<Boundary location>
-    static uintptr_t
+    static void*
     external_pointer(void* p, sizeclass_t sizeclass, void* end_point)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
 
       void* end_point_correction = location == End ?
-        (static_cast<uint8_t*>(end_point) - 1) :
-        (location == OnePastEnd ? end_point :
-                                  (static_cast<uint8_t*>(end_point) - rsize));
+        pointer_offset_signed(end_point, -1) :
+        (location == OnePastEnd ?
+           end_point :
+           pointer_offset_signed(end_point, -static_cast<ptrdiff_t>(rsize)));
 
-      ptrdiff_t offset_from_end =
-        (static_cast<uint8_t*>(end_point) - 1) - static_cast<uint8_t*>(p);
+      size_t offset_from_end =
+        pointer_diff(p, pointer_offset_signed(end_point, -1));
 
-      size_t end_to_end =
-        round_by_sizeclass(rsize, static_cast<size_t>(offset_from_end));
+      size_t end_to_end = round_by_sizeclass(rsize, offset_from_end);
 
-      return address_cast<uint8_t>(
-        static_cast<uint8_t*>(end_point_correction) - end_to_end);
+      return pointer_offset_signed(
+        end_point_correction, -static_cast<ptrdiff_t>(end_to_end));
     }
 
     void init_message_queue()

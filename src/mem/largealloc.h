@@ -183,10 +183,9 @@ namespace snmalloc
       lazy_decommit_guard.clear();
     }
 
-    void push_space(address_t start, size_t large_class)
+    void push_space(void* p, size_t large_class)
     {
       // All fresh pages so can use "NoZero"
-      void* p = pointer_cast<void>(start);
       if (large_class > 0)
         PAL::template notify_using<NoZero>(p, OS_PAGE_SIZE);
       else
@@ -284,24 +283,24 @@ namespace snmalloc
         if (p == nullptr)
           return nullptr;
 
-        address_t p0 = address_cast(p);
-        address_t start = bits::align_up(p0, align);
-        address_t p1 = p0 + request;
-        address_t end = start + size;
+        void* start = pointer_align_up(p, align);
+        void* p1 = pointer_offset(p, request);
+        void* end = pointer_offset(start, size);
 
-        for (; end < bits::align_down(p1, align); end += size)
+        for (; end < pointer_align_down(p1, align);
+             end = pointer_offset(end, size))
         {
           push_space(end, large_class);
         }
 
         // Put offcuts before alignment into the large stack
-        address_t offcut_end = start;
-        address_t offcut_start;
+        void* offcut_end = start;
+        void* offcut_start;
         for (size_t i = large_class; i > 0;)
         {
           i--;
           size_t offcut_align = bits::one_at_bit(SUPERSLAB_BITS) << i;
-          offcut_start = bits::align_up(p0, offcut_align);
+          offcut_start = pointer_align_up(p, offcut_align);
           if (offcut_start != offcut_end)
           {
             push_space(offcut_start, i);
@@ -315,7 +314,7 @@ namespace snmalloc
         {
           i--;
           auto offcut_align = bits::one_at_bit(SUPERSLAB_BITS) << i;
-          offcut_end = bits::align_down(p1, offcut_align);
+          offcut_end = pointer_align_down(p1, offcut_align);
           if (offcut_start != offcut_end)
           {
             push_space(offcut_start, i);
@@ -323,11 +322,10 @@ namespace snmalloc
           }
         }
 
-        void* result = pointer_cast<void>(start);
         if (committed)
-          PAL::template notify_using<NoZero>(result, size);
+          PAL::template notify_using<NoZero>(start, size);
 
-        return result;
+        return start;
       }
     }
   };
