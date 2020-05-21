@@ -3,8 +3,6 @@
 #ifdef _MSC_VER
 #  include <immintrin.h>
 #  include <intrin.h>
-#else
-#  include <emmintrin.h>
 #endif
 
 #if defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || \
@@ -34,7 +32,11 @@ namespace snmalloc
      */
     static inline void pause()
     {
+#ifdef _MSC_VER
       _mm_pause();
+#else
+      asm volatile("pause");
+#endif
     }
 
     /**
@@ -42,7 +44,11 @@ namespace snmalloc
      */
     static inline void prefetch(void* ptr)
     {
+#ifdef _MSC_VER
       _mm_prefetch(reinterpret_cast<const char*>(ptr), _MM_HINT_T0);
+#else
+      asm volatile("prefetcht0 %0" ::"m"(ptr));
+#endif
     }
 
     /**
