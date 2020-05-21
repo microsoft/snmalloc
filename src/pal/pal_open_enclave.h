@@ -5,7 +5,7 @@
 extern "C" const void* __oe_get_heap_base();
 extern "C" const void* __oe_get_heap_end();
 extern "C" void* oe_memset_s(void* p, size_t p_size, int c, size_t size);
-extern "C" void oe_abort();
+[[noreturn]] extern "C" void oe_abort();
 
 namespace snmalloc
 {
@@ -19,7 +19,7 @@ namespace snmalloc
      * PAL supports.
      */
     static constexpr uint64_t pal_features = 0;
-    static void error(const char* const str)
+    [[noreturn]] static void error(const char* const str)
     {
       UNUSED(str);
       oe_abort();

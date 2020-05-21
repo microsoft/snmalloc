@@ -457,7 +457,6 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH static size_t alloc_size_error()
     {
       error("Not allocated by this allocator");
-      return 0;
     }
 
   public:
