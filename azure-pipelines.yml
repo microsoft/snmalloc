@@ -334,7 +334,7 @@ jobs:
   - script: |
       set -eo pipefail
       ninja clangformat
-      git diff --exit-code $(Build.SourceVersion)
+      git diff --exit-code
 
     workingDirectory: build
     failOnStderr: true
