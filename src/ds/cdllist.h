@@ -7,13 +7,8 @@
 
 namespace snmalloc
 {
-  /**
-   * Special class for cyclic doubly linked non-empty linked list
-   *
-   * This code assumes there is always one element in the list. The client
-   * must ensure there is a sentinal element.
-   */
-  class CDLLNode
+  template<typename T>
+  class CDLLNodeBase
   {
     /**
      * to_next is used to handle a zero initialised data structure.
@@ -22,16 +17,69 @@ namespace snmalloc
      */
     ptrdiff_t to_next = 0;
 
-    // TODO: CHERI will need a real pointer too
-    //    CDLLNode* next = nullptr;
-    CDLLNode* prev = nullptr;
-
-    void set_next(CDLLNode* c)
+  protected:
+    void set_next(T* c)
     {
-      // TODO: CHERI will need a real pointer too
-      //      next = c;
       to_next = pointer_diff_signed(this, c);
     }
+
+  public:
+    SNMALLOC_FAST_PATH bool is_empty()
+    {
+      return to_next == 0;
+    }
+
+    SNMALLOC_FAST_PATH T* get_next()
+    {
+      return pointer_offset_signed(static_cast<T*>(this), to_next);
+    }
+  };
+
+  template<typename T>
+  class CDLLNodeBaseNext
+  {
+    /**
+     * Like to_next in the pointer-less case, this version still works with
+     * zero-initialized data structure.  To make `is_empty` work in this case,
+     * next is set to `nullptr` rather than `this` when the list is empty.
+     *
+     */
+
+    T* next = nullptr;
+
+  protected:
+    void set_next(T* c)
+    {
+      next = (c == static_cast<T*>(this)) ? nullptr : c;
+    }
+
+  public:
+    SNMALLOC_FAST_PATH bool is_empty()
+    {
+      return next == nullptr;
+    }
+
+    SNMALLOC_FAST_PATH T* get_next()
+    {
+      return next == nullptr ? static_cast<T*>(this) : next;
+    }
+  };
+
+  template<typename T>
+  using CDLLNodeParent = std::conditional_t<
+    aal_supports<StrictProvenance>,
+    CDLLNodeBaseNext<T>,
+    CDLLNodeBase<T>>;
+
+  /**
+   * Special class for cyclic doubly linked non-empty linked list
+   *
+   * This code assumes there is always one element in the list. The client
+   * must ensure there is a sentinal element.
+   */
+  class CDLLNode : public CDLLNodeParent<CDLLNode>
+  {
+    CDLLNode* prev = nullptr;
 
   public:
     /**
@@ -39,13 +87,8 @@ namespace snmalloc
      */
     CDLLNode()
     {
-      set_next(this);
+      this->set_next(this);
       prev = this;
-    }
-
-    SNMALLOC_FAST_PATH bool is_empty()
-    {
-      return to_next == 0;
     }
 
     /**
@@ -53,7 +96,7 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH void remove()
     {
-      SNMALLOC_ASSERT(!is_empty());
+      SNMALLOC_ASSERT(!this->is_empty());
       debug_check();
       get_next()->prev = prev;
       prev->set_next(get_next());
@@ -65,13 +108,6 @@ namespace snmalloc
       set_next(nullptr);
       prev = nullptr;
 #endif
-    }
-
-    SNMALLOC_FAST_PATH CDLLNode* get_next()
-    {
-      // TODO: CHERI will require a real pointer
-      //    return next;
-      return pointer_offset_signed(this, to_next);
     }
 
     SNMALLOC_FAST_PATH CDLLNode* get_prev()
