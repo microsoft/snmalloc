@@ -5,7 +5,7 @@
 extern "C" const void* __oe_get_heap_base();
 extern "C" const void* __oe_get_heap_end();
 extern "C" void* oe_memset_s(void* p, size_t p_size, int c, size_t size);
-[[noreturn]] extern "C" void oe_abort();
+extern "C" [[noreturn]] void oe_abort();
 
 namespace snmalloc
 {
