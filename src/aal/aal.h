@@ -26,6 +26,10 @@
 #if defined(__mips__)
 #  define PLATFORM_IS_MIPS
 #endif
+
+#if defined(__riscv)
+#  define PLATFORM_IS_RISCV
+#endif
 namespace snmalloc
 {
   /**
@@ -56,6 +60,7 @@ namespace snmalloc
     ARM,
     MIPS,
     PowerPC,
+    RISCV,
     X86,
     X86_SGX,
   };
@@ -153,6 +158,8 @@ namespace snmalloc
 #  include "aal_powerpc.h"
 #elif defined(PLATFORM_IS_MIPS)
 #  include "aal_mips.h"
+#elif defined(PLATFORM_IS_RISCV)
+#  include "aal_riscv.h"
 #endif
 
 namespace snmalloc
