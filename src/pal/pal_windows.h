@@ -105,7 +105,7 @@ namespace snmalloc
       low_memory_callbacks.register_notification(callback);
     }
 
-    static void error(const char* const str)
+    [[noreturn]] static void error(const char* const str)
     {
       puts(str);
       fflush(stdout);

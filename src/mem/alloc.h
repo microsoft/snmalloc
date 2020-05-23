@@ -453,16 +453,19 @@ namespace snmalloc
 #endif
     }
 
-    static size_t alloc_size(const void* p)
+  private:
+    SNMALLOC_SLOW_PATH static size_t alloc_size_error()
+    {
+      error("Not allocated by this allocator");
+    }
+
+  public:
+    SNMALLOC_FAST_PATH static size_t alloc_size(const void* p)
     {
       // This must be called on an external pointer.
       size_t size = ChunkMap::get(address_cast(p));
 
-      if (size == 0)
-      {
-        error("Not allocated by this allocator");
-      }
-      else if (size == CMSuperslab)
+      if (likely(size == CMSuperslab))
       {
         Superslab* super = Superslab::get(p);
 
@@ -473,7 +476,8 @@ namespace snmalloc
 
         return sizeclass_to_size(meta.sizeclass);
       }
-      else if (size == CMMediumslab)
+
+      if (likely(size == CMMediumslab))
       {
         Mediumslab* slab = Mediumslab::get(p);
         // Reading a remote sizeclass won't fail, since the other allocator
@@ -481,7 +485,12 @@ namespace snmalloc
         return sizeclass_to_size(slab->get_sizeclass());
       }
 
-      return 1ULL << size;
+      if (likely(size != 0))
+      {
+        return 1ULL << size;
+      }
+
+      return alloc_size_error();
     }
 
     size_t get_id()

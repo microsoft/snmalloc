@@ -29,7 +29,7 @@ namespace snmalloc
      * PAL supports.
      */
     static constexpr uint64_t pal_features = AlignedAllocation;
-    void error(const char* const str)
+    [[noreturn]] void error(const char* const str)
     {
       panic("snmalloc error: %s", str);
     }

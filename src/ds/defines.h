@@ -37,7 +37,7 @@
 namespace snmalloc
 {
   // Forwards reference so that the platform can define how to handle errors.
-  void error(const char* const str);
+  [[noreturn]] void error(const char* const str);
 } // namespace snmalloc
 
 #define TOSTRING(expr) TOSTRING2(expr)

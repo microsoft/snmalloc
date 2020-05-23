@@ -55,7 +55,7 @@ namespace snmalloc
     /**
      * Report a fatal error an exit.
      */
-    static void error(const char* const str) noexcept
+    [[noreturn]] static void error(const char* const str) noexcept
     {
       puts(str);
       print_stack_trace();

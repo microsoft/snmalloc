@@ -160,7 +160,7 @@ your system.
 The PAL must implement the following methods:
 
 ```c++
-void error(const char* const str) noexcept;
+[[noreturn]] void error(const char* const str) noexcept;
 ```
 Report a fatal error and exit.
 
