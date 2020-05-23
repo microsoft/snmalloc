@@ -13,7 +13,7 @@ namespace snmalloc
    * separated into two types, one for raw addresses and one for addresses that
    * can be cast back to pointers.
    */
-  using address_t = uintptr_t;
+  using address_t = Aal::address_t;
 
   /**
    * Perform pointer arithmetic and return the adjusted pointer.
@@ -51,8 +51,7 @@ namespace snmalloc
   {
     static_assert(bits::next_pow2_const(alignment) == alignment);
 
-    return ((static_cast<size_t>(address_cast(p)) | size) & (alignment - 1)) ==
-      0;
+    return ((address_cast(p) | size) & (alignment - 1)) == 0;
   }
 
   /**
