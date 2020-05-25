@@ -9,3 +9,8 @@
 // Redefine the namespace, so we can have two versions.
 #define snmalloc snmalloc_enclave
 #include "../../../override/malloc.cc"
+
+extern "C" void oe_allocator_init(void* base, void* end)
+{
+  snmalloc_enclave::PALOpenEnclave::setup_initial_range(base, end);
+}

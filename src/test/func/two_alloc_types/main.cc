@@ -5,18 +5,6 @@
 #include <string.h>
 #include <test/setup.h>
 
-void* oe_base;
-void* oe_end;
-extern "C" const void* __oe_get_heap_base()
-{
-  return oe_base;
-}
-
-extern "C" const void* __oe_get_heap_end()
-{
-  return oe_end;
-}
-
 extern "C" void* oe_memset_s(void* p, size_t p_size, int c, size_t size)
 {
   UNUSED(p_size);
@@ -28,6 +16,7 @@ extern "C" void oe_abort()
   abort();
 }
 
+extern "C" void oe_allocator_init(void* base, void* end);
 extern "C" void* host_malloc(size_t);
 extern "C" void host_free(void*);
 
@@ -51,8 +40,9 @@ int main()
   // For 1MiB superslabs, SUPERSLAB_BITS + 2 is not big enough for the example.
   size_t large_class = 26 - SUPERSLAB_BITS;
   size_t size = 1ULL << (SUPERSLAB_BITS + large_class);
-  oe_base = mp.reserve<true>(large_class);
-  oe_end = (uint8_t*)oe_base + size;
+  void* oe_base = mp.reserve<true>(large_class);
+  void* oe_end = (uint8_t*)oe_base + size;
+  oe_allocator_init(oe_base, oe_end);
   std::cout << "Allocated region " << oe_base << " - " << oe_end << std::endl;
 
   // Call these functions to trigger asserts if the cast-to-self doesn't work.
