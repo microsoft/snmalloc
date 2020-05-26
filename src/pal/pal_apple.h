@@ -32,9 +32,9 @@ namespace snmalloc
     template<bool page_aligned = false>
     void zero(void* p, size_t size)
     {
-      if (page_aligned || is_aligned_block<OS_PAGE_SIZE>(p, size))
+      if (page_aligned || is_aligned_block<page_size>(p, size))
       {
-        SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, size));
+        SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
         void* r = mmap(
           p,
           size,

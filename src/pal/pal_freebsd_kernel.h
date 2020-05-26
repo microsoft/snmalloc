@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../ds/bits.h"
-#include "../mem/allocconfig.h"
 
 #if defined(FreeBSD_KERNEL)
 extern "C"

@@ -2,7 +2,6 @@
 
 #if defined(__linux__)
 #  include "../ds/bits.h"
-#  include "../mem/allocconfig.h"
 #  include "pal_posix.h"
 
 #  include <string.h>
@@ -26,6 +25,9 @@ namespace snmalloc
      */
     static constexpr uint64_t pal_features = PALPOSIX::pal_features;
 
+    static constexpr size_t page_size =
+      Aal::aal_name == PowerPC ? 0x10000 : 0x1000;
+
     /**
      * OS specific function for zeroing memory.
      *
@@ -41,12 +43,12 @@ namespace snmalloc
       // MADV_DONTNEED. switch back to memset only for QEMU.
 #  ifndef SNMALLOC_QEMU_WORKAROUND
       if (
-        (page_aligned || is_aligned_block<OS_PAGE_SIZE>(p, size)) &&
-        (size > SLAB_SIZE))
+        (page_aligned || is_aligned_block<page_size>(p, size)) &&
+        (size > 16 * page_size))
       {
         // Only use this on large allocations as memset faster, and doesn't
         // introduce IPI so faster for small allocations.
-        SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, size));
+        SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
         madvise(p, size, MADV_DONTNEED);
       }
       else

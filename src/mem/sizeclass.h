@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../pal/pal_consts.h"
+#include "../pal/pal.h"
 #include "allocconfig.h"
 
 namespace snmalloc

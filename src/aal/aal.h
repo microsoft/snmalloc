@@ -19,6 +19,10 @@
 #  define PLATFORM_IS_ARM
 #endif
 
+#if defined(__powerpc__) || defined(__powerpc64__)
+#  define PLATFORM_IS_POWERPC
+#endif
+
 namespace snmalloc
 {
   /**
@@ -42,6 +46,14 @@ namespace snmalloc
      * internal high-privilege pointers for recycling memory on free().
      */
     StrictProvenance = (1 << 2),
+  };
+
+  enum AalName : int
+  {
+    ARM,
+    PowerPC,
+    X86,
+    X86_SGX,
   };
 
   /**
@@ -133,6 +145,8 @@ namespace snmalloc
 #  include "aal_x86_sgx.h"
 #elif defined(PLATFORM_IS_ARM)
 #  include "aal_arm.h"
+#elif defined(PLATFORM_IS_POWERPC)
+#  include "aal_powerpc.h"
 #endif
 
 namespace snmalloc

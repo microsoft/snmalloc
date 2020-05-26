@@ -33,7 +33,7 @@ namespace snmalloc
      */
     void notify_not_using(void* p, size_t size) noexcept
     {
-      SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, size));
+      SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
       madvise(p, size, MADV_FREE);
     }
   };
