@@ -83,7 +83,7 @@ namespace snmalloc
    */
   template<
     bool (*NeedsInitialisation)(void*),
-    void* (*InitThreadAllocator)(function_ref<void*(void*)>),
+    ReturnPtr (*InitThreadAllocator)(function_ref<ReturnPtr(void*)>),
     class MemoryProvider = GlobalVirtual,
     class ChunkMap = SNMALLOC_DEFAULT_CHUNKMAP,
     bool IsQueueInline = true>
@@ -139,18 +139,19 @@ namespace snmalloc
 
       if constexpr (sizeclass < NUM_SMALL_CLASSES)
       {
-        return small_alloc<zero_mem, allow_reserve>(size);
+        return small_alloc<zero_mem, allow_reserve>(size).ptr;
       }
       else if constexpr (sizeclass < NUM_SIZECLASSES)
       {
         handle_message_queue();
         constexpr size_t rsize = sizeclass_to_size(sizeclass);
-        return medium_alloc<zero_mem, allow_reserve>(sizeclass, rsize, size);
+        return medium_alloc<zero_mem, allow_reserve>(sizeclass, rsize, size)
+          .ptr;
       }
       else
       {
         handle_message_queue();
-        return large_alloc<zero_mem, allow_reserve>(size);
+        return large_alloc<zero_mem, allow_reserve>(size).ptr;
       }
 #endif
     }
@@ -176,14 +177,14 @@ namespace snmalloc
       {
         // Allocations smaller than the slab size are more likely. Improve
         // branch prediction by placing this case first.
-        return small_alloc<zero_mem, allow_reserve>(size);
+        return small_alloc<zero_mem, allow_reserve>(size).ptr;
       }
 
-      return alloc_not_small<zero_mem, allow_reserve>(size);
+      return alloc_not_small<zero_mem, allow_reserve>(size).ptr;
     }
 
     template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
-    SNMALLOC_SLOW_PATH ALLOCATOR void* alloc_not_small(size_t size)
+    SNMALLOC_SLOW_PATH ReturnPtr alloc_not_small(size_t size)
     {
       handle_message_queue();
 
@@ -1035,7 +1036,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_FAST_PATH void* small_alloc(size_t size)
+    SNMALLOC_FAST_PATH ReturnPtr small_alloc(size_t size)
     {
       MEASURE_TIME_MARKERS(
         small_alloc,
@@ -1051,25 +1052,32 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_FAST_PATH void*
+    SNMALLOC_FAST_PATH ReturnPtr
     small_alloc_inner(sizeclass_t sizeclass, size_t size)
     {
       SNMALLOC_ASSUME(sizeclass < NUM_SMALL_CLASSES);
       auto& fl = small_fast_free_lists[sizeclass];
-      void* head = fl.value;
+
+      // XXX:DEALLOC-RETURNPTR
+      // Until the dealloc side is plumbed through, the objects on the free
+      // list are void*, so apply bounds here to get a ReturnPtr.
+      ReturnPtr head = Aal::apply_bounds(fl.value, size);
+
       if (likely(head != nullptr))
       {
         stats().alloc_request(size);
         stats().sizeclass_alloc(sizeclass);
         // Read the next slot from the memory that's about to be allocated.
-        fl.value = Metaslab::follow_next(head);
 
-        void* p = remove_cache_friendly_offset(head, sizeclass);
+        // XXX:DEALLOC-RETURNPTR
+        fl.value = Metaslab::follow_next(head.ptr);
+
+        void* p = remove_cache_friendly_offset(head.ptr, sizeclass);
         if constexpr (zero_mem == YesZero)
         {
           large_allocator.memory_provider.zero(p, sizeclass_to_size(sizeclass));
         }
-        return p;
+        return unsafe_return_ptr(p);
       }
 
       if (likely(!has_messages()))
@@ -1084,7 +1092,7 @@ namespace snmalloc
      * allocation request.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void*
+    SNMALLOC_SLOW_PATH ReturnPtr
     small_alloc_mq_slow(sizeclass_t sizeclass, size_t size)
     {
       handle_message_queue_inner();
@@ -1097,7 +1105,7 @@ namespace snmalloc
      * Attempt to find a new free list to allocate from
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void*
+    SNMALLOC_SLOW_PATH ReturnPtr
     small_alloc_next_free_list(sizeclass_t sizeclass, size_t size)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
@@ -1113,8 +1121,10 @@ namespace snmalloc
         SlabLink* link = sl.get_next();
         slab = get_slab(link);
         auto& ffl = small_fast_free_lists[sizeclass];
-        return slab->alloc<zero_mem>(
-          sl, ffl, rsize, large_allocator.memory_provider);
+
+        // XXX:DEALLOC-RETURNPTR
+        return Aal::apply_bounds(slab->alloc<zero_mem>(
+          sl, ffl, rsize, large_allocator.memory_provider), rsize);
       }
       return small_alloc_rare<zero_mem, allow_reserve>(sizeclass, size);
     }
@@ -1125,7 +1135,7 @@ namespace snmalloc
      * new free list.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void*
+    SNMALLOC_SLOW_PATH ReturnPtr
     small_alloc_rare(sizeclass_t sizeclass, size_t size)
     {
       if (likely(!NeedsInitialisation(this)))
@@ -1142,7 +1152,7 @@ namespace snmalloc
      * then directs the allocation request to the newly created allocator.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void*
+    SNMALLOC_SLOW_PATH ReturnPtr
     small_alloc_first_alloc(sizeclass_t sizeclass, size_t size)
     {
       return InitThreadAllocator([sizeclass, size](void* alloc) {
@@ -1157,7 +1167,8 @@ namespace snmalloc
      * list.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_FAST_PATH void* small_alloc_new_free_list(sizeclass_t sizeclass)
+    SNMALLOC_FAST_PATH ReturnPtr
+    small_alloc_new_free_list(sizeclass_t sizeclass)
     {
       auto& bp = bump_ptrs[sizeclass];
       if (likely(pointer_align_up(bp, SLAB_SIZE) != bp))
@@ -1173,7 +1184,8 @@ namespace snmalloc
      * the request from that new list.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_FAST_PATH void* small_alloc_build_free_list(sizeclass_t sizeclass)
+    SNMALLOC_FAST_PATH ReturnPtr
+    small_alloc_build_free_list(sizeclass_t sizeclass)
     {
       auto& bp = bump_ptrs[sizeclass];
       auto rsize = sizeclass_to_size(sizeclass);
@@ -1181,14 +1193,17 @@ namespace snmalloc
       SNMALLOC_ASSERT(ffl.value == nullptr);
       Slab::alloc_new_list(bp, ffl, rsize);
 
+      // XXX:DEALLOC-RETURNPTR
       void* p = remove_cache_friendly_offset(ffl.value, sizeclass);
       ffl.value = Metaslab::follow_next(p);
 
       if constexpr (zero_mem == YesZero)
       {
-        large_allocator.memory_provider.zero(p, sizeclass_to_size(sizeclass));
+        large_allocator.memory_provider.zero(
+          p, sizeclass_to_size(sizeclass));
       }
-      return p;
+      // XXX:DEALLOC-RETURNPTR
+      return Aal::apply_bounds(p, rsize);
     }
 
     /**
@@ -1197,7 +1212,7 @@ namespace snmalloc
      * local bump allocator and service the request from that new list.
      */
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_SLOW_PATH void* small_alloc_new_slab(sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH ReturnPtr small_alloc_new_slab(sizeclass_t sizeclass)
     {
       auto& bp = bump_ptrs[sizeclass];
       // Fetch new slab
@@ -1299,7 +1314,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    void* medium_alloc(sizeclass_t sizeclass, size_t rsize, size_t size)
+    ReturnPtr medium_alloc(sizeclass_t sizeclass, size_t rsize, size_t size)
     {
       MEASURE_TIME_MARKERS(
         medium_alloc,
@@ -1348,7 +1363,7 @@ namespace snmalloc
 
       stats().alloc_request(size);
       stats().sizeclass_alloc(sizeclass);
-      return p;
+      return Aal::apply_bounds(p, rsize);
     }
 
     void medium_dealloc(Mediumslab* slab, void* p, sizeclass_t sizeclass)
@@ -1388,7 +1403,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    void* large_alloc(size_t size)
+    ReturnPtr large_alloc(size_t size)
     {
       MEASURE_TIME_MARKERS(
         large_alloc,
@@ -1419,7 +1434,7 @@ namespace snmalloc
         stats().alloc_request(size);
         stats().large_alloc(large_class);
       }
-      return p;
+      return Aal::apply_bounds(p, size);
     }
 
     void large_dealloc(void* p, size_t size)

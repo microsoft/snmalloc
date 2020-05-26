@@ -1,5 +1,6 @@
 #pragma once
 #include "../ds/defines.h"
+#include "../ds/returnptr.h"
 
 #include <chrono>
 #include <cstdint>
@@ -137,6 +138,25 @@ namespace snmalloc
     }
   };
 
+  template<class Arch>
+  class AAL_NoStrictProvenance : public Arch
+  {
+    static_assert(
+      (Arch::aal_features & StrictProvenance) == 0,
+      "AAL_NoStrictProvenance requires what it says on the tin");
+
+  public:
+    /**
+     * For architectures which do not enforce StrictProvenance, we can just
+     * perform an underhanded bit of type-casting to get a ReturnPtr
+     */
+    static inline ReturnPtr apply_bounds(void* p, size_t size)
+    {
+      UNUSED(size);
+      return unsafe_return_ptr(p);
+    }
+  };
+
 } // namespace snmalloc
 
 #if defined(PLATFORM_IS_X86)
@@ -151,7 +171,7 @@ namespace snmalloc
 
 namespace snmalloc
 {
-  using Aal = AAL_Generic<AAL_Arch>;
+  using Aal = AAL_Generic<AAL_NoStrictProvenance<AAL_Arch>>;
 
   template<AalFeatures F, typename AAL = Aal>
   constexpr static bool aal_supports = (AAL::aal_features & F) == F;
