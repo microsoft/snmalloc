@@ -28,7 +28,7 @@ namespace snmalloc
   {
   public:
     /**
-     *  Pointer to first free entry in this slab
+     *  Pointer to first free entry in this slab.
      *
      *  The list will be (allocated - needed - 1) long. The -1 is
      *  for the `link` element which is not in the free list.

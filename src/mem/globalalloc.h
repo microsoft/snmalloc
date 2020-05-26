@@ -7,7 +7,7 @@
 namespace snmalloc
 {
   inline bool needs_initialisation(void*);
-  void* init_thread_allocator(function_ref<void*(void*)>);
+  ReturnPtr init_thread_allocator(function_ref<ReturnPtr(void*)>);
 
   template<class MemoryProvider, class Alloc>
   class AllocPool : Pool<Alloc, MemoryProvider>

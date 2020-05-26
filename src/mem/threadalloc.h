@@ -62,7 +62,8 @@ namespace snmalloc
 #    pragma warning(push)
 #    pragma warning(disable : 4702)
 #  endif
-  SNMALLOC_FAST_PATH void* init_thread_allocator(function_ref<void*(void*)> f)
+  SNMALLOC_FAST_PATH ReturnPtr
+  init_thread_allocator(function_ref<ReturnPtr(void*)> f)
   {
     error("Critical Error: This should never be called.");
     return f(nullptr);
@@ -101,7 +102,7 @@ namespace snmalloc
    */
   class ThreadAllocCommon
   {
-    friend void* init_thread_allocator(function_ref<void*(void*)>);
+    friend ReturnPtr init_thread_allocator(function_ref<ReturnPtr(void*)>);
 
   protected:
     /**
@@ -276,7 +277,8 @@ namespace snmalloc
    * path.
    * The second component of the return indicates if this TLS is being torndown.
    */
-  SNMALLOC_FAST_PATH void* init_thread_allocator(function_ref<void*(void*)> f)
+  SNMALLOC_FAST_PATH ReturnPtr
+  init_thread_allocator(function_ref<ReturnPtr(void*)> f)
   {
     auto*& local_alloc = ThreadAlloc::get_reference();
     // If someone reuses a noncachable call, then we can end up here
