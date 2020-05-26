@@ -12,7 +12,7 @@
 #  endif
 #endif
 
-#include <iostream>
+#include <cstddef>
 namespace snmalloc
 {
   /**
