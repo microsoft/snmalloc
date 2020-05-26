@@ -164,6 +164,17 @@ namespace snmalloc
     }
 
     /**
+     * Amplify a ReturnPtr back to its containing Superslab
+     */
+    static void* amplify(ReturnPtr p)
+    {
+      static_assert(
+        !aal_supports<StrictProvenance>,
+        "Don't look at me; I'm only here for the type checker");
+      return p.ptr;
+    }
+
+    /**
      * Set a pagemap entry indicating that there is a superslab at the
      * specified index.
      */
