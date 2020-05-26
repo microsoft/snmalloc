@@ -6,17 +6,23 @@ namespace snmalloc
 {
   struct FreeListHead
   {
-    // Use a value with bottom bit set for empty list.
-    void* value = nullptr;
+    /*
+     * Free lists contain objects that have been allocated and returned (in
+     * contrast to bump pointer regions), and so they are already appropriately
+     * spatially bounded (to their entire underlying span).
+     *
+     * Use a value with bottom bit set for empty list.
+     */
+    ReturnPtr value = nullptr;
   };
 
   class Slab
   {
   private:
-    uint16_t pointer_to_index(void* p)
+    uint16_t pointer_to_index(ReturnPtr p)
     {
       // Get the offset from the slab for a memory location.
-      return static_cast<uint16_t>(pointer_diff(this, p));
+      return static_cast<uint16_t>(pointer_diff(this, p.ptr));
     }
 
   public:
@@ -37,7 +43,7 @@ namespace snmalloc
      * `fast_free_list` for further allocations.
      */
     template<ZeroMem zero_mem, typename MemoryProvider>
-    SNMALLOC_FAST_PATH void* alloc(
+    SNMALLOC_FAST_PATH ReturnPtr alloc(
       SlabList& sl,
       FreeListHead& fast_free_list,
       size_t rsize,
@@ -82,7 +88,7 @@ namespace snmalloc
         UNUSED(rsize);
       }
 
-      return p;
+      return unsafe_return_ptr(p);
     }
 
     /**
@@ -94,7 +100,7 @@ namespace snmalloc
     static SNMALLOC_FAST_PATH void
     alloc_new_list(void*& bumpptr, FreeListHead& fast_free_list, size_t rsize)
     {
-      fast_free_list.value = bumpptr;
+      fast_free_list.value = Aal::apply_bounds(bumpptr, rsize);
       void* newbumpptr = pointer_offset(bumpptr, rsize);
       void* slab_end = pointer_align_up<SLAB_SIZE>(newbumpptr);
       void* slab_end2 =
@@ -104,7 +110,7 @@ namespace snmalloc
 
       while (newbumpptr < slab_end)
       {
-        Metaslab::store_next(bumpptr, newbumpptr);
+        Metaslab::store_next(bumpptr, Aal::apply_bounds(newbumpptr, rsize));
         bumpptr = newbumpptr;
         newbumpptr = pointer_offset(bumpptr, rsize);
       }
@@ -124,7 +130,7 @@ namespace snmalloc
     // Returns true, if it deallocation can proceed without changing any status
     // bits. Note that this does remove the use from the meta slab, so it
     // doesn't need doing on the slow path.
-    SNMALLOC_FAST_PATH bool dealloc_fast(Superslab* super, void* p)
+    SNMALLOC_FAST_PATH bool dealloc_fast(Superslab* super, ReturnPtr p)
     {
       Metaslab& meta = super->get_meta(this);
 #ifdef CHECK_CLIENT
@@ -136,14 +142,14 @@ namespace snmalloc
         return false;
 
       // Update the head and the next pointer in the free list.
-      void* head = meta.head;
+      ReturnPtr head = meta.head;
 
       // Set the head to the memory being deallocated.
       meta.head = p;
       SNMALLOC_ASSERT(meta.valid_head());
 
       // Set the next pointer to the previous head.
-      Metaslab::store_next(p, head);
+      Metaslab::store_next(p.ptr, head);
 
       return true;
     }
@@ -153,7 +159,7 @@ namespace snmalloc
     // Returns a complex return code for managing the superslab meta data.
     // i.e. This deallocation could make an entire superslab free.
     SNMALLOC_SLOW_PATH typename Superslab::Action
-    dealloc_slow(SlabList* sl, Superslab* super, void* p)
+    dealloc_slow(SlabList* sl, Superslab* super, ReturnPtr p)
     {
       Metaslab& meta = super->get_meta(this);
       meta.debug_slab_invariant(this);

@@ -158,6 +158,14 @@ namespace snmalloc
     /**
      * Get the pagemap entry corresponding to a specific address.
      */
+    static uint8_t get(ReturnPtr p)
+    {
+      return get(address_cast(p.ptr));
+    }
+
+    /**
+     * Get the pagemap entry corresponding to a specific address.
+     */
     static uint8_t get(void* p)
     {
       return get(address_cast(p));

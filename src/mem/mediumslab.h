@@ -93,7 +93,7 @@ namespace snmalloc
       return p;
     }
 
-    bool dealloc(void* p)
+    bool dealloc(ReturnPtr p)
     {
       SNMALLOC_ASSERT(head > 0);
 
@@ -116,10 +116,10 @@ namespace snmalloc
     }
 
   private:
-    uint16_t pointer_to_index(void* p)
+    uint16_t pointer_to_index(ReturnPtr p)
     {
       // Get the offset from the slab for a memory location.
-      return static_cast<uint16_t>(pointer_diff(this, p) >> 8);
+      return static_cast<uint16_t>(pointer_diff(this, p.ptr) >> 8);
     }
   };
 } // namespace snmalloc

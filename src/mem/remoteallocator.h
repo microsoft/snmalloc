@@ -12,6 +12,11 @@ namespace snmalloc
    * A region of memory destined for a remote allocator's dealloc() via the
    * message passing system.  This structure is placed at the beginning of
    * the allocation itself when it is queued for sending.
+   *
+   * A Remote* is itself a ReturnPtr; that is, for architectures supporting
+   * StrictProvenance, this pointer is bounded to the allocation in question
+   * and so is suitable for direct inclusion into free lists.  Other uses
+   * may require amplification.
    */
   struct Remote
   {
