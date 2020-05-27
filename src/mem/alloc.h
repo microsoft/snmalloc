@@ -394,7 +394,7 @@ namespace snmalloc
     }
 
     template<Boundary location = Start>
-    static void* external_pointer(void* p)
+    void* external_pointer(void* p_)
     {
 #ifdef USE_MALLOC
       error("Unsupported");

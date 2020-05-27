@@ -73,7 +73,7 @@ namespace test
         size_t size = *external_ptr;
         size_t offset = (size >> 4) * (rand & 15);
         void* interior_ptr = pointer_offset(external_ptr, offset);
-        void* calced_external = Alloc::external_pointer(interior_ptr);
+        void* calced_external = alloc->external_pointer(interior_ptr);
         if (calced_external != external_ptr)
           abort();
       }
