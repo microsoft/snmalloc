@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ds/address.h"
 #include "pal_plain.h"
 #ifdef OPEN_ENCLAVE
 extern "C" const void* __oe_get_heap_base();
