@@ -25,6 +25,7 @@ namespace snmalloc
     friend class MPMCStack;
     template<class PAL>
     friend class MemoryProviderStateMixin;
+
     std::atomic<Largeslab*> next;
 
   public:
@@ -350,7 +351,7 @@ namespace snmalloc
     LargeAlloc(MemoryProvider& mp) : memory_provider(mp) {}
 
     template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
-    void* alloc(size_t large_class, size_t size)
+    ReturnPtr alloc(size_t large_class, size_t size)
     {
       size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
       // For superslab size, we always commit the whole range.
@@ -365,6 +366,9 @@ namespace snmalloc
         if (p == nullptr)
           return nullptr;
         memory_provider.template notify_using<zero_mem>(p, rsize);
+
+        SNMALLOC_ASSERT(p == pointer_align_up(p, rsize));
+        return Aal::apply_bounds(p, rsize);
       }
       else
       {
@@ -398,10 +402,11 @@ namespace snmalloc
           else
             UNUSED(size);
         }
-      }
+        SNMALLOC_ASSERT(p == pointer_align_up(p, rsize));
 
-      SNMALLOC_ASSERT(p == pointer_align_up(p, rsize));
-      return p;
+        /* Bounds have already been applied to objects on the free list */
+        return unsafe_return_ptr(p);
+      }
     }
 
     void dealloc(void* p, size_t large_class)

@@ -274,7 +274,7 @@ namespace snmalloc
       }
       else
       {
-        large_dealloc(chunkmap().amplify(p), size);
+        large_dealloc(p, size);
       }
 #endif
     }
@@ -325,7 +325,7 @@ namespace snmalloc
           remote_dealloc(target, p, sizeclass);
         return;
       }
-      large_dealloc(chunkmap().amplify(p), size);
+      large_dealloc(p, size);
     }
 
     /*
@@ -401,7 +401,7 @@ namespace snmalloc
         error("Not deallocating start of an object");
       }
 #  endif
-      large_dealloc(ampp, 1ULL << size);
+      large_dealloc(p, 1ULL << size);
 #endif
     }
 
@@ -973,8 +973,8 @@ namespace snmalloc
         return super;
 
       super = reinterpret_cast<Superslab*>(
-        large_allocator.template alloc<NoZero, allow_reserve>(
-          0, SUPERSLAB_SIZE));
+        large_allocator.template alloc<NoZero, allow_reserve>(0, SUPERSLAB_SIZE)
+          .ptr);
 
       if (super == nullptr)
         return super;
@@ -1358,8 +1358,9 @@ namespace snmalloc
           });
         }
         slab = reinterpret_cast<Mediumslab*>(
-          large_allocator.template alloc<NoZero, allow_reserve>(
-            0, SUPERSLAB_SIZE));
+          large_allocator
+            .template alloc<NoZero, allow_reserve>(0, SUPERSLAB_SIZE)
+            .ptr);
 
         if (slab == nullptr)
           return nullptr;
@@ -1436,19 +1437,19 @@ namespace snmalloc
       size_t large_class = size_bits - SUPERSLAB_BITS;
       SNMALLOC_ASSERT(large_class < NUM_LARGE_CLASSES);
 
-      void* p = large_allocator.template alloc<zero_mem, allow_reserve>(
+      ReturnPtr p = large_allocator.template alloc<zero_mem, allow_reserve>(
         large_class, size);
-      if (likely(p != nullptr))
+      if (likely(p.ptr != nullptr))
       {
-        chunkmap().set_large_size(p, size);
+        chunkmap().set_large_size(p.ptr, size);
 
         stats().alloc_request(size);
         stats().large_alloc(large_class);
       }
-      return Aal::apply_bounds(p, size);
+      return p;
     }
 
-    void large_dealloc(void* p, size_t size)
+    void large_dealloc(ReturnPtr p, size_t size)
     {
       MEASURE_TIME(large_dealloc, 4, 16);
 
@@ -1465,12 +1466,12 @@ namespace snmalloc
       SNMALLOC_ASSERT(bits::one_at_bit(size_bits) >= SUPERSLAB_SIZE);
       size_t large_class = size_bits - SUPERSLAB_BITS;
 
-      chunkmap().clear_large_size(p, size);
+      chunkmap().clear_large_size(p.ptr, size);
 
       stats().large_dealloc(large_class);
 
       // Initialise in order to set the correct SlabKind.
-      Largeslab* slab = static_cast<Largeslab*>(p);
+      Largeslab* slab = static_cast<Largeslab*>(p.ptr);
       slab->init();
       large_allocator.dealloc(slab, large_class);
     }
