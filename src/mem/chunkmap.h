@@ -49,12 +49,12 @@ namespace snmalloc
 #endif
   static constexpr bool USE_FLATPAGEMAP = pal_supports<LazyCommit> ||
     (SNMALLOC_MAX_FLATPAGEMAP_SIZE >=
-     sizeof(FlatPagemap<SUPERSLAB_BITS, uint8_t>));
+     sizeof(FlatPagemap<SUPERSLAB_BITS, Aal::ChunkmapValueType>));
 
   using ChunkmapPagemap = std::conditional_t<
     USE_FLATPAGEMAP,
-    FlatPagemap<SUPERSLAB_BITS, uint8_t>,
-    Pagemap<SUPERSLAB_BITS, uint8_t, 0>>;
+    FlatPagemap<SUPERSLAB_BITS, Aal::ChunkmapValueType>,
+    Pagemap<SUPERSLAB_BITS, Aal::ChunkmapValueType, 0>>;
 
   /**
    * Mixin used by `ChunkMap` to directly access the pagemap via a global
@@ -152,7 +152,7 @@ namespace snmalloc
      */
     static uint8_t get(address_t p)
     {
-      return PagemapProvider::pagemap().get(p);
+      return Aal::chunkmap_extract_type(PagemapProvider::pagemap().get(p));
     }
 
     /**
@@ -168,10 +168,8 @@ namespace snmalloc
      */
     static void* amplify(ReturnPtr p)
     {
-      static_assert(
-        !aal_supports<StrictProvenance>,
-        "Don't look at me; I'm only here for the type checker");
-      return p.ptr;
+      return Aal::chunkmap_amplify_ptr(
+        PagemapProvider::pagemap().get(address_cast(p.ptr)), p);
     }
 
     /**
@@ -218,8 +216,9 @@ namespace snmalloc
       for (size_t i = 0; i < size_bits - SUPERSLAB_BITS; i++)
       {
         size_t run = 1ULL << i;
-        PagemapProvider::pagemap().set_range(
-          ss, static_cast<uint8_t>(64 + i + SUPERSLAB_BITS), run);
+        auto v =
+          Aal::chunkmap_value(p, static_cast<uint8_t>(64 + i + SUPERSLAB_BITS));
+        PagemapProvider::pagemap().set_range(ss, v, run);
         ss = ss + SUPERSLAB_SIZE * run;
       }
     }
@@ -233,7 +232,8 @@ namespace snmalloc
       size_t rounded_size = bits::next_pow2(size);
       SNMALLOC_ASSERT(get(p) == bits::next_pow2_bits(size));
       auto count = rounded_size >> SUPERSLAB_BITS;
-      PagemapProvider::pagemap().set_range(p, CMNotOurs, count);
+      auto v = Aal::chunkmap_value(nullptr, CMNotOurs);
+      PagemapProvider::pagemap().set_range(p, v, count);
     }
 
   private:
@@ -244,7 +244,8 @@ namespace snmalloc
      */
     static void set(void* p, uint8_t x)
     {
-      PagemapProvider::pagemap().set(address_cast(p), x);
+      auto v = Aal::chunkmap_value(p, x);
+      PagemapProvider::pagemap().set(address_cast(p), v);
     }
   };
 

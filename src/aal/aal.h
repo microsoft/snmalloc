@@ -155,6 +155,29 @@ namespace snmalloc
       UNUSED(size);
       return unsafe_return_ptr(p);
     }
+
+    /**
+     * Non-StrictProvenance architectures can get away with storing just the
+     * metadata in the chunkmap.  See ChunkMapSuperslabKind.
+     */
+    using ChunkmapValueType = uint8_t;
+
+    static inline uint8_t chunkmap_extract_type(ChunkmapValueType cv)
+    {
+      return cv;
+    }
+
+    static inline void* chunkmap_amplify_ptr(ChunkmapValueType cv, ReturnPtr p)
+    {
+      UNUSED(cv);
+      return p.ptr;
+    }
+
+    static inline ChunkmapValueType chunkmap_value(void* p, uint8_t cmssk)
+    {
+      UNUSED(p);
+      return cmssk;
+    }
   };
 
 } // namespace snmalloc
