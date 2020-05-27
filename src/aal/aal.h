@@ -157,6 +157,16 @@ namespace snmalloc
     }
 
     /**
+     * For architectures without StrictProvenance, there is no such thing as
+     * provenance, and so nothing to do here.
+     */
+    static inline ReturnPtr reprovenance(ReturnPtr p, void* q)
+    {
+      UNUSED(p);
+      return unsafe_return_ptr(q);
+    }
+
+    /**
      * Non-StrictProvenance architectures can get away with storing just the
      * metadata in the chunkmap.  See ChunkMapSuperslabKind.
      */
