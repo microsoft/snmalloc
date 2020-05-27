@@ -3,6 +3,9 @@
 #include "pal_consts.h"
 
 // If simultating OE, then we need the underlying platform
+#if defined(OPEN_ENCLAVE)
+#  include "pal_open_enclave.h"
+#endif
 #if !defined(OPEN_ENCLAVE) || defined(OPEN_ENCLAVE_SIMULATION)
 #  include "pal_apple.h"
 #  include "pal_freebsd.h"
@@ -11,9 +14,6 @@
 #  include "pal_netbsd.h"
 #  include "pal_openbsd.h"
 #  include "pal_windows.h"
-#endif
-#if defined(OPEN_ENCLAVE)
-#  include "pal_open_enclave.h"
 #endif
 #include "pal_plain.h"
 
