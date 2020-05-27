@@ -17,6 +17,7 @@ option(EXPOSE_EXTERNAL_RESERVE "Expose an interface to reserve memory using the 
 option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF)
 option(SNMALLOC_STATIC_LIBRARY   "Build static libraries" ON)
 option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory on Linux" Off)
+option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off)
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
 set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
 
@@ -169,12 +170,14 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
       target_link_libraries(snmalloc_lib INTERFACE "-rdynamic")
     endif()
 
-    if((${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64") OR
-       (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86") OR
-       (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm"))
-      check_cxx_compiler_flag(-march=native SUPPORT_MARCH_NATIVE)
-      if (SUPPORT_MARCH_NATIVE)
-        add_compile_options(-march=native)
+    if(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE)
+      if((${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64") OR
+        (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86") OR
+        (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm"))
+        check_cxx_compiler_flag(-march=native SUPPORT_MARCH_NATIVE)
+        if (SUPPORT_MARCH_NATIVE)
+          add_compile_options(-march=native)
+        endif()
       endif()
     endif()
 
