@@ -212,7 +212,8 @@ namespace snmalloc
     void check_size(void* p, size_t size)
     {
 #if defined(CHECK_CLIENT)
-      auto asize = alloc_size(p);
+      void* ampp = chunkmap().amplify(unsafe_return_ptr(p));
+      auto asize = alloc_size_amp(ampp);
       auto asc = size_to_sizeclass(asize);
       if (size_to_sizeclass(size) != asc)
       {
@@ -460,8 +461,7 @@ namespace snmalloc
       error("Not allocated by this allocator");
     }
 
-  public:
-    SNMALLOC_FAST_PATH size_t alloc_size(const void* p)
+    SNMALLOC_FAST_PATH static size_t alloc_size_amp(const void* p)
     {
       // This must be called on an external pointer.
       size_t size = ChunkMap::get(address_cast(p));
@@ -492,6 +492,12 @@ namespace snmalloc
       }
 
       return alloc_size_error();
+    }
+
+  public:
+    SNMALLOC_FAST_PATH size_t alloc_size(const void* p)
+    {
+      return alloc_size_amp(chunkmap().amplify(unsafe_return_ptr(p)));
     }
 
     size_t get_id()
