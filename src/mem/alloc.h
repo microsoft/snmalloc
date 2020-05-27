@@ -412,30 +412,38 @@ namespace snmalloc
       error("Unsupported");
       UNUSED(p);
 #else
-      uint8_t size = ChunkMap::get(address_cast(p));
+      ReturnPtr p = unsafe_return_ptr(p_);
+      uint8_t size = ChunkMap::get(address_cast(p.ptr));
 
-      Superslab* super = Superslab::get(p);
       if (size == CMSuperslab)
       {
-        Slab* slab = Metaslab::get_slab(p);
+        Slab* slab = Metaslab::get_slab(chunkmap().amplify(p));
+        Superslab* super = Superslab::get(slab);
         Metaslab& meta = super->get_meta(slab);
 
         sizeclass_t sc = meta.sizeclass;
-        void* slab_end = pointer_offset(slab, SLAB_SIZE);
+        ReturnPtr slab_end =
+          Aal::reprovenance(p, pointer_offset(slab, SLAB_SIZE));
 
         return external_pointer<location>(p, sc, slab_end);
       }
       if (size == CMMediumslab)
       {
-        Mediumslab* slab = Mediumslab::get(p);
+        Mediumslab* slab = Mediumslab::get(chunkmap().amplify(p));
 
         sizeclass_t sc = slab->get_sizeclass();
-        void* slab_end = pointer_offset(slab, SUPERSLAB_SIZE);
+        ReturnPtr slab_end =
+          Aal::reprovenance(p, pointer_offset(slab, SUPERSLAB_SIZE));
 
         return external_pointer<location>(p, sc, slab_end);
       }
 
-      auto ss = super;
+      /*
+       * XXX: On CHERI, amplify() will give us a pointer with its
+       * base pointing right at where we end up after this log walk.
+       * We should use that.
+       */
+      Superslab* ss = Superslab::get(chunkmap().amplify(p));
 
       while (size > 64)
       {
@@ -842,18 +850,19 @@ namespace snmalloc
 
     template<Boundary location>
     static void*
-    external_pointer(void* p, sizeclass_t sizeclass, void* end_point)
+    external_pointer(ReturnPtr p, sizeclass_t sizeclass, ReturnPtr end_point)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
 
+      void* epp = end_point.ptr;
       void* end_point_correction = location == End ?
-        pointer_offset_signed(end_point, -1) :
+        pointer_offset_signed(epp, -1) :
         (location == OnePastEnd ?
-           end_point :
-           pointer_offset_signed(end_point, -static_cast<ptrdiff_t>(rsize)));
+           epp :
+           pointer_offset_signed(epp, -static_cast<ptrdiff_t>(rsize)));
 
       size_t offset_from_end =
-        pointer_diff(p, pointer_offset_signed(end_point, -1));
+        pointer_diff(p.ptr, pointer_offset_signed(epp, -1));
 
       size_t end_to_end = round_by_sizeclass(rsize, offset_from_end);
 
