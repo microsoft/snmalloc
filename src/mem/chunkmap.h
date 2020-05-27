@@ -10,7 +10,7 @@ using namespace std;
 
 namespace snmalloc
 {
-  enum ChunkMapSuperslabKind
+  enum ChunkMapSuperslabKind : uint8_t
   {
     CMNotOurs = 0,
     CMSuperslab = 1,
