@@ -811,7 +811,7 @@ namespace snmalloc
           while (prev != nullptr)
           {
             ReturnPtr n = Metaslab::follow_next(prev);
-            Superslab* super = Superslab::get(prev.ptr);
+            Superslab* super = Superslab::get(chunkmap().amplify(prev));
             small_dealloc_offseted_inner(super, slab, prev, i);
             prev = n;
           }
