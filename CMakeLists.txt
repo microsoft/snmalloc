@@ -171,13 +171,11 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     endif()
 
     if(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE)
-      if((${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64") OR
-        (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86") OR
-        (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm"))
-        check_cxx_compiler_flag(-march=native SUPPORT_MARCH_NATIVE)
-        if (SUPPORT_MARCH_NATIVE)
-          add_compile_options(-march=native)
-        endif()
+      check_cxx_compiler_flag(-march=native SUPPORT_MARCH_NATIVE)
+      if (SUPPORT_MARCH_NATIVE)
+        add_compile_options(-march=native)
+      else()
+        message(WARNING "Compiler does not support `-march=native` required by SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE")
       endif()
     endif()
 
