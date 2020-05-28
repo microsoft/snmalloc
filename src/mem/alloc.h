@@ -18,6 +18,7 @@
 #include "slab.h"
 
 #include <functional>
+#include <array>
 
 namespace snmalloc
 {
@@ -513,14 +514,9 @@ namespace snmalloc
        * A stub Remote object that will always be the head of this list;
        * never taken for further processing.
        */
-      Remote head;
+      Remote head{};
 
-      Remote* last;
-
-      RemoteList()
-      {
-        clear();
-      }
+      Remote* last{&head};
 
       void clear()
       {
@@ -543,8 +539,8 @@ namespace snmalloc
        * need to dispatch everything, we can check if we are a real allocator
        * and lazily provide a real allocator.
        */
-      int64_t capacity = 0;
-      RemoteList list[REMOTE_SLOTS];
+      int64_t capacity{0};
+      std::array<RemoteList, REMOTE_SLOTS> list{};
 
       /// Used to find the index into the array of queues for remote
       /// deallocation
