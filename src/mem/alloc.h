@@ -17,8 +17,8 @@
 #include "sizeclasstable.h"
 #include "slab.h"
 
-#include <functional>
 #include <array>
+#include <functional>
 
 namespace snmalloc
 {
