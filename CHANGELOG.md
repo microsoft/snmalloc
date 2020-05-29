@@ -1,5 +1,11 @@
 ## Changelog
 
+### 0.2.14
+
+- **upstream** refactor ptr representation.
+- **upstream** improve for more targets and architectures.
+- seperate native CPU feature
+
 ### 0.2.13
 
 - **upstream** large realloc fix and minor updates

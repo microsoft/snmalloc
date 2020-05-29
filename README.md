@@ -17,6 +17,7 @@ There are three features defined in this crate:
 - `debug`: Enable the `Debug` mode in `snmalloc`.
 - `1mib`: Use the `1mib` chunk configuration.
 - `cache-friendly`: Make the allocator more cache friendly (setting `CACHE_FRIENDLY_OFFSET` to `64` in building the library).
+- `native-cpu`: Optimize `snmalloc` for the native CPU of the host machine. (this is not a default behavior since `0.2.14`)
 
 To use `snmalloc-rs` add it as a dependency:
 
@@ -55,6 +56,12 @@ Hence, please make sure the following libs are in your `PATH`:
 
 ## Changelog
 
+### 0.2.14
+
+- **upstream** refactor ptr representation.
+- **upstream** improve for more targets and architectures.
+- seperate native CPU feature
+
 ### 0.2.13
 
 - **upstream** large realloc fix and minor updates
@@ -62,13 +69,5 @@ Hence, please make sure the following libs are in your `PATH`:
 ### 0.2.12
 
 - improve mingw support
-
-### 0.2.11
-
-- add android support
-- **upstream** support x86
-- **upstream** support android
-- **upstream** fix callback
-
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 

@@ -64,6 +64,10 @@ fn main() {
     } else {
         "snmallocshim-rust"
     };
+    
+    if cfg!(feature = "native-cpu") {
+        cfg = cfg.define("SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE", "ON")
+    }
 
     let mut dst = if cfg!(feature = "cache-friendly") {
         cfg.define("CACHE_FRIENDLY_OFFSET", "64").build_target(target).build()

@@ -1,6 +1,6 @@
 [package]
 name = "snmalloc-rs"
-version = "0.2.13"
+version = "0.2.14"
 authors = ["schrodingerzhu <i@zhuyi.fan>"]
 edition = "2018"
 license = "MIT"
@@ -16,7 +16,7 @@ readme = "README.md"
 members = ["snmalloc-sys" ]
 
 [dependencies]
-snmalloc-sys = {version = "0.2.13", path = "snmalloc-sys"}
+snmalloc-sys = {version = "0.2.14", path = "snmalloc-sys"}
 
 [features]
 1mib = ["snmalloc-sys/1mib"]
@@ -24,3 +24,4 @@ debug = ["snmalloc-sys/debug"]
 cache-friendly = ["snmalloc-sys/cache-friendly"]
 android-lld = ["snmalloc-sys/android-lld"]
 android-shared-stl = ["snmalloc-sys/android-shared-stl"]
+native-cpu = ["snmalloc-sys/native-cpu"]
