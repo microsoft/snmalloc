@@ -188,9 +188,13 @@ namespace snmalloc
 
   SNMALLOC_FAST_PATH static size_t round_size(size_t size)
   {
-    if (size > size_to_sizeclass(NUM_SIZECLASSES - 1))
+    if (size > sizeclass_to_size(NUM_SIZECLASSES - 1))
     {
       return bits::next_pow2(size);
+    }
+    if (size == 0)
+    {
+      size = 1;
     }
     return sizeclass_to_size(size_to_sizeclass(size));
   }
