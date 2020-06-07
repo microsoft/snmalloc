@@ -9,6 +9,7 @@ RUN apt update \
     && apt install --no-install-recommends -y clang++-7 \
     && apt install --no-install-recommends -y clang++-8 \
     && apt install --no-install-recommends -y clang++-9 \
+    && apt install --no-install-recommends -y clang++-10 \
     && apt install --no-install-recommends -y clang-format-9 clang-tidy-9 \
     && update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-9 100 \
     && apt remove -y software-properties-common \

@@ -60,6 +60,22 @@ jobs:
         CMakeArgs: ''
         Image: snmallocciteam/build_linux_x64:latest
 
+      64-bit Clang-10 Debug:
+        CC: clang-10
+        CXX: clang++-10
+        BuildType: Debug
+        SelfHost: false
+        CMakeArgs: ''
+        Image: snmallocciteam/build_linux_x64:latest
+
+      64-bit Clang-10 Release:
+        CC: clang-10
+        CXX: clang++-10
+        BuildType: Release
+        SelfHost: false
+        CMakeArgs: ''
+        Image: snmallocciteam/build_linux_x64:latest
+
       64-bit GCC-8 Debug:
         CC: gcc-8
         CXX: g++-8
@@ -92,17 +108,17 @@ jobs:
         CMakeArgs: '-DCACHE_FRIENDLY_OFFSET=64'
         Image: snmallocciteam/build_linux_x64:latest
 
-      32-bit Clang-9 Debug:
-        CC: clang-9
-        CXX: clang++-9
+      32-bit Clang-10 Debug:
+        CC: clang-10
+        CXX: clang++-10
         BuildType: Debug
         SelfHost: false
         CMakeArgs: ''
         Image: snmallocciteam/build_linux_x86:latest
 
-      32-bit Clang-9 Release:
-        CC: clang-9
-        CXX: clang++-9
+      32-bit Clang-10 Release:
+        CC: clang-10
+        CXX: clang++-10
         BuildType: Release
         SelfHost: false
         CMakeArgs: ''
@@ -132,41 +148,41 @@ jobs:
   displayName: 'ARM Linux'
   pool:
     vmImage: 'ubuntu-18.04'
-  
+
   strategy:
     matrix:
-      64-bit Clang-9 Debug:
-        CC: clang-9
-        CXX: clang++-9
+      64-bit Clang-10 Debug:
+        CC: clang-10
+        CXX: clang++-10
         BuildType: Debug
         SelfHost: false
         CMakeArgs: ''
         Image: snmallocciteam/build_linux_arm64:latest
 
-      64-bit Clang-9 Release:
-        CC: clang-9
-        CXX: clang++-9
+      64-bit Clang-10 Release:
+        CC: clang-10
+        CXX: clang++-10
         BuildType: Release
         SelfHost: false
         CMakeArgs: ''
         Image: snmallocciteam/build_linux_arm64:latest
 
-      32-bit Clang-9 Debug:
-        CC: clang-9
-        CXX: clang++-9
+      32-bit Clang-10 Debug:
+        CC: clang-10
+        CXX: clang++-10
         BuildType: Debug
         SelfHost: false
         CMakeArgs: ''
         Image: snmallocciteam/build_linux_armhf:latest
 
-      32-bit Clang-9 Release:
-        CC: clang-9
-        CXX: clang++-9
+      32-bit Clang-10 Release:
+        CC: clang-10
+        CXX: clang++-10
         BuildType: Release
         SelfHost: false
         CMakeArgs: ''
         Image: snmallocciteam/build_linux_armhf:latest
-  
+
   steps:
   - script: |
       sudo docker run --rm --privileged multiarch/qemu-user-static:register --reset
@@ -244,7 +260,7 @@ jobs:
 
 - job:
   displayName: WinClang
-  pool: 
+  pool:
     vmImage:  'windows-2019'
   strategy:
     matrix:
@@ -283,7 +299,7 @@ jobs:
     workingDirectory: build
     displayName: 'Run Ctest'
 
-- job: 
+- job:
   displayName: macOS
   pool:
     vmImage: 'macOS-10.15'
@@ -316,7 +332,7 @@ jobs:
     failOnStderr: true
     displayName: 'Test'
 
-- job: 
+- job:
   displayName: Format
   pool:
     vmImage: 'ubuntu-18.04'
@@ -342,6 +358,6 @@ jobs:
 
   - script: |
       set -eo pipefail
-      clang-tidy-9  src/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16
+      clang-tidy-10  src/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16
 
     displayName: 'Clang-Tidy'
