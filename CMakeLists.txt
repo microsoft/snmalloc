@@ -58,7 +58,7 @@ macro(clangformat_targets)
   # tool.  It does not work with older versions as AfterCaseLabel is not supported
   # in earlier versions.
   find_program(CLANG_FORMAT NAMES
-    clang-format-9)
+    clang-format-10)
 
   # If we've found a clang-format tool, generate a target for it, otherwise emit
   # a warning.

@@ -82,14 +82,15 @@ namespace snmalloc
       static constexpr size_t shift = 26;
       size_t back_shift = shift + align;
       static constexpr size_t mul_shift = 1ULL << shift;
-      static constexpr uint32_t constants[8] = {0,
-                                                mul_shift,
-                                                0,
-                                                (mul_shift / 3) + 1,
-                                                0,
-                                                (mul_shift / 5) + 1,
-                                                0,
-                                                (mul_shift / 7) + 1};
+      static constexpr uint32_t constants[8] = {
+        0,
+        mul_shift,
+        0,
+        (mul_shift / 3) + 1,
+        0,
+        (mul_shift / 5) + 1,
+        0,
+        (mul_shift / 7) + 1};
       return ((constants[divider] * offset) >> back_shift) * rsize;
     }
     else
@@ -125,14 +126,15 @@ namespace snmalloc
       static_assert(SUPERSLAB_BITS <= 24, "The following code assumes 24 bits");
       static constexpr size_t shift = 31;
       static constexpr size_t mul_shift = 1ULL << shift;
-      static constexpr uint32_t constants[8] = {0,
-                                                mul_shift,
-                                                0,
-                                                (mul_shift / 3) + 1,
-                                                0,
-                                                (mul_shift / 5) + 1,
-                                                0,
-                                                (mul_shift / 7) + 1};
+      static constexpr uint32_t constants[8] = {
+        0,
+        mul_shift,
+        0,
+        (mul_shift / 3) + 1,
+        0,
+        (mul_shift / 5) + 1,
+        0,
+        (mul_shift / 7) + 1};
 
       // There is a long chain of zeros after the backshift
       // However, not all zero so just check a range.
