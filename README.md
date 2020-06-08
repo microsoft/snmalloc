@@ -56,6 +56,11 @@ Hence, please make sure the following libs are in your `PATH`:
 
 ## Changelog
 
+### 0.2.15
+
+- **upstream** fix VS2019 build
+- **upstream** fix wrong realloc behavior and performance issue
+
 ### 0.2.14
 
 - **upstream** refactor ptr representation.
@@ -65,9 +70,5 @@ Hence, please make sure the following libs are in your `PATH`:
 ### 0.2.13
 
 - **upstream** large realloc fix and minor updates
-
-### 0.2.12
-
-- improve mingw support
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 

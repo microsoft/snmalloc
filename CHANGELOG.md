@@ -1,5 +1,10 @@
 ## Changelog
 
+### 0.2.15
+
+- **upstream** fix VS2019 build
+- **upstream** fix wrong realloc behavior and performance issue
+
 ### 0.2.14
 
 - **upstream** refactor ptr representation.
