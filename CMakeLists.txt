@@ -280,6 +280,14 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   foreach(TEST_CATEGORY ${TEST_CATEGORIES})
     subdirlist(TESTS ${TESTDIR}/${TEST_CATEGORY})
     foreach(TEST ${TESTS})
+      # Keep CI from being too terribly slow by notching out performance tests
+      # on our MIPS builders, which are actually emulated using QEmu and so are
+      # not the fastest things the world has ever seen.
+      if((SNMALLOC_CI_BUILD)
+          AND (${TEST_CATEGORY} MATCHES "perf")
+          AND (CMAKE_HOST_SYSTEM_PROCESSOR MATCHES mips))
+        continue()
+      endif()
       if (WIN32
           OR (CMAKE_SYSTEM_NAME STREQUAL NetBSD)
           OR (CMAKE_SYSTEM_NAME STREQUAL OpenBSD)

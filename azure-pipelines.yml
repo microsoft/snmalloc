@@ -191,6 +191,52 @@ jobs:
     displayName: 'Test'
 
 - job:
+  displayName: 'mips64el Linux'
+  pool:
+    vmImage: 'ubuntu-18.04'
+
+  strategy:
+    matrix:
+      64-bit Clang-7 Debug:
+        CC: clang-7
+        CXX: clang++-7
+        BuildType: Debug
+        SelfHost: false
+        CMakeArgs: ''
+        Image: snmallocciteam/build_linux_mips64el:latest
+
+      64-bit Clang-7 Release:
+        CC: clang-7
+        CXX: clang++-7
+        BuildType: Release
+        SelfHost: false
+        CMakeArgs: ''
+        Image: snmallocciteam/build_linux_mips64el:latest
+
+  steps:
+  - script: |
+      sudo docker run --rm --privileged multiarch/qemu-user-static:register --reset
+    displayName: 'Enable QEmu'
+
+  - script: |
+      sudo docker run -v $PWD:/src \
+      -e CC=$(CC) \
+      -e CXX=$(CXX) \
+      -e BUILD_TYPE=$(BuildType) \
+      -e CMAKE_ARGS=$(CMakeArgs) \
+      $(Image) \
+      ci/scripts/build.sh
+    displayName: 'Build'
+
+  - script: |
+      sudo docker run -v $PWD:/src \
+      -e BUILD_TYPE=$(BuildType) \
+      -e SELF_HOST=$(SelfHost) \
+      $(Image) \
+      ci/scripts/test.sh
+    displayName: 'Test'
+
+- job:
   displayName: Windows
   pool:
     vmImage: 'vs2017-win2016'
