@@ -1,13 +1,13 @@
-#include "../pal/pal.h"
 #include "../ds/address.h"
 #include "../ds/flaglock.h"
+#include "../pal/pal.h"
 
 #include <array>
 #include <iostream>
 namespace snmalloc
 {
   template<typename Pal>
-  class AddressSpaceManager : Pal
+  class AddressSpaceManager : public Pal
   {
     /**
      * Implements a power of two allocator, where all blocks are aligned to the
@@ -147,7 +147,7 @@ namespace snmalloc
       if constexpr (pal_supports<AlignedAllocation, Pal>)
       {
         if (size >= Pal::minimum_alloc_size)
-          return Pal::reserve_aligned<committed>(size);
+          return static_cast<Pal*>(this)->template reserve_aligned<committed>(size);
       }
 
       void* res;
@@ -162,13 +162,13 @@ namespace snmalloc
           if constexpr (pal_supports<AlignedAllocation, Pal>)
           {
             block_size = Pal::minimum_alloc_size;
-            block = Pal::reserve_aligned<false>(block_size);
+            block = static_cast<Pal*>(this)->template reserve_aligned<false>(block_size);
           }
           else
           {
             // Need at least 2 times the space to guarantee alignment.
             // Hold lock here incase Pal only provides a single range of memory.
-            auto block_and_size = ((Pal*)this)->reserve_at_least(size * 2);
+            auto block_and_size = static_cast<Pal*>(this)->reserve_at_least(size * 2);
             block = block_and_size.first;
             block_size = block_and_size.second;
 
