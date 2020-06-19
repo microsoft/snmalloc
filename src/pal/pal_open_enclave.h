@@ -15,7 +15,7 @@ namespace snmalloc
   {
     /// Base of OE heap
     static inline void* heap_base = nullptr;
-    
+
     /// Size of OE heap
     static inline size_t heap_size;
 

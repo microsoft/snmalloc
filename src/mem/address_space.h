@@ -21,7 +21,7 @@ namespace snmalloc
      *
      * The first entry ranges[n][0] is just a pointer to an address range
      * of size 2^n.
-     * 
+     *
      * The second entry ranges[n][1] is a pointer to a linked list of blocks
      * of this size. The final block in the list is not committed, so we commit
      * on pop for this corner case.
@@ -53,26 +53,36 @@ namespace snmalloc
       UNUSED(align_bits);
     }
 
+    /**
+     * Adds a block to `ranges`.
+     */
     void add_block(size_t align_bits, void* base)
     {
       check_block(base, align_bits);
       if (ranges[align_bits][0] == nullptr)
       {
+        // Prefer first slot if available.
         ranges[align_bits][0] = base;
         return;
       }
 
       if (ranges[align_bits][1] != nullptr)
       {
+        // Add to linked list.
         commit_block(base, sizeof(void*));
         *(void**)base = ranges[align_bits][1];
         check_block(ranges[align_bits][1], align_bits);
       }
 
+      // Update head of list
       ranges[align_bits][1] = base;
       check_block(ranges[align_bits][1], align_bits);
     }
 
+    /**
+     * Find a block of the correct size. May split larger blocks
+     * to satisfy this request.
+     */
     void* remove_block(size_t align_bits)
     {
       auto first = ranges[align_bits][0];
@@ -117,6 +127,7 @@ namespace snmalloc
 
     /**
      * Add a range of memory to the address space.
+     * Divides blocks into power of two sizes with natural alignment
      */
     void add_range(void* base, size_t length)
     {
@@ -137,6 +148,9 @@ namespace snmalloc
       }
     }
 
+    /**
+     * Commit a block of memory
+     */
     void commit_block(void* base, size_t size)
     {
       // Rounding required for sub-page allocations.
@@ -157,7 +171,8 @@ namespace snmalloc
       if constexpr (pal_supports<AlignedAllocation, Pal>)
       {
         if (size >= Pal::minimum_alloc_size)
-          return static_cast<Pal*>(this)->template reserve_aligned<committed>(size);
+          return static_cast<Pal*>(this)->template reserve_aligned<committed>(
+            size);
       }
 
       void* res;
@@ -172,13 +187,15 @@ namespace snmalloc
           if constexpr (pal_supports<AlignedAllocation, Pal>)
           {
             block_size = Pal::minimum_alloc_size;
-            block = static_cast<Pal*>(this)->template reserve_aligned<false>(block_size);
+            block = static_cast<Pal*>(this)->template reserve_aligned<false>(
+              block_size);
           }
           else
           {
             // Need at least 2 times the space to guarantee alignment.
             // Hold lock here incase Pal only provides a single range of memory.
-            auto block_and_size = static_cast<Pal*>(this)->reserve_at_least(size * 2);
+            auto block_and_size =
+              static_cast<Pal*>(this)->reserve_at_least(size * 2);
             block = block_and_size.first;
             block_size = block_and_size.second;
 
