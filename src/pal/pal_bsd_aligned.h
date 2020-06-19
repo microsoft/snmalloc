@@ -23,18 +23,19 @@ namespace snmalloc
     static constexpr uint64_t pal_features =
       AlignedAllocation | PALBSD<OS>::pal_features;
 
+    static constexpr size_t minimum_alloc_size = 4096;
+
     /**
      * Reserve memory at a specific alignment.
      */
     template<bool committed>
-    void* reserve(size_t size, size_t align) noexcept
+    void* reserve_aligned(size_t size) noexcept
     {
       // Alignment must be a power of 2.
-      SNMALLOC_ASSERT(align == bits::next_pow2(align));
+      SNMALLOC_ASSERT(size == bits::next_pow2(size));
+      SNMALLOC_ASSERT(size >= minimum_alloc_size);
 
-      align = bits::max<size_t>(4096, align);
-
-      size_t log2align = bits::next_pow2_bits(align);
+      size_t log2align = bits::next_pow2_bits(size);
 
       void* p = mmap(
         nullptr,

@@ -4,6 +4,7 @@
 #  include "pal_bsd.h"
 
 #  include <mach/vm_statistics.h>
+#  include <utility>
 
 namespace snmalloc
 {
@@ -55,12 +56,15 @@ namespace snmalloc
      *
      * See comment below.
      */
-    template<bool committed>
-    void* reserve(size_t size)
+    std::pair<void*, size_t> reserve_at_least(size_t size)
     {
+      constexpr size_t min_size =
+        bits::is64() ? bits::one_at_bit(32) : bits::one_at_bit(28);
+      auto size_request = bits::max(size, min_size);
+
       void* p = mmap(
         nullptr,
-        size,
+        size_request,
         PROT_READ | PROT_WRITE,
         MAP_PRIVATE | MAP_ANONYMOUS,
         pal_anon_id,
@@ -69,7 +73,7 @@ namespace snmalloc
       if (p == MAP_FAILED)
         error("Out of memory");
 
-      return p;
+      return std::make_pair(p, size_request);
     }
 
   private:

@@ -194,16 +194,21 @@ pages, rather than zeroing them synchronously in this call
 
 ```c++
 template<bool committed>
-void* reserve(size_t size, size_t align);
-template<bool committed>
-void* reserve(size_t size) noexcept;
+void* reserve_aligned(size_t size) noexcept;
+std::pair<void*, size_t> reserve_at_least(size_t size) noexcept;
 ```
 Only one of these needs to be implemented, depending on whether the underlying
 system can provide strongly aligned memory regions.
-If the system guarantees only page alignment, implement the second and snmalloc
-will over-allocate and then trim the requested region.
+If the system guarantees only page alignment, implement the second. The Pal is 
+free to overallocate based on the platforms desire and snmalloc
+will find suitably aligned blocks inside the region.
 If the system provides strong alignment, implement the first to return memory
-at the desired alignment.
+at the desired alignment. If providing the first, then the `Pal` should also 
+specify the minimum size block it can provide: 
+```
+static constexpr size_t minimum_alloc_size = ...;
+```
+
 
 Finally, you need to define a field to indicate the features that your PAL supports:
 ```c++
