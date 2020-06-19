@@ -13,18 +13,10 @@ namespace snmalloc
 {
   class PALOpenEnclave
   {
-    /**
-     * Implements a power of two allocator, where all blocks are aligned to the
-     * same power of two as their size. This is what snmalloc uses to get
-     * alignment of very large sizeclasses.
-     *
-     * Pals are not required to unreserve memory, so this does not require the
-     * usual complexity of a buddy allocator.
-     */
-
-    // There are a maximum of two blocks for any size/align in a range.
-    // One before the point of maximum alignment, and one after.
+    /// Base of OE heap
     static inline void* heap_base = nullptr;
+    
+    /// Size of OE heap
     static inline size_t heap_size;
 
     // This is infrequently used code, a spin lock simplifies the code
@@ -58,9 +50,11 @@ namespace snmalloc
     static std::pair<void*, size_t>
     reserve_at_least(size_t request_size) noexcept
     {
+      // First call returns the entire address space
+      // subsequent calls return {nullptr, 0}
       FlagLock lock(spin_lock);
       if (request_size > heap_size)
-        return std::make_pair(nullptr, 0);
+        return {nullptr, 0};
 
       auto result = std::make_pair(heap_base, heap_size);
       heap_size = 0;

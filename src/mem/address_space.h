@@ -3,31 +3,46 @@
 #include "../pal/pal.h"
 
 #include <array>
-#include <iostream>
 namespace snmalloc
 {
+  /**
+   * Implements a power of two allocator, where all blocks are aligned to the
+   * same power of two as their size. This is what snmalloc uses to get
+   * alignment of very large sizeclasses.
+   *
+   * It cannot unreserve memory, so this does not require the
+   * usual complexity of a buddy allocator.
+   */
   template<typename Pal>
   class AddressSpaceManager : public Pal
   {
     /**
-     * Implements a power of two allocator, where all blocks are aligned to the
-     * same power of two as their size. This is what snmalloc uses to get
-     * alignment of very large sizeclasses.
+     * Stores the blocks for a particular range.
      *
-     * It cannot unreserve memory, so this does not require the
-     * usual complexity of a buddy allocator.
+     * The first entry ranges[n][0] is just a pointer to an address range
+     * of size 2^n.
+     * 
+     * The second entry ranges[n][1] is a pointer to a linked list of blocks
+     * of this size. The final block in the list is not committed, so we commit
+     * on pop for this corner case.
+     *
+     * Invariants
+     *  ranges[n][1] != nullptr => ranges[n][0] != nullptr
+     *
+     * bits::BITS is used for simplicity, we do not use below the pointer size,
+     * and large entries will be unlikely to be supported by the platform.
      */
-
-    // There are a maximum of two blocks for any size/align in a range.
-    // One before the point of maximum alignment, and one after.
-    // As we can add multiple ranges the second entry's block may contain
-    // a pointer to subsequent blocks.
     std::array<std::array<void*, 2>, bits::BITS> ranges = {};
 
-    // This is infrequently used code, a spin lock simplifies the code
-    // considerably, and should never be on the fast path.
+    /**
+     * This is infrequently used code, a spin lock simplifies the code
+     * considerably, and should never be on the fast path.
+     */
     std::atomic_flag spin_lock = ATOMIC_FLAG_INIT;
 
+    /**
+     * Checks a block satisfies its invariant.
+     */
     inline void check_block(void* base, size_t align_bits)
     {
       SNMALLOC_ASSERT(
@@ -49,7 +64,7 @@ namespace snmalloc
 
       if (ranges[align_bits][1] != nullptr)
       {
-        commit_first_page(base);
+        commit_block(base, sizeof(void*));
         *(void**)base = ranges[align_bits][1];
         check_block(ranges[align_bits][1], align_bits);
       }
@@ -85,7 +100,7 @@ namespace snmalloc
       auto second = ranges[align_bits][1];
       if (second != nullptr)
       {
-        commit_first_page(second);
+        commit_block(second, sizeof(void*));
         auto next = *(void**)second;
         ranges[align_bits][1] = next;
         // Zero memory. Client assumes memory contains only zeros.
@@ -124,17 +139,12 @@ namespace snmalloc
 
     void commit_block(void* base, size_t size)
     {
+      // Rounding required for sub-page allocations.
       auto page_start = pointer_align_down<OS_PAGE_SIZE, char>(base);
       auto page_end =
         pointer_align_up<OS_PAGE_SIZE, char>(pointer_offset(base, size));
       Pal::template notify_using<NoZero>(
         page_start, static_cast<size_t>(page_end - page_start));
-    }
-
-    void commit_first_page(void* base)
-    {
-      auto page_start = pointer_align_down<OS_PAGE_SIZE, char>(base);
-      Pal::template notify_using<NoZero>(page_start, OS_PAGE_SIZE);
     }
 
   public:

@@ -58,6 +58,8 @@ namespace snmalloc
      */
     std::pair<void*, size_t> reserve_at_least(size_t size)
     {
+      // Magic number for over-allocating chosen by the Pal
+      // These should be further refined based on experiments.
       constexpr size_t min_size =
         bits::is64() ? bits::one_at_bit(32) : bits::one_at_bit(28);
       auto size_request = bits::max(size, min_size);
@@ -73,7 +75,7 @@ namespace snmalloc
       if (p == MAP_FAILED)
         error("Out of memory");
 
-      return std::make_pair(p, size_request);
+      return {p, size_request};
     }
 
   private:

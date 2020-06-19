@@ -201,7 +201,10 @@ Only one of these needs to be implemented, depending on whether the underlying
 system can provide strongly aligned memory regions.
 If the system guarantees only page alignment, implement the second. The Pal is 
 free to overallocate based on the platforms desire and snmalloc
-will find suitably aligned blocks inside the region.
+will find suitably aligned blocks inside the region.  `reserve_aligned` should 
+not commit memory as snmalloc will commit the range of memory it requires of what 
+is returned.
+
 If the system provides strong alignment, implement the first to return memory
 at the desired alignment. If providing the first, then the `Pal` should also 
 specify the minimum size block it can provide: 

@@ -65,6 +65,9 @@ namespace snmalloc
      */
     std::atomic_flag lazy_decommit_guard = {};
 
+    /**
+     * Manages address space for this memory provider.
+     */
     AddressSpaceManager<PAL> address_space = {};
 
   public:
