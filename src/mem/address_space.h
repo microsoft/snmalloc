@@ -70,7 +70,7 @@ namespace snmalloc
       {
         // Add to linked list.
         commit_block(base, sizeof(void*));
-        *(void**)base = ranges[align_bits][1];
+        *reinterpret_cast<void**>(base) = ranges[align_bits][1];
         check_block(ranges[align_bits][1], align_bits);
       }
 
@@ -111,10 +111,10 @@ namespace snmalloc
       if (second != nullptr)
       {
         commit_block(second, sizeof(void*));
-        auto next = *(void**)second;
+        auto next = *reinterpret_cast<void**>(second);
         ranges[align_bits][1] = next;
         // Zero memory. Client assumes memory contains only zeros.
-        *(void**)second = nullptr;
+        *reinterpret_cast<void**>(second) = nullptr;
         check_block(second, align_bits);
         check_block(next, align_bits);
         return second;
@@ -228,4 +228,4 @@ namespace snmalloc
       return res;
     }
   };
-}
+} // namespace snmalloc
