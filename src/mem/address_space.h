@@ -17,7 +17,9 @@ namespace snmalloc
   class AddressSpaceManager : public Pal
   {
     /**
-     * Stores the blocks for a particular range.
+     * Stores the blocks of address space
+     *
+     * The first level of array indexes based on power of two size.
      *
      * The first entry ranges[n][0] is just a pointer to an address range
      * of size 2^n.
@@ -162,6 +164,13 @@ namespace snmalloc
     }
 
   public:
+    /**
+     * Returns a pointer to a block of memory of the supplied size.
+     * The block will be committed, if specified by the template parameter.
+     * The returned block is guaranteed to be aligened to the size.
+     *
+     * Only request 2^n sizes, and not less than a pointer.
+     */
     template<bool committed>
     void* reserve(size_t size)
     {
