@@ -4,6 +4,7 @@
 #include "../ds/helpers.h"
 #include "../ds/mpmcstack.h"
 #include "../pal/pal.h"
+#include "address_space.h"
 #include "allocstats.h"
 #include "baseslab.h"
 #include "sizeclass.h"
@@ -59,25 +60,15 @@ namespace snmalloc
   class MemoryProviderStateMixin : public PalNotificationObject, public PAL
   {
     /**
-     * Flag to protect the bump allocator
-     */
-    std::atomic_flag lock = ATOMIC_FLAG_INIT;
-
-    /**
-     * Pointer to block being bump allocated
-     */
-    void* bump = nullptr;
-
-    /**
-     * Space remaining in this block being bump allocated
-     */
-    size_t remaining = 0;
-
-    /**
      * Simple flag for checking if another instance of lazy-decommit is
      * running
      */
     std::atomic_flag lazy_decommit_guard = {};
+
+    /**
+     * Manages address space for this memory provider.
+     */
+    AddressSpaceManager<PAL> address_space = {};
 
   public:
     /**
@@ -91,11 +82,14 @@ namespace snmalloc
     static MemoryProviderStateMixin<PAL>* make() noexcept
     {
       // Temporary stack-based storage to start the allocator in.
-      MemoryProviderStateMixin<PAL> local;
+      MemoryProviderStateMixin<PAL> local{};
 
       // Allocate permanent storage for the allocator usung temporary allocator
       MemoryProviderStateMixin<PAL>* allocated =
         local.alloc_chunk<MemoryProviderStateMixin<PAL>, 1>();
+
+      if (allocated == nullptr)
+        error("Failed to initialise system!");
 
 #ifdef GCC_VERSION_EIGHT_PLUS
 #  pragma GCC diagnostic push
@@ -105,7 +99,10 @@ namespace snmalloc
       // memcpy is safe as this is entirely single threaded: the move
       // constructors were removed as unsafe to move std::atomic in a
       // concurrent setting.
-      memcpy(allocated, &local, sizeof(MemoryProviderStateMixin<PAL>));
+      ::memcpy(
+        &(allocated->address_space),
+        &(local.address_space),
+        sizeof(AddressSpaceManager<PAL>));
 #ifdef GCC_VERSION_EIGHT_PLUS
 #  pragma GCC diagnostic pop
 #endif
@@ -121,22 +118,6 @@ namespace snmalloc
     }
 
   private:
-    void new_block()
-    {
-      // Reserve the smallest large_class which is SUPERSLAB_SIZE
-      void* r = reserve<false>(0);
-
-      if (r == nullptr)
-        Pal::error(
-          "Unrecoverable internal error: \
-          failed to allocator internal data structure.");
-
-      PAL::template notify_using<NoZero>(r, OS_PAGE_SIZE);
-
-      bump = r;
-      remaining = SUPERSLAB_SIZE;
-    }
-
     SNMALLOC_SLOW_PATH void lazy_decommit()
     {
       // If another thread is try to do lazy decommit, let it continue.  If
@@ -183,24 +164,6 @@ namespace snmalloc
       lazy_decommit_guard.clear();
     }
 
-    void push_space(void* p, size_t large_class)
-    {
-      // All fresh pages so can use "NoZero"
-      if (large_class > 0)
-        PAL::template notify_using<NoZero>(p, OS_PAGE_SIZE);
-      else
-      {
-        if (decommit_strategy == DecommitSuperLazy)
-        {
-          PAL::template notify_using<NoZero>(p, OS_PAGE_SIZE);
-          p = new (p) Decommittedslab();
-        }
-        else
-          PAL::template notify_using<NoZero>(p, SUPERSLAB_SIZE);
-      }
-      large_stack[large_class].push(reinterpret_cast<Largeslab*>(p));
-    }
-
     /***
      * Method for callback object to perform lazy decommit.
      */
@@ -221,45 +184,10 @@ namespace snmalloc
     {
       // Cache line align
       size_t size = bits::align_up(sizeof(T), 64);
-
-      void* p;
-      {
-        FlagLock f(lock);
-
-        if constexpr (alignment != 0)
-        {
-          char* aligned_bump = pointer_align_up<alignment, char>(bump);
-
-          size_t bump_delta = pointer_diff(bump, aligned_bump);
-
-          if (bump_delta > remaining)
-          {
-            new_block();
-          }
-          else
-          {
-            remaining -= bump_delta;
-            bump = aligned_bump;
-          }
-        }
-
-        if (remaining < size)
-        {
-          new_block();
-        }
-
-        p = bump;
-        bump = pointer_offset(bump, size);
-        remaining -= size;
-      }
-
-      auto page_start = pointer_align_down<OS_PAGE_SIZE, char>(p);
-      auto page_end =
-        pointer_align_up<OS_PAGE_SIZE, char>(pointer_offset(p, size));
-
-      PAL::template notify_using<NoZero>(
-        page_start, static_cast<size_t>(page_end - page_start));
-
+      size = bits::max(size, alignment);
+      void* p = address_space.template reserve<true>(bits::next_pow2(size));
+      if (p == nullptr)
+        return nullptr;
       return new (p) T(std::forward<Args...>(args)...);
     }
 
@@ -267,66 +195,8 @@ namespace snmalloc
     void* reserve(size_t large_class) noexcept
     {
       size_t size = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
-      size_t align = size;
 
-      if constexpr (pal_supports<AlignedAllocation, PAL>)
-      {
-        return PAL::template reserve<committed>(size, align);
-      }
-      else
-      {
-        // Reserve 4 times the amount, and put aligned leftovers into the
-        // large_stack
-        size_t request = bits::max(size * 4, SUPERSLAB_SIZE * 8);
-        void* p = PAL::template reserve<false>(request);
-
-        if (p == nullptr)
-          return nullptr;
-
-        void* start = pointer_align_up(p, align);
-        void* p1 = pointer_offset(p, request);
-        void* end = pointer_offset(start, size);
-
-        for (; end < pointer_align_down(p1, align);
-             end = pointer_offset(end, size))
-        {
-          push_space(end, large_class);
-        }
-
-        // Put offcuts before alignment into the large stack
-        void* offcut_end = start;
-        void* offcut_start;
-        for (size_t i = large_class; i > 0;)
-        {
-          i--;
-          size_t offcut_align = bits::one_at_bit(SUPERSLAB_BITS) << i;
-          offcut_start = pointer_align_up(p, offcut_align);
-          if (offcut_start != offcut_end)
-          {
-            push_space(offcut_start, i);
-            offcut_end = offcut_start;
-          }
-        }
-
-        // Put offcuts after returned block into the large stack
-        offcut_start = end;
-        for (size_t i = large_class; i > 0;)
-        {
-          i--;
-          auto offcut_align = bits::one_at_bit(SUPERSLAB_BITS) << i;
-          offcut_end = pointer_align_down(p1, offcut_align);
-          if (offcut_start != offcut_end)
-          {
-            push_space(offcut_start, i);
-            offcut_start = offcut_end;
-          }
-        }
-
-        if (committed)
-          PAL::template notify_using<NoZero>(start, size);
-
-        return start;
-      }
+      return address_space.template reserve<committed>(size);
     }
   };
 

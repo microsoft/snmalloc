@@ -77,10 +77,12 @@ namespace snmalloc
      * PAL supports.  This PAL supports low-memory notifications.
      */
     static constexpr uint64_t pal_features = LowMemoryNotification
-#  if defined(PLATFORM_HAS_VIRTUALALLOC2)
+#  if defined(PLATFORM_HAS_VIRTUALALLOC2) && !defined(USE_SYSTEMATIC_TESTING)
       | AlignedAllocation
 #  endif
       ;
+
+    static constexpr size_t minimum_alloc_size = 0x10000;
 
     static constexpr size_t page_size = 0x1000;
 
@@ -157,13 +159,16 @@ namespace snmalloc
       static size_t bump_ptr = (size_t)0x4000'0000'0000;
       return bump_ptr;
     }
-    template<bool committed>
-    void* reserve(size_t size) noexcept
-    {
-      DWORD flags = MEM_RESERVE;
 
-      if (committed)
-        flags |= MEM_COMMIT;
+    std::pair<void*, size_t> reserve_at_least(size_t size) noexcept
+    {
+      // Magic number for over-allocating chosen by the Pal
+      // These should be further refined based on experiments.
+      constexpr size_t min_size =
+        bits::is64() ? bits::one_at_bit(32) : bits::one_at_bit(28);
+      auto size_request = bits::max(size, min_size);
+
+      DWORD flags = MEM_RESERVE;
 
       size_t retries = 1000;
       void* p;
@@ -171,34 +176,30 @@ namespace snmalloc
       do
       {
         p = VirtualAlloc(
-          (void*)systematic_bump_ptr(), size, flags, PAGE_READWRITE);
+          (void*)systematic_bump_ptr(), size_request, flags, PAGE_READWRITE);
 
-        systematic_bump_ptr() += size;
+        systematic_bump_ptr() += size_request;
         retries--;
       } while (p == nullptr && retries > 0);
 
-      return p;
+      return {p, size_request};
     }
 #  elif defined(PLATFORM_HAS_VIRTUALALLOC2)
     template<bool committed>
-    void* reserve(size_t size, size_t align) noexcept
+    void* reserve_aligned(size_t size) noexcept
     {
+      SNMALLOC_ASSERT(size == bits::next_pow2(size));
+      SNMALLOC_ASSERT(size >= minimum_alloc_size);
+
       DWORD flags = MEM_RESERVE;
 
       if (committed)
         flags |= MEM_COMMIT;
 
-      // Windows doesn't let you request memory less than 64KB aligned.  Most
-      // operating systems will simply give you something more aligned than you
-      // ask for, but Windows complains about invalid parameters.
-      const size_t min_align = 64 * 1024;
-      if (align < min_align)
-        align = min_align;
-
       // If we're on Windows 10 or newer, we can use the VirtualAlloc2
       // function.  The FromApp variant is useable by UWP applications and
       // cannot allocate executable memory.
-      MEM_ADDRESS_REQUIREMENTS addressReqs = {NULL, NULL, align};
+      MEM_ADDRESS_REQUIREMENTS addressReqs = {NULL, NULL, size};
 
       MEM_EXTENDED_PARAMETER param = {
         {MemExtendedParameterAddressRequirements, 0}, {0}};
@@ -215,20 +216,21 @@ namespace snmalloc
       return ret;
     }
 #  else
-    template<bool committed>
-    void* reserve(size_t size) noexcept
+    std::pair<void*, size_t> reserve_at_least(size_t size) noexcept
     {
+      // Magic number for over-allocating chosen by the Pal
+      // These should be further refined based on experiments.
+      constexpr size_t min_size =
+        bits::is64() ? bits::one_at_bit(32) : bits::one_at_bit(28);
+      auto size_request = bits::max(size, min_size);
+
       DWORD flags = MEM_RESERVE;
-
-      if (committed)
-        flags |= MEM_COMMIT;
-
-      void* ret = VirtualAlloc(nullptr, size, flags, PAGE_READWRITE);
+      void* ret = VirtualAlloc(nullptr, size_request, flags, PAGE_READWRITE);
       if (ret == nullptr)
       {
         error("Failed to allocate memory\n");
       }
-      return ret;
+      return std::pair(ret, size_request);
     }
 #  endif
   };
