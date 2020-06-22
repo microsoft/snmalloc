@@ -61,6 +61,7 @@ namespace snmalloc
     void add_block(size_t align_bits, void* base)
     {
       check_block(base, align_bits);
+      SNMALLOC_ASSERT(align_bits < 64);
       if (ranges[align_bits][0] == nullptr)
       {
         // Prefer first slot if available.
@@ -202,7 +203,9 @@ namespace snmalloc
           else
           {
             // Need at least 2 times the space to guarantee alignment.
-            // Hold lock here incase Pal only provides a single range of memory.
+            // Hold lock here as a race could cause additional requests to
+            // the Pal, and this could lead to suprious OOM.  This is particularly
+            // bad if the Pal gives all the memory on first call.
             auto block_and_size =
               static_cast<Pal*>(this)->reserve_at_least(size * 2);
             block = block_and_size.first;
