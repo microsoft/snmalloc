@@ -4,12 +4,6 @@
 #define SNMALLOC_NAME_MANGLE(a) our_##a
 #include "../../../override/malloc.cc"
 
-#if defined(_WIN32) && !defined(_MSC_VER)
-#  define ST_FMT "I"
-#else
-#  define ST_FMT "z"
-#endif
-
 using namespace snmalloc;
 
 void check_result(size_t size, size_t align, void* p, int err, bool null)
@@ -31,7 +25,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
   if ((align == 1) && (alloc_size != expected_size))
   {
     printf(
-      "Usable size is %" ST_FMT "u, but required to be %" ST_FMT "u.\n",
+      "Usable size is %zu, but required to be %zu.\n",
       alloc_size,
       expected_size);
     abort();
@@ -39,8 +33,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
   if ((align != 1) && (alloc_size < expected_size))
   {
     printf(
-      "Usable size is %" ST_FMT "u, but required to be at least %" ST_FMT
-      "u.\n",
+      "Usable size is %zu, but required to be at least %zu.\n",
       alloc_size,
       expected_size);
     abort();
@@ -48,8 +41,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
   if (static_cast<size_t>(reinterpret_cast<uintptr_t>(p) % align) != 0)
   {
     printf(
-      "Address is 0x%" ST_FMT "x, but required to be aligned to 0x%" ST_FMT
-      "x.\n",
+      "Address is 0x%zx, but required to be aligned to 0x%zx.\n",
       reinterpret_cast<uintptr_t>(p),
       align);
     abort();
@@ -60,7 +52,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
 
 void test_calloc(size_t nmemb, size_t size, int err, bool null)
 {
-  fprintf(stderr, "calloc(%" ST_FMT "u, %" ST_FMT "u)\n", nmemb, size);
+  fprintf(stderr, "calloc(%zu, %zu)\n", nmemb, size);
   errno = 0;
   void* p = our_calloc(nmemb, size);
 
@@ -81,8 +73,7 @@ void test_realloc(void* p, size_t size, int err, bool null)
   if (p != nullptr)
     old_size = our_malloc_usable_size(p);
 
-  fprintf(
-    stderr, "realloc(%p(%" ST_FMT "u), %" ST_FMT "u)\n", p, old_size, size);
+  fprintf(stderr, "realloc(%p(%zu), %zu)\n", p, old_size, size);
   errno = 0;
   auto new_p = our_realloc(p, size);
   // Realloc failure case, deallocate original block
@@ -93,8 +84,7 @@ void test_realloc(void* p, size_t size, int err, bool null)
 
 void test_posix_memalign(size_t size, size_t align, int err, bool null)
 {
-  fprintf(
-    stderr, "posix_memalign(&p, %" ST_FMT "u, %" ST_FMT "u)\n", align, size);
+  fprintf(stderr, "posix_memalign(&p, %zu, %zu)\n", align, size);
   void* p = nullptr;
   errno = our_posix_memalign(&p, align, size);
   check_result(size, align, p, err, null);
@@ -102,7 +92,7 @@ void test_posix_memalign(size_t size, size_t align, int err, bool null)
 
 void test_memalign(size_t size, size_t align, int err, bool null)
 {
-  fprintf(stderr, "memalign(%" ST_FMT "u, %" ST_FMT "u)\n", align, size);
+  fprintf(stderr, "memalign(%zu, %zu)\n", align, size);
   errno = 0;
   void* p = our_memalign(align, size);
   check_result(size, align, p, err, null);
@@ -122,7 +112,7 @@ int main(int argc, char** argv)
   for (sizeclass_t sc = 0; sc < (SUPERSLAB_BITS + 4); sc++)
   {
     const size_t size = 1ULL << sc;
-    printf("malloc: %" ST_FMT "u\n", size);
+    printf("malloc: %zu\n", size);
     check_result(size, 1, our_malloc(size), SUCCESS, false);
     check_result(size + 1, 1, our_malloc(size + 1), SUCCESS, false);
   }
@@ -170,7 +160,7 @@ int main(int argc, char** argv)
     for (sizeclass_t sc2 = 0; sc2 < (SUPERSLAB_BITS + 4); sc2++)
     {
       const size_t size2 = 1ULL << sc2;
-      printf("size1: %" ST_FMT "u, size2:%" ST_FMT "u\n", size, size2);
+      printf("size1: %zu, size2:%zu\n", size, size2);
       test_realloc(our_malloc(size), size2, SUCCESS, false);
       test_realloc(our_malloc(size + 1), size2, SUCCESS, false);
     }

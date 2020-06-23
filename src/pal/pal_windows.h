@@ -6,7 +6,6 @@
 #ifdef _WIN32
 #  ifndef _MSC_VER
 #    include <cstdio>
-#    include <utility>
 #  endif
 #  define WIN32_LEAN_AND_MEAN
 #  ifndef NOMINMAX
