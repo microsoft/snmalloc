@@ -8,6 +8,7 @@ endif()
 
 include(CheckCXXCompilerFlag)
 include(CheckCSourceCompiles)
+include(CheckCXXSourceCompiles)
 
 option(USE_SNMALLOC_STATS "Track allocation stats" OFF)
 option(SNMALLOC_CI_BUILD "Disable features not sensible for CI" OFF)
@@ -26,6 +27,9 @@ CHECK_C_SOURCE_COMPILES("
 size_t malloc_usable_size(const void* ptr) { return 0; }
 int main() { return 0; }
 " CONST_QUALIFIED_MALLOC_USABLE_SIZE)
+
+check_cxx_compiler_flag(-rdynamic SNMALLOC_RDYNAMIC)
+check_cxx_compiler_flag(-ftls-model=initial-exec SNMALLOC_STATIC_TLS)
 
 if ((CMAKE_BUILD_TYPE STREQUAL "Release") AND (NOT SNMALLOC_CI_BUILD))
   option(USE_POSIX_COMMIT_CHECKS "Instrument Posix PAL to check for access to unused blocks of memory." Off)
@@ -172,14 +176,18 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
   else()
     add_compile_options(-fno-exceptions -fno-rtti -g -fomit-frame-pointer)
+
     # Static TLS model is unsupported on Haiku.
     # All symbols are always dynamic on haiku and -rdynamic is redundant (and unsupported).
-    if (NOT CMAKE_SYSTEM_NAME MATCHES "Haiku")
+    if (SNMALLOC_STATIC_TLS)
 	    add_compile_options(-ftls-model=initial-exec)
-    	    if(SNMALLOC_CI_BUILD OR (${CMAKE_BUILD_TYPE} MATCHES "Debug"))
-      		# Get better stack traces in CI and Debug.
-      		target_link_libraries(snmalloc_lib INTERFACE "-rdynamic")
-    	    endif()
+    endif()
+
+    if(SNMALLOC_CI_BUILD OR (${CMAKE_BUILD_TYPE} MATCHES "Debug"))
+      	# Get better stack traces in CI and Debug.
+        if (SNMALLOC_RDYNAMIC)
+      	  target_link_libraries(snmalloc_lib INTERFACE "-rdynamic")
+        endif()
     endif()
 
     if(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE)
