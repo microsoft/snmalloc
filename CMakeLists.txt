@@ -169,6 +169,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
   else()
     add_compile_options(-fno-exceptions -fno-rtti -g -fomit-frame-pointer)
+    # Static TLS model unsupported on Haiku
     if (NOT CMAKE_SYSTEM_NAME MATCHES "Haiku")
 	    add_compile_options(-ftls-model=initial-exec)
     endif()
