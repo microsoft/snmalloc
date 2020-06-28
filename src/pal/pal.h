@@ -10,6 +10,7 @@
 #  include "pal_apple.h"
 #  include "pal_freebsd.h"
 #  include "pal_freebsd_kernel.h"
+#  include "pal_haiku.h"
 #  include "pal_linux.h"
 #  include "pal_netbsd.h"
 #  include "pal_openbsd.h"
@@ -31,6 +32,8 @@ namespace snmalloc
     PALFreeBSDKernel;
 #  elif defined(__FreeBSD__)
     PALFreeBSD;
+#  elif defined(__HAIKU__)
+    PALHaiku;
 #  elif defined(__NetBSD__)
     PALNetBSD;
 #  elif defined(__OpenBSD__)
