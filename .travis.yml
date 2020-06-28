@@ -2,6 +2,8 @@ matrix:
   include:
     - os: windows
       language: rust
+      env:
+        - TOOLCHAIN=MinGW
       rust:
         - nightly
 
@@ -81,6 +83,8 @@ matrix:
       language: rust
       rust:
         - nightly
+  allow_failures:
+    env: TOOLCHAIN=MinGW
         
 cache:
     directories:
@@ -91,4 +95,6 @@ script:
   - cargo test --all --features 1mib
   - cargo test --all --features debug
   - cargo test --all --features cache-friendly
+
+
 

@@ -1,5 +1,5 @@
 # snmalloc-rs
-**Notice: MinGW Build is broken and may not be fixed in a near futture. See [this PR](https://github.com/microsoft/snmalloc/pull/217) in the upstream.**
+**Notice: MinGW Build is broken and may not be fixed in a near future. See [this PR](https://github.com/microsoft/snmalloc/pull/217) in the upstream.**
 
 MSVC/MinGW/Linux/MacOS: [![travis ci](https://www.travis-ci.org/SchrodingerZhu/snmalloc-rs.svg?branch=master)](https://travis-ci.com/SchrodingerZhu/snmalloc-rs)
 
