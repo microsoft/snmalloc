@@ -16,7 +16,7 @@ readme = "README.md"
 members = ["snmalloc-sys" ]
 
 [dependencies]
-snmalloc-sys = {version = "0.2.15", path = "snmalloc-sys"}
+snmalloc-sys = {version = "0.2.16", path = "snmalloc-sys"}
 
 [features]
 1mib = ["snmalloc-sys/1mib"]

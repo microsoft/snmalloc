@@ -1,5 +1,12 @@
 ## Changelog
 
+### 0.2.16
+
+- **upstream** New implementation of address space reservation leading to
+  - better integration with transparent huge pages; and
+  - lower address space requirements and fragmentation.
+- Notice MinGW broken state
+
 ### 0.2.15
 
 - **upstream** fix VS2019 build

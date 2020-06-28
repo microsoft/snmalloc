@@ -1,4 +1,6 @@
 # snmalloc-rs
+**Notice: MinGW Build is broken and may not be fixed in a near futture. See [this PR](https://github.com/microsoft/snmalloc/pull/217) in the upstream.**
+
 MSVC/MinGW/Linux/MacOS: [![travis ci](https://www.travis-ci.org/SchrodingerZhu/snmalloc-rs.svg?branch=master)](https://travis-ci.com/SchrodingerZhu/snmalloc-rs)
 
 FreeBSD: [![Build Status](https://api.cirrus-ci.com/github/SchrodingerZhu/snmalloc-rs.svg)](https://cirrus-ci.com/github/SchrodingerZhu/snmalloc-rs)
@@ -56,6 +58,13 @@ Hence, please make sure the following libs are in your `PATH`:
 
 ## Changelog
 
+### 0.2.16
+
+- **upstream** New implementation of address space reservation leading to
+  - better integration with transparent huge pages; and
+  - lower address space requirements and fragmentation.
+- Notice MinGW broken state
+
 ### 0.2.15
 
 - **upstream** fix VS2019 build
@@ -66,9 +75,5 @@ Hence, please make sure the following libs are in your `PATH`:
 - **upstream** refactor ptr representation.
 - **upstream** improve for more targets and architectures.
 - seperate native CPU feature
-
-### 0.2.13
-
-- **upstream** large realloc fix and minor updates
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 
