@@ -54,7 +54,7 @@ namespace snmalloc
     template<typename T>
     struct DefaultMMAPFlags<T, decltype((void)T::default_mmap_flags, 0)>
     {
-      static const int fd = T::default_mmap_flags;
+      static const int flags = T::default_mmap_flags;
     };
 
     /**
