@@ -77,7 +77,7 @@ namespace snmalloc
      * anonymous memory. This exposes the `anonymous_memory_fd` field in `OS`.
      */
     template<typename T>
-    struct AnonFD<T, decltype((void)T::default_mmap_flags, 0)>
+    struct AnonFD<T, decltype((void)T::anonymous_memory_fd, 0)>
     {
       /**
        * The PAL's provided file descriptor for anonymous memory.  This is
