@@ -30,6 +30,64 @@ namespace snmalloc
   template<class OS>
   class PALPOSIX
   {
+    /**
+     * Helper class to access the `default_mmap_flags` field of `OS` if one
+     * exists or a default value if not.  This provides the default version,
+     * which is used if `OS::default_mmap_flags` does not exist.
+     */
+    template<typename T, typename = int>
+    struct DefaultMMAPFlags
+    {
+      /**
+       * If `OS::default_mmap_flags` does not exist, use 0.  This value is
+       * or'd with the other mmap flags and so a value of 0 is a no-op.
+       */
+      static const int flags = 0;
+    };
+
+    /**
+     * Helper class to access the `default_mmap_flags` field of `OS` if one
+     * exists or a default value if not.  This provides the version that
+     * accesses the field, allowing other PALs to provide extra arguments to
+     * the `mmap` calls used here.
+     */
+    template<typename T>
+    struct DefaultMMAPFlags<T, decltype((void)T::default_mmap_flags, 0)>
+    {
+      static const int fd = T::default_mmap_flags;
+    };
+
+    /**
+     * Helper class to allow `OS` to provide the file descriptor used for
+     * anonymous memory. This is the default version, which provides the POSIX
+     * default of -1.
+     */
+    template<typename T, typename = int>
+    struct AnonFD
+    {
+      /**
+       * If `OS::anonymous_memory_fd` does not exist, use -1.  This value is
+       * defined by POSIX.
+       */
+      static const int fd = -1;
+    };
+
+    /**
+     * Helper class to allow `OS` to provide the file descriptor used for
+     * anonymous memory. This exposes the `anonymous_memory_fd` field in `OS`.
+     */
+    template<typename T>
+    struct AnonFD<T, decltype((void)T::default_mmap_flags, 0)>
+    {
+      /**
+       * The PAL's provided file descriptor for anonymous memory.  This is
+       * used, for example, on Apple platforms, which use the file descriptor
+       * in a `MAP_ANONYMOUS` mapping to encode metadata about the owner of the
+       * mapping.
+       */
+      static const int fd = T::anonymous_memory_fd;
+    };
+
   public:
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this
@@ -128,8 +186,8 @@ namespace snmalloc
           p,
           size,
           PROT_READ | PROT_WRITE,
-          MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED,
-          -1,
+          MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | DefaultMMAPFlags<OS>::flags,
+          AnonFD<OS>::fd,
           0);
 
         if (r != MAP_FAILED)
@@ -159,8 +217,8 @@ namespace snmalloc
         nullptr,
         size_request,
         PROT_READ | PROT_WRITE,
-        MAP_PRIVATE | MAP_ANONYMOUS,
-        -1,
+        MAP_PRIVATE | MAP_ANONYMOUS | DefaultMMAPFlags<OS>::flags,
+        AnonFD<OS>::fd,
         0);
 
       if (p == MAP_FAILED)

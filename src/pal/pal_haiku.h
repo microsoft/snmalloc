@@ -22,6 +22,12 @@ namespace snmalloc
     static constexpr uint64_t pal_features = PALPOSIX::pal_features;
 
     /**
+     * Haiku requires an explicit no-reserve flag in `mmap` to guarantee lazy
+     * commit.
+     */
+    static constexpr int default_mmap_flags = MAP_NORESERVE;
+
+    /**
      * Notify platform that we will not be needing these pages.
      * Haiku does not provide madvise call per say only the posix equivalent.
      */
@@ -29,55 +35,6 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
       posix_madvise(p, size, POSIX_MADV_DONTNEED);
-    }
-
-    /**
-     *  OS specific function for zeroing memory
-     *  using MAP_NORESERVE for explicit over commit appliance.
-     */
-    template<bool page_aligned = false>
-    void zero(void* p, size_t size)
-    {
-      if (page_aligned || is_aligned_block<page_size>(p, size))
-      {
-        SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
-        void* r = mmap(
-          p,
-          size,
-          PROT_READ | PROT_WRITE,
-          MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_NORESERVE,
-          -1,
-          0);
-
-        if (r != MAP_FAILED)
-          return;
-      }
-
-      bzero(p, size);
-    }
-
-    /**
-     * Reserve memory using MAP_NORESERVE for explicit
-     * over commit applicance.
-     */
-    std::pair<void*, size_t> reserve_at_least(size_t size)
-    {
-      constexpr size_t min_size =
-        bits::is64() ? bits::one_at_bit(32) : bits::one_at_bit(28);
-      auto size_request = bits::max(size, min_size);
-
-      void* p = mmap(
-        nullptr,
-        size_request,
-        PROT_READ | PROT_WRITE,
-        MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
-        -1,
-        0);
-
-      if (p == MAP_FAILED)
-        error("Out of memory");
-
-      return {p, size_request};
     }
   };
 } // namespace snmalloc
