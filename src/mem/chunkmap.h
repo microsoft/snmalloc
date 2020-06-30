@@ -139,25 +139,22 @@ namespace snmalloc
 
   public:
     /**
-     * Constructor.  Accesses the pagemap via the C ABI accessor and casts it to
-     * the expected type, failing in cases of ABI mismatch.
-     */
-    ExternalGlobalPagemap()
-    {
-      const snmalloc::PagemapConfig* c;
-      external_pagemap =
-        ChunkmapPagemap::cast_to_pagemap(snmalloc_pagemap_global_get(&c), c);
-      if (!external_pagemap)
-      {
-        Pal::error("Incorrect ABI of global pagemap.");
-      }
-    }
-
-    /**
      * Returns the exported pagemap.
+     * Accesses the pagemap via the C ABI accessor and casts it to
+     * the expected type, failing in cases of ABI mismatch.
      */
     static ChunkmapPagemap& pagemap()
     {
+      if (external_pagemap == nullptr)
+      {
+        const snmalloc::PagemapConfig* c;
+        external_pagemap =
+          ChunkmapPagemap::cast_to_pagemap(snmalloc_pagemap_global_get(&c), c);
+        if (!external_pagemap)
+        {
+          Pal::error("Incorrect ABI of global pagemap.");
+        }
+      }
       return *external_pagemap;
     }
   };
