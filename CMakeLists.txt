@@ -168,7 +168,11 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
   else()
-    add_compile_options(-fno-exceptions -fno-rtti -g -ftls-model=initial-exec -fomit-frame-pointer)
+    add_compile_options(-fno-exceptions -fno-rtti -g -fomit-frame-pointer)
+    # Static TLS model unsupported on Haiku
+    if (NOT CMAKE_SYSTEM_NAME MATCHES "Haiku")
+	    add_compile_options(-ftls-model=initial-exec)
+    endif()
     if(SNMALLOC_CI_BUILD OR (${CMAKE_BUILD_TYPE} MATCHES "Debug"))
       # Get better stack traces in CI and Debug.
       target_link_libraries(snmalloc_lib INTERFACE "-rdynamic")
