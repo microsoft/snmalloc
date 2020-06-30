@@ -243,6 +243,16 @@ The [Windows](src/pal/pal_windows.h), and
 [FreeBSD kernel](src/pal/pal_freebsd_kernel.h) implementations give examples of
 non-POSIX environments that snmalloc supports.
 
+The POSIX PAL uses `mmap` to map memory.
+Some POSIX or POSIX-like systems require minor tweaks to this behaviour.
+Rather than requiring these to copy and paste the code, a PAL that inherits from the POSIX PAL can define one or both of these (`static constexpr`) fields to customise the `mmap` behaviour.
+
+ - `default_mmap_flags` allows a PAL to provide additional `MAP_*`
+    flags to all `mmap` calls.
+ - `anonymous_memory_fd` allows the PAL to override the default file
+   descriptor used for memory mappings.
+
+
 # Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
