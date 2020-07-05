@@ -4,8 +4,63 @@
 #include <test/setup.h>
 #include <test/xoroshiro.h>
 #include <unordered_set>
+#ifdef __linux__
+#  include <sys/resource.h>
+#  include <sys/sysinfo.h>
+#  include <unistd.h>
+#  include <wait.h>
+#  define TEST_LIMITED
+#  define KiB (1024ull)
+#  define MiB (KiB * KiB)
+#  define GiB (KiB * MiB)
+#endif
 
 using namespace snmalloc;
+
+#ifdef TEST_LIMITED
+void test_limited(rlim64_t as_limit)
+{
+  auto pid = fork();
+  if (!pid)
+  {
+    auto limit = rlimit64{.rlim_cur = as_limit, .rlim_max = RLIM64_INFINITY};
+    if (setrlimit64(RLIMIT_AS, &limit))
+    {
+      std::abort();
+    }
+    if (getrlimit64(RLIMIT_AS, &limit))
+    {
+      std::abort();
+    }
+    std::cout << "limiting memory to " << limit.rlim_cur / KiB << " KiB"
+              << std::endl;
+    struct sysinfo info
+    {};
+    if (sysinfo(&info))
+    {
+      std::abort();
+    }
+    std::cout << "host freeram: " << info.freeram / KiB << " KiB" << std::endl;
+    auto upper_bound =
+      std::min(static_cast<unsigned long long>(limit.rlim_cur >> 1u), 2 * GiB);
+    upper_bound = std::min(
+      upper_bound, static_cast<unsigned long long>(info.freeram >> 1u));
+    std::cout << "trying to alloc " << upper_bound / KiB << " KiB" << std::endl;
+    auto alloc = ThreadAlloc::get();
+    auto chunk = alloc->alloc(upper_bound);
+    alloc->dealloc(chunk);
+    std::cout << "success" << std::endl;
+    std::exit(0);
+  }
+  else
+  {
+    int status;
+    waitpid(pid, &status, 0);
+    if (status)
+      std::abort();
+  }
+}
+#endif
 
 void test_alloc_dealloc_64k()
 {
@@ -313,7 +368,11 @@ void test_calloc_large_bug()
 int main(int argc, char** argv)
 {
   setup();
-
+#ifdef TEST_LIMITED
+  test_limited(8 * GiB);
+  test_limited(2 * GiB);
+  test_limited(512 * MiB);
+#endif
 #ifdef USE_SYSTEMATIC_TESTING
   opt::Opt opt(argc, argv);
   size_t seed = opt.is<size_t>("--seed", 0);
@@ -333,6 +392,5 @@ int main(int argc, char** argv)
   test_external_pointer();
   test_alloc_16M();
   test_calloc_16M();
-
   return 0;
 }
