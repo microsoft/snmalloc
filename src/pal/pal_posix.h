@@ -208,23 +208,30 @@ namespace snmalloc
      */
     std::pair<void*, size_t> reserve_at_least(size_t size) noexcept
     {
+      SNMALLOC_ASSERT(size == bits::next_pow2(size));
+
       // Magic number for over-allocating chosen by the Pal
       // These should be further refined based on experiments.
       constexpr size_t min_size =
         bits::is64() ? bits::one_at_bit(32) : bits::one_at_bit(28);
-      auto size_request = bits::max(size, min_size);
-      void* p = mmap(
-        nullptr,
-        size_request,
-        PROT_READ | PROT_WRITE,
-        MAP_PRIVATE | MAP_ANONYMOUS | DefaultMMAPFlags<OS>::flags,
-        AnonFD<OS>::fd,
-        0);
 
-      if (p == MAP_FAILED)
-        OS::error("Out of memory");
+      for (size_t size_request = bits::max(size, min_size);
+           size_request >= size;
+           size_request = size_request / 2)
+      {
+        void* p = mmap(
+          nullptr,
+          size_request,
+          PROT_READ | PROT_WRITE,
+          MAP_PRIVATE | MAP_ANONYMOUS | DefaultMMAPFlags<OS>::flags,
+          AnonFD<OS>::fd,
+          0);
 
-      return {p, size_request};
+        if (p != MAP_FAILED)
+          return {p, size_request};
+      }
+
+      OS::error("Out of memory");
     }
   };
 } // namespace snmalloc
