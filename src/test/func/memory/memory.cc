@@ -42,11 +42,12 @@ void test_limited(rlim64_t as_limit)
     }
     std::cout << "host freeram: " << info.freeram / KiB << " KiB" << std::endl;
     auto upper_bound =
-      std::min(static_cast<unsigned long long>(limit.rlim_cur >> 1u), 2 * GiB);
+      std::min(static_cast<unsigned long long>(limit.rlim_cur >> 3u), 2 * GiB);
     upper_bound = std::min(
-      upper_bound, static_cast<unsigned long long>(info.freeram >> 1u));
+      upper_bound, static_cast<unsigned long long>(info.freeram >> 3u));
     std::cout << "trying to alloc " << upper_bound / KiB << " KiB" << std::endl;
     auto alloc = ThreadAlloc::get();
+    std::cout << "allocator initialised" << std::endl;
     auto chunk = alloc->alloc(upper_bound);
     alloc->dealloc(chunk);
     std::cout << "success" << std::endl;
