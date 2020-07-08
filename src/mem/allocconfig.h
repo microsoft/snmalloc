@@ -59,14 +59,6 @@ namespace snmalloc
 #endif
     ;
 
-  static constexpr size_t RESERVE_MULTIPLE =
-#ifdef USE_RESERVE_MULTIPLE
-    USE_RESERVE_MULTIPLE
-#else
-    bits::is64() ? 16 : 2
-#endif
-    ;
-
   enum DecommitStrategy
   {
     /**
@@ -123,7 +115,6 @@ namespace snmalloc
   static constexpr size_t SUPERSLAB_SIZE = SLAB_SIZE * SLAB_COUNT;
   static constexpr size_t SUPERSLAB_MASK = ~(SUPERSLAB_SIZE - 1);
   static constexpr size_t SUPERSLAB_BITS = SLAB_BITS + SLAB_COUNT_BITS;
-  static constexpr size_t RESERVE_SIZE = SUPERSLAB_SIZE * RESERVE_MULTIPLE;
 
   static_assert((1ULL << SUPERSLAB_BITS) == SUPERSLAB_SIZE, "Sanity check");
 
