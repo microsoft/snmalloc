@@ -4,8 +4,75 @@
 #include <test/setup.h>
 #include <test/xoroshiro.h>
 #include <unordered_set>
+#if defined(__linux__) && !defined(SNMALLOC_QEMU_WORKAROUND)
+/*
+ * We only test allocations with limited AS on linux for now.
+ * It should be a good representative for POSIX systems.
+ * QEMU `setrlimit64` does not behave as the same as native linux,
+ * so we need to exclude it from such tests.
+ */
+#  include <sys/resource.h>
+#  include <sys/sysinfo.h>
+#  include <unistd.h>
+#  include <wait.h>
+#  define TEST_LIMITED
+#  define KiB (1024ull)
+#  define MiB (KiB * KiB)
+#  define GiB (KiB * MiB)
+#endif
 
 using namespace snmalloc;
+
+#ifdef TEST_LIMITED
+void test_limited(rlim64_t as_limit, size_t& count)
+{
+  auto pid = fork();
+  if (!pid)
+  {
+    auto limit = rlimit64{.rlim_cur = as_limit, .rlim_max = RLIM64_INFINITY};
+    if (setrlimit64(RLIMIT_AS, &limit))
+    {
+      std::abort();
+    }
+    if (getrlimit64(RLIMIT_AS, &limit))
+    {
+      std::abort();
+    }
+    std::cout << "limiting memory to " << limit.rlim_cur / KiB << " KiB"
+              << std::endl;
+    struct sysinfo info
+    {};
+    if (sysinfo(&info))
+    {
+      std::abort();
+    }
+    std::cout << "host freeram: " << info.freeram / KiB << " KiB" << std::endl;
+    // set the allocation size to the minimum value among:
+    // 2GiB, 1/8 of the AS limit, 1/8 of the Free RAM
+    auto upper_bound =
+      std::min(static_cast<unsigned long long>(limit.rlim_cur >> 3u), 2 * GiB);
+    upper_bound = std::min(
+      upper_bound, static_cast<unsigned long long>(info.freeram >> 3u));
+    std::cout << "trying to alloc " << upper_bound / KiB << " KiB" << std::endl;
+    auto alloc = ThreadAlloc::get();
+    std::cout << "allocator initialised" << std::endl;
+    auto chunk = alloc->alloc(upper_bound);
+    alloc->dealloc(chunk);
+    std::cout << "success" << std::endl;
+    std::exit(0);
+  }
+  else
+  {
+    int status;
+    waitpid(pid, &status, 0);
+    if (status)
+    {
+      std::cout << "failed" << std::endl;
+      count++;
+    }
+  }
+}
+#endif
 
 void test_alloc_dealloc_64k()
 {
@@ -313,7 +380,20 @@ void test_calloc_large_bug()
 int main(int argc, char** argv)
 {
   setup();
-
+#ifdef TEST_LIMITED
+  size_t count = 0;
+  test_limited(512 * MiB, count);
+  test_limited(2 * GiB, count);
+  test_limited(
+    8 *
+      GiB, // 8 * GiB is large enough for a loose upper-bound of our allocations
+    count);
+  if (count)
+  {
+    std::cout << count << " attempts failed out of 3" << std::endl;
+    std::abort();
+  }
+#endif
 #ifdef USE_SYSTEMATIC_TESTING
   opt::Opt opt(argc, argv);
   size_t seed = opt.is<size_t>("--seed", 0);
@@ -333,6 +413,5 @@ int main(int argc, char** argv)
   test_external_pointer();
   test_alloc_16M();
   test_calloc_16M();
-
   return 0;
 }
