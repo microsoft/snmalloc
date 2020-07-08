@@ -43,10 +43,10 @@ namespace snmalloc
   // constrained scenarios.
   static constexpr size_t USE_LARGE_CHUNKS =
 #ifdef SNMALLOC_USE_LARGE_CHUNKS
-    true
-#else
     // In 32 bit uses smaller superslab.
-    (!bits::is64())
+    (bits::is64())
+#else
+    false
 #endif
     ;
 
