@@ -218,19 +218,24 @@ namespace snmalloc
 #  else
     std::pair<void*, size_t> reserve_at_least(size_t size) noexcept
     {
+      SNMALLOC_ASSERT(size == bits::next_pow2(size));
+
       // Magic number for over-allocating chosen by the Pal
       // These should be further refined based on experiments.
       constexpr size_t min_size =
         bits::is64() ? bits::one_at_bit(32) : bits::one_at_bit(28);
-      auto size_request = bits::max(size, min_size);
-
-      DWORD flags = MEM_RESERVE;
-      void* ret = VirtualAlloc(nullptr, size_request, flags, PAGE_READWRITE);
-      if (ret == nullptr)
+      for (size_t size_request = bits::max(size, min_size);
+           size_request >= size;
+           size_request = size_request / 2)
       {
-        error("Failed to allocate memory\n");
+        void* ret =
+          VirtualAlloc(nullptr, size_request, MEM_RESERVE, PAGE_READWRITE);
+        if (ret != nullptr)
+        {
+          return std::pair(ret, size_request);
+        }
       }
-      return std::pair(ret, size_request);
+      error("Failed to allocate memory\n");
     }
 #  endif
   };
