@@ -14,6 +14,7 @@
 #  include "pal_linux.h"
 #  include "pal_netbsd.h"
 #  include "pal_openbsd.h"
+#  include "pal_solaris.h"
 #  include "pal_windows.h"
 #endif
 #include "pal_plain.h"
@@ -38,6 +39,8 @@ namespace snmalloc
     PALNetBSD;
 #  elif defined(__OpenBSD__)
     PALOpenBSD;
+#  elif defined(__sun)
+    PALSolaris;
 #  else
 #    error Unsupported platform
 #  endif
