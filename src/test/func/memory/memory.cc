@@ -18,7 +18,7 @@
 using namespace snmalloc;
 
 #ifdef TEST_LIMITED
-void test_limited(rlim64_t as_limit)
+void test_limited(rlim64_t as_limit, size_t& count)
 {
   auto pid = fork();
   if (!pid)
@@ -58,7 +58,10 @@ void test_limited(rlim64_t as_limit)
     int status;
     waitpid(pid, &status, 0);
     if (status)
-      std::abort();
+    {
+      std::cout << "failed" << std::endl;
+      count++;
+    }
   }
 }
 #endif
@@ -370,9 +373,15 @@ int main(int argc, char** argv)
 {
   setup();
 #ifdef TEST_LIMITED
-  test_limited(8 * GiB);
-  test_limited(2 * GiB);
-  test_limited(512 * MiB);
+  size_t count = 0;
+  test_limited(512 * MiB, count);
+  test_limited(2 * GiB, count);
+  test_limited(8 * GiB, count);
+  if (count)
+  {
+    std::cout << count << " attempts failed out of 3" << std::endl;
+    std::abort();
+  }
 #endif
 #ifdef USE_SYSTEMATIC_TESTING
   opt::Opt opt(argc, argv);
