@@ -4,7 +4,13 @@
 #include <test/setup.h>
 #include <test/xoroshiro.h>
 #include <unordered_set>
-#ifdef __linux__
+#if defined(__linux__) && !defined(SNMALLOC_QEMU_WORKAROUND)
+/*
+ * We only test allocations with limited AS on linux for now.
+ * It should be a good representative for POSIX systems.
+ * QEMU `setrlimit64` does not behave as the same as native linux,
+ * so we need to exclude it from such tests.
+ */
 #  include <sys/resource.h>
 #  include <sys/sysinfo.h>
 #  include <unistd.h>
@@ -41,6 +47,8 @@ void test_limited(rlim64_t as_limit, size_t& count)
       std::abort();
     }
     std::cout << "host freeram: " << info.freeram / KiB << " KiB" << std::endl;
+    // set the allocation size to the minimum value among:
+    // 2GiB, 1/8 of the AS limit, 1/8 of the Free RAM
     auto upper_bound =
       std::min(static_cast<unsigned long long>(limit.rlim_cur >> 3u), 2 * GiB);
     upper_bound = std::min(
@@ -376,7 +384,10 @@ int main(int argc, char** argv)
   size_t count = 0;
   test_limited(512 * MiB, count);
   test_limited(2 * GiB, count);
-  test_limited(8 * GiB, count);
+  test_limited(
+    8 *
+      GiB, // 8 * GiB is large enough for a loose upper-bound of our allocations
+    count);
   if (count)
   {
     std::cout << count << " attempts failed out of 3" << std::endl;
