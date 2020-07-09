@@ -17,9 +17,14 @@ Some old benchmark results are available in the [`snmalloc` paper](https://githu
 There are three features defined in this crate:
 
 - `debug`: Enable the `Debug` mode in `snmalloc`.
-- `1mib`: Use the `1mib` chunk configuration.
+- `1mib`: Use the `1mib` chunk configuration. From `0.2.17`, this is set as a default feature
+- `16mib`: Use the `16mib` chunk configuration.
 - `cache-friendly`: Make the allocator more cache friendly (setting `CACHE_FRIENDLY_OFFSET` to `64` in building the library).
 - `native-cpu`: Optimize `snmalloc` for the native CPU of the host machine. (this is not a default behavior since `0.2.14`)
+- `qemu`: workaround `madvise` problem of QEMU environment
+- `stats`: enable statistics
+
+**To get the crates compiled, you need to choose either `1mib` or `16mib` to determine the chunk configuration**
 
 To use `snmalloc-rs` add it as a dependency:
 
@@ -58,6 +63,12 @@ Hence, please make sure the following libs are in your `PATH`:
 
 ## Changelog
 
+### 0.2.17
+
+- **upstream** add backoff for large reservation
+- **upstream** default chunk configuration to 1mib
+- add new feature flags
+
 ### 0.2.16
 
 - **upstream** New implementation of address space reservation leading to
@@ -69,11 +80,5 @@ Hence, please make sure the following libs are in your `PATH`:
 
 - **upstream** fix VS2019 build
 - **upstream** fix wrong realloc behavior and performance issue
-
-### 0.2.14
-
-- **upstream** refactor ptr representation.
-- **upstream** improve for more targets and architectures.
-- seperate native CPU feature
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 

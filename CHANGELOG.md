@@ -1,5 +1,11 @@
 ## Changelog
 
+### 0.2.17
+
+- **upstream** add backoff for large reservation
+- **upstream** default chunk configuration to 1mib
+- add new feature flags
+
 ### 0.2.16
 
 - **upstream** New implementation of address space reservation leading to

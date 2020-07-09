@@ -54,19 +54,29 @@ fn main() {
         cfg = cfg.define("CMAKE_CXX_FLAGS_RELEASE", "/MD /O2 /Ob2 /DNDEBUG");
         cfg = cfg.define("CMAKE_C_FLAGS_RELEASE", "/MD /O2 /Ob2 /DNDEBUG");
     }
-    
+
     if cfg!(all(windows, target_env = "gnu")) {
         cfg = cfg.define("CMAKE_SH", "CMAKE_SH-NOTFOUND");
     }
 
     let target = if cfg!(feature = "1mib") {
         "snmallocshim-1mib-rust"
+    } else if cfg!(feature = "16mib") {
+        "snmallocshim-16mib-rust"
     } else {
-        "snmallocshim-rust"
+        panic!("please set a chunk configuration");
     };
-    
+
     if cfg!(feature = "native-cpu") {
         cfg = cfg.define("SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE", "ON")
+    }
+
+    if cfg!(feature = "stats") {
+        cfg = cfg.define("USE_SNMALLOC_STATS", "ON")
+    }
+
+    if cfg!(feature = "qemu") {
+        cfg = cfg.define("SNMALLOC_QEMU_WORKAROUND", "ON")
     }
 
     let mut dst = if cfg!(feature = "cache-friendly") {
@@ -78,21 +88,21 @@ fn main() {
     dst.push("./build");
 
     println!("cargo:rustc-link-lib={}", target);
-    
+
     if cfg!(all(windows, target_env = "msvc")) {
         println!("cargo:rustc-link-lib=dylib=mincore");
         println!("cargo:rustc-link-search=native={}/{}", dst.display(), build_type);
     } else {
         println!("cargo:rustc-link-search=native={}", dst.display());
     }
-    
+
     if cfg!(all(windows, target_env = "gnu")) {
         let stdout = std::process::Command::new("gcc")
             .args(&["-print-search-dirs"])
             .output().unwrap_or_else(|_| {
-                eprintln!("Cannot run gcc.exe");
-                std::process::abort();
-            })
+            eprintln!("Cannot run gcc.exe");
+            std::process::abort();
+        })
             .stdout;
 
         let outputs = String::from_utf8(stdout)
@@ -114,19 +124,19 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib=winpthread");
         println!("cargo:rustc-link-lib=dylib=gcc_s");
     }
-    
+
     if cfg!(target_os = "macos") {
         println!("cargo:rustc-link-lib=dylib=c++");
     }
-    
+
     if cfg!(target_os = "openbsd") {
         println!("cargo:rustc-link-lib=dylib=c++");
     }
-    
+
     if cfg!(target_os = "freebsd") {
         println!("cargo:rustc-link-lib=dylib=c++");
     }
-    
+
     if cfg!(target_os = "linux") {
         println!("cargo:rustc-link-lib=dylib=stdc++");
         println!("cargo:rustc-link-lib=dylib=atomic");
