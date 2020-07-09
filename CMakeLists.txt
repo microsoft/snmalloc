@@ -240,16 +240,20 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
 
   if (SNMALLOC_STATIC_LIBRARY)
     add_shim(snmallocshim-static STATIC src/override/malloc.cc)
+    add_shim(snmallocshim-1mib-static STATIC src/override/malloc.cc)
     add_shim(snmallocshim-16mib-static STATIC src/override/malloc.cc)
     target_compile_definitions(snmallocshim-16mib-static PRIVATE SNMALLOC_USE_LARGE_CHUNKS
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
     target_compile_definitions(snmallocshim-static PRIVATE
+            SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
+    target_compile_definitions(snmallocshim-1mib-static PRIVATE
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
   endif ()
 
   if(NOT WIN32)
     set(SHARED_FILES src/override/new.cc src/override/malloc.cc)
     add_shim(snmallocshim SHARED ${SHARED_FILES})
+    add_shim(snmallocshim-1mib SHARED ${SHARED_FILES})
     add_shim(snmallocshim-16mib SHARED ${SHARED_FILES})
     target_compile_definitions(snmallocshim-16mib PRIVATE SNMALOC_USE_LARGE_CHUNKS)
     # Build a shim with some settings from oe.
@@ -259,6 +263,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
 
   if(SNMALLOC_RUST_SUPPORT)
     add_shim(snmallocshim-rust STATIC src/override/rust.cc)
+    add_shim(snmallocshim-1mib-rust STATIC src/override/rust.cc)
     add_shim(snmallocshim-16mib-rust STATIC src/override/rust.cc)
     target_compile_definitions(snmallocshim-16mib-rust PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
   endif()
