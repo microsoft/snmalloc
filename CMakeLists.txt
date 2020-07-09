@@ -52,7 +52,7 @@ macro(warnings_high)
 endmacro()
 
 macro(oe_simulate target)
-  target_compile_definitions(${target} PRIVATE IS_REALLY_ADDRESS_SPACE_CONSTRAINED)
+  target_compile_definitions(${target} PRIVATE SNMALLOC_USE_SMALL_CHUNKS)
 endmacro()
 
 macro(clangformat_targets)
@@ -241,9 +241,12 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   if (SNMALLOC_STATIC_LIBRARY)
     add_shim(snmallocshim-static STATIC src/override/malloc.cc)
     add_shim(snmallocshim-1mib-static STATIC src/override/malloc.cc)
-    target_compile_definitions(snmallocshim-1mib-static PRIVATE IS_ADDRESS_SPACE_CONSTRAINED
+    add_shim(snmallocshim-16mib-static STATIC src/override/malloc.cc)
+    target_compile_definitions(snmallocshim-16mib-static PRIVATE SNMALLOC_USE_LARGE_CHUNKS
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
     target_compile_definitions(snmallocshim-static PRIVATE
+            SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
+    target_compile_definitions(snmallocshim-1mib-static PRIVATE
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
   endif ()
 
@@ -251,7 +254,8 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(SHARED_FILES src/override/new.cc src/override/malloc.cc)
     add_shim(snmallocshim SHARED ${SHARED_FILES})
     add_shim(snmallocshim-1mib SHARED ${SHARED_FILES})
-    target_compile_definitions(snmallocshim-1mib PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
+    add_shim(snmallocshim-16mib SHARED ${SHARED_FILES})
+    target_compile_definitions(snmallocshim-16mib PRIVATE SNMALOC_USE_LARGE_CHUNKS)
     # Build a shim with some settings from oe.
     add_shim(snmallocshim-oe SHARED ${SHARED_FILES})
     oe_simulate(snmallocshim-oe)
@@ -260,7 +264,8 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   if(SNMALLOC_RUST_SUPPORT)
     add_shim(snmallocshim-rust STATIC src/override/rust.cc)
     add_shim(snmallocshim-1mib-rust STATIC src/override/rust.cc)
-    target_compile_definitions(snmallocshim-1mib-rust PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
+    add_shim(snmallocshim-16mib-rust STATIC src/override/rust.cc)
+    target_compile_definitions(snmallocshim-16mib-rust PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
   endif()
 
   enable_testing()
@@ -277,8 +282,8 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         set(TESTNAME "${TEST_CATEGORY}-${TEST}-${SUPER_SLAB_SIZE}")
 
         add_executable(${TESTNAME} ${SRC})
-        if (${SUPER_SLAB_SIZE} EQUAL 1)
-          target_compile_definitions(${TESTNAME} PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
+        if (${SUPER_SLAB_SIZE} EQUAL 16)
+          target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
         endif()
         if (${SUPER_SLAB_SIZE} EQUAL oe)
           oe_simulate(${TESTNAME})

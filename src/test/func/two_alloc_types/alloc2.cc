@@ -1,6 +1,6 @@
 // Remove parameters feed from test harness
-#undef ADDRESS_SPACE_CONSTRAINED
-#undef REALLY_ADDRESS_SPACE_CONSTRAINED
+#undef SNMALLOC_USE_LARGE_CHUNKS
+#undef SNMALLOC_USE_SMALL_CHUNKS
 
 #define SNMALLOC_NAME_MANGLE(a) host_##a
 #define NO_BOOTSTRAP_ALLOCATOR

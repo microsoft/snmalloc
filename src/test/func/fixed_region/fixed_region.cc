@@ -1,7 +1,6 @@
 #define SNMALLOC_SGX
 #define OPEN_ENCLAVE
 #define OPEN_ENCLAVE_SIMULATION
-#define USE_RESERVE_MULTIPLE 1
 #include <iostream>
 #include <snmalloc.h>
 

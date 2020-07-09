@@ -41,29 +41,21 @@ namespace snmalloc
 
   // Specifies smaller slab and super slab sizes for address space
   // constrained scenarios.
-  static constexpr size_t ADDRESS_SPACE_CONSTRAINED =
-#ifdef IS_ADDRESS_SPACE_CONSTRAINED
-    true
-#else
+  static constexpr size_t USE_LARGE_CHUNKS =
+#ifdef SNMALLOC_USE_LARGE_CHUNKS
     // In 32 bit uses smaller superslab.
-    (!bits::is64())
-#endif
-    ;
-
-  // Specifies even smaller slab and super slab sizes for open enclave.
-  static constexpr size_t REALLY_ADDRESS_SPACE_CONSTRAINED =
-#ifdef IS_REALLY_ADDRESS_SPACE_CONSTRAINED
-    true
+    (bits::is64())
 #else
     false
 #endif
     ;
 
-  static constexpr size_t RESERVE_MULTIPLE =
-#ifdef USE_RESERVE_MULTIPLE
-    USE_RESERVE_MULTIPLE
+  // Specifies even smaller slab and super slab sizes for open enclave.
+  static constexpr size_t USE_SMALL_CHUNKS =
+#ifdef SNMALLOC_USE_SMALL_CHUNKS
+    true
 #else
-    bits::is64() ? 16 : 2
+    false
 #endif
     ;
 
@@ -109,9 +101,8 @@ namespace snmalloc
   static constexpr size_t MIN_ALLOC_BITS = bits::ctz_const(MIN_ALLOC_SIZE);
 
   // Slabs are 64 KiB unless constrained to 16 KiB.
-  static constexpr size_t SLAB_BITS = REALLY_ADDRESS_SPACE_CONSTRAINED ?
-    13 :
-    (ADDRESS_SPACE_CONSTRAINED ? 14 : 16);
+  static constexpr size_t SLAB_BITS =
+    USE_SMALL_CHUNKS ? 13 : (USE_LARGE_CHUNKS ? 16 : 14);
   static constexpr size_t SLAB_SIZE = 1 << SLAB_BITS;
   static constexpr size_t SLAB_MASK = ~(SLAB_SIZE - 1);
 
@@ -119,12 +110,11 @@ namespace snmalloc
   // a byte, so the maximum count is 256. This must be a power of two to
   // allow fast masking to find a superslab start address.
   static constexpr size_t SLAB_COUNT_BITS =
-    REALLY_ADDRESS_SPACE_CONSTRAINED ? 5 : (ADDRESS_SPACE_CONSTRAINED ? 6 : 8);
+    USE_SMALL_CHUNKS ? 5 : (USE_LARGE_CHUNKS ? 8 : 6);
   static constexpr size_t SLAB_COUNT = 1 << SLAB_COUNT_BITS;
   static constexpr size_t SUPERSLAB_SIZE = SLAB_SIZE * SLAB_COUNT;
   static constexpr size_t SUPERSLAB_MASK = ~(SUPERSLAB_SIZE - 1);
   static constexpr size_t SUPERSLAB_BITS = SLAB_BITS + SLAB_COUNT_BITS;
-  static constexpr size_t RESERVE_SIZE = SUPERSLAB_SIZE * RESERVE_MULTIPLE;
 
   static_assert((1ULL << SUPERSLAB_BITS) == SUPERSLAB_SIZE, "Sanity check");
 
