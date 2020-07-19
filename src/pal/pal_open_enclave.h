@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ds/address.h"
-#include "ds/flaglock.h"
 #include "pal_plain.h"
 
 #include <array>
@@ -18,10 +17,6 @@ namespace snmalloc
 
     /// Size of OE heap
     static inline size_t heap_size;
-
-    // This is infrequently used code, a spin lock simplifies the code
-    // considerably, and should never be on the fast path.
-    static inline std::atomic_flag spin_lock;
 
   public:
     /**
@@ -52,7 +47,6 @@ namespace snmalloc
     {
       // First call returns the entire address space
       // subsequent calls return {nullptr, 0}
-      FlagLock lock(spin_lock);
       if (request_size > heap_size)
         return {nullptr, 0};
 
