@@ -3,6 +3,9 @@
 #include "pal_consts.h"
 
 // If simultating OE, then we need the underlying platform
+#if defined(WASM_ENV)
+#  include "pal_wasi.h"
+#endif
 #if defined(OPEN_ENCLAVE)
 #  include "pal_open_enclave.h"
 #endif
@@ -46,6 +49,8 @@ namespace snmalloc
   using Pal =
 #if defined(SNMALLOC_MEMORY_PROVIDER)
     PALPlainMixin<SNMALLOC_MEMORY_PROVIDER>;
+#elif defined(WASM_ENV)
+    PALPlainMixin<PALWASI>;    
 #elif defined(OPEN_ENCLAVE)
     PALPlainMixin<PALOpenEnclave>;
 #else

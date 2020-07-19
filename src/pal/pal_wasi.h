@@ -5,18 +5,19 @@
 #include "pal_plain.h"
 
 #include <array>
-#ifdef OPEN_ENCLAVE
-extern "C" void* oe_memset_s(void* p, size_t p_size, int c, size_t size);
-extern "C" [[noreturn]] void oe_abort();
+#ifdef WASM_ENV //wasi-libc/libc-bottom-half/headers/public/__header_*
+extern "C" void *memset(void *dst, int c, size_t n);
+extern "C" [[noreturn]] void abort();
 
+// this pal uses wasi libc bottom half & wasm linear memory (wlm)
 namespace snmalloc
 {
-  class PALOpenEnclave
+  class PALWASI
   {
-    /// Base of OE heap
+    /// Base of wlm heap
     static inline void* heap_base = nullptr;
 
-    /// Size of OE heap
+    /// Size of heap
     static inline size_t heap_size;
 
     // This is infrequently used code, a spin lock simplifies the code
@@ -25,7 +26,7 @@ namespace snmalloc
 
   public:
     /**
-     * This will be called by oe_allocator_init to set up enclave heap bounds.
+     * This will be called by oe_allocator_init to set up wasm sandbox heap bounds.
      */
     static void setup_initial_range(void* base, void* end)
     {
@@ -44,7 +45,7 @@ namespace snmalloc
     [[noreturn]] static void error(const char* const str)
     {
       UNUSED(str);
-      oe_abort();
+      abort();
     }
 
     static std::pair<void*, size_t>
@@ -64,7 +65,7 @@ namespace snmalloc
     template<bool page_aligned = false>
     void zero(void* p, size_t size) noexcept
     {
-      oe_memset_s(p, size, 0, size);
+      memset(p, 0, size);
     }
   };
 }

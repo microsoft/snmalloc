@@ -54,6 +54,7 @@ namespace snmalloc
     PowerPC,
     X86,
     X86_SGX,
+    WASM,
   };
 
   /**
