@@ -48,11 +48,10 @@ namespace snmalloc
      */
     static inline void prefetch(void* ptr)
     {
-#ifdef _MSC_VER
-      _mm_prefetch(reinterpret_cast<const char*>(ptr), _MM_HINT_T0);
-#else
-     // asm volatile("prefetcht0 %0" ::"m"(ptr));// ztodo expose from runtime
-#endif
+     //Cache line prefetch instructions are not available, and calls to these functions will compile, but are treated as no-ops.
+      //_mm_prefetch(reinterpret_cast<const char*>(ptr), _MM_HINT_T0);
+
+
     }
 
     /**

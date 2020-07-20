@@ -7,7 +7,9 @@
 #if defined(__i386__) || defined(_M_IX86) || defined(_X86_) || \
   defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || \
   defined(_M_AMD64)
-#  if defined(SNMALLOC_SGX)
+#  if defined(WASM_ENV)  
+#    define PLATFORM_IS_WASM
+#  elif defined(SNMALLOC_SGX)
 #    define PLATFORM_IS_X86_SGX
 #    define SNMALLOC_NO_AAL_BUILTINS
 #  else
@@ -142,6 +144,8 @@ namespace snmalloc
 
 #if defined(PLATFORM_IS_X86)
 #  include "aal_x86.h"
+#elif defined(PLATFORM_IS_WASM)
+#  include "aal_wasm.h"
 #elif defined(PLATFORM_IS_X86_SGX)
 #  include "aal_x86_sgx.h"
 #elif defined(PLATFORM_IS_ARM)
@@ -149,6 +153,8 @@ namespace snmalloc
 #elif defined(PLATFORM_IS_POWERPC)
 #  include "aal_powerpc.h"
 #endif
+
+
 
 namespace snmalloc
 {

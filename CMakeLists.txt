@@ -18,8 +18,11 @@ option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF)
 option(SNMALLOC_STATIC_LIBRARY   "Build static libraries" ON)
 option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory on Linux" Off)
 option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off)
+option(ENABLE_WASI "enable snmalloc for wasi environment" ON)
+
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
 set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
+
 
 CHECK_C_SOURCE_COMPILES("
 #include <malloc.h>
@@ -47,7 +50,7 @@ macro(warnings_high)
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
       add_compile_options(-Wsign-conversion)
     endif ()
-    add_compile_options(-Wall -Wextra -Werror -Wundef)
+    add_compile_options(-Wall -Wextra -Werror -Wundef -Wno-unused-parameter)
   endif()
 endmacro()
 
@@ -155,6 +158,10 @@ endif()
 
 if(CONST_QUALIFIED_MALLOC_USABLE_SIZE)
   target_compile_definitions(snmalloc_lib INTERFACE -DMALLOC_USABLE_SIZE_QUALIFIER=const)
+endif()
+
+if(ENABLE_WASI)
+  target_compile_definitions(snmalloc_lib INTERFACE -DENABLE_WASI -DWASM_ENV ) 
 endif()
 
 
