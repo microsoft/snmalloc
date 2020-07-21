@@ -28,7 +28,7 @@ namespace snmalloc
 
     static constexpr enum AalName aal_name = WASM;
 
-    static constexpr size_t smallest_page_size = 0x1000;
+    static constexpr size_t smallest_page_size = 0x10000; // WebAssembly has a fixed page size: 64KB and alloc granularity 16;;
 
     /**
      * On pipelined processors, notify the core that we are in a spin loop and

@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.8)
-project(snmalloc C CXX)
+project(snmalloc)
+
+
 
 if (NOT CMAKE_BUILD_TYPE)
   message(STATUS "No build type selected, default to: Release")
@@ -22,6 +24,24 @@ option(ENABLE_WASI "enable snmalloc for wasi environment" ON)
 
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
 set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
+
+
+if(ENABLE_WASI)
+
+set( COMPILER_BIN /opt/wasi-sdk/bin)
+set( CMAKE_C_COMPILER ${COMPILER_BIN}/clang CACHE PATH "clang" FORCE )
+set( CMAKE_CXX_COMPILER ${COMPILER_BIN}/clang++ CACHE PATH "clang++" FORCE )
+set( CMAKE_AR ${COMPILER_BIN}/llvm-ar CACHE PATH "llvm-ar" FORCE )
+set( CMAKE_LINKER ${COMPILER_BIN}/wasm-ld CACHE PATH "wasm-ld" FORCE )
+set( CMAKE_RANLIB ${COMPILER_BIN}/llvm-ranlib CACHE PATH "llvm-ranlib" FORCE )
+set( CMAKE_STRIP ${COMPILER_BIN}/llvm-strip CACHE PATH "llvm-strip" FORCE )
+set( CMAKE_OBJCOPY ${COMPILER_BIN}/llvm-strip CACHE PATH "llvm-strip" FORCE )
+set( CMAKE_NM ${COMPILER_BIN}/llvm-nm CACHE PATH "llvm-nm" FORCE )
+
+add_compile_options(--target=wasm32-wasi -fno-trapping-math --sysroot=/opt/wasi-sdk -nostdinc++ -nostdinc)
+
+
+endif()
 
 
 CHECK_C_SOURCE_COMPILES("
@@ -87,21 +107,12 @@ add_library(snmalloc_lib INTERFACE)
 target_include_directories(snmalloc_lib INTERFACE src/)
 
 if(NOT MSVC)
-  find_package(Threads REQUIRED COMPONENTS snmalloc_lib)
+  #find_package(Threads REQUIRED COMPONENTS snmalloc_lib)
   target_link_libraries(snmalloc_lib INTERFACE ${CMAKE_THREAD_LIBS_INIT})
   if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     target_link_libraries(snmalloc_lib INTERFACE atomic)
   endif()
-  if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
-   target_compile_options(snmalloc_lib INTERFACE -mcx16)
-  elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "amd64")
-   target_compile_options(snmalloc_lib INTERFACE -mcx16)
-  elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AMD64")
-   target_compile_options(snmalloc_lib INTERFACE -mcx16)
-  elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86")
-   target_compile_options(snmalloc_lib INTERFACE -mcx16)
-  # XXX elseif ARM?
-  endif()
+  
 endif()
 
 if (WIN32)
@@ -117,17 +128,7 @@ if (WIN32)
   endif()
 endif()
 
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
-    target_compile_options(snmalloc_lib INTERFACE -mcx16)
-  elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "amd64")
-   target_compile_options(snmalloc_lib INTERFACE -mcx16)
-  elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "AMD64")
-   target_compile_options(snmalloc_lib INTERFACE -mcx16)
-  elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86")
-   target_compile_options(snmalloc_lib INTERFACE -mcx16)
-  endif()
-endif ()
+
 
 # Have to set this globally, as can't be set on an interface target.
 set(CMAKE_CXX_STANDARD 17)
@@ -161,7 +162,7 @@ if(CONST_QUALIFIED_MALLOC_USABLE_SIZE)
 endif()
 
 if(ENABLE_WASI)
-  target_compile_definitions(snmalloc_lib INTERFACE -DENABLE_WASI -DWASM_ENV ) 
+  target_compile_definitions(snmalloc_lib INTERFACE -DENABLE_WASI -DWASM_ENV) 
 endif()
 
 

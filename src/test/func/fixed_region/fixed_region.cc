@@ -1,6 +1,10 @@
-#define SNMALLOC_SGX
-#define OPEN_ENCLAVE
-#define OPEN_ENCLAVE_SIMULATION
+//#define SNMALLOC_SGX
+//#define OPEN_ENCLAVE
+//#define OPEN_ENCLAVE_SIMULATION
+#ifndef WASM_ENV
+  #define WASM_ENV
+#endif  
+
 #define USE_RESERVE_MULTIPLE 1
 #include <iostream>
 #include <snmalloc.h>
@@ -9,7 +13,7 @@
 #  undef assert
 #endif
 #define assert please_use_SNMALLOC_ASSERT
-
+/*
 extern "C" void* oe_memset_s(void* p, size_t p_size, int c, size_t size)
 {
   UNUSED(p_size);
@@ -20,7 +24,7 @@ extern "C" void oe_abort()
 {
   abort();
 }
-
+*/
 using namespace snmalloc;
 int main()
 {
@@ -33,7 +37,8 @@ int main()
   size_t size = 1ULL << (SUPERSLAB_BITS + large_class);
   void* oe_base = mp.reserve<true>(large_class);
   void* oe_end = (uint8_t*)oe_base + size;
-  PALOpenEnclave::setup_initial_range(oe_base, oe_end);
+  //PALOpenEnclave::setup_initial_range(oe_base, oe_end);
+  PALWASI::setup_initial_range(oe_base, oe_end);
   std::cout << "Allocated region " << oe_base << " - " << oe_end << std::endl;
 
   auto a = ThreadAlloc::get();
