@@ -1,16 +1,7 @@
 #pragma once
 
-#ifdef _MSC_VER
-#  include <immintrin.h>
-#  include <intrin.h>
-#endif
+#define SNMALLOC_VA_BITS_32
 
-#if defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || \
-  defined(_M_AMD64)
-#  define SNMALLOC_VA_BITS_64
-#else
-#  define SNMALLOC_VA_BITS_32
-#endif
 
 namespace snmalloc
 {
