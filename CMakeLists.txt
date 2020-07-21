@@ -37,8 +37,9 @@ set( CMAKE_RANLIB ${COMPILER_BIN}/llvm-ranlib CACHE PATH "llvm-ranlib" FORCE )
 set( CMAKE_STRIP ${COMPILER_BIN}/llvm-strip CACHE PATH "llvm-strip" FORCE )
 set( CMAKE_OBJCOPY ${COMPILER_BIN}/llvm-strip CACHE PATH "llvm-strip" FORCE )
 set( CMAKE_NM ${COMPILER_BIN}/llvm-nm CACHE PATH "llvm-nm" FORCE )
+set( MUSL_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../libc-bottom-half/headers/public ${CMAKE_CURRENT_SOURCE_DIR}/../libc-bottom-half/headers/private ${CMAKE_CURRENT_SOURCE_DIR}/../libc-top-half/musl/include)
 
-add_compile_options(--target=wasm32-wasi -fno-trapping-math --sysroot=/opt/wasi-sdk -nostdinc++ -nostdinc)
+
 
 
 endif()
@@ -70,13 +71,10 @@ macro(warnings_high)
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
       add_compile_options(-Wsign-conversion)
     endif ()
-    add_compile_options(-Wall -Wextra -Werror -Wundef -Wno-unused-parameter)
+    #add_compile_options(-Wall -Wextra -Werror -Wundef -Wno-unused-parameter)
   endif()
 endmacro()
 
-macro(oe_simulate target)
-  target_compile_definitions(${target} PRIVATE IS_REALLY_ADDRESS_SPACE_CONSTRAINED)
-endmacro()
 
 macro(clangformat_targets)
   # The clang-format tool is installed under a variety of different names.  Try
@@ -84,8 +82,7 @@ macro(clangformat_targets)
   # know whether our clang-format file will work with newer versions of the
   # tool.  It does not work with older versions as AfterCaseLabel is not supported
   # in earlier versions.
-  find_program(CLANG_FORMAT NAMES
-    clang-format-9)
+ # find_program(CLANG_FORMAT NAMES  clang-format-9)
 
   # If we've found a clang-format tool, generate a target for it, otherwise emit
   # a warning.
@@ -104,7 +101,14 @@ endmacro()
 
 # The main target for snmalloc
 add_library(snmalloc_lib INTERFACE)
-target_include_directories(snmalloc_lib INTERFACE src/)
+target_include_directories(snmalloc_lib INTERFACE src/) 
+add_compile_options(--target=wasm32-wasi -fno-trapping-math --sysroot=/opt/wasi-sdk -nostdinc++ -nostdinc )#-nostdinc++
+
+#/opt/wasi-sdk/share/wasi-sysroot/include/c++/v1/
+#${MUSL_INCLUDES}
+target_include_directories(snmalloc_lib INTERFACE /opt/wasi-sdk/share/wasi-sysroot/include/c++/v1/ /opt/wasi-sdk/share/wasi-sysroot/include /opt/wasi-sdk/lib/clang/10.0.0/include/)   
+
+
 
 if(NOT MSVC)
   #find_package(Threads REQUIRED COMPONENTS snmalloc_lib)
@@ -112,7 +116,7 @@ if(NOT MSVC)
   if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     target_link_libraries(snmalloc_lib INTERFACE atomic)
   endif()
-  
+
 endif()
 
 if (WIN32)
@@ -195,13 +199,6 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
       endif()
     endif()
 
-    find_package(Backtrace)
-    if(${Backtrace_FOUND})
-      target_compile_definitions(snmalloc_lib INTERFACE -DBACKTRACE_HEADER="${Backtrace_HEADER}")
-      target_link_libraries(snmalloc_lib INTERFACE ${Backtrace_LIBRARIES})
-      target_include_directories(snmalloc_lib INTERFACE ${Backtrace_INCLUD_DIRS})
-    endif()
-
   endif()
 
   macro(subdirlist result curdir)
@@ -262,69 +259,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     target_compile_definitions(snmallocshim-1mib PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
     # Build a shim with some settings from oe.
     add_shim(snmallocshim-oe SHARED ${SHARED_FILES})
-    oe_simulate(snmallocshim-oe)
   endif()
 
-  if(SNMALLOC_RUST_SUPPORT)
-    add_shim(snmallocshim-rust STATIC src/override/rust.cc)
-    add_shim(snmallocshim-1mib-rust STATIC src/override/rust.cc)
-    target_compile_definitions(snmallocshim-1mib-rust PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
-  endif()
 
-  enable_testing()
-
-  set(TESTDIR ${CMAKE_CURRENT_SOURCE_DIR}/src/test)
-  subdirlist(TEST_CATEGORIES ${TESTDIR})
-  list(REVERSE TEST_CATEGORIES)
-  foreach(TEST_CATEGORY ${TEST_CATEGORIES})
-    subdirlist(TESTS ${TESTDIR}/${TEST_CATEGORY})
-    foreach(TEST ${TESTS})
-      foreach(SUPER_SLAB_SIZE 1;16;oe)
-        unset(SRC)
-        aux_source_directory(${TESTDIR}/${TEST_CATEGORY}/${TEST} SRC)
-        set(TESTNAME "${TEST_CATEGORY}-${TEST}-${SUPER_SLAB_SIZE}")
-
-        add_executable(${TESTNAME} ${SRC})
-        if (${SUPER_SLAB_SIZE} EQUAL 1)
-          target_compile_definitions(${TESTNAME} PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
-        endif()
-        if (${SUPER_SLAB_SIZE} EQUAL oe)
-          oe_simulate(${TESTNAME})
-        endif()
-        target_link_libraries(${TESTNAME} snmalloc_lib)
-        if (${TEST} MATCHES "release-.*")
-          message(STATUS "Adding test: ${TESTNAME} only for release configs")
-          add_test(NAME ${TESTNAME} COMMAND ${TESTNAME} CONFIGURATIONS "Release")
-        else()
-          message(STATUS "Adding test: ${TESTNAME}")
-          add_test(${TESTNAME} ${TESTNAME})
-        endif()
-        if (${TEST_CATEGORY} MATCHES "perf")
-          message(STATUS "Single threaded test: ${TESTNAME}")
-          set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
-        endif()
-        if(WIN32)
-          # On Windows these tests use a lot of memory as it doesn't support
-          # lazy commit.
-          if (${TEST} MATCHES "two_alloc_types")
-            message(STATUS "Single threaded test: ${TESTNAME}")
-            set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
-          endif()
-          if (${TEST} MATCHES "fixed_region")
-            message(STATUS "Single threaded test: ${TESTNAME}")
-            set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
-          endif()
-          if (${TEST} MATCHES "memory")
-            message(STATUS "Single threaded test: ${TESTNAME}")
-            set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
-          endif()
-        endif()
-        if (${TEST_CATEGORY} MATCHES "func")
-          target_compile_definitions(${TESTNAME} PRIVATE -DUSE_SNMALLOC_STATS)
-        endif ()
-      endforeach()
-    endforeach()
-  endforeach()
-
-  clangformat_targets()
 endif()

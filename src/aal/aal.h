@@ -4,11 +4,14 @@
 #include <chrono>
 #include <cstdint>
 
+#  if defined(WASM_ENV)  
+#    define PLATFORM_IS_WASM
+#endif
+
+/*
 #if defined(__i386__) || defined(_M_IX86) || defined(_X86_) || \
   defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || \
   defined(_M_AMD64)
-#  if defined(WASM_ENV)  
-#    define PLATFORM_IS_WASM
 #  elif defined(SNMALLOC_SGX)
 #    define PLATFORM_IS_X86_SGX
 #    define SNMALLOC_NO_AAL_BUILTINS
@@ -17,6 +20,7 @@
 #  endif
 #endif
 
+*/
 #if defined(__arm__) || defined(__aarch64__)
 #  define PLATFORM_IS_ARM
 #endif

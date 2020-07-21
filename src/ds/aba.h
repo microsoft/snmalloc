@@ -22,7 +22,7 @@ namespace snmalloc
   // instruction, this causes problems for linking later. For this case
   // fall back to locked implementation.
 #if defined(PLATFORM_IS_X86) && \
-  !(defined(GCC_NOT_CLANG) && defined(OPEN_ENCLAVE))
+  !(defined(GCC_NOT_CLANG) && defined(OPEN_ENCLAVE) && defined(WASM_ENV))
   template<typename T, Construction c = RequiresInit>
   class ABA
   {
