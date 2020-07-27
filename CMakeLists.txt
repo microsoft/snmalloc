@@ -28,7 +28,9 @@ set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function p
 
 if(ENABLE_WASI)
 
-set( COMPILER_BIN /opt/wasi-sdk/bin)
+set( COMPILER_BIN /usr/local/vwasm/toolchain/bin)
+set( WASM_SYSROOT /usr/local/vwasm/llvm-sysroot)
+
 set( CMAKE_C_COMPILER ${COMPILER_BIN}/clang CACHE PATH "clang" FORCE )
 set( CMAKE_CXX_COMPILER ${COMPILER_BIN}/clang++ CACHE PATH "clang++" FORCE )
 set( CMAKE_AR ${COMPILER_BIN}/llvm-ar CACHE PATH "llvm-ar" FORCE )
@@ -102,11 +104,11 @@ endmacro()
 # The main target for snmalloc
 add_library(snmalloc_lib INTERFACE)
 target_include_directories(snmalloc_lib INTERFACE src/) 
-add_compile_options(--target=wasm32-wasi -fno-trapping-math --sysroot=/opt/wasi-sdk -nostdinc++ -nostdinc )#-nostdinc++
+add_compile_options(--target=wasm32-wasi -fno-trapping-math --sysroot=${WASM_SYSROOT} -fno-exceptions)#-nostdinc++ -nostdinc
 
 #/opt/wasi-sdk/share/wasi-sysroot/include/c++/v1/
 #${MUSL_INCLUDES}
-target_include_directories(snmalloc_lib INTERFACE /opt/wasi-sdk/share/wasi-sysroot/include/c++/v1/ /opt/wasi-sdk/share/wasi-sysroot/include /opt/wasi-sdk/lib/clang/10.0.0/include/)   
+#target_include_directories(snmalloc_lib INTERFACE /opt/wasi-sdk/share/wasi-sysroot/include/c++/v1/ /opt/wasi-sdk/share/wasi-sysroot/include )   
 
 
 
