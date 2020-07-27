@@ -7,7 +7,7 @@
 #include <array>
 #ifdef WASM_ENV //wasi-libc/libc-bottom-half/headers/public/__header_*
 extern "C" void *memset(void *dst, int c, size_t n);
-extern "C" [[noreturn]] void abort();
+extern "C" [[noreturn]] void w_abort();
 
 // this pal uses wasi libc bottom half & wasm linear memory (wlm)
 namespace snmalloc
@@ -45,7 +45,7 @@ namespace snmalloc
     [[noreturn]] static void error(const char* const str)
     {
       UNUSED(str);
-      abort();
+      w_abort();
     }
 
     static std::pair<void*, size_t>

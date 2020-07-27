@@ -189,7 +189,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     endif()
     if(SNMALLOC_CI_BUILD OR (${CMAKE_BUILD_TYPE} MATCHES "Debug"))
       # Get better stack traces in CI and Debug.
-      target_link_libraries(snmalloc_lib INTERFACE "-rdynamic")
+     # target_link_libraries(snmalloc_lib INTERFACE "-rdynamic") #not supported in wasi
     endif()
 
     if(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE)
@@ -254,14 +254,6 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
   endif ()
 
-  if(NOT WIN32)
-    set(SHARED_FILES src/override/new.cc src/override/malloc.cc)
-    add_shim(snmallocshim SHARED ${SHARED_FILES})
-    add_shim(snmallocshim-1mib SHARED ${SHARED_FILES})
-    target_compile_definitions(snmallocshim-1mib PRIVATE IS_ADDRESS_SPACE_CONSTRAINED)
-    # Build a shim with some settings from oe.
-    add_shim(snmallocshim-oe SHARED ${SHARED_FILES})
-  endif()
 
 
 endif()
