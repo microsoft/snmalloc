@@ -4,8 +4,12 @@
 #include "ds/flaglock.h"
 #include "pal_plain.h"
 
-#include <array>
 #ifdef WASM_ENV //wasi-libc/libc-bottom-half/headers/public/__header_*
+
+#include <stdio.h>
+#include <unistd.h>
+#include <array>
+
 extern "C" void *memset(void *dst, int c, size_t n);
 extern "C" [[noreturn]] void w_abort();
 
@@ -14,26 +18,11 @@ namespace snmalloc
 {
   class PALWASI
   {
-    /// Base of wlm heap
-    static inline void* heap_base = nullptr;
-
-    /// Size of heap
-    static inline size_t heap_size;
-
     // This is infrequently used code, a spin lock simplifies the code
     // considerably, and should never be on the fast path.
     static inline std::atomic_flag spin_lock;
 
   public:
-    /**
-     * This will be called by oe_allocator_init to set up wasm sandbox heap bounds.
-     */
-    static void setup_initial_range(void* base, void* end)
-    {
-      heap_size = pointer_diff(base, end);
-      heap_base = base;
-    }
-
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
@@ -44,22 +33,20 @@ namespace snmalloc
 
     [[noreturn]] static void error(const char* const str)
     {
-      UNUSED(str);
-      w_abort();
+      fprintf(stderr, "%s\n", str);
+      abort();
     }
 
     static std::pair<void*, size_t>
     reserve_at_least(size_t request_size) noexcept
     {
-      // First call returns the entire address space
-      // subsequent calls return {nullptr, 0}
       FlagLock lock(spin_lock);
-      if (request_size > heap_size)
+      intptr_t actual_size = ((request_size + PAGESIZE - 1) / PAGESIZE) * PAGESIZE;
+      void *start = sbrk(actual_size);
+      if (start == (void*)-1)
         return {nullptr, 0};
 
-      auto result = std::make_pair(heap_base, heap_size);
-      heap_size = 0;
-      return result;
+      return std::make_pair(start, actual_size);
     }
 
     template<bool page_aligned = false>
@@ -69,4 +56,17 @@ namespace snmalloc
     }
   };
 }
+
+// WASI does not support pthreads and thus neither can it offer __cxa_thread_atexit.
+// Delegating to __cxa_atexit.
+// Should be changed once pthreads support it live and desired.
+extern "C"
+{
+  int __cxa_atexit(void (*func) (void*), void* arg, void* dso_handle);
+  int __cxa_thread_atexit(void (*func) (void*), void* arg, void* dso_symbol)
+  {
+    return __cxa_atexit(func, arg, dso_symbol);
+  }
+}
+
 #endif
