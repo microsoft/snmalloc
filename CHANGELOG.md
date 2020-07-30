@@ -1,5 +1,9 @@
 ## Changelog
 
+### 0.2.18
+
+- add msvc flag /EHsc to fix warning C4530
+
 ### 0.2.17
 
 - **upstream** add backoff for large reservation

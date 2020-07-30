@@ -63,6 +63,10 @@ Hence, please make sure the following libs are in your `PATH`:
 
 ## Changelog
 
+### 0.2.18
+
+- add msvc flag /EHsc to fix warning C4530
+
 ### 0.2.17
 
 - **upstream** add backoff for large reservation
@@ -75,10 +79,5 @@ Hence, please make sure the following libs are in your `PATH`:
   - better integration with transparent huge pages; and
   - lower address space requirements and fragmentation.
 - Notice MinGW broken state
-
-### 0.2.15
-
-- **upstream** fix VS2019 build
-- **upstream** fix wrong realloc behavior and performance issue
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 
