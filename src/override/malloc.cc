@@ -256,4 +256,11 @@ extern "C"
     get_slow_allocator()->dealloc(ptr);
   }
 #endif
+
+  SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(snmalloc_designate_foreign)(
+    void* p, size_t size, struct ForeignAllocator* fa)
+  {
+    SNMALLOC_DEFAULT_CHUNKMAP::set_foreign_range(p, size);
+    SNMALLOC_DEFAULT_OOBMAP::set_oob_range(p, size, fa);
+  }
 }
