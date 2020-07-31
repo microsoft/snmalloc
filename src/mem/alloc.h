@@ -394,12 +394,13 @@ namespace snmalloc
 
 #  ifdef CHECK_CLIENT
       Superslab* super = Superslab::get(p);
-      if (size > 64 || address_cast(super) != address_cast(p))
+      if (size > CMLargeMax || address_cast(super) != address_cast(p))
       {
         error("Not deallocating start of an object");
       }
 #  endif
       large_dealloc(p, 1ULL << size);
+
 #endif
     }
 
@@ -435,11 +436,13 @@ namespace snmalloc
 
       auto ss = super;
 
-      while (size > 64)
+      while (size >= CMLargeRangeMin)
       {
         // This is a large alloc redirect.
         ss = pointer_offset_signed(
-          ss, -(static_cast<ptrdiff_t>(1) << (size - 64)));
+          ss,
+          -(static_cast<ptrdiff_t>(1)
+            << (size - CMLargeRangeMin + SUPERSLAB_BITS)));
         size = ChunkMap::get(ss);
       }
 
