@@ -382,7 +382,7 @@ int main(int argc, char** argv)
   setup();
 #ifdef TEST_LIMITED
   size_t count = 0;
-  test_limited(512 * MiB, count);
+  test_limited(656 * MiB, count);
   test_limited(2 * GiB, count);
   test_limited(
     8 *

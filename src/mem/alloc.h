@@ -10,6 +10,7 @@
 #include "../test/histogram.h"
 #include "allocstats.h"
 #include "chunkmap.h"
+#include "foreignalloc.h"
 #include "largealloc.h"
 #include "mediumslab.h"
 #include "oobmap.h"
@@ -243,7 +244,9 @@ namespace snmalloc
 
     /*
      * Free memory of a statically known size. Must be called with an
-     * external pointer.
+     * external pointer from this security domain.
+     *
+     * TODO: make work with foreign allocators.
      */
     template<size_t size>
     void dealloc(void* p)
@@ -284,7 +287,9 @@ namespace snmalloc
 
     /*
      * Free memory of a dynamically known size. Must be called with an
-     * external pointer.
+     * external pointer from this security domain.
+     *
+     * TODO: make work with foreign allocators.
      */
     SNMALLOC_FAST_PATH void dealloc(void* p, size_t size)
     {
@@ -390,16 +395,32 @@ namespace snmalloc
         error("Not allocated by this allocator");
       }
 
-#  ifdef CHECK_CLIENT
-      Superslab* super = Superslab::get(p);
-      if (size > CMLargeMax || address_cast(super) != address_cast(p))
+      if (likely(size <= CMLargeRangeMax))
       {
-        error("Not deallocating start of an object");
-      }
+#  ifdef CHECK_CLIENT
+        Superslab* super = Superslab::get(p);
+        if (size > CMLargeMax || address_cast(super) != address_cast(p))
+        {
+          error("Not deallocating start of an object");
+        }
 #  endif
-      large_dealloc(p, 1ULL << size);
 
+        large_dealloc(p, 1ULL << size);
+        return;
+      }
+
+      SNMALLOC_ASSERT(
+        ((size >= CMForeignMin) && (size <= CMForeignMax)) ||
+        ((size >= CMForeignRangeMin) && (size <= CMForeignRangeMax)));
+
+      foreign_dealloc(p);
 #endif
+    }
+
+    SNMALLOC_SLOW_PATH void foreign_dealloc(void* p)
+    {
+      auto fa = static_cast<ForeignAllocator*>(oob_map.get(p));
+      fa->free(fa->arg, p);
     }
 
     template<Boundary location = Start>
@@ -430,6 +451,12 @@ namespace snmalloc
         void* slab_end = pointer_offset(slab, SUPERSLAB_SIZE);
 
         return external_pointer<location>(p, sc, slab_end);
+      }
+
+      // For foreign allocations, return the bounds of the foreign designation
+      if (size >= CMForeignMin)
+      {
+        size = size - CMForeignMin + CMLargeMin;
       }
 
       auto ss = super;

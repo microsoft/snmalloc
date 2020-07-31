@@ -43,8 +43,49 @@ namespace snmalloc
     CMLargeRangeMax = 127,
 
     /*
-     * Values 128 (inclusive) through 255 (inclusive) are as yet unused.
+     * Values 128 (inclusive) through 128 + SUPERSLAB_BITS (exclusive) are
+     * unused.
      */
+
+    /*
+     * Values 128 + SUPERSLAB_BITS (inclusive) through 192 (exclusive) and 192
+     * + SUPERSLAB_BITS (inclusive) through 256 (exclusive) are used for
+     * foreign regions, paralleling the large region space above.  These values
+     * indicate that the memory is managed by a foreign allocator (in another
+     * security domain) which we have been told about and, importantly, know
+     * how to free back to.  See foreignalloc.h.
+     *
+     * Finding the allocator in question cannot be done by techniques similar
+     * to those used by non-CHERI systems to resolve a CMSuperslab's
+     * RemoteAllocator (i.e., pointer arithmetic and reading at a static
+     * offset) because the memory may not be trusted.  Instead, there must be
+     * some out-of-band store of the RemoteAllocator pointers themselves, akin
+     * to CHERI's need for amplification capabilities.  See oobmap.h.
+     *
+     * Free memory from these regions must be queued per RemoteAllocator and
+     * never on the same RemoteList as memory from our security domain (i.e.,
+     * ChunkMapSuperslabKinds 1 (inclusive) through 127 (inclusive)), as that
+     * would expose memory from our domain to the remote domain, nor on a
+     * RemoteList associated with another RemoteAllocator, which could
+     * intermingle two different security domains.  (While it is possible that
+     * the remote domain has exposed two different RemoteAllocator endpoints to
+     * us, and so co-mingling need not breach security boundaries, this seems
+     * unlikely to occur in practice, and so we treat all RemoteAllocators as
+     * distinct domains.)  The simplest approach is to never queue these in one
+     * of our alloctors' RemoteCache structures and always immediately append
+     * to the remote in question.
+     */
+
+    CMForeignMin = 128 + SUPERSLAB_BITS,
+    CMForeignMax = 191,
+
+    /*
+     * Values 192 (inclusive) through 192 + SUPERSLAB_BITS (exclusive) are
+     * unused.
+     */
+
+    CMForeignRangeMin = 192 + SUPERSLAB_BITS,
+    CMForeignRangeMax = 255,
 
   };
 
@@ -235,6 +276,33 @@ namespace snmalloc
       SNMALLOC_ASSERT(get(p) == bits::next_pow2_bits(size));
       auto count = rounded_size >> SUPERSLAB_BITS;
       PagemapProvider::pagemap().set_range(p, CMNotOurs, count);
+    }
+
+    /**
+     * Set a single Superslab-sized region to being considered foreign.  The
+     * OOBMap will tell us what to do with it.
+     */
+    static void set_foreign(void* p)
+    {
+      set(p, CMForeignMin);
+    }
+
+    /**
+     * Set a range of addresses to foreign.
+     */
+    static void set_foreign_range(void* p, size_t size)
+    {
+      size_t size_bits = bits::next_pow2_bits(size);
+      set(p, CMForeignMin + static_cast<uint8_t>(size_bits));
+      // Set redirect slide
+      auto ss = address_cast(p) + SUPERSLAB_SIZE;
+      for (size_t i = 0; i < size_bits - SUPERSLAB_BITS; i++)
+      {
+        size_t run = 1ULL << i;
+        PagemapProvider::pagemap().set_range(
+          ss, static_cast<uint8_t>(CMForeignRangeMin + i), run);
+        ss = ss + SUPERSLAB_SIZE * run;
+      }
     }
 
   private:
