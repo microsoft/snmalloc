@@ -14,7 +14,7 @@ namespace snmalloc
   {
     CMNotOurs = 0,
     CMSuperslab = 1,
-    CMMediumslab = 2
+    CMMediumslab = 2,
 
     /*
      * Values 3 (inclusive) through SUPERSLAB_BITS (exclusive) are as yet
@@ -23,14 +23,26 @@ namespace snmalloc
      * Values SUPERSLAB_BITS (inclusive) through 64 (exclusive, as it would
      * represent the entire address space) are used for log2(size) at the
      * heads of large allocations.  See SuperslabMap::set_large_size.
-     *
-     * Values 64 (inclusive) through 128 (exclusive) are used for entries
-     * within a large allocation.  A value of x at pagemap entry p indicates
-     * that there are at least 2^(x-64) (inclusive) and at most 2^(x+1-64)
-     * (exclusive) page map entries between p and the start of the
-     * allocation.  See SuperslabMap::set_large_size and external_address's
+     */
+    CMLargeMin = SUPERSLAB_BITS,
+    CMLargeMax = 63,
+
+    /*
+     * Values 64 (inclusive) through 64 + SUPERSLAB_BITS (exclusive) are unused
+     */
+
+    /*
+     * Values 64 + SUPERSLAB_BITS (inclusive) through 128 (exclusive) are used
+     * for entries within a large allocation.  A value of x at pagemap entry p
+     * indicates that there are at least 2^(x-64) (inclusive) and at most
+     * 2^(x+1-64) (exclusive) page map entries between p and the start of the
+     * allocation.  See ChunkMap::set_large_size and external_address's
      * handling of large reallocation redirections.
-     *
+     */
+    CMLargeRangeMin = 64 + SUPERSLAB_BITS,
+    CMLargeRangeMax = 127,
+
+    /*
      * Values 128 (inclusive) through 255 (inclusive) are as yet unused.
      */
 
@@ -47,12 +59,12 @@ namespace snmalloc
 // Use flat map is under a single node.
 #  define SNMALLOC_MAX_FLATPAGEMAP_SIZE PAGEMAP_NODE_SIZE
 #endif
-  static constexpr bool USE_FLATPAGEMAP = pal_supports<LazyCommit> ||
+  static constexpr bool CHUNKMAP_USE_FLATPAGEMAP = pal_supports<LazyCommit> ||
     (SNMALLOC_MAX_FLATPAGEMAP_SIZE >=
      sizeof(FlatPagemap<SUPERSLAB_BITS, uint8_t>));
 
   using ChunkmapPagemap = std::conditional_t<
-    USE_FLATPAGEMAP,
+    CHUNKMAP_USE_FLATPAGEMAP,
     FlatPagemap<SUPERSLAB_BITS, uint8_t>,
     Pagemap<SUPERSLAB_BITS, uint8_t, 0>>;
 
@@ -208,7 +220,7 @@ namespace snmalloc
       {
         size_t run = 1ULL << i;
         PagemapProvider::pagemap().set_range(
-          ss, static_cast<uint8_t>(64 + i + SUPERSLAB_BITS), run);
+          ss, static_cast<uint8_t>(CMLargeRangeMin + i), run);
         ss = ss + SUPERSLAB_SIZE * run;
       }
     }
