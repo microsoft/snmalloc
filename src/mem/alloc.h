@@ -12,6 +12,7 @@
 #include "chunkmap.h"
 #include "largealloc.h"
 #include "mediumslab.h"
+#include "oobmap.h"
 #include "pooled.h"
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
@@ -53,7 +54,7 @@ namespace snmalloc
   };
 
   /**
-   * Allocator.  This class is parameterised on five template parameters.
+   * Allocator.  This class is parameterised on six template parameters.
    *
    * The first two template parameter provides a hook to allow the allocator in
    * use to be dynamically modified.  This is used to implement a trick from
@@ -77,6 +78,9 @@ namespace snmalloc
    * to associate metadata with large (16MiB, by default) regions, allowing an
    * allocator to find the allocator responsible for that region.
    *
+   * The `OOBMap` parameter provides an adaptor to a different pagemap,
+   * used to track out-of-band metadata.
+   *
    * The final template parameter, `IsQueueInline`, defines whether the
    * message queue for this allocator should be stored as a field of the
    * allocator (`true`) or provided externally, allowing it to be anywhere else
@@ -87,6 +91,7 @@ namespace snmalloc
     void* (*InitThreadAllocator)(function_ref<void*(void*)>),
     class MemoryProvider = GlobalVirtual,
     class ChunkMap = SNMALLOC_DEFAULT_CHUNKMAP,
+    class OOBMap = SNMALLOC_DEFAULT_OOBMAP,
     bool IsQueueInline = true>
   class Allocator : public FastFreeLists,
                     public Pooled<Allocator<
@@ -94,10 +99,12 @@ namespace snmalloc
                       InitThreadAllocator,
                       MemoryProvider,
                       ChunkMap,
+                      OOBMap,
                       IsQueueInline>>
   {
     LargeAlloc<MemoryProvider> large_allocator;
     ChunkMap chunk_map;
+    OOBMap oob_map;
 
     /**
      * Per size class bumpptr for building new free lists
@@ -555,6 +562,7 @@ namespace snmalloc
                                                  InitThreadAllocator,
                                                  MemoryProvider,
                                                  ChunkMap,
+                                                 OOBMap,
                                                  IsQueueInline>);
         constexpr size_t initial_shift =
           bits::next_pow2_bits_const(allocator_size);

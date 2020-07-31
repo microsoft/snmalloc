@@ -182,6 +182,7 @@ namespace snmalloc
     init_thread_allocator,
     GlobalVirtual,
     SNMALLOC_DEFAULT_CHUNKMAP,
+    SNMALLOC_DEFAULT_OOBMAP,
     true>;
 
   inline AllocPool<GlobalVirtual, Alloc>*& current_alloc_pool()

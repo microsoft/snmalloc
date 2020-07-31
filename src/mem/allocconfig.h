@@ -137,4 +137,11 @@ namespace snmalloc
     "SLAB_COUNT must be a power of 2");
   static_assert(
     SLAB_COUNT <= (UINT8_MAX + 1), "SLAB_COUNT must fit in a uint8_t");
+
+  /*
+   * Granularity of potential pointers to closures for pointer-sized
+   * out-of-band metadata map.
+   */
+  static constexpr size_t OOBMAP_BITS = 24;
+
 } // namespace snmalloc
