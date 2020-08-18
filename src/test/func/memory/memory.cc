@@ -13,8 +13,8 @@
  */
 #  include <sys/resource.h>
 #  include <sys/sysinfo.h>
+#  include <sys/wait.h>
 #  include <unistd.h>
-#  include <wait.h>
 #  define TEST_LIMITED
 #  define KiB (1024ull)
 #  define MiB (KiB * KiB)
