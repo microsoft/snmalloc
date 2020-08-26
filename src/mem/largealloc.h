@@ -73,13 +73,13 @@ namespace snmalloc
     /**
      * High-water mark of used memory.
      */
-    std::atomic<size_t> peak_memory_used_bytes {0};
+    std::atomic<size_t> peak_memory_used_bytes{0};
 
   public:
     /**
      * Memory current available in large_stacks
      */
-    std::atomic<size_t> available_large_chunks_in_bytes {0};
+    std::atomic<size_t> available_large_chunks_in_bytes{0};
 
     /**
      * Stack of large allocations that have been returned for reuse.
