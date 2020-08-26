@@ -82,6 +82,10 @@ namespace snmalloc
       {
         return static_cast<size_t>(__builtin_clzll(x));
       }
+      else if constexpr (std::is_same_v<unsigned int, std::size_t>)
+      {
+        return static_cast<size_t>(__builtin_clz(x));
+      }
 #endif
     }
 
@@ -158,6 +162,10 @@ namespace snmalloc
       else if constexpr (std::is_same_v<unsigned long long, std::size_t>)
       {
         return static_cast<size_t>(__builtin_ctzll(x));
+      }
+      else if constexpr (std::is_same_v<unsigned int, std::size_t>)
+      {
+        return static_cast<size_t>(__builtin_ctz(x));
       }
 #endif
     }
