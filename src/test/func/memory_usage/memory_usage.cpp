@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <test/setup.h>
+#include <vector>
 
 #define SNMALLOC_NAME_MANGLE(a) our_##a
 #include "../../../override/malloc.cc"
