@@ -73,7 +73,7 @@ namespace snmalloc
 
       return BITS - index - 1;
 #  endif
-#else 
+#else
       if constexpr (std::is_same_v<unsigned long, std::size_t>)
       {
         return static_cast<size_t>(__builtin_clzl(x));
