@@ -12,9 +12,6 @@
 #include <atomic>
 #include <cstdint>
 #include <type_traits>
-#if defined(_WIN32) && defined(__GNUC__)
-#  define USE_CLZLL
-#endif
 #ifdef pause
 #  undef pause
 #endif
@@ -76,10 +73,15 @@ namespace snmalloc
 
       return BITS - index - 1;
 #  endif
-#elif defined(USE_CLZLL)
-      return static_cast<size_t>(__builtin_clzll(x));
-#else
-      return static_cast<size_t>(__builtin_clzl(x));
+#else 
+      if constexpr (std::is_same_v<unsigned long, std::size_t>)
+      {
+        return __builtin_clzl(x);
+      }
+      else if constexpr (std::is_same_v<unsigned long long, std::size_t>)
+      {
+        return __builtin_clzll(x);
+      }
 #endif
     }
 
@@ -142,17 +144,21 @@ namespace snmalloc
 
     inline size_t ctz(size_t x)
     {
-#if __has_builtin(__builtin_ctzl)
-      return static_cast<size_t>(__builtin_ctzl(x));
-#elif defined(_MSC_VER)
+#if defined(_MSC_VER)
 #  ifdef SNMALLOC_VA_BITS_64
       return _tzcnt_u64(x);
 #  else
       return _tzcnt_u32((uint32_t)x);
 #  endif
 #else
-      // Probably GCC at this point.
-      return static_cast<size_t>(__builtin_ctzl(x));
+      if constexpr (std::is_same_v<unsigned long, std::size_t>)
+      {
+        return __builtin_ctzl(x);
+      }
+      else if constexpr (std::is_same_v<unsigned long long, std::size_t>)
+      {
+        return __builtin_ctzll(x);
+      }
 #endif
     }
 
