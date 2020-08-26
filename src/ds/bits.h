@@ -76,11 +76,11 @@ namespace snmalloc
 #else 
       if constexpr (std::is_same_v<unsigned long, std::size_t>)
       {
-        return __builtin_clzl(x);
+        return static_cast<size_t>(__builtin_clzl(x));
       }
       else if constexpr (std::is_same_v<unsigned long long, std::size_t>)
       {
-        return __builtin_clzll(x);
+        return static_cast<size_t>(__builtin_clzll(x));
       }
 #endif
     }
@@ -153,11 +153,11 @@ namespace snmalloc
 #else
       if constexpr (std::is_same_v<unsigned long, std::size_t>)
       {
-        return __builtin_ctzl(x);
+        return static_cast<size_t>(__builtin_ctzl(x));
       }
       else if constexpr (std::is_same_v<unsigned long long, std::size_t>)
       {
-        return __builtin_ctzll(x);
+        return static_cast<size_t>(__builtin_ctzll(x));
       }
 #endif
     }
