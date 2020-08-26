@@ -12,15 +12,15 @@
 
 using namespace snmalloc;
 
-bool
-print_memory_usage()
+bool print_memory_usage()
 {
-  static std::pair<size_t,size_t> last_memory_usage {0,0};
+  static std::pair<size_t, size_t> last_memory_usage{0, 0};
 
   auto next_memory_usage = default_memory_provider().memory_usage();
   if (next_memory_usage != last_memory_usage)
   {
-    std::cout << "Memory Usages Changed to (" << next_memory_usage.first << ", " << next_memory_usage.second << ")" << std::endl;
+    std::cout << "Memory Usages Changed to (" << next_memory_usage.first << ", "
+              << next_memory_usage.second << ")" << std::endl;
     last_memory_usage = next_memory_usage;
     return true;
   }
@@ -40,7 +40,8 @@ void add_n_allocs(size_t n)
     if (print_memory_usage())
     {
       n--;
-      if (n == 0) break;
+      if (n == 0)
+        break;
     }
   }
 }
@@ -57,7 +58,8 @@ void remove_n_allocs(size_t n)
     if (print_memory_usage())
     {
       n--;
-      if (n == 0) break;
+      if (n == 0)
+        break;
     }
   }
 }
@@ -71,7 +73,7 @@ int main(int argc, char** argv)
 
   add_n_allocs(5);
   std::cout << "Init complete!" << std::endl;
-  
+
   for (int i = 0; i < 10; i++)
   {
     remove_n_allocs(1);
