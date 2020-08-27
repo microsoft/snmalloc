@@ -8,19 +8,27 @@
 #include <vector>
 
 #define SNMALLOC_NAME_MANGLE(a) our_##a
+#include "../../../override/malloc-extensions.cc"
 #include "../../../override/malloc.cc"
 
 using namespace snmalloc;
 
 bool print_memory_usage()
 {
-  static std::pair<size_t, size_t> last_memory_usage{0, 0};
+  static malloc_info_v1 last_memory_usage;
+  malloc_info_v1 next_memory_usage;
 
-  auto next_memory_usage = default_memory_provider().memory_usage();
-  if (next_memory_usage != last_memory_usage)
+  get_malloc_info_v1(&next_memory_usage);
+
+  if (
+    (next_memory_usage.current_memory_usage !=
+     last_memory_usage.current_memory_usage) ||
+    (next_memory_usage.peak_memory_usage !=
+     last_memory_usage.peak_memory_usage))
   {
-    std::cout << "Memory Usages Changed to (" << next_memory_usage.first << ", "
-              << next_memory_usage.second << ")" << std::endl;
+    std::cout << "Memory Usages Changed to ("
+              << next_memory_usage.current_memory_usage << ", "
+              << next_memory_usage.peak_memory_usage << ")" << std::endl;
     last_memory_usage = next_memory_usage;
     return true;
   }
