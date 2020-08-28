@@ -24,6 +24,8 @@ namespace snmalloc
       AlignedAllocation | PALBSD<OS>::pal_features;
 
     static constexpr size_t minimum_alloc_size = 4096;
+    static constexpr int default_mmap_aligned_flags =
+      MAP_PRIVATE | MAP_ANONYMOUS;
 
     /**
      * Reserve memory at a specific alignment.
@@ -41,7 +43,7 @@ namespace snmalloc
         nullptr,
         size,
         PROT_READ | PROT_WRITE,
-        MAP_PRIVATE | MAP_ANONYMOUS | MAP_ALIGNED(log2align),
+        OS::default_mmap_aligned_flags | MAP_ALIGNED(log2align),
         -1,
         0);
 
