@@ -70,7 +70,17 @@ namespace snmalloc
      */
     AddressSpaceManager<PAL> address_space = {};
 
+    /**
+     * High-water mark of used memory.
+     */
+    std::atomic<size_t> peak_memory_used_bytes{0};
+
   public:
+    /**
+     * Memory current available in large_stacks
+     */
+    std::atomic<size_t> available_large_chunks_in_bytes{0};
+
     /**
      * Stack of large allocations that have been returned for reuse.
      */
@@ -184,10 +194,13 @@ namespace snmalloc
     {
       // Cache line align
       size_t size = bits::align_up(sizeof(T), 64);
-      size = bits::max(size, alignment);
-      void* p = address_space.template reserve<true>(bits::next_pow2(size));
+      size = bits::next_pow2(bits::max(size, alignment));
+      void* p = address_space.template reserve<true>(size);
       if (p == nullptr)
         return nullptr;
+
+      peak_memory_used_bytes += size;
+
       return new (p) T(std::forward<Args...>(args)...);
     }
 
@@ -195,8 +208,19 @@ namespace snmalloc
     void* reserve(size_t large_class) noexcept
     {
       size_t size = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
-
+      peak_memory_used_bytes += size;
       return address_space.template reserve<committed>(size);
+    }
+
+    /**
+     * Returns a pair of current memory usage and peak memory usage.
+     * Both statistics are very coarse-grained.
+     */
+    std::pair<size_t, size_t> memory_usage()
+    {
+      size_t avail = available_large_chunks_in_bytes;
+      size_t peak = peak_memory_used_bytes;
+      return {peak - avail, peak};
     }
   };
 
@@ -239,6 +263,7 @@ namespace snmalloc
       else
       {
         stats.superslab_pop();
+        memory_provider.available_large_chunks_in_bytes -= rsize;
 
         // Cross-reference alloc.h's large_dealloc decommitment condition.
         bool decommitted =
@@ -284,18 +309,19 @@ namespace snmalloc
           "without low memory notifications");
       }
 
+      size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
+
       // Cross-reference largealloc's alloc() decommitted condition.
       if (
         (decommit_strategy != DecommitNone) &&
         (large_class != 0 || decommit_strategy == DecommitSuper))
       {
-        size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
-
         memory_provider.notify_not_using(
           pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
       }
 
       stats.superslab_push();
+      memory_provider.available_large_chunks_in_bytes += rsize;
       memory_provider.large_stack[large_class].push(static_cast<Largeslab*>(p));
     }
   };
