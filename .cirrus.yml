@@ -1,5 +1,5 @@
 freebsd_instance:
-  image: freebsd-13-0-current-amd64-v20200220
+  image_family: freebsd-13-0-snap
 task:
   name: cargo test (stable)
   env:
