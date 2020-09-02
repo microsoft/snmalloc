@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../ds/concept.h"
+#include "pal_concept.h"
 #include "pal_consts.h"
 
 // If simultating OE, then we need the underlying platform
@@ -63,7 +65,7 @@ namespace snmalloc
   /**
    * Query whether the PAL supports a specific feature.
    */
-  template<PalFeatures F, typename PAL = Pal>
+  template<PalFeatures F, SNMALLOC_CONCEPT(ConceptPAL) PAL = Pal>
   constexpr static bool pal_supports = (PAL::pal_features & F) == F;
 
   // Used to keep Superslab metadata committed.

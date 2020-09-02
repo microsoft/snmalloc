@@ -2,6 +2,7 @@
 
 #include "../ds/flaglock.h"
 #include "../ds/mpmcstack.h"
+#include "../pal/pal_concept.h"
 #include "pooled.h"
 
 namespace snmalloc
@@ -21,7 +22,7 @@ namespace snmalloc
   {
   private:
     friend Pooled<T>;
-    template<typename TT>
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     friend class MemoryProviderStateMixin;
 
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
