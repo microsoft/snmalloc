@@ -74,15 +74,15 @@ namespace snmalloc
       return BITS - index - 1;
 #  endif
 #else
-      if constexpr (std::is_same_v<unsigned long, std::size_t>)
+      if constexpr (std::is_same<unsigned long, std::size_t>::value)
       {
         return static_cast<size_t>(__builtin_clzl(x));
       }
-      else if constexpr (std::is_same_v<unsigned long long, std::size_t>)
+      else if constexpr (std::is_same<unsigned long long, std::size_t>::value)
       {
         return static_cast<size_t>(__builtin_clzll(x));
       }
-      else if constexpr (std::is_same_v<unsigned int, std::size_t>)
+      else if constexpr (std::is_same<unsigned int, std::size_t>::value)
       {
         return static_cast<size_t>(__builtin_clz(x));
       }
@@ -155,15 +155,15 @@ namespace snmalloc
       return _tzcnt_u32((uint32_t)x);
 #  endif
 #else
-      if constexpr (std::is_same_v<unsigned long, std::size_t>)
+      if constexpr (std::is_same<unsigned long, std::size_t>::value)
       {
         return static_cast<size_t>(__builtin_ctzl(x));
       }
-      else if constexpr (std::is_same_v<unsigned long long, std::size_t>)
+      else if constexpr (std::is_same<unsigned long long, std::size_t>::value)
       {
         return static_cast<size_t>(__builtin_ctzll(x));
       }
-      else if constexpr (std::is_same_v<unsigned int, std::size_t>)
+      else if constexpr (std::is_same<unsigned int, std::size_t>::value)
       {
         return static_cast<size_t>(__builtin_ctz(x));
       }
