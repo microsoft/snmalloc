@@ -13,7 +13,7 @@ namespace snmalloc
    * It cannot unreserve memory, so this does not require the
    * usual complexity of a buddy allocator.
    */
-  template<typename PAL>
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
   class AddressSpaceManager : public PAL
   {
     /**

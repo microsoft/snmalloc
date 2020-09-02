@@ -14,7 +14,7 @@
 
 namespace snmalloc
 {
-  template<class PAL>
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
   class MemoryProviderStateMixin;
 
   class Largeslab : public Baseslab
@@ -24,7 +24,7 @@ namespace snmalloc
   private:
     template<class a, Construction c>
     friend class MPMCStack;
-    template<class PAL>
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     friend class MemoryProviderStateMixin;
     std::atomic<Largeslab*> next;
 
@@ -56,7 +56,7 @@ namespace snmalloc
   // This represents the state that the large allcoator needs to add to the
   // global state of the allocator.  This is currently stored in the memory
   // provider, so we add this in.
-  template<class PAL>
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
   class MemoryProviderStateMixin : public PalNotificationObject, public PAL
   {
     /**
