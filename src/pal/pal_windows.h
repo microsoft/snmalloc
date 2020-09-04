@@ -46,32 +46,6 @@ namespace snmalloc
     }
 
   public:
-    PALWindows()
-    {
-      // No error handling here - if this doesn't work, then we will just
-      // consume more memory.  There's nothing sensible that we could do in
-      // error handling.  We also leak both the low memory notification object
-      // handle and the wait object handle.  We'll need them until the program
-      // exits, so there's little point doing anything else.
-      //
-      // We only try to register once.  If this fails, give up.  Even if we
-      // create multiple PAL objects, we don't want to get more than one
-      // callback.
-      if (!registered_for_notifications.exchange(true))
-      {
-        lowMemoryObject =
-          CreateMemoryResourceNotification(LowMemoryResourceNotification);
-        HANDLE waitObject;
-        RegisterWaitForSingleObject(
-          &waitObject,
-          lowMemoryObject,
-          low_memory,
-          nullptr,
-          INFINITE,
-          WT_EXECUTEDEFAULT);
-      }
-    }
-
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.  This PAL supports low-memory notifications.
@@ -105,6 +79,29 @@ namespace snmalloc
     static void
     register_for_low_memory_callback(PalNotificationObject* callback)
     {
+      // No error handling here - if this doesn't work, then we will just
+      // consume more memory.  There's nothing sensible that we could do in
+      // error handling.  We also leak both the low memory notification object
+      // handle and the wait object handle.  We'll need them until the program
+      // exits, so there's little point doing anything else.
+      //
+      // We only try to register once.  If this fails, give up.  Even if we
+      // create multiple PAL objects, we don't want to get more than one
+      // callback.
+      if (!registered_for_notifications.exchange(true))
+      {
+        lowMemoryObject =
+          CreateMemoryResourceNotification(LowMemoryResourceNotification);
+        HANDLE waitObject;
+        RegisterWaitForSingleObject(
+          &waitObject,
+          lowMemoryObject,
+          low_memory,
+          nullptr,
+          INFINITE,
+          WT_EXECUTEDEFAULT);
+      }
+
       low_memory_callbacks.register_notification(callback);
     }
 
