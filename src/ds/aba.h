@@ -85,6 +85,13 @@ namespace snmalloc
       Linked old;
       ABA* parent;
 
+      /*
+       * MSVC apparently does not like the implicit constructor it creates when
+       * asked to interpret its input as C++20; it rejects the construction up
+       * in read(), above.  Help it out by making the constructor explicit.
+       */
+      Cmp(Linked old, ABA* parent) : old(old), parent(parent) {}
+
       T* ptr()
       {
         return old.ptr;
