@@ -14,7 +14,7 @@ namespace snmalloc
    * usual complexity of a buddy allocator.
    */
   template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
-  class AddressSpaceManager : public PAL
+  class AddressSpaceManager
   {
     /**
      * Stores the blocks of address space
@@ -181,8 +181,7 @@ namespace snmalloc
       if constexpr (pal_supports<AlignedAllocation, PAL>)
       {
         if (size >= PAL::minimum_alloc_size)
-          return static_cast<PAL*>(this)->template reserve_aligned<committed>(
-            size);
+          return PAL::template reserve_aligned<committed>(size);
       }
 
       void* res;
@@ -197,8 +196,7 @@ namespace snmalloc
           if constexpr (pal_supports<AlignedAllocation, PAL>)
           {
             block_size = PAL::minimum_alloc_size;
-            block = static_cast<PAL*>(this)->template reserve_aligned<false>(
-              block_size);
+            block = PAL::template reserve_aligned<false>(block_size);
           }
           else
           {
@@ -206,8 +204,7 @@ namespace snmalloc
             // Hold lock here as a race could cause additional requests to
             // the PAL, and this could lead to suprious OOM.  This is
             // particularly bad if the PAL gives all the memory on first call.
-            auto block_and_size =
-              static_cast<PAL*>(this)->reserve_at_least(size * 2);
+            auto block_and_size = PAL::reserve_at_least(size * 2);
             block = block_and_size.first;
             block_size = block_and_size.second;
 
