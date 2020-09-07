@@ -57,7 +57,7 @@ namespace snmalloc
   // global state of the allocator.  This is currently stored in the memory
   // provider, so we add this in.
   template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
-  class MemoryProviderStateMixin : public PalNotificationObject, public PAL
+  class MemoryProviderStateMixin : public PalNotificationObject
   {
     /**
      * Simple flag for checking if another instance of lazy-decommit is
@@ -76,6 +76,8 @@ namespace snmalloc
     std::atomic<size_t> peak_memory_used_bytes{0};
 
   public:
+    using Pal = PAL;
+
     /**
      * Memory current available in large_stacks
      */
@@ -258,7 +260,7 @@ namespace snmalloc
         p = memory_provider.template reserve<false>(large_class);
         if (p == nullptr)
           return nullptr;
-        memory_provider.template notify_using<zero_mem>(p, rsize);
+        MemoryProvider::Pal::template notify_using<zero_mem>(p, rsize);
       }
       else
       {
@@ -276,19 +278,19 @@ namespace snmalloc
           // The first page is already in "use" for the stack element,
           // this will need zeroing for a YesZero call.
           if constexpr (zero_mem == YesZero)
-            memory_provider.template zero<true>(p, OS_PAGE_SIZE);
+            MemoryProvider::Pal::template zero<true>(p, OS_PAGE_SIZE);
 
           // Notify we are using the rest of the allocation.
           // Passing zero_mem ensures the PAL provides zeroed pages if
           // required.
-          memory_provider.template notify_using<zero_mem>(
+          MemoryProvider::Pal::template notify_using<zero_mem>(
             pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
         }
         else
         {
           // This is a superslab that has not been decommitted.
           if constexpr (zero_mem == YesZero)
-            memory_provider.template zero<true>(
+            MemoryProvider::Pal::template zero<true>(
               p, bits::align_up(size, OS_PAGE_SIZE));
           else
             UNUSED(size);
@@ -304,7 +306,7 @@ namespace snmalloc
       if constexpr (decommit_strategy == DecommitSuperLazy)
       {
         static_assert(
-          pal_supports<LowMemoryNotification, MemoryProvider>,
+          pal_supports<LowMemoryNotification, typename MemoryProvider::Pal>,
           "A lazy decommit strategy cannot be implemented on platforms "
           "without low memory notifications");
       }
@@ -316,7 +318,7 @@ namespace snmalloc
         (decommit_strategy != DecommitNone) &&
         (large_class != 0 || decommit_strategy == DecommitSuper))
       {
-        memory_provider.notify_not_using(
+        MemoryProvider::Pal::notify_not_using(
           pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
       }
 

@@ -36,12 +36,9 @@ namespace snmalloc
      * Returns the link as the allocation, and places the free list into the
      * `fast_free_list` for further allocations.
      */
-    template<ZeroMem zero_mem, typename MemoryProvider>
-    SNMALLOC_FAST_PATH void* alloc(
-      SlabList& sl,
-      FreeListHead& fast_free_list,
-      size_t rsize,
-      MemoryProvider& memory_provider)
+    template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
+    SNMALLOC_FAST_PATH void*
+    alloc(SlabList& sl, FreeListHead& fast_free_list, size_t rsize)
     {
       // Read the head from the metadata stored in the superslab.
       Metaslab& meta = get_meta();
@@ -73,9 +70,9 @@ namespace snmalloc
       if constexpr (zero_mem == YesZero)
       {
         if (rsize < PAGE_ALIGNED_SIZE)
-          memory_provider.zero(p, rsize);
+          PAL::zero(p, rsize);
         else
-          memory_provider.template zero<true>(p, rsize);
+          PAL::template zero<true>(p, rsize);
       }
       else
       {

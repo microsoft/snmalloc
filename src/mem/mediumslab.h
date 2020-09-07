@@ -76,8 +76,8 @@ namespace snmalloc
       return sizeclass;
     }
 
-    template<ZeroMem zero_mem, typename MemoryProvider>
-    void* alloc(size_t size, MemoryProvider& memory_provider)
+    template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
+    void* alloc(size_t size)
     {
       SNMALLOC_ASSERT(!full());
 
@@ -86,7 +86,7 @@ namespace snmalloc
       free--;
 
       if constexpr (zero_mem == YesZero)
-        memory_provider.zero(p, size);
+        PAL::zero(p, size);
       else
         UNUSED(size);
 
