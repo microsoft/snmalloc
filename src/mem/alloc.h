@@ -1063,7 +1063,7 @@ namespace snmalloc
         void* p = remove_cache_friendly_offset(head, sizeclass);
         if constexpr (zero_mem == YesZero)
         {
-          large_allocator.memory_provider.zero(p, sizeclass_to_size(sizeclass));
+          MemoryProvider::Pal::zero(p, sizeclass_to_size(sizeclass));
         }
         return p;
       }
@@ -1109,8 +1109,8 @@ namespace snmalloc
         SlabLink* link = sl.get_next();
         slab = get_slab(link);
         auto& ffl = small_fast_free_lists[sizeclass];
-        return slab->alloc<zero_mem>(
-          sl, ffl, rsize, large_allocator.memory_provider);
+        return slab->alloc<zero_mem, typename MemoryProvider::Pal>(
+          sl, ffl, rsize);
       }
       return small_alloc_rare<zero_mem, allow_reserve>(sizeclass, size);
     }
@@ -1182,7 +1182,7 @@ namespace snmalloc
 
       if constexpr (zero_mem == YesZero)
       {
-        large_allocator.memory_provider.zero(p, sizeclass_to_size(sizeclass));
+        MemoryProvider::Pal::zero(p, sizeclass_to_size(sizeclass));
       }
       return p;
     }
@@ -1313,7 +1313,7 @@ namespace snmalloc
 
       if (slab != nullptr)
       {
-        p = slab->alloc<zero_mem>(size, large_allocator.memory_provider);
+        p = slab->alloc<zero_mem, typename MemoryProvider::Pal>(size);
 
         if (slab->full())
           sc->pop();
@@ -1336,7 +1336,7 @@ namespace snmalloc
 
         slab->init(public_state(), sizeclass, rsize);
         chunkmap().set_slab(slab);
-        p = slab->alloc<zero_mem>(size, large_allocator.memory_provider);
+        p = slab->alloc<zero_mem, typename MemoryProvider::Pal>(size);
 
         if (!slab->full())
           sc->insert(slab);

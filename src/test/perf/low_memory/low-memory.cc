@@ -98,17 +98,17 @@ void reduce_pressure(Queue& allocations)
  * Template parameter required to handle `if constexpr` always evaluating both
  * sides.
  */
-template<typename PAL>
+template<typename MemoryProvider>
 void register_for_pal_notifications()
 {
-  PAL::register_for_low_memory_callback(&update_epoch);
+  MemoryProvider::Pal::register_for_low_memory_callback(&update_epoch);
 }
 
 int main(int argc, char** argv)
 {
   opt::Opt opt(argc, argv);
 
-  if constexpr (pal_supports<LowMemoryNotification, GlobalVirtual>)
+  if constexpr (pal_supports<LowMemoryNotification, GlobalVirtual::Pal>)
   {
     register_for_pal_notifications<GlobalVirtual>();
   }
