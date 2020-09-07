@@ -31,7 +31,7 @@ namespace snmalloc
      * Notify platform that we will not be needing these pages.
      * Haiku does not provide madvise call per say only the posix equivalent.
      */
-    void notify_not_using(void* p, size_t size) noexcept
+    static void notify_not_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
       posix_madvise(p, size, POSIX_MADV_DONTNEED);

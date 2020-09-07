@@ -35,20 +35,17 @@ namespace snmalloc
    * PALs expose a basic library of memory operations.
    */
   template<typename PAL>
-  concept ConceptPAL_memops = requires(PAL p, void* vp, size_t sz)
+  concept ConceptPAL_memops = requires(void* vp, size_t sz)
   {
-    { p.notify_not_using(vp, sz) } noexcept -> ConceptSame<void>;
+    { PAL::notify_not_using(vp, sz) } noexcept -> ConceptSame<void>;
 
-    /* For reasons unknown, these seem to tickle some bug in MSVC */
-#  if !defined(_MSC_VER)
-    { p.template notify_using<NoZero>(vp, sz) } noexcept
+    { PAL::template notify_using<NoZero>(vp, sz) } noexcept
       -> ConceptSame<void>;
-    { p.template notify_using<YesZero>(vp, sz) } noexcept
+    { PAL::template notify_using<YesZero>(vp, sz) } noexcept
       -> ConceptSame<void>;
-#  endif
 
-    { p.template zero<false>(vp, sz) } noexcept -> ConceptSame<void>;
-    { p.template zero<true>(vp, sz) } noexcept -> ConceptSame<void>;
+    { PAL::template zero<false>(vp, sz) } noexcept -> ConceptSame<void>;
+    { PAL::template zero<true>(vp, sz) } noexcept -> ConceptSame<void>;
   };
 
   /**
@@ -57,7 +54,7 @@ namespace snmalloc
   template<typename PAL>
   concept ConceptPAL_reserve_at_least = requires(PAL p, void* vp, size_t sz)
   {
-    { p.reserve_at_least(sz) } noexcept
+    { PAL::reserve_at_least(sz) } noexcept
       -> ConceptSame<std::pair<void*, size_t>>;
   };
 
@@ -65,21 +62,21 @@ namespace snmalloc
    * Some PALs expose a richer allocator which understands aligned allocations
    */
   template<typename PAL>
-  concept ConceptPAL_reserve_aligned = requires(PAL p, size_t sz)
+  concept ConceptPAL_reserve_aligned = requires(size_t sz)
   {
-    { p.template reserve_aligned<false>(sz) } noexcept -> ConceptSame<void*>;
-    { p.template reserve_aligned<true>(sz) } noexcept -> ConceptSame<void*>;
+    { PAL::template reserve_aligned<true>(sz) } noexcept -> ConceptSame<void*>;
+    { PAL::template reserve_aligned<false>(sz) } noexcept
+      -> ConceptSame<void*>;
   };
 
   /**
    * Some PALs can provide memory pressure callbacks.
    */
   template<typename PAL>
-  concept ConceptPAL_mem_low_notify =
-    requires(PAL p, PalNotificationObject* pno)
+  concept ConceptPAL_mem_low_notify = requires(PalNotificationObject* pno)
   {
-    { p.expensive_low_memory_check() } -> ConceptSame<bool>;
-    { p.register_for_low_memory_callback(pno) } -> ConceptSame<void>;
+    { PAL::expensive_low_memory_check() } -> ConceptSame<bool>;
+    { PAL::register_for_low_memory_callback(pno) } -> ConceptSame<void>;
   };
 
   /**

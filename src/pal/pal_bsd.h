@@ -31,7 +31,7 @@ namespace snmalloc
      * operating system to replace the pages with CoW copies of a zero page at
      * any point between the call and the next write to that page.
      */
-    void notify_not_using(void* p, size_t size) noexcept
+    static void notify_not_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
       madvise(p, size, MADV_FREE);

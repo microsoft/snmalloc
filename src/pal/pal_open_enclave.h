@@ -62,7 +62,7 @@ namespace snmalloc
     }
 
     template<bool page_aligned = false>
-    void zero(void* p, size_t size) noexcept
+    static void zero(void* p, size_t size) noexcept
     {
       oe_memset_s(p, size, 0, size);
     }
