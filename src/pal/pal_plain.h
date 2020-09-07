@@ -11,11 +11,11 @@ namespace snmalloc
   {
   public:
     // Notify platform that we will not be using these pages
-    void notify_not_using(void*, size_t) noexcept {}
+    static void notify_not_using(void*, size_t) noexcept {}
 
     // Notify platform that we will not be using these pages
     template<ZeroMem zero_mem>
-    void notify_using(void* p, size_t size) noexcept
+    static void notify_using(void* p, size_t size) noexcept
     {
       if constexpr (zero_mem == YesZero)
       {

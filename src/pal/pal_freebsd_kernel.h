@@ -34,7 +34,7 @@ namespace snmalloc
     }
 
     /// Notify platform that we will not be using these pages
-    void notify_not_using(void* p, size_t size)
+    static void notify_not_using(void* p, size_t size)
     {
       vm_offset_t addr = get_vm_offset(p);
       kmem_unback(kernel_object, addr, size);
@@ -42,7 +42,7 @@ namespace snmalloc
 
     /// Notify platform that we will be using these pages
     template<ZeroMem zero_mem>
-    void notify_using(void* p, size_t size)
+    static void notify_using(void* p, size_t size)
     {
       vm_offset_t addr = get_vm_offset(p);
       int flags = M_WAITOK | ((zero_mem == YesZero) ? M_ZERO : 0);
@@ -54,13 +54,13 @@ namespace snmalloc
 
     /// OS specific function for zeroing memory
     template<bool page_aligned = false>
-    void zero(void* p, size_t size)
+    static void zero(void* p, size_t size)
     {
       ::bzero(p, size);
     }
 
     template<bool committed>
-    void* reserve_aligned(size_t size) noexcept
+    static void* reserve_aligned(size_t size) noexcept
     {
       SNMALLOC_ASSERT(size == bits::next_pow2(size));
       SNMALLOC_ASSERT(size >= minimum_alloc_size);

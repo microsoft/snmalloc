@@ -29,7 +29,7 @@ namespace snmalloc
      * Reserve memory at a specific alignment.
      */
     template<bool committed>
-    void* reserve_aligned(size_t size) noexcept
+    static void* reserve_aligned(size_t size) noexcept
     {
       // Alignment must be a power of 2.
       SNMALLOC_ASSERT(size == bits::next_pow2(size));

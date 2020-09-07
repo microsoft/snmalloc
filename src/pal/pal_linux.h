@@ -37,7 +37,7 @@ namespace snmalloc
      * clear the underlying memory range.
      */
     template<bool page_aligned = false>
-    void zero(void* p, size_t size) noexcept
+    static void zero(void* p, size_t size) noexcept
     {
       // QEMU does not seem to be giving the desired behaviour for
       // MADV_DONTNEED. switch back to memset only for QEMU.
