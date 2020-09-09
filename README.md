@@ -160,12 +160,12 @@ your system.
 The PAL must implement the following methods:
 
 ```c++
-[[noreturn]] void error(const char* const str) noexcept;
+[[noreturn]] static void error(const char* const str) noexcept;
 ```
 Report a fatal error and exit.
 
 ```c++
-void notify_not_using(void* p, size_t size) noexcept;
+static void notify_not_using(void* p, size_t size) noexcept;
 ```
 Notify the system that the range of memory from `p` to `p` + `size` is no
 longer in use, allowing the underlying physical pages to recycled for other
@@ -173,7 +173,7 @@ purposes.
 
 ```c++
 template<ZeroMem zero_mem>
-void notify_using(void* p, size_t size) noexcept;
+static void notify_using(void* p, size_t size) noexcept;
 ```
 Notify the system that the range of memory from `p` to `p` + `size` is now in use.
 On systems that lazily provide physical memory to virtual mappings, this
@@ -183,7 +183,7 @@ responsible for ensuring that the newly requested memory is full of zeros.
 
 ```c++
 template<bool page_aligned = false>
-void zero(void* p, size_t size) noexcept;
+static void zero(void* p, size_t size) noexcept;
 ```
 Zero the range of memory from `p` to `p` + `size`.
 This may be a simple `memset` call, but the `page_aligned` template parameter
@@ -194,8 +194,8 @@ pages, rather than zeroing them synchronously in this call
 
 ```c++
 template<bool committed>
-void* reserve_aligned(size_t size) noexcept;
-std::pair<void*, size_t> reserve_at_least(size_t size) noexcept;
+static void* reserve_aligned(size_t size) noexcept;
+static std::pair<void*, size_t> reserve_at_least(size_t size) noexcept;
 ```
 Only one of these needs to be implemented, depending on whether the underlying
 system can provide strongly aligned memory regions.
