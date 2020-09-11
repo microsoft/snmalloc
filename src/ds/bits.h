@@ -241,18 +241,19 @@ namespace snmalloc
       return BITS - clz_const(x - 1);
     }
 
-    static SNMALLOC_FAST_PATH size_t align_down(size_t value, size_t alignment)
+    constexpr SNMALLOC_FAST_PATH size_t
+    align_down(size_t value, size_t alignment)
     {
-      SNMALLOC_ASSERT(next_pow2(alignment) == alignment);
+      SNMALLOC_ASSERT(next_pow2_const(alignment) == alignment);
 
       size_t align_1 = alignment - 1;
       value &= ~align_1;
       return value;
     }
 
-    static inline size_t align_up(size_t value, size_t alignment)
+    constexpr SNMALLOC_FAST_PATH size_t align_up(size_t value, size_t alignment)
     {
-      SNMALLOC_ASSERT(next_pow2(alignment) == alignment);
+      SNMALLOC_ASSERT(next_pow2_const(alignment) == alignment);
 
       size_t align_1 = alignment - 1;
       value += align_1;
