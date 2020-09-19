@@ -75,11 +75,13 @@ matrix:
         - nightly
 
     - os: osx
+      osx_image: xcode12
       language: rust
       rust:
         - stable
 
     - os: osx
+      osx_image: xcode12
       language: rust
       rust:
         - nightly
