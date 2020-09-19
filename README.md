@@ -63,6 +63,14 @@ Hence, please make sure the following libs are in your `PATH`:
 
 ## Changelog
 
+### 0.2.19
+
+- **upstream** stats
+- **upstream** PAL updates and concepts
+- **upstream** ddd constexpr annotation to align_up/down
+- change macOS CI to follow xcode 12
+
+
 ### 0.2.18
 
 - add msvc flag /EHsc to fix warning C4530
@@ -73,11 +81,5 @@ Hence, please make sure the following libs are in your `PATH`:
 - **upstream** default chunk configuration to 1mib
 - add new feature flags
 
-### 0.2.16
-
-- **upstream** New implementation of address space reservation leading to
-  - better integration with transparent huge pages; and
-  - lower address space requirements and fragmentation.
-- Notice MinGW broken state
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 

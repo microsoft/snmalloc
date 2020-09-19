@@ -1,5 +1,12 @@
 ## Changelog
 
+### 0.2.19
+
+- **upstream** stats
+- **upstream** PAL updates and concepts
+- **upstream** ddd constexpr annotation to align_up/down
+- change macOS CI to follow xcode 12
+
 ### 0.2.18
 
 - add msvc flag /EHsc to fix warning C4530
