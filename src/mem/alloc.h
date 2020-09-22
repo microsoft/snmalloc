@@ -6,6 +6,36 @@
 #  define ALLOCATOR
 #endif
 
+#ifdef USE_MALLOC
+#  include <cstdlib>
+#  if defined(_WIN32) || defined(__APPLE__)
+#    error "Pass through not supported on this platform"
+//   The Windows aligned allocation API is not capable of supporting the
+//   snmalloc API Apple was not providing aligned memory in some tests.
+#  else
+#    define ALIGNED_ALLOC std::aligned_alloc
+#    define FREE free
+//  Defines malloc_size for the platform.
+#    if defined(_WIN32)
+#      define MSIZE _msize
+#    elif defined(__APPLE__)
+#      include <malloc/malloc.h>
+#      define MSIZE malloc_size
+#    elif defined(__linux__)
+#      include <malloc.h>
+#      define MSIZE malloc_usable_size
+#    elif defined(__sun) || defined(__HAIKU__) || defined(__NetBSD__) || \
+      defined(__OpenBSD__)
+#      define MSIZE malloc_usable_size
+#    elif defined(__FreeBSD__)
+#      include <malloc_np.h>
+#      define MSIZE malloc_usable_size
+#    else
+#      error Define malloc size macro for this platform.
+#    endif
+#  endif
+#endif
+
 #include "../pal/pal_consts.h"
 #include "../test/histogram.h"
 #include "allocstats.h"
@@ -129,10 +159,13 @@ namespace snmalloc
       static_assert(
         allow_reserve == YesReserve,
         "When passing to malloc, cannot require NoResereve");
-      if constexpr (zero_mem == NoZero)
-        return malloc(size);
-      else
-        return calloc(1, size);
+      // snmalloc guarantees a lot of alignment, so we can depend on this
+      // make pass through call aligned_alloc with the alignment snmalloc
+      // would guarantee.
+      auto result = ALIGNED_ALLOC(natural_alignment(size), round_size(size));
+      if constexpr (zero_mem == YesZero)
+        memset(result, 0, size);
+      return result;
 #else
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
 
@@ -166,10 +199,13 @@ namespace snmalloc
       static_assert(
         allow_reserve == YesReserve,
         "When passing to malloc, cannot require NoResereve");
-      if constexpr (zero_mem == NoZero)
-        return malloc(size);
-      else
-        return calloc(1, size);
+      // snmalloc guarantees a lot of alignment, so we can depend on this
+      // make pass through call aligned_alloc with the alignment snmalloc
+      // would guarantee.
+      auto result = ALIGNED_ALLOC(natural_alignment(size), round_size(size));
+      if constexpr (zero_mem == YesZero)
+        memset(result, 0, size);
+      return result;
 #else
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
@@ -243,7 +279,7 @@ namespace snmalloc
     {
 #ifdef USE_MALLOC
       UNUSED(size);
-      return free(p);
+      return FREE(p);
 #else
       check_size(p, size);
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
@@ -283,7 +319,7 @@ namespace snmalloc
     {
 #ifdef USE_MALLOC
       UNUSED(size);
-      return free(p);
+      return FREE(p);
 #else
       SNMALLOC_ASSERT(p != nullptr);
       check_size(p, size);
@@ -328,7 +364,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void dealloc(void* p)
     {
 #ifdef USE_MALLOC
-      return free(p);
+      return FREE(p);
 #else
 
       uint8_t size = chunkmap().get(address_cast(p));
@@ -463,6 +499,9 @@ namespace snmalloc
   public:
     SNMALLOC_FAST_PATH static size_t alloc_size(const void* p)
     {
+#ifdef USE_MALLOC
+      return MSIZE(const_cast<void*>(p));
+#else
       // This must be called on an external pointer.
       size_t size = ChunkMap::get(address_cast(p));
 
@@ -492,6 +531,7 @@ namespace snmalloc
       }
 
       return alloc_size_error();
+#endif
     }
 
     size_t get_id()

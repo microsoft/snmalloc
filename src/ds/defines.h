@@ -57,6 +57,15 @@ namespace snmalloc
     }
 #endif
 
+#define SNMALLOC_CHECK(expr) \
+  { \
+    if (!(expr)) \
+    { \
+      snmalloc::error("Check fail: " #expr " in " __FILE__ \
+                      " on " TOSTRING(__LINE__)); \
+    } \
+  }
+
 #ifndef NDEBUG
 #  define SNMALLOC_ASSUME(x) SNMALLOC_ASSERT(x)
 #else

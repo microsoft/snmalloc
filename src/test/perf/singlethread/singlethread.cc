@@ -20,7 +20,7 @@ void test_alloc_dealloc(size_t count, size_t size, bool write)
       for (size_t i = 0; i < ((count * 3) / 2); i++)
       {
         void* p = alloc->alloc<zero_mem>(size);
-        SNMALLOC_ASSERT(set.find(p) == set.end());
+        SNMALLOC_CHECK(set.find(p) == set.end());
 
         if (write)
           *(int*)p = 4;
@@ -35,14 +35,14 @@ void test_alloc_dealloc(size_t count, size_t size, bool write)
         void* p = *it;
         alloc->dealloc(p, size);
         set.erase(it);
-        SNMALLOC_ASSERT(set.find(p) == set.end());
+        SNMALLOC_CHECK(set.find(p) == set.end());
       }
 
       // alloc 1x objects
       for (size_t i = 0; i < count; i++)
       {
         void* p = alloc->alloc<zero_mem>(size);
-        SNMALLOC_ASSERT(set.find(p) == set.end());
+        SNMALLOC_CHECK(set.find(p) == set.end());
 
         if (write)
           *(int*)p = 4;
