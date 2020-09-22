@@ -46,6 +46,14 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
       align);
     abort();
   }
+  if (static_cast<size_t>(reinterpret_cast<uintptr_t>(p) % natural_alignment(size)) != 0)
+  {
+    printf(
+      "Address is 0x%zx, but should have natural alignment to 0x%zx.\n",
+      reinterpret_cast<uintptr_t>(p),
+      natural_alignment(size));
+    abort();
+  }
 
   our_free(p);
 }
