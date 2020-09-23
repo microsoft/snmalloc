@@ -85,7 +85,7 @@ namespace test
 
 int main(int, char**)
 {
-#ifndef USE_MALLOC // Depends on snmalloc specific features
+#ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
   setup();
 
   xoroshiro::p128r64 r;

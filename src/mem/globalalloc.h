@@ -72,7 +72,7 @@ namespace snmalloc
 
     void cleanup_unused()
     {
-#ifndef USE_MALLOC
+#ifndef SNMALLOC_PASS_THROUGH
       // Call this periodically to free and coalesce memory allocated by
       // allocators that are not currently in use by any thread.
       // One atomic operation to extract the stack, another to restore it.
@@ -102,7 +102,7 @@ namespace snmalloc
      */
     void debug_check_empty(bool* result = nullptr)
     {
-#ifndef USE_MALLOC
+#ifndef SNMALLOC_PASS_THROUGH
       // This is a debugging function. It checks that all memory from all
       // allocators has been freed.
       auto* alloc = Parent::iterate();

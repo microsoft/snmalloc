@@ -2,7 +2,7 @@
 
 int main()
 {
-#ifndef USE_MALLOC // This test depends on snmalloc internals
+#ifndef SNMALLOC_PASS_THROUGH // This test depends on snmalloc internals
   snmalloc::Alloc* a = snmalloc::ThreadAlloc::get();
   bool result;
 

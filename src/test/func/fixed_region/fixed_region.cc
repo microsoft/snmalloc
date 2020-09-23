@@ -23,7 +23,7 @@ extern "C" void oe_abort()
 using namespace snmalloc;
 int main()
 {
-#ifndef USE_MALLOC // Depends on snmalloc specific features
+#ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
   auto& mp = *MemoryProviderStateMixin<DefaultPal>::make();
 
   // 28 is large enough to produce a nested allocator.

@@ -407,7 +407,7 @@ int main(int argc, char** argv)
   test_random_allocation();
   test_calloc();
   test_double_alloc();
-#ifndef USE_MALLOC // Depends on snmalloc specific features
+#ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
   test_calloc_large_bug();
   test_external_pointer_dealloc_bug();
   test_external_pointer_large();

@@ -26,7 +26,7 @@ extern "C"
 {
   void SNMALLOC_NAME_MANGLE(check_start)(void* ptr)
   {
-#if !defined(NDEBUG) && !defined(USE_MALLOC)
+#if !defined(NDEBUG) && !defined(SNMALLOC_PASS_THROUGH)
     if (Alloc::external_pointer<Start>(ptr) != ptr)
     {
       error("Using pointer that is not to the start of an allocation");

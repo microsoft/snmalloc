@@ -6,7 +6,7 @@
 #  define ALLOCATOR
 #endif
 
-#ifdef USE_MALLOC
+#ifdef SNMALLOC_PASS_THROUGH
 #  include <cstdlib>
 #  if defined(_WIN32) || defined(__APPLE__)
 #    error "Pass through not supported on this platform"
@@ -155,7 +155,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH ALLOCATOR void* alloc()
     {
       static_assert(size != 0, "Size must not be zero.");
-#ifdef USE_MALLOC
+#ifdef SNMALLOC_PASS_THROUGH
       static_assert(
         allow_reserve == YesReserve,
         "When passing to malloc, cannot require NoResereve");
@@ -195,7 +195,7 @@ namespace snmalloc
     template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
     SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
     {
-#ifdef USE_MALLOC
+#ifdef SNMALLOC_PASS_THROUGH
       static_assert(
         allow_reserve == YesReserve,
         "When passing to malloc, cannot require NoResereve");
@@ -277,7 +277,7 @@ namespace snmalloc
     template<size_t size>
     void dealloc(void* p)
     {
-#ifdef USE_MALLOC
+#ifdef SNMALLOC_PASS_THROUGH
       UNUSED(size);
       return FREE(p);
 #else
@@ -317,7 +317,7 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH void dealloc(void* p, size_t size)
     {
-#ifdef USE_MALLOC
+#ifdef SNMALLOC_PASS_THROUGH
       UNUSED(size);
       return FREE(p);
 #else
@@ -363,7 +363,7 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH void dealloc(void* p)
     {
-#ifdef USE_MALLOC
+#ifdef SNMALLOC_PASS_THROUGH
       return FREE(p);
 #else
 
@@ -433,7 +433,7 @@ namespace snmalloc
     template<Boundary location = Start>
     static void* external_pointer(void* p)
     {
-#ifdef USE_MALLOC
+#ifdef SNMALLOC_PASS_THROUGH
       error("Unsupported");
       UNUSED(p);
 #else
@@ -499,7 +499,7 @@ namespace snmalloc
   public:
     SNMALLOC_FAST_PATH static size_t alloc_size(const void* p)
     {
-#ifdef USE_MALLOC
+#ifdef SNMALLOC_PASS_THROUGH
       return MSIZE(const_cast<void*>(p));
 #else
       // This must be called on an external pointer.

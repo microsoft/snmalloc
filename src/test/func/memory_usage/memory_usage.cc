@@ -76,7 +76,7 @@ int main(int argc, char** argv)
 {
   UNUSED(argc);
   UNUSED(argv);
-#ifndef USE_MALLOC // Depends on snmalloc specific features
+#ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
   setup();
 
   add_n_allocs(5);
