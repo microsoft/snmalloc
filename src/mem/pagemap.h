@@ -184,25 +184,35 @@ namespace snmalloc
       size_t shift = TOPLEVEL_SHIFT;
       std::atomic<PagemapEntry*>* e = &top[ix];
 
-      for (size_t i = 0; i < INDEX_LEVELS; i++)
+      // This is effectively a
+      //   for (size_t i = 0; i < INDEX_LEVELS; i++)
+      // loop, but uses constexpr to guarantee optimised version
+      // where the INDEX_LEVELS in {0,1}.
+      if constexpr (INDEX_LEVELS != 0)
       {
-        PagemapEntry* value = get_node<create_addr>(e, result);
-        if (unlikely(!result))
-          return {nullptr, 0};
-
-        shift -= BITS_PER_INDEX_LEVEL;
-        ix = (static_cast<size_t>(addr) >> shift) & ENTRIES_MASK;
-        e = &value->entries[ix];
-
-        if constexpr (INDEX_LEVELS == 1)
+        size_t i = 0;
+        while (true)
         {
-          UNUSED(i);
-          break;
-        }
-        i++;
+          PagemapEntry* value = get_node<create_addr>(e, result);
+          if (unlikely(!result))
+            return {nullptr, 0};
 
-        if (i == INDEX_LEVELS)
-          break;
+          shift -= BITS_PER_INDEX_LEVEL;
+          ix = (static_cast<size_t>(addr) >> shift) & ENTRIES_MASK;
+          e = &value->entries[ix];
+
+          if constexpr (INDEX_LEVELS == 1)
+          {
+            UNUSED(i);
+            break;
+          }
+          else
+          {
+            i++;
+            if (i == INDEX_LEVELS)
+              break;
+          }
+        }
       }
 
       Leaf* leaf = reinterpret_cast<Leaf*>(get_node<create_addr>(e, result));
