@@ -45,7 +45,7 @@ namespace snmalloc::external_alloc{
   inline void* aligned_alloc(size_t alignment, size_t size)
   {
     void* result;
-    if (!posix_memalign(&result, alignment, size))
+    if (posix_memalign(&result, alignment, size) != 0)
     {
       result = nullptr;
     }
