@@ -6,40 +6,11 @@
 #  define ALLOCATOR
 #endif
 
-#ifdef SNMALLOC_PASS_THROUGH
-#  include <cstdlib>
-#  if defined(_WIN32) || defined(__APPLE__)
-#    error "Pass through not supported on this platform"
-//   The Windows aligned allocation API is not capable of supporting the
-//   snmalloc API Apple was not providing aligned memory in some tests.
-#  else
-#    define ALIGNED_ALLOC std::aligned_alloc
-#    define FREE free
-//  Defines malloc_size for the platform.
-#    if defined(_WIN32)
-#      define MSIZE _msize
-#    elif defined(__APPLE__)
-#      include <malloc/malloc.h>
-#      define MSIZE malloc_size
-#    elif defined(__linux__)
-#      include <malloc.h>
-#      define MSIZE malloc_usable_size
-#    elif defined(__sun) || defined(__HAIKU__) || defined(__NetBSD__) || \
-      defined(__OpenBSD__)
-#      define MSIZE malloc_usable_size
-#    elif defined(__FreeBSD__)
-#      include <malloc_np.h>
-#      define MSIZE malloc_usable_size
-#    else
-#      error Define malloc size macro for this platform.
-#    endif
-#  endif
-#endif
-
 #include "../pal/pal_consts.h"
 #include "../test/histogram.h"
 #include "allocstats.h"
 #include "chunkmap.h"
+#include "external_alloc.h"
 #include "largealloc.h"
 #include "mediumslab.h"
 #include "pooled.h"
@@ -162,7 +133,7 @@ namespace snmalloc
       // snmalloc guarantees a lot of alignment, so we can depend on this
       // make pass through call aligned_alloc with the alignment snmalloc
       // would guarantee.
-      auto result = ALIGNED_ALLOC(natural_alignment(size), round_size(size));
+      void* result = external_alloc::aligned_alloc(natural_alignment(size), round_size(size));
       if constexpr (zero_mem == YesZero)
         memset(result, 0, size);
       return result;
@@ -202,7 +173,7 @@ namespace snmalloc
       // snmalloc guarantees a lot of alignment, so we can depend on this
       // make pass through call aligned_alloc with the alignment snmalloc
       // would guarantee.
-      auto result = ALIGNED_ALLOC(natural_alignment(size), round_size(size));
+      void* result = external_alloc::aligned_alloc(natural_alignment(size), round_size(size));
       if constexpr (zero_mem == YesZero)
         memset(result, 0, size);
       return result;
@@ -279,7 +250,7 @@ namespace snmalloc
     {
 #ifdef SNMALLOC_PASS_THROUGH
       UNUSED(size);
-      return FREE(p);
+      return external_alloc::free(p);
 #else
       check_size(p, size);
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
@@ -319,7 +290,7 @@ namespace snmalloc
     {
 #ifdef SNMALLOC_PASS_THROUGH
       UNUSED(size);
-      return FREE(p);
+      return external_alloc::free(p);
 #else
       SNMALLOC_ASSERT(p != nullptr);
       check_size(p, size);
@@ -364,7 +335,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void dealloc(void* p)
     {
 #ifdef SNMALLOC_PASS_THROUGH
-      return FREE(p);
+      return external_alloc::free(p);
 #else
 
       uint8_t size = chunkmap().get(address_cast(p));
@@ -500,7 +471,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH static size_t alloc_size(const void* p)
     {
 #ifdef SNMALLOC_PASS_THROUGH
-      return MSIZE(const_cast<void*>(p));
+      return external_alloc::malloc_usable_size(const_cast<void*>(p));
 #else
       // This must be called on an external pointer.
       size_t size = ChunkMap::get(address_cast(p));

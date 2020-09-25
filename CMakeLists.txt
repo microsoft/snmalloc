@@ -280,8 +280,8 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   foreach(TEST_CATEGORY ${TEST_CATEGORIES})
     subdirlist(TESTS ${TESTDIR}/${TEST_CATEGORY})
     foreach(TEST ${TESTS})
-      if (WIN32 OR APPLE)
-        # Neithr Windows or Apple support aligned allocation well enough
+      if (WIN32)
+        # Windows does not support aligned allocation well enough
         # for pass through.
         set(FLAVOURS 1;16;oe)
       else()
