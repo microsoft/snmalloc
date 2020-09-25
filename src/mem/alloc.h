@@ -133,7 +133,8 @@ namespace snmalloc
       // snmalloc guarantees a lot of alignment, so we can depend on this
       // make pass through call aligned_alloc with the alignment snmalloc
       // would guarantee.
-      void* result = external_alloc::aligned_alloc(natural_alignment(size), round_size(size));
+      void* result = external_alloc::aligned_alloc(
+        natural_alignment(size), round_size(size));
       if constexpr (zero_mem == YesZero)
         memset(result, 0, size);
       return result;
@@ -173,7 +174,8 @@ namespace snmalloc
       // snmalloc guarantees a lot of alignment, so we can depend on this
       // make pass through call aligned_alloc with the alignment snmalloc
       // would guarantee.
-      void* result = external_alloc::aligned_alloc(natural_alignment(size), round_size(size));
+      void* result = external_alloc::aligned_alloc(
+        natural_alignment(size), round_size(size));
       if constexpr (zero_mem == YesZero)
         memset(result, 0, size);
       return result;
