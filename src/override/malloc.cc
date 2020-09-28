@@ -98,8 +98,16 @@ extern "C"
     size_t sz = Alloc::alloc_size(ptr);
     // Keep the current allocation if the given size is in the same sizeclass.
     if (sz == round_size(size))
+    {
+#ifdef SNMALLOC_PASS_THROUGH
+      // snmallocs alignment guarantees can be broken by realloc in pass-through
+      // this is not exercised, by existing clients, but is tested.
+      if (pointer_align_up(ptr, natural_alignment(size)) == ptr)
+        return ptr;
+#else
       return ptr;
-
+#endif
+    }
     void* p = SNMALLOC_NAME_MANGLE(malloc)(size);
     if (p != nullptr)
     {

@@ -280,10 +280,9 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   foreach(TEST_CATEGORY ${TEST_CATEGORIES})
     subdirlist(TESTS ${TESTDIR}/${TEST_CATEGORY})
     foreach(TEST ${TESTS})
-      if (WIN32 OR APPLE)
+      if (WIN32)
         # Windows does not support aligned allocation well enough
         # for pass through.
-        # Apple support posix_memalign, but fails to pass the tests.
         set(FLAVOURS 1;16;oe)
       else()
         set(FLAVOURS 1;16;oe;malloc)
