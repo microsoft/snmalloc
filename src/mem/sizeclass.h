@@ -198,4 +198,12 @@ namespace snmalloc
     }
     return sizeclass_to_size(size_to_sizeclass(size));
   }
+
+  /// Returns the alignment that this size naturally has, that is
+  /// all allocations of size `size` will be aligned to the returned value.
+  SNMALLOC_FAST_PATH static size_t natural_alignment(size_t size)
+  {
+    auto rsize = round_size(size);
+    return bits::one_at_bit(bits::ctz(rsize));
+  }
 } // namespace snmalloc

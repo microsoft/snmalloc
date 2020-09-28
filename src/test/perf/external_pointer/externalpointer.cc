@@ -85,16 +85,18 @@ namespace test
 
 int main(int, char**)
 {
+#ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
   setup();
 
   xoroshiro::p128r64 r;
-#ifdef NDEBUG
+#  ifdef NDEBUG
   size_t nn = 30;
-#else
+#  else
   size_t nn = 3;
-#endif
+#  endif
 
   for (size_t n = 0; n < nn; n++)
     test::test_external_pointer(r);
   return 0;
+#endif
 }

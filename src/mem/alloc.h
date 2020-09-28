@@ -10,6 +10,7 @@
 #include "../test/histogram.h"
 #include "allocstats.h"
 #include "chunkmap.h"
+#include "external_alloc.h"
 #include "largealloc.h"
 #include "mediumslab.h"
 #include "pooled.h"
@@ -125,14 +126,18 @@ namespace snmalloc
     SNMALLOC_FAST_PATH ALLOCATOR void* alloc()
     {
       static_assert(size != 0, "Size must not be zero.");
-#ifdef USE_MALLOC
+#ifdef SNMALLOC_PASS_THROUGH
       static_assert(
         allow_reserve == YesReserve,
         "When passing to malloc, cannot require NoResereve");
-      if constexpr (zero_mem == NoZero)
-        return malloc(size);
-      else
-        return calloc(1, size);
+      // snmalloc guarantees a lot of alignment, so we can depend on this
+      // make pass through call aligned_alloc with the alignment snmalloc
+      // would guarantee.
+      void* result = external_alloc::aligned_alloc(
+        natural_alignment(size), round_size(size));
+      if constexpr (zero_mem == YesZero)
+        memset(result, 0, size);
+      return result;
 #else
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
 
@@ -162,14 +167,18 @@ namespace snmalloc
     template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
     SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
     {
-#ifdef USE_MALLOC
+#ifdef SNMALLOC_PASS_THROUGH
       static_assert(
         allow_reserve == YesReserve,
         "When passing to malloc, cannot require NoResereve");
-      if constexpr (zero_mem == NoZero)
-        return malloc(size);
-      else
-        return calloc(1, size);
+      // snmalloc guarantees a lot of alignment, so we can depend on this
+      // make pass through call aligned_alloc with the alignment snmalloc
+      // would guarantee.
+      void* result = external_alloc::aligned_alloc(
+        natural_alignment(size), round_size(size));
+      if constexpr (zero_mem == YesZero)
+        memset(result, 0, size);
+      return result;
 #else
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
@@ -241,9 +250,9 @@ namespace snmalloc
     template<size_t size>
     void dealloc(void* p)
     {
-#ifdef USE_MALLOC
+#ifdef SNMALLOC_PASS_THROUGH
       UNUSED(size);
-      return free(p);
+      return external_alloc::free(p);
 #else
       check_size(p, size);
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
@@ -281,9 +290,9 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH void dealloc(void* p, size_t size)
     {
-#ifdef USE_MALLOC
+#ifdef SNMALLOC_PASS_THROUGH
       UNUSED(size);
-      return free(p);
+      return external_alloc::free(p);
 #else
       SNMALLOC_ASSERT(p != nullptr);
       check_size(p, size);
@@ -327,8 +336,8 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH void dealloc(void* p)
     {
-#ifdef USE_MALLOC
-      return free(p);
+#ifdef SNMALLOC_PASS_THROUGH
+      return external_alloc::free(p);
 #else
 
       uint8_t size = chunkmap().get(address_cast(p));
@@ -397,7 +406,7 @@ namespace snmalloc
     template<Boundary location = Start>
     static void* external_pointer(void* p)
     {
-#ifdef USE_MALLOC
+#ifdef SNMALLOC_PASS_THROUGH
       error("Unsupported");
       UNUSED(p);
 #else
@@ -463,6 +472,9 @@ namespace snmalloc
   public:
     SNMALLOC_FAST_PATH static size_t alloc_size(const void* p)
     {
+#ifdef SNMALLOC_PASS_THROUGH
+      return external_alloc::malloc_usable_size(const_cast<void*>(p));
+#else
       // This must be called on an external pointer.
       size_t size = ChunkMap::get(address_cast(p));
 
@@ -492,6 +504,7 @@ namespace snmalloc
       }
 
       return alloc_size_error();
+#endif
     }
 
     size_t get_id()

@@ -24,6 +24,18 @@ using namespace snmalloc;
 
 extern "C"
 {
+  void SNMALLOC_NAME_MANGLE(check_start)(void* ptr)
+  {
+#if !defined(NDEBUG) && !defined(SNMALLOC_PASS_THROUGH)
+    if (Alloc::external_pointer<Start>(ptr) != ptr)
+    {
+      error("Using pointer that is not to the start of an allocation");
+    }
+#else
+    UNUSED(ptr);
+#endif
+  }
+
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(__malloc_end_pointer)(void* ptr)
   {
     return Alloc::external_pointer<OnePastEnd>(ptr);
@@ -36,6 +48,7 @@ extern "C"
 
   SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(free)(void* ptr)
   {
+    SNMALLOC_NAME_MANGLE(check_start)(ptr);
     ThreadAlloc::get_noncachable()->dealloc(ptr);
   }
 
@@ -79,24 +92,26 @@ extern "C"
       SNMALLOC_NAME_MANGLE(free)(ptr);
       return nullptr;
     }
-#ifndef NDEBUG
-    // This check is redundant, because the check in memcpy will fail if this
-    // is skipped, but it's useful for debugging.
-    if (Alloc::external_pointer<Start>(ptr) != ptr)
-    {
-      error(
-        "Calling realloc on pointer that is not to the start of an allocation");
-    }
-#endif
+
+    SNMALLOC_NAME_MANGLE(check_start)(ptr);
+
     size_t sz = Alloc::alloc_size(ptr);
     // Keep the current allocation if the given size is in the same sizeclass.
     if (sz == round_size(size))
+    {
+#ifdef SNMALLOC_PASS_THROUGH
+      // snmallocs alignment guarantees can be broken by realloc in pass-through
+      // this is not exercised, by existing clients, but is tested.
+      if (pointer_align_up(ptr, natural_alignment(size)) == ptr)
+        return ptr;
+#else
       return ptr;
-
+#endif
+    }
     void* p = SNMALLOC_NAME_MANGLE(malloc)(size);
     if (p != nullptr)
     {
-      SNMALLOC_ASSERT(p == Alloc::external_pointer<Start>(p));
+      SNMALLOC_NAME_MANGLE(check_start)(p);
       sz = bits::min(size, sz);
       memcpy(p, ptr, sz);
       SNMALLOC_NAME_MANGLE(free)(ptr);

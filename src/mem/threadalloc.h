@@ -189,7 +189,7 @@ namespace snmalloc
      */
     static SNMALLOC_FAST_PATH Alloc* get()
     {
-#  ifdef USE_MALLOC
+#  ifdef SNMALLOC_PASS_THROUGH
       return get_reference();
 #  else
       auto*& alloc = get_reference();

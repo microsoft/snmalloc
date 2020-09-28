@@ -76,7 +76,7 @@ int main(int argc, char** argv)
 {
   UNUSED(argc);
   UNUSED(argv);
-
+#ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
   setup();
 
   add_n_allocs(5);
@@ -100,4 +100,5 @@ int main(int argc, char** argv)
 
   remove_n_allocs(3);
   std::cout << "Teardown complete!" << std::endl;
+#endif
 }

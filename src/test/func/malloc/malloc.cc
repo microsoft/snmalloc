@@ -22,7 +22,15 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
 
   const auto alloc_size = our_malloc_usable_size(p);
   const auto expected_size = round_size(size);
-  if ((align == 1) && (alloc_size != expected_size))
+#ifdef SNMALLOC_PASS_THROUGH
+  // Calling system allocator may allocate a larger block than
+  // snmalloc. Note, we have called the system allocator with
+  // the size snmalloc would allocate, so it won't be smaller.
+  const auto exact_size = false;
+#else
+  const auto exact_size = align == 1;
+#endif
+  if (exact_size && (alloc_size != expected_size))
   {
     printf(
       "Usable size is %zu, but required to be %zu.\n",
@@ -30,7 +38,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
       expected_size);
     abort();
   }
-  if ((align != 1) && (alloc_size < expected_size))
+  if ((!exact_size) && (alloc_size < expected_size))
   {
     printf(
       "Usable size is %zu, but required to be at least %zu.\n",
@@ -44,6 +52,16 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
       "Address is 0x%zx, but required to be aligned to 0x%zx.\n",
       reinterpret_cast<uintptr_t>(p),
       align);
+    abort();
+  }
+  if (
+    static_cast<size_t>(
+      reinterpret_cast<uintptr_t>(p) % natural_alignment(size)) != 0)
+  {
+    printf(
+      "Address is 0x%zx, but should have natural alignment to 0x%zx.\n",
+      reinterpret_cast<uintptr_t>(p),
+      natural_alignment(size));
     abort();
   }
 

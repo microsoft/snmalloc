@@ -140,7 +140,7 @@ void test_random_allocation()
         cell = alloc->alloc(16);
         auto pair = allocated.insert(cell);
         // Check not already allocated
-        SNMALLOC_ASSERT(pair.second);
+        SNMALLOC_CHECK(pair.second);
         UNUSED(pair);
         alloc_count++;
       }
@@ -197,14 +197,14 @@ void test_double_alloc()
     for (size_t i = 0; i < (n * 2); i++)
     {
       void* p = a1->alloc(20);
-      SNMALLOC_ASSERT(set1.find(p) == set1.end());
+      SNMALLOC_CHECK(set1.find(p) == set1.end());
       set1.insert(p);
     }
 
     for (size_t i = 0; i < (n * 2); i++)
     {
       void* p = a2->alloc(20);
-      SNMALLOC_ASSERT(set2.find(p) == set2.end());
+      SNMALLOC_CHECK(set2.find(p) == set2.end());
       set2.insert(p);
     }
 
@@ -245,8 +245,8 @@ void test_external_pointer()
       void* p4 = Alloc::external_pointer<End>(p2);
       UNUSED(p3);
       UNUSED(p4);
-      SNMALLOC_ASSERT(p1 == p3);
-      SNMALLOC_ASSERT((size_t)p4 == (size_t)p1 + size - 1);
+      SNMALLOC_CHECK(p1 == p3);
+      SNMALLOC_CHECK((size_t)p4 == (size_t)p1 + size - 1);
     }
 
     alloc->dealloc(p1, size);
@@ -348,7 +348,7 @@ void test_alloc_16M()
   const size_t size = 16'000'000;
 
   void* p1 = alloc->alloc(size);
-  SNMALLOC_ASSERT(Alloc::alloc_size(Alloc::external_pointer(p1)) >= size);
+  SNMALLOC_CHECK(Alloc::alloc_size(Alloc::external_pointer(p1)) >= size);
   alloc->dealloc(p1);
 }
 
@@ -359,7 +359,7 @@ void test_calloc_16M()
   const size_t size = 16'000'000;
 
   void* p1 = alloc->alloc<YesZero>(size);
-  SNMALLOC_ASSERT(Alloc::alloc_size(Alloc::external_pointer(p1)) >= size);
+  SNMALLOC_CHECK(Alloc::alloc_size(Alloc::external_pointer(p1)) >= size);
   alloc->dealloc(p1);
 }
 
@@ -373,7 +373,7 @@ void test_calloc_large_bug()
   const size_t size = (SUPERSLAB_SIZE << 3) - 7;
 
   void* p1 = alloc->alloc<YesZero>(size);
-  SNMALLOC_ASSERT(Alloc::alloc_size(Alloc::external_pointer(p1)) >= size);
+  SNMALLOC_CHECK(Alloc::alloc_size(Alloc::external_pointer(p1)) >= size);
   alloc->dealloc(p1);
 }
 
@@ -403,15 +403,17 @@ int main(int argc, char** argv)
   UNUSED(argv);
 #endif
 
-  test_calloc_large_bug();
-  test_external_pointer_dealloc_bug();
-  test_external_pointer_large();
   test_alloc_dealloc_64k();
   test_random_allocation();
   test_calloc();
   test_double_alloc();
+#ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
+  test_calloc_large_bug();
+  test_external_pointer_dealloc_bug();
+  test_external_pointer_large();
   test_external_pointer();
   test_alloc_16M();
   test_calloc_16M();
+#endif
   return 0;
 }
