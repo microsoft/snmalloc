@@ -10,6 +10,7 @@
 #endif
 #if !defined(OPEN_ENCLAVE) || defined(OPEN_ENCLAVE_SIMULATION)
 #  include "pal_apple.h"
+#  include "pal_dragonfly.h"
 #  include "pal_freebsd.h"
 #  include "pal_freebsd_kernel.h"
 #  include "pal_haiku.h"
@@ -43,6 +44,8 @@ namespace snmalloc
     PALOpenBSD;
 #  elif defined(__sun)
     PALSolaris;
+#  elif defined(__DragonFly__)
+    PALDragonfly;
 #  else
 #    error Unsupported platform
 #  endif
