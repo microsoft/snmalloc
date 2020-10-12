@@ -259,7 +259,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     add_shim(snmallocshim SHARED ${SHARED_FILES})
     add_shim(snmallocshim-1mib SHARED ${SHARED_FILES})
     add_shim(snmallocshim-16mib SHARED ${SHARED_FILES})
-    target_compile_definitions(snmallocshim-16mib PRIVATE SNMALOC_USE_LARGE_CHUNKS)
+    target_compile_definitions(snmallocshim-16mib PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
     # Build a shim with some settings from oe.
     add_shim(snmallocshim-oe SHARED ${SHARED_FILES})
     oe_simulate(snmallocshim-oe)
