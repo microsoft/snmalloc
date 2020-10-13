@@ -1,6 +1,9 @@
 #pragma once
 
 #ifdef SNMALLOC_PASS_THROUGH
+#  if defined(__HAIKU__)
+#    define _GNU_SOURCE
+#  endif
 #  include <stdlib.h>
 #  if defined(_WIN32) //|| defined(__APPLE__)
 #    error "Pass through not supported on this platform"
@@ -25,14 +28,13 @@ namespace snmalloc::external_alloc
     return malloc_size(ptr);
   }
 }
-#    elif defined(__linux__)
+#    elif defined(__linux__) || defined(__HAIKU__)
 #      include <malloc.h>
 namespace snmalloc::external_alloc
 {
   using ::malloc_usable_size;
 }
-#    elif defined(__sun) || defined(__HAIKU__) || defined(__NetBSD__) || \
-      defined(__OpenBSD__)
+#    elif defined(__sun) || defined(__NetBSD__) || defined(__OpenBSD__)
 namespace snmalloc::external_alloc
 {
   using ::malloc_usable_size;
