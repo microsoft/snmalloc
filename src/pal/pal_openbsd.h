@@ -22,6 +22,21 @@ namespace snmalloc
      * should add any required features.
      */
     static constexpr uint64_t pal_features = PALBSD::pal_features;
+
+    /**
+     *
+     * On OpenBSD, pages seem not discarded in due time
+     * despite normally MADV_FREE is normally fast enough
+     * in other platforms, thus some unit tests are failing.
+     *
+     * Notifying by discarding access instead.
+     */
+
+    void notify_not_using(void* p, size_t size) noexcept
+    {
+      SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, size));
+      mprotect(p, size, PROT_NONE);
+    }
   };
 } // namespace snmalloc
 #endif
