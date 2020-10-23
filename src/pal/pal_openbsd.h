@@ -32,10 +32,17 @@ namespace snmalloc
      * Notifying by discarding access instead.
      */
 
-    void notify_not_using(void* p, size_t size) noexcept
+    static void notify_not_using(void* p, size_t size) noexcept
     {
-      SNMALLOC_ASSERT(is_aligned_block<OS_PAGE_SIZE>(p, size));
+      SNMALLOC_ASSERT(is_aligned_block<PALOpenBSD::page_size>(p, size));
       mprotect(p, size, PROT_NONE);
+    }
+
+    template<ZeroMem zero_mem>
+    static void notify_using(void* p, size_t size)
+    {
+      SNMALLOC_ASSERT(is_aligned_block<PALOpenBSD::page_size>(p, size));
+      mprotect(p, size, PROT_READ | PROT_WRITE);
     }
   };
 } // namespace snmalloc
