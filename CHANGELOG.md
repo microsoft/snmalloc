@@ -1,5 +1,13 @@
 ## Changelog
 
+### 0.2.20
+- **upstream** pass through Haiku build fix. 
+- **upstream** fix typo in macro definition for 16MiB shared library shim.
+- **upstream** DragonFly support (userland).
+- **upstream** natural alignment for USE_MALLOC
+- **upstream** fix bug in pagemap when index has many level
+- **upstream** add constexpr annotation to align_up/down.
+
 ### 0.2.19
 
 - **upstream** stats
