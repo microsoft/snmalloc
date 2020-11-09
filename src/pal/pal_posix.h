@@ -135,6 +135,9 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
 #ifdef USE_POSIX_COMMIT_CHECKS
+      // Fill memory so that when we switch the pages back on we don't make
+      // assumptions on the content.
+      memset(p, 0x5a, size);
       mprotect(p, size, PROT_NONE);
 #else
       UNUSED(p);
