@@ -81,7 +81,10 @@ namespace snmalloc
     {
       allocator = alloc;
 
-      if (kind != Super)
+      // If Superslab is larger than a page, then we cannot guarantee it still
+      // has a valid layout as the subsequent pages could have been freed and
+      // zeroed, hence only skip initialisation if smaller.
+      if (kind != Super || (sizeof(Superslab) >= OS_PAGE_SIZE))
       {
         if (kind != Fresh)
         {
