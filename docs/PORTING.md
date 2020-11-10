@@ -52,7 +52,7 @@ static std::pair<void*, size_t> reserve_at_least(size_t size) noexcept;
 Only one of these needs to be implemented, depending on whether the underlying
 system can provide strongly aligned memory regions.
 If the system guarantees only page alignment, implement the second. The Pal is 
-free to overallocate based on the platforms desire and snmalloc
+free to overallocate based on the platform's desire and snmalloc
 will find suitably aligned blocks inside the region.  `reserve_at_least` should 
 not commit memory as snmalloc will commit the range of memory it requires of what 
 is returned.
@@ -70,7 +70,7 @@ The PAL is also responsible for advertising the page size:
 static constexpr size_t page_size = 0x1000;
 ```
 
-This is the size at which the PAL is able to mark memory as in-use or not-in-use.
+This is the granularity at which the PAL is able to mark memory as in-use or not-in-use.
 The PAL is free to advertise a size greater than the minimum page size if that would be more efficient.
 When a slab is deallocated, the PAL will be instructed to mark everything after the first `page_size` bytes as not-in-use and so larger values can lead to more memory overhead.
 
@@ -121,5 +121,4 @@ Rather than requiring these to copy and paste the code, a PAL that inherits from
     flags to all `mmap` calls.
  - `anonymous_memory_fd` allows the PAL to override the default file
    descriptor used for memory mappings.
-
 

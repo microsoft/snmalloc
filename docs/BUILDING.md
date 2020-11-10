@@ -35,7 +35,7 @@ Note that NetBSD, by default, ships with a toolchain that emits calls to
 To use snmalloc on NetBSD, you must either acquire a `libatomic` implementation
 (for example, from the GCC or LLVM project) or compile with clang.
 
-snmalloc has very few dependencies, CMake, Ninja, Clang 6.0 or later and a C++17
+snmalloc has very few dependencies: CMake, Ninja, Clang 6.0 or later and a C++17
 standard library.
 Building with GCC is currently not recommended because GCC emits calls to
 libatomic for 128-bit atomic operations.
@@ -73,7 +73,7 @@ LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
 ```
 
 ## Cross Compile for Android
-Android support is out-of-the-box.
+Android is supported out-of-the-box.
 
 To cross-compile the library for arm android, you can simply invoke CMake with the toolchain file and the andorid api settings (for more infomation, check this [document](https://developer.android.com/ndk/guides/cmake)).
 
@@ -116,4 +116,3 @@ You will also need to compile the relevant parts of snmalloc itself. Create a ne
 #include "snmalloc/src/override/malloc.cc"
 #include "snmalloc/src/override/new.cc"
 ```
-
