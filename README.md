@@ -63,7 +63,12 @@ Hence, please make sure the following libs are in your `PATH`:
 
 ## Changelog
 
+### 0.2.21
+
+- **upstream** bug fix for using failing to initialise meta-data
+
 ### 0.2.20
+
 - **upstream** pass through Haiku build fix. 
 - **upstream** fix typo in macro definition for 16MiB shared library shim.
 - **upstream** DragonFly support (userland).
@@ -77,12 +82,5 @@ Hence, please make sure the following libs are in your `PATH`:
 - **upstream** PAL updates and concepts
 - **upstream** ddd constexpr annotation to align_up/down
 - change macOS CI to follow xcode 12
-
-
-### 0.2.18
-
-- add msvc flag /EHsc to fix warning C4530
-
-
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 

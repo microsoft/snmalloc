@@ -1,6 +1,11 @@
 ## Changelog
 
+### 0.2.21
+
+- **upstream** bug fix for using failing to initialise meta-data
+
 ### 0.2.20
+
 - **upstream** pass through Haiku build fix. 
 - **upstream** fix typo in macro definition for 16MiB shared library shim.
 - **upstream** DragonFly support (userland).
