@@ -283,7 +283,8 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
       if (WIN32
           OR (CMAKE_SYSTEM_NAME STREQUAL NetBSD)
           OR (CMAKE_SYSTEM_NAME STREQUAL OpenBSD)
-          OR (CMAKE_SYSTEM_NAME STREQUAL DragonFly))
+          OR (CMAKE_SYSTEM_NAME STREQUAL DragonFly)
+          OR (CMAKE_SYSTEM_NAME STREQUAL SunOS))
         # Windows does not support aligned allocation well enough
         # for pass through.
         # NetBSD, OpenBSD and DragonFlyBSD do not support malloc*size calls.
