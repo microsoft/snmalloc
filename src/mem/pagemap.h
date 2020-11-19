@@ -2,6 +2,7 @@
 
 #include "../ds/bits.h"
 #include "../ds/helpers.h"
+#include "../ds/invalidptr.h"
 
 #include <atomic>
 #include <utility>
