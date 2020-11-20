@@ -56,15 +56,30 @@ namespace snmalloc
     SUPERSLAB_BITS > CMMediumslab, "Large allocations may be too small");
 
 #ifndef SNMALLOC_MAX_FLATPAGEMAP_SIZE
-// Use flat map is under a single node.
-#  define SNMALLOC_MAX_FLATPAGEMAP_SIZE PAGEMAP_NODE_SIZE
+/*
+ * Unless otherwise specified, use a flat pagemap for the chunkmap (1 byte per
+ * Superslab-sized and -aligned region of the address space) if either of the
+ * following hold:
+ *
+ *   - the platform supports LazyCommit and the flat structure would occupy 256
+ *     MiB or less.  256 MiB is more than adequate for 32-bit architectures and
+ *     is the size of the flat pagemap for a 48-bit AS with the default chunk
+ *     size or the USE_LARGE_CHUNKS chunksize (that is, configurations other
+ *     than USE_SMALL_CHUNKS).
+ *
+ *   - the platform does not support LazyCommit but the flat structure would
+ *     occupy less than PAGEMAP_NODE_SIZE (i.e., the backing store for an
+ *     internal tree node in the non-flat pagemap).
+ */
+#  define SNMALLOC_MAX_FLATPAGEMAP_SIZE \
+    (pal_supports<LazyCommit> ? 256ULL * 1024 * 1024 : PAGEMAP_NODE_SIZE)
 #endif
-  static constexpr bool USE_FLATPAGEMAP = pal_supports<LazyCommit> ||
-    (SNMALLOC_MAX_FLATPAGEMAP_SIZE >=
-     sizeof(FlatPagemap<SUPERSLAB_BITS, uint8_t>));
+  static constexpr bool CHUNKMAP_USE_FLATPAGEMAP =
+    SNMALLOC_MAX_FLATPAGEMAP_SIZE >=
+    sizeof(FlatPagemap<SUPERSLAB_BITS, uint8_t>);
 
   using ChunkmapPagemap = std::conditional_t<
-    USE_FLATPAGEMAP,
+    CHUNKMAP_USE_FLATPAGEMAP,
     FlatPagemap<SUPERSLAB_BITS, uint8_t>,
     Pagemap<SUPERSLAB_BITS, uint8_t, 0>>;
 
