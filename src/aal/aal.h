@@ -102,7 +102,7 @@ namespace snmalloc
      * architectures to avoid needing to implement a custom `prefetch` method
      * if they are used only with a compiler that provides the builtin.
      */
-    static inline void prefetch(void* ptr)
+    static inline void prefetch(void* ptr) noexcept
     {
 #if __has_builtin(__builtin_prefetch) && !defined(SNMALLOC_NO_AAL_BUILTINS)
       __builtin_prefetch(ptr);
@@ -119,7 +119,7 @@ namespace snmalloc
      * architectures to avoid needing to implement a custom `tick` method
      * if they are used only with a compiler that provides the builtin.
      */
-    static inline uint64_t tick()
+    static inline uint64_t tick() noexcept
     {
       if constexpr (
         (Arch::aal_features & NoCpuCycleCounters) == NoCpuCycleCounters)
