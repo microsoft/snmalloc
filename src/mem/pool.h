@@ -22,7 +22,7 @@ namespace snmalloc
   {
   private:
     friend Pooled<T>;
-    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename PrimAlloc>
     friend class MemoryProviderStateMixin;
 
     std::atomic_flag lock = ATOMIC_FLAG_INIT;

@@ -15,7 +15,7 @@ using namespace snmalloc;
 using T = size_t;
 static constexpr size_t GRANULARITY_BITS = 9;
 static constexpr T PRIME = 251;
-Pagemap<GRANULARITY_BITS, T, 0> pagemap_test;
+Pagemap<GRANULARITY_BITS, T, 0, PrimAlloc> pagemap_test;
 
 int main(int argc, char** argv)
 {

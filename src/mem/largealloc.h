@@ -14,7 +14,7 @@
 
 namespace snmalloc
 {
-  template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename PrimAlloc>
   class MemoryProviderStateMixin;
 
   class Largeslab : public Baseslab
@@ -24,7 +24,7 @@ namespace snmalloc
   private:
     template<class a, Construction c>
     friend class MPMCStack;
-    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename PrimAlloc>
     friend class MemoryProviderStateMixin;
     std::atomic<Largeslab*> next;
 
@@ -56,7 +56,7 @@ namespace snmalloc
   // This represents the state that the large allcoator needs to add to the
   // global state of the allocator.  This is currently stored in the memory
   // provider, so we add this in.
-  template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename PrimAlloc>
   class MemoryProviderStateMixin : public PalNotificationObject
   {
     /**
@@ -68,7 +68,7 @@ namespace snmalloc
     /**
      * Manages address space for this memory provider.
      */
-    AddressSpaceManager<PAL> address_space = {};
+    AddressSpaceManager<PAL, PrimAlloc> address_space = {};
 
     /**
      * High-water mark of used memory.
@@ -91,14 +91,14 @@ namespace snmalloc
     /**
      * Make a new memory provide for this PAL.
      */
-    static MemoryProviderStateMixin<PAL>* make() noexcept
+    static MemoryProviderStateMixin<PAL, PrimAlloc>* make() noexcept
     {
       // Temporary stack-based storage to start the allocator in.
-      MemoryProviderStateMixin<PAL> local{};
+      MemoryProviderStateMixin<PAL, PrimAlloc> local{};
 
       // Allocate permanent storage for the allocator usung temporary allocator
-      MemoryProviderStateMixin<PAL>* allocated =
-        local.alloc_chunk<MemoryProviderStateMixin<PAL>, 1>();
+      MemoryProviderStateMixin<PAL, PrimAlloc>* allocated =
+        local.alloc_chunk<MemoryProviderStateMixin<PAL, PrimAlloc>, 1>();
 
       if (allocated == nullptr)
         error("Failed to initialise system!");
@@ -114,7 +114,7 @@ namespace snmalloc
       ::memcpy(
         &(allocated->address_space),
         &(local.address_space),
-        sizeof(AddressSpaceManager<PAL>));
+        sizeof(AddressSpaceManager<PAL, PrimAlloc>));
 #ifdef GCC_VERSION_EIGHT_PLUS
 #  pragma GCC diagnostic pop
 #endif
@@ -182,7 +182,8 @@ namespace snmalloc
     static void process(PalNotificationObject* p)
     {
       // Unsafe downcast here. Don't want vtable and RTTI.
-      auto self = reinterpret_cast<MemoryProviderStateMixin<PAL>*>(p);
+      auto self =
+        reinterpret_cast<MemoryProviderStateMixin<PAL, PrimAlloc>*>(p);
       self->lazy_decommit();
     }
 
@@ -328,7 +329,9 @@ namespace snmalloc
     }
   };
 
-  using GlobalVirtual = MemoryProviderStateMixin<Pal>;
+  struct PrimAlloc;
+
+  using GlobalVirtual = MemoryProviderStateMixin<Pal, PrimAlloc>;
   /**
    * The memory provider that will be used if no other provider is explicitly
    * passed as an argument.
@@ -337,4 +340,13 @@ namespace snmalloc
   {
     return *(Singleton<GlobalVirtual*, GlobalVirtual::make>::get());
   }
+
+  struct PrimAlloc
+  {
+    template<typename T, size_t alignment, typename... Args>
+    static T* alloc_chunk(Args&&... args)
+    {
+      return default_memory_provider().alloc_chunk<T, alignment>(args...);
+    }
+  };
 } // namespace snmalloc

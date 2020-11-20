@@ -54,7 +54,11 @@ namespace snmalloc
    * static ChunkMap object, which encapsulates knowledge about the
    * pagemap's parametric type T.
    */
-  template<size_t GRANULARITY_BITS, typename T, T default_content>
+  template<
+    size_t GRANULARITY_BITS,
+    typename T,
+    T default_content,
+    typename PrimAlloc>
   class Pagemap
   {
   private:
@@ -154,8 +158,7 @@ namespace snmalloc
         if (e->compare_exchange_strong(
               value, LOCKED_ENTRY, std::memory_order_relaxed))
         {
-          auto& v = default_memory_provider();
-          value = v.alloc_chunk<PagemapEntry, OS_PAGE_SIZE>();
+          value = PrimAlloc::template alloc_chunk<PagemapEntry, OS_PAGE_SIZE>();
           e->store(value, std::memory_order_release);
         }
         else
