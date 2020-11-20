@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 /**
  * C++20 concepts are referenced as if they were types in declarations within
  * template parameters (e.g. "template<FooConcept Foo> ...").  That is, they

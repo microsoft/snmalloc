@@ -82,7 +82,7 @@ macro(clangformat_targets)
     file(GLOB_RECURSE ALL_SOURCE_FILES *.cc *.h *.hh)
     # clangformat does not yet understand concepts well; for the moment, don't
     # ask it to format them.  See https://reviews.llvm.org/D79773
-    list(FILTER ALL_SOURCE_FILES EXCLUDE REGEX "src/pal/pal_concept\.h$")
+    list(FILTER ALL_SOURCE_FILES EXCLUDE REGEX "src/[^/]*/[^/]*_concept\.h$")
     add_custom_target(
       clangformat
       COMMAND ${CLANG_FORMAT}
