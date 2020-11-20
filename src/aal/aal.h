@@ -1,5 +1,8 @@
 #pragma once
+#include "../ds/concept.h"
 #include "../ds/defines.h"
+#include "aal_concept.h"
+#include "aal_consts.h"
 
 #include <chrono>
 #include <cstdint>
@@ -29,38 +32,6 @@
 
 namespace snmalloc
 {
-  /**
-   * Flags in a bitfield of attributes of this architecture, much like
-   * PalFeatures.
-   */
-  enum AalFeatures : uint64_t
-  {
-    /**
-     * This architecture does not discriminate between integers and pointers,
-     * and so may use bit operations on pointer values.
-     */
-    IntegerPointers = (1 << 0),
-    /**
-     * This architecture cannot access cpu cycles counters.
-     */
-    NoCpuCycleCounters = (1 << 1),
-    /**
-     * This architecture enforces strict pointer provenance; we bound the
-     * pointers given out on malloc() and friends and must, therefore retain
-     * internal high-privilege pointers for recycling memory on free().
-     */
-    StrictProvenance = (1 << 2),
-  };
-
-  enum AalName : int
-  {
-    ARM,
-    PowerPC,
-    X86,
-    X86_SGX,
-    Sparc,
-  };
-
   /**
    * Architecture Abstraction Layer. Includes default implementations of some
    * functions using compiler builtins.  Falls back to the definitions in the
@@ -160,7 +131,7 @@ namespace snmalloc
 {
   using Aal = AAL_Generic<AAL_Arch>;
 
-  template<AalFeatures F, typename AAL = Aal>
+  template<AalFeatures F, SNMALLOC_CONCEPT(ConceptAAL) AAL = Aal>
   constexpr static bool aal_supports = (AAL::aal_features & F) == F;
 } // namespace snmalloc
 
