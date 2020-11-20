@@ -22,7 +22,7 @@ namespace snmalloc
   {
   private:
     friend Pooled<T>;
-    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename ArenaMap>
     friend class MemoryProviderStateMixin;
     friend SNMALLOC_DEFAULT_MEMORY_PROVIDER;
 

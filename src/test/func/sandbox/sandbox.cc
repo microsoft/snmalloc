@@ -43,14 +43,48 @@ namespace
   struct Sandbox
   {
     using NoOpPal = PALNoAlloc<DefaultPal>;
+
+    struct ArenaMap
+    {
+      /**
+       * A pointer with authority to the entire sandbox region
+       */
+      CapPtr<void, CBArena> arena_root;
+
+      /**
+       * Amplify using arena_root; that is, exclusively within the sandbox.
+       */
+      template<typename T = void, typename U, capptr_bounds B>
+      SNMALLOC_FAST_PATH CapPtr<T, CBArena> capptr_amplify(CapPtr<U, B> r)
+      {
+        return Aal::capptr_rebound<T>(arena_root, r);
+      }
+
+      /*
+       * This class does not implement register_root; there should be no
+       * attempts to call that function.
+       */
+    };
+
+    /**
+     * The MemoryProvider for sandbox-memory-backed Allocs, both inside and
+     * outside the sandbox proper: no memory allocation operations and
+     * amplification confined to sandbox memory.
+     */
+    using NoOpMemoryProvider = MemoryProviderStateMixin<NoOpPal, ArenaMap>;
+
     /**
      * Type for the allocator that lives outside of the sandbox and allocates
      * sandbox-owned memory.
+     * This Allocator, by virtue of having its amplification confined to
+     * the sandbox, can be used to free only allocations made from sandbox
+     * memory.  It (insecurely) routes messages to in-sandbox snmallocs,
+     * though, so it can free any sandbox-backed snmalloc allocation.
      */
     using ExternalAlloc = Allocator<
       never_init,
       no_op_init,
-      MemoryProviderStateMixin<NoOpPal>,
+      NoOpMemoryProvider,
       SNMALLOC_DEFAULT_CHUNKMAP,
       false>;
     /**
@@ -71,7 +105,7 @@ namespace
        * likely be only one of these inside any given sandbox and so this would
        * not have to be per-instance state.
        */
-      MemoryProviderStateMixin<NoOpPal>* real_state;
+      NoOpMemoryProvider* real_state;
 
       /**
        * Pop an element from the large stack for the specified size class,
@@ -105,6 +139,16 @@ namespace
       CapPtr<Largeslab, CBArena> reserve(size_t large_class) noexcept
       {
         return real_state->template reserve<committed>(large_class);
+      }
+
+      /**
+       * Amplify by appealing to the real_state, which has our sandbox
+       * ArenaMap implementation.
+       */
+      template<typename T = void, typename U, capptr_bounds B>
+      SNMALLOC_FAST_PATH CapPtr<T, CBArena> capptr_amplify(CapPtr<U, B> r)
+      {
+        return real_state->template capptr_amplify<T>(r);
       }
     };
 
@@ -143,7 +187,7 @@ namespace
     /**
      * The memory provider for this sandbox.
      */
-    MemoryProviderStateMixin<NoOpPal> state;
+    NoOpMemoryProvider state;
 
     /**
      * The allocator for callers outside the sandbox to allocate memory inside.
@@ -167,6 +211,9 @@ namespace
         sb_size - sizeof(SharedState)),
       alloc(state, SNMALLOC_DEFAULT_CHUNKMAP(), &shared_state->queue)
     {
+      // Register the sandbox memory with the sandbox arenamap
+      state.arenamap().arena_root = CapPtr<void, CBArena>(start);
+
       auto* state_proxy = static_cast<MemoryProviderProxy*>(
         alloc.alloc(sizeof(MemoryProviderProxy)));
       state_proxy->real_state = &state;
