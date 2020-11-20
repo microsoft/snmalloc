@@ -1,10 +1,109 @@
 #include "../ds/address.h"
 #include "../ds/flaglock.h"
 #include "../pal/pal.h"
+#include "pagemap.h"
 
 #include <array>
 namespace snmalloc
 {
+  template<
+    SNMALLOC_CONCEPT(ConceptPAL) PAL,
+    SNMALLOC_CONCEPT(ConceptAAL) AAL,
+    typename PrimAlloc>
+  class AuthMap
+  {
+    /*
+     * Without AlignedAllocation, we (below) adopt a fallback mechanism that
+     * over-allocates and then finds an aligned region within the too-large
+     * region.  The "trimmings" from either side are also registered in hopes
+     * that they can be used for later allocations.
+     *
+     * Unfortunately, that strategy does not work for this AuthMap: trimmings
+     * may be smaller than the granularity of our backing PageMap, and so
+     * we would be unable to amplify authority.  Eventually we may arrive at
+     * a need for an AuthMap that is compatible with this approach, but for
+     * the moment it's far simpler to assume that we can always ask for
+     * memory sufficiently aligned to cover an entire PageMap granule.
+     */
+    static_assert(
+      !aal_supports<StrictProvenance> || pal_supports<AlignedAllocation, PAL>,
+      "StrictProvenance requires platform support for aligned allocation");
+
+    struct default_alloc_size_t
+    {
+      static constexpr size_t ptrauth_root_alloc_size = 1;
+    };
+
+  public:
+    /*
+     * Compute the block allocation size to use for AlignedAllocations.  This
+     * is either PAL::ptrauth_root_alloc_size, on architectures that require
+     * StrictProvenance, or the placeholder from above.
+     */
+    static constexpr size_t alloc_size = std::conditional_t<
+      aal_supports<StrictProvenance, AAL>,
+      PAL,
+      default_alloc_size_t>::ptrauth_root_alloc_size;
+
+    /*
+     * Because we assume that we can `ptrauth_amplify` and then
+     * `Superslab::get()` on the result to get to the Superslab metadata
+     * headers, it must be the case that provenance roots cover entire
+     * Superslabs.
+     */
+    static_assert(
+      !aal_supports<StrictProvenance> ||
+        ((alloc_size > 0) && (alloc_size % SUPERSLAB_SIZE == 0)),
+      "Provenance root granule must encompass whole superslabs");
+
+  private:
+    static constexpr size_t AUTHMAP_BITS =
+      bits::next_pow2_bits_const(alloc_size);
+
+    static constexpr bool AUTHMAP_USE_FLATPAGEMAP = pal_supports<LazyCommit> ||
+      (PAGEMAP_NODE_SIZE >= sizeof(FlatPagemap<AUTHMAP_BITS, void*>));
+
+    struct default_auth_pagemap
+    {
+      template<typename T>
+      static SNMALLOC_FAST_PATH AuthPtr<T> get(address_t a)
+      {
+        UNUSED(a);
+        return nullptr;
+      }
+    };
+
+    using AuthPagemap = std::conditional_t<
+      aal_supports<StrictProvenance, AAL>,
+      std::conditional_t<
+        AUTHMAP_USE_FLATPAGEMAP,
+        FlatPagemap<AUTHMAP_BITS, void*>,
+        Pagemap<AUTHMAP_BITS, void*, nullptr, PrimAlloc>>,
+      default_auth_pagemap>;
+
+    AuthPagemap authmap_pagemap;
+
+  public:
+    void register_root(void* root)
+    {
+      if constexpr (aal_supports<StrictProvenance, AAL>)
+      {
+        authmap_pagemap.set(address_cast(root), root);
+      }
+      else
+      {
+        UNUSED(root);
+      }
+    }
+
+    template<typename T = void>
+    SNMALLOC_FAST_PATH AuthPtr<T> ptrauth_amplify(ReturnPtr r)
+    {
+      return AAL::ptrauth_rebound(
+        authmap_pagemap.template get<T>(address_cast(r.unsafe_return_ptr)), r);
+    }
+  };
+
   /**
    * Implements a power of two allocator, where all blocks are aligned to the
    * same power of two as their size. This is what snmalloc uses to get
@@ -164,6 +263,8 @@ namespace snmalloc
         page_start, static_cast<size_t>(page_end - page_start));
     }
 
+    AuthMap<PAL, Aal, PrimAlloc> auth_map = {};
+
   public:
     /**
      * Returns a pointer to a block of memory of the supplied size.
@@ -178,7 +279,13 @@ namespace snmalloc
       SNMALLOC_ASSERT(bits::next_pow2(size) == size);
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
-      if constexpr (pal_supports<AlignedAllocation, PAL>)
+      /*
+       * For sufficiently large allocations with platforms that support aligned
+       * allocations and architectures that don't require StrictProvenance,
+       * try asking the platform first.
+       */
+      if constexpr (
+        pal_supports<AlignedAllocation, PAL> && !aal_supports<StrictProvenance>)
       {
         if (size >= PAL::minimum_alloc_size)
           return PAL::template reserve_aligned<committed>(size);
@@ -195,7 +302,27 @@ namespace snmalloc
           size_t block_size;
           if constexpr (pal_supports<AlignedAllocation, PAL>)
           {
-            block_size = PAL::minimum_alloc_size;
+            /*
+             * aal_supports<StrictProvenance> ends up here, too, and we ensure
+             * that we always allocate whole AuthMap granules.
+             */
+            if constexpr (aal_supports<StrictProvenance>)
+            {
+              static_assert(
+                !aal_supports<StrictProvenance> ||
+                  (auth_map.alloc_size >= PAL::minimum_alloc_size),
+                "Provenance root granule must be at least PAL's "
+                "minimum_alloc_size");
+              block_size = align_up(size, auth_map.alloc_size);
+            }
+            else
+            {
+              /*
+               * We will have handled the case where size >= minimum_alloc_size
+               * above, so we are left to handle only small things here.
+               */
+              block_size = PAL::minimum_alloc_size;
+            }
             block = PAL::template reserve_aligned<false>(block_size);
           }
           else
@@ -224,6 +351,15 @@ namespace snmalloc
             return nullptr;
           }
           add_range(block, block_size);
+          if constexpr (aal_supports<StrictProvenance>)
+          {
+            do
+            {
+              auth_map.register_root(block);
+              block = pointer_offset(block, auth_map.alloc_size);
+              block_size -= auth_map.alloc_size;
+            } while (block_size > 0);
+          }
 
           // still holding lock so guaranteed to succeed.
           res = remove_block(bits::next_pow2_bits(size));
@@ -235,6 +371,12 @@ namespace snmalloc
         commit_block(res, size);
 
       return res;
+    }
+
+    template<typename T = void>
+    SNMALLOC_FAST_PATH AuthPtr<T> ptrauth_amplify(ReturnPtr r)
+    {
+      return auth_map.ptrauth_amplify(r);
     }
   };
 } // namespace snmalloc

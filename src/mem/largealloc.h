@@ -225,6 +225,12 @@ namespace snmalloc
       size_t peak = peak_memory_used_bytes;
       return {peak - avail, peak};
     }
+
+    template<typename T = void>
+    SNMALLOC_FAST_PATH AuthPtr<T> ptrauth_amplify(ReturnPtr r)
+    {
+      return address_space.ptrauth_amplify(r);
+    }
   };
 
   using Stats = AllocStats<NUM_SIZECLASSES, NUM_LARGE_CLASSES>;
@@ -328,6 +334,12 @@ namespace snmalloc
       stats.superslab_push();
       memory_provider.available_large_chunks_in_bytes += rsize;
       memory_provider.large_stack[large_class].push(static_cast<Largeslab*>(p));
+    }
+
+    template<typename T = void>
+    SNMALLOC_FAST_PATH AuthPtr<T> ptrauth_amplify(ReturnPtr r)
+    {
+      return memory_provider.ptrauth_amplify(r);
     }
   };
 
