@@ -295,7 +295,7 @@ void test_external_pointer_large()
     // store object
     objects[i] = (size_t*)alloc->alloc(size);
     // Store allocators size for this object
-    *objects[i] = Alloc::alloc_size(objects[i]);
+    *objects[i] = alloc->alloc_size(objects[i]);
 
     check_external_pointer_large(objects[i]);
     if (i > 0)
@@ -348,7 +348,7 @@ void test_alloc_16M()
   const size_t size = 16'000'000;
 
   void* p1 = alloc->alloc(size);
-  SNMALLOC_CHECK(Alloc::alloc_size(Alloc::external_pointer(p1)) >= size);
+  SNMALLOC_CHECK(alloc->alloc_size(Alloc::external_pointer(p1)) >= size);
   alloc->dealloc(p1);
 }
 
@@ -359,7 +359,7 @@ void test_calloc_16M()
   const size_t size = 16'000'000;
 
   void* p1 = alloc->alloc<YesZero>(size);
-  SNMALLOC_CHECK(Alloc::alloc_size(Alloc::external_pointer(p1)) >= size);
+  SNMALLOC_CHECK(alloc->alloc_size(Alloc::external_pointer(p1)) >= size);
   alloc->dealloc(p1);
 }
 
@@ -373,7 +373,7 @@ void test_calloc_large_bug()
   const size_t size = (SUPERSLAB_SIZE << 3) - 7;
 
   void* p1 = alloc->alloc<YesZero>(size);
-  SNMALLOC_CHECK(Alloc::alloc_size(Alloc::external_pointer(p1)) >= size);
+  SNMALLOC_CHECK(alloc->alloc_size(Alloc::external_pointer(p1)) >= size);
   alloc->dealloc(p1);
 }
 
