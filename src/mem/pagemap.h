@@ -53,8 +53,24 @@ namespace snmalloc
    * allocators do not interact with this directly but rather via the
    * static ChunkMap object, which encapsulates knowledge about the
    * pagemap's parametric type T.
+   *
+   * The other template paramters are...
+   *
+   *   GRANULARITY_BITS: the log2 of the size in bytes of the address space
+   *   granule associated with each entry.
+   *
+   *   default_content: An initial value of T (typically "0" or something akin)
+   *
+   *   PrimAlloc: A class used to source PageMap-internal memory; it must have a
+   *   method callable as if it had the following type:
+   *
+   *      template<typename T, size_t alignment> static T* alloc_chunk(void);
    */
-  template<size_t GRANULARITY_BITS, typename T, T default_content>
+  template<
+    size_t GRANULARITY_BITS,
+    typename T,
+    T default_content,
+    typename PrimAlloc>
   class Pagemap
   {
   private:
@@ -154,8 +170,7 @@ namespace snmalloc
         if (e->compare_exchange_strong(
               value, LOCKED_ENTRY, std::memory_order_relaxed))
         {
-          auto& v = default_memory_provider();
-          value = v.alloc_chunk<PagemapEntry, OS_PAGE_SIZE>();
+          value = PrimAlloc::template alloc_chunk<PagemapEntry, OS_PAGE_SIZE>();
           e->store(value, std::memory_order_release);
         }
         else
