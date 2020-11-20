@@ -390,4 +390,13 @@ namespace snmalloc
   {
     return *(Singleton<GlobalVirtual*, GlobalVirtual::make>::get());
   }
+
+  struct DefaultPrimAlloc
+  {
+    template<typename T, size_t alignment, typename... Args>
+    static T* alloc_chunk(Args&&... args)
+    {
+      return default_memory_provider().alloc_chunk<T, alignment>(args...);
+    }
+  };
 } // namespace snmalloc

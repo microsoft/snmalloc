@@ -81,7 +81,7 @@ namespace snmalloc
   using ChunkmapPagemap = std::conditional_t<
     CHUNKMAP_USE_FLATPAGEMAP,
     FlatPagemap<SUPERSLAB_BITS, uint8_t>,
-    Pagemap<SUPERSLAB_BITS, uint8_t, 0>>;
+    Pagemap<SUPERSLAB_BITS, uint8_t, 0, DefaultPrimAlloc>>;
 
   struct ForChunkmap
   {};
