@@ -33,7 +33,7 @@ namespace test
       // store object
       objects[i] = (size_t*)alloc->alloc(size);
       // Store allocators size for this object
-      *objects[i] = Alloc::alloc_size(objects[i]);
+      *objects[i] = alloc->alloc_size(objects[i]);
     }
   }
 

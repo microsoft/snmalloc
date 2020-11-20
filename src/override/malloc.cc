@@ -73,7 +73,7 @@ extern "C"
   size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(
     MALLOC_USABLE_SIZE_QUALIFIER void* ptr)
   {
-    return Alloc::alloc_size(ptr);
+    return ThreadAlloc::get_noncachable()->alloc_size(ptr);
   }
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(realloc)(void* ptr, size_t size)
@@ -95,7 +95,7 @@ extern "C"
 
     SNMALLOC_NAME_MANGLE(check_start)(ptr);
 
-    size_t sz = Alloc::alloc_size(ptr);
+    size_t sz = ThreadAlloc::get_noncachable()->alloc_size(ptr);
     // Keep the current allocation if the given size is in the same sizeclass.
     if (sz == round_size(size))
     {
