@@ -14,7 +14,7 @@
 
 namespace snmalloc
 {
-  template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename ArenaMap>
   class MemoryProviderStateMixin;
 
   class Largeslab : public Baseslab
@@ -30,7 +30,7 @@ namespace snmalloc
       template<typename>
       typename AP>
     friend class MPMCStack;
-    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename ArenaMap>
     friend class MemoryProviderStateMixin;
     AtomicCapPtr<Largeslab, CBArena> next = nullptr;
 
@@ -62,7 +62,7 @@ namespace snmalloc
   // This represents the state that the large allcoator needs to add to the
   // global state of the allocator.  This is currently stored in the memory
   // provider, so we add this in.
-  template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename ArenaMap>
   class MemoryProviderStateMixin
   {
     /**
@@ -72,9 +72,22 @@ namespace snmalloc
     std::atomic_flag lazy_decommit_guard = {};
 
     /**
+     * Instantiate the ArenaMap here.
+     *
+     * In most cases, this will be a purely static object (a DefaultArenaMap
+     * using a GlobalPagemapTemplate or ExternalGlobalPagemapTemplate).  For
+     * sandboxes, this may have per-instance state (e.g., the sandbox root);
+     * presently, that's handled by the MemoryProviderStateMixin constructor
+     * that takes a pointer to address space it owns.  There is some
+     * non-orthogonality of concerns here.
+     */
+    ArenaMap arena_map = {};
+
+    using ASM = AddressSpaceManager<PAL, ArenaMap>;
+    /**
      * Manages address space for this memory provider.
      */
-    AddressSpaceManager<PAL> address_space = {};
+    ASM address_space = {};
 
     /**
      * High-water mark of used memory.
@@ -143,24 +156,26 @@ namespace snmalloc
     /**
      * Make a new memory provide for this PAL.
      */
-    static MemoryProviderStateMixin<PAL>* make() noexcept
+    static MemoryProviderStateMixin* make() noexcept
     {
       // Temporary stack-based storage to start the allocator in.
-      AddressSpaceManager<PAL> local{};
+      ASM local_asm{};
+      ArenaMap local_am{};
 
       // Allocate permanent storage for the allocator usung temporary allocator
-      MemoryProviderStateMixin<PAL>* allocated =
-        local
+      MemoryProviderStateMixin* allocated =
+        local_asm
           .template reserve_with_left_over<true>(
-            sizeof(MemoryProviderStateMixin<PAL>))
-          .template as_static<MemoryProviderStateMixin<PAL>>()
+            sizeof(MemoryProviderStateMixin), local_am)
+          .template as_static<MemoryProviderStateMixin>()
           .unsafe_capptr;
 
       if (allocated == nullptr)
         error("Failed to initialise system!");
 
       // Move address range inside itself
-      allocated->address_space = std::move(local);
+      allocated->address_space = std::move(local_asm);
+      allocated->arena_map = std::move(local_am);
 
       // Register this allocator for low-memory call-backs
       if constexpr (pal_supports<LowMemoryNotification, PAL>)
@@ -224,7 +239,7 @@ namespace snmalloc
 
     class LowMemoryNotificationObject : public PalNotificationObject
     {
-      MemoryProviderStateMixin<PAL>* memory_provider;
+      MemoryProviderStateMixin* memory_provider;
 
       /***
        * Method for callback object to perform lazy decommit.
@@ -237,8 +252,7 @@ namespace snmalloc
       }
 
     public:
-      LowMemoryNotificationObject(
-        MemoryProviderStateMixin<PAL>* memory_provider)
+      LowMemoryNotificationObject(MemoryProviderStateMixin* memory_provider)
       : PalNotificationObject(&process), memory_provider(memory_provider)
       {}
     };
@@ -254,7 +268,8 @@ namespace snmalloc
       // Cache line align
       size_t size = bits::align_up(sizeof(T), 64);
       size = bits::max(size, alignment);
-      auto p = address_space.template reserve_with_left_over<true>(size);
+      auto p =
+        address_space.template reserve_with_left_over<true>(size, arena_map);
       if (p == nullptr)
         return nullptr;
 
@@ -268,7 +283,7 @@ namespace snmalloc
     {
       size_t size = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
       peak_memory_used_bytes += size;
-      return address_space.template reserve<committed>(size)
+      return address_space.template reserve<committed>(size, arena_map)
         .template as_static<Largeslab>();
     }
 
@@ -281,6 +296,17 @@ namespace snmalloc
       size_t avail = available_large_chunks_in_bytes;
       size_t peak = peak_memory_used_bytes;
       return {peak - avail, peak};
+    }
+
+    template<typename T, typename U, capptr_bounds B>
+    SNMALLOC_FAST_PATH CapPtr<T, CBArena> capptr_amplify(CapPtr<U, B> r)
+    {
+      return arena_map.template capptr_amplify<T, U, B>(r);
+    }
+
+    ArenaMap& arenamap()
+    {
+      return arena_map;
     }
   };
 
@@ -379,10 +405,19 @@ namespace snmalloc
       stats.superslab_push();
       memory_provider.push_large_stack(p, large_class);
     }
+
+    template<typename T = void, typename U, capptr_bounds B>
+    SNMALLOC_FAST_PATH CapPtr<T, CBArena> capptr_amplify(CapPtr<U, B> r)
+    {
+      return memory_provider.template capptr_amplify<T, U, B>(r);
+    }
   };
 
+  struct DefaultPrimAlloc;
+
 #ifndef SNMALLOC_DEFAULT_MEMORY_PROVIDER
-#  define SNMALLOC_DEFAULT_MEMORY_PROVIDER MemoryProviderStateMixin<Pal>
+#  define SNMALLOC_DEFAULT_MEMORY_PROVIDER \
+    MemoryProviderStateMixin<Pal, DefaultArenaMap<Pal, DefaultPrimAlloc>>
 #endif
 
   /**

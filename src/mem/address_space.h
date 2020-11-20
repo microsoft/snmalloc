@@ -1,6 +1,7 @@
 #include "../ds/address.h"
 #include "../ds/flaglock.h"
 #include "../pal/pal.h"
+#include "arenamap.h"
 
 #include <array>
 namespace snmalloc
@@ -13,7 +14,7 @@ namespace snmalloc
    * It cannot unreserve memory, so this does not require the
    * usual complexity of a buddy allocator.
    */
-  template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename ArenaMap>
   class AddressSpaceManager
   {
     /**
@@ -173,14 +174,24 @@ namespace snmalloc
      * The returned block is guaranteed to be aligened to the size.
      *
      * Only request 2^n sizes, and not less than a pointer.
+     *
+     * On StrictProvenance architectures, any underlying allocations made as
+     * part of satisfying the request will be registered with the provided
+     * arena_map for use in subsequent amplification.
      */
     template<bool committed>
-    CapPtr<void, CBArena> reserve(size_t size)
+    CapPtr<void, CBArena> reserve(size_t size, ArenaMap& arena_map)
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
-      if constexpr (pal_supports<AlignedAllocation, PAL>)
+      /*
+       * For sufficiently large allocations with platforms that support aligned
+       * allocations and architectures that don't require StrictProvenance,
+       * try asking the platform first.
+       */
+      if constexpr (
+        pal_supports<AlignedAllocation, PAL> && !aal_supports<StrictProvenance>)
       {
         if (size >= PAL::minimum_alloc_size)
           return CapPtr<void, CBArena>(
@@ -198,9 +209,43 @@ namespace snmalloc
           size_t block_size = 0;
           if constexpr (pal_supports<AlignedAllocation, PAL>)
           {
-            block_size = PAL::minimum_alloc_size;
-            block = CapPtr<void, CBArena>(
-              PAL::template reserve_aligned<false>(block_size));
+            /*
+             * aal_supports<StrictProvenance> ends up here, too, and we ensure
+             * that we always allocate whole ArenaMap granules.
+             */
+            if constexpr (aal_supports<StrictProvenance>)
+            {
+              static_assert(
+                !aal_supports<StrictProvenance> ||
+                  (ArenaMap::alloc_size >= PAL::minimum_alloc_size),
+                "Provenance root granule must be at least PAL's "
+                "minimum_alloc_size");
+              block_size = bits::align_up(size, ArenaMap::alloc_size);
+            }
+            else
+            {
+              /*
+               * We will have handled the case where size >= minimum_alloc_size
+               * above, so we are left to handle only small things here.
+               */
+              block_size = PAL::minimum_alloc_size;
+            }
+
+            void* block_raw = PAL::template reserve_aligned<false>(block_size);
+
+            block = CapPtr<void, CBArena>(block_raw);
+
+            if constexpr (aal_supports<StrictProvenance>)
+            {
+              auto root_block = CapPtr<void, CBArena>(block_raw);
+              auto root_size = block_size;
+              do
+              {
+                arena_map.register_root(root_block);
+                root_block = pointer_offset(root_block, ArenaMap::alloc_size);
+                root_size -= ArenaMap::alloc_size;
+              } while (root_size > 0);
+            }
           }
           else if constexpr (!pal_supports<NoAllocation, PAL>)
           {
@@ -249,7 +294,8 @@ namespace snmalloc
      * used, by smaller objects.
      */
     template<bool committed>
-    CapPtr<void, CBArena> reserve_with_left_over(size_t size)
+    CapPtr<void, CBArena>
+    reserve_with_left_over(size_t size, ArenaMap& arena_map)
     {
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
@@ -257,7 +303,7 @@ namespace snmalloc
 
       size_t rsize = bits::next_pow2(size);
 
-      auto res = reserve<false>(rsize);
+      auto res = reserve<false>(rsize, arena_map);
 
       if (res != nullptr)
       {

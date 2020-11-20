@@ -33,7 +33,9 @@ using namespace snmalloc;
 int main()
 {
 #ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
-  auto& mp = *MemoryProviderStateMixin<DefaultPal>::make();
+  auto& mp = *MemoryProviderStateMixin<
+    DefaultPal,
+    DefaultArenaMap<DefaultPal, DefaultPrimAlloc>>::make();
 
   // 28 is large enough to produce a nested allocator.
   // It is also large enough for the example to run in.
