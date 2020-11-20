@@ -429,13 +429,13 @@ namespace snmalloc
     }
 
   public:
-    SNMALLOC_FAST_PATH static size_t alloc_size(const void* p)
+    SNMALLOC_FAST_PATH size_t alloc_size(const void* p)
     {
 #ifdef SNMALLOC_PASS_THROUGH
       return external_alloc::malloc_usable_size(const_cast<void*>(p));
 #else
       // This must be called on an external pointer.
-      size_t chunkmap_slab_kind = ChunkMap::get(address_cast(p));
+      size_t chunkmap_slab_kind = chunkmap().get(address_cast(p));
 
       if (likely(chunkmap_slab_kind == CMSuperslab))
       {
