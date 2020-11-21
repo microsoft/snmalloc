@@ -1,11 +1,13 @@
 #pragma once
 #include "../ds/concept.h"
 #include "../ds/defines.h"
+#include "../ds/ptrwrap.h"
 #include "aal_concept.h"
 #include "aal_consts.h"
 
 #include <chrono>
 #include <cstdint>
+#include <utility>
 
 #if defined(__i386__) || defined(_M_IX86) || defined(_X86_) || \
   defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || \
@@ -113,6 +115,48 @@ namespace snmalloc
     }
   };
 
+  template<class Arch>
+  class AAL_NoStrictProvenance : public Arch
+  {
+    static_assert(
+      (Arch::aal_features & StrictProvenance) == 0,
+      "AAL_NoStrictProvenance requires what it says on the tin");
+
+  public:
+    /**
+     * For architectures which do not enforce StrictProvenance, we can just
+     * perform an underhanded bit of type-casting.
+     */
+    template<
+      typename T,
+      enum capptr_bounds nbounds,
+      enum capptr_bounds obounds,
+      typename U = T>
+    static SNMALLOC_FAST_PATH CapPtr<T, nbounds>
+    capptr_bound(CapPtr<U, obounds> a, size_t size) noexcept
+    {
+      // Impose constraints on bounds annotations.
+      static_assert(
+        obounds == CBArena || obounds == CBChunkD || obounds == CBChunk ||
+        obounds == CBChunkE);
+      static_assert(capptr_is_bounds_refinement<obounds, nbounds>());
+
+      UNUSED(size);
+      return CapPtr<T, nbounds>(a.template as_static<T>().unsafe_capptr);
+    }
+
+    /**
+     * For architectures which do not enforce StrictProvenance, there's nothing
+     * to be done, so just return the pointer unmodified with new annotation.
+     */
+    template<typename T, capptr_bounds BOut, capptr_bounds BIn>
+    static SNMALLOC_FAST_PATH CapPtr<T, BOut>
+    capptr_rebound(CapPtr<void, BOut> a, CapPtr<T, BIn> r) noexcept
+    {
+      UNUSED(a);
+      return CapPtr<T, BOut>(r.unsafe_capptr);
+    }
+  };
 } // namespace snmalloc
 
 #if defined(PLATFORM_IS_X86)
@@ -129,7 +173,7 @@ namespace snmalloc
 
 namespace snmalloc
 {
-  using Aal = AAL_Generic<AAL_Arch>;
+  using Aal = AAL_Generic<AAL_NoStrictProvenance<AAL_Arch>>;
 
   template<AalFeatures F, SNMALLOC_CONCEPT(ConceptAAL) AAL = Aal>
   constexpr static bool aal_supports = (AAL::aal_features & F) == F;

@@ -70,6 +70,30 @@ namespace snmalloc
   static constexpr size_t OS_PAGE_SIZE = Pal::page_size;
 
   /**
+   * Perform platform-specific adjustment of return pointers.
+   *
+   * This is here, rather than in every PAL proper, merely to minimize
+   * disruption to PALs for platforms that do not support StrictProvenance AALs.
+   */
+  template<typename PAL = Pal, typename AAL = Aal, typename T, capptr_bounds B>
+  static SNMALLOC_FAST_PATH typename std::enable_if_t<
+    !aal_supports<StrictProvenance, AAL>,
+    CapPtr<T, capptr_export_type<B>()>>
+  capptr_export(CapPtr<T, B> p)
+  {
+    return CapPtr<T, capptr_export_type<B>()>(p.unsafe_capptr);
+  }
+
+  template<typename PAL = Pal, typename AAL = Aal, typename T, capptr_bounds B>
+  static SNMALLOC_FAST_PATH typename std::enable_if_t<
+    aal_supports<StrictProvenance, AAL>,
+    CapPtr<T, capptr_export_type<B>()>>
+  capptr_export(CapPtr<T, B> p)
+  {
+    return PAL::capptr_export(p);
+  }
+
+  /**
    * A convenience wrapper that avoids the need to litter unsafe accesses with
    * every call to PAL::zero.
    *
