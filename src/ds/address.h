@@ -1,6 +1,7 @@
 #pragma once
 #include "../pal/pal_consts.h"
 #include "bits.h"
+#include "ptrwrap.h"
 
 #include <cstdint>
 
@@ -24,6 +25,13 @@ namespace snmalloc
     return reinterpret_cast<U*>(reinterpret_cast<char*>(base) + diff);
   }
 
+  template<enum capptr_bounds bounds, typename T>
+  inline CapPtr<void, bounds>
+  pointer_offset(CapPtr<T, bounds> base, size_t diff)
+  {
+    return CapPtr<void, bounds>(pointer_offset(base.unsafe_capptr, diff));
+  }
+
   /**
    * Perform pointer arithmetic and return the adjusted pointer.
    */
@@ -31,6 +39,14 @@ namespace snmalloc
   inline U* pointer_offset_signed(T* base, ptrdiff_t diff)
   {
     return reinterpret_cast<U*>(reinterpret_cast<char*>(base) + diff);
+  }
+
+  template<enum capptr_bounds bounds, typename T>
+  inline CapPtr<void, bounds>
+  pointer_offset_signed(CapPtr<T, bounds> base, ptrdiff_t diff)
+  {
+    return CapPtr<void, bounds>(
+      pointer_offset_signed(base.unsafe_capptr, diff));
   }
 
   /**
@@ -42,16 +58,36 @@ namespace snmalloc
     return reinterpret_cast<address_t>(ptr);
   }
 
+  /*
+   * Provide address_cast methods for the provenance-hinting pointer wrapper
+   * types as well.  While we'd prefer that these be methods on the wrapper
+   * type, they have to be defined later, because the AAL both define address_t,
+   * as per above, and uses the wrapper types in its own definition, e.g., of
+   * capptr_bound.
+   */
+
+  template<typename T, enum capptr_bounds bounds>
+  inline address_t address_cast(CapPtr<T, bounds> a)
+  {
+    return address_cast(a.unsafe_capptr);
+  }
+
   /**
    * Test if a pointer is aligned to a given size, which must be a power of
    * two.
    */
   template<size_t alignment>
-  static inline bool is_aligned_block(void* p, size_t size)
+  static inline bool is_aligned_block(address_t p, size_t size)
   {
     static_assert(bits::is_pow2(alignment));
 
-    return ((address_cast(p) | size) & (alignment - 1)) == 0;
+    return ((p | size) & (alignment - 1)) == 0;
+  }
+
+  template<size_t alignment>
+  static inline bool is_aligned_block(void* p, size_t size)
+  {
+    return is_aligned_block<alignment>(address_cast(p), size);
   }
 
   /**
@@ -74,6 +110,12 @@ namespace snmalloc
         bits::align_down(reinterpret_cast<uintptr_t>(p), alignment));
 #endif
     }
+  }
+
+  template<size_t alignment, typename T, capptr_bounds bounds>
+  inline CapPtr<T, bounds> pointer_align_down(CapPtr<void, bounds> p)
+  {
+    return CapPtr<T, bounds>(pointer_align_down<alignment, T>(p.unsafe_capptr));
   }
 
   template<size_t alignment>
@@ -102,6 +144,12 @@ namespace snmalloc
         bits::align_up(reinterpret_cast<uintptr_t>(p), alignment));
 #endif
     }
+  }
+
+  template<size_t alignment, typename T = void, enum capptr_bounds bounds>
+  inline CapPtr<T, bounds> pointer_align_up(CapPtr<void, bounds> p)
+  {
+    return CapPtr<T, bounds>(pointer_align_up<alignment, T>(p.unsafe_capptr));
   }
 
   template<size_t alignment>
@@ -144,6 +192,13 @@ namespace snmalloc
 #endif
   }
 
+  template<typename T = void, enum capptr_bounds bounds>
+  inline CapPtr<T, bounds>
+  pointer_align_up(CapPtr<void, bounds> p, size_t alignment)
+  {
+    return CapPtr<T, bounds>(pointer_align_up<T>(p.unsafe_capptr, alignment));
+  }
+
   /**
    * Compute the difference in pointers in units of char.  base is
    * expected to point to the base of some (sub)allocation into which cursor
@@ -156,6 +211,16 @@ namespace snmalloc
       static_cast<char*>(cursor) - static_cast<char*>(base));
   }
 
+  template<
+    typename T = void,
+    typename U = void,
+    enum capptr_bounds Tbounds,
+    enum capptr_bounds Ubounds>
+  inline size_t pointer_diff(CapPtr<T, Tbounds> base, CapPtr<U, Ubounds> cursor)
+  {
+    return pointer_diff(base.unsafe_capptr, cursor.unsafe_capptr);
+  }
+
   /**
    * Compute the difference in pointers in units of char. This can be used
    * across allocations.
@@ -164,6 +229,17 @@ namespace snmalloc
   {
     return static_cast<ptrdiff_t>(
       static_cast<char*>(cursor) - static_cast<char*>(base));
+  }
+
+  template<
+    typename T = void,
+    typename U = void,
+    enum capptr_bounds Tbounds,
+    enum capptr_bounds Ubounds>
+  inline ptrdiff_t
+  pointer_diff_signed(CapPtr<T, Tbounds> base, CapPtr<U, Ubounds> cursor)
+  {
+    return pointer_diff_signed(base.unsafe_capptr, cursor.unsafe_capptr);
   }
 
 } // namespace snmalloc
