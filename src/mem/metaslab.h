@@ -140,9 +140,10 @@ namespace snmalloc
       return (slab_end - allocation_start) % size == 0;
     }
 
-    static Slab* get_slab(const void* p)
+    template<typename T = void>
+    static Slab* get_slab(AuthPtr<T> a)
     {
-      return pointer_align_down<SLAB_SIZE, Slab>(const_cast<void*>(p));
+      return pointer_align_down<SLAB_SIZE, Slab>(a.unsafe_auth_ptr);
     }
 
     static bool is_short(Slab* p)
@@ -167,7 +168,7 @@ namespace snmalloc
       bool both = false;
       while (curr != nullptr)
       {
-        if (get_slab(curr) != slab)
+        if (get_slab(mk_authptr(curr)) != slab)
         {
           error("Free list corruption, not correct slab.");
         }

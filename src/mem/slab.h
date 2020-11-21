@@ -22,7 +22,7 @@ namespace snmalloc
   public:
     Metaslab& get_meta()
     {
-      Superslab* super = Superslab::get(this);
+      Superslab* super = Superslab::get(mk_authptr(this));
       return super->get_meta(this);
     }
 
@@ -63,7 +63,7 @@ namespace snmalloc
       meta.set_full();
       sl.get_next()->remove();
 
-      SNMALLOC_ASSERT(is_start_of_object(Superslab::get(p), p));
+      SNMALLOC_ASSERT(is_start_of_object(Superslab::get(mk_authptr(p)), p));
 
       meta.debug_slab_invariant(this);
 

@@ -44,10 +44,10 @@ namespace snmalloc
       return bits::align_up(sizeof(Mediumslab), min(OS_PAGE_SIZE, SLAB_SIZE));
     }
 
-    static Mediumslab* get(const void* p)
+    template<typename T = void>
+    static Mediumslab* get(AuthPtr<T> a)
     {
-      return pointer_align_down<SUPERSLAB_SIZE, Mediumslab>(
-        const_cast<void*>(p));
+      return pointer_align_down<SUPERSLAB_SIZE, Mediumslab>(a.unsafe_auth_ptr);
     }
 
     void init(RemoteAllocator* alloc, sizeclass_t sc, size_t rsize)

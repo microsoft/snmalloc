@@ -65,10 +65,10 @@ namespace snmalloc
       StatusChange = 2
     };
 
-    static Superslab* get(const void* p)
+    template<typename T = void>
+    static Superslab* get(AuthPtr<T> a)
     {
-      return pointer_align_down<SUPERSLAB_SIZE, Superslab>(
-        const_cast<void*>(p));
+      return pointer_align_down<SUPERSLAB_SIZE, Superslab>(a.unsafe_auth_ptr);
     }
 
     static bool is_short_sizeclass(sizeclass_t sizeclass)
