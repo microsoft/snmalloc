@@ -1,6 +1,7 @@
 #pragma once
 #include "../ds/concept.h"
 #include "../ds/defines.h"
+#include "../ds/ptrwrap.h"
 #include "aal_concept.h"
 #include "aal_consts.h"
 
@@ -113,6 +114,38 @@ namespace snmalloc
     }
   };
 
+  template<class Arch>
+  class AAL_NoStrictProvenance : public Arch
+  {
+    static_assert(
+      (Arch::aal_features & StrictProvenance) == 0,
+      "AAL_NoStrictProvenance requires what it says on the tin");
+
+  public:
+    /**
+     * For architectures which do not enforce StrictProvenance, we can just
+     * perform an underhanded bit of type-casting to get a FreePtr
+     */
+    template<typename T, typename U = T>
+    static SNMALLOC_FAST_PATH FreePtr<T>
+    ptrauth_bound(AuthPtr<U> a, size_t size) noexcept
+    {
+      UNUSED(size);
+      return unsafe_mk_freeptr<T>(a);
+    }
+
+    /**
+     * For architectures which do not enforce StrictProvenance, there's nothing
+     * to be done, so extract the pointer from the ReturnPtr.
+     */
+    template<typename T>
+    static SNMALLOC_FAST_PATH AuthPtr<T>
+    ptrauth_rebound(AuthPtr<T> a, ReturnPtr r) noexcept
+    {
+      UNUSED(a);
+      return mk_authptr<T>(r.unsafe_return_ptr);
+    }
+  };
 } // namespace snmalloc
 
 #if defined(PLATFORM_IS_X86)
@@ -129,7 +162,7 @@ namespace snmalloc
 
 namespace snmalloc
 {
-  using Aal = AAL_Generic<AAL_Arch>;
+  using Aal = AAL_Generic<AAL_NoStrictProvenance<AAL_Arch>>;
 
   template<AalFeatures F, SNMALLOC_CONCEPT(ConceptAAL) AAL = Aal>
   constexpr static bool aal_supports = (AAL::aal_features & F) == F;
