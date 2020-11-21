@@ -1,6 +1,7 @@
 #pragma once
 #include "../pal/pal_consts.h"
 #include "bits.h"
+#include "ptrwrap.h"
 
 #include <cstdint>
 
@@ -24,6 +25,12 @@ namespace snmalloc
     return reinterpret_cast<T*>(reinterpret_cast<char*>(base) + diff);
   }
 
+  template<typename T>
+  inline AuthPtr<T> pointer_offset(AuthPtr<T> base, size_t diff)
+  {
+    return mk_authptr<T>(pointer_offset(base.unsafe_auth_ptr, diff));
+  }
+
   /**
    * Perform pointer arithmetic and return the adjusted pointer.
    */
@@ -40,6 +47,18 @@ namespace snmalloc
   inline address_t address_cast(T* ptr)
   {
     return reinterpret_cast<address_t>(ptr);
+  }
+
+  template<typename T>
+  inline address_t address_cast(AuthPtr<T> a)
+  {
+    return reinterpret_cast<address_t>(a.unsafe_auth_ptr);
+  }
+
+  template<typename T>
+  inline address_t address_cast(FreePtr<T> a)
+  {
+    return reinterpret_cast<address_t>(a.unsafe_free_ptr);
   }
 
   /**
@@ -98,6 +117,12 @@ namespace snmalloc
     }
   }
 
+  template<size_t alignment, typename T = void>
+  inline AuthPtr<T> pointer_align_up(AuthPtr<T> p)
+  {
+    return mk_authptr<T>(pointer_align_up<alignment, T>(p.unsafe_auth_ptr));
+  }
+
   /**
    * Align a pointer down to a dynamically specified granularity, which must be
    * a power of two.
@@ -130,6 +155,12 @@ namespace snmalloc
     return reinterpret_cast<T*>(
       bits::align_up(reinterpret_cast<uintptr_t>(p), alignment));
 #endif
+  }
+
+  template<typename T = void>
+  inline AuthPtr<T> pointer_align_up(AuthPtr<T> p, size_t alignment)
+  {
+    return mk_authptr<T>(pointer_align_up<T>(p.unsafe_auth_ptr, alignment));
   }
 
   /**
