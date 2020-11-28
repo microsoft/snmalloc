@@ -49,7 +49,11 @@ namespace snmalloc
 #ifdef _MSC_VER
       __prefetch(ptr);
 #else
+#  ifdef SNMALLOC_VA_BITS_64
       __asm__ volatile("prfm pldl1keep, [%0]" : "=r"(ptr));
+#  else
+      __asm__ volatile("pld\t[%0]" : "=r"(ptr));
+#  endif
 #endif
     }
   };
