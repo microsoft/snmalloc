@@ -47,15 +47,22 @@ int main()
 
   // Call these functions to trigger asserts if the cast-to-self doesn't work.
   const PagemapConfig* c;
+
+  std::cout << "Get enclave pagemap" << std::endl;
   enclave_snmalloc_pagemap_global_get(&c);
+  std::cout << "Get host pagemap" << std::endl;
   host_snmalloc_pagemap_global_get(&c);
 
+  std::cout << "host_malloc(128)" << std::endl;
   auto a = host_malloc(128);
-  auto b = enclave_malloc(128);
-
   std::cout << "Host alloc " << a << std::endl;
+  std::cout << "enclave_malloc(128)" << std::endl;
+  auto b = enclave_malloc(128);
   std::cout << "Enclave alloc " << b << std::endl;
 
+  std::cout << "host_free(...)" << std::endl;
   host_free(a);
+  std::cout << "enclave_free(...)" << std::endl;
   enclave_free(b);
+  std::cout << "." << std::endl;
 }

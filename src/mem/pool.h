@@ -36,7 +36,7 @@ namespace snmalloc
 
     static Pool* make(MemoryProvider& memory_provider) noexcept
     {
-      return memory_provider.template alloc_chunk<Pool, 0, MemoryProvider&>(
+      return memory_provider.template alloc_chunk<Pool, MemoryProvider&>(
         memory_provider);
     }
 
@@ -57,8 +57,7 @@ namespace snmalloc
       }
 
       p = memory_provider
-            .template alloc_chunk<T, bits::next_pow2_const(sizeof(T))>(
-              std::forward<Args...>(args)...);
+            .template alloc_chunk<T>(std::forward<Args...>(args)...);
 
       FlagLock f(lock);
       p->list_next = list;
