@@ -2,6 +2,7 @@
 
 #include <array>
 #include <atomic>
+#include <iostream>
 
 namespace snmalloc
 {
@@ -210,27 +211,32 @@ namespace snmalloc
       }
     }
 
-    static bool initial_invariant(ArrayT* array)
+    static void initial_invariant(ArrayT* array, std::string path)
     {
       if constexpr (is_leaf)
       {
-        return true;
+        UNUSED(array);
+        return;
       }
       else
       {
         for (size_t i = 0; i < entries; i++)
         {
           if ((*array)[i].load().value != original())
-            return false;
+          {
+            std::cout << "Error " << path << "[" << i << "] = " << (*array)[i].load().value << std::endl;
+            return;
+          }
         }
-        return SubT::initial_invariant(original())
-          && SubT::initial_invariant(lock());
+        
+        SubT::initial_invariant(original(), path + "::original");
+        SubT::initial_invariant(lock(), path + "::lock");
       }
     }
 
-    bool initial_invariant()
+    void initial_invariant()
     {
-      return initial_invariant(&array);
+      return initial_invariant(&array, "root");
     }
 
   private:

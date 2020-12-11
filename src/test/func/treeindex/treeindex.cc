@@ -108,8 +108,8 @@ void print_tree_shape(int level = 0)
 template<typename T>
 void test(T& tree)
 {
-  if (!tree.initial_invariant())
-    abort();
+  tree.initial_invariant();
+
   print_tree_shape<T>(0);
 
   // Check can read whole range
