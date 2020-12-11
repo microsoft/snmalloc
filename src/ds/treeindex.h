@@ -3,6 +3,8 @@
 #include <array>
 #include <atomic>
 #include <iostream>
+#include <string>
+#include <iomanip>
 
 namespace snmalloc
 {
@@ -103,6 +105,8 @@ namespace snmalloc
         return const_cast<typename SubT::ArrayT*>(&original_block);
       }
     };
+
+    static_assert(original() != nullptr || is_leaf, "This must hold, or you compiler is bust.");
 
     // The address used for the lock at for this level in the tree.
     inline static typename SubT::ArrayT lock_block{};
