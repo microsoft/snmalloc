@@ -108,6 +108,8 @@ void print_tree_shape(int level = 0)
 template<typename T>
 void test(T& tree)
 {
+  if (!tree.initial_invariant())
+    abort();
   print_tree_shape<T>(0);
 
   // Check can read whole range
@@ -157,14 +159,12 @@ int main(int argc, char** argv)
 
   setup();
 
-#ifndef __APPLE__
   test(tree1);
   test(tree1_l);
   test(tree1_u64);
   test(tree2);
   test(tree2_l);
   test(tree2_u64);
-#endif // __APPLE__
 
   if constexpr (snmalloc::pal_supports<snmalloc::LazyCommit>)
   {

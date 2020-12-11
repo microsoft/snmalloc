@@ -210,6 +210,29 @@ namespace snmalloc
       }
     }
 
+    static bool initial_invariant(ArrayT* array)
+    {
+      if constexpr (is_leaf)
+      {
+        return true;
+      }
+      else
+      {
+        for (size_t i = 0; i < entries; i++)
+        {
+          if ((*array)[i].load().value != original())
+            return false;
+        }
+        return SubT::initial_invariant(original())
+          && SubT::initial_invariant(lock());
+      }
+    }
+
+    bool initial_invariant()
+    {
+      return initial_invariant(&array);
+    }
+
   private:
     static void set_slow(ArrayT& array, size_t index, T v)
     {
