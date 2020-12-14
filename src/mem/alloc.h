@@ -510,9 +510,19 @@ namespace snmalloc
 #endif
     }
 
-    size_t get_id()
+    /**
+     * Return this allocator's "truncated" ID, an integer useful as a hash
+     * value of this allocator.
+     *
+     * Specifically, this is the address of this allocator's message queue
+     * with the least significant bits missing, masked by SIZECLASS_MASK.
+     * This will be unique for Allocs with inline queues; Allocs with
+     * out-of-line queues must ensure that no two queues' addresses collide
+     * under this masking.
+     */
+    size_t get_trunc_id()
     {
-      return id();
+      return public_state()->trunc_id();
     }
 
   private:
@@ -571,28 +581,24 @@ namespace snmalloc
                                                  IsQueueInline>);
         constexpr size_t initial_shift =
           bits::next_pow2_bits_const(allocator_size);
+        static_assert(
+          initial_shift >= 8,
+          "Can't embed sizeclass_t into allocator ID low bits");
         SNMALLOC_ASSERT((initial_shift + (r * REMOTE_SLOT_BITS)) < 64);
         return (id >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
       }
 
       SNMALLOC_FAST_PATH void
-      dealloc_sized(alloc_id_t target_id, void* p, size_t objectsize)
+      dealloc(alloc_id_t target_id, void* p, sizeclass_t sizeclass)
       {
-        this->capacity -= objectsize;
+        this->capacity -= sizeclass_to_size(sizeclass);
 
         Remote* r = static_cast<Remote*>(p);
-        r->set_target_id(target_id);
-        SNMALLOC_ASSERT(r->target_id() == target_id);
+        r->set_info(target_id, sizeclass);
 
         RemoteList* l = &list[get_slot(target_id, 0)];
         l->last->non_atomic_next = r;
         l->last = r;
-      }
-
-      SNMALLOC_FAST_PATH void
-      dealloc(alloc_id_t target_id, void* p, sizeclass_t sizeclass)
-      {
-        dealloc_sized(target_id, p, sizeclass_to_size(sizeclass));
       }
 
       void post(alloc_id_t id)
@@ -640,7 +646,7 @@ namespace snmalloc
           {
             // Use the next N bits to spread out remote deallocs in our own
             // slot.
-            size_t slot = get_slot(r->target_id(), post_round);
+            size_t slot = get_slot(r->trunc_target_id(), post_round);
             RemoteList* l = &list[slot];
             l->last->non_atomic_next = r;
             l->last = r;
@@ -694,11 +700,6 @@ namespace snmalloc
       }
     }
 
-    alloc_id_t id()
-    {
-      return public_state()->id();
-    }
-
     auto& message_queue()
     {
       return public_state()->message_queue;
@@ -724,9 +725,6 @@ namespace snmalloc
       {
         remote_alloc = r;
       }
-
-      if (id() >= static_cast<alloc_id_t>(-1))
-        error("Id should not be -1");
 
       // If this is fake, don't do any of the bits of initialisation that may
       // allocate memory.
@@ -863,7 +861,7 @@ namespace snmalloc
       {
         error("Critical error: Out-of-memory during initialisation.");
       }
-      dummy->set_target_id(id());
+      dummy->set_info(get_trunc_id(), size_to_sizeclass_const(MIN_ALLOC_SIZE));
       message_queue().init(dummy);
     }
 
@@ -872,14 +870,14 @@ namespace snmalloc
       Superslab* super = Superslab::get(p);
 
 #ifdef CHECK_CLIENT
-      if (p->target_id() != super->get_allocator()->id())
+      if (p->trunc_target_id() != (super->get_allocator()->trunc_id()))
         error("Detected memory corruption.  Potential use-after-free");
 #endif
       if (likely(super->get_kind() == Super))
       {
         Slab* slab = Metaslab::get_slab(p);
         Metaslab& meta = super->get_meta(slab);
-        if (likely(p->target_id() == id()))
+        if (likely(super->get_allocator() == public_state()))
         {
           small_dealloc_offseted(super, p, meta.sizeclass);
           return;
@@ -894,7 +892,7 @@ namespace snmalloc
       if (likely(super->get_kind() == Medium))
       {
         Mediumslab* slab = Mediumslab::get(p);
-        if (p->target_id() == id())
+        if (likely(super->get_allocator() == public_state()))
         {
           sizeclass_t sizeclass = slab->get_sizeclass();
           void* start = remove_cache_friendly_offset(p, sizeclass);
@@ -903,16 +901,17 @@ namespace snmalloc
         else
         {
           // Queue for remote dealloc elsewhere.
-          remote.dealloc(p->target_id(), p, slab->get_sizeclass());
+          remote.dealloc(p->trunc_target_id(), p, slab->get_sizeclass());
         }
       }
       else
       {
-        SNMALLOC_ASSERT(likely(p->target_id() != id()));
+        SNMALLOC_ASSERT(likely(p->trunc_target_id() != get_trunc_id()));
+        SNMALLOC_ASSERT(likely(super->get_allocator() != public_state()));
         Slab* slab = Metaslab::get_slab(p);
         Metaslab& meta = super->get_meta(slab);
         // Queue for remote dealloc elsewhere.
-        remote.dealloc(p->target_id(), p, meta.sizeclass);
+        remote.dealloc(p->trunc_target_id(), p, meta.sizeclass);
       }
     }
 
@@ -933,7 +932,7 @@ namespace snmalloc
         return;
 
       stats().remote_post();
-      remote.post(id());
+      remote.post(get_trunc_id());
     }
 
     /**
@@ -1468,17 +1467,16 @@ namespace snmalloc
     void remote_dealloc(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
     {
       MEASURE_TIME(remote_dealloc, 4, 16);
-      SNMALLOC_ASSERT(target->id() != id());
+      SNMALLOC_ASSERT(target->trunc_id() != get_trunc_id());
 
       // Check whether this will overflow the cache first.  If we are a fake
       // allocator, then our cache will always be full and so we will never hit
       // this path.
-      size_t sz = sizeclass_to_size(sizeclass);
       if (remote.capacity > 0)
       {
         void* offseted = apply_cache_friendly_offset(p, sizeclass);
         stats().remote_free(sizeclass);
-        remote.dealloc_sized(target->id(), offseted, sz);
+        remote.dealloc(target->trunc_id(), offseted, sizeclass);
         return;
       }
 
@@ -1488,7 +1486,7 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void
     remote_dealloc_slow(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
     {
-      SNMALLOC_ASSERT(target->id() != id());
+      SNMALLOC_ASSERT(target->trunc_id() != get_trunc_id());
 
       // Now that we've established that we're in the slow path (if we're a
       // real allocator, we will have to empty our cache now), check if we are
@@ -1506,10 +1504,10 @@ namespace snmalloc
 
       stats().remote_free(sizeclass);
       void* offseted = apply_cache_friendly_offset(p, sizeclass);
-      remote.dealloc(target->id(), offseted, sizeclass);
+      remote.dealloc(target->trunc_id(), offseted, sizeclass);
 
       stats().remote_post();
-      remote.post(id());
+      remote.post(get_trunc_id());
     }
 
     ChunkMap& chunkmap()
