@@ -867,44 +867,33 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH void handle_dealloc_remote(Remote* p)
     {
-      Superslab* super = Superslab::get(p);
+      if (likely(p->trunc_target_id() == get_trunc_id()))
+      {
+        // Destined for my slabs
+        Superslab* super = Superslab::get(p);
 
 #ifdef CHECK_CLIENT
-      if (p->trunc_target_id() != (super->get_allocator()->trunc_id()))
-        error("Detected memory corruption.  Potential use-after-free");
+        if (p->trunc_target_id() != (super->get_allocator()->trunc_id()))
+          error("Detected memory corruption.  Potential use-after-free");
 #endif
-      if (likely(super->get_kind() == Super))
-      {
-        if (likely(super->get_allocator() == public_state()))
-        {
-          small_dealloc_offseted(super, p, p->sizeclass());
-          return;
-        }
-      }
-      handle_dealloc_remote_slow(p);
-    }
+        // Guard against remote queues that have colliding IDs
+        SNMALLOC_ASSERT(super->get_allocator() == public_state());
 
-    SNMALLOC_SLOW_PATH void handle_dealloc_remote_slow(Remote* p)
-    {
-      Superslab* super = Superslab::get(p);
-      if (likely(super->get_kind() == Medium))
-      {
-        if (likely(super->get_allocator() == public_state()))
+        if (likely(p->sizeclass() < NUM_SMALL_CLASSES))
         {
-          void* start = remove_cache_friendly_offset(p, p->sizeclass());
-          medium_dealloc(Mediumslab::get(p), start, p->sizeclass());
+          SNMALLOC_ASSERT(super->get_kind() == Super);
+          small_dealloc_offseted(super, p, p->sizeclass());
         }
         else
         {
-          // Queue for remote dealloc elsewhere.
-          remote.dealloc(p->trunc_target_id(), p, p->sizeclass());
+          SNMALLOC_ASSERT(super->get_kind() == Medium);
+          void* start = remove_cache_friendly_offset(p, p->sizeclass());
+          medium_dealloc(Mediumslab::get(p), start, p->sizeclass());
         }
       }
       else
       {
-        SNMALLOC_ASSERT(likely(p->trunc_target_id() != get_trunc_id()));
-        SNMALLOC_ASSERT(likely(super->get_allocator() != public_state()));
-        // Queue for remote dealloc elsewhere.
+        // Merely routing
         remote.dealloc(p->trunc_target_id(), p, p->sizeclass());
       }
     }
