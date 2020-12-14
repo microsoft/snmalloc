@@ -11,6 +11,8 @@ namespace snmalloc
   //  using sizeclass_t = uint8_t;
   using sizeclass_compress_t = uint8_t;
 
+  constexpr static uintptr_t SIZECLASS_MASK = 0xFF;
+
   constexpr static uint16_t get_initial_offset(sizeclass_t sc, bool is_short);
   constexpr static size_t sizeclass_to_size(sizeclass_t sizeclass);
   constexpr static size_t
