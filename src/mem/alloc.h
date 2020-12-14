@@ -875,11 +875,9 @@ namespace snmalloc
 #endif
       if (likely(super->get_kind() == Super))
       {
-        Slab* slab = Metaslab::get_slab(p);
-        Metaslab& meta = super->get_meta(slab);
         if (likely(super->get_allocator() == public_state()))
         {
-          small_dealloc_offseted(super, p, meta.sizeclass);
+          small_dealloc_offseted(super, p, p->sizeclass());
           return;
         }
       }
@@ -891,27 +889,23 @@ namespace snmalloc
       Superslab* super = Superslab::get(p);
       if (likely(super->get_kind() == Medium))
       {
-        Mediumslab* slab = Mediumslab::get(p);
         if (likely(super->get_allocator() == public_state()))
         {
-          sizeclass_t sizeclass = slab->get_sizeclass();
-          void* start = remove_cache_friendly_offset(p, sizeclass);
-          medium_dealloc(slab, start, sizeclass);
+          void* start = remove_cache_friendly_offset(p, p->sizeclass());
+          medium_dealloc(Mediumslab::get(p), start, p->sizeclass());
         }
         else
         {
           // Queue for remote dealloc elsewhere.
-          remote.dealloc(p->trunc_target_id(), p, slab->get_sizeclass());
+          remote.dealloc(p->trunc_target_id(), p, p->sizeclass());
         }
       }
       else
       {
         SNMALLOC_ASSERT(likely(p->trunc_target_id() != get_trunc_id()));
         SNMALLOC_ASSERT(likely(super->get_allocator() != public_state()));
-        Slab* slab = Metaslab::get_slab(p);
-        Metaslab& meta = super->get_meta(slab);
         // Queue for remote dealloc elsewhere.
-        remote.dealloc(p->trunc_target_id(), p, meta.sizeclass);
+        remote.dealloc(p->trunc_target_id(), p, p->sizeclass());
       }
     }
 
