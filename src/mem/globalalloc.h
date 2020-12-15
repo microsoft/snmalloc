@@ -126,7 +126,7 @@ namespace snmalloc
           if (alloc->remote.capacity < REMOTE_CACHE)
           {
             alloc->stats().remote_post();
-            alloc->remote.post(alloc->get_trunc_id());
+            alloc->remote.post(&alloc->large_allocator, alloc->get_trunc_id());
             done = false;
           }
 
