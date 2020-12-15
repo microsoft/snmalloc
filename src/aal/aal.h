@@ -21,7 +21,6 @@
 
 #if defined(__powerpc__) || defined(__powerpc64__)
 #  define PLATFORM_IS_POWERPC
-#  define SNMALLOC_NO_AAL_BUILTINS
 #endif
 
 #if defined(__sparc__)

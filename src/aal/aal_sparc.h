@@ -17,7 +17,7 @@ namespace snmalloc
     /**
      * Bitmap of AalFeature flags
      */
-    static constexpr uint64_t aal_features = StrictProvenance;
+    static constexpr uint64_t aal_features = IntegerPointers;
 
     static constexpr enum AalName aal_name = Sparc;
 
@@ -30,8 +30,6 @@ namespace snmalloc
     static constexpr size_t smallest_page_size = 0x1000;
 #endif
 
-    using address_t = uintptr_t;
-
     /**
      * On Sparc ideally pause instructions ought to be
      * optimised per Sparc processor but here a version
@@ -40,7 +38,7 @@ namespace snmalloc
      */
     static inline void pause()
     {
-      __asm__ volatile("rd %ccr, %g0 \n\trd %ccr, %g0 \n\trd %ccr, %g0");
+      __asm__ volatile("rd %%ccr, %%g0" ::: "memory");
     }
 
     static inline void prefetch(void* ptr)
@@ -48,15 +46,14 @@ namespace snmalloc
 #ifdef SNMALLOC_VA_BITS_64
       __asm__ volatile("prefetch [%0], 0" ::"r"(ptr));
 #else
-      (void)ptr;
+      UNUSED(ptr);
 #endif
     }
 
     static inline uint64_t tick()
     {
       uint64_t tick;
-      __asm__ volatile(".byte 0x83, 0x41, 0x00, 0x00");
-      __asm__ volatile("mov %%g1, %0" : "=r"(tick));
+      __asm__ volatile("rd %%asr4, %0" : "=r"(tick));
       return tick;
     }
   };
