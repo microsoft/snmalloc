@@ -561,8 +561,10 @@ namespace snmalloc
         l->last = r;
       }
 
-      void post(alloc_id_t id)
+      void post(LargeAlloc<MemoryProvider>* large_allocator, alloc_id_t id)
       {
+        UNUSED(large_allocator);
+
         // When the cache gets big, post lists to their target allocators.
         capacity = REMOTE_CACHE;
 
@@ -896,7 +898,7 @@ namespace snmalloc
         return;
 
       stats().remote_post();
-      remote.post(get_trunc_id());
+      remote.post(&large_allocator, get_trunc_id());
     }
 
     /**
@@ -1565,7 +1567,7 @@ namespace snmalloc
       remote.dealloc(target->trunc_id(), offseted, sizeclass);
 
       stats().remote_post();
-      remote.post(get_trunc_id());
+      remote.post(&large_allocator, get_trunc_id());
     }
 
     ChunkMap& chunkmap()
