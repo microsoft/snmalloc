@@ -357,13 +357,13 @@ namespace snmalloc
     }
 
     template<Boundary location = Start>
-    static void* external_pointer(void* p)
+    void* external_pointer(void* p)
     {
 #ifdef SNMALLOC_PASS_THROUGH
       error("Unsupported");
       UNUSED(p);
 #else
-      uint8_t chunkmap_slab_kind = ChunkMap::get(address_cast(p));
+      uint8_t chunkmap_slab_kind = chunkmap().get(address_cast(p));
 
       Superslab* super = Superslab::get(p);
       if (chunkmap_slab_kind == CMSuperslab)
@@ -395,7 +395,7 @@ namespace snmalloc
           ss,
           -(static_cast<ptrdiff_t>(1)
             << (chunkmap_slab_kind - CMLargeRangeMin + SUPERSLAB_BITS)));
-        chunkmap_slab_kind = ChunkMap::get(ss);
+        chunkmap_slab_kind = chunkmap().get(ss);
       }
 
       if (chunkmap_slab_kind == CMNotOurs)
