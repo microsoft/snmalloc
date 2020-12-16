@@ -5,12 +5,10 @@
 
 namespace snmalloc
 {
-  class Allocslab : public Baseslab
+  struct Allocslab : public Baseslab
   {
-  protected:
     RemoteAllocator* allocator;
 
-  public:
     RemoteAllocator* get_allocator()
     {
       return allocator;

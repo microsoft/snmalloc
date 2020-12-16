@@ -623,6 +623,19 @@ namespace snmalloc
             if (!l->empty())
             {
               // Send all slots to the target at the head of the list.
+              /*
+               * This is somewhat dubious: this chunk might be either a
+               * Superslab or a Mediumslab, but we access only the
+               * get_allocator() method of their common parent class,
+               * Allocslab, which reads the allocator field, which should
+               * have common offset.
+               */
+#ifdef __clang__
+              static_assert(
+                offsetof(Superslab, allocator) ==
+                  offsetof(Mediumslab, allocator),
+                "Allocslab derived classes have differing allocator offsets");
+#endif
               Superslab* super = Superslab::get(first);
               super->get_allocator()->message_queue.enqueue(first, l->last);
               l->clear();
