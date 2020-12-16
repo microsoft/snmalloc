@@ -302,8 +302,10 @@ namespace snmalloc
       return p;
     }
 
-    void dealloc(void* p, size_t large_class)
+    void dealloc(AuthPtr<void> p_auth, void* p, size_t large_class)
     {
+      UNUSED(p_auth);
+
       if constexpr (decommit_strategy == DecommitSuperLazy)
       {
         static_assert(
