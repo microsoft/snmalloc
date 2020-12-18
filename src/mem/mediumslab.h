@@ -22,7 +22,7 @@ namespace snmalloc
     uint16_t free;
     uint8_t head;
     uint8_t sizeclass;
-    uint16_t stack[SLAB_COUNT - 1];
+    FreePtr<void> stack[SLAB_COUNT - 1];
 
   public:
     static constexpr size_t header_size()
@@ -63,12 +63,12 @@ namespace snmalloc
       if ((kind != Medium) || (sizeclass != sc))
       {
         sizeclass = static_cast<uint8_t>(sc);
-        uint16_t ssize = static_cast<uint16_t>(rsize >> 8);
         kind = Medium;
         free = medium_slab_free(sc);
         for (uint16_t i = free; i > 0; i--)
-          stack[free - i] =
-            static_cast<uint16_t>((SUPERSLAB_SIZE >> 8) - (i * ssize));
+          stack[free - i] = Aal::ptrauth_bound<void>(
+            mk_authptr(pointer_offset(this, SUPERSLAB_SIZE - i * rsize)),
+            rsize);
       }
       else
       {
@@ -82,30 +82,29 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
-    void* alloc(size_t size)
+    FreePtr<void> alloc(size_t size)
     {
       SNMALLOC_ASSERT(!full());
 
-      uint16_t index = stack[head++];
-      void* p = pointer_offset(this, (static_cast<size_t>(index) << 8));
+      FreePtr<void> p = stack[head++];
       free--;
 
       if constexpr (zero_mem == YesZero)
-        PAL::zero(p, size);
+        PAL::zero(p.unsafe_free_ptr, size);
       else
         UNUSED(size);
 
       return p;
     }
 
-    bool dealloc(void* p)
+    bool dealloc(FreePtr<void> p)
     {
       SNMALLOC_ASSERT(head > 0);
 
       // Returns true if the Mediumslab was full before this deallocation.
       bool was_full = full();
       free++;
-      stack[--head] = pointer_to_index(p);
+      stack[--head] = p;
 
       return was_full;
     }
@@ -118,13 +117,6 @@ namespace snmalloc
     bool empty()
     {
       return head == 0;
-    }
-
-  private:
-    uint16_t pointer_to_index(void* p)
-    {
-      // Get the offset from the slab for a memory location.
-      return static_cast<uint16_t>(pointer_diff(this, p) >> 8);
     }
   };
 } // namespace snmalloc

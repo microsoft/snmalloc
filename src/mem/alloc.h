@@ -1397,7 +1397,7 @@ namespace snmalloc
 
       DLList<Mediumslab>* sc = &medium_classes[medium_class];
       Mediumslab* slab = sc->get_head();
-      void* p;
+      FreePtr<void> p = nullptr;
 
       if (slab != nullptr)
       {
@@ -1433,8 +1433,7 @@ namespace snmalloc
       stats().alloc_request(size);
       stats().sizeclass_alloc(sizeclass);
       // XXX
-      return unsafe_mk_returnptr(
-        Aal::template ptrauth_bound<void>(mk_authptr<void>(p), rsize));
+      return unsafe_mk_returnptr(p);
     }
 
     void medium_dealloc(
@@ -1442,7 +1441,7 @@ namespace snmalloc
     {
       MEASURE_TIME(medium_dealloc, 4, 16);
       stats().sizeclass_dealloc(sizeclass);
-      bool was_full = slab->dealloc(p_free.unsafe_free_ptr);
+      bool was_full = slab->dealloc(p_free);
 
 #ifdef CHECK_CLIENT
       if (!is_multiple_of_sizeclass(
