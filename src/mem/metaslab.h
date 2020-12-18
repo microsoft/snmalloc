@@ -8,6 +8,7 @@
 namespace snmalloc
 {
   class Slab;
+  class FreeListEntry;
 
   using SlabList = CDLLNode;
   using SlabLink = CDLLNode;

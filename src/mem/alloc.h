@@ -258,6 +258,7 @@ namespace snmalloc
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
 
       AuthPtr<void> p_auth = mk_authptr(p);
+      FreePtr<void> p_free = unsafe_mk_freeptr<void>(p_auth);
 
       if (sizeclass < NUM_SMALL_CLASSES)
       {
@@ -265,9 +266,9 @@ namespace snmalloc
         RemoteAllocator* target = super->get_allocator();
 
         if (likely(target == public_state()))
-          small_dealloc(super, p_auth, p, sizeclass);
+          small_dealloc(super, p_auth, p_free, sizeclass);
         else
-          remote_dealloc(target, p, sizeclass);
+          remote_dealloc(target, p_free, sizeclass);
       }
       else if (sizeclass < NUM_SIZECLASSES)
       {
@@ -275,13 +276,13 @@ namespace snmalloc
         RemoteAllocator* target = slab->get_allocator();
 
         if (likely(target == public_state()))
-          medium_dealloc(slab, p, sizeclass);
+          medium_dealloc(slab, p_free, sizeclass);
         else
-          remote_dealloc(target, p, sizeclass);
+          remote_dealloc(target, p_free, sizeclass);
       }
       else
       {
-        large_dealloc(p_auth, p, size);
+        large_dealloc(p_auth, p_free, size);
       }
 #endif
     }
@@ -300,6 +301,7 @@ namespace snmalloc
       check_size(p, size);
 
       AuthPtr<void> p_auth = mk_authptr(p);
+      FreePtr<void> p_free = unsafe_mk_freeptr<void>(p_auth);
 
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
       {
@@ -307,20 +309,21 @@ namespace snmalloc
         RemoteAllocator* target = super->get_allocator();
         sizeclass_t sizeclass = size_to_sizeclass(size);
         if (likely(target == public_state()))
-          small_dealloc(super, p_auth, p, sizeclass);
+          small_dealloc(super, p_auth, p_free, sizeclass);
         else
-          remote_dealloc(target, p, sizeclass);
+          remote_dealloc(target, p_free, sizeclass);
         return;
       }
-      dealloc_sized_slow(p_auth, p, size);
+      dealloc_sized_slow(p_auth, p_free, size);
 #endif
     }
 
     SNMALLOC_SLOW_PATH
-    void dealloc_sized_slow(AuthPtr<void> p_auth, void* p, size_t size)
+    void
+    dealloc_sized_slow(AuthPtr<void> p_auth, FreePtr<void> p_free, size_t size)
     {
       if (size == 0)
-        return dealloc(p, 1);
+        return dealloc(p_free.unsafe_free_ptr, 1);
 
       if (likely(size <= sizeclass_to_size(NUM_SIZECLASSES - 1)))
       {
@@ -328,12 +331,12 @@ namespace snmalloc
         RemoteAllocator* target = slab->get_allocator();
         sizeclass_t sizeclass = size_to_sizeclass(size);
         if (likely(target == public_state()))
-          medium_dealloc(slab, p, sizeclass);
+          medium_dealloc(slab, p_free, sizeclass);
         else
-          remote_dealloc(target, p, sizeclass);
+          remote_dealloc(target, p_free, sizeclass);
         return;
       }
-      large_dealloc(p_auth, p, size);
+      large_dealloc(p_auth, p_free, size);
     }
 
     /*
@@ -348,6 +351,7 @@ namespace snmalloc
 
       uint8_t size = chunkmap().get(address_cast(p));
       AuthPtr<void> p_auth = mk_authptr(p);
+      FreePtr<void> p_free = unsafe_mk_freeptr<void>(p_auth);
 
       if (likely(size == CMSuperslab))
       {
@@ -362,20 +366,21 @@ namespace snmalloc
         sizeclass_t sizeclass = meta.sizeclass;
 
         if (likely(super->get_allocator() == public_state()))
-          small_dealloc(super, p_auth, p, sizeclass);
+          small_dealloc(super, p_auth, p_free, sizeclass);
         else
-          remote_dealloc(target, p, sizeclass);
+          remote_dealloc(target, p_free, sizeclass);
         return;
       }
-      dealloc_not_small(p_auth, p, size);
+      dealloc_not_small(p_auth, p_free, size);
     }
 
     SNMALLOC_SLOW_PATH
-    void dealloc_not_small(AuthPtr<void> p_auth, void* p, uint8_t size)
+    void
+    dealloc_not_small(AuthPtr<void> p_auth, FreePtr<void> p_free, uint8_t size)
     {
       handle_message_queue();
 
-      if (p == nullptr)
+      if (p_free == nullptr)
         return;
 
       if (size == CMMediumslab)
@@ -388,9 +393,9 @@ namespace snmalloc
         sizeclass_t sizeclass = slab->get_sizeclass();
 
         if (target == public_state())
-          medium_dealloc(slab, p, sizeclass);
+          medium_dealloc(slab, p_free, sizeclass);
         else
-          remote_dealloc(target, p, sizeclass);
+          remote_dealloc(target, p_free, sizeclass);
         return;
       }
 
@@ -401,12 +406,12 @@ namespace snmalloc
 
 #  ifdef CHECK_CLIENT
       Superslab* super = Superslab::get(p_auth);
-      if (size > CMLargeMax || address_cast(super) != address_cast(p))
+      if (size > CMLargeMax || address_cast(super) != address_cast(p_auth))
       {
         error("Not deallocating start of an object");
       }
 #  endif
-      large_dealloc(p_auth, p, 1ULL << size);
+      large_dealloc(p_auth, p_free, 1ULL << size);
 
 #endif
     }
@@ -597,12 +602,12 @@ namespace snmalloc
         return (id >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
       }
 
-      SNMALLOC_FAST_PATH void
-      dealloc(alloc_id_t target_id, void* p, sizeclass_t sizeclass)
+      SNMALLOC_FAST_PATH void dealloc(
+        alloc_id_t target_id, FreePtr<Remote> p_free, sizeclass_t sizeclass)
       {
         this->capacity -= sizeclass_to_size(sizeclass);
 
-        Remote* r = static_cast<Remote*>(p);
+        Remote* r = p_free.unsafe_free_ptr;
         r->set_info(target_id, sizeclass);
 
         RemoteList* l = &list[get_slot(target_id, 0)];
@@ -695,22 +700,37 @@ namespace snmalloc
 #ifdef CACHE_FRIENDLY_OFFSET
     size_t remote_offset = 0;
 
-    void* apply_cache_friendly_offset(void* p, sizeclass_t sizeclass)
+    template<typename T>
+    FreePtr<T>
+    apply_cache_friendly_offset(FreePtr<void> p, sizeclass_t sizeclass)
     {
       size_t mask = sizeclass_to_cache_friendly_mask(sizeclass);
 
       size_t offset = remote_offset & mask;
       remote_offset += CACHE_FRIENDLY_OFFSET;
 
-      return (void*)((uintptr_t)p + offset);
+      return unsafe_mk_freeptr<T>(
+        mk_authptr(pointer_offset(p.unsafe_free_ptr, offset)));
     }
 #else
-    void* apply_cache_friendly_offset(void* p, sizeclass_t sizeclass)
+    template<typename T>
+    FreePtr<T>
+    apply_cache_friendly_offset(FreePtr<void> p, sizeclass_t sizeclass)
     {
       UNUSED(sizeclass);
-      return p;
+      return static_cast<FreePtr<T>>(p);
     }
 #endif
+
+    /**
+     * Coerce a FreePtr<Remote> to a FreePtr<FreeListEntry>; both of these are
+     * expected to be the image of apply_cache_friendly_offset
+     */
+    static SNMALLOC_FAST_PATH FreePtr<FreeListEntry>
+    freeptr_remote_as_free_list_entry(FreePtr<Remote> p)
+    {
+      return static_cast<FreePtr<FreeListEntry>>(p);
+    }
 
     auto* public_state()
     {
@@ -801,7 +821,7 @@ namespace snmalloc
         while (p != nullptr)
         {
           Remote* n = p->non_atomic_next;
-          handle_dealloc_remote(p);
+          handle_dealloc_remote(unsafe_mk_freeptr<Remote>(mk_authptr(p)));
           p = n;
         }
       }
@@ -822,7 +842,9 @@ namespace snmalloc
             AuthPtr<void> prev_auth = mk_authptr(prev);
             Superslab* super = Superslab::get(prev_auth);
             Slab* slab = Metaslab::get_slab(prev_auth);
-            small_dealloc_offseted_inner(super, slab, prev, i);
+            FreePtr<FreeListEntry> prev_free =
+              unsafe_mk_freeptr<FreeListEntry>(prev_auth);
+            small_dealloc_offseted_inner(super, slab, prev_free, i);
             prev = n;
           }
         }
@@ -839,7 +861,9 @@ namespace snmalloc
           AuthPtr<void> prev_auth = mk_authptr(prev);
           Superslab* super = Superslab::get(prev_auth);
           Slab* slab = Metaslab::get_slab(prev_auth);
-          small_dealloc_offseted_inner(super, slab, prev, i);
+          FreePtr<FreeListEntry> prev_free =
+            unsafe_mk_freeptr<FreeListEntry>(prev_auth);
+          small_dealloc_offseted_inner(super, slab, prev_free, i);
 
           prev = n;
         }
@@ -893,38 +917,44 @@ namespace snmalloc
       message_queue().init(dummy);
     }
 
-    SNMALLOC_FAST_PATH void handle_dealloc_remote(Remote* p)
+    SNMALLOC_FAST_PATH void handle_dealloc_remote(FreePtr<Remote> p_free)
     {
-      if (likely(p->trunc_target_id() == get_trunc_id()))
+      Remote* r = p_free.unsafe_free_ptr;
+      sizeclass_t psz = r->sizeclass();
+      alloc_id_t pid = r->trunc_target_id();
+
+      if (likely(pid == get_trunc_id()))
       {
         // Destined for my slabs
-        AuthPtr<void> p_auth = mk_authptr(p);
+        AuthPtr<void> p_auth = mk_authptr(p_free.unsafe_free_ptr);
         Superslab* super = Superslab::get(p_auth);
 
 #ifdef CHECK_CLIENT
-        if (p->trunc_target_id() != (super->get_allocator()->trunc_id()))
+        if (pid != (super->get_allocator()->trunc_id()))
           error("Detected memory corruption.  Potential use-after-free");
 #endif
         // Guard against remote queues that have colliding IDs
         SNMALLOC_ASSERT(super->get_allocator() == public_state());
 
-        if (likely(p->sizeclass() < NUM_SMALL_CLASSES))
+        if (likely(psz < NUM_SMALL_CLASSES))
         {
           SNMALLOC_ASSERT(super->get_kind() == Super);
           Slab* slab = Metaslab::get_slab(p_auth);
-          small_dealloc_offseted(super, slab, p, p->sizeclass());
+          small_dealloc_offseted(
+            super, slab, freeptr_remote_as_free_list_entry(p_free), psz);
         }
         else
         {
           SNMALLOC_ASSERT(super->get_kind() == Medium);
-          void* start = remove_cache_friendly_offset(p, p->sizeclass());
-          medium_dealloc(Mediumslab::get(p_auth), start, p->sizeclass());
+          FreePtr<void> start = unsafe_mk_freeptr<void>(mk_authptr(
+            remove_cache_friendly_offset(p_free.unsafe_free_ptr, psz)));
+          medium_dealloc(Mediumslab::get(p_auth), start, psz);
         }
       }
       else
       {
         // Merely routing
-        remote.dealloc(p->trunc_target_id(), p, p->sizeclass());
+        remote.dealloc(pid, p_free, psz);
       }
     }
 
@@ -937,7 +967,7 @@ namespace snmalloc
         if (unlikely(!r.second))
           break;
 
-        handle_dealloc_remote(r.first);
+        handle_dealloc_remote(unsafe_mk_freeptr<Remote>(mk_authptr(r.first)));
       }
 
       // Our remote queues may be larger due to forwarding remote frees.
@@ -1235,44 +1265,58 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH void small_dealloc(
-      Superslab* super, AuthPtr<void> p_auth, void* p, sizeclass_t sizeclass)
+      Superslab* super,
+      AuthPtr<void> p_auth,
+      FreePtr<void> p_free,
+      sizeclass_t sizeclass)
     {
       Slab* slab = Metaslab::get_slab(p_auth);
 #ifdef CHECK_CLIENT
-      if (!slab->is_start_of_object(super, p))
+      if (!slab->is_start_of_object(super, p_free.unsafe_free_ptr))
       {
         error("Not deallocating start of an object");
       }
 #endif
 
-      void* offseted = apply_cache_friendly_offset(p, sizeclass);
+      FreePtr<FreeListEntry> offseted =
+        apply_cache_friendly_offset<FreeListEntry>(p_free, sizeclass);
       small_dealloc_offseted(super, slab, offseted, sizeclass);
     }
 
     SNMALLOC_FAST_PATH void small_dealloc_offseted(
-      Superslab* super, Slab* slab, void* p, sizeclass_t sizeclass)
+      Superslab* super,
+      Slab* slab,
+      FreePtr<FreeListEntry> p_free,
+      sizeclass_t sizeclass)
     {
       MEASURE_TIME(small_dealloc, 4, 16);
       stats().sizeclass_dealloc(sizeclass);
 
-      small_dealloc_offseted_inner(super, slab, p, sizeclass);
+      small_dealloc_offseted_inner(super, slab, p_free, sizeclass);
     }
 
     SNMALLOC_FAST_PATH void small_dealloc_offseted_inner(
-      Superslab* super, Slab* slab, void* p, sizeclass_t sizeclass)
+      Superslab* super,
+      Slab* slab,
+      FreePtr<FreeListEntry> p_free,
+      sizeclass_t sizeclass)
     {
-      if (likely(slab->dealloc_fast(super, p)))
+      if (likely(slab->dealloc_fast(super, p_free.unsafe_free_ptr)))
         return;
 
-      small_dealloc_offseted_slow(super, slab, p, sizeclass);
+      small_dealloc_offseted_slow(super, slab, p_free, sizeclass);
     }
 
     SNMALLOC_SLOW_PATH void small_dealloc_offseted_slow(
-      Superslab* super, Slab* slab, void* p, sizeclass_t sizeclass)
+      Superslab* super,
+      Slab* slab,
+      FreePtr<FreeListEntry> p_free,
+      sizeclass_t sizeclass)
     {
       bool was_full = super->is_full();
       SlabList* sl = &small_classes[sizeclass];
-      Superslab::Action a = slab->dealloc_slow(sl, super, p);
+      Superslab::Action a =
+        slab->dealloc_slow(sl, super, p_free.unsafe_free_ptr);
       if (likely(a == Superslab::NoSlabReturn))
         return;
       stats().sizeclass_dealloc_slab(sizeclass);
@@ -1373,16 +1417,18 @@ namespace snmalloc
       return p;
     }
 
-    void medium_dealloc(Mediumslab* slab, void* p, sizeclass_t sizeclass)
+    void medium_dealloc(
+      Mediumslab* slab, FreePtr<void> p_free, sizeclass_t sizeclass)
     {
       MEASURE_TIME(medium_dealloc, 4, 16);
       stats().sizeclass_dealloc(sizeclass);
-      bool was_full = slab->dealloc(p);
+      bool was_full = slab->dealloc(p_free.unsafe_free_ptr);
 
 #ifdef CHECK_CLIENT
       if (!is_multiple_of_sizeclass(
             sizeclass_to_size(sizeclass),
-            pointer_diff(p, pointer_offset(slab, SUPERSLAB_SIZE))))
+            pointer_diff(
+              p_free.unsafe_free_ptr, pointer_offset(slab, SUPERSLAB_SIZE))))
       {
         error("Not deallocating start of an object");
       }
@@ -1444,14 +1490,19 @@ namespace snmalloc
       return p;
     }
 
-    void large_dealloc(AuthPtr<void> p_auth, void* p, size_t size)
+    /*
+     * Takes both an AuthPtr to prove to the OS that it can do page
+     * manipulations and a FreePtr to put into the free list.
+     */
+    void large_dealloc(AuthPtr<void> p_auth, FreePtr<void> p_free, size_t size)
     {
       MEASURE_TIME(large_dealloc, 4, 16);
 
       if (NeedsInitialisation(this))
       {
-        InitThreadAllocator([p_auth, p, size](void* alloc) {
-          reinterpret_cast<Allocator*>(alloc)->large_dealloc(p_auth, p, size);
+        InitThreadAllocator([p_auth, p_free, size](void* alloc) {
+          reinterpret_cast<Allocator*>(alloc)->large_dealloc(
+            p_auth, p_free, size);
           return nullptr;
         });
         return;
@@ -1466,7 +1517,7 @@ namespace snmalloc
       stats().large_dealloc(large_class);
 
       // Initialise in order to set the correct SlabKind.
-      Largeslab* slab = static_cast<Largeslab*>(p);
+      Largeslab* slab = static_cast<Largeslab*>(p_free.unsafe_free_ptr);
       slab->init();
       large_allocator.dealloc(p_auth, slab, large_class);
     }
@@ -1475,7 +1526,8 @@ namespace snmalloc
     // called in its slow path. This leads to one fewer unconditional jump in
     // Clang.
     SNMALLOC_FAST_PATH
-    void remote_dealloc(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
+    void remote_dealloc(
+      RemoteAllocator* target, FreePtr<void> p_free, sizeclass_t sizeclass)
     {
       MEASURE_TIME(remote_dealloc, 4, 16);
       SNMALLOC_ASSERT(target->trunc_id() != get_trunc_id());
@@ -1485,17 +1537,18 @@ namespace snmalloc
       // this path.
       if (remote.capacity > 0)
       {
-        void* offseted = apply_cache_friendly_offset(p, sizeclass);
+        FreePtr<Remote> offseted =
+          apply_cache_friendly_offset<Remote>(p_free, sizeclass);
         stats().remote_free(sizeclass);
         remote.dealloc(target->trunc_id(), offseted, sizeclass);
         return;
       }
 
-      remote_dealloc_slow(target, p, sizeclass);
+      remote_dealloc_slow(target, p_free, sizeclass);
     }
 
-    SNMALLOC_SLOW_PATH void
-    remote_dealloc_slow(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH void remote_dealloc_slow(
+      RemoteAllocator* target, FreePtr<void> p_free, sizeclass_t sizeclass)
     {
       SNMALLOC_ASSERT(target->trunc_id() != get_trunc_id());
 
@@ -1504,8 +1557,8 @@ namespace snmalloc
       // a real allocator and construct one if we aren't.
       if (NeedsInitialisation(this))
       {
-        InitThreadAllocator([p](void* alloc) {
-          reinterpret_cast<Allocator*>(alloc)->dealloc(p);
+        InitThreadAllocator([p_free](void* alloc) {
+          reinterpret_cast<Allocator*>(alloc)->dealloc(p_free.unsafe_free_ptr);
           return nullptr;
         });
         return;
@@ -1514,7 +1567,8 @@ namespace snmalloc
       handle_message_queue();
 
       stats().remote_free(sizeclass);
-      void* offseted = apply_cache_friendly_offset(p, sizeclass);
+      FreePtr<Remote> offseted =
+        apply_cache_friendly_offset<Remote>(p_free, sizeclass);
       remote.dealloc(target->trunc_id(), offseted, sizeclass);
 
       stats().remote_post();
