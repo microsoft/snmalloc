@@ -105,7 +105,7 @@ namespace snmalloc
      * If aligned to a SLAB start, then it is empty, and a new
      * slab is required.
      */
-    void* bump_ptrs[NUM_SMALL_CLASSES] = {nullptr};
+    AuthPtr<void> bump_ptrs[NUM_SMALL_CLASSES] = {nullptr};
 
   public:
     Stats& stats()
@@ -723,16 +723,6 @@ namespace snmalloc
     }
 #endif
 
-    /**
-     * Coerce a FreePtr<Remote> to a FreePtr<FreeListEntry>; both of these are
-     * expected to be the image of apply_cache_friendly_offset
-     */
-    static SNMALLOC_FAST_PATH FreePtr<FreeListEntry>
-    freeptr_remote_as_free_list_entry(FreePtr<Remote> p)
-    {
-      return static_cast<FreePtr<FreeListEntry>>(p);
-    }
-
     auto* public_state()
     {
       if constexpr (IsQueueInline)
@@ -836,11 +826,11 @@ namespace snmalloc
         while (pointer_align_up(bp, SLAB_SIZE) != bp)
         {
           Slab::alloc_new_list(bp, ffl, rsize);
-          void* prev = ffl.value;
+          FreePtr<FreeListEntry> prev = ffl.value;
           while (prev != nullptr)
           {
             auto n = Metaslab::follow_next(prev);
-            AuthPtr<void> prev_auth = mk_authptr(prev);
+            AuthPtr<void> prev_auth = mk_authptr(prev.unsafe_free_ptr);
             Superslab* super = Superslab::get(prev_auth);
             Slab* slab = Metaslab::get_slab(prev_auth);
             FreePtr<FreeListEntry> prev_free =
@@ -859,7 +849,7 @@ namespace snmalloc
         {
           auto n = Metaslab::follow_next(prev);
 
-          AuthPtr<void> prev_auth = mk_authptr(prev);
+          AuthPtr<void> prev_auth = mk_authptr(prev.unsafe_free_ptr);
           Superslab* super = Superslab::get(prev_auth);
           Slab* slab = Metaslab::get_slab(prev_auth);
           FreePtr<FreeListEntry> prev_free =
@@ -937,18 +927,25 @@ namespace snmalloc
         // Guard against remote queues that have colliding IDs
         SNMALLOC_ASSERT(super->get_allocator() == public_state());
 
+        /*
+         * Zero out the Remote pointers before pushing this entry to the
+         * backing regions' free lists.  Notably, Mediumslabs will preserve
+         * the whole allocation as zero while Slabs will chain this onto a
+         * free list.
+         */
+        FreePtr<FreeListEntry> fpf = zero_remote<FreeListEntry>(p_free);
+
         if (likely(psz < NUM_SMALL_CLASSES))
         {
           SNMALLOC_ASSERT(super->get_kind() == Super);
           Slab* slab = Metaslab::get_slab(p_auth);
-          small_dealloc_offseted(
-            super, slab, freeptr_remote_as_free_list_entry(p_free), psz);
+          small_dealloc_offseted(super, slab, fpf, psz);
         }
         else
         {
           SNMALLOC_ASSERT(super->get_kind() == Medium);
-          FreePtr<void> start = unsafe_mk_freeptr<void>(mk_authptr(
-            remove_cache_friendly_offset(p_free.unsafe_free_ptr, psz)));
+          FreePtr<void> start = unsafe_mk_freeptr<void>(
+            mk_authptr(remove_cache_friendly_offset(fpf.unsafe_free_ptr, psz)));
           medium_dealloc(Mediumslab::get(p_auth), start, psz);
         }
       }
@@ -1112,11 +1109,7 @@ namespace snmalloc
       SNMALLOC_ASSUME(sizeclass < NUM_SMALL_CLASSES);
       auto& fl = small_fast_free_lists[sizeclass];
 
-      // XXX:DEALLOC-RETURNPTR
-      // Until the dealloc side is plumbed through, the objects on the free
-      // list are void*, so apply bounds here to get a ReturnPtr.
-      ReturnPtr head = unsafe_mk_returnptr(
-        Aal::template ptrauth_bound<void>(mk_authptr(fl.value), size));
+      FreePtr<FreeListEntry> head = fl.value;
 
       if (likely(head != nullptr))
       {
@@ -1124,11 +1117,9 @@ namespace snmalloc
         stats().sizeclass_alloc(sizeclass);
         // Read the next slot from the memory that's about to be allocated.
 
-        // XXX:DEALLOC-RETURNPTR
-        fl.value = Metaslab::follow_next(head.unsafe_return_ptr);
+        fl.value = Metaslab::follow_next(head);
 
-        void* p =
-          remove_cache_friendly_offset(head.unsafe_return_ptr, sizeclass);
+        void* p = remove_cache_friendly_offset(head.unsafe_free_ptr, sizeclass);
         if constexpr (zero_mem == YesZero)
         {
           MemoryProvider::Pal::zero(p, sizeclass_to_size(sizeclass));
@@ -1177,11 +1168,8 @@ namespace snmalloc
         SlabLink* link = sl.get_next();
         slab = get_slab(link);
         auto& ffl = small_fast_free_lists[sizeclass];
-        // XXX:DEALLOC-RETURNPTR
-        return unsafe_mk_returnptr(Aal::template ptrauth_bound<void>(
-          mk_authptr(slab->alloc<zero_mem, typename MemoryProvider::Pal>(
-            sl, ffl, rsize)),
-          rsize));
+        return slab->alloc<zero_mem, typename MemoryProvider::Pal>(
+          sl, ffl, rsize);
       }
       return small_alloc_rare<zero_mem, allow_reserve>(sizeclass, size);
     }
@@ -1250,17 +1238,16 @@ namespace snmalloc
       SNMALLOC_ASSERT(ffl.value == nullptr);
       Slab::alloc_new_list(bp, ffl, rsize);
 
-      // XXX:DEALLOC-RETURNPTR
-      void* p = remove_cache_friendly_offset(ffl.value, sizeclass);
-      ffl.value = Metaslab::follow_next(p);
+      FreePtr<void> p = unsafe_mk_freeptr<void>(mk_authptr(
+        remove_cache_friendly_offset(ffl.value.unsafe_free_ptr, sizeclass)));
+      ffl.value = Metaslab::follow_next(ffl.value);
 
       if constexpr (zero_mem == YesZero)
       {
-        MemoryProvider::Pal::zero(p, sizeclass_to_size(sizeclass));
+        MemoryProvider::Pal::zero(
+          p.unsafe_free_ptr, sizeclass_to_size(sizeclass));
       }
-      // XXX:DEALLOC-RETURNPTR
-      return unsafe_mk_returnptr(
-        Aal::template ptrauth_bound<void>(mk_authptr(p), rsize));
+      return unsafe_mk_returnptr(p);
     }
 
     /**
@@ -1276,8 +1263,8 @@ namespace snmalloc
       Slab* slab = alloc_slab<allow_reserve>(sizeclass);
       if (slab == nullptr)
         return nullptr;
-      bp =
-        pointer_offset(slab, get_initial_offset(sizeclass, slab->is_short()));
+      bp = mk_authptr(
+        pointer_offset(slab, get_initial_offset(sizeclass, slab->is_short())));
 
       return small_alloc_build_free_list<zero_mem, allow_reserve>(sizeclass);
     }
@@ -1319,7 +1306,7 @@ namespace snmalloc
       FreePtr<FreeListEntry> p_free,
       sizeclass_t sizeclass)
     {
-      if (likely(slab->dealloc_fast(super, p_free.unsafe_free_ptr)))
+      if (likely(slab->dealloc_fast(super, p_free)))
         return;
 
       small_dealloc_offseted_slow(super, slab, p_free, sizeclass);
@@ -1333,8 +1320,7 @@ namespace snmalloc
     {
       bool was_full = super->is_full();
       SlabList* sl = &small_classes[sizeclass];
-      Superslab::Action a =
-        slab->dealloc_slow(sl, super, p_free.unsafe_free_ptr);
+      Superslab::Action a = slab->dealloc_slow(sl, super, p_free);
       if (likely(a == Superslab::NoSlabReturn))
         return;
       stats().sizeclass_dealloc_slab(sizeclass);

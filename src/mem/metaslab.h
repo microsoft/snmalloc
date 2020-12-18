@@ -28,12 +28,13 @@ namespace snmalloc
   {
   public:
     /**
-     *  Pointer to first free entry in this slab.
+     *  Pointer to first free entry in this slab.  Recall that free lists
+     *  contain already-bounded objects.
      *
      *  The list will be (allocated - needed - 1) long. The -1 is
      *  for the `link` element which is not in the free list.
      */
-    void* head = nullptr;
+    FreePtr<FreeListEntry> head = nullptr;
 
     /**
      *  How many entries are not in the free list of slab, i.e.
@@ -104,39 +105,44 @@ namespace snmalloc
 
     /// Store next pointer in a block. In Debug using magic value to detect some
     /// simple corruptions.
-    static SNMALLOC_FAST_PATH void store_next(void* p, void* head)
+    static SNMALLOC_FAST_PATH void
+    store_next(FreePtr<FreeListEntry> p, FreePtr<FreeListEntry> head)
     {
-      *static_cast<void**>(p) = head;
+      *reinterpret_cast<FreePtr<FreeListEntry>*>(p.unsafe_free_ptr) = head;
 #if defined(CHECK_CLIENT)
       if constexpr (aal_supports<IntegerPointers>)
       {
-        *(static_cast<uintptr_t*>(p) + 1) = address_cast(head) ^ POISON;
+        *(reinterpret_cast<uintptr_t*>(p.unsafe_free_ptr) + 1) =
+          address_cast(head.unsafe_free_ptr) ^ POISON;
       }
 #endif
     }
 
     /// Accessor function for the next pointer in a block.
     /// In Debug checks for simple corruptions.
-    static SNMALLOC_FAST_PATH void* follow_next(void* node)
+    static SNMALLOC_FAST_PATH FreePtr<FreeListEntry>
+    follow_next(FreePtr<FreeListEntry> node)
     {
 #if defined(CHECK_CLIENT)
       if constexpr (aal_supports<IntegerPointers>)
       {
-        uintptr_t next = *static_cast<uintptr_t*>(node);
-        uintptr_t chk = *(static_cast<uintptr_t*>(node) + 1);
+        uintptr_t next = *reinterpret_cast<uintptr_t*>(node.unsafe_free_ptr);
+        uintptr_t chk =
+          *(reinterpret_cast<uintptr_t*>(node.unsafe_free_ptr) + 1);
         if ((next ^ chk) != POISON)
           error("Detected memory corruption.  Use-after-free.");
       }
 #endif
-      return *static_cast<void**>(node);
+      return *reinterpret_cast<FreePtr<FreeListEntry>*>(node.unsafe_free_ptr);
     }
 
     bool valid_head()
     {
       size_t size = sizeclass_to_size(sizeclass);
-      size_t slab_end = (address_cast(head) | ~SLAB_MASK) + 1;
+      address_t head_addr = address_cast(head);
+      size_t slab_end = (head_addr | ~SLAB_MASK) + 1;
       uintptr_t allocation_start =
-        remove_cache_friendly_offset(address_cast(head), sizeclass);
+        remove_cache_friendly_offset(head_addr, sizeclass);
 
       return (slab_end - allocation_start) % size == 0;
     }
@@ -145,6 +151,16 @@ namespace snmalloc
     static Slab* get_slab(AuthPtr<T> a)
     {
       return pointer_align_down<SLAB_SIZE, Slab>(a.unsafe_auth_ptr);
+    }
+
+    /**
+     * Compute where the Slab metadata would be, but without any expectation
+     * that the resulting pointer be authorized to access said metadata.
+     * Useful almost exclusively for debugging.
+     */
+    static Slab* get_slab_noauth(void* p)
+    {
+      return get_slab(mk_authptr<void>(p));
     }
 
     static bool is_short(Slab* p)
@@ -164,12 +180,12 @@ namespace snmalloc
     {
 #ifndef NDEBUG
       size_t length = 0;
-      void* curr = head;
-      void* curr_slow = head;
+      FreePtr<FreeListEntry> curr = head;
+      FreePtr<FreeListEntry> curr_slow = head;
       bool both = false;
       while (curr != nullptr)
       {
-        if (get_slab(mk_authptr(curr)) != slab)
+        if (get_slab_noauth(curr.unsafe_free_ptr) != slab)
         {
           error("Free list corruption, not correct slab.");
         }
@@ -221,18 +237,21 @@ namespace snmalloc
       UNUSED(length);
 
       // Walk bump-free-list-segment accounting for unused space
-      void* curr = head;
+      FreePtr<FreeListEntry> curr = head;
       while (curr != nullptr)
       {
         // Check we are looking at a correctly aligned block
-        void* start = remove_cache_friendly_offset(curr, sizeclass);
+        void* start =
+          remove_cache_friendly_offset(curr.unsafe_free_ptr, sizeclass);
         SNMALLOC_ASSERT(((pointer_diff(slab, start) - offset) % size) == 0);
 
         // Account for free elements in free list
         accounted_for += size;
         SNMALLOC_ASSERT(SLAB_SIZE >= accounted_for);
         // We should never reach the link node in the free list.
-        SNMALLOC_ASSERT(curr != pointer_offset(slab, link));
+        SNMALLOC_ASSERT(
+          curr.unsafe_free_ptr !=
+          reinterpret_cast<FreeListEntry*>(pointer_offset(slab, link)));
 
         // Iterate bump/free list segment
         curr = follow_next(curr);

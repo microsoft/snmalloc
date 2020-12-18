@@ -7,16 +7,16 @@ namespace snmalloc
   struct FreeListHead
   {
     // Use a value with bottom bit set for empty list.
-    void* value = nullptr;
+    FreePtr<FreeListEntry> value = nullptr;
   };
 
   class Slab
   {
   private:
-    uint16_t pointer_to_index(void* p)
+    uint16_t pointer_to_index(FreePtr<FreeListEntry> p)
     {
       // Get the offset from the slab for a memory location.
-      return static_cast<uint16_t>(pointer_diff(this, p));
+      return static_cast<uint16_t>(pointer_diff(this, p.unsafe_free_ptr));
     }
 
   public:
@@ -37,7 +37,7 @@ namespace snmalloc
      * `fast_free_list` for further allocations.
      */
     template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
-    SNMALLOC_FAST_PATH void*
+    SNMALLOC_FAST_PATH ReturnPtr
     alloc(SlabList& sl, FreeListHead& fast_free_list, size_t rsize)
     {
       // Read the head from the metadata stored in the superslab.
@@ -56,30 +56,37 @@ namespace snmalloc
 
       // Return the link as the node for this allocation.
       void* link = pointer_offset(this, meta.link);
-      void* p = remove_cache_friendly_offset(link, meta.sizeclass);
+      FreePtr<void> p = unsafe_mk_freeptr<void>(
+        mk_authptr(remove_cache_friendly_offset(link, meta.sizeclass)));
 
       // Treat stealing the free list as allocating it all.
       meta.needed = meta.allocated;
       meta.set_full();
       sl.get_next()->remove();
 
-      SNMALLOC_ASSERT(is_start_of_object(Superslab::get(mk_authptr(p)), p));
+      SNMALLOC_ASSERT(
+        Superslab::get_noauth(this) ==
+        Superslab::get_noauth(p.unsafe_free_ptr)); // XXX?
+      /* XXX: This or a Superslab::get(Slab*)? */
+      SNMALLOC_ASSERT(is_start_of_object(
+        Superslab::get(mk_authptr(this)), p.unsafe_free_ptr));
 
       meta.debug_slab_invariant(this);
 
       if constexpr (zero_mem == YesZero)
       {
         if (rsize < PAGE_ALIGNED_SIZE)
-          PAL::zero(p, rsize);
+          PAL::zero(p.unsafe_free_ptr, rsize);
         else
-          PAL::template zero<true>(p, rsize);
+          PAL::template zero<true>(p.unsafe_free_ptr, rsize);
       }
       else
       {
+        // XXX Should ensure that we zero private metadata even if not YesZero
         UNUSED(rsize);
       }
 
-      return p;
+      return unsafe_mk_returnptr(p);
     }
 
     /**
@@ -88,25 +95,28 @@ namespace snmalloc
      * worth of allocations, or one if the allocation size is larger than a
      * page.
      */
-    static SNMALLOC_FAST_PATH void
-    alloc_new_list(void*& bumpptr, FreeListHead& fast_free_list, size_t rsize)
+    static SNMALLOC_FAST_PATH void alloc_new_list(
+      AuthPtr<void>& bumpptr, FreeListHead& fast_free_list, size_t rsize)
     {
-      fast_free_list.value = bumpptr;
-      void* newbumpptr = pointer_offset(bumpptr, rsize);
-      void* slab_end = pointer_align_up<SLAB_SIZE>(newbumpptr);
-      void* slab_end2 =
+      fast_free_list.value =
+        Aal::template ptrauth_bound<FreeListEntry>(bumpptr, rsize);
+      AuthPtr<void> newbumpptr = pointer_offset(bumpptr, rsize);
+      AuthPtr<void> slab_end = pointer_align_up<SLAB_SIZE>(newbumpptr);
+      AuthPtr<void> slab_end2 =
         pointer_align_up<OS_PAGE_SIZE>(pointer_offset(bumpptr, rsize * 32));
       if (slab_end2 < slab_end)
         slab_end = slab_end2;
 
       while (newbumpptr < slab_end)
       {
-        Metaslab::store_next(bumpptr, newbumpptr);
+        Metaslab::store_next(
+          unsafe_mk_freeptr<FreeListEntry>(bumpptr),
+          Aal::template ptrauth_bound<FreeListEntry>(newbumpptr, rsize));
         bumpptr = newbumpptr;
         newbumpptr = pointer_offset(bumpptr, rsize);
       }
 
-      Metaslab::store_next(bumpptr, nullptr);
+      Metaslab::store_next(unsafe_mk_freeptr<FreeListEntry>(bumpptr), nullptr);
       bumpptr = newbumpptr;
     }
 
@@ -121,7 +131,8 @@ namespace snmalloc
     // Returns true, if it deallocation can proceed without changing any status
     // bits. Note that this does remove the use from the meta slab, so it
     // doesn't need doing on the slow path.
-    SNMALLOC_FAST_PATH bool dealloc_fast(Superslab* super, void* p)
+    SNMALLOC_FAST_PATH bool
+    dealloc_fast(Superslab* super, FreePtr<FreeListEntry> p)
     {
       Metaslab& meta = super->get_meta(this);
 #ifdef CHECK_CLIENT
@@ -133,7 +144,7 @@ namespace snmalloc
         return false;
 
       // Update the head and the next pointer in the free list.
-      void* head = meta.head;
+      FreePtr<FreeListEntry> head = meta.head;
 
       // Set the head to the memory being deallocated.
       meta.head = p;
@@ -150,7 +161,7 @@ namespace snmalloc
     // Returns a complex return code for managing the superslab meta data.
     // i.e. This deallocation could make an entire superslab free.
     SNMALLOC_SLOW_PATH typename Superslab::Action
-    dealloc_slow(SlabList* sl, Superslab* super, void* p)
+    dealloc_slow(SlabList* sl, Superslab* super, FreePtr<FreeListEntry> p)
     {
       Metaslab& meta = super->get_meta(this);
       meta.debug_slab_invariant(this);

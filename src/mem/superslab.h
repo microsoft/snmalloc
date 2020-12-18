@@ -71,6 +71,16 @@ namespace snmalloc
       return pointer_align_down<SUPERSLAB_SIZE, Superslab>(a.unsafe_auth_ptr);
     }
 
+    /**
+     * Compute where the Superslab metadata would be, but without any
+     * expectation that the resulting pointer be authorized to access said
+     * metadata.  Useful almost exclusively for debugging.
+     */
+    static Superslab* get_noauth(void* p)
+    {
+      return get(mk_authptr<void>(p));
+    }
+
     static bool is_short_sizeclass(sizeclass_t sizeclass)
     {
       constexpr sizeclass_t h = size_to_sizeclass_const(sizeof(Superslab));
