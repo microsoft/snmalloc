@@ -241,9 +241,9 @@ namespace snmalloc
       while (curr != nullptr)
       {
         // Check we are looking at a correctly aligned block
-        void* start =
-          remove_cache_friendly_offset(curr.unsafe_free_ptr, sizeclass);
-        SNMALLOC_ASSERT(((pointer_diff(slab, start) - offset) % size) == 0);
+        FreePtr<void> start = remove_cache_friendly_offset(curr, sizeclass);
+        SNMALLOC_ASSERT(
+          ((pointer_diff(slab, start.unsafe_free_ptr) - offset) % size) == 0);
 
         // Account for free elements in free list
         accounted_for += size;

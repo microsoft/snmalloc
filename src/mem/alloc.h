@@ -944,8 +944,7 @@ namespace snmalloc
         else
         {
           SNMALLOC_ASSERT(super->get_kind() == Medium);
-          FreePtr<void> start = unsafe_mk_freeptr<void>(
-            mk_authptr(remove_cache_friendly_offset(fpf.unsafe_free_ptr, psz)));
+          FreePtr<void> start = remove_cache_friendly_offset(fpf, psz);
           medium_dealloc(Mediumslab::get(p_auth), start, psz);
         }
       }
@@ -1119,12 +1118,13 @@ namespace snmalloc
 
         fl.value = Metaslab::follow_next(head);
 
-        void* p = remove_cache_friendly_offset(head.unsafe_free_ptr, sizeclass);
+        FreePtr<void> p = remove_cache_friendly_offset(head, sizeclass);
         if constexpr (zero_mem == YesZero)
         {
-          MemoryProvider::Pal::zero(p, sizeclass_to_size(sizeclass));
+          MemoryProvider::Pal::zero(
+            p.unsafe_free_ptr, sizeclass_to_size(sizeclass));
         }
-        return unsafe_mk_returnptr(unsafe_mk_freeptr<void>(mk_authptr(p)));
+        return unsafe_mk_returnptr(p);
       }
 
       if (likely(!has_messages()))
@@ -1238,8 +1238,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(ffl.value == nullptr);
       Slab::alloc_new_list(bp, ffl, rsize);
 
-      FreePtr<void> p = unsafe_mk_freeptr<void>(mk_authptr(
-        remove_cache_friendly_offset(ffl.value.unsafe_free_ptr, sizeclass)));
+      FreePtr<void> p = remove_cache_friendly_offset(ffl.value, sizeclass);
       ffl.value = Metaslab::follow_next(ffl.value);
 
       if constexpr (zero_mem == YesZero)

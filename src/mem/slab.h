@@ -55,9 +55,9 @@ namespace snmalloc
       meta.head = nullptr;
 
       // Return the link as the node for this allocation.
-      void* link = pointer_offset(this, meta.link);
-      FreePtr<void> p = unsafe_mk_freeptr<void>(
-        mk_authptr(remove_cache_friendly_offset(link, meta.sizeclass)));
+      FreePtr<FreeListEntry> link = unsafe_mk_freeptr<FreeListEntry>(
+        mk_authptr(pointer_offset(this, meta.link)));
+      FreePtr<void> p = remove_cache_friendly_offset(link, meta.sizeclass);
 
       // Treat stealing the free list as allocating it all.
       meta.needed = meta.allocated;

@@ -149,11 +149,13 @@ namespace snmalloc
   }
 
 #ifdef CACHE_FRIENDLY_OFFSET
-  SNMALLOC_FAST_PATH static void*
-  remove_cache_friendly_offset(void* p, sizeclass_t sizeclass)
+  template<typename T>
+  SNMALLOC_FAST_PATH static FreePtr<void>
+  remove_cache_friendly_offset(FreePtr<T> p, sizeclass_t sizeclass)
   {
     size_t mask = sizeclass_to_inverse_cache_friendly_mask(sizeclass);
-    return p = (void*)((uintptr_t)p & mask);
+    return unsafe_mk_freeptr<void>(
+      mk_authptr((void*)((uintptr_t)p.unsafe_free_ptr & mask)));
   }
 
   SNMALLOC_FAST_PATH static uintptr_t
@@ -163,11 +165,12 @@ namespace snmalloc
     return relative & mask;
   }
 #else
-  SNMALLOC_FAST_PATH static void*
-  remove_cache_friendly_offset(void* p, sizeclass_t sizeclass)
+  template<typename T>
+  SNMALLOC_FAST_PATH static FreePtr<void>
+  remove_cache_friendly_offset(FreePtr<T> p, sizeclass_t sizeclass)
   {
     UNUSED(sizeclass);
-    return p;
+    return static_cast<FreePtr<void>>(p);
   }
 
   SNMALLOC_FAST_PATH static uintptr_t
