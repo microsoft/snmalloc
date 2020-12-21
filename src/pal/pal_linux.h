@@ -26,9 +26,7 @@ namespace snmalloc
     static constexpr uint64_t pal_features = PALPOSIX::pal_features;
 
     static constexpr size_t page_size =
-      (Aal::aal_name == PowerPC ?
-         0x10000 :
-         (Aal::aal_name == Sparc ? Aal::smallest_page_size : 0x1000));
+      Aal::aal_name == PowerPC ? 0x10000 : PALPOSIX::page_size;
 
     /**
      * OS specific function for zeroing memory.
