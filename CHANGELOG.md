@@ -1,5 +1,13 @@
 ## Changelog
 
+### 0.2.22
+
+- **upstream** avoid amplification when routing
+- **upstream** remotely store sizeclass
+- **upstream** limit flat pagemap size
+- **upstream** limit medium slab header
+- **upstream** solaris support fix
+
 ### 0.2.21
 
 - **upstream** bug fix for using failing to initialise meta-data

@@ -63,6 +63,14 @@ Hence, please make sure the following libs are in your `PATH`:
 
 ## Changelog
 
+### 0.2.22    
+
+- **upstream** avoid amplification when	routing
+- **upstream** remotely	store sizeclass
+- **upstream** limit flat pagemap size
+- **upstream** limit medium slab header
+- **upstream** solaris support fix
+
 ### 0.2.21
 
 - **upstream** bug fix for using failing to initialise meta-data
@@ -74,13 +82,6 @@ Hence, please make sure the following libs are in your `PATH`:
 - **upstream** DragonFly support (userland).
 - **upstream** natural alignment for USE_MALLOC
 - **upstream** fix bug in pagemap when index has many level
-- **upstream** add constexpr annotation to align_up/down.  
-
-### 0.2.19
-
-- **upstream** stats
-- **upstream** PAL updates and concepts
-- **upstream** ddd constexpr annotation to align_up/down
-- change macOS CI to follow xcode 12
+- **upstream** add constexpr annotation to align_up/down.
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 
