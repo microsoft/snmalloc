@@ -1364,7 +1364,11 @@ namespace snmalloc
           super_available.remove(super);
 
           chunkmap().clear_slab(super);
-          large_allocator.dealloc(mk_authptr(super), super, 0);
+
+          auto super_auth = mk_authptr(super);
+          auto super_free = unsafe_mk_freeptr<void>(super_auth);
+
+          large_allocator.dealloc(super_auth, super_free, 0);
           stats().superslab_push();
           break;
         }
@@ -1452,7 +1456,11 @@ namespace snmalloc
         }
 
         chunkmap().clear_slab(slab);
-        large_allocator.dealloc(mk_authptr(slab), slab, 0);
+
+        auto slab_auth = mk_authptr(slab);
+        auto slab_free = unsafe_mk_freeptr<void>(slab_auth);
+
+        large_allocator.dealloc(slab_auth, slab_free, 0);
         stats().superslab_push();
       }
       else if (was_full)
@@ -1529,7 +1537,7 @@ namespace snmalloc
       // Initialise in order to set the correct SlabKind.
       Largeslab* slab = static_cast<Largeslab*>(p_free.unsafe_free_ptr);
       slab->init();
-      large_allocator.dealloc(p_auth, slab, large_class);
+      large_allocator.dealloc(p_auth, p_free, large_class);
     }
 
     // This is still considered the fast path as all the complex code is tail

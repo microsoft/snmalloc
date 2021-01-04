@@ -308,7 +308,7 @@ namespace snmalloc
       return p;
     }
 
-    void dealloc(AuthPtr<void> p_auth, void* p, size_t large_class)
+    void dealloc(AuthPtr<void> p_auth, FreePtr<void> p_free, size_t large_class)
     {
       UNUSED(p_auth);
 
@@ -328,12 +328,14 @@ namespace snmalloc
         (large_class != 0 || decommit_strategy == DecommitSuper))
       {
         MemoryProvider::Pal::notify_not_using(
-          pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
+          pointer_offset(p_auth.unsafe_auth_ptr, OS_PAGE_SIZE),
+          rsize - OS_PAGE_SIZE);
       }
 
       stats.superslab_push();
       memory_provider.available_large_chunks_in_bytes += rsize;
-      memory_provider.large_stack[large_class].push(static_cast<Largeslab*>(p));
+      memory_provider.large_stack[large_class].push(
+        static_cast<Largeslab*>(p_free.unsafe_free_ptr));
     }
 
     template<typename T = void>
