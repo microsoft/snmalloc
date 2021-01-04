@@ -259,7 +259,7 @@ namespace snmalloc
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
 
       ReturnPtr p_ret = unsafe_as_returnptr(p_raw);
-      AuthPtr<void> p_auth = mk_authptr(p_raw);
+      AuthPtr<void> p_auth = large_allocator.ptrauth_amplify(p_ret);
       FreePtr<void> p_free = unsafe_as_freeptr<void>(p_ret);
 
       if (sizeclass < NUM_SIZECLASSES)
@@ -315,7 +315,7 @@ namespace snmalloc
       check_size(p_raw, size);
 
       ReturnPtr p_ret = unsafe_as_returnptr(p_raw);
-      AuthPtr<void> p_auth = mk_authptr(p_raw);
+      AuthPtr<void> p_auth = large_allocator.ptrauth_amplify(p_ret);
       FreePtr<void> p_free = unsafe_as_freeptr<void>(p_ret);
 
       dealloc_sized_auth(p_auth, p_free, size);
@@ -375,7 +375,7 @@ namespace snmalloc
 
       ReturnPtr p_ret = unsafe_as_returnptr(p_raw);
       uint8_t size = chunkmap().get(p_ret);
-      AuthPtr<void> p_auth = mk_authptr(p_raw);
+      AuthPtr<void> p_auth = large_allocator.ptrauth_amplify(p_ret);
       FreePtr<void> p_free = unsafe_as_freeptr<void>(p_ret);
 
       if (likely(size == CMSuperslab))
@@ -450,7 +450,7 @@ namespace snmalloc
 #else
       ReturnPtr p_ret = unsafe_as_returnptr(p_raw);
       uint8_t size = chunkmap().get(p_ret);
-      AuthPtr<void> p_auth = mk_authptr(p_raw);
+      AuthPtr<void> p_auth = large_allocator.ptrauth_amplify(p_ret);
 
       Superslab* super = Superslab::get(p_auth);
       if (size == CMSuperslab)
@@ -522,10 +522,10 @@ namespace snmalloc
       // This must be called on an external pointer.
       ReturnPtr p_ret = unsafe_as_returnptr(const_cast<void*>(p_raw));
       size_t size = chunkmap().get(p_ret);
-      AuthPtr<void> p_auth = mk_authptr(const_cast<void*>(p_raw));
 
       if (likely(size == CMSuperslab))
       {
+        AuthPtr<void> p_auth = large_allocator.ptrauth_amplify(p_ret);
         Superslab* super = Superslab::get(p_auth);
 
         // Reading a remote sizeclass won't fail, since the other allocator
@@ -538,6 +538,7 @@ namespace snmalloc
 
       if (likely(size == CMMediumslab))
       {
+        AuthPtr<void> p_auth = large_allocator.ptrauth_amplify(p_ret);
         Mediumslab* slab = Mediumslab::get(p_auth);
         // Reading a remote sizeclass won't fail, since the other allocator
         // can't reuse the slab, as we have no yet deallocated this pointer.
@@ -646,8 +647,6 @@ namespace snmalloc
 
       void post(LargeAlloc<MemoryProvider>* large_allocator, alloc_id_t id)
       {
-        UNUSED(large_allocator);
-
         // When the cache gets big, post lists to their target allocators.
         capacity = REMOTE_CACHE;
 
@@ -668,7 +667,9 @@ namespace snmalloc
             if (!l->empty())
             {
               // Send all slots to the target at the head of the list.
-              AuthPtr<void> first_auth = mk_authptr(first.unsafe_free_ptr);
+              AuthPtr<void> first_auth = large_allocator->ptrauth_amplify(
+                unsafe_as_returnptr(first.unsafe_free_ptr));
+
               /*
                * This is somewhat dubious: this chunk might be either a
                * Superslab or a Mediumslab, but we access only the
@@ -854,6 +855,10 @@ namespace snmalloc
       {
         auto& bp = bump_ptrs[i];
         auto rsize = sizeclass_to_size(i);
+        AuthPtr<void> bp_auth = large_allocator.ptrauth_amplify(
+          unsafe_as_returnptr(bp.unsafe_auth_ptr));
+        Superslab* super = Superslab::get(bp_auth);
+        Slab* slab = Metaslab::get_slab(bp_auth);
         FreeListHead ffl;
         while (pointer_align_up(bp, SLAB_SIZE) != bp)
         {
@@ -862,12 +867,7 @@ namespace snmalloc
           while (prev != nullptr)
           {
             auto n = Metaslab::follow_next(prev);
-            AuthPtr<void> prev_auth = mk_authptr(prev.unsafe_free_ptr);
-            Superslab* super = Superslab::get(prev_auth);
-            Slab* slab = Metaslab::get_slab(prev_auth);
-            FreePtr<FreeListEntry> prev_free =
-              unsafe_mk_freeptr<FreeListEntry>(prev_auth);
-            small_dealloc_offseted_inner(super, slab, prev_free, i);
+            small_dealloc_offseted_inner(super, slab, prev, i);
             prev = n;
           }
         }
@@ -876,17 +876,15 @@ namespace snmalloc
       for (size_t i = 0; i < NUM_SMALL_CLASSES; i++)
       {
         auto prev = small_fast_free_lists[i].value;
+        Superslab* super = Superslab::get(large_allocator.ptrauth_amplify(
+          unsafe_as_returnptr(prev.unsafe_free_ptr)));
         small_fast_free_lists[i].value = nullptr;
         while (prev != nullptr)
         {
           auto n = Metaslab::follow_next(prev);
-
-          AuthPtr<void> prev_auth = mk_authptr(prev.unsafe_free_ptr);
-          Superslab* super = Superslab::get(prev_auth);
-          Slab* slab = Metaslab::get_slab(prev_auth);
-          FreePtr<FreeListEntry> prev_free =
-            unsafe_mk_freeptr<FreeListEntry>(prev_auth);
-          small_dealloc_offseted_inner(super, slab, prev_free, i);
+          Slab* slab = Metaslab::get_slab(large_allocator.ptrauth_amplify(
+            unsafe_as_returnptr(prev.unsafe_free_ptr)));
+          small_dealloc_offseted_inner(super, slab, prev, i);
 
           prev = n;
         }
