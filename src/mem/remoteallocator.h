@@ -71,4 +71,13 @@ namespace snmalloc
         ~SIZECLASS_MASK;
     }
   };
+
+  template<typename T = void>
+  SNMALLOC_FAST_PATH FreePtr<T> zero_remote(FreePtr<Remote> f)
+  {
+    void* fp = f.unsafe_free_ptr;
+    Pal::template zero<false>(fp, sizeof(Remote));
+    return unsafe_mk_freeptr<T>(mk_authptr(fp));
+  }
+
 } // namespace snmalloc
