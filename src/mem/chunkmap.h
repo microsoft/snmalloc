@@ -172,22 +172,12 @@ namespace snmalloc
   struct DefaultChunkMap
   {
     /**
-     * Get the pagemap entry corresponding to a specific address.
-     *
-     * Despite the type, the return value is an enum ChunkMapSuperslabKind
-     * or one of the reserved values described therewith.
+     * Get the pagemap entry corresponding to a specific address inside
+     * a ReturnPtr wrapper.
      */
-    static uint8_t get(address_t p)
+    static uint8_t get(ReturnPtr p)
     {
-      return PagemapProvider::pagemap().get(p);
-    }
-
-    /**
-     * Get the pagemap entry corresponding to a specific address.
-     */
-    static uint8_t get(void* p)
-    {
-      return get(address_cast(p));
+      return get(address_cast(p.unsafe_return_ptr));
     }
 
     /**
@@ -210,7 +200,7 @@ namespace snmalloc
      */
     static void clear_slab(Superslab* slab)
     {
-      SNMALLOC_ASSERT(get(slab) == CMSuperslab);
+      SNMALLOC_ASSERT(get(address_cast(slab)) == CMSuperslab);
       set(slab, static_cast<size_t>(CMNotOurs));
     }
     /**
@@ -218,7 +208,7 @@ namespace snmalloc
      */
     static void clear_slab(Mediumslab* slab)
     {
-      SNMALLOC_ASSERT(get(slab) == CMMediumslab);
+      SNMALLOC_ASSERT(get(address_cast(slab)) == CMMediumslab);
       set(slab, static_cast<size_t>(CMNotOurs));
     }
     /**
@@ -253,6 +243,17 @@ namespace snmalloc
     }
 
   private:
+    /**
+     * Get the pagemap entry corresponding to a specific address.
+     *
+     * Despite the type, the return value is an enum ChunkMapSuperslabKind
+     * or one of the reserved values described therewith.
+     */
+    static uint8_t get(address_t p)
+    {
+      return PagemapProvider::pagemap().get(p);
+    }
+
     /**
      * Helper function to set a pagemap entry.  This is not part of the public
      * interface and exists to make it easy to reuse the code in the public

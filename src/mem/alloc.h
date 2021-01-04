@@ -249,17 +249,18 @@ namespace snmalloc
      * external pointer.
      */
     template<size_t size>
-    void dealloc(void* p)
+    void dealloc(void* p_raw)
     {
 #ifdef SNMALLOC_PASS_THROUGH
       UNUSED(size);
-      return external_alloc::free(p);
+      return external_alloc::free(p_raw);
 #else
-      check_size(p, size);
+      check_size(p_raw, size);
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
 
-      AuthPtr<void> p_auth = mk_authptr(p);
-      FreePtr<void> p_free = unsafe_mk_freeptr<void>(p_auth);
+      ReturnPtr p_ret = unsafe_as_returnptr(p_raw);
+      AuthPtr<void> p_auth = mk_authptr(p_raw);
+      FreePtr<void> p_free = unsafe_as_freeptr<void>(p_ret);
 
       if (sizeclass < NUM_SMALL_CLASSES)
       {
@@ -292,17 +293,18 @@ namespace snmalloc
      * Free memory of a dynamically known size. Must be called with an
      * external pointer.
      */
-    SNMALLOC_FAST_PATH void dealloc(void* p, size_t size)
+    SNMALLOC_FAST_PATH void dealloc(void* p_raw, size_t size)
     {
 #ifdef SNMALLOC_PASS_THROUGH
       UNUSED(size);
-      return external_alloc::free(p);
+      return external_alloc::free(p_raw);
 #else
-      SNMALLOC_ASSERT(p != nullptr);
-      check_size(p, size);
+      SNMALLOC_ASSERT(p_raw != nullptr);
+      check_size(p_raw, size);
 
-      AuthPtr<void> p_auth = mk_authptr(p);
-      FreePtr<void> p_free = unsafe_mk_freeptr<void>(p_auth);
+      ReturnPtr p_ret = unsafe_as_returnptr(p_raw);
+      AuthPtr<void> p_auth = mk_authptr(p_raw);
+      FreePtr<void> p_free = unsafe_as_freeptr<void>(p_ret);
 
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
       {
@@ -344,15 +346,16 @@ namespace snmalloc
      * Free memory of an unknown size. Must be called with an external
      * pointer.
      */
-    SNMALLOC_FAST_PATH void dealloc(void* p)
+    SNMALLOC_FAST_PATH void dealloc(void* p_raw)
     {
 #ifdef SNMALLOC_PASS_THROUGH
-      return external_alloc::free(p);
+      return external_alloc::free(p_raw);
 #else
 
-      uint8_t size = chunkmap().get(address_cast(p));
-      AuthPtr<void> p_auth = mk_authptr(p);
-      FreePtr<void> p_free = unsafe_mk_freeptr<void>(p_auth);
+      ReturnPtr p_ret = unsafe_as_returnptr(p_raw);
+      uint8_t size = chunkmap().get(p_ret);
+      AuthPtr<void> p_auth = mk_authptr(p_raw);
+      FreePtr<void> p_free = unsafe_as_freeptr<void>(p_ret);
 
       if (likely(size == CMSuperslab))
       {
@@ -418,14 +421,15 @@ namespace snmalloc
     }
 
     template<Boundary location = Start>
-    void* external_pointer(void* p)
+    void* external_pointer(void* p_raw)
     {
 #ifdef SNMALLOC_PASS_THROUGH
       error("Unsupported");
-      UNUSED(p);
+      UNUSED(p_raw);
 #else
-      uint8_t size = chunkmap().get(address_cast(p));
-      AuthPtr<void> p_auth = mk_authptr(p);
+      ReturnPtr p_ret = unsafe_as_returnptr(p_raw);
+      uint8_t size = chunkmap().get(p_ret);
+      AuthPtr<void> p_auth = mk_authptr(p_raw);
 
       Superslab* super = Superslab::get(p_auth);
       if (size == CMSuperslab)
@@ -436,7 +440,8 @@ namespace snmalloc
         sizeclass_t sc = meta.sizeclass;
         void* slab_end = pointer_offset(slab, SLAB_SIZE);
 
-        return external_pointer<location>(p, sc, slab_end);
+        return external_pointer<location>(p_ret, sc, slab_end)
+          .unsafe_return_ptr;
       }
       if (size == CMMediumslab)
       {
@@ -445,7 +450,8 @@ namespace snmalloc
         sizeclass_t sc = slab->get_sizeclass();
         void* slab_end = pointer_offset(slab, SUPERSLAB_SIZE);
 
-        return external_pointer<location>(p, sc, slab_end);
+        return external_pointer<location>(p_ret, sc, slab_end)
+          .unsafe_return_ptr;
       }
 
       auto ss = super;
@@ -457,7 +463,7 @@ namespace snmalloc
           ss,
           -(static_cast<ptrdiff_t>(1)
             << (size - CMLargeRangeMin + SUPERSLAB_BITS)));
-        size = chunkmap().get(ss);
+        size = chunkmap().get(unsafe_as_returnptr(ss));
       }
 
       if (size == 0)
@@ -487,14 +493,15 @@ namespace snmalloc
     }
 
   public:
-    SNMALLOC_FAST_PATH size_t alloc_size(const void* p)
+    SNMALLOC_FAST_PATH size_t alloc_size(const void* p_raw)
     {
 #ifdef SNMALLOC_PASS_THROUGH
-      return external_alloc::malloc_usable_size(const_cast<void*>(p));
+      return external_alloc::malloc_usable_size(const_cast<void*>(p_raw));
 #else
       // This must be called on an external pointer.
-      size_t size = chunkmap().get(address_cast(p));
-      AuthPtr<void> p_auth = mk_authptr(const_cast<void*>(p));
+      ReturnPtr p_ret = unsafe_as_returnptr(const_cast<void*>(p_raw));
+      size_t size = chunkmap().get(p_ret);
+      AuthPtr<void> p_auth = mk_authptr(const_cast<void*>(p_raw));
 
       if (likely(size == CMSuperslab))
       {
@@ -879,8 +886,8 @@ namespace snmalloc
     }
 
     template<Boundary location>
-    static void*
-    external_pointer(void* p, sizeclass_t sizeclass, void* end_point)
+    static ReturnPtr
+    external_pointer(ReturnPtr p, sizeclass_t sizeclass, void* end_point)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
 
@@ -891,12 +898,12 @@ namespace snmalloc
            pointer_offset_signed(end_point, -static_cast<ptrdiff_t>(rsize)));
 
       size_t offset_from_end =
-        pointer_diff(p, pointer_offset_signed(end_point, -1));
+        pointer_diff(p.unsafe_return_ptr, pointer_offset_signed(end_point, -1));
 
       size_t end_to_end = round_by_sizeclass(rsize, offset_from_end);
 
-      return pointer_offset_signed(
-        end_point_correction, -static_cast<ptrdiff_t>(end_to_end));
+      return unsafe_as_returnptr(pointer_offset_signed(
+        end_point_correction, -static_cast<ptrdiff_t>(end_to_end)));
     }
 
     void init_message_queue()
