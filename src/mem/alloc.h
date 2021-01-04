@@ -318,6 +318,15 @@ namespace snmalloc
       AuthPtr<void> p_auth = mk_authptr(p_raw);
       FreePtr<void> p_free = unsafe_as_freeptr<void>(p_ret);
 
+      dealloc_sized_auth(p_auth, p_free, size);
+#endif
+    }
+
+  private:
+    SNMALLOC_FAST_PATH
+    void
+    dealloc_sized_auth(AuthPtr<void> p_auth, FreePtr<void> p_free, size_t size)
+    {
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
       {
         Superslab* super = Superslab::get(p_auth);
@@ -330,7 +339,6 @@ namespace snmalloc
         return;
       }
       dealloc_sized_slow(p_auth, p_free, size);
-#endif
     }
 
     SNMALLOC_SLOW_PATH
@@ -338,7 +346,7 @@ namespace snmalloc
     dealloc_sized_slow(AuthPtr<void> p_auth, FreePtr<void> p_free, size_t size)
     {
       if (size == 0)
-        return dealloc(p_free.unsafe_free_ptr, 1);
+        return dealloc_sized_auth(p_auth, p_free, 1);
 
       if (likely(size <= sizeclass_to_size(NUM_SIZECLASSES - 1)))
       {
@@ -354,6 +362,7 @@ namespace snmalloc
       large_dealloc(p_auth, p_free, size);
     }
 
+  public:
     /*
      * Free memory of an unknown size. Must be called with an external
      * pointer.
