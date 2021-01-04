@@ -18,7 +18,7 @@ namespace snmalloc
     using alloc_id_t = size_t;
     union
     {
-      Remote* non_atomic_next;
+      FreePtr<Remote> non_atomic_next;
       std::atomic<Remote*> next{nullptr};
     };
 

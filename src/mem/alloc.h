@@ -557,16 +557,16 @@ namespace snmalloc
        */
       Remote head{};
 
-      Remote* last{&head};
+      FreePtr<Remote> last{unsafe_mk_freeptr<Remote>(mk_authptr(&head))};
 
       void clear()
       {
-        last = &head;
+        last = unsafe_mk_freeptr<Remote>(mk_authptr(&head));
       }
 
       bool empty()
       {
-        return last == &head;
+        return last.unsafe_free_ptr == &head;
       }
     };
 
@@ -612,8 +612,8 @@ namespace snmalloc
         r->set_info(target_id, sizeclass);
 
         RemoteList* l = &list[get_slot(target_id, 0)];
-        l->last->non_atomic_next = r;
-        l->last = r;
+        l->last.unsafe_free_ptr->non_atomic_next = p_free;
+        l->last = p_free;
       }
 
       void post(LargeAlloc<MemoryProvider>* large_allocator, alloc_id_t id)
@@ -635,11 +635,12 @@ namespace snmalloc
               continue;
 
             RemoteList* l = &list[i];
-            Remote* first = l->head.non_atomic_next;
+            FreePtr<Remote> first = l->head.non_atomic_next;
 
             if (!l->empty())
             {
               // Send all slots to the target at the head of the list.
+              AuthPtr<void> first_auth = mk_authptr(first.unsafe_free_ptr);
               /*
                * This is somewhat dubious: this chunk might be either a
                * Superslab or a Mediumslab, but we access only the
@@ -653,8 +654,9 @@ namespace snmalloc
                   offsetof(Mediumslab, allocator),
                 "Allocslab derived classes have differing allocator offsets");
 #endif
-              Superslab* super = Superslab::get(mk_authptr(first));
-              super->get_allocator()->message_queue.enqueue(first, l->last);
+              Superslab* super = Superslab::get(first_auth);
+              super->get_allocator()->message_queue.enqueue(
+                first.unsafe_free_ptr, l->last.unsafe_free_ptr);
               l->clear();
             }
           }
@@ -666,8 +668,8 @@ namespace snmalloc
           // Entries could map back onto the "resend" list,
           // so take copy of the head, mark the last element,
           // and clear the original list.
-          Remote* r = resend->head.non_atomic_next;
-          resend->last->non_atomic_next = nullptr;
+          FreePtr<Remote> r = resend->head.non_atomic_next;
+          resend->last.unsafe_free_ptr->non_atomic_next = nullptr;
           resend->clear();
 
           post_round++;
@@ -676,12 +678,13 @@ namespace snmalloc
           {
             // Use the next N bits to spread out remote deallocs in our own
             // slot.
-            size_t slot = get_slot(r->trunc_target_id(), post_round);
+            size_t slot =
+              get_slot(r.unsafe_free_ptr->trunc_target_id(), post_round);
             RemoteList* l = &list[slot];
-            l->last->non_atomic_next = r;
+            l->last.unsafe_free_ptr->non_atomic_next = r;
             l->last = r;
 
-            r = r->non_atomic_next;
+            r = r.unsafe_free_ptr->non_atomic_next;
           }
         }
       }
@@ -807,12 +810,13 @@ namespace snmalloc
 
       // Destroy the message queue so that it has no stub message.
       {
-        Remote* p = message_queue().destroy();
+        auto p =
+          unsafe_mk_freeptr<Remote>(mk_authptr(message_queue().destroy()));
 
         while (p != nullptr)
         {
-          Remote* n = p->non_atomic_next;
-          handle_dealloc_remote(unsafe_mk_freeptr<Remote>(mk_authptr(p)));
+          FreePtr<Remote> n = p.unsafe_free_ptr->non_atomic_next;
+          handle_dealloc_remote(p);
           p = n;
         }
       }
