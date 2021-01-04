@@ -262,25 +262,9 @@ namespace snmalloc
       AuthPtr<void> p_auth = mk_authptr(p_raw);
       FreePtr<void> p_free = unsafe_as_freeptr<void>(p_ret);
 
-      if (sizeclass < NUM_SMALL_CLASSES)
+      if (sizeclass < NUM_SIZECLASSES)
       {
-        Superslab* super = Superslab::get(p_auth);
-        RemoteAllocator* target = super->get_allocator();
-
-        if (likely(target == public_state()))
-          small_dealloc(super, p_auth, p_free, sizeclass);
-        else
-          remote_dealloc(target, p_free, sizeclass);
-      }
-      else if (sizeclass < NUM_SIZECLASSES)
-      {
-        Mediumslab* slab = Mediumslab::get(p_auth);
-        RemoteAllocator* target = slab->get_allocator();
-
-        if (likely(target == public_state()))
-          medium_dealloc(slab, p_free, sizeclass);
-        else
-          remote_dealloc(target, p_free, sizeclass);
+        dealloc_sizeclass_auth(p_auth, p_free, sizeclass);
       }
       else
       {
@@ -289,6 +273,34 @@ namespace snmalloc
 #endif
     }
 
+  private:
+    SNMALLOC_FAST_PATH
+    void dealloc_sizeclass_auth(
+      AuthPtr<void> p_auth, FreePtr<void> p_free, sizeclass_t sizeclass)
+    {
+      if (likely(sizeclass < NUM_SMALL_CLASSES))
+      {
+        Superslab* super = Superslab::get(p_auth);
+        RemoteAllocator* target = super->get_allocator();
+
+        if (likely(target == public_state()))
+          small_dealloc(super, p_auth, p_free, sizeclass);
+        else
+          remote_dealloc(target, p_auth, p_free, sizeclass);
+      }
+      else
+      {
+        Mediumslab* slab = Mediumslab::get(p_auth);
+        RemoteAllocator* target = slab->get_allocator();
+
+        if (likely(target == public_state()))
+          medium_dealloc(slab, p_free, sizeclass);
+        else
+          remote_dealloc(target, p_auth, p_free, sizeclass);
+      }
+    }
+
+  public:
     /*
      * Free memory of a dynamically known size. Must be called with an
      * external pointer.
@@ -314,7 +326,7 @@ namespace snmalloc
         if (likely(target == public_state()))
           small_dealloc(super, p_auth, p_free, sizeclass);
         else
-          remote_dealloc(target, p_free, sizeclass);
+          remote_dealloc(target, p_auth, p_free, sizeclass);
         return;
       }
       dealloc_sized_slow(p_auth, p_free, size);
@@ -336,7 +348,7 @@ namespace snmalloc
         if (likely(target == public_state()))
           medium_dealloc(slab, p_free, sizeclass);
         else
-          remote_dealloc(target, p_free, sizeclass);
+          remote_dealloc(target, p_auth, p_free, sizeclass);
         return;
       }
       large_dealloc(p_auth, p_free, size);
@@ -372,7 +384,7 @@ namespace snmalloc
         if (likely(super->get_allocator() == public_state()))
           small_dealloc(super, p_auth, p_free, sizeclass);
         else
-          remote_dealloc(target, p_free, sizeclass);
+          remote_dealloc(target, p_auth, p_free, sizeclass);
         return;
       }
       dealloc_not_small(p_auth, p_free, size);
@@ -399,7 +411,7 @@ namespace snmalloc
         if (target == public_state())
           medium_dealloc(slab, p_free, sizeclass);
         else
-          remote_dealloc(target, p_free, sizeclass);
+          remote_dealloc(target, p_auth, p_free, sizeclass);
         return;
       }
 
@@ -1552,7 +1564,10 @@ namespace snmalloc
     // Clang.
     SNMALLOC_FAST_PATH
     void remote_dealloc(
-      RemoteAllocator* target, FreePtr<void> p_free, sizeclass_t sizeclass)
+      RemoteAllocator* target,
+      AuthPtr<void> p_auth,
+      FreePtr<void> p_free,
+      sizeclass_t sizeclass)
     {
       MEASURE_TIME(remote_dealloc, 4, 16);
       SNMALLOC_ASSERT(target->trunc_id() != get_trunc_id());
@@ -1569,11 +1584,14 @@ namespace snmalloc
         return;
       }
 
-      remote_dealloc_slow(target, p_free, sizeclass);
+      remote_dealloc_slow(target, p_auth, p_free, sizeclass);
     }
 
     SNMALLOC_SLOW_PATH void remote_dealloc_slow(
-      RemoteAllocator* target, FreePtr<void> p_free, sizeclass_t sizeclass)
+      RemoteAllocator* target,
+      AuthPtr<void> p_auth,
+      FreePtr<void> p_free,
+      sizeclass_t sizeclass)
     {
       SNMALLOC_ASSERT(target->trunc_id() != get_trunc_id());
 
@@ -1582,8 +1600,9 @@ namespace snmalloc
       // a real allocator and construct one if we aren't.
       if (NeedsInitialisation(this))
       {
-        InitThreadAllocator([p_free](void* alloc) {
-          reinterpret_cast<Allocator*>(alloc)->dealloc(p_free.unsafe_free_ptr);
+        InitThreadAllocator([p_auth, p_free, sizeclass](void* alloc) {
+          reinterpret_cast<Allocator*>(alloc)->dealloc_sizeclass_auth(
+            p_auth, p_free, sizeclass);
           return nullptr;
         });
         return;
