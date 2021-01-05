@@ -23,6 +23,10 @@
 #  define PLATFORM_IS_POWERPC
 #endif
 
+#if defined(__sparc__)
+#  define PLATFORM_IS_SPARC
+#endif
+
 namespace snmalloc
 {
   /**
@@ -54,6 +58,7 @@ namespace snmalloc
     PowerPC,
     X86,
     X86_SGX,
+    Sparc,
   };
 
   /**
@@ -147,6 +152,8 @@ namespace snmalloc
 #  include "aal_arm.h"
 #elif defined(PLATFORM_IS_POWERPC)
 #  include "aal_powerpc.h"
+#elif defined(PLATFORM_IS_SPARC)
+#  include "aal_sparc.h"
 #endif
 
 namespace snmalloc

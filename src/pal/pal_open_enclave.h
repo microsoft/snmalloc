@@ -39,7 +39,7 @@ namespace snmalloc
      */
     static constexpr uint64_t pal_features = 0;
 
-    static constexpr size_t page_size = 0x1000;
+    static constexpr size_t page_size = Aal::smallest_page_size;
 
     [[noreturn]] static void error(const char* const str)
     {
