@@ -101,7 +101,7 @@ namespace snmalloc
         const size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
         available_large_chunks_in_bytes -= rsize;
       }
-      return 0;
+      return p;
     }
 
     /**
