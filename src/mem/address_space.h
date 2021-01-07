@@ -236,5 +236,21 @@ namespace snmalloc
 
       return res;
     }
+
+    /**
+     * Default constructor.  An address-space manager constructed in this way
+     * does not own any memory at the start and will request any that it needs
+     * from the PAL.
+     */
+    AddressSpaceManager() = default;
+
+    /**
+     * Constructor that pre-initialises the address-space manager with a region
+     * of memory.
+     */
+    AddressSpaceManager(void* base, size_t length)
+    {
+      add_range(base, length);
+    }
   };
 } // namespace snmalloc

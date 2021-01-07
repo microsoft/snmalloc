@@ -75,9 +75,6 @@ namespace snmalloc
      */
     std::atomic<size_t> peak_memory_used_bytes{0};
 
-  public:
-    using Pal = PAL;
-
     /**
      * Memory current available in large_stacks
      */
@@ -88,6 +85,51 @@ namespace snmalloc
      */
     ModArray<NUM_LARGE_CLASSES, MPMCStack<Largeslab, RequiresInit>> large_stack;
 
+  public:
+    using Pal = PAL;
+
+    /**
+     * Pop an allocation from a large-allocation stack.  This is safe to call
+     * concurrently with other acceses.  If there is no large allocation on a
+     * particular stack then this will return `nullptr`.
+     */
+    SNMALLOC_FAST_PATH void* pop_large_stack(size_t large_class)
+    {
+      void* p = large_stack[large_class].pop();
+      if (p != nullptr)
+      {
+        const size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
+        available_large_chunks_in_bytes -= rsize;
+      }
+      return 0;
+    }
+
+    /**
+     * Push `slab` onto the large-allocation stack associated with the size
+     * class specified by `large_class`.  Always succeeds.
+     */
+    SNMALLOC_FAST_PATH void
+    push_large_stack(Largeslab* slab, size_t large_class)
+    {
+      const size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
+      available_large_chunks_in_bytes += rsize;
+      large_stack[large_class].push(slab);
+    }
+
+    /**
+     * Default constructor.  This constructs a memory provider that doesn't yet
+     * own any memory, but which can claim memory from the PAL.
+     */
+    MemoryProviderStateMixin() = default;
+
+    /**
+     * Construct a memory provider owning some memory.  The PAL provided with
+     * memory providers constructed in this way does not have to be able to
+     * allocate memory, if the initial reservation is sufficient.
+     */
+    MemoryProviderStateMixin(void* start, size_t len)
+    : address_space(start, len)
+    {}
     /**
      * Make a new memory provide for this PAL.
      */
@@ -253,7 +295,7 @@ namespace snmalloc
       if (large_class == 0)
         size = rsize;
 
-      void* p = memory_provider.large_stack[large_class].pop();
+      void* p = memory_provider.pop_large_stack(large_class);
 
       if (p == nullptr)
       {
@@ -265,7 +307,6 @@ namespace snmalloc
       else
       {
         stats.superslab_pop();
-        memory_provider.available_large_chunks_in_bytes -= rsize;
 
         // Cross-reference alloc.h's large_dealloc decommitment condition.
         bool decommitted =
@@ -323,8 +364,7 @@ namespace snmalloc
       }
 
       stats.superslab_push();
-      memory_provider.available_large_chunks_in_bytes += rsize;
-      memory_provider.large_stack[large_class].push(static_cast<Largeslab*>(p));
+      memory_provider.push_large_stack(static_cast<Largeslab*>(p), large_class);
     }
   };
 
