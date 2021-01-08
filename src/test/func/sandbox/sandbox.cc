@@ -210,7 +210,7 @@ namespace
         // the test, but any call to this function that ignores `.second`
         // (the allocated size) is deeply suspect.
         void *ptr = PAL::reserve_at_least(sb_size).first;
-        PAL::notify_using<YesZero>(ptr, sb_size);
+        PAL::template notify_using<YesZero>(ptr, sb_size);
         return ptr;
       }
     }
