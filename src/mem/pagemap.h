@@ -395,7 +395,7 @@ namespace snmalloc
      */
     size_t index_for_address(uintptr_t p)
     {
-      return bits::align_down(static_cast<size_t>(p) >> SHIFT, OS_PAGE_SIZE);
+      return (static_cast<size_t>(p) >> SHIFT) % OS_PAGE_SIZE;
     }
 
     /**
