@@ -68,13 +68,13 @@ namespace snmalloc
     /**
      * OS specific function for zeroing memory.
      *
-     * This just calls bzero - we don't assume that we have access to any
+     * This just calls memset - we don't assume that we have access to any
      * virtual-memory functions.
      */
     template<bool page_aligned = false>
     static void zero(void* p, size_t size) noexcept
     {
-      bzero(p, size);
+      memset(p, 0, size);
     }
   };
 } // namespace snmalloc
