@@ -1,5 +1,7 @@
-#ifdef SNMALLOC_PASS_THROUGH
+#if defined(SNMALLOC_PASS_THROUGH) || defined(_WIN32)
 // This test does not make sense with malloc pass-through, skip it.
+// The malloc definitions are also currently incompatible with Windows headers
+// so skip this test on Windows as well.
 int main()
 {
   return 0;

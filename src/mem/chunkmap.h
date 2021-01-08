@@ -147,9 +147,9 @@ namespace snmalloc
     {
       if (external_pagemap == nullptr)
       {
-        const snmalloc::PagemapConfig* c;
-        external_pagemap =
-          ChunkmapPagemap::cast_to_pagemap(snmalloc_pagemap_global_get(&c), c);
+        const snmalloc::PagemapConfig* c = nullptr;
+        void* raw_pagemap = snmalloc_pagemap_global_get(&c);
+        external_pagemap = ChunkmapPagemap::cast_to_pagemap(raw_pagemap, c);
         if (!external_pagemap)
         {
           Pal::error("Incorrect ABI of global pagemap.");
