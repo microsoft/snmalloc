@@ -193,6 +193,7 @@ namespace
     }
 
   private:
+    template<bool PointlessBoolToDeferTypeChecking = true>
     void* alloc_sandbox_heap(size_t sb_size)
     {
       if constexpr (!pal_supports<AlignedAllocation, DefaultPal>)
