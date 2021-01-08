@@ -193,12 +193,12 @@ namespace
     }
 
   private:
-    template<bool PointlessBoolToDeferTypeChecking = true>
+    template<typename PAL = DefaultPal>
     void* alloc_sandbox_heap(size_t sb_size)
     {
-      if constexpr (!pal_supports<AlignedAllocation, DefaultPal>)
+      if constexpr (pal_supports<AlignedAllocation, PAL>)
       {
-        return DefaultPal::reserve_aligned<true>(sb_size);
+        return PAL::template reserve_aligned<true>(sb_size);
       }
       else
       {
@@ -206,7 +206,7 @@ namespace
         // double the amount we ask for to ensure alignment.  It's fine for
         // the test, but any call to this function that ignores `.second`
         // (the allocated size) is deeply suspect.
-        return DefaultPal::reserve_at_least(sb_size).first;
+        return PAL::reserve_at_least(sb_size).first;
       }
     }
   };
