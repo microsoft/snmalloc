@@ -55,7 +55,14 @@ namespace snmalloc
     static void notify_using(void* p, size_t size) noexcept
     {
       if constexpr (zero_mem == YesZero)
+      {
         zero<true>(p, size);
+      }
+      else
+      {
+        UNUSED(p);
+        UNUSED(size);
+      }
     }
 
     /**
