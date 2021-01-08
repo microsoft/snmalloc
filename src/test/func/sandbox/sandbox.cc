@@ -14,7 +14,7 @@ using namespace snmalloc;
 namespace
 {
   /**
-   * Helper for Alloc that is never as a thread-local allocator and so is
+   * Helper for Alloc that is never used as a thread-local allocator and so is
    * always initialised.
    */
   bool never_init(void*)
@@ -26,7 +26,7 @@ namespace
    */
   void* no_op_init(function_ref<void*(void*)>)
   {
-    assert(0 && "Should never be called!");
+    SNMALLOC_CHECK(0 && "Should never be called!");
     return nullptr;
   }
   /**
@@ -163,9 +163,14 @@ namespace
       auto* state_proxy = static_cast<MemoryProviderProxy*>(
         alloc.alloc(sizeof(MemoryProviderProxy)));
       state_proxy->real_state = &state;
+      // In real code, allocators should never be constructed like this, they
+      // should always come from an alloc pool.  This is just to test that both
+      // kinds of allocator can be created.
       internal_alloc =
         new (alloc.alloc(sizeof(InternalAlloc))) InternalAlloc(*state_proxy);
     }
+
+    Sandbox() = delete;
 
     /**
      * Predicate function for querying whether an object is entirely within the
@@ -196,6 +201,10 @@ namespace
       }
       else
       {
+        // Note: This wastes address space because the PAL will reserve
+        // double the amount we ask for to ensure alignment.  It's fine for
+        // the test, but any call to this function that ignores `.second`
+        // (the allocated size) is deeply suspect.
         return DefaultPal::reserve_at_least(sb_size).first;
       }
     }
@@ -212,7 +221,7 @@ int main()
 
   auto check = [](Sandbox& sb, auto& alloc, size_t sz) {
     void* ptr = alloc.alloc(sz);
-    assert(sb.is_in_sandbox_heap(ptr, sz));
+    SNMALLOC_CHECK(sb.is_in_sandbox_heap(ptr, sz));
     free(ptr);
   };
   auto check_with_sb = [&](Sandbox& sb) {

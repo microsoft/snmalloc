@@ -92,10 +92,11 @@ namespace snmalloc
     ConceptPAL_memops<PAL> &&
     (!(PAL::pal_features & LowMemoryNotification) ||
       ConceptPAL_mem_low_notify<PAL>) &&
+	(!(PAL::pal_features & NoAllocation) && (
     (!!(PAL::pal_features & AlignedAllocation) ||
       ConceptPAL_reserve_at_least<PAL>) &&
     (!(PAL::pal_features & AlignedAllocation) ||
-      ConceptPAL_reserve_aligned<PAL>);
+      ConceptPAL_reserve_aligned<PAL>)));
 
 } // namespace snmalloc
 #endif

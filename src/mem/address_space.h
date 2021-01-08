@@ -191,14 +191,14 @@ namespace snmalloc
         if (res == nullptr)
         {
           // Allocation failed ask OS for more memory
-          void* block;
-          size_t block_size;
+          void* block = nullptr;
+          size_t block_size = 0;
           if constexpr (pal_supports<AlignedAllocation, PAL>)
           {
             block_size = PAL::minimum_alloc_size;
             block = PAL::template reserve_aligned<false>(block_size);
           }
-          else
+          else if constexpr (!pal_supports<NoAllocation, PAL>)
           {
             // Need at least 2 times the space to guarantee alignment.
             // Hold lock here as a race could cause additional requests to

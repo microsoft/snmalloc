@@ -19,9 +19,9 @@ namespace snmalloc
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
      */
-    static constexpr uint64_t pal_features = 0;
+    static constexpr uint64_t pal_features = NoAllocation;
 
-    static constexpr size_t page_size = ErrorHandler::page_size;
+    static constexpr size_t page_size = Aal::smallest_page_size;
 
     /**
      * Print a stack trace.
@@ -68,16 +68,6 @@ namespace snmalloc
     static void zero(void* p, size_t size) noexcept
     {
       bzero(p, size);
-    }
-
-    /**
-     * Reserve memory.
-     *
-     * This should never be called.
-     */
-    static std::pair<void*, size_t> reserve_at_least(size_t) noexcept
-    {
-      error("Out of memory");
     }
   };
 } // namespace snmalloc
