@@ -83,81 +83,14 @@ namespace snmalloc
     FlatPagemap<SUPERSLAB_BITS, uint8_t>,
     Pagemap<SUPERSLAB_BITS, uint8_t, 0>>;
 
-  /**
-   * Mixin used by `ChunkMap` to directly access the pagemap via a global
-   * variable.  This should be used from within the library or program that
-   * owns the pagemap.
-   *
-   * This class makes the global pagemap a static field so that its name
-   * includes the type mangling.  If two compilation units try to instantiate
-   * two different types of pagemap then they will see two distinct pagemaps.
-   * This will prevent allocating with one and freeing with the other (because
-   * the memory will show up as not owned by any allocator in the other
-   * compilation unit) but will prevent the same memory being interpreted as
-   * having two different types.
-   */
-  template<typename T>
-  class GlobalPagemapTemplate
-  {
-    /**
-     * The global pagemap variable.  The name of this symbol will include the
-     * type of `T`.
-     */
-    inline static T global_pagemap;
-
-  public:
-    /**
-     * Returns the pagemap.
-     */
-    static ChunkmapPagemap& pagemap()
-    {
-      return global_pagemap;
-    }
-  };
-
-  using GlobalPagemap = GlobalPagemapTemplate<ChunkmapPagemap>;
+  using GlobalChunkmap = GlobalPagemapTemplate<ChunkmapPagemap>;
 
   /**
-   * Optionally exported function that accesses the global pagemap provided by
-   * a shared library.
+   * Optionally exported function that accesses the global chunkmap pagemap
+   * provided by a shared library.
    */
-  extern "C" void* snmalloc_pagemap_global_get(snmalloc::PagemapConfig const**);
-
-  /**
-   * Mixin used by `ChunkMap` to access the global pagemap via a
-   * type-checked C interface.  This should be used when another library (e.g.
-   * your C standard library) uses snmalloc and you wish to use a different
-   * configuration in your program or library, but wish to share a pagemap so
-   * that either version can deallocate memory.
-   */
-  class ExternalGlobalPagemap
-  {
-    /**
-     * A pointer to the pagemap.
-     */
-    inline static ChunkmapPagemap* external_pagemap;
-
-  public:
-    /**
-     * Returns the exported pagemap.
-     * Accesses the pagemap via the C ABI accessor and casts it to
-     * the expected type, failing in cases of ABI mismatch.
-     */
-    static ChunkmapPagemap& pagemap()
-    {
-      if (external_pagemap == nullptr)
-      {
-        const snmalloc::PagemapConfig* c = nullptr;
-        void* raw_pagemap = snmalloc_pagemap_global_get(&c);
-        external_pagemap = ChunkmapPagemap::cast_to_pagemap(raw_pagemap, c);
-        if (!external_pagemap)
-        {
-          Pal::error("Incorrect ABI of global pagemap.");
-        }
-      }
-      return *external_pagemap;
-    }
-  };
+  extern "C" void*
+  snmalloc_chunkmap_global_get(snmalloc::PagemapConfig const**);
 
   /**
    * Class that defines an interface to the pagemap.  This is provided to
@@ -165,7 +98,7 @@ namespace snmalloc
    * implementation (for example, to move pagemap updates to a different
    * protection domain).
    */
-  template<typename PagemapProvider = GlobalPagemap>
+  template<typename PagemapProvider = GlobalChunkmap>
   struct DefaultChunkMap
   {
     /**

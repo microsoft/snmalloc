@@ -10,10 +10,13 @@ int main()
 #  define SNMALLOC_EXPOSE_PAGEMAP 1
 #  include <override/malloc.cc>
 
+using ExternalChunkmap =
+  ExternalGlobalPagemapTemplate<ChunkmapPagemap, snmalloc_chunkmap_global_get>;
+
 int main()
 {
-  auto& p = ExternalGlobalPagemap::pagemap();
-  auto& global = GlobalPagemap::pagemap();
+  auto& p = ExternalChunkmap::pagemap();
+  auto& global = GlobalChunkmap::pagemap();
   SNMALLOC_CHECK(&p == &global);
   // Get a valid heap address
   uintptr_t addr = reinterpret_cast<uintptr_t>(malloc(42));
