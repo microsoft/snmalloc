@@ -196,6 +196,7 @@ namespace snmalloc
       UNUSED(sc);
 
 #ifdef USE_SNMALLOC_STATS
+      SNMALLOC_ASSUME(sc < LARGE_N);
       large_pop_count[sc]++;
 #endif
     }
