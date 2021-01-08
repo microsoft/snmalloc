@@ -3,6 +3,8 @@
 #include "../ds/mpmcstack.h"
 #include "allocconfig.h"
 
+#include <type_traits>
+
 namespace snmalloc
 {
   enum SlabKind
@@ -18,9 +20,18 @@ namespace snmalloc
     Decommitted
   };
 
+  class Superslab;
+  class Mediumslab;
+  class Largeslab;
+  class Deallocslab;
+
   class Baseslab
   {
   protected:
+    friend class Superslab;
+    friend class Mediumslab;
+    friend class Largeslab;
+    friend class Deallocslab;
     SlabKind kind;
 
   public:
@@ -29,4 +40,7 @@ namespace snmalloc
       return kind;
     }
   };
+
+  static_assert(
+    std::is_standard_layout_v<Baseslab>, "Baseslab not standard layout");
 } // namespace snmalloc

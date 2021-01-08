@@ -623,8 +623,8 @@ namespace snmalloc
             if (!l->empty())
             {
               // Send all slots to the target at the head of the list.
-              Superslab* super = Superslab::get(first);
-              super->get_allocator()->message_queue.enqueue(first, l->last);
+              Allocslab* aslab = Allocslab::get(first);
+              aslab->get_allocator()->message_queue.enqueue(first, l->last);
               l->clear();
             }
           }

@@ -5,15 +5,27 @@
 #include "metaslab.h"
 
 #include <new>
+#include <type_traits>
 
 namespace snmalloc
 {
-  class Superslab : public Allocslab
+  class SuperslabStaticChecks;
+
+  /*
+   * Disable "excess padding" warning on this structure; we deliberately put
+   * the Allocslab field first and pad it to be an entire cache line.
+   */
+  // NOLINTNEXTLINE(clang-analyzer-optin.performance.Padding)
+  class Superslab
   {
     // This is the view of a 16 mb superslab when it is being used to allocate
     // 64 kb slabs.
-  private:
+  protected:
+    friend class SuperslabStaticChecks;
     friend DLList<Superslab>;
+
+    // Maintain first member for pointer interconvertability
+    Allocslab allocslab;
 
     // Keep the allocator pointer on a separate cache line. It is read by
     // other threads, and does not change, so we avoid false sharing.
@@ -71,6 +83,16 @@ namespace snmalloc
         const_cast<void*>(p));
     }
 
+    RemoteAllocator* get_allocator()
+    {
+      return allocslab.get_allocator();
+    }
+
+    enum SlabKind get_kind()
+    {
+      return allocslab.base.get_kind();
+    }
+
     static bool is_short_sizeclass(sizeclass_t sizeclass)
     {
       constexpr sizeclass_t h = size_to_sizeclass_const(sizeof(Superslab));
@@ -79,14 +101,14 @@ namespace snmalloc
 
     void init(RemoteAllocator* alloc)
     {
-      allocator = alloc;
+      allocslab.allocator = alloc;
 
       // If Superslab is larger than a page, then we cannot guarantee it still
       // has a valid layout as the subsequent pages could have been freed and
       // zeroed, hence only skip initialisation if smaller.
-      if (kind != Super || (sizeof(Superslab) >= OS_PAGE_SIZE))
+      if (allocslab.base.kind != Super || (sizeof(Superslab) >= OS_PAGE_SIZE))
       {
-        if (kind != Fresh)
+        if (allocslab.base.kind != Fresh)
         {
           // If this wasn't previously Fresh, we need to zero some things.
           used = 0;
@@ -98,7 +120,7 @@ namespace snmalloc
 
         // If this wasn't previously a Superslab, we need to set up the
         // header.
-        kind = Super;
+        allocslab.base.kind = Super;
         // Point head at the first non-short slab.
         head = 1;
       }
@@ -240,5 +262,17 @@ namespace snmalloc
 
       return NoStatusChange;
     }
+  };
+
+  class SuperslabStaticChecks
+  {
+    static_assert(
+      std::is_standard_layout_v<Superslab>, "Superslab not standard layout");
+
+#ifdef __cpp_lib_is_pointer_interconvertible
+    static_assert(
+      std::is_pointer_interconvertible_with_class(&Superslab::allocslab),
+      "Superslab not interconvertible with allocslab");
+#endif
   };
 } // namespace snmalloc

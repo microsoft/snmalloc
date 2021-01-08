@@ -7,12 +7,23 @@
 
 namespace snmalloc
 {
-  class Mediumslab : public Allocslab
+  class MediumslabStaticChecks;
+
+  /*
+   * Disable "excess padding" warning on this structure; we deliberately put
+   * the Allocslab field first and pad it to be an entire cache line.
+   */
+  // NOLINTNEXTLINE(clang-analyzer-optin.performance.Padding)
+  class Mediumslab
   {
     // This is the view of a 16 mb area when it is being used to allocate
     // medium sized classes: 64 kb to 16 mb, non-inclusive.
-  private:
+  protected:
+    friend class MediumslabStaticChecks;
     friend DLList<Mediumslab>;
+
+    // Maintain first member for pointer interconvertability
+    Allocslab allocslab;
 
     // Keep the allocator pointer on a separate cache line. It is read by
     // other threads, and does not change, so we avoid false sharing.
@@ -50,21 +61,31 @@ namespace snmalloc
         const_cast<void*>(p));
     }
 
+    RemoteAllocator* get_allocator()
+    {
+      return allocslab.get_allocator();
+    }
+
+    enum SlabKind get_kind()
+    {
+      return allocslab.base.get_kind();
+    }
+
     void init(RemoteAllocator* alloc, sizeclass_t sc, size_t rsize)
     {
       SNMALLOC_ASSERT(sc >= NUM_SMALL_CLASSES);
       SNMALLOC_ASSERT((sc - NUM_SMALL_CLASSES) < NUM_MEDIUM_CLASSES);
 
-      allocator = alloc;
+      allocslab.allocator = alloc;
       head = 0;
 
       // If this was previously a Mediumslab of the same sizeclass, don't
       // initialise the allocation stack.
-      if ((kind != Medium) || (sizeclass != sc))
+      if ((allocslab.base.kind != Medium) || (sizeclass != sc))
       {
         sizeclass = static_cast<uint8_t>(sc);
         uint16_t ssize = static_cast<uint16_t>(rsize >> 8);
-        kind = Medium;
+        allocslab.base.kind = Medium;
         free = medium_slab_free(sc);
         for (uint16_t i = free; i > 0; i--)
           stack[free - i] =
@@ -126,5 +147,17 @@ namespace snmalloc
       // Get the offset from the slab for a memory location.
       return static_cast<uint16_t>(pointer_diff(this, p) >> 8);
     }
+  };
+
+  class MediumslabStaticChecks
+  {
+    static_assert(
+      std::is_standard_layout_v<Mediumslab>, "Mediumslab not standard layout");
+
+#ifdef __cpp_lib_is_pointer_interconvertible
+    static_assert(
+      std::is_pointer_interconvertible_with_class(&Mediumslab::allocslab),
+      "Mediumslab not interconvertible with allocslab");
+#endif
   };
 } // namespace snmalloc
