@@ -209,7 +209,7 @@ namespace
         // double the amount we ask for to ensure alignment.  It's fine for
         // the test, but any call to this function that ignores `.second`
         // (the allocated size) is deeply suspect.
-        void *ptr = PAL::reserve_at_least(sb_size).first;
+        void* ptr = PAL::reserve_at_least(sb_size).first;
         PAL::template notify_using<YesZero>(ptr, sb_size);
         return ptr;
       }
