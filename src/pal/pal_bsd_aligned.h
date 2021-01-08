@@ -53,7 +53,7 @@ namespace snmalloc
 
     /**
      * Explicitly deleted method for returning non-aligned memory.  This causes
-     * * incorrect use of `constexpr if` to fail on platforms with aligned
+     * incorrect use of `constexpr if` to fail on platforms with aligned
      * allocation.  Without this, this PAL and its subclasses exported both
      * allocation functions and so callers would type-check if they called
      * either in `constexpr if` branches and then fail on platforms such as
