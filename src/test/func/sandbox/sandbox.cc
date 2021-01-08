@@ -7,7 +7,7 @@ int main()
   return 0;
 }
 #else
-#  include <override/malloc.cc>
+#  include <snmalloc.h>
 
 using namespace snmalloc;
 
@@ -195,7 +195,7 @@ namespace
   private:
     void* alloc_sandbox_heap(size_t sb_size)
     {
-      if constexpr (pal_supports<AlignedAllocation, DefaultPal>)
+      if constexpr (!pal_supports<AlignedAllocation, DefaultPal>)
       {
         return DefaultPal::reserve_aligned<true>(sb_size);
       }
@@ -222,7 +222,7 @@ int main()
   auto check = [](Sandbox& sb, auto& alloc, size_t sz) {
     void* ptr = alloc.alloc(sz);
     SNMALLOC_CHECK(sb.is_in_sandbox_heap(ptr, sz));
-    free(ptr);
+    ThreadAlloc::get_noncachable()->dealloc(ptr);
   };
   auto check_with_sb = [&](Sandbox& sb) {
     // Check with a range of sizes
