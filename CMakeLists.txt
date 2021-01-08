@@ -21,13 +21,13 @@ option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine archit
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
 set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
 
-# malloc.h was removed from C in C89 and so FreeBSD's version has a #error and
-# tells you to include stdlib.h instead.  Fortunately, all of the non-portable
-# extensions to malloc are in malloc_np.h on FreeBSD so we can use that to
-# check if we should include malloc.h.
+# malloc.h will error if you include it on FreeBSD, so this test must not
+# unconditionally include it.
 CHECK_C_SOURCE_COMPILES("
 #if __has_include(<malloc_np.h>)
 #include <malloc_np.h>
+#if __has_include(<malloc/malloc.h>)
+#include <malloc/malloc.h>
 #else
 #include <malloc.h>
 #endif
