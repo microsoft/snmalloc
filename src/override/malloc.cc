@@ -221,10 +221,10 @@ extern "C"
    * this function to the correct type.  This allows us to preserve some
    * semblance of ABI safety via a pure C API.
    */
-  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(snmalloc_pagemap_global_get)(
+  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(snmalloc_chunkmap_global_get)(
     PagemapConfig const** config)
   {
-    auto& pm = GlobalPagemap::pagemap();
+    auto& pm = GlobalChunkmap::pagemap();
     if (config)
     {
       *config = &ChunkmapPagemap::config;

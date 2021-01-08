@@ -409,4 +409,74 @@ namespace snmalloc
         reinterpret_cast<uintptr_t>(&top[p >> SHIFT]) & ~(OS_PAGE_SIZE - 1));
     }
   };
+
+  /**
+   * Mixin used by `ChunkMap` and other `PageMap` consumers to directly access
+   * the pagemap via a global variable.  This should be used from within the
+   * library or program that owns the pagemap.
+   *
+   * This class makes the global pagemap a static field so that its name
+   * includes the type mangling.  If two compilation units try to instantiate
+   * two different types of pagemap then they will see two distinct pagemaps.
+   * This will prevent allocating with one and freeing with the other (because
+   * the memory will show up as not owned by any allocator in the other
+   * compilation unit) but will prevent the same memory being interpreted as
+   * having two different types.
+   */
+  template<typename T>
+  class GlobalPagemapTemplate
+  {
+    /**
+     * The global pagemap variable.  The name of this symbol will include the
+     * type of `T`.
+     */
+    inline static T global_pagemap;
+
+  public:
+    /**
+     * Returns the pagemap.
+     */
+    static T& pagemap()
+    {
+      return global_pagemap;
+    }
+  };
+
+  /**
+   * Mixin used by `ChunkMap` and other `PageMap` consumers to access the global
+   * pagemap via a type-checked C interface.  This should be used when another
+   * library (e.g.  your C standard library) uses snmalloc and you wish to use a
+   * different configuration in your program or library, but wish to share a
+   * pagemap so that either version can deallocate memory.
+   */
+  template<typename T, void* (*raw_get)(const PagemapConfig**)>
+  class ExternalGlobalPagemapTemplate
+  {
+    /**
+     * A pointer to the pagemap.
+     */
+    inline static T* external_pagemap;
+
+  public:
+    /**
+     * Returns the exported pagemap.
+     * Accesses the pagemap via the C ABI accessor and casts it to
+     * the expected type, failing in cases of ABI mismatch.
+     */
+    static T& pagemap()
+    {
+      if (external_pagemap == nullptr)
+      {
+        const snmalloc::PagemapConfig* c = nullptr;
+        void* raw_pagemap = raw_get(&c);
+        external_pagemap = T::cast_to_pagemap(raw_pagemap, c);
+        if (!external_pagemap)
+        {
+          Pal::error("Incorrect ABI of global pagemap.");
+        }
+      }
+      return *external_pagemap;
+    }
+  };
+
 } // namespace snmalloc
