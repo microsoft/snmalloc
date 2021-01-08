@@ -7,6 +7,9 @@ int main()
   return 0;
 }
 #else
+// The decommit strategy is currently a global policy and not per-allocator and
+// so we need to tell Windows not to use the lazy strategy for this test.
+#  define USE_DECOMMIT_STRATEGY DecommitSuper
 #  include <snmalloc.h>
 
 using namespace snmalloc;
