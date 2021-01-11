@@ -50,7 +50,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
   {
     printf(
       "Address is 0x%zx, but required to be aligned to 0x%zx.\n",
-      reinterpret_cast<uintptr_t>(p),
+      reinterpret_cast<size_t>(p),
       align);
     abort();
   }
@@ -60,7 +60,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
   {
     printf(
       "Address is 0x%zx, but should have natural alignment to 0x%zx.\n",
-      reinterpret_cast<uintptr_t>(p),
+      reinterpret_cast<size_t>(p),
       natural_alignment(size));
     abort();
   }
