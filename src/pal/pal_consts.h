@@ -36,6 +36,11 @@ namespace snmalloc
      * exposed in the Pal.
      */
     LazyCommit = (1 << 2),
+    /**
+     * This Pal does not support allocation.  All memory used with this Pal
+     * should be pre-allocated.
+     */
+    NoAllocation = (1 << 3),
   };
   /**
    * Flag indicating whether requested memory should be zeroed.

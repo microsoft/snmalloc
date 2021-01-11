@@ -50,5 +50,17 @@ namespace snmalloc
 
       return p;
     }
+
+    /**
+     * Explicitly deleted method for returning non-aligned memory.  This causes
+     * incorrect use of `constexpr if` to fail on platforms with aligned
+     * allocation.  Without this, this PAL and its subclasses exported both
+     * allocation functions and so callers would type-check if they called
+     * either in `constexpr if` branches and then fail on platforms such as
+     * Linux or Windows, which expose only unaligned or aligned allocations,
+     * respectively.
+     */
+    static std::pair<void*, size_t>
+    reserve_at_least(size_t size) noexcept = delete;
   };
 } // namespace snmalloc

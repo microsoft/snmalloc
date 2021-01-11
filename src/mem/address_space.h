@@ -191,14 +191,14 @@ namespace snmalloc
         if (res == nullptr)
         {
           // Allocation failed ask OS for more memory
-          void* block;
-          size_t block_size;
+          void* block = nullptr;
+          size_t block_size = 0;
           if constexpr (pal_supports<AlignedAllocation, PAL>)
           {
             block_size = PAL::minimum_alloc_size;
             block = PAL::template reserve_aligned<false>(block_size);
           }
-          else
+          else if constexpr (!pal_supports<NoAllocation, PAL>)
           {
             // Need at least 2 times the space to guarantee alignment.
             // Hold lock here as a race could cause additional requests to
@@ -235,6 +235,22 @@ namespace snmalloc
         commit_block(res, size);
 
       return res;
+    }
+
+    /**
+     * Default constructor.  An address-space manager constructed in this way
+     * does not own any memory at the start and will request any that it needs
+     * from the PAL.
+     */
+    AddressSpaceManager() = default;
+
+    /**
+     * Constructor that pre-initialises the address-space manager with a region
+     * of memory.
+     */
+    AddressSpaceManager(void* base, size_t length)
+    {
+      add_range(base, length);
     }
   };
 } // namespace snmalloc
