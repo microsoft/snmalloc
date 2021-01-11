@@ -422,13 +422,19 @@ namespace snmalloc
    * the memory will show up as not owned by any allocator in the other
    * compilation unit) but will prevent the same memory being interpreted as
    * having two different types.
+   *
+   * Simiarly, perhaps two modules wish to instantiate *different* pagemaps
+   * of the *same* type.  Therefore, we add a `Purpose` parameter that can be
+   * used to pry symbols apart.  By default, the `Purpose` is just the type of
+   * the pagemap; that is, pagemaps default to discrimination solely by their
+   * type.
    */
-  template<typename T>
+  template<typename T, typename Purpose = T>
   class GlobalPagemapTemplate
   {
     /**
      * The global pagemap variable.  The name of this symbol will include the
-     * type of `T`.
+     * type of `T` and `U`.
      */
     inline static T global_pagemap;
 
@@ -448,8 +454,13 @@ namespace snmalloc
    * library (e.g.  your C standard library) uses snmalloc and you wish to use a
    * different configuration in your program or library, but wish to share a
    * pagemap so that either version can deallocate memory.
+   *
+   * The `Purpose` parameter is as with `GlobalPgemapTemplate`.
    */
-  template<typename T, void* (*raw_get)(const PagemapConfig**)>
+  template<
+    typename T,
+    void* (*raw_get)(const PagemapConfig**),
+    typename Purpose = T>
   class ExternalGlobalPagemapTemplate
   {
     /**

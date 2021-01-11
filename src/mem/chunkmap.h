@@ -83,7 +83,9 @@ namespace snmalloc
     FlatPagemap<SUPERSLAB_BITS, uint8_t>,
     Pagemap<SUPERSLAB_BITS, uint8_t, 0>>;
 
-  using GlobalChunkmap = GlobalPagemapTemplate<ChunkmapPagemap>;
+  struct ForChunkmap
+  {};
+  using GlobalChunkmap = GlobalPagemapTemplate<ChunkmapPagemap, ForChunkmap>;
 
   /**
    * Optionally exported function that accesses the global chunkmap pagemap
