@@ -368,7 +368,18 @@ namespace snmalloc
     }
   };
 
-  using GlobalVirtual = MemoryProviderStateMixin<Pal>;
+#ifndef SNMALLOC_DEFAULT_MEMORY_PROVIDER
+#  define SNMALLOC_DEFAULT_MEMORY_PROVIDER MemoryProviderStateMixin<Pal>
+#endif
+
+  /**
+   * The type of the default memory allocator.  This can be changed by defining
+   * `SNMALLOC_DEFAULT_MEMORY_PROVIDER` before including this file.  By default
+   * it is `MemoryProviderStateMixin<Pal>` a class that allocates directly from
+   * the platform abstraction layer.
+   */
+  using GlobalVirtual = SNMALLOC_DEFAULT_MEMORY_PROVIDER;
+
   /**
    * The memory provider that will be used if no other provider is explicitly
    * passed as an argument.

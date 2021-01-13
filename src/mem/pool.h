@@ -24,6 +24,7 @@ namespace snmalloc
     friend Pooled<T>;
     template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     friend class MemoryProviderStateMixin;
+    friend SNMALLOC_DEFAULT_MEMORY_PROVIDER;
 
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
     MPMCStack<T, PreZeroed> stack;
