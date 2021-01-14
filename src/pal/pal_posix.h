@@ -4,6 +4,7 @@
 #if defined(BACKTRACE_HEADER)
 #  include BACKTRACE_HEADER
 #endif
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -87,6 +88,22 @@ namespace snmalloc
        * mapping.
        */
       static const int fd = T::anonymous_memory_fd;
+    };
+
+    /**
+     * A RAII class to capture and restore errno
+     */
+    class KeepErrno
+    {
+      decltype(errno) cached_errno;
+
+    public:
+      KeepErrno() : cached_errno(errno) {}
+
+      ~KeepErrno()
+      {
+        errno = cached_errno;
+      }
     };
 
   public:
@@ -186,6 +203,16 @@ namespace snmalloc
       if (page_aligned || is_aligned_block<OS::page_size>(p, size))
       {
         SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
+
+        /*
+         * If mmap fails, we're going to fall back to zeroing the memory
+         * ourselves, which is not stellar, but correct.  However, mmap() will
+         * have has left errno nonzero in an effort to explain its MAP_FAILED
+         * result.  Capture its current value and restore it at the end of this
+         * block.
+         */
+        auto hold = KeepErrno();
+
         void* r = mmap(
           p,
           size,
