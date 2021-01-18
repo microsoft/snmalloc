@@ -57,6 +57,14 @@ namespace snmalloc
         ::memset(p, 0, size);
       }
     }
+
+    static void notify_not_using(void* p, size_t size) noexcept
+    {
+      // Call this Pal to simulate the Windows decommit in CI.
+      PALPOSIX<PALLinux>::notify_not_using(p, size);
+
+      madvise(p, size, MADV_FREE);
+    }
   };
 } // namespace snmalloc
 #endif
