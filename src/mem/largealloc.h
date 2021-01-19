@@ -138,7 +138,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void check_tick()
     {
       // TODO: Need to get a good constant here, or something to adapt to
-      if ((clock() - last_tick) > (clock_t)(CLOCKS_PER_SEC / SUPERSLAB_STACK_COUNT))
+      if (unlikely((clock() - last_tick) > (clock_t)(CLOCKS_PER_SEC / SUPERSLAB_STACK_COUNT)))
       {
         handle_tick();
       }

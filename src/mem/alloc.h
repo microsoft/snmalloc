@@ -1085,6 +1085,7 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void*
     small_alloc_next_free_list(sizeclass_t sizeclass, size_t size)
     {
+      large_allocator.memory_provider.check_tick();
       size_t rsize = sizeclass_to_size(sizeclass);
       auto& sl = small_classes[sizeclass];
 
