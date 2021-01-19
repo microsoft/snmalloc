@@ -11,6 +11,7 @@
 
 #include <new>
 #include <string.h>
+#include <ctime>
 
 namespace snmalloc
 {
@@ -95,7 +96,7 @@ namespace snmalloc
      */
     ModArray<NUM_LARGE_CLASSES, MPMCStack<Largeslab, RequiresInit>> large_stack;
 
-    static inline uint64_t last_tick = 0;
+    static inline clock_t last_tick = 0;
 
   public:
     using Pal = PAL;
@@ -127,7 +128,7 @@ namespace snmalloc
         superslab_stack_index = (superslab_stack_index + 1) % SUPERSLAB_STACK_COUNT;
 
         // Reset when we count next tick
-        last_tick = Aal::tick();
+        last_tick = clock();
 
         // Release lock
         flush_flag.clear();
@@ -137,7 +138,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void check_tick()
     {
       // TODO: Need to get a good constant here, or something to adapt to
-      if (Aal::tick() - last_tick > 100000000)
+      if ((clock() - last_tick) > (clock_t)(CLOCKS_PER_SEC / SUPERSLAB_STACK_COUNT))
       {
         handle_tick();
       }
