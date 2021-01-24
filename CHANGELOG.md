@@ -1,5 +1,9 @@
 ## Changelog
 
+### 0.2.23
+
+- **upstream** fix external pagemap usage
+
 ### 0.2.22
 
 - **upstream** avoid amplification when routing

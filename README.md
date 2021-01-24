@@ -63,6 +63,10 @@ Hence, please make sure the following libs are in your `PATH`:
 
 ## Changelog
 
+### 0.2.23
+
+- **upstream** fix external pagemap usage
+
 ### 0.2.22    
 
 - **upstream** avoid amplification when	routing
@@ -74,14 +78,5 @@ Hence, please make sure the following libs are in your `PATH`:
 ### 0.2.21
 
 - **upstream** bug fix for using failing to initialise meta-data
-
-### 0.2.20
-
-- **upstream** pass through Haiku build fix. 
-- **upstream** fix typo in macro definition for 16MiB shared library shim.
-- **upstream** DragonFly support (userland).
-- **upstream** natural alignment for USE_MALLOC
-- **upstream** fix bug in pagemap when index has many level
-- **upstream** add constexpr annotation to align_up/down.
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 
