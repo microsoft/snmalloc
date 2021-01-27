@@ -32,7 +32,7 @@ namespace snmalloc
     static void* reserve_aligned(size_t size) noexcept
     {
       // Alignment must be a power of 2.
-      SNMALLOC_ASSERT(size == bits::next_pow2(size));
+      SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= minimum_alloc_size);
 
       size_t log2align = bits::next_pow2_bits(size);

@@ -183,7 +183,7 @@ namespace snmalloc
     // Client responsible for checking alignment is not zero
     SNMALLOC_ASSERT(alignment != 0);
     // Client responsible for checking alignment is a power of two
-    SNMALLOC_ASSERT(bits::next_pow2(alignment) == alignment);
+    SNMALLOC_ASSERT(bits::is_pow2(alignment));
 
     return ((alignment - 1) | (size - 1)) + 1;
   }

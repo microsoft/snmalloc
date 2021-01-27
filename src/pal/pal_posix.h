@@ -212,7 +212,7 @@ namespace snmalloc
      */
     static std::pair<void*, size_t> reserve_at_least(size_t size) noexcept
     {
-      SNMALLOC_ASSERT(size == bits::next_pow2(size));
+      SNMALLOC_ASSERT(bits::is_pow2(size));
 
       // Magic number for over-allocating chosen by the Pal
       // These should be further refined based on experiments.

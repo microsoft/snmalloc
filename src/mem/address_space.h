@@ -175,7 +175,7 @@ namespace snmalloc
     template<bool committed>
     void* reserve(size_t size)
     {
-      SNMALLOC_ASSERT(bits::next_pow2(size) == size);
+      SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
       if constexpr (pal_supports<AlignedAllocation, PAL>)

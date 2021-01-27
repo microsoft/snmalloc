@@ -211,6 +211,11 @@ namespace snmalloc
 #endif
     }
 
+    constexpr SNMALLOC_FAST_PATH bool is_pow2(size_t x)
+    {
+      return (x & (x - 1)) == 0;
+    }
+
     SNMALLOC_FAST_PATH size_t next_pow2(size_t x)
     {
       // Correct for numbers [0..MAX_SIZE >> 1).
@@ -244,7 +249,7 @@ namespace snmalloc
     constexpr SNMALLOC_FAST_PATH size_t
     align_down(size_t value, size_t alignment)
     {
-      SNMALLOC_ASSERT(next_pow2_const(alignment) == alignment);
+      SNMALLOC_ASSERT(is_pow2(alignment));
 
       size_t align_1 = alignment - 1;
       value &= ~align_1;
@@ -253,7 +258,7 @@ namespace snmalloc
 
     constexpr SNMALLOC_FAST_PATH size_t align_up(size_t value, size_t alignment)
     {
-      SNMALLOC_ASSERT(next_pow2_const(alignment) == alignment);
+      SNMALLOC_ASSERT(is_pow2(alignment));
 
       size_t align_1 = alignment - 1;
       value += align_1;
