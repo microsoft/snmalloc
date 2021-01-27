@@ -52,8 +52,7 @@ namespace snmalloc
   template<size_t length, typename T>
   class Mod
   {
-    static_assert(
-      length == bits::next_pow2_const(length), "Must be a power of two.");
+    static_assert(bits::is_pow2(length), "Must be a power of two.");
 
   private:
     T value = 0;

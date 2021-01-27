@@ -49,7 +49,7 @@ namespace snmalloc
   template<size_t alignment>
   static inline bool is_aligned_block(void* p, size_t size)
   {
-    static_assert(bits::next_pow2_const(alignment) == alignment);
+    static_assert(bits::is_pow2(alignment));
 
     return ((address_cast(p) | size) & (alignment - 1)) == 0;
   }
@@ -62,7 +62,7 @@ namespace snmalloc
   SNMALLOC_FAST_PATH T* pointer_align_down(void* p)
   {
     static_assert(alignment > 0);
-    static_assert(bits::next_pow2_const(alignment) == alignment);
+    static_assert(bits::is_pow2(alignment));
     if constexpr (alignment == 1)
       return static_cast<T*>(p);
     else
@@ -84,7 +84,7 @@ namespace snmalloc
   inline T* pointer_align_up(void* p)
   {
     static_assert(alignment > 0);
-    static_assert(bits::next_pow2_const(alignment) == alignment);
+    static_assert(bits::is_pow2(alignment));
     if constexpr (alignment == 1)
       return static_cast<T*>(p);
     else
@@ -106,7 +106,7 @@ namespace snmalloc
   SNMALLOC_FAST_PATH T* pointer_align_down(void* p, size_t alignment)
   {
     SNMALLOC_ASSERT(alignment > 0);
-    SNMALLOC_ASSERT(bits::next_pow2(alignment) == alignment);
+    SNMALLOC_ASSERT(bits::is_pow2(alignment));
 #if __has_builtin(__builtin_align_down)
     return static_cast<T*>(__builtin_align_down(p, alignment));
 #else
@@ -123,7 +123,7 @@ namespace snmalloc
   inline T* pointer_align_up(void* p, size_t alignment)
   {
     SNMALLOC_ASSERT(alignment > 0);
-    SNMALLOC_ASSERT(bits::next_pow2(alignment) == alignment);
+    SNMALLOC_ASSERT(bits::is_pow2(alignment));
 #if __has_builtin(__builtin_align_up)
     return static_cast<T*>(__builtin_align_up(p, alignment));
 #else

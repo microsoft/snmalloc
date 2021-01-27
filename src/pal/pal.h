@@ -76,8 +76,7 @@ namespace snmalloc
   static constexpr size_t OS_PAGE_SIZE = Pal::page_size;
 
   static_assert(
-    bits::next_pow2_const(OS_PAGE_SIZE) == OS_PAGE_SIZE,
-    "OS_PAGE_SIZE must be a power of two");
+    bits::is_pow2(OS_PAGE_SIZE), "OS_PAGE_SIZE must be a power of two");
   static_assert(
     OS_PAGE_SIZE % Aal::smallest_page_size == 0,
     "The smallest architectural page size must divide OS_PAGE_SIZE");
