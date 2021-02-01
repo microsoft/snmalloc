@@ -151,8 +151,6 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH void* pop_large_stack(size_t large_class)
     {
-      check_tick();
-      
       void* p;
       if (large_class == 0)
       {
@@ -191,8 +189,6 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void
     push_large_stack(Largeslab* slab, size_t large_class)
     {
-      check_tick();
-      
       if (large_class == 0)
       {
         superslab_stacks[superslab_stack_index].push(slab);

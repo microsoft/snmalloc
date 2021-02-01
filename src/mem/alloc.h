@@ -20,6 +20,7 @@
 
 #include <array>
 #include <functional>
+#include <chrono>
 
 namespace snmalloc
 {
@@ -1078,6 +1079,101 @@ namespace snmalloc
         sizeclass, size);
     }
 
+    uint64_t count_down = 0;
+    uint64_t previous_start = 0;
+    uint64_t counted = 0;
+    uint64_t last_epoch_ms = 0;
+
+    SNMALLOC_FAST_PATH void* check_tick(void* p = nullptr)
+    {
+      // Check before decrement, so that later calcations can use
+      // count_down == 0 for check on the next call.
+      // This is used if the ticks are way below the frequency of
+      // heart beat.
+      if (count_down-- == 0)
+      {
+        auto pp = check_tick_slow(p);
+        // std::cout << "New count down: " << (int64_t)count_down << std::flush << std::endl;
+        return pp;
+      }
+      return p;
+    }
+
+    SNMALLOC_SLOW_PATH void* check_tick_slow(void* p = nullptr)
+    {
+      // The slow path does two things
+      //   decide if we should pass on a tick to do more expensive operations
+      //   work out the next count of ticks
+      // If we have passed the deadline to pass on the tick, then calculate the new deadline in ticks
+      // 1.  Use number of ticks, and time they equated to, to set a new number of ticks at 
+      //       deadline_in_ms * ticks_per_second * (11 / 10) / 1000
+      //   The 11 / 10 term is to add 10% to cope with noise.
+      //   The / 1000 is to adjust the millisecond deadline.
+      // 
+      // Effectively, we use the following strategy
+      // 
+      // 1. Approximate, ticks per second, and use this to set the 
+
+      uint64_t now_ms = (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(chrono::steady_clock::now().time_since_epoch()).count();
+
+      if (last_epoch_ms == 0)
+      {
+        last_epoch_ms = now_ms;
+        count_down = 0;
+        return p;
+      }
+
+      uint64_t duration_ms = now_ms - last_epoch_ms;
+      //std::cout << "Duration:" << duration_ms << std::flush << std::endl;
+
+      // Check is below clock resolution
+      if (duration_ms == 0)
+      {
+        //std::cout << "Zero" << std::endl;
+
+        // Exponential back off
+        previous_start *= 2;
+        counted += previous_start;
+        count_down = previous_start;
+        return p;
+      }
+
+      // Calc tick rate based on current observation
+      // Add one as we count down to zero.
+      auto tick_per_second = ((counted + 1) * 1000) / duration_ms;
+
+      // Set deadline for 55.5 ms.
+      auto deadline_in_ticks = tick_per_second * 12 / 1000;
+
+      // Check if 50ms has passed
+      if (duration_ms > 100)
+      {
+        //std::cout << "Hit" << std::endl;
+        counted = deadline_in_ticks;
+        count_down = deadline_in_ticks;
+        previous_start = deadline_in_ticks;
+        large_allocator.memory_provider.check_tick();
+        last_epoch_ms = now_ms;
+        return p;
+      }
+
+      // std::cout << "Deadline in ticks:" << deadline_in_ticks << 
+      //    " Counted:" << counted << std::flush << std::endl;
+
+      // if (counted > deadline_in_ticks)
+      // {
+      //    std::cout << "Guess double more" << std::endl;
+      //   deadline_in_ticks = counted * 2;
+      // }
+
+
+      // remove already taken ticks.
+      count_down = deadline_in_ticks - counted;
+      previous_start = deadline_in_ticks - counted;
+      counted = deadline_in_ticks;
+      return p;
+    }
+
     /**
      * Attempt to find a new free list to allocate from
      */
@@ -1085,7 +1181,6 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void*
     small_alloc_next_free_list(sizeclass_t sizeclass, size_t size)
     {
-      large_allocator.memory_provider.check_tick();
       size_t rsize = sizeclass_to_size(sizeclass);
       auto& sl = small_classes[sizeclass];
 
@@ -1099,8 +1194,9 @@ namespace snmalloc
         SlabLink* link = sl.get_next();
         slab = get_slab(link);
         auto& ffl = small_fast_free_lists[sizeclass];
-        return slab->alloc<zero_mem, typename MemoryProvider::Pal>(
+        auto p = slab->alloc<zero_mem, typename MemoryProvider::Pal>(
           sl, ffl, rsize);
+        return check_tick(p);
       }
       return small_alloc_rare<zero_mem, allow_reserve>(sizeclass, size);
     }
@@ -1253,7 +1349,10 @@ namespace snmalloc
       Slab* slab = Metaslab::get_slab(p);
       Superslab::Action a = slab->dealloc_slow(sl, super, p);
       if (likely(a == Superslab::NoSlabReturn))
+      {
+        check_tick();
         return;
+      }
       stats().sizeclass_dealloc_slab(sizeclass);
 
       if (a == Superslab::NoStatusChange)
