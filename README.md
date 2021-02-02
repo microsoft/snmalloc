@@ -63,6 +63,11 @@ Hence, please make sure the following libs are in your `PATH`:
 
 ## Changelog
 
+### 0.2.24
+
+- **upstream** update to use a more efficient power of 2 check
+- fix msvc support w/ crt-static
+
 ### 0.2.23
 
 - **upstream** fix external pagemap usage
@@ -74,9 +79,5 @@ Hence, please make sure the following libs are in your `PATH`:
 - **upstream** limit flat pagemap size
 - **upstream** limit medium slab header
 - **upstream** solaris support fix
-
-### 0.2.21
-
-- **upstream** bug fix for using failing to initialise meta-data
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 

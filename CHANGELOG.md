@@ -1,5 +1,10 @@
 ## Changelog
 
+### 0.2.24
+
+- **upstream** update to use a more efficient power of 2 check
+- fix msvc support w/ crt-static
+
 ### 0.2.23
 
 - **upstream** fix external pagemap usage
