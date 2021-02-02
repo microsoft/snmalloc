@@ -51,8 +51,8 @@ fn main() {
     }
 
     if cfg!(all(windows, target_env = "msvc")) {
-        cfg = cfg.define("CMAKE_CXX_FLAGS_RELEASE", "/MD /O2 /Ob2 /DNDEBUG /EHsc");
-        cfg = cfg.define("CMAKE_C_FLAGS_RELEASE", "/MD /O2 /Ob2 /DNDEBUG /EHsc");
+        cfg = cfg.define("CMAKE_CXX_FLAGS_RELEASE", "/O2 /Ob2 /DNDEBUG /EHsc");
+        cfg = cfg.define("CMAKE_C_FLAGS_RELEASE", "/O2 /Ob2 /DNDEBUG /EHsc");
     }
 
     if cfg!(all(windows, target_env = "gnu")) {
