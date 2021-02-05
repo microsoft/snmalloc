@@ -1071,7 +1071,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, AllowReserve allow_reserve>
-    SNMALLOC_FAST_PATH void*
+    SNMALLOC_SLOW_PATH void*
     small_alloc_inner_slow(sizeclass_t sizeclass, size_t size)
     {
       if (likely(!has_messages()))
