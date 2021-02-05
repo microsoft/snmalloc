@@ -1250,7 +1250,6 @@ namespace snmalloc
       small_dealloc_offseted_slow(super, p, slab->get_meta().sizeclass);
     }
 
-
     SNMALLOC_FAST_PATH void small_dealloc_offseted_inner(
       Superslab* super, void* p, sizeclass_t sizeclass)
     {

@@ -110,7 +110,7 @@ namespace snmalloc
     return sizeclass_metadata.inverse_cache_friendly_mask[sizeclass];
   }
 
-  template <bool ASSUME_SMALL>
+  template<bool ASSUME_SMALL>
   static inline sizeclass_t size_to_sizeclass(size_t size)
   {
     if ((size - 1) <= (SLAB_SIZE - 1) || ASSUME_SMALL)

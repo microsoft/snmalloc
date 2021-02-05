@@ -131,7 +131,7 @@ int main(int argc, char** argv)
 
   constexpr int SUCCESS = 0;
 
-  for (size_t i = 1; i < SLAB_SIZE; i+=16)
+  for (size_t i = 1; i < SLAB_SIZE; i += 16)
   {
     test_local(i);
   }
