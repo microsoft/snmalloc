@@ -9,9 +9,9 @@
 #include "baseslab.h"
 #include "sizeclass.h"
 
+#include <ctime>
 #include <new>
 #include <string.h>
-#include <ctime>
 
 namespace snmalloc
 {
@@ -81,13 +81,13 @@ namespace snmalloc
      */
     std::atomic<size_t> available_large_chunks_in_bytes{0};
 
-
     static constexpr size_t SUPERSLAB_STACK_COUNT = 4;
 
     /**
      * Stack of large allocations that have been returned for reuse.
      */
-    ModArray<SUPERSLAB_STACK_COUNT, MPMCStack<Largeslab, RequiresInit>> superslab_stacks;
+    ModArray<SUPERSLAB_STACK_COUNT, MPMCStack<Largeslab, RequiresInit>>
+      superslab_stacks;
 
     size_t superslab_stack_index = 0;
 
@@ -104,13 +104,16 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void handle_tick()
     {
       static std::atomic_flag flush_flag = ATOMIC_FLAG_INIT;
-      
+
       // Try acquire
       if (!flush_flag.test_and_set(std::memory_order_acquire))
       {
-        static_assert(SUPERSLAB_STACK_COUNT > 1, "Required for the following loop to be wait-free.");
+        static_assert(
+          SUPERSLAB_STACK_COUNT > 1,
+          "Required for the following loop to be wait-free.");
         // Move oldest generation into decommitted stack
-        auto oldest = (superslab_stack_index + (SUPERSLAB_STACK_COUNT - 1)) % SUPERSLAB_STACK_COUNT;
+        auto oldest = (superslab_stack_index + (SUPERSLAB_STACK_COUNT - 1)) %
+          SUPERSLAB_STACK_COUNT;
         while (true)
         {
           Largeslab* p = superslab_stacks[oldest].pop();
@@ -124,8 +127,9 @@ namespace snmalloc
           large_stack[0].push(new (p) Decommittedslab());
         }
 
-        // advance index  
-        superslab_stack_index = (superslab_stack_index + 1) % SUPERSLAB_STACK_COUNT;
+        // advance index
+        superslab_stack_index =
+          (superslab_stack_index + 1) % SUPERSLAB_STACK_COUNT;
 
         // Reset when we count next tick
         last_tick = clock();
@@ -138,7 +142,9 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void check_tick()
     {
       // TODO: Need to get a good constant here, or something to adapt to
-      if (unlikely((clock() - last_tick) > (clock_t)(CLOCKS_PER_SEC / SUPERSLAB_STACK_COUNT)))
+      if (unlikely(
+            (clock() - last_tick) >
+            (clock_t)(CLOCKS_PER_SEC / SUPERSLAB_STACK_COUNT)))
       {
         handle_tick();
       }
@@ -162,9 +168,8 @@ namespace snmalloc
           if (p != nullptr)
             break;
 
-          i = (i+1) % SUPERSLAB_STACK_COUNT;
-        }
-        while (i != superslab_stack_index);
+          i = (i + 1) % SUPERSLAB_STACK_COUNT;
+        } while (i != superslab_stack_index);
         if (p == nullptr)
         {
           p = large_stack[0].pop();

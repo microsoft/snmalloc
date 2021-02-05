@@ -19,8 +19,8 @@
 #include "slab.h"
 
 #include <array>
-#include <functional>
 #include <chrono>
+#include <functional>
 
 namespace snmalloc
 {
@@ -1093,7 +1093,8 @@ namespace snmalloc
       if (count_down-- == 0)
       {
         auto pp = check_tick_slow(p);
-        // std::cout << "New count down: " << (int64_t)count_down << std::flush << std::endl;
+        // std::cout << "New count down: " << (int64_t)count_down << std::flush
+        // << std::endl;
         return pp;
       }
       return p;
@@ -1101,7 +1102,10 @@ namespace snmalloc
 
     SNMALLOC_SLOW_PATH void* check_tick_slow(void* p = nullptr)
     {
-      uint64_t now_ms = (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(chrono::steady_clock::now().time_since_epoch()).count();
+      uint64_t now_ms =
+        (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+          chrono::steady_clock::now().time_since_epoch())
+          .count();
 
       if (last_epoch_ms == 0)
       {
@@ -1126,11 +1130,12 @@ namespace snmalloc
 
       // Aim for 55 ms, but accept anything over 50ms for the heart beat.
       constexpr size_t deadline_in_ms = 55;
-      constexpr size_t deadline_min_in_ms = 50; 
+      constexpr size_t deadline_min_in_ms = 50;
 
-      // Estimate number of ticks to get to the new deadline, based on the current
-      // interval
-      auto new_deadline_in_ticks = ((1 + counted) * deadline_in_ms) / duration_ms;
+      // Estimate number of ticks to get to the new deadline, based on the
+      // current interval
+      auto new_deadline_in_ticks =
+        ((1 + counted) * deadline_in_ms) / duration_ms;
 
       // Check if 100ms has passed
       if (duration_ms > deadline_min_in_ms)
@@ -1146,7 +1151,7 @@ namespace snmalloc
         return p;
       }
 
-      SNMALLOC_ASSERT (counted < new_deadline_in_ticks);
+      SNMALLOC_ASSERT(counted < new_deadline_in_ticks);
 
       // remove already taken ticks.
       count_down = new_deadline_in_ticks - counted;
@@ -1175,8 +1180,8 @@ namespace snmalloc
         SlabLink* link = sl.get_next();
         slab = get_slab(link);
         auto& ffl = small_fast_free_lists[sizeclass];
-        auto p = slab->alloc<zero_mem, typename MemoryProvider::Pal>(
-          sl, ffl, rsize);
+        auto p =
+          slab->alloc<zero_mem, typename MemoryProvider::Pal>(sl, ffl, rsize);
         return check_tick(p);
       }
       return small_alloc_rare<zero_mem, allow_reserve>(sizeclass, size);
