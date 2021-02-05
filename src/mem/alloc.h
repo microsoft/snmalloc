@@ -1101,36 +1101,22 @@ namespace snmalloc
 
     SNMALLOC_SLOW_PATH void* check_tick_slow(void* p = nullptr)
     {
-      // The slow path does two things
-      //   decide if we should pass on a tick to do more expensive operations
-      //   work out the next count of ticks
-      // If we have passed the deadline to pass on the tick, then calculate the new deadline in ticks
-      // 1.  Use number of ticks, and time they equated to, to set a new number of ticks at 
-      //       deadline_in_ms * ticks_per_second * (11 / 10) / 1000
-      //   The 11 / 10 term is to add 10% to cope with noise.
-      //   The / 1000 is to adjust the millisecond deadline.
-      // 
-      // Effectively, we use the following strategy
-      // 
-      // 1. Approximate, ticks per second, and use this to set the 
-
       uint64_t now_ms = (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(chrono::steady_clock::now().time_since_epoch()).count();
 
       if (last_epoch_ms == 0)
       {
         last_epoch_ms = now_ms;
-        count_down = 0;
+        count_down = 100;
+        previous_start = 100;
+        counted = 100;
         return p;
       }
 
       uint64_t duration_ms = now_ms - last_epoch_ms;
-      //std::cout << "Duration:" << duration_ms << std::flush << std::endl;
 
       // Check is below clock resolution
       if (duration_ms == 0)
       {
-        //std::cout << "Zero" << std::endl;
-
         // Exponential back off
         previous_start *= 2;
         counted += previous_start;
@@ -1138,39 +1124,34 @@ namespace snmalloc
         return p;
       }
 
-      // Calc tick rate based on current observation
-      // Add one as we count down to zero.
-      auto tick_per_second = ((counted + 1) * 1000) / duration_ms;
+      // Aim for 55 ms, but accept anything over 50ms for the heart beat.
+      constexpr size_t deadline_in_ms = 55;
+      constexpr size_t deadline_min_in_ms = 50; 
 
-      // Set deadline for 55.5 ms.
-      auto deadline_in_ticks = tick_per_second * 12 / 1000;
+      // Estimate number of ticks to get to the new deadline, based on the current
+      // interval
+      auto new_deadline_in_ticks = ((1 + counted) * deadline_in_ms) / duration_ms;
 
-      // Check if 50ms has passed
-      if (duration_ms > 100)
+      // Check if 100ms has passed
+      if (duration_ms > deadline_min_in_ms)
       {
-        //std::cout << "Hit" << std::endl;
-        counted = deadline_in_ticks;
-        count_down = deadline_in_ticks;
-        previous_start = deadline_in_ticks;
+        // Reset counters to a new turn
+        counted = new_deadline_in_ticks;
+        count_down = new_deadline_in_ticks;
+        previous_start = new_deadline_in_ticks;
         large_allocator.memory_provider.check_tick();
+        // Update time after handling slow operations, so that doesn't come into
+        // heart beat count.
         last_epoch_ms = now_ms;
         return p;
       }
 
-      // std::cout << "Deadline in ticks:" << deadline_in_ticks << 
-      //    " Counted:" << counted << std::flush << std::endl;
-
-      // if (counted > deadline_in_ticks)
-      // {
-      //    std::cout << "Guess double more" << std::endl;
-      //   deadline_in_ticks = counted * 2;
-      // }
-
+      SNMALLOC_ASSERT (counted < new_deadline_in_ticks);
 
       // remove already taken ticks.
-      count_down = deadline_in_ticks - counted;
-      previous_start = deadline_in_ticks - counted;
-      counted = deadline_in_ticks;
+      count_down = new_deadline_in_ticks - counted;
+      previous_start = new_deadline_in_ticks - counted;
+      counted = new_deadline_in_ticks;
       return p;
     }
 
