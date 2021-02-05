@@ -116,6 +116,12 @@ void test_memalign(size_t size, size_t align, int err, bool null)
   check_result(size, align, p, err, null);
 }
 
+void test_local(size_t size)
+{
+  for (int n = 0; n < 1000; n++)
+    our_free_local_small(our_malloc_small(size));
+}
+
 int main(int argc, char** argv)
 {
   UNUSED(argc);
@@ -124,6 +130,11 @@ int main(int argc, char** argv)
   setup();
 
   constexpr int SUCCESS = 0;
+
+  for (size_t i = 1; i < SLAB_SIZE; i+=16)
+  {
+    test_local(i);
+  }
 
   test_realloc(our_malloc(64), 4194304, SUCCESS, false);
 
