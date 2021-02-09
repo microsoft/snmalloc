@@ -3,6 +3,7 @@
 #ifdef __APPLE__
 #  include "pal_bsd.h"
 
+#  include <errno.h>
 #  include <mach/vm_statistics.h>
 #  include <utility>
 
@@ -49,6 +50,37 @@ namespace snmalloc
         PALBSD::zero(p, size);
       else
         ::bzero(p, size);
+    }
+
+    /**
+     * Overriding here to mark the page as reusable
+     * rolling it as much as necessary.
+     * As above, the x86 h/w worked alright without this change
+     * however now large allocations work better and more reliably
+     * with on ARM, not to mention better RSS number accuracy
+     * for tools based on task_info API.
+     */
+    static void notify_not_using(void* p, size_t size) noexcept
+    {
+      SNMALLOC_ASSERT(is_aligned_block<PALBSD::page_size>(p, size));
+      while (madvise(p, size, MADV_FREE_REUSABLE) == -1 && errno == EAGAIN)
+        ;
+    }
+
+    /**
+     * same remark as above but we need to mark the page as REUSE
+     * first
+     */
+    template<ZeroMem zero_mem>
+    static void notify_using(void* p, size_t size) noexcept
+    {
+      SNMALLOC_ASSERT(
+        is_aligned_block<PALBSD::page_size>(p, size) || (zero_mem == NoZero));
+      while (madvise(p, size, MADV_FREE_REUSE) == -1 && errno == EAGAIN)
+        ;
+
+      if constexpr (zero_mem == YesZero)
+        zero<true>(p, size);
     }
   };
 } // namespace snmalloc
