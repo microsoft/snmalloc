@@ -35,6 +35,21 @@ namespace snmalloc
      * descriptor for the mapping.
      */
     static constexpr int anonymous_memory_fd = VM_MAKE_TAG(PALAnonID);
+
+    /**
+     * Note: The root's implementation works fine on Intel
+     * however mprotect/PROT_NONE fails on ARM
+     * especially since the 11.2 release (seems known issue
+     * spotted in various projects; might be a temporary fix).
+     */
+    template<bool page_aligned = false>
+    static void zero(void* p, size_t size) noexcept
+    {
+      if constexpr (Aal::aal_name != ARM)
+        PALBSD::zero(p, size);
+      else
+        ::bzero(p, size);
+    }
   };
 } // namespace snmalloc
 #endif
