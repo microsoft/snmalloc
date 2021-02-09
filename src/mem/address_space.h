@@ -252,5 +252,19 @@ namespace snmalloc
     {
       add_range(base, length);
     }
+
+    /**
+     * Move assignment operator.  This should only be used during initialisation
+     * of the system.  There should be no concurrency.
+     */
+    AddressSpaceManager& operator=(AddressSpaceManager&& other) noexcept
+    {
+      // Lock address space manager.  This will prevent it being used by
+      // mistake. Fails with deadlock with any subsequent caller.
+      if (other.spin_lock.test_and_set())
+        abort();
+      ranges = other.ranges;
+      return *this;
+    }
   };
 } // namespace snmalloc
