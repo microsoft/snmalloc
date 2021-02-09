@@ -136,30 +136,19 @@ namespace snmalloc
     static MemoryProviderStateMixin<PAL>* make() noexcept
     {
       // Temporary stack-based storage to start the allocator in.
-      MemoryProviderStateMixin<PAL> local{};
+      AddressSpaceManager<PAL> local{};
 
       // Allocate permanent storage for the allocator usung temporary allocator
       MemoryProviderStateMixin<PAL>* allocated =
-        local.alloc_chunk<MemoryProviderStateMixin<PAL>, 1>();
+        reinterpret_cast<MemoryProviderStateMixin<PAL>*>(
+          local.template reserve<true>(
+            bits::next_pow2(sizeof(MemoryProviderStateMixin<PAL>))));
 
       if (allocated == nullptr)
         error("Failed to initialise system!");
 
-#ifdef GCC_VERSION_EIGHT_PLUS
-#  pragma GCC diagnostic push
-#  pragma GCC diagnostic ignored "-Wclass-memaccess"
-#endif
-      // Put temporary allocator we have used, into the permanent storage.
-      // memcpy is safe as this is entirely single threaded: the move
-      // constructors were removed as unsafe to move std::atomic in a
-      // concurrent setting.
-      ::memcpy(
-        &(allocated->address_space),
-        &(local.address_space),
-        sizeof(AddressSpaceManager<PAL>));
-#ifdef GCC_VERSION_EIGHT_PLUS
-#  pragma GCC diagnostic pop
-#endif
+      // Move address range inside itself
+      allocated->address_space = std::move(local);
 
       // Register this allocator for low-memory call-backs
       if constexpr (pal_supports<LowMemoryNotification, PAL>)
