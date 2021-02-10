@@ -2,6 +2,7 @@
 
 #include "../ds/address.h"
 #include "../ds/bits.h"
+#include "pal_timer_default.h"
 
 #ifdef _WIN32
 #  ifndef _MSC_VER
@@ -22,7 +23,7 @@
 
 namespace snmalloc
 {
-  class PALWindows
+  class PALWindows : public PalTimerDefaultImpl
   {
     /**
      * A flag indicating that we have tried to register for low-memory

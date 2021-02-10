@@ -1,5 +1,8 @@
 #pragma once
 
+//TODO REMOVE BEFORE MERGE
+#include "pal_timer_default.h"
+
 namespace snmalloc
 {
   /**
@@ -13,7 +16,7 @@ namespace snmalloc
    * expected to forward to the default PAL in most cases.
    */
   template<typename ErrorHandler>
-  struct PALNoAlloc
+  struct PALNoAlloc : public PalTimerDefaultImpl // TODO REMOVE BEFORE MERGE 
   {
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this

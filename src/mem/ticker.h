@@ -15,7 +15,7 @@ namespace snmalloc
    * `n` adapts to the current frequency of calling.
    *
    * The aim is to reduce the time spent querying the time as this might be
-   * an expensive operation if time has virtualised.
+   * an expensive operation if time has been virtualised.
    */
   template<typename PAL>
   class Ticker
@@ -57,8 +57,6 @@ namespace snmalloc
 
       uint64_t duration_ms = now_ms - last_query_ms;
       last_query_ms = now_ms;
-
-      // std::cout << "Duration_ms: " << (int64_t)duration_ms << std::endl;
 
       // Check is below clock resolution
       if (duration_ms == 0)

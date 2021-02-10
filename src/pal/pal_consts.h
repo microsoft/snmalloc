@@ -1,9 +1,9 @@
 #pragma once
 
 #include "../ds/defines.h"
-#include "../ds/helpers.h"
 
 #include <atomic>
+#include <functional>
 
 namespace snmalloc
 {
@@ -63,137 +63,4 @@ namespace snmalloc
    * Default Tag ID for the Apple class
    */
   static const int PALAnonDefaultID = 241;
-
-  template <typename T>
-  class PalList
-  {
-    /**
-     * List of callbacks to notify
-     */
-    std::atomic<T*> elements{nullptr};
-
-  public:
-    /**
-     * Add an element to the list
-     */
-    void add(T* element)
-    {
-      callback->pal_next = nullptr;
-
-      auto prev = &elements;
-      auto curr = prev->load();
-      do
-      {
-        while (curr != nullptr)
-        {
-          prev = &(curr->pal_next);
-          curr = prev->load();
-        }
-      } while (!prev->compare_exchange_weak(curr, callback));
-    }
-
-    /**
-     * Applies function to all the elements of the list
-     */
-    void apply_all(function_ref<void(T*)> func)
-    {
-      T* curr = elements;
-      while (curr != nullptr)
-      {
-        func(curr);
-        curr = curr->pal_next;
-      }
-    }
-  };
-
-  /**
-   * This struct is used to represent callbacks for notification from the
-   * platform. It contains a next pointer as client is responsible for
-   * allocation as we cannot assume an allocator at this point.
-   */
-  struct PalNotificationObject
-  {
-    std::atomic<PalNotificationObject*> pal_next = nullptr;
-
-    void (*pal_notify)(PalNotificationObject* self);
-
-    PalNotificationObject(void (*pal_notify)(PalNotificationObject* self))
-    : pal_notify(pal_notify)
-    {}
-  };
-
-  /***
-   * Wrapper for managing notifications for PAL events
-   */
-  class PalNotifier
-  {
-    /**
-     * List of callbacks to notify
-     */
-    PalList<PalNotificationObject> callbacks;
-
-  public:
-    /**
-     * Register a callback object to be notified
-     *
-     * The object should never be deallocated by the client after calling
-     * this.
-     */
-    void register_notification(PalNotificationObject* callback)
-    {
-      callbacks.add(callback);
-    }
-
-    /**
-     * Calls the pal_notify of all the registered objects.
-     */
-    void notify_all()
-    {
-      callbacks.apply_all([](auto curr){curr->pal_notify(curr);});
-    }
-  };
-
-  struct PalTimerObject
-  {
-    std::atomic<PalTimerObject*> pal_next;
-
-    void (*pal_notify)(PalTimerObject* self);
-
-    uint64_t last_run = 0;
-    uint64_t repeat;
-  };
-
-  /**
-   * Simple mechanism for handling timers.
-   * 
-   * Note: This is really designed for a very small number of timers, 
-   * and this design should be changed if that is no longer the case.
-   */
-  class PalTimer
-  {
-    /**
-     * List of callbacks to notify
-     */
-    PalList<PalTimerObject> timers;
-
-    /**
-     * Register a callback to be called every repeat milliseconds.
-     */
-    void register_timer(PalTimerObject* timer)
-    {
-      timers.add(timer);
-    }
-
-    void check(uint64_t time_ms)
-    {
-      timers.apply_all([time_ms](PalTimerObject* curr){
-        if ((curr->last_run == 0)
-          || ((time_ms - curr->last_run) > curr->repeat))
-        {
-          curr->last_run = time_ms;
-          curr->pal_notify(curr);
-        }
-      });
-    }
-  };
 } // namespace snmalloc

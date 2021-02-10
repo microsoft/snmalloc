@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds/address.h"
+#include "pal_timer_default.h"
 #if defined(BACKTRACE_HEADER)
 #  include BACKTRACE_HEADER
 #endif
@@ -29,7 +30,7 @@ namespace snmalloc
    * version.
    */
   template<class OS>
-  class PALPOSIX
+  class PALPOSIX : public PalTimerDefaultImpl
   {
     /**
      * Helper class to access the `default_mmap_flags` field of `OS` if one
@@ -236,18 +237,6 @@ namespace snmalloc
       }
 
       OS::error("Out of memory");
-    }
-
-    static uint64_t time_in_ms()
-    {
-      auto time = (uint64_t)std::chrono::duration_cast<std::chrono::milliseconds>(
-          std::chrono::steady_clock::now().time_since_epoch())
-          .count();
-
-      // Process timers
-      timers.check(time);
-
-      return time;
     }
   };
 } // namespace snmalloc

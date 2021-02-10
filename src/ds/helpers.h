@@ -3,6 +3,8 @@
 #include "bits.h"
 #include "flaglock.h"
 
+#include <atomic>
+
 namespace snmalloc
 {
   /*

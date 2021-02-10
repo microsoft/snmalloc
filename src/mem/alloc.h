@@ -17,9 +17,9 @@
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
 #include "slab.h"
+#include "ticker.h"
 
 #include <array>
-#include <chrono>
 #include <functional>
 
 namespace snmalloc
@@ -111,7 +111,7 @@ namespace snmalloc
     /**
      * Ticker to query the clock regularly at a lower cost.
      */
-    Ticker<PAL> ticker;
+    Ticker<typename MemoryProvider::Pal> ticker;
 
   public:
     Stats& stats()
