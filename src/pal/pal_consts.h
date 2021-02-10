@@ -70,9 +70,13 @@ namespace snmalloc
    */
   struct PalNotificationObject
   {
-    std::atomic<PalNotificationObject*> pal_next;
+    std::atomic<PalNotificationObject*> pal_next = nullptr;
 
     void (*pal_notify)(PalNotificationObject* self);
+
+    PalNotificationObject(void (*pal_notify)(PalNotificationObject* self))
+    : pal_notify(pal_notify)
+    {}
   };
 
   /***
