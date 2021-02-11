@@ -233,10 +233,8 @@ namespace snmalloc
       }
 
       auto timer =
-        allocated->template alloc_chunk<DecayMemoryTimerObject, 1>(
-          allocated);
+        allocated->template alloc_chunk<DecayMemoryTimerObject, 1>(allocated);
       PAL::register_timer(timer);
-
 
       return allocated;
     }
@@ -294,8 +292,7 @@ namespace snmalloc
       }
 
     public:
-      DecayMemoryTimerObject(
-        MemoryProviderStateMixin<PAL>* memory_provider)
+      DecayMemoryTimerObject(MemoryProviderStateMixin<PAL>* memory_provider)
       : PalTimerObject(&process, 1000), memory_provider(memory_provider)
       {}
     };
