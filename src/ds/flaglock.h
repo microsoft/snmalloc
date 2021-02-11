@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bits.h"
+
 #include <atomic>
 
 namespace snmalloc

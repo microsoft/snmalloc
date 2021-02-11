@@ -200,7 +200,8 @@ namespace snmalloc
       MEM_ADDRESS_REQUIREMENTS addressReqs = {NULL, NULL, size};
 
       MEM_EXTENDED_PARAMETER param = {
-        {MemExtendedParameterAddressRequirements, 0}, {0}};
+        {MemExtendedParameterAddressRequirements, 0},
+        { 0 }};
       // Separate assignment as MSVC doesn't support .Pointer in the
       // initialisation list.
       param.Pointer = &addressReqs;

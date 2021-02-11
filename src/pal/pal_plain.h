@@ -1,14 +1,15 @@
 #pragma once
 
 #include "../ds/bits.h"
-//TODO REMOVE BEFORE MERGE
+// TODO REMOVE BEFORE MERGE
 #include "pal_timer_default.h"
 namespace snmalloc
 {
   // Can be extended
   // Will require a reserve method in subclasses.
   template<class State>
-  class PALPlainMixin : public State, public PalTimerDefaultImpl // TODO REMOVE BEFORE MERGE  
+  class PALPlainMixin : public State,
+                        public PalTimerDefaultImpl // TODO REMOVE BEFORE MERGE
   {
   public:
     // Notify platform that we will not be using these pages

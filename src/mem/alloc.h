@@ -1084,7 +1084,6 @@ namespace snmalloc
         sizeclass, size);
     }
 
-
     /**
      * Attempt to find a new free list to allocate from
      */
