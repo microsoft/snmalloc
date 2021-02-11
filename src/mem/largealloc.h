@@ -232,6 +232,12 @@ namespace snmalloc
         PAL::register_for_low_memory_callback(callback);
       }
 
+      auto timer =
+        allocated->template alloc_chunk<DecayMemoryTimerObject, 1>(
+          allocated);
+      PAL::register_timer(timer);
+
+
       return allocated;
     }
 
@@ -288,7 +294,7 @@ namespace snmalloc
       }
 
     public:
-      LowMemoryNotificationObject(
+      DecayMemoryTimerObject(
         MemoryProviderStateMixin<PAL>* memory_provider)
       : PalTimerObject(&process, 1000), memory_provider(memory_provider)
       {}
