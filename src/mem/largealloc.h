@@ -273,6 +273,27 @@ namespace snmalloc
       {}
     };
 
+    class DecayMemoryTimerObject : public PalTimerObject
+    {
+      MemoryProviderStateMixin<PAL>* memory_provider;
+
+      /***
+       * Method for callback object to perform lazy decommit.
+       */
+      static void process(PalTimerObject* p)
+      {
+        // Unsafe downcast here. Don't want vtable and RTTI.
+        auto self = reinterpret_cast<DecayMemoryTimerObject*>(p);
+        self->memory_provider->handle_tick();
+      }
+
+    public:
+      LowMemoryNotificationObject(
+        MemoryProviderStateMixin<PAL>* memory_provider)
+      : PalTimerObject(&process, 1000), memory_provider(memory_provider)
+      {}
+    };
+
   public:
     /**
      * Primitive allocator for structure that are required before

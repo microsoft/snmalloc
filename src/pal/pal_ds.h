@@ -8,7 +8,7 @@
 
 namespace snmalloc
 {
-  template <typename T>
+  template<typename T>
   class PalList
   {
     /**
@@ -91,14 +91,14 @@ namespace snmalloc
      */
     void notify_all()
     {
-      callbacks.apply_all([](auto curr){curr->pal_notify(curr);});
+      callbacks.apply_all([](auto curr) { curr->pal_notify(curr); });
     }
   };
 
   class PalTimerObject
   {
     friend class PalTimer;
-    template <typename T>
+    template<typename T>
     friend class PalList;
 
     std::atomic<PalTimerObject*> pal_next;
@@ -109,15 +109,15 @@ namespace snmalloc
     uint64_t repeat;
 
   public:
-    PalTimerObject(void (*pal_notify)(PalTimerObject* self), uint64_t repeat) : 
-      pal_notify(pal_notify), repeat(repeat)
+    PalTimerObject(void (*pal_notify)(PalTimerObject* self), uint64_t repeat)
+    : pal_notify(pal_notify), repeat(repeat)
     {}
   };
 
   /**
    * Simple mechanism for handling timers.
-   * 
-   * Note: This is really designed for a very small number of timers, 
+   *
+   * Note: This is really designed for a very small number of timers,
    * and this design should be changed if that is no longer the case.
    */
   class PalTimer
@@ -143,9 +143,10 @@ namespace snmalloc
       // Depulicate calls into here, and make single threaded.
       if (lock.test_and_set())
       {
-        timers.apply_all([time_ms](PalTimerObject* curr){
-          if ((curr->last_run == 0)
-            || ((time_ms - curr->last_run) > curr->repeat))
+        timers.apply_all([time_ms](PalTimerObject* curr) {
+          if (
+            (curr->last_run == 0) ||
+            ((time_ms - curr->last_run) > curr->repeat))
           {
             curr->last_run = time_ms;
             curr->pal_notify(curr);
