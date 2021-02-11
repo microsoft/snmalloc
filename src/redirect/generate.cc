@@ -15,19 +15,23 @@ int main(int argc, char* argv[])
   ofstream outfile;
   outfile.open(argv[1]);
 
-  for (size_t size = 1024; size > 0; size -= 16)
+  for (size_t align = 0; align < 10; align++)
   {
-    auto sizeclass = snmalloc::size_to_sizeclass(size);
-    auto rsize = snmalloc::sizeclass_to_size(sizeclass);
-    if (rsize == size)
+    for (size_t size = 1024; size > 0; size -= 16)
     {
-      outfile << "DEFINE_MALLOC_SIZE(malloc_size_" << size << ", " << size
-              << ");" << std::endl;
-    }
-    else
-    {
-      outfile << "REDIRECT_MALLOC_SIZE(malloc_size_" << size << ", malloc_size_"
-              << rsize << ");" << std::endl;
+      auto asize = snmalloc::aligned_size(1ULL << align, size);
+      auto sizeclass = snmalloc::size_to_sizeclass(asize);
+      auto rsize = snmalloc::sizeclass_to_size(sizeclass);
+      if (rsize == size && align == 0)
+      {
+        outfile << "DEFINE_MALLOC_SIZE(malloc_size_" << size << "_" << align << ", " << size
+                << ");" << std::endl;
+      }
+      else
+      {
+        outfile << "REDIRECT_MALLOC_SIZE(malloc_size_" << size << "_" << align << ", malloc_size_"
+                << rsize << "_" << 0 << ");" << std::endl;
+      }
     }
   }
 

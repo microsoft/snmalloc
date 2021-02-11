@@ -14,8 +14,8 @@
     __attribute__((alias(#b))) extern "C" void* a()
 #endif
 
-#define DEFINE_MALLOC_SIZE(a, s) \
-  extern "C" void* a() \
+#define DEFINE_MALLOC_SIZE(name, s) \
+  extern "C" void* name() \
   { \
     return snmalloc::ThreadAlloc::get_noncachable()->template alloc<s>(); \
   }

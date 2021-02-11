@@ -180,7 +180,7 @@ add_custom_target(generated ALL
 add_library(redirect_small STATIC src/redirect/redirect.cc)
 target_link_libraries(redirect_small snmalloc_lib)
 target_include_directories(redirect_small PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-
+add_dependencies(redirect_small generated)
 
 # To build with just the header library target define SNMALLOC_ONLY_HEADER_LIBRARY
 # in containing Cmake file.
