@@ -30,4 +30,17 @@ extern "C" void free_local_small(void* ptr)
 #  define GENERATE_FREE_SIZE(a) \
     __attribute__((alias("free_local_small"))) extern "C" void* a()
 
+void* __stack_alloc_large(size_t size, size_t align)
+{
+  size_t asize = snmalloc::aligned_size(1ULL << align, size);
+  return snmalloc::ThreadAlloc::get_noncachable()->alloc(asize);
+}
+
+void __stack_free_large(void* ptr, size_t size, size_t align)
+{
+  size_t asize = snmalloc::aligned_size(1ULL << align, size);
+  snmalloc::ThreadAlloc::get_noncachable()->dealloc(ptr, asize);
+}
+
+
 #include "generated.cc"
