@@ -24,14 +24,16 @@ int main(int argc, char* argv[])
       auto rsize = snmalloc::sizeclass_to_size(sizeclass);
       if (rsize == size && align == 0)
       {
-        outfile << "DEFINE_MALLOC_SIZE(malloc_size_" << size << "_" << align << ", " << size
+        outfile << "DEFINE_MALLOC_SIZE(__stack_alloc_small_" << size << "_" << align << ", " << size
                 << ");" << std::endl;
       }
       else
       {
-        outfile << "REDIRECT_MALLOC_SIZE(malloc_size_" << size << "_" << align << ", malloc_size_"
+        outfile << "REDIRECT_MALLOC_SIZE(__stack_alloc_small_" << size << "_" << align << ", __stack_alloc_small_"
                 << rsize << "_" << 0 << ");" << std::endl;
       }
+      outfile << "GENERATE_FREE_SIZE(__stack_free_small_" << size << "_" << align << ");" << std::endl;
+
     }
   }
 

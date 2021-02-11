@@ -20,4 +20,14 @@
     return snmalloc::ThreadAlloc::get_noncachable()->template alloc<s>(); \
   }
 
+extern "C" void free_local_small(void* ptr)
+{
+  if (snmalloc::Alloc::small_local_dealloc(ptr))
+    return;
+  snmalloc::ThreadAlloc::get_noncachable()->small_local_dealloc_slow(ptr);
+}
+
+#  define GENERATE_FREE_SIZE(a) \
+    __attribute__((alias("free_local_small"))) extern "C" void* a()
+
 #include "generated.cc"
