@@ -141,8 +141,8 @@ namespace snmalloc
       // Allocate permanent storage for the allocator usung temporary allocator
       MemoryProviderStateMixin<PAL>* allocated =
         reinterpret_cast<MemoryProviderStateMixin<PAL>*>(
-          local.template reserve<true>(
-            bits::next_pow2(sizeof(MemoryProviderStateMixin<PAL>))));
+          local.template reserve_with_left_over<true>(
+            sizeof(MemoryProviderStateMixin<PAL>)));
 
       if (allocated == nullptr)
         error("Failed to initialise system!");
@@ -240,8 +240,8 @@ namespace snmalloc
     {
       // Cache line align
       size_t size = bits::align_up(sizeof(T), 64);
-      size = bits::next_pow2(bits::max(size, alignment));
-      void* p = address_space.template reserve<true>(size);
+      size = bits::max(size, alignment);
+      void* p = address_space.template reserve_with_left_over<true>(size);
       if (p == nullptr)
         return nullptr;
 

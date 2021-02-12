@@ -238,6 +238,38 @@ namespace snmalloc
     }
 
     /**
+     * Aligns block to next power of 2 above size, and unused space at the end
+     * of the block is retained by the address space manager.
+     *
+     * This is useful for allowing the space required for alignment to be
+     * used, by smaller objects.
+     */
+    template<bool committed>
+    void* reserve_with_left_over(size_t size)
+    {
+      SNMALLOC_ASSERT(size >= sizeof(void*));
+
+      size = bits::align_up(size, sizeof(void*));
+
+      size_t rsize = bits::next_pow2(size);
+
+      auto res = reserve<false>(rsize);
+
+      if (res != nullptr)
+      {
+        if (rsize > size)
+        {
+          FlagLock lock(spin_lock);
+          add_range(pointer_offset(res, size), rsize - size);
+        }
+
+        if constexpr (committed)
+          commit_block(res, size);
+      }
+      return res;
+    }
+
+    /**
      * Default constructor.  An address-space manager constructed in this way
      * does not own any memory at the start and will request any that it needs
      * from the PAL.
