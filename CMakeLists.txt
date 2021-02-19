@@ -35,9 +35,10 @@ size_t malloc_usable_size(const void* ptr) { return 0; }
 int main() { return 0; }
 " CONST_QUALIFIED_MALLOC_USABLE_SIZE)
 
-if ((CMAKE_BUILD_TYPE STREQUAL "Release") AND (NOT SNMALLOC_CI_BUILD))
+if (NOT SNMALLOC_CI_BUILD)
   option(USE_POSIX_COMMIT_CHECKS "Instrument Posix PAL to check for access to unused blocks of memory." Off)
 else ()
+  # This is enabled in every bit of CI to detect errors.
   option(USE_POSIX_COMMIT_CHECKS "Instrument Posix PAL to check for access to unused blocks of memory." On)
 endif ()
 
@@ -306,6 +307,10 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         set(TESTNAME "${TEST_CATEGORY}-${TEST}-${SUPER_SLAB_SIZE}")
 
         add_executable(${TESTNAME} ${SRC})
+
+        # For all tests enable commit checking.
+        target_compile_definitions(${TESTNAME} PRIVATE -DUSE_POSIX_COMMIT_CHECKS)
+
         if (${SUPER_SLAB_SIZE} EQUAL 16)
           target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
         endif()
