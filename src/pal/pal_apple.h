@@ -63,6 +63,9 @@ namespace snmalloc
     static void notify_not_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(is_aligned_block<PALBSD::page_size>(p, size));
+#  ifdef USE_POSIX_COMMIT_CHECKS
+      memset(p, 0x5a, size);
+#  endif
       while (madvise(p, size, MADV_FREE_REUSABLE) == -1 && errno == EAGAIN)
         ;
     }
