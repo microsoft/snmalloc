@@ -20,6 +20,7 @@ namespace snmalloc
   constexpr static size_t
   sizeclass_to_inverse_cache_friendly_mask(sizeclass_t sc);
   constexpr static uint16_t medium_slab_free(sizeclass_t sizeclass);
+  template<bool ASSUME_SMALL = false>
   static sizeclass_t size_to_sizeclass(size_t size);
 
   constexpr static inline sizeclass_t size_to_sizeclass_const(size_t size)

@@ -70,6 +70,33 @@ extern "C"
   }
 
   SNMALLOC_EXPORT
+  void SNMALLOC_NAME_MANGLE(free_local_small)(void* ptr)
+  {
+    if (Alloc::small_local_dealloc(ptr))
+      return;
+    ThreadAlloc::get_noncachable()->small_local_dealloc_slow(ptr);
+  }
+
+  SNMALLOC_EXPORT
+  void* SNMALLOC_NAME_MANGLE(malloc_small)(size_t size)
+  {
+    return ThreadAlloc::get_noncachable()->small_alloc<NoZero, YesReserve>(
+      size);
+  }
+
+  SNMALLOC_EXPORT
+  void* SNMALLOC_NAME_MANGLE(malloc_small_64)()
+  {
+    return ThreadAlloc::get_noncachable()->small_alloc<NoZero, YesReserve>(64);
+  }
+
+  SNMALLOC_EXPORT
+  void* SNMALLOC_NAME_MANGLE(malloc_small_63)()
+  {
+    return ThreadAlloc::get_noncachable()->small_alloc<NoZero, YesReserve>(63);
+  }
+
+  SNMALLOC_EXPORT
   size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(
     MALLOC_USABLE_SIZE_QUALIFIER void* ptr)
   {

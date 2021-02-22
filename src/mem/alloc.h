@@ -1031,7 +1031,8 @@ namespace snmalloc
           allow_reserve == NoReserve ? "noreserve" : "reserve"));
 
       SNMALLOC_ASSUME(size <= SLAB_SIZE);
-      sizeclass_t sizeclass = size_to_sizeclass(size);
+      SNMALLOC_ASSUME(size > 0);
+      sizeclass_t sizeclass = size_to_sizeclass<true>(size);
       return small_alloc_inner<zero_mem, allow_reserve>(sizeclass, size);
     }
 
@@ -1057,6 +1058,13 @@ namespace snmalloc
         return p;
       }
 
+      return small_alloc_inner_slow<zero_mem, allow_reserve>(sizeclass, size);
+    }
+
+    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    SNMALLOC_SLOW_PATH void*
+    small_alloc_inner_slow(sizeclass_t sizeclass, size_t size)
+    {
       if (likely(!has_messages()))
         return small_alloc_next_free_list<zero_mem, allow_reserve>(
           sizeclass, size);
@@ -1232,6 +1240,20 @@ namespace snmalloc
       stats().sizeclass_dealloc(sizeclass);
 
       small_dealloc_offseted_inner(super, p, sizeclass);
+    }
+
+    static SNMALLOC_FAST_PATH bool small_local_dealloc(void* p)
+    {
+      auto super = Superslab::get(p);
+      Slab* slab = Metaslab::get_slab(p);
+      return (likely(slab->dealloc_fast(super, p)));
+    }
+
+    SNMALLOC_FAST_PATH void small_local_dealloc_slow(void* p)
+    {
+      auto super = Superslab::get(p);
+      Slab* slab = Metaslab::get_slab(p);
+      small_dealloc_offseted_slow(super, p, slab->get_meta().sizeclass);
     }
 
     SNMALLOC_FAST_PATH void small_dealloc_offseted_inner(
