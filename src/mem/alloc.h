@@ -214,35 +214,6 @@ namespace snmalloc
 #endif
     }
 
-    /**
-     * Checks the allocation at `p` could have been validly allocated with
-     * a size of `size`.
-     */
-    void check_size(void* p, size_t size)
-    {
-#if defined(CHECK_CLIENT)
-      auto asize = alloc_size(p);
-      auto asc = size_to_sizeclass(asize);
-      if (size_to_sizeclass(size) != asc)
-      {
-        // Correction for large classes.
-        if (asc > NUM_SIZECLASSES)
-        {
-          if (bits::next_pow2(size) != asize)
-            error("Deallocating with incorrect size supplied.");
-        }
-        // Correction for zero sized allocations.
-        else if ((size != 0) && (asc != 0))
-        {
-          error("Deallocating with incorrect size supplied.");
-        }
-      }
-#else
-      UNUSED(p);
-      UNUSED(size);
-#endif
-    }
-
     /*
      * Free memory of a statically known size. Must be called with an
      * external pointer.
@@ -254,24 +225,23 @@ namespace snmalloc
       UNUSED(size);
       return external_alloc::free(p);
 #else
-      check_size(p, size);
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
 
       if (sizeclass < NUM_SMALL_CLASSES)
       {
         Superslab* super = Superslab::get(p);
 
-        small_dealloc(super, p, sizeclass);
+        small_dealloc_unchecked(super, p, sizeclass);
       }
       else if (sizeclass < NUM_SIZECLASSES)
       {
         Mediumslab* slab = Mediumslab::get(p);
 
-        medium_dealloc(slab, p, sizeclass);
+        medium_dealloc_unchecked(slab, p, sizeclass);
       }
       else
       {
-        large_dealloc(p, size);
+        large_dealloc_unchecked(p, size);
       }
 #endif
     }
@@ -287,13 +257,12 @@ namespace snmalloc
       return external_alloc::free(p);
 #else
       SNMALLOC_ASSERT(p != nullptr);
-      check_size(p, size);
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
       {
         Superslab* super = Superslab::get(p);
         sizeclass_t sizeclass = size_to_sizeclass(size);
 
-        small_dealloc(super, p, sizeclass);
+        small_dealloc_unchecked(super, p, sizeclass);
         return;
       }
       dealloc_sized_slow(p, size);
@@ -309,10 +278,10 @@ namespace snmalloc
       {
         Mediumslab* slab = Mediumslab::get(p);
         sizeclass_t sizeclass = size_to_sizeclass(size);
-        medium_dealloc(slab, p, sizeclass);
+        medium_dealloc_unchecked(slab, p, sizeclass);
         return;
       }
-      large_dealloc(p, size);
+      large_dealloc_unchecked(p, size);
     }
 
     /*
@@ -325,51 +294,65 @@ namespace snmalloc
       return external_alloc::free(p);
 #else
 
-      uint8_t size = chunkmap().get(address_cast(p));
+      uint8_t chunkmap_slab_kind = chunkmap().get(address_cast(p));
 
       Superslab* super = Superslab::get(p);
 
-      if (likely(size == CMSuperslab))
+      if (likely(chunkmap_slab_kind == CMSuperslab))
       {
+        /*
+         * If this is a live allocation (and not a double- or wild-free), it's
+         * safe to construct these Slab and Metaslab pointers and reading the
+         * sizeclass won't fail, since either we or the other allocator can't
+         * reuse the slab, as we have not yet deallocated this pointer.
+         *
+         * On the other hand, in the case of a double- or wild-free, this might
+         * fault or data race against reused memory.  Eventually, we will come
+         * to rely on revocation to guard against these cases: changing the
+         * superslab kind will require revoking the whole superslab, as will
+         * changing a slab's size class.  However, even then, until we get
+         * through the guard in small_dealloc_start(), we must treat this as
+         * possibly stale and suspect.
+         */
         Slab* slab = Metaslab::get_slab(p);
         Metaslab& meta = super->get_meta(slab);
-
-        // Reading a remote sizeclass won't fail, since the other allocator
-        // can't reuse the slab, as we have not yet deallocated this
-        // pointer.
         sizeclass_t sizeclass = meta.sizeclass;
 
-        small_dealloc(super, p, sizeclass);
+        small_dealloc_checked_sizeclass(super, slab, p, sizeclass);
         return;
       }
-      dealloc_not_small(p, size);
+      dealloc_not_small(p, chunkmap_slab_kind);
     }
 
-    SNMALLOC_SLOW_PATH void dealloc_not_small(void* p, uint8_t size)
+    SNMALLOC_SLOW_PATH void
+    dealloc_not_small(void* p, uint8_t chunkmap_slab_kind)
     {
       handle_message_queue();
 
       if (p == nullptr)
         return;
 
-      if (size == CMMediumslab)
+      if (chunkmap_slab_kind == CMMediumslab)
       {
+        /*
+         * The same reasoning from the fast path continues to hold here.  These
+         * values are suspect until we complete the double-free check in
+         * medium_dealloc_smart().
+         */
         Mediumslab* slab = Mediumslab::get(p);
-
-        // Reading a remote sizeclass won't fail, since the other allocator
-        // can't reuse the slab, as we have not yet deallocated this pointer.
         sizeclass_t sizeclass = slab->get_sizeclass();
 
-        medium_dealloc(slab, p, sizeclass);
+        medium_dealloc_checked_sizeclass(slab, p, sizeclass);
         return;
       }
 
-      if (size == 0)
+      if (chunkmap_slab_kind == CMNotOurs)
       {
         error("Not allocated by this allocator");
       }
 
-      large_dealloc(p, 1ULL << size);
+      large_dealloc_checked_sizeclass(
+        p, bits::one_at_bit(chunkmap_slab_kind), chunkmap_slab_kind);
 #endif
     }
 
@@ -765,7 +748,8 @@ namespace snmalloc
           {
             auto n = Metaslab::follow_next(prev);
             Superslab* super = Superslab::get(prev);
-            small_dealloc_offseted_inner(super, prev, i);
+            Slab* slab = Metaslab::get_slab(prev);
+            small_dealloc_offseted_inner(super, slab, prev, i);
             prev = n;
           }
         }
@@ -780,7 +764,8 @@ namespace snmalloc
           auto n = Metaslab::follow_next(prev);
 
           Superslab* super = Superslab::get(prev);
-          small_dealloc_offseted_inner(super, prev, i);
+          Slab* slab = Metaslab::get_slab(prev);
+          small_dealloc_offseted_inner(super, slab, prev, i);
 
           prev = n;
         }
@@ -880,7 +865,8 @@ namespace snmalloc
       if (likely(sizeclass < NUM_SMALL_CLASSES))
       {
         SNMALLOC_ASSERT(super->get_kind() == Super);
-        small_dealloc_offseted(super, offseted, sizeclass);
+        Slab* slab = Metaslab::get_slab(p);
+        small_dealloc_offseted(super, slab, offseted, sizeclass);
       }
       else
       {
@@ -1196,21 +1182,49 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH void
-    small_dealloc(Superslab* super, void* p, sizeclass_t sizeclass)
+    small_dealloc_unchecked(Superslab* super, void* p, sizeclass_t sizeclass)
     {
 #ifdef CHECK_CLIENT
+      uint8_t chunkmap_slab_kind = chunkmap().get(address_cast(p));
+      if (chunkmap_slab_kind != CMSuperslab)
+      {
+        error("Claimed small deallocation is not in a Superslab");
+      }
+#endif
+
+      small_dealloc_checked_chunkmap(super, p, sizeclass);
+    }
+
+    SNMALLOC_FAST_PATH void small_dealloc_checked_chunkmap(
+      Superslab* super, void* p, sizeclass_t sizeclass)
+    {
       Slab* slab = Metaslab::get_slab(p);
+#ifdef CHECK_CLIENT
+      Metaslab& meta = super->get_meta(slab);
+      if (sizeclass != meta.sizeclass)
+      {
+        error("Claimed small deallocation with mismatching size class");
+      }
+#endif
+
+      small_dealloc_checked_sizeclass(super, slab, p, sizeclass);
+    }
+
+    SNMALLOC_FAST_PATH void small_dealloc_checked_sizeclass(
+      Superslab* super, Slab* slab, void* p, sizeclass_t sizeclass)
+    {
+#ifdef CHECK_CLIENT
       if (!slab->is_start_of_object(super, p))
       {
         error("Not deallocating start of an object");
       }
 #endif
 
-      small_dealloc_start(super, p, sizeclass);
+      small_dealloc_start(super, slab, p, sizeclass);
     }
 
-    SNMALLOC_FAST_PATH void
-    small_dealloc_start(Superslab* super, void* p, sizeclass_t sizeclass)
+    SNMALLOC_FAST_PATH void small_dealloc_start(
+      Superslab* super, Slab* slab, void* p, sizeclass_t sizeclass)
     {
       // TODO: with SSM/MTE, guard against double-frees
 
@@ -1219,37 +1233,35 @@ namespace snmalloc
       if (likely(target == public_state()))
       {
         void* offseted = apply_cache_friendly_offset(p, sizeclass);
-        small_dealloc_offseted(super, offseted, sizeclass);
+        small_dealloc_offseted(super, slab, offseted, sizeclass);
       }
       else
         remote_dealloc(target, p, sizeclass);
     }
 
-    SNMALLOC_FAST_PATH void
-    small_dealloc_offseted(Superslab* super, void* p, sizeclass_t sizeclass)
+    SNMALLOC_FAST_PATH void small_dealloc_offseted(
+      Superslab* super, Slab* slab, void* p, sizeclass_t sizeclass)
     {
       MEASURE_TIME(small_dealloc, 4, 16);
       stats().sizeclass_dealloc(sizeclass);
 
-      small_dealloc_offseted_inner(super, p, sizeclass);
+      small_dealloc_offseted_inner(super, slab, p, sizeclass);
     }
 
     SNMALLOC_FAST_PATH void small_dealloc_offseted_inner(
-      Superslab* super, void* p, sizeclass_t sizeclass)
+      Superslab* super, Slab* slab, void* p, sizeclass_t sizeclass)
     {
-      Slab* slab = Metaslab::get_slab(p);
       if (likely(slab->dealloc_fast(super, p)))
         return;
 
-      small_dealloc_offseted_slow(super, p, sizeclass);
+      small_dealloc_offseted_slow(super, slab, p, sizeclass);
     }
 
     SNMALLOC_SLOW_PATH void small_dealloc_offseted_slow(
-      Superslab* super, void* p, sizeclass_t sizeclass)
+      Superslab* super, Slab* slab, void* p, sizeclass_t sizeclass)
     {
       bool was_full = super->is_full();
       SlabList* sl = &small_classes[sizeclass];
-      Slab* slab = Metaslab::get_slab(p);
       Superslab::Action a = slab->dealloc_slow(sl, super, p);
       if (likely(a == Superslab::NoSlabReturn))
         return;
@@ -1352,7 +1364,37 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH
-    void medium_dealloc(Mediumslab* slab, void* p, sizeclass_t sizeclass)
+    void
+    medium_dealloc_unchecked(Mediumslab* slab, void* p, sizeclass_t sizeclass)
+    {
+#ifdef CHECK_CLIENT
+      uint8_t chunkmap_slab_kind = chunkmap().get(address_cast(p));
+      if (chunkmap_slab_kind != CMMediumslab)
+      {
+        error("Claimed medium deallocation is not in a Mediumslab");
+      }
+#endif
+
+      medium_dealloc_checked_chunkmap(slab, p, sizeclass);
+    }
+
+    SNMALLOC_FAST_PATH
+    void medium_dealloc_checked_chunkmap(
+      Mediumslab* slab, void* p, sizeclass_t sizeclass)
+    {
+#ifdef CHECK_CLIENT
+      if (slab->get_sizeclass() != sizeclass)
+      {
+        error("Claimed medium deallocation of the wrong sizeclass");
+      }
+#endif
+
+      medium_dealloc_checked_sizeclass(slab, p, sizeclass);
+    }
+
+    SNMALLOC_FAST_PATH
+    void medium_dealloc_checked_sizeclass(
+      Mediumslab* slab, void* p, sizeclass_t sizeclass)
     {
 #ifdef CHECK_CLIENT
       if (!is_multiple_of_sizeclass(
@@ -1442,38 +1484,61 @@ namespace snmalloc
       return p;
     }
 
-    void large_dealloc(void* p, size_t size)
+    void large_dealloc_unchecked(void* p, size_t size)
+    {
+      size_t claimed_chunkmap_slab_kind = bits::next_pow2_bits(size);
+      uint8_t chunkmap_slab_kind;
+
+#ifdef CHECK_CLIENT
+      chunkmap_slab_kind = chunkmap().get(address_cast(p));
+      if (chunkmap_slab_kind < CMLargeMin)
+      {
+        error("Claimed large deallocation is not in a large slab");
+      }
+      if (chunkmap_slab_kind != claimed_chunkmap_slab_kind)
+      {
+        error("Claimed large deallocation with wrong size class");
+      }
+#else
+      // Trusting sort, aren't we?
+      chunkmap_slab_kind = static_cast<uint8_t>(claimed_chunkmap_slab_kind);
+#endif
+
+      large_dealloc_checked_sizeclass(p, size, chunkmap_slab_kind);
+    }
+
+    void large_dealloc_checked_sizeclass(
+      void* p, size_t size, uint8_t chunkmap_slab_kind)
     {
 #ifdef CHECK_CLIENT
       Superslab* super = Superslab::get(p);
-      uint8_t cmsk = chunkmap().get(address_cast(p));
-      if (cmsk > CMLargeMax || address_cast(super) != address_cast(p))
+      if (address_cast(super) != address_cast(p))
       {
         error("Not deallocating start of an object");
       }
 #endif
+      SNMALLOC_ASSERT(bits::one_at_bit(chunkmap_slab_kind) >= SUPERSLAB_SIZE);
 
-      large_dealloc_start(p, size);
+      large_dealloc_start(p, size, chunkmap_slab_kind);
     }
 
-    void large_dealloc_start(void* p, size_t size)
+    void large_dealloc_start(void* p, size_t size, uint8_t chunkmap_slab_kind)
     {
       // TODO: with SSM/MTE, guard against double-frees
 
       if (NeedsInitialisation(this))
       {
-        InitThreadAllocator([p, size](void* alloc) {
-          reinterpret_cast<Allocator*>(alloc)->large_dealloc(p, size);
+        InitThreadAllocator([p, size, chunkmap_slab_kind](void* alloc) {
+          reinterpret_cast<Allocator*>(alloc)->large_dealloc_start(
+            p, size, chunkmap_slab_kind);
           return nullptr;
         });
         return;
       }
 
-      MEASURE_TIME(large_dealloc, 4, 16);
+      size_t large_class = chunkmap_slab_kind - SUPERSLAB_BITS;
 
-      size_t size_bits = bits::next_pow2_bits(size);
-      SNMALLOC_ASSERT(bits::one_at_bit(size_bits) >= SUPERSLAB_SIZE);
-      size_t large_class = size_bits - SUPERSLAB_BITS;
+      MEASURE_TIME(large_dealloc, 4, 16);
 
       chunkmap().clear_large_size(p, size);
 
