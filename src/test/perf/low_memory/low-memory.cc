@@ -58,7 +58,7 @@ void advance(PalNotificationObject* unused)
   global_epoch++;
 }
 
-PalNotificationObject update_epoch = {nullptr, &advance};
+PalNotificationObject update_epoch{&advance};
 
 bool has_pressure()
 {

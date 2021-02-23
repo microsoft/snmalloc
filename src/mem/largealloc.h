@@ -57,7 +57,7 @@ namespace snmalloc
   // global state of the allocator.  This is currently stored in the memory
   // provider, so we add this in.
   template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
-  class MemoryProviderStateMixin : public PalNotificationObject
+  class MemoryProviderStateMixin
   {
     /**
      * Simple flag for checking if another instance of lazy-decommit is
@@ -141,8 +141,8 @@ namespace snmalloc
       // Allocate permanent storage for the allocator usung temporary allocator
       MemoryProviderStateMixin<PAL>* allocated =
         reinterpret_cast<MemoryProviderStateMixin<PAL>*>(
-          local.template reserve<true>(
-            bits::next_pow2(sizeof(MemoryProviderStateMixin<PAL>))));
+          local.template reserve_with_left_over<true>(
+            sizeof(MemoryProviderStateMixin<PAL>)));
 
       if (allocated == nullptr)
         error("Failed to initialise system!");
@@ -153,8 +153,10 @@ namespace snmalloc
       // Register this allocator for low-memory call-backs
       if constexpr (pal_supports<LowMemoryNotification, PAL>)
       {
-        allocated->PalNotificationObject::pal_notify = &(allocated->process);
-        PAL::register_for_low_memory_callback(allocated);
+        auto callback =
+          allocated->template alloc_chunk<LowMemoryNotificationObject, 1>(
+            allocated);
+        PAL::register_for_low_memory_callback(callback);
       }
 
       return allocated;
@@ -207,15 +209,26 @@ namespace snmalloc
       lazy_decommit_guard.clear();
     }
 
-    /***
-     * Method for callback object to perform lazy decommit.
-     */
-    static void process(PalNotificationObject* p)
+    class LowMemoryNotificationObject : public PalNotificationObject
     {
-      // Unsafe downcast here. Don't want vtable and RTTI.
-      auto self = reinterpret_cast<MemoryProviderStateMixin<PAL>*>(p);
-      self->lazy_decommit();
-    }
+      MemoryProviderStateMixin<PAL>* memory_provider;
+
+      /***
+       * Method for callback object to perform lazy decommit.
+       */
+      static void process(PalNotificationObject* p)
+      {
+        // Unsafe downcast here. Don't want vtable and RTTI.
+        auto self = reinterpret_cast<LowMemoryNotificationObject*>(p);
+        self->memory_provider->lazy_decommit();
+      }
+
+    public:
+      LowMemoryNotificationObject(
+        MemoryProviderStateMixin<PAL>* memory_provider)
+      : PalNotificationObject(&process), memory_provider(memory_provider)
+      {}
+    };
 
   public:
     /**
@@ -227,8 +240,8 @@ namespace snmalloc
     {
       // Cache line align
       size_t size = bits::align_up(sizeof(T), 64);
-      size = bits::next_pow2(bits::max(size, alignment));
-      void* p = address_space.template reserve<true>(size);
+      size = bits::max(size, alignment);
+      void* p = address_space.template reserve_with_left_over<true>(size);
       if (p == nullptr)
         return nullptr;
 
