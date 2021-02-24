@@ -194,18 +194,20 @@ int main(int, char**)
   printf("\n");
   for (size_t exp = 1; exp < snmalloc::SUPERSLAB_BITS; exp++)
   {
-    f(1ULL << exp);
-    f(3ULL << exp);
-    f(5ULL << exp);
-    f(7ULL << exp);
-    f((1ULL << exp) + 1);
-    f((3ULL << exp) + 1);
-    f((5ULL << exp) + 1);
-    f((7ULL << exp) + 1);
-    f((1ULL << exp) - 1);
-    f((3ULL << exp) - 1);
-    f((5ULL << exp) - 1);
-    f((7ULL << exp) - 1);
+    auto shifted = [exp](size_t v) { return v << exp; };
+
+    f(shifted(1));
+    f(shifted(3));
+    f(shifted(5));
+    f(shifted(7));
+    f(shifted(1) + 1);
+    f(shifted(3) + 1);
+    f(shifted(5) + 1);
+    f(shifted(7) + 1);
+    f(shifted(1) - 1);
+    f(shifted(3) - 1);
+    f(shifted(5) - 1);
+    f(shifted(7) - 1);
     printf("\n");
   }
 }

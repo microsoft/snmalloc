@@ -129,7 +129,7 @@ int main(int argc, char** argv)
 
   for (sizeclass_t sc = 0; sc < (SUPERSLAB_BITS + 4); sc++)
   {
-    const size_t size = 1ULL << sc;
+    const size_t size = bits::one_at_bit(sc);
     printf("malloc: %zu\n", size);
     check_result(size, 1, our_malloc(size), SUCCESS, false);
     check_result(size + 1, 1, our_malloc(size + 1), SUCCESS, false);
@@ -170,14 +170,14 @@ int main(int argc, char** argv)
 
   for (sizeclass_t sc = 0; sc < (SUPERSLAB_BITS + 4); sc++)
   {
-    const size_t size = 1ULL << sc;
+    const size_t size = bits::one_at_bit(sc);
     test_realloc(our_malloc(size), size, SUCCESS, false);
     test_realloc(our_malloc(size), 0, SUCCESS, true);
     test_realloc(nullptr, size, SUCCESS, false);
     test_realloc(our_malloc(size), (size_t)-1, ENOMEM, true);
     for (sizeclass_t sc2 = 0; sc2 < (SUPERSLAB_BITS + 4); sc2++)
     {
-      const size_t size2 = 1ULL << sc2;
+      const size_t size2 = bits::one_at_bit(sc2);
       printf("size1: %zu, size2:%zu\n", size, size2);
       test_realloc(our_malloc(size), size2, SUCCESS, false);
       test_realloc(our_malloc(size + 1), size2, SUCCESS, false);
