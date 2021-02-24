@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds/address.h"
+#include "pal_timer_default.h"
 #if defined(BACKTRACE_HEADER)
 #  include BACKTRACE_HEADER
 #endif
@@ -29,7 +30,7 @@ namespace snmalloc
    * version.
    */
   template<class OS>
-  class PALPOSIX
+  class PALPOSIX : public PalTimerDefaultImpl
   {
     /**
      * Helper class to access the `default_mmap_flags` field of `OS` if one

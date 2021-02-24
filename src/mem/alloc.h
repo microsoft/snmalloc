@@ -17,6 +17,7 @@
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
 #include "slab.h"
+#include "ticker.h"
 
 #include <array>
 #include <functional>
@@ -106,6 +107,11 @@ namespace snmalloc
      * slab is required.
      */
     void* bump_ptrs[NUM_SMALL_CLASSES] = {nullptr};
+
+    /**
+     * Ticker to query the clock regularly at a lower cost.
+     */
+    Ticker<typename MemoryProvider::Pal> ticker;
 
   public:
     Stats& stats()
@@ -1098,8 +1104,9 @@ namespace snmalloc
         SlabLink* link = sl.get_next();
         slab = get_slab(link);
         auto& ffl = small_fast_free_lists[sizeclass];
-        return slab->alloc<zero_mem, typename MemoryProvider::Pal>(
-          sl, ffl, rsize);
+        auto p =
+          slab->alloc<zero_mem, typename MemoryProvider::Pal>(sl, ffl, rsize);
+        return ticker.check_tick(p);
       }
       return small_alloc_rare<zero_mem, allow_reserve>(sizeclass, size);
     }
@@ -1252,7 +1259,10 @@ namespace snmalloc
       Slab* slab = Metaslab::get_slab(p);
       Superslab::Action a = slab->dealloc_slow(sl, super, p);
       if (likely(a == Superslab::NoSlabReturn))
+      {
+        ticker.check_tick();
         return;
+      }
       stats().sizeclass_dealloc_slab(sizeclass);
 
       if (a == Superslab::NoStatusChange)

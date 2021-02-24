@@ -80,6 +80,16 @@ namespace snmalloc
      */
     std::atomic<size_t> available_large_chunks_in_bytes{0};
 
+    static constexpr size_t SUPERSLAB_STACK_COUNT = 4;
+
+    /**
+     * Stack of large allocations that have been returned for reuse.
+     */
+    ModArray<SUPERSLAB_STACK_COUNT, MPMCStack<Largeslab, RequiresInit>>
+      superslab_stacks;
+
+    size_t superslab_stack_index = 0;
+
     /**
      * Stack of large allocations that have been returned for reuse.
      */
@@ -88,6 +98,41 @@ namespace snmalloc
   public:
     using Pal = PAL;
 
+    SNMALLOC_SLOW_PATH void handle_tick()
+    {
+      static std::atomic_flag flush_flag = ATOMIC_FLAG_INIT;
+
+      // Try acquire
+      if (!flush_flag.test_and_set(std::memory_order_acquire))
+      {
+        static_assert(
+          SUPERSLAB_STACK_COUNT > 1,
+          "Required for the following loop to be wait-free.");
+        // Move oldest generation into decommitted stack
+        auto oldest = (superslab_stack_index + (SUPERSLAB_STACK_COUNT - 1)) %
+          SUPERSLAB_STACK_COUNT;
+        while (true)
+        {
+          Largeslab* p = superslab_stacks[oldest].pop();
+          if (p == nullptr)
+            break;
+
+          // Decommit superslab
+          PAL::notify_not_using(
+            pointer_offset(p, OS_PAGE_SIZE), SUPERSLAB_SIZE - OS_PAGE_SIZE);
+
+          large_stack[0].push(new (p) Decommittedslab());
+        }
+
+        // advance index
+        superslab_stack_index =
+          (superslab_stack_index + 1) % SUPERSLAB_STACK_COUNT;
+
+        // Release lock
+        flush_flag.clear();
+      }
+    }
+
     /**
      * Pop an allocation from a large-allocation stack.  This is safe to call
      * concurrently with other acceses.  If there is no large allocation on a
@@ -95,7 +140,28 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH void* pop_large_stack(size_t large_class)
     {
-      void* p = large_stack[large_class].pop();
+      void* p;
+      if (large_class == 0)
+      {
+        // Search through stacks looking for a freed superslab.
+        size_t i = superslab_stack_index;
+        do
+        {
+          p = superslab_stacks[i].pop();
+          if (p != nullptr)
+            break;
+
+          i = (i + 1) % SUPERSLAB_STACK_COUNT;
+        } while (i != superslab_stack_index);
+        if (p == nullptr)
+        {
+          p = large_stack[0].pop();
+        }
+      }
+      else
+      {
+        p = large_stack[large_class].pop();
+      }
       if (p != nullptr)
       {
         const size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
@@ -111,9 +177,16 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void
     push_large_stack(Largeslab* slab, size_t large_class)
     {
+      if (large_class == 0)
+      {
+        superslab_stacks[superslab_stack_index].push(slab);
+      }
+      else
+      {
+        large_stack[large_class].push(slab);
+      }
       const size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
       available_large_chunks_in_bytes += rsize;
-      large_stack[large_class].push(slab);
     }
 
     /**
@@ -159,6 +232,10 @@ namespace snmalloc
         PAL::register_for_low_memory_callback(callback);
       }
 
+      auto timer =
+        allocated->template alloc_chunk<DecayMemoryTimerObject, 1>(allocated);
+      PAL::register_timer(timer);
+
       return allocated;
     }
 
@@ -172,40 +249,10 @@ namespace snmalloc
       {
         return;
       }
-      // When we hit low memory, iterate over size classes and decommit all of
-      // the memory that we can.  Start with the small size classes so that we
-      // hit cached superslabs first.
-      // FIXME: We probably shouldn't do this all at once.
-      // FIXME: We currently Decommit all the sizeclasses larger than 0.
-      for (size_t large_class = 0; large_class < NUM_LARGE_CLASSES;
-           large_class++)
-      {
-        if (!PAL::expensive_low_memory_check())
-        {
-          break;
-        }
-        size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
-        size_t decommit_size = rsize - OS_PAGE_SIZE;
-        // Grab all of the chunks of this size class.
-        auto* slab = large_stack[large_class].pop_all();
-        while (slab)
-        {
-          // Decommit all except for the first page and then put it back on
-          // the stack.
-          if (slab->get_kind() != Decommitted)
-          {
-            PAL::notify_not_using(
-              pointer_offset(slab, OS_PAGE_SIZE), decommit_size);
-          }
-          // Once we've removed these from the stack, there will be no
-          // concurrent accesses and removal should have established a
-          // happens-before relationship, so it's safe to use relaxed loads
-          // here.
-          auto next = slab->next.load(std::memory_order_relaxed);
-          large_stack[large_class].push(new (slab) Decommittedslab());
-          slab = next;
-        }
-      }
+
+      for (size_t i = 0; i < SUPERSLAB_STACK_COUNT; i++)
+        handle_tick();
+
       lazy_decommit_guard.clear();
     }
 
@@ -227,6 +274,26 @@ namespace snmalloc
       LowMemoryNotificationObject(
         MemoryProviderStateMixin<PAL>* memory_provider)
       : PalNotificationObject(&process), memory_provider(memory_provider)
+      {}
+    };
+
+    class DecayMemoryTimerObject : public PalTimerObject
+    {
+      MemoryProviderStateMixin<PAL>* memory_provider;
+
+      /***
+       * Method for callback object to perform lazy decommit.
+       */
+      static void process(PalTimerObject* p)
+      {
+        // Unsafe downcast here. Don't want vtable and RTTI.
+        auto self = reinterpret_cast<DecayMemoryTimerObject*>(p);
+        self->memory_provider->handle_tick();
+      }
+
+    public:
+      DecayMemoryTimerObject(MemoryProviderStateMixin<PAL>* memory_provider)
+      : PalTimerObject(&process, 1000), memory_provider(memory_provider)
       {}
     };
 
@@ -312,8 +379,7 @@ namespace snmalloc
 
         // Cross-reference alloc.h's large_dealloc decommitment condition.
         bool decommitted =
-          ((decommit_strategy == DecommitSuperLazy) &&
-           (static_cast<Baseslab*>(p)->get_kind() == Decommitted)) ||
+          (static_cast<Baseslab*>(p)->get_kind() == Decommitted) ||
           (large_class > 0) || (decommit_strategy == DecommitSuper);
 
         if (decommitted)
@@ -357,9 +423,7 @@ namespace snmalloc
       size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
 
       // Cross-reference largealloc's alloc() decommitted condition.
-      if (
-        (decommit_strategy != DecommitNone) &&
-        (large_class != 0 || decommit_strategy == DecommitSuper))
+      if ((decommit_strategy != DecommitNone) && (large_class != 0))
       {
         MemoryProvider::Pal::notify_not_using(
           pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);

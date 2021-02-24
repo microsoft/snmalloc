@@ -2,6 +2,7 @@
 
 #include "../ds/address.h"
 #include "../ds/bits.h"
+#include "pal_timer_default.h"
 
 #ifdef _WIN32
 #  ifndef _MSC_VER
@@ -22,7 +23,7 @@
 
 namespace snmalloc
 {
-  class PALWindows
+  class PALWindows : public PalTimerDefaultImpl
   {
     /**
      * A flag indicating that we have tried to register for low-memory
@@ -199,7 +200,8 @@ namespace snmalloc
       MEM_ADDRESS_REQUIREMENTS addressReqs = {NULL, NULL, size};
 
       MEM_EXTENDED_PARAMETER param = {
-        {MemExtendedParameterAddressRequirements, 0}, {0}};
+        {MemExtendedParameterAddressRequirements, 0},
+        { 0 }};
       // Separate assignment as MSVC doesn't support .Pointer in the
       // initialisation list.
       param.Pointer = &addressReqs;
