@@ -143,8 +143,8 @@ namespace snmalloc
     };
   };
 
-  template<class T>
-  void ignore(T* t)
+  template<class T, template<typename> typename Ptr>
+  void ignore(Ptr<T> t)
   {
     UNUSED(t);
   }

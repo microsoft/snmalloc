@@ -2,6 +2,7 @@
 
 #include "helpers.h"
 #include "invalidptr.h"
+#include "ptrwrap.h"
 
 #include <cstdint>
 #include <type_traits>
@@ -10,18 +11,21 @@ namespace snmalloc
 {
   template<
     class T,
+    template<typename> typename Ptr = Pointer,
     class Terminator = std::nullptr_t,
-    void on_clear(T*) = ignore<T>>
+    void on_clear(Ptr<T>) = ignore<T, Ptr>>
   class DLList final
   {
   private:
     static_assert(
-      std::is_same<decltype(T::prev), T*>::value, "T->prev must be a T*");
+      std::is_same<decltype(T::prev), Ptr<T>>::value,
+      "T->prev must be a Ptr<T>");
     static_assert(
-      std::is_same<decltype(T::next), T*>::value, "T->next must be a T*");
+      std::is_same<decltype(T::next), Ptr<T>>::value,
+      "T->next must be a Ptr<T>");
 
-    T* head = Terminator();
-    T* tail = Terminator();
+    Ptr<T> head = Terminator();
+    Ptr<T> tail = Terminator();
 
   public:
     ~DLList()
@@ -55,19 +59,19 @@ namespace snmalloc
       return head == Terminator();
     }
 
-    SNMALLOC_FAST_PATH T* get_head()
+    SNMALLOC_FAST_PATH Ptr<T> get_head()
     {
       return head;
     }
 
-    T* get_tail()
+    Ptr<T> get_tail()
     {
       return tail;
     }
 
-    SNMALLOC_FAST_PATH T* pop()
+    SNMALLOC_FAST_PATH Ptr<T> pop()
     {
-      T* item = head;
+      Ptr<T> item = head;
 
       if (item != Terminator())
         remove(item);
@@ -75,9 +79,9 @@ namespace snmalloc
       return item;
     }
 
-    T* pop_tail()
+    Ptr<T> pop_tail()
     {
-      T* item = tail;
+      Ptr<T> item = tail;
 
       if (item != Terminator())
         remove(item);
@@ -85,7 +89,7 @@ namespace snmalloc
       return item;
     }
 
-    void insert(T* item)
+    void insert(Ptr<T> item)
     {
 #ifndef NDEBUG
       debug_check_not_contains(item);
@@ -105,7 +109,7 @@ namespace snmalloc
 #endif
     }
 
-    void insert_back(T* item)
+    void insert_back(Ptr<T> item)
     {
 #ifndef NDEBUG
       debug_check_not_contains(item);
@@ -125,7 +129,7 @@ namespace snmalloc
 #endif
     }
 
-    SNMALLOC_FAST_PATH void remove(T* item)
+    SNMALLOC_FAST_PATH void remove(Ptr<T> item)
     {
 #ifndef NDEBUG
       debug_check_contains(item);
@@ -156,11 +160,11 @@ namespace snmalloc
       }
     }
 
-    void debug_check_contains(T* item)
+    void debug_check_contains(Ptr<T> item)
     {
 #ifndef NDEBUG
       debug_check();
-      T* curr = head;
+      Ptr<T> curr = head;
 
       while (curr != item)
       {
@@ -172,11 +176,11 @@ namespace snmalloc
 #endif
     }
 
-    void debug_check_not_contains(T* item)
+    void debug_check_not_contains(Ptr<T> item)
     {
 #ifndef NDEBUG
       debug_check();
-      T* curr = head;
+      Ptr<T> curr = head;
 
       while (curr != Terminator())
       {
@@ -191,8 +195,8 @@ namespace snmalloc
     void debug_check()
     {
 #ifndef NDEBUG
-      T* item = head;
-      T* prev = Terminator();
+      Ptr<T> item = head;
+      Ptr<T> prev = Terminator();
 
       while (item != Terminator())
       {
