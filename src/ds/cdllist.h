@@ -1,13 +1,14 @@
 #pragma once
 
 #include "defines.h"
+#include "ptrwrap.h"
 
 #include <cstdint>
 #include <type_traits>
 
 namespace snmalloc
 {
-  template<typename T>
+  template<typename T, template<typename> typename Ptr = Pointer>
   class CDLLNodeBase
   {
     /**
@@ -18,9 +19,9 @@ namespace snmalloc
     ptrdiff_t to_next = 0;
 
   protected:
-    void set_next(T* c)
+    void set_next(Ptr<T> c)
     {
-      to_next = pointer_diff_signed(this, c);
+      to_next = pointer_diff_signed(Ptr<CDLLNodeBase<T, Ptr>>(this), c);
     }
 
   public:
@@ -29,13 +30,13 @@ namespace snmalloc
       return to_next == 0;
     }
 
-    SNMALLOC_FAST_PATH T* get_next()
+    SNMALLOC_FAST_PATH Ptr<T> get_next()
     {
-      return pointer_offset_signed<T>(this, to_next);
+      return static_cast<Ptr<T>>(pointer_offset_signed<T>(this, to_next));
     }
   };
 
-  template<typename T>
+  template<typename T, template<typename> typename Ptr = Pointer>
   class CDLLNodeBaseNext
   {
     /**
@@ -45,12 +46,12 @@ namespace snmalloc
      *
      */
 
-    T* next = nullptr;
+    Ptr<T> next = nullptr;
 
   protected:
-    void set_next(T* c)
+    void set_next(Ptr<T> c)
     {
-      next = (c == static_cast<T*>(this)) ? nullptr : c;
+      next = (c == static_cast<Ptr<T>>(this)) ? nullptr : c;
     }
 
   public:
@@ -59,17 +60,17 @@ namespace snmalloc
       return next == nullptr;
     }
 
-    SNMALLOC_FAST_PATH T* get_next()
+    SNMALLOC_FAST_PATH Ptr<T> get_next()
     {
-      return next == nullptr ? static_cast<T*>(this) : next;
+      return next == nullptr ? static_cast<Ptr<T>>(this) : next;
     }
   };
 
-  template<typename T>
+  template<typename T, template<typename> typename Ptr = Pointer>
   using CDLLNodeParent = std::conditional_t<
     aal_supports<StrictProvenance>,
-    CDLLNodeBaseNext<T>,
-    CDLLNodeBase<T>>;
+    CDLLNodeBaseNext<T, Ptr>,
+    CDLLNodeBase<T, Ptr>>;
 
   /**
    * Special class for cyclic doubly linked non-empty linked list
@@ -77,9 +78,10 @@ namespace snmalloc
    * This code assumes there is always one element in the list. The client
    * must ensure there is a sentinal element.
    */
-  class CDLLNode : public CDLLNodeParent<CDLLNode>
+  template<template<typename> typename Ptr = Pointer>
+  class CDLLNode : public CDLLNodeParent<CDLLNode<Ptr>, Ptr>
   {
-    CDLLNode* prev = nullptr;
+    Ptr<CDLLNode> prev = nullptr;
 
   public:
     /**
@@ -87,8 +89,8 @@ namespace snmalloc
      */
     CDLLNode()
     {
-      this->set_next(this);
-      prev = this;
+      this->set_next(Ptr<CDLLNode>(this));
+      prev = Ptr<CDLLNode>(this);
     }
 
     /**
@@ -98,14 +100,14 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(!this->is_empty());
       debug_check();
-      get_next()->prev = prev;
-      prev->set_next(get_next());
+      this->get_next()->prev = prev;
+      prev->set_next(this->get_next());
       // As this is no longer in the list, check invariant for
       // neighbouring element.
-      get_next()->debug_check();
+      this->get_next()->debug_check();
 
 #ifndef NDEBUG
-      set_next(nullptr);
+      this->set_next(nullptr);
       prev = nullptr;
 #endif
     }
@@ -121,27 +123,27 @@ namespace snmalloc
       prev = nullptr;
     }
 
-    SNMALLOC_FAST_PATH CDLLNode* get_prev()
+    SNMALLOC_FAST_PATH Ptr<CDLLNode> get_prev()
     {
       return prev;
     }
 
-    SNMALLOC_FAST_PATH void insert_next(CDLLNode* item)
+    SNMALLOC_FAST_PATH void insert_next(Ptr<CDLLNode> item)
     {
       debug_check();
-      item->set_next(get_next());
-      get_next()->prev = item;
+      item->set_next(this->get_next());
+      this->get_next()->prev = item;
       item->prev = this;
       set_next(item);
       debug_check();
     }
 
-    SNMALLOC_FAST_PATH void insert_prev(CDLLNode* item)
+    SNMALLOC_FAST_PATH void insert_prev(Ptr<CDLLNode> item)
     {
       debug_check();
       item->prev = prev;
       prev->set_next(item);
-      item->set_next(this);
+      item->set_next(Ptr<CDLLNode>(this));
       prev = item;
       debug_check();
     }
@@ -154,15 +156,15 @@ namespace snmalloc
     void debug_check()
     {
 #ifndef NDEBUG
-      CDLLNode* item = get_next();
-      CDLLNode* p = this;
+      Ptr<CDLLNode> item = this->get_next();
+      auto p = Ptr<CDLLNode>(this);
 
       do
       {
         SNMALLOC_ASSERT(item->prev == p);
         p = item;
         item = item->get_next();
-      } while (item != this);
+      } while (item != Ptr<CDLLNode>(this));
 #endif
     }
   };

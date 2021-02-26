@@ -27,8 +27,8 @@ namespace snmalloc
     SlabNext* value = nullptr;
   };
 
-  using SlabList = CDLLNode;
-  using SlabLink = CDLLNode;
+  using SlabList = CDLLNode<>;
+  using SlabLink = CDLLNode<>;
 
   SNMALLOC_FAST_PATH Slab* get_slab(SlabLink* sl)
   {
