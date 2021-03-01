@@ -412,9 +412,9 @@ namespace snmalloc
       if constexpr (location == Start)
         return ss;
       else if constexpr (location == End)
-        return pointer_offset(ss, (1ULL << size) - 1ULL);
+        return pointer_offset(ss, (bits::one_at_bit(size)) - 1);
       else
-        return pointer_offset(ss, 1ULL << size);
+        return pointer_offset(ss, bits::one_at_bit(size));
 #endif
     }
 
@@ -455,7 +455,7 @@ namespace snmalloc
 
       if (likely(size != 0))
       {
-        return 1ULL << size;
+        return bits::one_at_bit(size);
       }
 
       return alloc_size_error();

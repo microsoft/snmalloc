@@ -94,7 +94,9 @@ namespace snmalloc
           if (ticks == 0)
             online_average = occupancy;
           else
-            online_average += ((occupancy - online_average) * duration) / ticks;
+            online_average +=
+              ((occupancy - online_average) * static_cast<double>(duration)) /
+              static_cast<double>(ticks);
 
           ticks += duration;
         }
@@ -109,7 +111,8 @@ namespace snmalloc
         // Keep in sync with header lower down
         count.print(csv, multiplier);
         slab_count.print(csv, slab_multiplier);
-        size_t average = static_cast<size_t>(online_average * multiplier);
+        size_t average =
+          static_cast<size_t>(online_average * static_cast<double>(multiplier));
 
         csv << average << (slab_multiplier - average) * slab_count.max
             << csv.endl;
