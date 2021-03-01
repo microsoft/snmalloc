@@ -35,7 +35,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= minimum_alloc_size);
 
-      size_t log2align = bits::next_pow2_bits(size);
+      int log2align = static_cast<int>(bits::next_pow2_bits(size));
 
       void* p = mmap(
         nullptr,
