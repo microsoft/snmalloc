@@ -31,7 +31,7 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH T* get_next()
     {
-      return pointer_offset_signed(static_cast<T*>(this), to_next);
+      return pointer_offset_signed<T>(this, to_next);
     }
   };
 

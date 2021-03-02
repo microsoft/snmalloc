@@ -391,7 +391,7 @@ namespace snmalloc
       while (chunkmap_slab_kind >= CMLargeRangeMin)
       {
         // This is a large alloc redirect.
-        ss = pointer_offset_signed(
+        ss = pointer_offset_signed<Superslab>(
           ss,
           -(static_cast<ptrdiff_t>(1)
             << (chunkmap_slab_kind - CMLargeRangeMin + SUPERSLAB_BITS)));
@@ -402,7 +402,7 @@ namespace snmalloc
       {
         if constexpr ((location == End) || (location == OnePastEnd))
           // We don't know the End, so return MAX_PTR
-          return pointer_offset<void>(nullptr, UINTPTR_MAX);
+          return pointer_offset<void, void>(nullptr, UINTPTR_MAX);
         else
           // We don't know the Start, so return MIN_PTR
           return nullptr;
@@ -1181,8 +1181,8 @@ namespace snmalloc
       Slab* slab = alloc_slab<allow_reserve>(sizeclass);
       if (slab == nullptr)
         return nullptr;
-      bp = reinterpret_cast<SlabNext*>(pointer_offset(
-        slab, get_initial_offset(sizeclass, Metaslab::is_short(slab))));
+      bp = pointer_offset<SlabNext>(
+        slab, get_initial_offset(sizeclass, Metaslab::is_short(slab)));
 
       return small_alloc_build_free_list<zero_mem, allow_reserve>(sizeclass);
     }
