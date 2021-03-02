@@ -18,19 +18,19 @@ namespace snmalloc
   /**
    * Perform pointer arithmetic and return the adjusted pointer.
    */
-  template<typename T>
-  inline T* pointer_offset(T* base, size_t diff)
+  template<typename U = void, typename T>
+  inline U* pointer_offset(T* base, size_t diff)
   {
-    return reinterpret_cast<T*>(reinterpret_cast<char*>(base) + diff);
+    return reinterpret_cast<U*>(reinterpret_cast<char*>(base) + diff);
   }
 
   /**
    * Perform pointer arithmetic and return the adjusted pointer.
    */
-  template<typename T>
-  inline T* pointer_offset_signed(T* base, ptrdiff_t diff)
+  template<typename U = void, typename T>
+  inline U* pointer_offset_signed(T* base, ptrdiff_t diff)
   {
-    return reinterpret_cast<T*>(reinterpret_cast<char*>(base) + diff);
+    return reinterpret_cast<U*>(reinterpret_cast<char*>(base) + diff);
   }
 
   /**

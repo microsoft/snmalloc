@@ -101,8 +101,7 @@ namespace snmalloc
         void* bigger = remove_block(align_bits + 1);
         if (bigger != nullptr)
         {
-          void* left_over =
-            pointer_offset(bigger, bits::one_at_bit(align_bits));
+          auto left_over = pointer_offset(bigger, bits::one_at_bit(align_bits));
           ranges[align_bits][0] = left_over;
           check_block(left_over, align_bits);
         }
