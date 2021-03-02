@@ -1,5 +1,6 @@
-#include "../mem/slowalloc.h"
+#define SNMALLOC_NAME_MANGLE(a) snmalloc_##a
 #include "../snmalloc.h"
+#include "malloc.cc"
 
 #include <cstring>
 
@@ -35,4 +36,24 @@ rust_realloc(void* ptr, size_t alignment, size_t old_size, size_t new_size)
     ThreadAlloc::get_noncachable()->dealloc(ptr, aligned_old_size);
   }
   return p;
+}
+
+extern "C" SNMALLOC_EXPORT void* sn_malloc(size_t size)
+{
+  return snmalloc_malloc(size);
+}
+
+extern "C" SNMALLOC_EXPORT void sn_free(void* ptr)
+{
+  return snmalloc_cfree(ptr);
+}
+
+extern "C" SNMALLOC_EXPORT void* sn_calloc(size_t nmemb, size_t size)
+{
+  return snmalloc_calloc(nmemb, size);
+}
+
+extern "C" SNMALLOC_EXPORT void* sn_realloc(void* ptr, size_t size)
+{
+  return snmalloc_realloc(ptr, size);
 }
