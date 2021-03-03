@@ -1,4 +1,9 @@
+#ifndef SNMALLOC_PAL_NO_ALLOC_H
+#define SNMALLOC_PAL_NO_ALLOC_H
+
 #pragma once
+
+#include <cstring>
 
 namespace snmalloc
 {
@@ -78,3 +83,5 @@ namespace snmalloc
     }
   };
 } // namespace snmalloc
+
+#endif
