@@ -58,29 +58,31 @@ namespace snmalloc
     bits::ADDRESS_BITS - SUPERSLAB_BITS;
 
 #ifdef CACHE_FRIENDLY_OFFSET
-  SNMALLOC_FAST_PATH static void*
-  remove_cache_friendly_offset(void* p, sizeclass_t sizeclass)
+  template<typename T, capptr_bounds B>
+  SNMALLOC_FAST_PATH static CapPtr<void, B>
+  remove_cache_friendly_offset(CapPtr<T, B> p, sizeclass_t sizeclass)
   {
     size_t mask = sizeclass_to_inverse_cache_friendly_mask(sizeclass);
-    return p = (void*)((uintptr_t)p & mask);
+    return CapPtr<void, B>((void*)((uintptr_t)p.unsafe_capptr & mask));
   }
 
-  SNMALLOC_FAST_PATH static uintptr_t
-  remove_cache_friendly_offset(uintptr_t relative, sizeclass_t sizeclass)
+  SNMALLOC_FAST_PATH static address_t
+  remove_cache_friendly_offset(address_t relative, sizeclass_t sizeclass)
   {
     size_t mask = sizeclass_to_inverse_cache_friendly_mask(sizeclass);
     return relative & mask;
   }
 #else
-  SNMALLOC_FAST_PATH static void*
-  remove_cache_friendly_offset(void* p, sizeclass_t sizeclass)
+  template<typename T, capptr_bounds B>
+  SNMALLOC_FAST_PATH static CapPtr<void, B>
+  remove_cache_friendly_offset(CapPtr<T, B> p, sizeclass_t sizeclass)
   {
     UNUSED(sizeclass);
-    return p;
+    return p.as_void();
   }
 
-  SNMALLOC_FAST_PATH static uintptr_t
-  remove_cache_friendly_offset(uintptr_t relative, sizeclass_t sizeclass)
+  SNMALLOC_FAST_PATH static address_t
+  remove_cache_friendly_offset(address_t relative, sizeclass_t sizeclass)
   {
     UNUSED(sizeclass);
     return relative;

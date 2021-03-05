@@ -142,6 +142,15 @@ namespace snmalloc
     }
 
     /**
+     * Construct a FreeObject for local slabs from a Remote message.
+     */
+    static CapPtr<FreeObject, CBArena> make(CapPtr<Remote, CBArena> p)
+    {
+      // TODO: Zero the difference between a FreeObject and a Remote
+      return p.template as_reinterpret<FreeObject>();
+    }
+
+    /**
      * Read the next pointer handling any required decoding of the pointer
      */
     CapPtr<FreeObject, CBArena> read_next(uint16_t key, LocalEntropy& entropy)
