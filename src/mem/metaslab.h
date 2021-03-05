@@ -176,8 +176,7 @@ namespace snmalloc
       self->remove();
       self->set_full(Metaslab::get_slab(n));
 
-      void* p =
-        remove_cache_friendly_offset(n.unsafe_capptr, self->sizeclass());
+      auto p = remove_cache_friendly_offset(n, self->sizeclass());
       SNMALLOC_ASSERT(is_start_of_object(self, address_cast(p)));
 
       self->debug_slab_invariant(Metaslab::get_slab(n), entropy);
@@ -194,7 +193,7 @@ namespace snmalloc
         UNUSED(rsize);
       }
 
-      return CapPtr<void, CBArena>(p);
+      return p;
     }
 
     void debug_slab_invariant(CapPtr<Slab, CBArena> slab, LocalEntropy& entropy)
