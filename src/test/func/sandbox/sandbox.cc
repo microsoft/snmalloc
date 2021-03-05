@@ -86,7 +86,7 @@ namespace
        *
        * This method must be implemented for `LargeAlloc` to work.
        */
-      void push_large_stack(Largeslab* slab, size_t large_class)
+      void push_large_stack(CapPtr<Largeslab, CBArena> slab, size_t large_class)
       {
         real_state->push_large_stack(slab, large_class);
       }

@@ -12,12 +12,12 @@ namespace snmalloc
     // This is the view of a 16 mb area when it is being used to allocate
     // medium sized classes: 64 kb to 16 mb, non-inclusive.
   private:
-    friend DLList<Mediumslab>;
+    friend DLList<Mediumslab, CapPtrCBArena>;
 
     // Keep the allocator pointer on a separate cache line. It is read by
     // other threads, and does not change, so we avoid false sharing.
-    alignas(CACHELINE_SIZE) Mediumslab* next;
-    Mediumslab* prev;
+    alignas(CACHELINE_SIZE) CapPtr<Mediumslab, CBArena> next;
+    CapPtr<Mediumslab, CBArena> prev;
 
     uint16_t free;
     uint8_t head;
@@ -44,16 +44,19 @@ namespace snmalloc
       return bits::align_up(sizeof(Mediumslab), min(OS_PAGE_SIZE, SLAB_SIZE));
     }
 
-    static Mediumslab* get(const void* p)
+    template<typename T, capptr_bounds B>
+    static SNMALLOC_FAST_PATH CapPtr<Mediumslab, B> get(CapPtr<T, B> p)
     {
-      return pointer_align_down<SUPERSLAB_SIZE, Mediumslab>(
-        const_cast<void*>(p));
+      static_assert(B == CBArena || B == CBChunk);
+
+      return pointer_align_down<SUPERSLAB_SIZE, Mediumslab>(p);
     }
 
-    // This is pre-factored to take an explicit self parameter so that we can
-    // eventually annotate that pointer with additional information.
-    static void
-    init(Mediumslab* self, RemoteAllocator* alloc, sizeclass_t sc, size_t rsize)
+    static void init(
+      CapPtr<Mediumslab, CBArena> self,
+      RemoteAllocator* alloc,
+      sizeclass_t sc,
+      size_t rsize)
     {
       SNMALLOC_ASSERT(sc >= NUM_SMALL_CLASSES);
       SNMALLOC_ASSERT((sc - NUM_SMALL_CLASSES) < NUM_MEDIUM_CLASSES);
@@ -85,12 +88,13 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
-    static void* alloc(Mediumslab* self, size_t size)
+    static CapPtr<void, CBArena>
+    alloc(CapPtr<Mediumslab, CBArena> self, size_t size)
     {
       SNMALLOC_ASSERT(!full(self));
 
       uint16_t index = self->stack[self->head++];
-      void* p = pointer_offset(self, (static_cast<size_t>(index) << 8));
+      auto p = pointer_offset(self, (static_cast<size_t>(index) << 8));
       self->free--;
 
       if constexpr (zero_mem == YesZero)
@@ -101,7 +105,8 @@ namespace snmalloc
       return p;
     }
 
-    static bool dealloc(Mediumslab* self, void* p)
+    static bool
+    dealloc(CapPtr<Mediumslab, CBArena> self, CapPtr<void, CBArena> p)
     {
       SNMALLOC_ASSERT(self->head > 0);
 
@@ -113,12 +118,14 @@ namespace snmalloc
       return was_full;
     }
 
-    static bool full(Mediumslab* self)
+    template<capptr_bounds B>
+    static bool full(CapPtr<Mediumslab, B> self)
     {
       return self->free == 0;
     }
 
-    static bool empty(Mediumslab* self)
+    template<capptr_bounds B>
+    static bool empty(CapPtr<Mediumslab, B> self)
     {
       return self->head == 0;
     }
