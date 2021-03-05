@@ -9,10 +9,22 @@ namespace snmalloc
 {
   class Slab;
 
+  /**
+   * Free objects within each slab point directly to the next (contrast
+   * SlabLink, which chain different Slabs of the same sizeclass together).
+   */
+  struct SlabNext
+  {
+    struct SlabNext* next;
+#ifdef CHECK_CLIENT
+    uintptr_t guard;
+#endif
+  };
+
   struct FreeListHead
   {
     // Use a value with bottom bit set for empty list.
-    void* value = nullptr;
+    SlabNext* value = nullptr;
   };
 
   using SlabList = CDLLNode;
@@ -37,7 +49,7 @@ namespace snmalloc
      *
      *  The list will be (allocated - needed) long.
      */
-    void* head = nullptr;
+    SlabNext* head = nullptr;
 
     /**
      *  How many entries are not in the free list of slab, i.e.
@@ -97,31 +109,30 @@ namespace snmalloc
 
     /// Store next pointer in a block. In Debug using magic value to detect some
     /// simple corruptions.
-    static SNMALLOC_FAST_PATH void store_next(void* p, void* head)
+    static SNMALLOC_FAST_PATH void store_next(SlabNext* p, SlabNext* head)
     {
-      *static_cast<void**>(p) = head;
+      p->next = head;
 #if defined(CHECK_CLIENT)
       if constexpr (aal_supports<IntegerPointers>)
       {
-        *(static_cast<uintptr_t*>(p) + 1) = address_cast(head) ^ POISON;
+        p->guard = address_cast(head) ^ POISON;
       }
 #endif
     }
 
     /// Accessor function for the next pointer in a block.
     /// In Debug checks for simple corruptions.
-    static SNMALLOC_FAST_PATH void* follow_next(void* node)
+    static SNMALLOC_FAST_PATH SlabNext* follow_next(SlabNext* node)
     {
 #if defined(CHECK_CLIENT)
       if constexpr (aal_supports<IntegerPointers>)
       {
-        uintptr_t next = *static_cast<uintptr_t*>(node);
-        uintptr_t chk = *(static_cast<uintptr_t*>(node) + 1);
-        if ((next ^ chk) != POISON)
+        uintptr_t next = address_cast(node->next);
+        if ((next ^ node->guard) != POISON)
           error("Detected memory corruption.  Use-after-free.");
       }
 #endif
-      return *static_cast<void**>(node);
+      return node->next;
     }
 
     bool valid_head()
@@ -166,9 +177,9 @@ namespace snmalloc
       debug_slab_invariant(slab);
 
       // Use first element as the allocation
-      void* p = head;
+      SlabNext* h = head;
       // Put the rest in allocators small_class fast free list.
-      fast_free_list.value = Metaslab::follow_next(p);
+      fast_free_list.value = Metaslab::follow_next(h);
       head = nullptr;
 
       // Treat stealing the free list as allocating it all.
@@ -176,7 +187,7 @@ namespace snmalloc
       remove();
       set_full();
 
-      p = remove_cache_friendly_offset(p, sizeclass);
+      void* p = remove_cache_friendly_offset(h, sizeclass);
       SNMALLOC_ASSERT(is_start_of_object(p));
 
       debug_slab_invariant(slab);
@@ -208,8 +219,8 @@ namespace snmalloc
     {
 #ifndef NDEBUG
       size_t length = 0;
-      void* curr = head;
-      void* curr_slow = head;
+      SlabNext* curr = head;
+      SlabNext* curr_slow = head;
       bool both = false;
       while (curr != nullptr)
       {
@@ -264,7 +275,7 @@ namespace snmalloc
       UNUSED(length);
 
       // Walk bump-free-list-segment accounting for unused space
-      void* curr = head;
+      SlabNext* curr = head;
       while (curr != nullptr)
       {
         // Check we are looking at a correctly aligned block
