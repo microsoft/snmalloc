@@ -1081,7 +1081,8 @@ namespace snmalloc
 
         auto meta = reinterpret_cast<Metaslab*>(sl.get_next());
         auto& ffl = small_fast_free_lists[sizeclass];
-        return meta->alloc<zero_mem, typename MemoryProvider::Pal>(ffl, rsize);
+        return Metaslab::alloc<zero_mem, typename MemoryProvider::Pal>(
+          meta, ffl, rsize);
       }
       return small_alloc_rare<zero_mem, allow_reserve>(sizeclass, size);
     }
@@ -1172,8 +1173,8 @@ namespace snmalloc
       Slab* slab = alloc_slab<allow_reserve>(sizeclass);
       if (slab == nullptr)
         return nullptr;
-      bp = reinterpret_cast<SlabNext*>(
-        pointer_offset(slab, get_initial_offset(sizeclass, slab->is_short())));
+      bp = reinterpret_cast<SlabNext*>(pointer_offset(
+        slab, get_initial_offset(sizeclass, Metaslab::is_short(slab))));
 
       return small_alloc_build_free_list<zero_mem, allow_reserve>(sizeclass);
     }
@@ -1211,7 +1212,7 @@ namespace snmalloc
       Superslab* super, Slab* slab, void* p, sizeclass_t sizeclass)
     {
 #ifdef CHECK_CLIENT
-      if (!slab->get_meta().is_start_of_object(p))
+      if (!Metaslab::is_start_of_object(&Slab::get_meta(slab), p))
       {
         error("Not deallocating start of an object");
       }
@@ -1248,7 +1249,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void small_dealloc_offseted_inner(
       Superslab* super, Slab* slab, void* p, sizeclass_t sizeclass)
     {
-      if (likely(slab->dealloc_fast(super, p)))
+      if (likely(Slab::dealloc_fast(slab, super, p)))
         return;
 
       small_dealloc_offseted_slow(super, slab, p, sizeclass);
@@ -1259,7 +1260,7 @@ namespace snmalloc
     {
       bool was_full = super->is_full();
       SlabList* sl = &small_classes[sizeclass];
-      Superslab::Action a = slab->dealloc_slow(sl, super, p);
+      Superslab::Action a = Slab::dealloc_slow(slab, sl, super, p);
       if (likely(a == Superslab::NoSlabReturn))
         return;
       stats().sizeclass_dealloc_slab(sizeclass);
@@ -1326,9 +1327,10 @@ namespace snmalloc
 
       if (slab != nullptr)
       {
-        p = slab->alloc<zero_mem, typename MemoryProvider::Pal>(size);
+        p =
+          Mediumslab::alloc<zero_mem, typename MemoryProvider::Pal>(slab, size);
 
-        if (slab->full())
+        if (Mediumslab::full(slab))
           sc->pop();
       }
       else
@@ -1349,9 +1351,10 @@ namespace snmalloc
 
         slab->init(public_state(), sizeclass, rsize);
         chunkmap().set_slab(slab);
-        p = slab->alloc<zero_mem, typename MemoryProvider::Pal>(size);
+        p =
+          Mediumslab::alloc<zero_mem, typename MemoryProvider::Pal>(slab, size);
 
-        if (!slab->full())
+        if (!Mediumslab::full(slab))
           sc->insert(slab);
       }
 
@@ -1423,9 +1426,9 @@ namespace snmalloc
     {
       MEASURE_TIME(medium_dealloc, 4, 16);
       stats().sizeclass_dealloc(sizeclass);
-      bool was_full = slab->dealloc(p);
+      bool was_full = Mediumslab::dealloc(slab, p);
 
-      if (slab->empty())
+      if (Mediumslab::empty(slab))
       {
         if (!was_full)
         {

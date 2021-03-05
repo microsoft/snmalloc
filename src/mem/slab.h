@@ -7,17 +7,17 @@ namespace snmalloc
   class Slab
   {
   private:
-    uint16_t pointer_to_index(void* p)
+    uint16_t address_to_index(address_t p)
     {
       // Get the offset from the slab for a memory location.
-      return static_cast<uint16_t>(pointer_diff(this, p));
+      return static_cast<uint16_t>(p - address_cast(this));
     }
 
   public:
-    Metaslab& get_meta()
+    static Metaslab& get_meta(Slab* self)
     {
-      Superslab* super = Superslab::get(this);
-      return super->get_meta(this);
+      Superslab* super = Superslab::get(self);
+      return super->get_meta(self);
     }
 
     /**
@@ -55,9 +55,13 @@ namespace snmalloc
     // Returns true, if it deallocation can proceed without changing any status
     // bits. Note that this does remove the use from the meta slab, so it
     // doesn't need doing on the slow path.
-    SNMALLOC_FAST_PATH bool dealloc_fast(Superslab* super, void* p)
+    //
+    // This is pre-factored to take an explicit self parameter so that we can
+    // eventually annotate that pointer with additional information.
+    static SNMALLOC_FAST_PATH bool
+    dealloc_fast(Slab* self, Superslab* super, void* p)
     {
-      Metaslab& meta = super->get_meta(this);
+      Metaslab& meta = super->get_meta(self);
 #ifdef CHECK_CLIENT
       if (meta.is_unused())
         error("Detected potential double free.");
@@ -85,11 +89,14 @@ namespace snmalloc
     // This does not need to remove the "use" as done by the fast path.
     // Returns a complex return code for managing the superslab meta data.
     // i.e. This deallocation could make an entire superslab free.
-    SNMALLOC_SLOW_PATH typename Superslab::Action
-    dealloc_slow(SlabList* sl, Superslab* super, void* p)
+    //
+    // This is pre-factored to take an explicit self parameter so that we can
+    // eventually annotate that pointer with additional information.
+    static SNMALLOC_SLOW_PATH typename Superslab::Action
+    dealloc_slow(Slab* self, SlabList* sl, Superslab* super, void* p)
     {
-      Metaslab& meta = super->get_meta(this);
-      meta.debug_slab_invariant(this);
+      Metaslab& meta = super->get_meta(self);
+      meta.debug_slab_invariant(self);
 
       if (meta.is_full())
       {
@@ -97,10 +104,10 @@ namespace snmalloc
         if (meta.allocated == 1)
         {
           // Dealloc on the superslab.
-          if (is_short())
+          if (Metaslab::is_short(self))
             return super->dealloc_short_slab();
 
-          return super->dealloc_slab(this);
+          return super->dealloc_slab(self);
         }
         SNMALLOC_ASSERT(meta.head == nullptr);
         SlabNext* psn = static_cast<SlabNext*>(p);
@@ -110,22 +117,17 @@ namespace snmalloc
 
         // Push on the list of slabs for this sizeclass.
         sl->insert_prev(&meta);
-        meta.debug_slab_invariant(this);
+        meta.debug_slab_invariant(self);
         return Superslab::NoSlabReturn;
       }
 
       // Remove from the sizeclass list and dealloc on the superslab.
       meta.remove();
 
-      if (is_short())
+      if (Metaslab::is_short(self))
         return super->dealloc_short_slab();
 
-      return super->dealloc_slab(this);
-    }
-
-    bool is_short()
-    {
-      return Metaslab::is_short(this);
+      return super->dealloc_slab(self);
     }
   };
 } // namespace snmalloc
