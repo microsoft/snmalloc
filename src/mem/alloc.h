@@ -363,10 +363,10 @@ namespace snmalloc
       error("Unsupported");
       UNUSED(p);
 #else
-      uint8_t size = ChunkMap::get(address_cast(p));
+      uint8_t chunkmap_slab_kind = ChunkMap::get(address_cast(p));
 
       Superslab* super = Superslab::get(p);
-      if (size == CMSuperslab)
+      if (chunkmap_slab_kind == CMSuperslab)
       {
         Slab* slab = Metaslab::get_slab(p);
         Metaslab& meta = super->get_meta(slab);
@@ -376,7 +376,7 @@ namespace snmalloc
 
         return external_pointer<location>(p, sc, slab_end);
       }
-      if (size == CMMediumslab)
+      if (chunkmap_slab_kind == CMMediumslab)
       {
         Mediumslab* slab = Mediumslab::get(p);
 
@@ -388,17 +388,17 @@ namespace snmalloc
 
       auto ss = super;
 
-      while (size >= CMLargeRangeMin)
+      while (chunkmap_slab_kind >= CMLargeRangeMin)
       {
         // This is a large alloc redirect.
         ss = pointer_offset_signed(
           ss,
           -(static_cast<ptrdiff_t>(1)
-            << (size - CMLargeRangeMin + SUPERSLAB_BITS)));
-        size = ChunkMap::get(ss);
+            << (chunkmap_slab_kind - CMLargeRangeMin + SUPERSLAB_BITS)));
+        chunkmap_slab_kind = ChunkMap::get(ss);
       }
 
-      if (size == 0)
+      if (chunkmap_slab_kind == CMNotOurs)
       {
         if constexpr ((location == End) || (location == OnePastEnd))
           // We don't know the End, so return MAX_PTR
@@ -408,13 +408,17 @@ namespace snmalloc
           return nullptr;
       }
 
+      SNMALLOC_ASSERT(
+        (chunkmap_slab_kind >= CMLargeMin) &&
+        (chunkmap_slab_kind <= CMLargeMax));
+
       // This is a large alloc, mask off to the slab size.
       if constexpr (location == Start)
         return ss;
       else if constexpr (location == End)
-        return pointer_offset(ss, (bits::one_at_bit(size)) - 1);
+        return pointer_offset(ss, (bits::one_at_bit(chunkmap_slab_kind)) - 1);
       else
-        return pointer_offset(ss, bits::one_at_bit(size));
+        return pointer_offset(ss, bits::one_at_bit(chunkmap_slab_kind));
 #endif
     }
 
