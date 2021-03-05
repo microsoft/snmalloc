@@ -115,43 +115,35 @@ namespace snmalloc
     }
 
     /**
-     * Get the pagemap entry corresponding to a specific address.
-     */
-    static uint8_t get(void* p)
-    {
-      return get(address_cast(p));
-    }
-
-    /**
      * Set a pagemap entry indicating that there is a superslab at the
      * specified index.
      */
-    static void set_slab(Superslab* slab)
+    static void set_slab(CapPtr<Superslab, CBArena> slab)
     {
-      set(slab, static_cast<size_t>(CMSuperslab));
+      set(address_cast(slab), static_cast<size_t>(CMSuperslab));
     }
     /**
      * Add a pagemap entry indicating that a medium slab has been allocated.
      */
-    static void set_slab(Mediumslab* slab)
+    static void set_slab(CapPtr<Mediumslab, CBArena> slab)
     {
-      set(slab, static_cast<size_t>(CMMediumslab));
+      set(address_cast(slab), static_cast<size_t>(CMMediumslab));
     }
     /**
      * Remove an entry from the pagemap corresponding to a superslab.
      */
-    static void clear_slab(Superslab* slab)
+    static void clear_slab(CapPtr<Superslab, CBArena> slab)
     {
-      SNMALLOC_ASSERT(get(slab) == CMSuperslab);
-      set(slab, static_cast<size_t>(CMNotOurs));
+      SNMALLOC_ASSERT(get(address_cast(slab)) == CMSuperslab);
+      set(address_cast(slab), static_cast<size_t>(CMNotOurs));
     }
     /**
      * Remove an entry corresponding to a medium slab.
      */
-    static void clear_slab(Mediumslab* slab)
+    static void clear_slab(CapPtr<Mediumslab, CBArena> slab)
     {
-      SNMALLOC_ASSERT(get(slab) == CMMediumslab);
-      set(slab, static_cast<size_t>(CMNotOurs));
+      SNMALLOC_ASSERT(get(address_cast(slab)) == CMMediumslab);
+      set(address_cast(slab), static_cast<size_t>(CMNotOurs));
     }
     /**
      * Update the pagemap to reflect a large allocation, of `size` bytes from
@@ -160,7 +152,7 @@ namespace snmalloc
     static void set_large_size(void* p, size_t size)
     {
       size_t size_bits = bits::next_pow2_bits(size);
-      set(p, static_cast<uint8_t>(size_bits));
+      set(address_cast(p), static_cast<uint8_t>(size_bits));
       // Set redirect slide
       auto ss = address_cast(p) + SUPERSLAB_SIZE;
       for (size_t i = 0; i < size_bits - SUPERSLAB_BITS; i++)
@@ -175,7 +167,7 @@ namespace snmalloc
      * Update the pagemap to remove a large allocation, of `size` bytes from
      * address `p`.
      */
-    static void clear_large_size(void* vp, size_t size)
+    static void clear_large_size(CapPtr<void, CBArena> vp, size_t size)
     {
       auto p = address_cast(vp);
       size_t rounded_size = bits::next_pow2(size);
@@ -190,9 +182,9 @@ namespace snmalloc
      * interface and exists to make it easy to reuse the code in the public
      * methods in other pagemap adaptors.
      */
-    static void set(void* p, uint8_t x)
+    static void set(address_t p, uint8_t x)
     {
-      PagemapProvider::pagemap().set(address_cast(p), x);
+      PagemapProvider::pagemap().set(p, x);
     }
   };
 

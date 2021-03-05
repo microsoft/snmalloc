@@ -59,9 +59,10 @@ namespace snmalloc
     ModArray<SLAB_COUNT, Metaslab> meta;
 
     // Used size_t as results in better code in MSVC
-    size_t slab_to_index(Slab* slab)
+    template<capptr_bounds B>
+    size_t slab_to_index(CapPtr<Slab, B> slab)
     {
-      auto res = (pointer_diff(this, slab) >> SLAB_BITS);
+      auto res = (pointer_diff(this, slab.unsafe_capptr) >> SLAB_BITS);
       SNMALLOC_ASSERT(res == static_cast<uint8_t>(res));
       return static_cast<uint8_t>(res);
     }
@@ -82,10 +83,12 @@ namespace snmalloc
       StatusChange = 2
     };
 
-    static Superslab* get(const void* p)
+    template<typename T, capptr_bounds B>
+    static SNMALLOC_FAST_PATH CapPtr<Superslab, B> get(CapPtr<T, B> p)
     {
-      return pointer_align_down<SUPERSLAB_SIZE, Superslab>(
-        const_cast<void*>(p));
+      static_assert(B == CBArena || B == CBChunk);
+
+      return pointer_align_down<SUPERSLAB_SIZE, Superslab>(p.as_void());
     }
 
     static bool is_short_sizeclass(sizeclass_t sizeclass)
@@ -180,9 +183,10 @@ namespace snmalloc
       return Full;
     }
 
-    Metaslab& get_meta(Slab* slab)
+    template<capptr_bounds B>
+    CapPtr<Metaslab, B> get_meta(CapPtr<Slab, B> slab)
     {
-      return meta[slab_to_index(slab)];
+      return CapPtr<Metaslab, B>(&meta[slab_to_index(slab)]);
     }
 
     // This is pre-factored to take an explicit self parameter so that we can
@@ -195,7 +199,7 @@ namespace snmalloc
       Slab* slab = reinterpret_cast<Slab*>(self);
       auto& metaz = self->meta[0];
 
-      metaz.initialise(sizeclass, slab);
+      metaz.initialise(sizeclass, CapPtr<Slab, CBArena>(slab));
 
       self->used++;
       return slab;
@@ -212,7 +216,7 @@ namespace snmalloc
       auto& metah = self->meta[h];
       uint8_t n = metah.next();
 
-      metah.initialise(sizeclass, slab);
+      metah.initialise(sizeclass, CapPtr<Slab, CBArena>(slab));
 
       self->head = h + n + 1;
       self->used += 2;
@@ -221,8 +225,11 @@ namespace snmalloc
     }
 
     // Returns true, if this alters the value of get_status
-    Action dealloc_slab(Slab* slab)
+    template<capptr_bounds B>
+    Action dealloc_slab(CapPtr<Slab, B> slab)
     {
+      static_assert(B == CBArena || B == CBChunk);
+
       // This is not the short slab.
       uint8_t index = static_cast<uint8_t>(slab_to_index(slab));
       uint8_t n = head - index - 1;

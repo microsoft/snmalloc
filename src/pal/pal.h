@@ -70,9 +70,22 @@ namespace snmalloc
   static constexpr size_t OS_PAGE_SIZE = Pal::page_size;
 
   /**
-   * A centralized, inlinable wrapper around PAL::zero.  This will matter more
-   * when we introduce AuthPtr-s.
+   * A convenience wrapper that avoids the need to litter unsafe accesses with
+   * every call to PAL::zero.
+   *
+   * We do this here rather than plumb CapPtr further just to minimize
+   * disruption and avoid code bloat.  This wrapper ought to compile down to
+   * nothing if SROA is doing its job.
    */
+  template<typename PAL, bool page_aligned = false, typename T, capptr_bounds B>
+  static SNMALLOC_FAST_PATH void pal_zero(CapPtr<T, B> p, size_t sz)
+  {
+    static_assert(
+      !page_aligned || B == CBArena || B == CBChunkD || B == CBChunk);
+    PAL::template zero<page_aligned>(p.unsafe_capptr, sz);
+  }
+
+  // TODO: Remove once CapPtr<>s plumbed everywhere they need to be
   template<typename PAL, bool page_aligned = false>
   static SNMALLOC_FAST_PATH void pal_zero(void* p, size_t sz)
   {

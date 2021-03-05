@@ -115,11 +115,11 @@ namespace snmalloc
      * class specified by `large_class`.  Always succeeds.
      */
     SNMALLOC_FAST_PATH void
-    push_large_stack(Largeslab* slab, size_t large_class)
+    push_large_stack(CapPtr<Largeslab, CBArena> slab, size_t large_class)
     {
       const size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
       available_large_chunks_in_bytes += rsize;
-      large_stack[large_class].push(slab);
+      large_stack[large_class].push(slab.unsafe_capptr);
     }
 
     /**
@@ -342,7 +342,7 @@ namespace snmalloc
       return p;
     }
 
-    void dealloc(void* p, size_t large_class)
+    void dealloc(CapPtr<Largeslab, CBArena> p, size_t large_class)
     {
       if constexpr (decommit_strategy == DecommitSuperLazy)
       {
@@ -360,11 +360,11 @@ namespace snmalloc
         (large_class != 0 || decommit_strategy == DecommitSuper))
       {
         MemoryProvider::Pal::notify_not_using(
-          pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
+          pointer_offset(p, OS_PAGE_SIZE).unsafe_capptr, rsize - OS_PAGE_SIZE);
       }
 
       stats.superslab_push();
-      memory_provider.push_large_stack(static_cast<Largeslab*>(p), large_class);
+      memory_provider.push_large_stack(p, large_class);
     }
   };
 
