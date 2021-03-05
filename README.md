@@ -1,7 +1,7 @@
 # snmalloc-rs
 **Notice: MinGW Build is broken and may not be fixed in a near future. See [this PR](https://github.com/microsoft/snmalloc/pull/217) in the upstream.**
 
-MSVC/MinGW/Linux/MacOS: [![travis ci](https://www.travis-ci.org/SchrodingerZhu/snmalloc-rs.svg?branch=master)](https://travis-ci.com/SchrodingerZhu/snmalloc-rs)
+MSVC/MinGW/Linux/MacOS: [![Actions Status](https://github.com/schrodingerzhu/snmalloc-rs/workflows/Rust/badge.svg)](https://github.com/schrodingerzhu/snmalloc-rs/actions)
 
 FreeBSD: [![Build Status](https://api.cirrus-ci.com/github/SchrodingerZhu/snmalloc-rs.svg)](https://cirrus-ci.com/github/SchrodingerZhu/snmalloc-rs)
 
@@ -62,6 +62,11 @@ Hence, please make sure the following libs are in your `PATH`:
 - feature `android-shared-std` can be used to set the STL library of `snmalloc` to `c++_shared` (it uses `c++_static` by default)
 
 ## Changelog
+### 0.2.25
+
+- **upstream** Apple M1 support
+- **upstream** Building adjust
+- non-allocation tracking functions 
 
 ### 0.2.24
 
@@ -71,13 +76,5 @@ Hence, please make sure the following libs are in your `PATH`:
 ### 0.2.23
 
 - **upstream** fix external pagemap usage
-
-### 0.2.22    
-
-- **upstream** avoid amplification when	routing
-- **upstream** remotely	store sizeclass
-- **upstream** limit flat pagemap size
-- **upstream** limit medium slab header
-- **upstream** solaris support fix
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 

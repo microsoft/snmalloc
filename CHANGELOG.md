@@ -1,5 +1,12 @@
 ## Changelog
 
+### 0.2.25
+
+- **upstream** Apple M1 support
+- **upstream** Building adjust            
+- non-allocation tracking functions 
+
+
 ### 0.2.24
 
 - **upstream** update to use a more efficient power of 2 check
