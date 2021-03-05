@@ -82,13 +82,13 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
-    void* alloc(size_t size)
+    static void* alloc(Mediumslab* self, size_t size)
     {
-      SNMALLOC_ASSERT(!full());
+      SNMALLOC_ASSERT(!full(self));
 
-      uint16_t index = stack[head++];
-      void* p = pointer_offset(this, (static_cast<size_t>(index) << 8));
-      free--;
+      uint16_t index = self->stack[self->head++];
+      void* p = pointer_offset(self, (static_cast<size_t>(index) << 8));
+      self->free--;
 
       if constexpr (zero_mem == YesZero)
         PAL::zero(p, size);
@@ -98,33 +98,33 @@ namespace snmalloc
       return p;
     }
 
-    bool dealloc(void* p)
+    static bool dealloc(Mediumslab* self, void* p)
     {
-      SNMALLOC_ASSERT(head > 0);
+      SNMALLOC_ASSERT(self->head > 0);
 
       // Returns true if the Mediumslab was full before this deallocation.
-      bool was_full = full();
-      free++;
-      stack[--head] = pointer_to_index(p);
+      bool was_full = full(self);
+      self->free++;
+      self->stack[--(self->head)] = self->address_to_index(address_cast(p));
 
       return was_full;
     }
 
-    bool full()
+    static bool full(Mediumslab* self)
     {
-      return free == 0;
+      return self->free == 0;
     }
 
-    bool empty()
+    static bool empty(Mediumslab* self)
     {
-      return head == 0;
+      return self->head == 0;
     }
 
   private:
-    uint16_t pointer_to_index(void* p)
+    uint16_t address_to_index(address_t p)
     {
       // Get the offset from the slab for a memory location.
-      return static_cast<uint16_t>(pointer_diff(this, p) >> 8);
+      return static_cast<uint16_t>((p - address_cast(this)) >> 8);
     }
   };
 } // namespace snmalloc

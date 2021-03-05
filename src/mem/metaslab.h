@@ -155,10 +155,10 @@ namespace snmalloc
       return pointer_align_down<SUPERSLAB_SIZE>(p) == p;
     }
 
-    bool is_start_of_object(void* p)
+    static bool is_start_of_object(Metaslab* self, void* p)
     {
       return is_multiple_of_sizeclass(
-        sizeclass_to_size(sizeclass),
+        sizeclass_to_size(self->sizeclass),
         pointer_diff(p, pointer_align_up<SLAB_SIZE>(pointer_offset(p, 1))));
     }
 
@@ -166,31 +166,35 @@ namespace snmalloc
      * Takes a free list out of a slabs meta data.
      * Returns the link as the allocation, and places the free list into the
      * `fast_free_list` for further allocations.
+     *
+     * This is pre-factored to take an explicit self parameter so that we can
+     * eventually annotate that pointer with additional information.
      */
     template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
-    SNMALLOC_FAST_PATH void* alloc(FreeListHead& fast_free_list, size_t rsize)
+    static SNMALLOC_FAST_PATH void*
+    alloc(Metaslab* self, FreeListHead& fast_free_list, size_t rsize)
     {
-      SNMALLOC_ASSERT(rsize == sizeclass_to_size(sizeclass));
-      SNMALLOC_ASSERT(!is_full());
+      SNMALLOC_ASSERT(rsize == sizeclass_to_size(self->sizeclass));
+      SNMALLOC_ASSERT(!self->is_full());
 
-      auto slab = get_slab(head);
-      debug_slab_invariant(slab);
+      auto slab = get_slab(self->head);
+      self->debug_slab_invariant(slab);
 
       // Use first element as the allocation
-      SlabNext* h = head;
+      SlabNext* h = self->head;
       // Put the rest in allocators small_class fast free list.
       fast_free_list.value = Metaslab::follow_next(h);
-      head = nullptr;
+      self->head = nullptr;
 
       // Treat stealing the free list as allocating it all.
-      needed = allocated;
-      remove();
-      set_full();
+      self->needed = self->allocated;
+      self->remove();
+      self->set_full();
 
-      void* p = remove_cache_friendly_offset(h, sizeclass);
-      SNMALLOC_ASSERT(is_start_of_object(p));
+      void* p = remove_cache_friendly_offset(h, self->sizeclass);
+      SNMALLOC_ASSERT(is_start_of_object(self, p));
 
-      debug_slab_invariant(slab);
+      self->debug_slab_invariant(slab);
 
       if constexpr (zero_mem == YesZero)
       {
