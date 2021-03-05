@@ -743,7 +743,7 @@ namespace snmalloc
         while (pointer_align_up(bp, SLAB_SIZE) != bp)
         {
           Slab::alloc_new_list(bp, ffl, rsize);
-          void* prev = ffl.value;
+          SlabNext* prev = ffl.value;
           while (prev != nullptr)
           {
             auto n = Metaslab::follow_next(prev);
@@ -1027,7 +1027,7 @@ namespace snmalloc
     {
       SNMALLOC_ASSUME(sizeclass < NUM_SMALL_CLASSES);
       auto& fl = small_fast_free_lists[sizeclass];
-      void* head = fl.value;
+      SlabNext* head = fl.value;
       if (likely(head != nullptr))
       {
         stats().alloc_request(size);
@@ -1148,7 +1148,8 @@ namespace snmalloc
       SNMALLOC_ASSERT(ffl.value == nullptr);
       Slab::alloc_new_list(bp, ffl, rsize);
 
-      void* p = remove_cache_friendly_offset(ffl.value, sizeclass);
+      SlabNext* p = static_cast<SlabNext*>(
+        remove_cache_friendly_offset(ffl.value, sizeclass));
       ffl.value = Metaslab::follow_next(p);
 
       if constexpr (zero_mem == YesZero)
@@ -1171,8 +1172,8 @@ namespace snmalloc
       Slab* slab = alloc_slab<allow_reserve>(sizeclass);
       if (slab == nullptr)
         return nullptr;
-      bp =
-        pointer_offset(slab, get_initial_offset(sizeclass, slab->is_short()));
+      bp = reinterpret_cast<SlabNext*>(
+        pointer_offset(slab, get_initial_offset(sizeclass, slab->is_short())));
 
       return small_alloc_build_free_list<zero_mem, allow_reserve>(sizeclass);
     }
