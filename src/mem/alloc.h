@@ -379,7 +379,8 @@ namespace snmalloc
         auto meta = super->get_meta(slab);
 
         sizeclass_t sc = meta->sizeclass();
-        auto slab_end = pointer_offset(slab, SLAB_SIZE);
+        auto slab_end =
+          Aal::capptr_rebound(p_ret, pointer_offset(slab, SLAB_SIZE));
 
         return capptr_reveal(external_pointer<location>(p_ret, sc, slab_end));
       }
@@ -388,17 +389,18 @@ namespace snmalloc
         auto slab = Mediumslab::get(p_auth);
 
         sizeclass_t sc = slab->get_sizeclass();
-        auto slab_end = pointer_offset(slab, SUPERSLAB_SIZE);
+        auto slab_end =
+          Aal::capptr_rebound(p_ret, pointer_offset(slab, SUPERSLAB_SIZE));
 
         return capptr_reveal(external_pointer<location>(p_ret, sc, slab_end));
       }
 
-      auto ss = super.unsafe_capptr;
+      auto ss = super.as_void();
 
       while (chunkmap_slab_kind >= CMLargeRangeMin)
       {
         // This is a large alloc redirect.
-        ss = pointer_offset_signed<Superslab>(
+        ss = pointer_offset_signed(
           ss,
           -(static_cast<ptrdiff_t>(1)
             << (chunkmap_slab_kind - CMLargeRangeMin + SUPERSLAB_BITS)));
@@ -419,13 +421,18 @@ namespace snmalloc
         (chunkmap_slab_kind >= CMLargeMin) &&
         (chunkmap_slab_kind <= CMLargeMax));
 
+      CapPtr<void, CBAllocE> retss = Aal::capptr_rebound(p_ret, ss);
+      CapPtr<void, CBAllocE> ret;
+
       // This is a large alloc, mask off to the slab size.
       if constexpr (location == Start)
-        return ss;
+        ret = retss;
       else if constexpr (location == End)
-        return pointer_offset(ss, (bits::one_at_bit(chunkmap_slab_kind)) - 1);
+        ret = pointer_offset(retss, (bits::one_at_bit(chunkmap_slab_kind)) - 1);
       else
-        return pointer_offset(ss, bits::one_at_bit(chunkmap_slab_kind));
+        ret = pointer_offset(retss, bits::one_at_bit(chunkmap_slab_kind));
+
+      return capptr_reveal(ret);
 #endif
     }
 
@@ -814,7 +821,7 @@ namespace snmalloc
     static CapPtr<void, CBAllocE> external_pointer(
       CapPtr<void, CBAllocE> p_ret,
       sizeclass_t sizeclass,
-      CapPtr<void, CBArena> end_point)
+      CapPtr<void, CBAllocE> end_point)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
 
@@ -829,10 +836,8 @@ namespace snmalloc
 
       size_t end_to_end = round_by_sizeclass(sizeclass, offset_from_end);
 
-      auto ret_auth = pointer_offset_signed(
+      return pointer_offset_signed(
         end_point_correction, -static_cast<ptrdiff_t>(end_to_end));
-
-      return CapPtr<void, CBAllocE>(ret_auth.unsafe_capptr);
     }
 
     void init_message_queue()
