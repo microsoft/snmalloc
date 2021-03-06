@@ -218,7 +218,7 @@ namespace snmalloc
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
 
       auto p_ret = CapPtr<void, CBAllocE>(p_raw);
-      auto p_auth = CapPtr<void, CBArena>(p_raw);
+      auto p_auth = large_allocator.capptr_amplify(p_ret);
 
       if (sizeclass < NUM_SMALL_CLASSES)
       {
@@ -252,7 +252,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(p_raw != nullptr);
 
       auto p_ret = CapPtr<void, CBAllocE>(p_raw);
-      auto p_auth = CapPtr<void, CBArena>(p_raw);
+      auto p_auth = large_allocator.capptr_amplify(p_ret);
 
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
       {
@@ -295,7 +295,7 @@ namespace snmalloc
       uint8_t chunkmap_slab_kind = chunkmap().get(address_cast(p_raw));
 
       auto p_ret = CapPtr<void, CBAllocE>(p_raw);
-      auto p_auth = CapPtr<void, CBArena>(p_raw);
+      auto p_auth = large_allocator.capptr_amplify(p_ret);
 
       if (likely(chunkmap_slab_kind == CMSuperslab))
       {
@@ -370,7 +370,7 @@ namespace snmalloc
 #else
       uint8_t chunkmap_slab_kind = chunkmap().get(address_cast(p_raw));
       auto p_ret = CapPtr<void, CBAllocE>(p_raw);
-      auto p_auth = CapPtr<void, CBArena>(p_raw);
+      auto p_auth = large_allocator.capptr_amplify(p_ret);
 
       auto super = Superslab::get(p_auth);
       if (chunkmap_slab_kind == CMSuperslab)
@@ -450,7 +450,8 @@ namespace snmalloc
 #else
       // This must be called on an external pointer.
       size_t chunkmap_slab_kind = chunkmap().get(address_cast(p_raw));
-      auto p_auth = CapPtr<void, CBArena>(const_cast<void*>(p_raw));
+      auto p_ret = CapPtr<void, CBAllocE>(const_cast<void*>(p_raw));
+      auto p_auth = large_allocator.capptr_amplify(p_ret);
 
       if (likely(chunkmap_slab_kind == CMSuperslab))
       {
