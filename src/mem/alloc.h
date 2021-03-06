@@ -435,9 +435,9 @@ namespace snmalloc
       return external_alloc::malloc_usable_size(const_cast<void*>(p));
 #else
       // This must be called on an external pointer.
-      size_t size = ChunkMap::get(address_cast(p));
+      size_t chunkmap_slab_kind = ChunkMap::get(address_cast(p));
 
-      if (likely(size == CMSuperslab))
+      if (likely(chunkmap_slab_kind == CMSuperslab))
       {
         Superslab* super = Superslab::get(p);
 
@@ -449,7 +449,7 @@ namespace snmalloc
         return sizeclass_to_size(meta.sizeclass);
       }
 
-      if (likely(size == CMMediumslab))
+      if (likely(chunkmap_slab_kind == CMMediumslab))
       {
         Mediumslab* slab = Mediumslab::get(p);
         // Reading a remote sizeclass won't fail, since the other allocator
@@ -457,9 +457,13 @@ namespace snmalloc
         return sizeclass_to_size(slab->get_sizeclass());
       }
 
-      if (likely(size != 0))
+      if (likely(chunkmap_slab_kind != CMNotOurs))
       {
-        return bits::one_at_bit(size);
+        SNMALLOC_ASSERT(
+          (chunkmap_slab_kind >= CMLargeMin) &&
+          (chunkmap_slab_kind <= CMLargeMax));
+
+        return bits::one_at_bit(chunkmap_slab_kind);
       }
 
       return alloc_size_error();
