@@ -517,16 +517,16 @@ namespace snmalloc
        */
       Remote head{};
 
-      Remote* last{&head};
+      CapPtr<Remote, CBArena> last{&head};
 
       void clear()
       {
-        last = &head;
+        last = CapPtr<Remote, CBArena>(&head);
       }
 
       bool empty()
       {
-        return last == &head;
+        return address_cast(last) == address_cast(&head);
       }
     };
 
@@ -563,12 +563,14 @@ namespace snmalloc
         return (id >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
       }
 
-      SNMALLOC_FAST_PATH void
-      dealloc(alloc_id_t target_id, void* p, sizeclass_t sizeclass)
+      SNMALLOC_FAST_PATH void dealloc(
+        alloc_id_t target_id,
+        CapPtr<FreeObject, CBArena> p,
+        sizeclass_t sizeclass)
       {
         this->capacity -= sizeclass_to_size(sizeclass);
+        auto r = p.template as_reinterpret<Remote>();
 
-        Remote* r = static_cast<Remote*>(p);
         r->set_info(target_id, sizeclass);
 
         RemoteList* l = &list[get_slot(target_id, 0)];
@@ -595,12 +597,12 @@ namespace snmalloc
               continue;
 
             RemoteList* l = &list[i];
-            Remote* first = l->head.non_atomic_next;
+            CapPtr<Remote, CBArena> first = l->head.non_atomic_next;
 
             if (!l->empty())
             {
               // Send all slots to the target at the head of the list.
-              auto super = Superslab::get(CapPtr<Remote, CBArena>(first));
+              auto super = Superslab::get(first);
               super->get_allocator()->message_queue.enqueue(first, l->last);
               l->clear();
             }
@@ -613,7 +615,7 @@ namespace snmalloc
           // Entries could map back onto the "resend" list,
           // so take copy of the head, mark the last element,
           // and clear the original list.
-          Remote* r = resend->head.non_atomic_next;
+          CapPtr<Remote, CBArena> r = resend->head.non_atomic_next;
           resend->last->non_atomic_next = nullptr;
           resend->clear();
 
@@ -759,11 +761,11 @@ namespace snmalloc
 
       // Destroy the message queue so that it has no stub message.
       {
-        Remote* p = message_queue().destroy();
+        CapPtr<Remote, CBArena> p = message_queue().destroy();
 
         while (p != nullptr)
         {
-          Remote* n = p->non_atomic_next;
+          auto n = p->non_atomic_next;
           handle_dealloc_remote(p);
           p = n;
         }
@@ -844,7 +846,8 @@ namespace snmalloc
     {
       // Manufacture an allocation to prime the queue
       // Using an actual allocation removes a conditional from a critical path.
-      Remote* dummy = reinterpret_cast<Remote*>(alloc<YesZero>(MIN_ALLOC_SIZE));
+      auto dummy = CapPtr<void, CBArena>(alloc<YesZero>(MIN_ALLOC_SIZE))
+                     .template as_static<Remote>();
       if (dummy == nullptr)
       {
         error("Critical error: Out-of-memory during initialisation.");
@@ -853,7 +856,7 @@ namespace snmalloc
       message_queue().init(dummy);
     }
 
-    SNMALLOC_FAST_PATH void handle_dealloc_remote(Remote* p)
+    SNMALLOC_FAST_PATH void handle_dealloc_remote(CapPtr<Remote, CBArena> p)
     {
       if (likely(p->trunc_target_id() == get_trunc_id()))
       {
@@ -865,13 +868,16 @@ namespace snmalloc
           p->trunc_target_id() == super->get_allocator()->trunc_id(),
           "Detected memory corruption.  Potential use-after-free");
 
-        auto start_auth = remove_cache_friendly_offset(p_auth, p->sizeclass());
-        dealloc_not_large_local(super, start_auth, p_auth, p->sizeclass());
+        dealloc_not_large_local(super, p, p->sizeclass());
       }
       else
       {
-        // Merely routing
-        remote.dealloc(p->trunc_target_id(), p, p->sizeclass());
+        // Merely routing; despite the cast here, p is going to be cast right
+        // back to a Remote.
+        remote.dealloc(
+          p->trunc_target_id(),
+          p.template as_reinterpret<FreeObject>(),
+          p->sizeclass());
       }
     }
 
@@ -885,7 +891,7 @@ namespace snmalloc
         auto super = Superslab::get(p_auth);
         auto offseted = apply_cache_friendly_offset(p_auth, sizeclass)
                           .template as_reinterpret<Remote>();
-        dealloc_not_large_local(super, p_auth, offseted, sizeclass);
+        dealloc_not_large_local(super, offseted, sizeclass);
       }
       else
       {
@@ -895,7 +901,6 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH void dealloc_not_large_local(
       CapPtr<Superslab, CBArena> super,
-      CapPtr<void, CBArena> p_auth,
       CapPtr<Remote, CBArena> p_auth_offseted,
       sizeclass_t sizeclass)
     {
@@ -905,7 +910,7 @@ namespace snmalloc
       if (likely(sizeclass < NUM_SMALL_CLASSES))
       {
         SNMALLOC_ASSERT(super->get_kind() == Super);
-        auto slab = Metaslab::get_slab(p_auth);
+        auto slab = Metaslab::get_slab(p_auth_offseted);
         small_dealloc_offseted(
           super, slab, FreeObject::make(p_auth_offseted), sizeclass);
       }
@@ -913,7 +918,9 @@ namespace snmalloc
       {
         SNMALLOC_ASSERT(super->get_kind() == Medium);
         medium_dealloc_local(
-          super.template as_reinterpret<Mediumslab>(), p_auth, sizeclass);
+          super.template as_reinterpret<Mediumslab>(),
+          Remote::clear(p_auth_offseted, sizeclass),
+          sizeclass);
       }
     }
 
@@ -1070,7 +1077,7 @@ namespace snmalloc
           pal_zero<typename MemoryProvider::Pal>(
             p, sizeclass_to_size(sizeclass));
         }
-        return CapPtr<void, CBArena>(p);
+        return p;
       }
 
       if (likely(!has_messages()))
@@ -1615,7 +1622,8 @@ namespace snmalloc
       if (remote.capacity > 0)
       {
         stats().remote_free(sizeclass);
-        remote.dealloc(target->trunc_id(), p.unsafe_capptr, sizeclass);
+        auto offseted = apply_cache_friendly_offset(p, sizeclass);
+        remote.dealloc(target->trunc_id(), offseted, sizeclass);
         return;
       }
 
@@ -1654,7 +1662,7 @@ namespace snmalloc
 
       stats().remote_free(sizeclass);
       auto offseted = apply_cache_friendly_offset(p_auth, sizeclass);
-      remote.dealloc(target->trunc_id(), offseted.unsafe_capptr, sizeclass);
+      remote.dealloc(target->trunc_id(), offseted, sizeclass);
 
       stats().remote_post();
       remote.post(&large_allocator, get_trunc_id());

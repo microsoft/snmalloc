@@ -18,8 +18,8 @@ namespace snmalloc
     using alloc_id_t = size_t;
     union
     {
-      Remote* non_atomic_next;
-      std::atomic<Remote*> next{nullptr};
+      CapPtr<Remote, CBArena> non_atomic_next;
+      AtomicCapPtr<Remote, CBArena> next{nullptr};
     };
 
     /*
@@ -51,6 +51,15 @@ namespace snmalloc
     {
       return alloc_id_and_sizeclass & SIZECLASS_MASK;
     }
+
+    /** Zero out a Remote tracking structure, return pointer to object base */
+    template<capptr_bounds B>
+    SNMALLOC_FAST_PATH static CapPtr<void, B>
+    clear(CapPtr<Remote, B> self, sizeclass_t sizeclass)
+    {
+      pal_zero<Pal>(self, sizeof(Remote));
+      return remove_cache_friendly_offset(self, sizeclass);
+    }
   };
 
   static_assert(
@@ -62,7 +71,8 @@ namespace snmalloc
     using alloc_id_t = Remote::alloc_id_t;
     // Store the message queue on a separate cacheline. It is mutable data that
     // is read by other threads.
-    alignas(CACHELINE_SIZE) MPSCQ<Remote> message_queue;
+    alignas(CACHELINE_SIZE)
+      MPSCQ<Remote, CapPtrCBArena, AtomicCapPtrCBArena> message_queue;
 
     alloc_id_t trunc_id()
     {
