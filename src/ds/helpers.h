@@ -142,4 +142,10 @@ namespace snmalloc
       return (*static_cast<std::add_pointer_t<Fn>>(p))(args...);
     };
   };
+
+  template<class T>
+  void ignore(T* t)
+  {
+    UNUSED(t);
+  }
 } // namespace snmalloc

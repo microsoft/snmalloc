@@ -1,5 +1,7 @@
 #pragma once
 
+#include "helpers.h"
+
 #include <cstdint>
 #include <type_traits>
 
@@ -55,7 +57,7 @@ namespace snmalloc
   template<
     class T,
     class Terminator = std::nullptr_t,
-    bool delete_on_clear = false>
+    void on_clear(T*) = ignore<T>>
   class DLList final
   {
   private:
@@ -196,10 +198,7 @@ namespace snmalloc
       {
         auto c = head;
         remove(c);
-        if (delete_on_clear)
-        {
-          delete c;
-        }
+        on_clear(c);
       }
     }
 
