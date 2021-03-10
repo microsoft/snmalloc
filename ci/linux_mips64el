@@ -1,0 +1,7 @@
+FROM multiarch/debian-debootstrap:mips64el-buster
+
+WORKDIR /src
+
+RUN apt update \
+    && apt install --no-install-recommends -y ninja-build clang-7 cmake \
+    && apt -y clean

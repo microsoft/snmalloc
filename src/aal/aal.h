@@ -23,6 +23,14 @@
 #  define PLATFORM_IS_POWERPC
 #endif
 
+#if defined(__mips__)
+#  define PLATFORM_IS_MIPS
+#endif
+
+#if defined(__riscv)
+#  define PLATFORM_IS_RISCV
+#endif
+
 #if defined(__sparc__)
 #  define PLATFORM_IS_SPARC
 #endif
@@ -55,7 +63,9 @@ namespace snmalloc
   enum AalName : int
   {
     ARM,
+    MIPS,
     PowerPC,
+    RISCV,
     X86,
     X86_SGX,
     Sparc,
@@ -152,6 +162,10 @@ namespace snmalloc
 #  include "aal_arm.h"
 #elif defined(PLATFORM_IS_POWERPC)
 #  include "aal_powerpc.h"
+#elif defined(PLATFORM_IS_MIPS)
+#  include "aal_mips.h"
+#elif defined(PLATFORM_IS_RISCV)
+#  include "aal_riscv.h"
 #elif defined(PLATFORM_IS_SPARC)
 #  include "aal_sparc.h"
 #endif
