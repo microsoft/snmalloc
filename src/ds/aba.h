@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bits.h"
+#include "ptrwrap.h"
 
 /**
  * This file contains an abstraction of ABA protection. This API should be
@@ -23,19 +24,23 @@ namespace snmalloc
   // fall back to locked implementation.
 #if defined(PLATFORM_IS_X86) && \
   !(defined(GCC_NOT_CLANG) && defined(OPEN_ENCLAVE))
-  template<typename T, Construction c = RequiresInit>
+  template<
+    typename T,
+    Construction c = RequiresInit,
+    template<typename> typename Ptr = Pointer,
+    template<typename> typename AtomicPtr = AtomicPointer>
   class ABA
   {
   public:
     struct alignas(2 * sizeof(std::size_t)) Linked
     {
-      T* ptr;
+      Ptr<T> ptr;
       uintptr_t aba;
     };
 
     struct Independent
     {
-      std::atomic<T*> ptr;
+      AtomicPtr<T> ptr;
       std::atomic<uintptr_t> aba;
     };
 
@@ -60,7 +65,7 @@ namespace snmalloc
         init(nullptr);
     }
 
-    void init(T* x)
+    void init(Ptr<T> x)
     {
       independent.ptr.store(x, std::memory_order_relaxed);
       independent.aba.store(0, std::memory_order_relaxed);
@@ -92,18 +97,18 @@ namespace snmalloc
        */
       Cmp(Linked old, ABA* parent) : old(old), parent(parent) {}
 
-      T* ptr()
+      Ptr<T> ptr()
       {
         return old.ptr;
       }
 
-      bool store_conditional(T* value)
+      bool store_conditional(Ptr<T> value)
       {
 #  if defined(_MSC_VER) && defined(SNMALLOC_VA_BITS_64)
         auto result = _InterlockedCompareExchange128(
           (volatile __int64*)parent,
           (__int64)(old.aba + (uintptr_t)1),
-          (__int64)value,
+          (__int64)address_cast(value),
           (__int64*)&old);
 #  else
 #    if defined(__GNUC__) && defined(SNMALLOC_VA_BITS_64) && \
@@ -132,7 +137,7 @@ namespace snmalloc
     };
 
     // This method is used in Verona
-    T* peek()
+    Ptr<T> peek()
     {
       return independent.ptr.load(std::memory_order_relaxed);
     }
@@ -141,10 +146,14 @@ namespace snmalloc
   /**
    * Naive implementation of ABA protection using a spin lock.
    */
-  template<typename T, Construction c = RequiresInit>
+  template<
+    typename T,
+    Construction c = RequiresInit,
+    template<typename> typename Ptr = Pointer,
+    template<typename> typename AtomicPtr = AtomicPointer>
   class ABA
   {
-    std::atomic<T*> ptr = nullptr;
+    AtomicPtr<T> ptr = nullptr;
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
 
   public:
@@ -169,12 +178,12 @@ namespace snmalloc
       ABA* parent;
 
     public:
-      T* ptr()
+      Ptr<T> ptr()
       {
         return parent->ptr;
       }
 
-      bool store_conditional(T* t)
+      bool store_conditional(Ptr<T> t)
       {
         parent->ptr = t;
         return true;
@@ -190,7 +199,7 @@ namespace snmalloc
     };
 
     // This method is used in Verona
-    T* peek()
+    Ptr<T> peek()
     {
       return ptr.load(std::memory_order_relaxed);
     }

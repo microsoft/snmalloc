@@ -22,7 +22,13 @@ namespace snmalloc
     // This is the view of a contiguous memory area when it is being kept
     // in the global size-classed caches of available contiguous memory areas.
   private:
-    template<class a, Construction c>
+    template<
+      class a,
+      Construction c,
+      template<typename>
+      typename P,
+      template<typename>
+      typename AP>
     friend class MPMCStack;
     template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     friend class MemoryProviderStateMixin;
