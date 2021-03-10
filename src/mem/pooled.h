@@ -10,7 +10,13 @@ namespace snmalloc
   private:
     template<class TT, class MemoryProvider>
     friend class Pool;
-    template<class TT, Construction c>
+    template<
+      class a,
+      Construction c,
+      template<typename>
+      typename P,
+      template<typename>
+      typename AP>
     friend class MPMCStack;
 
     /// Used by the pool for chaining together entries when not in use.
