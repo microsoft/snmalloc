@@ -158,7 +158,7 @@ namespace snmalloc
      * `fast_free_list` for further allocations.
      */
     template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
-    static SNMALLOC_FAST_PATH CapPtr<void, CBArena> alloc(
+    static SNMALLOC_FAST_PATH CapPtr<void, CBAllocE> alloc(
       CapPtr<Metaslab, CBArena> self,
       FreeListIter& fast_free_list,
       size_t rsize,
@@ -193,7 +193,7 @@ namespace snmalloc
         UNUSED(rsize);
       }
 
-      return p;
+      return capptr_export(Aal::capptr_bound<void, CBAlloc>(p, rsize));
     }
 
     void debug_slab_invariant(CapPtr<Slab, CBArena> slab, LocalEntropy& entropy)

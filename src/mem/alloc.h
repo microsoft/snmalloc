@@ -177,14 +177,14 @@ namespace snmalloc
       {
         // Allocations smaller than the slab size are more likely. Improve
         // branch prediction by placing this case first.
-        return small_alloc<zero_mem>(size).unsafe_capptr;
+        return capptr_reveal(small_alloc<zero_mem>(size));
       }
 
-      return alloc_not_small<zero_mem>(size).unsafe_capptr;
+      return capptr_reveal(alloc_not_small<zero_mem>(size));
     }
 
     template<ZeroMem zero_mem = NoZero>
-    SNMALLOC_SLOW_PATH CapPtr<void, CBArena> alloc_not_small(size_t size)
+    SNMALLOC_SLOW_PATH CapPtr<void, CBAllocE> alloc_not_small(size_t size)
     {
       handle_message_queue();
 
@@ -1055,7 +1055,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem>
-    SNMALLOC_FAST_PATH CapPtr<void, CBArena> small_alloc(size_t size)
+    SNMALLOC_FAST_PATH CapPtr<void, CBAllocE> small_alloc(size_t size)
     {
       SNMALLOC_ASSUME(size <= SLAB_SIZE);
       sizeclass_t sizeclass = size_to_sizeclass(size);
@@ -1063,7 +1063,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem>
-    SNMALLOC_FAST_PATH CapPtr<void, CBArena>
+    SNMALLOC_FAST_PATH CapPtr<void, CBAllocE>
     small_alloc_inner(sizeclass_t sizeclass, size_t size)
     {
       SNMALLOC_ASSUME(sizeclass < NUM_SMALL_CLASSES);
@@ -1078,7 +1078,11 @@ namespace snmalloc
           pal_zero<typename MemoryProvider::Pal>(
             p, sizeclass_to_size(sizeclass));
         }
-        return p;
+
+        // TODO: This goes away once our free lists are bounded
+        auto ret = Aal::capptr_bound<void, CBAlloc>(p, size);
+
+        return capptr_export(ret);
       }
 
       if (likely(!has_messages()))
@@ -1092,7 +1096,7 @@ namespace snmalloc
      * allocation request.
      */
     template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH CapPtr<void, CBArena>
+    SNMALLOC_SLOW_PATH CapPtr<void, CBAllocE>
     small_alloc_mq_slow(sizeclass_t sizeclass, size_t size)
     {
       handle_message_queue_inner();
@@ -1104,7 +1108,7 @@ namespace snmalloc
      * Attempt to find a new free list to allocate from
      */
     template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH CapPtr<void, CBArena>
+    SNMALLOC_SLOW_PATH CapPtr<void, CBAllocE>
     small_alloc_next_free_list(sizeclass_t sizeclass, size_t size)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
@@ -1129,7 +1133,7 @@ namespace snmalloc
      * new free list.
      */
     template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH CapPtr<void, CBArena>
+    SNMALLOC_SLOW_PATH CapPtr<void, CBAllocE>
     small_alloc_rare(sizeclass_t sizeclass, size_t size)
     {
       if (likely(!NeedsInitialisation(this)))
@@ -1146,15 +1150,22 @@ namespace snmalloc
      * then directs the allocation request to the newly created allocator.
      */
     template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH CapPtr<void, CBArena>
+    SNMALLOC_SLOW_PATH CapPtr<void, CBAllocE>
     small_alloc_first_alloc(sizeclass_t sizeclass, size_t size)
     {
+      /*
+       * We have to convert through void* as part of the thread allocator
+       * initializer API.  Be a little more verbose than strictly necessary to
+       * demonstrate that small_alloc_inner is giving us a CBAllocE-annotated
+       * pointer before we just go slapping that label on a void* later.
+       */
       void* ret = InitThreadAllocator([sizeclass, size](void* alloc) {
-        return reinterpret_cast<Allocator*>(alloc)
-          ->template small_alloc_inner<zero_mem>(sizeclass, size)
-          .unsafe_capptr;
+        CapPtr<void, CBAllocE> ret =
+          reinterpret_cast<Allocator*>(alloc)
+            ->template small_alloc_inner<zero_mem>(sizeclass, size);
+        return ret.unsafe_capptr;
       });
-      return CapPtr<void, CBArena>(ret);
+      return CapPtr<void, CBAllocE>(ret);
     }
 
     /**
@@ -1162,7 +1173,7 @@ namespace snmalloc
      * list.
      */
     template<ZeroMem zero_mem>
-    SNMALLOC_FAST_PATH CapPtr<void, CBArena>
+    SNMALLOC_FAST_PATH CapPtr<void, CBAllocE>
     small_alloc_new_free_list(sizeclass_t sizeclass)
     {
       auto& bp = bump_ptrs[sizeclass];
@@ -1179,7 +1190,7 @@ namespace snmalloc
      * the request from that new list.
      */
     template<ZeroMem zero_mem>
-    SNMALLOC_FAST_PATH CapPtr<void, CBArena>
+    SNMALLOC_FAST_PATH CapPtr<void, CBAllocE>
     small_alloc_build_free_list(sizeclass_t sizeclass)
     {
       auto& bp = bump_ptrs[sizeclass];
@@ -1194,7 +1205,11 @@ namespace snmalloc
       {
         pal_zero<typename MemoryProvider::Pal>(p, sizeclass_to_size(sizeclass));
       }
-      return CapPtr<void, CBArena>(p);
+
+      // TODO: This goes away once our free lists are bounded
+      auto p_bounded = Aal::capptr_bound<void, CBAlloc>(p, rsize);
+
+      return capptr_export(p_bounded);
     }
 
     /**
@@ -1203,7 +1218,7 @@ namespace snmalloc
      * local bump allocator and service the request from that new list.
      */
     template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH CapPtr<void, CBArena>
+    SNMALLOC_SLOW_PATH CapPtr<void, CBAllocE>
     small_alloc_new_slab(sizeclass_t sizeclass)
     {
       auto& bp = bump_ptrs[sizeclass];
@@ -1360,14 +1375,14 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem>
-    CapPtr<void, CBArena>
+    CapPtr<void, CBAllocE>
     medium_alloc(sizeclass_t sizeclass, size_t rsize, size_t size)
     {
       sizeclass_t medium_class = sizeclass - NUM_SMALL_CLASSES;
 
       auto sc = &medium_classes[medium_class];
       auto slab = sc->get_head();
-      CapPtr<void, CBArena> p;
+      CapPtr<void, CBAllocE> p;
 
       if (slab != nullptr)
       {
@@ -1389,31 +1404,34 @@ namespace snmalloc
            */
           void* ret =
             InitThreadAllocator([size, rsize, sizeclass](void* alloc) {
-              CapPtr<void, CBArena> ret =
+              CapPtr<void, CBAllocE> ret =
                 reinterpret_cast<Allocator*>(alloc)->medium_alloc<zero_mem>(
                   sizeclass, rsize, size);
               return ret.unsafe_capptr;
             });
-          return CapPtr<void, CBArena>(ret);
+          return CapPtr<void, CBAllocE>(ret);
         }
-        slab = large_allocator
-                 .template alloc<NoZero>(0, SUPERSLAB_SIZE, SUPERSLAB_SIZE)
-                 .template as_reinterpret<Mediumslab>();
 
-        if (slab == nullptr)
+        auto newslab =
+          large_allocator
+            .template alloc<NoZero>(0, SUPERSLAB_SIZE, SUPERSLAB_SIZE)
+            .template as_reinterpret<Mediumslab>();
+
+        if (newslab == nullptr)
           return nullptr;
 
-        Mediumslab::init(slab, public_state(), sizeclass, rsize);
-        chunkmap().set_slab(slab);
+        Mediumslab::init(newslab, public_state(), sizeclass, rsize);
+        chunkmap().set_slab(newslab);
         p = Mediumslab::alloc<zero_mem, typename MemoryProvider::Pal>(
-          slab, rsize);
+          newslab, rsize);
 
-        if (!Mediumslab::full(slab))
-          sc->insert(slab);
+        if (!Mediumslab::full(newslab))
+          sc->insert(newslab);
       }
 
       stats().alloc_request(size);
       stats().sizeclass_alloc(sizeclass);
+
       return p;
     }
 
@@ -1509,17 +1527,17 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem>
-    CapPtr<void, CBArena> large_alloc(size_t size)
+    CapPtr<void, CBAllocE> large_alloc(size_t size)
     {
       if (NeedsInitialisation(this))
       {
         // MSVC-vs-CapPtr triggering; xref CapPtr's constructor
         void* ret = InitThreadAllocator([size](void* alloc) {
-          CapPtr<void, CBArena> ret =
+          CapPtr<void, CBAllocE> ret =
             reinterpret_cast<Allocator*>(alloc)->large_alloc<zero_mem>(size);
           return ret.unsafe_capptr;
         });
-        return CapPtr<void, CBArena>(ret);
+        return CapPtr<void, CBAllocE>(ret);
       }
 
       size_t size_bits = bits::next_pow2_bits(size);
@@ -1540,7 +1558,7 @@ namespace snmalloc
         stats().alloc_request(size);
         stats().large_alloc(large_class);
       }
-      return p.as_void();
+      return capptr_export(Aal::capptr_bound<void, CBAlloc>(p, rsize));
     }
 
     void large_dealloc_unchecked(

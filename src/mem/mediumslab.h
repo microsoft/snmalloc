@@ -88,7 +88,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
-    static CapPtr<void, CBArena>
+    static CapPtr<void, CBAllocE>
     alloc(CapPtr<Mediumslab, CBArena> self, size_t size)
     {
       SNMALLOC_ASSERT(!full(self));
@@ -102,7 +102,7 @@ namespace snmalloc
       else
         UNUSED(size);
 
-      return p;
+      return capptr_export(Aal::capptr_bound<void, CBAlloc>(p, size));
     }
 
     static bool
