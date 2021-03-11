@@ -76,6 +76,12 @@ namespace snmalloc
     }
   }
 
+  template<size_t alignment>
+  inline address_t address_align_down(address_t p)
+  {
+    return bits::align_down(p, alignment);
+  }
+
   /**
    * Align a pointer up to a statically specified granularity, which must be a
    * power of two.
@@ -96,6 +102,12 @@ namespace snmalloc
         bits::align_up(reinterpret_cast<uintptr_t>(p), alignment));
 #endif
     }
+  }
+
+  template<size_t alignment>
+  inline address_t address_align_up(address_t p)
+  {
+    return bits::align_up(p, alignment);
   }
 
   /**
