@@ -13,7 +13,7 @@ build = "build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
-cmake = "0.1"
+cc = {version = "1.0.67"}
 
 [dependencies.libc]
 version = "0.2"
@@ -30,3 +30,4 @@ cache-friendly = []
 android-lld = []
 android-shared-stl = []
 native-cpu = []
+local_dynamic_tls = []
