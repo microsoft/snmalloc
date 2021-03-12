@@ -150,6 +150,13 @@ namespace snmalloc
       return pointer_align_down<SUPERSLAB_SIZE>(p) == p;
     }
 
+    bool is_start_of_object(void* p)
+    {
+      return is_multiple_of_sizeclass(
+        sizeclass_to_size(sizeclass),
+        pointer_diff(p, pointer_align_up<SLAB_SIZE>(pointer_offset(p, 1))));
+    }
+
     /**
      * Check bump-free-list-segment for cycles
      *

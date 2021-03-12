@@ -63,7 +63,7 @@ namespace snmalloc
       meta.set_full();
       sl.get_next()->remove();
 
-      SNMALLOC_ASSERT(is_start_of_object(Superslab::get(p), p));
+      SNMALLOC_ASSERT(meta.is_start_of_object(p));
 
       meta.debug_slab_invariant(this);
 
@@ -108,14 +108,6 @@ namespace snmalloc
 
       Metaslab::store_next(bumpptr, nullptr);
       bumpptr = newbumpptr;
-    }
-
-    bool is_start_of_object(Superslab* super, void* p)
-    {
-      Metaslab& meta = super->get_meta(this);
-      return is_multiple_of_sizeclass(
-        sizeclass_to_size(meta.sizeclass),
-        pointer_diff(p, pointer_offset(this, SLAB_SIZE)));
     }
 
     // Returns true, if it deallocation can proceed without changing any status

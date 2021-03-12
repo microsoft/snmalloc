@@ -1214,7 +1214,7 @@ namespace snmalloc
       Superslab* super, Slab* slab, void* p, sizeclass_t sizeclass)
     {
 #ifdef CHECK_CLIENT
-      if (!slab->is_start_of_object(super, p))
+      if (!slab->get_meta().is_start_of_object(p))
       {
         error("Not deallocating start of an object");
       }
