@@ -110,6 +110,17 @@ namespace snmalloc
 #endif
     }
 
+    /**
+     * Nulls the previous pointer
+     *
+     * The Meta-slab uses nullptr in prev to mean that it is not part of a
+     * size class list.
+     **/
+    void null_prev()
+    {
+      prev = nullptr;
+    }
+
     SNMALLOC_FAST_PATH CDLLNode* get_prev()
     {
       return prev;

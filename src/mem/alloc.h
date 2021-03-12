@@ -1074,18 +1074,14 @@ namespace snmalloc
       size_t rsize = sizeclass_to_size(sizeclass);
       auto& sl = small_classes[sizeclass];
 
-      Slab* slab;
-
       if (likely(!sl.is_empty()))
       {
         stats().alloc_request(size);
         stats().sizeclass_alloc(sizeclass);
 
-        SlabLink* link = sl.get_next();
-        slab = get_slab(link);
+        auto meta = reinterpret_cast<Metaslab*>(sl.get_next());
         auto& ffl = small_fast_free_lists[sizeclass];
-        return slab->alloc<zero_mem, typename MemoryProvider::Pal>(
-          sl, ffl, rsize);
+        return meta->alloc<zero_mem, typename MemoryProvider::Pal>(ffl, rsize);
       }
       return small_alloc_rare<zero_mem, allow_reserve>(sizeclass, size);
     }
