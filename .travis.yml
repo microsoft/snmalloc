@@ -95,6 +95,7 @@ cache:
 script:
   - cargo test --all
   - cargo test --all --features 1mib
+  - cargo test --all --features build_cc
   - cargo test --all --features debug
   - cargo test --all --features cache-friendly
 

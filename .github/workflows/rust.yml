@@ -31,6 +31,8 @@ jobs:
       run: cargo test --all
     - name: Run tests 1mib
       run: cargo test --all --features 1mib
+    - name: Run tests 1mib build_cc
+      run: cargo test --all --features build_cc
     - name: Run tests debug
       run: cargo test --all --features debug
     - name: Run tests cache-friendly
