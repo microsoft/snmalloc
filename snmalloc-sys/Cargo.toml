@@ -22,8 +22,9 @@ version = "0.2"
 default-features = false
 
 [features]
-default = ["1mib","cmake"]
+default = ["1mib","build_cmake"]
 build_cc = ["cc"]
+build_cmake = ["cmake"]
 1mib = []
 16mib = []
 qemu = []

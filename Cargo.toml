@@ -19,7 +19,7 @@ members = ["snmalloc-sys" ]
 snmalloc-sys = {version = "0.2.25", path = "snmalloc-sys",default-features = false }
 
 [features]
-default = ["1mib"]
+default = ["snmalloc-sys/build_cmake","1mib"]
 build_cc = ["snmalloc-sys/build_cc","1mib"]
 1mib = ["snmalloc-sys/1mib"]
 16mib = ["snmalloc-sys/16mib"]
