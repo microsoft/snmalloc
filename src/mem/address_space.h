@@ -103,8 +103,10 @@ namespace snmalloc
         CapPtr<void, CBChunk> bigger = remove_block(align_bits + 1);
         if (bigger != nullptr)
         {
-          auto left_over = pointer_offset(bigger, bits::one_at_bit(align_bits));
-          ranges[align_bits][0] = left_over;
+          size_t left_over_size = bits::one_at_bit(align_bits);
+          auto left_over = pointer_offset(bigger, left_over_size);
+          ranges[align_bits][0] =
+            Aal::capptr_bound<void, CBChunk>(left_over, left_over_size);
           check_block(left_over, align_bits);
         }
         check_block(bigger, align_bits + 1);
