@@ -9,6 +9,12 @@ namespace snmalloc
 {
   class Slab;
 
+  struct FreeListHead
+  {
+    // Use a value with bottom bit set for empty list.
+    void* value = nullptr;
+  };
+
   using SlabList = CDLLNode;
   using SlabLink = CDLLNode;
 
@@ -23,14 +29,13 @@ namespace snmalloc
 
   // The Metaslab represent the status of a single slab.
   // This can be either a short or a standard slab.
-  class Metaslab
+  class Metaslab : public SlabLink
   {
   public:
     /**
      *  Pointer to first free entry in this slab
      *
-     *  The list will be (allocated - needed - 1) long. The -1 is
-     *  for the `link` element which is not in the free list.
+     *  The list will be (allocated - needed) long.
      */
     void* head = nullptr;
 
@@ -38,7 +43,7 @@ namespace snmalloc
      *  How many entries are not in the free list of slab, i.e.
      *  how many entries are needed to fully free this slab.
      *
-     *  In the case of a fully allocated slab, where link==1 needed
+     *  In the case of a fully allocated slab, where prev==0 needed
      *  will be 1. This enables 'return_object' to detect the slow path
      *  case with a single operation subtract and test.
      */
@@ -48,11 +53,6 @@ namespace snmalloc
      *  How many entries have been allocated from this slab.
      */
     uint16_t allocated = 0;
-
-    // When a slab has free space it will be on the has space list for
-    // that size class.  We use an empty block in this slab to be the
-    // doubly linked node into that size class's free list.
-    Mod<SLAB_SIZE, uint16_t> link;
 
     uint8_t sizeclass;
     // Initially zero to encode the superslabs relative list of slabs.
@@ -77,7 +77,7 @@ namespace snmalloc
 
     bool is_full()
     {
-      auto result = link == 1;
+      auto result = get_prev() == nullptr;
       SNMALLOC_ASSERT(!result || head == nullptr);
       return result;
     }
@@ -85,16 +85,10 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void set_full()
     {
       SNMALLOC_ASSERT(head == nullptr);
-      SNMALLOC_ASSERT(link != 1);
-      link = 1;
       // Set needed to 1, so that "return_object" will return true after calling
       // set_full
       needed = 1;
-    }
-
-    SlabLink* get_link(Slab* slab)
-    {
-      return reinterpret_cast<SlabLink*>(pointer_offset(slab, link));
+      null_prev();
     }
 
     /// Value used to check for corruptions in a block
@@ -158,6 +152,51 @@ namespace snmalloc
     }
 
     /**
+     * Takes a free list out of a slabs meta data.
+     * Returns the link as the allocation, and places the free list into the
+     * `fast_free_list` for further allocations.
+     */
+    template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
+    SNMALLOC_FAST_PATH void* alloc(FreeListHead& fast_free_list, size_t rsize)
+    {
+      SNMALLOC_ASSERT(rsize == sizeclass_to_size(sizeclass));
+      SNMALLOC_ASSERT(!is_full());
+
+      auto slab = get_slab(head);
+      debug_slab_invariant(slab);
+
+      // Use first element as the allocation
+      void* p = head;
+      // Put the rest in allocators small_class fast free list.
+      fast_free_list.value = Metaslab::follow_next(p);
+      head = nullptr;
+
+      // Treat stealing the free list as allocating it all.
+      needed = allocated;
+      remove();
+      set_full();
+
+      p = remove_cache_friendly_offset(p, sizeclass);
+      SNMALLOC_ASSERT(is_start_of_object(p));
+
+      debug_slab_invariant(slab);
+
+      if constexpr (zero_mem == YesZero)
+      {
+        if (rsize < PAGE_ALIGNED_SIZE)
+          PAL::zero(p, rsize);
+        else
+          PAL::template zero<true>(p, rsize);
+      }
+      else
+      {
+        UNUSED(rsize);
+      }
+
+      return p;
+    }
+
+    /**
      * Check bump-free-list-segment for cycles
      *
      * Using
@@ -207,7 +246,6 @@ namespace snmalloc
       if (is_full())
       {
         // There is no free list to validate
-        // 'link' value is not important if full.
         return;
       }
 
@@ -236,8 +274,6 @@ namespace snmalloc
         // Account for free elements in free list
         accounted_for += size;
         SNMALLOC_ASSERT(SLAB_SIZE >= accounted_for);
-        // We should never reach the link node in the free list.
-        SNMALLOC_ASSERT(curr != pointer_offset(slab, link));
 
         // Iterate bump/free list segment
         curr = follow_next(curr);
@@ -250,16 +286,7 @@ namespace snmalloc
       // Account for to be bump allocated space
       accounted_for += SLAB_SIZE - bumpptr;
 
-      if (bumpptr != SLAB_SIZE)
-      {
-        // The link should be the first allocation as we
-        // haven't completely filled this block at any point.
-        SNMALLOC_ASSERT(link == get_initial_offset(sizeclass, is_short));
-      }
-
       SNMALLOC_ASSERT(!is_full());
-      // Add the link node.
-      accounted_for += size;
 
       // All space accounted for
       SNMALLOC_ASSERT(SLAB_SIZE == accounted_for);
