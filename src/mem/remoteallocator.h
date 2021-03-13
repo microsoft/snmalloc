@@ -18,8 +18,8 @@ namespace snmalloc
     using alloc_id_t = size_t;
     union
     {
-      CapPtr<Remote, CBArena> non_atomic_next;
-      AtomicCapPtr<Remote, CBArena> next{nullptr};
+      CapPtr<Remote, CBAlloc> non_atomic_next;
+      AtomicCapPtr<Remote, CBAlloc> next{nullptr};
     };
 
     /*
@@ -72,7 +72,7 @@ namespace snmalloc
     // Store the message queue on a separate cacheline. It is mutable data that
     // is read by other threads.
     alignas(CACHELINE_SIZE)
-      MPSCQ<Remote, CapPtrCBArena, AtomicCapPtrCBArena> message_queue;
+      MPSCQ<Remote, CapPtrCBAlloc, AtomicCapPtrCBAlloc> message_queue;
 
     alloc_id_t trunc_id()
     {

@@ -178,31 +178,32 @@ namespace snmalloc
       self->free_queue.close(fast_free_list, entropy);
       auto n = fast_free_list.take(entropy);
       auto n_slab = Aal::capptr_rebound(self.as_void(), n);
+      auto meta = Metaslab::get_slab(n_slab);
 
       entropy.refresh_bits();
 
       // Treat stealing the free list as allocating it all.
       self->remove();
-      self->set_full(Metaslab::get_slab(n_slab));
+      self->set_full(meta);
 
       auto p = remove_cache_friendly_offset(n, self->sizeclass());
       SNMALLOC_ASSERT(is_start_of_object(self, address_cast(p)));
 
-      self->debug_slab_invariant(Metaslab::get_slab(n_slab), entropy);
+      self->debug_slab_invariant(meta, entropy);
 
       if constexpr (zero_mem == YesZero)
       {
         if (rsize < PAGE_ALIGNED_SIZE)
           pal_zero<PAL>(p, rsize);
         else
-          pal_zero<PAL, true>(p, rsize);
+          pal_zero<PAL, true>(Aal::capptr_rebound(self.as_void(), p), rsize);
       }
       else
       {
         UNUSED(rsize);
       }
 
-      return capptr_export(Aal::capptr_bound<void, CBAlloc>(p, rsize));
+      return capptr_export(p);
     }
 
     template<capptr_bounds B>
