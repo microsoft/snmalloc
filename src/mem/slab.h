@@ -50,36 +50,42 @@ namespace snmalloc
       // Structure to represent the temporary list elements
       struct PreAllocObject
       {
-        CapPtr<PreAllocObject, CBArena> next;
+        CapPtr<PreAllocObject, CBAlloc> next;
       };
       // The following code implements Sattolo's algorithm for generating
       // random cyclic permutations.  This implementation is in the opposite
       // direction, so that the original space does not need initialising.  This
       // is described as outside-in without citation on Wikipedia, appears to be
       // Folklore algorithm.
-      auto curr =
+
+      // Note the wide bounds on curr relative to each of the ->next fields;
+      // curr is not persisted once the list is built.
+      CapPtr<PreAllocObject, CBArena> curr =
         pointer_offset(bumpptr, 0).template as_static<PreAllocObject>();
-      curr->next = curr;
+      curr->next = Aal::capptr_bound<PreAllocObject, CBAlloc>(curr, rsize);
+
       uint16_t count = 1;
-      for (auto p = pointer_offset(bumpptr, rsize)
-                      .template as_static<PreAllocObject>();
-           p.as_void() < slab_end;
-           p = pointer_offset(p, rsize).template as_static<PreAllocObject>())
+      for (curr =
+             pointer_offset(curr, rsize).template as_static<PreAllocObject>();
+           curr.as_void() < slab_end;
+           curr =
+             pointer_offset(curr, rsize).template as_static<PreAllocObject>())
       {
         size_t insert_index = entropy.sample(count);
-        p->next = std::exchange(
+        curr->next = std::exchange(
           pointer_offset(bumpptr, insert_index * rsize)
             .template as_static<PreAllocObject>()
             ->next,
-          p);
+          Aal::capptr_bound<PreAllocObject, CBAlloc>(curr, rsize));
         count++;
       }
 
       // Pick entry into space, and then build linked list by traversing cycle
-      // to the start.
+      // to the start.  Use ->next to jump from CBArena to CBAlloc.
       auto start_index = entropy.sample(count);
       auto start_ptr = pointer_offset(bumpptr, start_index * rsize)
-                         .template as_static<PreAllocObject>();
+                         .template as_static<PreAllocObject>()
+                         ->next;
       auto curr_ptr = start_ptr;
       do
       {
@@ -89,7 +95,7 @@ namespace snmalloc
 #else
       for (auto p = bumpptr; p < slab_end; p = pointer_offset(p, rsize))
       {
-        b.add(FreeObject::make(p.as_void()), entropy);
+        b.add(Aal::capptr_bound<FreeObject, CBAlloc>(p, rsize), entropy);
       }
 #endif
       // This code consumes everything up to slab_end.
@@ -105,7 +111,7 @@ namespace snmalloc
     static SNMALLOC_FAST_PATH bool dealloc_fast(
       CapPtr<Slab, CBChunkD> self,
       CapPtr<Superslab, CBChunkD> super,
-      CapPtr<FreeObject, CBArena> p,
+      CapPtr<FreeObject, CBAlloc> p,
       LocalEntropy& entropy)
     {
       auto meta = super->get_meta(self);
@@ -128,7 +134,7 @@ namespace snmalloc
       CapPtr<Slab, CBChunkD> self,
       SlabList* sl,
       CapPtr<Superslab, CBChunkD> super,
-      CapPtr<FreeObject, CBArena> p,
+      CapPtr<FreeObject, CBAlloc> p,
       LocalEntropy& entropy)
     {
       auto meta = super->get_meta(self);
@@ -137,7 +143,9 @@ namespace snmalloc
       if (meta->is_full())
       {
         auto allocated = get_slab_capacity(
-          meta->sizeclass(), Metaslab::is_short(Metaslab::get_slab(p)));
+          meta->sizeclass(),
+          Metaslab::is_short(
+            Metaslab::get_slab(Aal::capptr_rebound(super.as_void(), p))));
         // We are not on the sizeclass list.
         if (allocated == 1)
         {

@@ -122,7 +122,7 @@ namespace snmalloc
     }
 
     static bool
-    dealloc(CapPtr<Mediumslab, CBChunkD> self, CapPtr<void, CBArena> p)
+    dealloc(CapPtr<Mediumslab, CBChunkD> self, CapPtr<void, CBAlloc> p)
     {
       SNMALLOC_ASSERT(self->head > 0);
 
