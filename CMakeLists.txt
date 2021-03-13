@@ -79,7 +79,7 @@ macro(clangformat_targets)
     message(WARNING "Not generating clangformat target, no clang-format tool found")
   else ()
     message(STATUS "Generating clangformat target using ${CLANG_FORMAT}")
-    file(GLOB_RECURSE ALL_SOURCE_FILES *.cc *.h *.hh)
+    file(GLOB_RECURSE ALL_SOURCE_FILES src/*.cc src/*.h src/*.hh)
     # clangformat does not yet understand concepts well; for the moment, don't
     # ask it to format them.  See https://reviews.llvm.org/D79773
     list(FILTER ALL_SOURCE_FILES EXCLUDE REGEX "src/[^/]*/[^/]*_concept\.h$")
