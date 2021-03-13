@@ -12,12 +12,16 @@ namespace snmalloc
     // This is the view of a 16 mb area when it is being used to allocate
     // medium sized classes: 64 kb to 16 mb, non-inclusive.
   private:
-    friend DLList<Mediumslab, CapPtrCBChunk>;
+    friend DLList<Mediumslab, CapPtrCBChunkE>;
 
     // Keep the allocator pointer on a separate cache line. It is read by
     // other threads, and does not change, so we avoid false sharing.
-    alignas(CACHELINE_SIZE) CapPtr<Mediumslab, CBChunk> next;
-    CapPtr<Mediumslab, CBChunk> prev;
+    alignas(CACHELINE_SIZE) CapPtr<Mediumslab, CBChunkE> next;
+    CapPtr<Mediumslab, CBChunkE> prev;
+
+    // Store a pointer to ourselves without platform constraints applied,
+    // as we need this to be able to zero memory by manipulating the VM map
+    CapPtr<void, CBChunk> self_chunk;
 
     uint16_t free;
     uint8_t head;
@@ -78,6 +82,7 @@ namespace snmalloc
       // initialise the allocation stack.
       if ((self->kind != Medium) || (self->sizeclass != sc))
       {
+        self->self_chunk = self.as_void();
         self->sizeclass = static_cast<uint8_t>(sc);
         uint16_t ssize = static_cast<uint16_t>(rsize >> 8);
         self->kind = Medium;
@@ -89,6 +94,7 @@ namespace snmalloc
       else
       {
         SNMALLOC_ASSERT(self->free == medium_slab_free(sc));
+        SNMALLOC_ASSERT(self->self_chunk == self.as_void());
       }
     }
 
@@ -99,7 +105,7 @@ namespace snmalloc
 
     template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
     static CapPtr<void, CBAllocE>
-    alloc(CapPtr<Mediumslab, CBChunk> self, size_t size)
+    alloc(CapPtr<Mediumslab, CBChunkE> self, size_t size)
     {
       SNMALLOC_ASSERT(!full(self));
 
@@ -108,11 +114,11 @@ namespace snmalloc
       self->free--;
 
       if constexpr (zero_mem == YesZero)
-        pal_zero<PAL>(p, size);
+        pal_zero<PAL>(Aal::capptr_rebound(self->self_chunk, p), size);
       else
         UNUSED(size);
 
-      return capptr_export(Aal::capptr_bound<void, CBAlloc>(p, size));
+      return Aal::capptr_bound<void, CBAllocE>(p, size);
     }
 
     static bool
