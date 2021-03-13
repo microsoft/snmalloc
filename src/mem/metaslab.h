@@ -3,29 +3,12 @@
 #include "../ds/cdllist.h"
 #include "../ds/dllist.h"
 #include "../ds/helpers.h"
+#include "freelist.h"
 #include "sizeclass.h"
 
 namespace snmalloc
 {
   class Slab;
-
-  /**
-   * Free objects within each slab point directly to the next (contrast
-   * SlabLink, which chain different Slabs of the same sizeclass together).
-   */
-  struct SlabNext
-  {
-    struct SlabNext* next;
-#ifdef CHECK_CLIENT
-    uintptr_t guard;
-#endif
-  };
-
-  struct FreeListHead
-  {
-    // Use a value with bottom bit set for empty list.
-    SlabNext* value = nullptr;
-  };
 
   using SlabList = CDLLNode<>;
   using SlabLink = CDLLNode<>;
@@ -49,7 +32,7 @@ namespace snmalloc
      *
      *  The list will be (allocated - needed) long.
      */
-    SlabNext* head = nullptr;
+    FreeListBuilder free_queue;
 
     /**
      *  How many entries are not in the free list of slab, i.e.
@@ -90,57 +73,25 @@ namespace snmalloc
     bool is_full()
     {
       auto result = get_prev() == nullptr;
-      SNMALLOC_ASSERT(!result || head == nullptr);
+      SNMALLOC_ASSERT(!result || free_queue.empty());
       return result;
     }
 
     SNMALLOC_FAST_PATH void set_full()
     {
-      SNMALLOC_ASSERT(head == nullptr);
+      SNMALLOC_ASSERT(free_queue.empty());
       // Set needed to 1, so that "return_object" will return true after calling
       // set_full
       needed = 1;
       null_prev();
     }
 
-    /// Value used to check for corruptions in a block
-    static constexpr size_t POISON =
-      static_cast<size_t>(bits::is64() ? 0xDEADBEEFDEADBEEF : 0xDEADBEEF);
-
-    /// Store next pointer in a block. In Debug using magic value to detect some
-    /// simple corruptions.
-    static SNMALLOC_FAST_PATH void store_next(SlabNext* p, SlabNext* head)
-    {
-      p->next = head;
-#if defined(CHECK_CLIENT)
-      if constexpr (aal_supports<IntegerPointers>)
-      {
-        p->guard = address_cast(head) ^ POISON;
-      }
-#endif
-    }
-
-    /// Accessor function for the next pointer in a block.
-    /// In Debug checks for simple corruptions.
-    static SNMALLOC_FAST_PATH SlabNext* follow_next(SlabNext* node)
-    {
-#if defined(CHECK_CLIENT)
-      if constexpr (aal_supports<IntegerPointers>)
-      {
-        uintptr_t next = address_cast(node->next);
-        if ((next ^ node->guard) != POISON)
-          error("Detected memory corruption.  Use-after-free.");
-      }
-#endif
-      return node->next;
-    }
-
     bool valid_head()
     {
       size_t size = sizeclass_to_size(sizeclass);
-      size_t slab_end = (address_cast(head) | ~SLAB_MASK) + 1;
-      uintptr_t allocation_start =
-        remove_cache_friendly_offset(address_cast(head), sizeclass);
+      auto h = address_cast(free_queue.peek_head());
+      address_t slab_end = (h | ~SLAB_MASK) + 1;
+      address_t allocation_start = remove_cache_friendly_offset(h, sizeclass);
 
       return (slab_end - allocation_start) % size == 0;
     }
@@ -155,7 +106,7 @@ namespace snmalloc
       return pointer_align_down<SUPERSLAB_SIZE>(p) == p;
     }
 
-    static bool is_start_of_object(Metaslab* self, void* p)
+    SNMALLOC_FAST_PATH static bool is_start_of_object(Metaslab* self, void* p)
     {
       return is_multiple_of_sizeclass(
         sizeclass_to_size(self->sizeclass),
@@ -172,26 +123,24 @@ namespace snmalloc
      */
     template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
     static SNMALLOC_FAST_PATH void*
-    alloc(Metaslab* self, FreeListHead& fast_free_list, size_t rsize)
+    alloc(Metaslab* self, FreeListIter& fast_free_list, size_t rsize)
     {
       SNMALLOC_ASSERT(rsize == sizeclass_to_size(self->sizeclass));
       SNMALLOC_ASSERT(!self->is_full());
 
-      auto slab = get_slab(self->head);
+      auto slab = get_slab(self->free_queue.peek_head());
+
       self->debug_slab_invariant(slab);
 
-      // Use first element as the allocation
-      SlabNext* h = self->head;
-      // Put the rest in allocators small_class fast free list.
-      fast_free_list.value = Metaslab::follow_next(h);
-      self->head = nullptr;
+      self->free_queue.close(fast_free_list);
+      void* n = fast_free_list.take();
 
       // Treat stealing the free list as allocating it all.
       self->needed = self->allocated;
       self->remove();
       self->set_full();
 
-      void* p = remove_cache_friendly_offset(h, self->sizeclass);
+      void* p = remove_cache_friendly_offset(n, self->sizeclass);
       SNMALLOC_ASSERT(is_start_of_object(self, p));
 
       self->debug_slab_invariant(slab);
@@ -209,48 +158,6 @@ namespace snmalloc
       }
 
       return p;
-    }
-
-    /**
-     * Check bump-free-list-segment for cycles
-     *
-     * Using
-     * https://en.wikipedia.org/wiki/Cycle_detection#Floyd's_Tortoise_and_Hare
-     * We don't expect a cycle, so worst case is only followed by a crash, so
-     * slow doesn't mater.
-     */
-    size_t debug_slab_acyclic_free_list(Slab* slab)
-    {
-#ifndef NDEBUG
-      size_t length = 0;
-      SlabNext* curr = head;
-      SlabNext* curr_slow = head;
-      bool both = false;
-      while (curr != nullptr)
-      {
-        if (get_slab(curr) != slab)
-        {
-          error("Free list corruption, not correct slab.");
-        }
-        curr = follow_next(curr);
-        if (both)
-        {
-          curr_slow = follow_next(curr_slow);
-        }
-
-        if (curr == curr_slow)
-        {
-          error("Free list contains a cycle, typically indicates double free.");
-        }
-
-        both = !both;
-        length++;
-      }
-      return length;
-#else
-      UNUSED(slab);
-      return 0;
-#endif
     }
 
     void debug_slab_invariant(Slab* slab)
@@ -274,24 +181,18 @@ namespace snmalloc
       // Block is not full
       SNMALLOC_ASSERT(SLAB_SIZE > accounted_for);
 
-      // Keep variable so it appears in debugger.
-      size_t length = debug_slab_acyclic_free_list(slab);
-      UNUSED(length);
-
       // Walk bump-free-list-segment accounting for unused space
-      SlabNext* curr = head;
-      while (curr != nullptr)
+      FreeListIter fl = free_queue.terminate();
+
+      while (!fl.empty())
       {
         // Check we are looking at a correctly aligned block
-        void* start = remove_cache_friendly_offset(curr, sizeclass);
+        void* start = remove_cache_friendly_offset(fl.take(), sizeclass);
         SNMALLOC_ASSERT(((pointer_diff(slab, start) - offset) % size) == 0);
 
         // Account for free elements in free list
         accounted_for += size;
         SNMALLOC_ASSERT(SLAB_SIZE >= accounted_for);
-
-        // Iterate bump/free list segment
-        curr = follow_next(curr);
       }
 
       auto bumpptr = (allocated * size) + offset;

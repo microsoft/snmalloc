@@ -164,7 +164,7 @@ namespace snmalloc
       if ((used & 1) == 1)
         return alloc_slab(sizeclass);
 
-      meta[0].head = nullptr;
+      meta[0].free_queue.init();
       // Set up meta data as if the entire slab has been turned into a free
       // list. This means we don't have to check for special cases where we have
       // returned all the elements, but this is a slab that is still being bump
@@ -188,7 +188,7 @@ namespace snmalloc
 
       uint8_t n = meta[h].next;
 
-      meta[h].head = nullptr;
+      meta[h].free_queue.init();
       // Set up meta data as if the entire slab has been turned into a free
       // list. This means we don't have to check for special cases where we have
       // returned all the elements, but this is a slab that is still being bump

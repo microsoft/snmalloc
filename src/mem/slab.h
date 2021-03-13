@@ -1,5 +1,6 @@
 #pragma once
 
+#include "freelist.h"
 #include "superslab.h"
 
 namespace snmalloc
@@ -27,10 +28,10 @@ namespace snmalloc
      * page.
      */
     static SNMALLOC_FAST_PATH void
-    alloc_new_list(void*& bumpptr, FreeListHead& fast_free_list, size_t rsize)
+    alloc_new_list(void*& bumpptr, FreeListIter& fast_free_list, size_t rsize)
     {
-      auto snbumpptr = static_cast<SlabNext*>(bumpptr);
-      fast_free_list.value = snbumpptr;
+      FreeListBuilder b;
+      b.open(bumpptr);
 
       void* newbumpptr = pointer_offset(bumpptr, rsize);
       void* slab_end = pointer_align_up<SLAB_SIZE>(newbumpptr);
@@ -39,17 +40,14 @@ namespace snmalloc
       if (slab_end2 < slab_end)
         slab_end = slab_end2;
 
-      while (newbumpptr < slab_end)
+      bumpptr = newbumpptr;
+      while (bumpptr < slab_end)
       {
-        auto newsnbumpptr = static_cast<SlabNext*>(newbumpptr);
-        Metaslab::store_next(snbumpptr, newsnbumpptr);
-        snbumpptr = newsnbumpptr;
-        bumpptr = newbumpptr;
-        newbumpptr = pointer_offset(bumpptr, rsize);
+        b.add(bumpptr);
+        bumpptr = pointer_offset(bumpptr, rsize);
       }
 
-      Metaslab::store_next(snbumpptr, nullptr);
-      bumpptr = newbumpptr;
+      b.close(fast_free_list);
     }
 
     // Returns true, if it deallocation can proceed without changing any status
@@ -71,16 +69,9 @@ namespace snmalloc
         return false;
 
       // Update the head and the next pointer in the free list.
-      SlabNext* head = meta.head;
+      meta.free_queue.add(p);
 
-      SlabNext* psn = static_cast<SlabNext*>(p);
-
-      // Set the head to the memory being deallocated.
-      meta.head = psn;
       SNMALLOC_ASSERT(meta.valid_head());
-
-      // Set the next pointer to the previous head.
-      Metaslab::store_next(psn, head);
 
       return true;
     }
@@ -109,10 +100,8 @@ namespace snmalloc
 
           return super->dealloc_slab(self);
         }
-        SNMALLOC_ASSERT(meta.head == nullptr);
-        SlabNext* psn = static_cast<SlabNext*>(p);
-        meta.head = psn;
-        Metaslab::store_next(psn, nullptr);
+        SNMALLOC_ASSERT(meta.free_queue.empty());
+        meta.free_queue.open(p);
         meta.needed = meta.allocated - 1;
 
         // Push on the list of slabs for this sizeclass.
@@ -121,12 +110,24 @@ namespace snmalloc
         return Superslab::NoSlabReturn;
       }
 
-      // Remove from the sizeclass list and dealloc on the superslab.
+#ifdef CHECK_CLIENT
+      size_t count = 1;
+      // Check free list is well-formed on platforms with
+      // integers as pointers.
+      FreeListIter fl;
+      meta.free_queue.close(fl);
+
+      while (!fl.empty())
+      {
+        fl.take();
+        count++;
+      }
+#endif
+
       meta.remove();
 
       if (Metaslab::is_short(self))
         return super->dealloc_short_slab();
-
       return super->dealloc_slab(self);
     }
   };

@@ -47,7 +47,7 @@ namespace snmalloc
   class FastFreeLists
   {
   protected:
-    FreeListHead small_fast_free_lists[NUM_SMALL_CLASSES];
+    FreeListIter small_fast_free_lists[NUM_SMALL_CLASSES];
 
   public:
     FastFreeLists() : small_fast_free_lists() {}
@@ -747,35 +747,29 @@ namespace snmalloc
       {
         auto& bp = bump_ptrs[i];
         auto rsize = sizeclass_to_size(i);
-        FreeListHead ffl;
+        FreeListIter ffl;
         while (pointer_align_up(bp, SLAB_SIZE) != bp)
         {
           Slab::alloc_new_list(bp, ffl, rsize);
-          SlabNext* prev = ffl.value;
-          while (prev != nullptr)
+          while (!ffl.empty())
           {
-            auto n = Metaslab::follow_next(prev);
-            Superslab* super = Superslab::get(prev);
-            Slab* slab = Metaslab::get_slab(prev);
-            small_dealloc_offseted_inner(super, slab, prev, i);
-            prev = n;
+            auto curr = ffl.take();
+            Superslab* super = Superslab::get(curr);
+            Slab* slab = Metaslab::get_slab(curr);
+            small_dealloc_offseted_inner(super, slab, curr, i);
           }
         }
       }
 
       for (size_t i = 0; i < NUM_SMALL_CLASSES; i++)
       {
-        auto prev = small_fast_free_lists[i].value;
-        small_fast_free_lists[i].value = nullptr;
-        while (prev != nullptr)
+        while (!small_fast_free_lists[i].empty())
         {
-          auto n = Metaslab::follow_next(prev);
+          auto curr = small_fast_free_lists[i].take();
 
-          Superslab* super = Superslab::get(prev);
-          Slab* slab = Metaslab::get_slab(prev);
-          small_dealloc_offseted_inner(super, slab, prev, i);
-
-          prev = n;
+          Superslab* super = Superslab::get(curr);
+          Slab* slab = Metaslab::get_slab(curr);
+          small_dealloc_offseted_inner(super, slab, curr, i);
         }
 
         test(small_classes[i]);
@@ -1035,15 +1029,11 @@ namespace snmalloc
     {
       SNMALLOC_ASSUME(sizeclass < NUM_SMALL_CLASSES);
       auto& fl = small_fast_free_lists[sizeclass];
-      SlabNext* head = fl.value;
-      if (likely(head != nullptr))
+      if (likely(!fl.empty()))
       {
         stats().alloc_request(size);
         stats().sizeclass_alloc(sizeclass);
-        // Read the next slot from the memory that's about to be allocated.
-        fl.value = Metaslab::follow_next(head);
-
-        void* p = remove_cache_friendly_offset(head, sizeclass);
+        void* p = remove_cache_friendly_offset(fl.take(), sizeclass);
         if constexpr (zero_mem == YesZero)
         {
           MemoryProvider::Pal::zero(p, sizeclass_to_size(sizeclass));
@@ -1154,12 +1144,10 @@ namespace snmalloc
       auto& bp = bump_ptrs[sizeclass];
       auto rsize = sizeclass_to_size(sizeclass);
       auto& ffl = small_fast_free_lists[sizeclass];
-      SNMALLOC_ASSERT(ffl.value == nullptr);
+      SNMALLOC_ASSERT(ffl.empty());
       Slab::alloc_new_list(bp, ffl, rsize);
 
-      SlabNext* p = static_cast<SlabNext*>(
-        remove_cache_friendly_offset(ffl.value, sizeclass));
-      ffl.value = Metaslab::follow_next(p);
+      auto p = remove_cache_friendly_offset(ffl.take(), sizeclass);
 
       if constexpr (zero_mem == YesZero)
       {
@@ -1181,7 +1169,7 @@ namespace snmalloc
       Slab* slab = alloc_slab<allow_reserve>(sizeclass);
       if (slab == nullptr)
         return nullptr;
-      bp = pointer_offset<SlabNext>(
+      bp = pointer_offset<void>(
         slab, get_initial_offset(sizeclass, Metaslab::is_short(slab)));
 
       return small_alloc_build_free_list<zero_mem, allow_reserve>(sizeclass);
