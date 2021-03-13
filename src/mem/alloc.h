@@ -638,7 +638,7 @@ namespace snmalloc
     };
 
     SlabList small_classes[NUM_SMALL_CLASSES];
-    DLList<Mediumslab, CapPtrCBChunk> medium_classes[NUM_MEDIUM_CLASSES];
+    DLList<Mediumslab, CapPtrCBChunkE> medium_classes[NUM_MEDIUM_CLASSES];
 
     DLList<Superslab, CapPtrCBChunk> super_available;
     DLList<Superslab, CapPtrCBChunk> super_only_short_available;
@@ -1383,7 +1383,7 @@ namespace snmalloc
       sizeclass_t medium_class = sizeclass - NUM_SMALL_CLASSES;
 
       auto sc = &medium_classes[medium_class];
-      CapPtr<Mediumslab, CBChunk> slab = sc->get_head();
+      CapPtr<Mediumslab, CBChunkE> slab = sc->get_head();
       CapPtr<void, CBAllocE> p;
 
       if (slab != nullptr)
@@ -1424,11 +1424,14 @@ namespace snmalloc
 
         Mediumslab::init(newslab, public_state(), sizeclass, rsize);
         chunkmap().set_slab(newslab);
+
+        auto newslab_export = capptr_export(newslab);
+
         p = Mediumslab::alloc<zero_mem, typename MemoryProvider::Pal>(
-          newslab, rsize);
+          newslab_export, rsize);
 
         if (!Mediumslab::full(newslab))
-          sc->insert(newslab);
+          sc->insert(newslab_export);
       }
 
       stats().alloc_request(size);
@@ -1515,7 +1518,12 @@ namespace snmalloc
         {
           sizeclass_t medium_class = sizeclass - NUM_SMALL_CLASSES;
           auto sc = &medium_classes[medium_class];
-          sc->remove(slab_bounded);
+          /*
+           * This unsafety lets us avoid applying platform constraints to a
+           * pointer we are just about to drop on the floor; remove() uses its
+           * argument but does not persist it.
+           */
+          sc->remove(CapPtr<Mediumslab, CBChunkE>(slab_bounded.unsafe_capptr));
         }
 
         chunkmap().clear_slab(slab_bounded);
@@ -1527,7 +1535,7 @@ namespace snmalloc
       {
         sizeclass_t medium_class = sizeclass - NUM_SMALL_CLASSES;
         auto sc = &medium_classes[medium_class];
-        sc->insert(slab_bounded);
+        sc->insert(capptr_export(slab_bounded));
       }
     }
 
