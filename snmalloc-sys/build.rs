@@ -33,6 +33,7 @@ fn main() {
     build.flag_if_supported("-g");
     build.flag_if_supported("-fomit-frame-pointer");
     build.flag_if_supported("-fpermissive");
+    build.static_crt(true);
     build.cpp(true);
     build.debug(false);
 
@@ -45,11 +46,9 @@ fn main() {
         if cfg!(feature = "android-lld") {
             build.define("ANDROID_LD", "lld");
         }
-
         if cfg!(feature = "android-shared-stl") {
             build.define("ANDROID_STL", "c++_shared");
         }
-
         if triple.contains("aarch64") {
             build.define("ANDROID_ABI", "arm64-v8a");
         } else if triple.contains("armv7") {
@@ -66,16 +65,7 @@ fn main() {
         }
     }
 
-    if target_os == "windows" && target_env == "gnu" {
-        build.define("CMAKE_SH", "CMAKE_SH-NOTFOUND");
-        if cfg!(feature = "local_dynamic_tls") {
-            build.flag_if_supported("-ftls-model=local-dynamic");
-        } else {
-            build.flag_if_supported("-ftls-model=initial-exec");
-        }
-    }
-
-    if target_family == "unix" && target_os != "haiku" {
+    if target_family == "unix" || target_env == "gnu" && target_os != "haiku" {
         if cfg!(feature = "local_dynamic_tls") {
             build.flag_if_supported("-ftls-model=local-dynamic");
         } else {
@@ -119,7 +109,6 @@ fn main() {
     }
 
     if target_os == "windows" && target_env == "gnu" {
-        //using cc
         println!("cargo:rustc-link-lib=dylib=atomic");
     }
 
@@ -140,7 +129,6 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib=atomic");
     };
 }
-
 
 #[cfg(not(feature = "build_cc"))]
 fn main() {

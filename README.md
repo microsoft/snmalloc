@@ -23,6 +23,9 @@ There are three features defined in this crate:
 - `native-cpu`: Optimize `snmalloc` for the native CPU of the host machine. (this is not a default behavior since `0.2.14`)
 - `qemu`: workaround `madvise` problem of QEMU environment
 - `stats`: enable statistics
+- `local_dynamic_tls`: workaround cannot allocate memory in static tls block
+- `build_cc`: use of cc crate instead of cmake (cmake still default) as builder (more platform agnostic)
+
 
 **To get the crates compiled, you need to choose either `1mib` or `16mib` to determine the chunk configuration**
 
@@ -62,6 +65,13 @@ Hence, please make sure the following libs are in your `PATH`:
 - feature `android-shared-std` can be used to set the STL library of `snmalloc` to `c++_shared` (it uses `c++_static` by default)
 
 ## Changelog
+### 0.2.26
+
+- **upstream** Building adjustment
+- option of cc crate as build feature, only c compiler needed, no cmake required
+- Addition of dynamic local TLS option
+
+
 ### 0.2.25
 
 - **upstream** Apple M1 support
