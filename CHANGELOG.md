@@ -1,11 +1,16 @@
 ## Changelog
 
+### 0.2.26
+
+- **upstream** Building adjustment
+- option of cc crate as build feature, only c compiler needed, no cmake required
+- Addition of dynamic local TLS option
+
 ### 0.2.25
 
 - **upstream** Apple M1 support
 - **upstream** Building adjust            
 - non-allocation tracking functions 
-
 
 ### 0.2.24
 

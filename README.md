@@ -65,6 +65,7 @@ Hence, please make sure the following libs are in your `PATH`:
 - feature `android-shared-std` can be used to set the STL library of `snmalloc` to `c++_shared` (it uses `c++_static` by default)
 
 ## Changelog
+
 ### 0.2.26
 
 - **upstream** Building adjustment
