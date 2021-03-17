@@ -10,6 +10,22 @@ namespace snmalloc
 #  define CHECK_CLIENT
 #endif
 
+  SNMALLOC_FAST_PATH void check_client_impl(bool test, const char* const str)
+  {
+#ifdef CHECK_CLIENT
+    if (unlikely(!test))
+      error(str);
+#else
+    UNUSED(test);
+    UNUSED(str);
+#endif
+  }
+#ifdef CHECK_CLIENT
+#  define check_client(test, str) check_client_impl(test, str)
+#else
+#  define check_client(test, str)
+#endif
+
   // 0 intermediate bits results in power of 2 small allocs. 1 intermediate
   // bit gives additional sizeclasses at the midpoint between each power of 2.
   // 2 intermediate bits gives 3 intermediate sizeclasses, etc.
