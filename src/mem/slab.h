@@ -3,6 +3,8 @@
 #include "freelist.h"
 #include "superslab.h"
 
+#include <array>
+
 namespace snmalloc
 {
   class Slab
@@ -30,23 +32,42 @@ namespace snmalloc
     static SNMALLOC_FAST_PATH void
     alloc_new_list(void*& bumpptr, FreeListIter& fast_free_list, size_t rsize)
     {
+      void* slab_end =
+        pointer_align_up<SLAB_SIZE>(pointer_offset(bumpptr, rsize));
+
       FreeListBuilder b;
-      b.open(bumpptr);
+      SNMALLOC_ASSERT(b.empty());
 
-      void* newbumpptr = pointer_offset(bumpptr, rsize);
-      void* slab_end = pointer_align_up<SLAB_SIZE>(newbumpptr);
-      void* slab_end2 =
-        pointer_align_up<OS_PAGE_SIZE>(pointer_offset(bumpptr, rsize * 32));
-      if (slab_end2 < slab_end)
-        slab_end = slab_end2;
+      // Builder does not check for setup on add as used on fast path
+      // deallocation This lambda wraps checking for initialisation.
+      auto push = [&](void* next) {
+        SNMALLOC_ASSERT(!different_slab(bumpptr, next));
+        if (b.empty())
+        {
+          b.open(next);
+        }
+        else
+        {
+          b.add(next);
+        }
+      };
 
-      bumpptr = newbumpptr;
-      while (bumpptr < slab_end)
+      // This code needs generalising, but currently applies
+      // various offsets with a stride of seven to increase chance of catching
+      // accidental OOB write.
+      std::array<size_t, 7> start_index = {3, 5, 0, 2, 4, 1, 6};
+      for (size_t offset : start_index)
       {
-        b.add(bumpptr);
-        bumpptr = pointer_offset(bumpptr, rsize);
+        void* newbumpptr = pointer_offset(bumpptr, rsize * offset);
+        while (newbumpptr < slab_end)
+        {
+          push(newbumpptr);
+          newbumpptr = pointer_offset(newbumpptr, rsize * start_index.size());
+        }
       }
+      bumpptr = slab_end;
 
+      SNMALLOC_ASSERT(!b.empty());
       b.close(fast_free_list);
     }
 
