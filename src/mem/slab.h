@@ -81,10 +81,7 @@ namespace snmalloc
     dealloc_fast(Slab* self, Superslab* super, void* p)
     {
       Metaslab& meta = super->get_meta(self);
-#ifdef CHECK_CLIENT
-      if (meta.is_unused())
-        error("Detected potential double free.");
-#endif
+      SNMALLOC_ASSERT(!meta.is_unused());
 
       if (unlikely(meta.return_object()))
         return false;
