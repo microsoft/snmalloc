@@ -51,7 +51,7 @@ namespace snmalloc
   protected:
     void set_next(Ptr<T> c)
     {
-      next = (c == static_cast<Ptr<T>>(this)) ? nullptr : c;
+      next = address_cast(c) == address_cast(this) ? nullptr : c;
     }
 
   public:
@@ -62,7 +62,7 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH Ptr<T> get_next()
     {
-      return next == nullptr ? static_cast<Ptr<T>>(this) : next;
+      return next == nullptr ? Ptr<T>(static_cast<T*>(this)) : next;
     }
   };
 
