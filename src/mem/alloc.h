@@ -805,7 +805,7 @@ namespace snmalloc
       size_t offset_from_end =
         pointer_diff(p, pointer_offset_signed(end_point, -1));
 
-      size_t end_to_end = round_by_sizeclass(rsize, offset_from_end);
+      size_t end_to_end = round_by_sizeclass(sizeclass, offset_from_end);
 
       return pointer_offset_signed(
         end_point_correction, -static_cast<ptrdiff_t>(end_to_end));
@@ -1378,8 +1378,7 @@ namespace snmalloc
     {
       check_client(
         is_multiple_of_sizeclass(
-          sizeclass_to_size(sizeclass),
-          pointer_diff(p, pointer_offset(slab, SUPERSLAB_SIZE))),
+          sizeclass, pointer_diff(p, pointer_offset(slab, SUPERSLAB_SIZE))),
         "Not deallocating start of an object");
 
       medium_dealloc_start(slab, p, sizeclass);

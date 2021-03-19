@@ -109,8 +109,8 @@ namespace snmalloc
     SNMALLOC_FAST_PATH static bool is_start_of_object(Metaslab* self, void* p)
     {
       return is_multiple_of_sizeclass(
-        sizeclass_to_size(self->sizeclass),
-        pointer_diff(p, pointer_align_up<SLAB_SIZE>(pointer_offset(p, 1))));
+        self->sizeclass,
+        SLAB_SIZE - pointer_diff(pointer_align_down<SLAB_SIZE>(p), p));
     }
 
     /**
