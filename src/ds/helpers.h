@@ -73,18 +73,26 @@ namespace snmalloc
   template<size_t length, typename T>
   class ModArray
   {
+    /**
+     * Align the elements, so that access is cheaper.
+     */
+    struct alignas(bits::next_pow2_const(sizeof(T))) TWrap
+    {
+      T v;
+    };
+
     static constexpr size_t rlength = bits::next_pow2_const(length);
-    T array[rlength];
+    TWrap array[rlength];
 
   public:
     constexpr const T& operator[](const size_t i) const
     {
-      return array[i & (rlength - 1)];
+      return array[i & (rlength - 1)].v;
     }
 
     constexpr T& operator[](const size_t i)
     {
-      return array[i & (rlength - 1)];
+      return array[i & (rlength - 1)].v;
     }
   };
 
