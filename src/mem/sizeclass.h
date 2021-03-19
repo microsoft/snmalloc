@@ -55,99 +55,6 @@ namespace snmalloc
   static constexpr size_t NUM_LARGE_CLASSES =
     bits::ADDRESS_BITS - SUPERSLAB_BITS;
 
-  inline static size_t round_by_sizeclass(size_t rsize, size_t offset)
-  {
-    //    check_same<NUM_LARGE_CLASSES, Globals::num_large_classes>();
-    // Must be called with a rounded size.
-    SNMALLOC_ASSERT(sizeclass_to_size(size_to_sizeclass(rsize)) == rsize);
-    // Only works up to certain offsets, exhaustively tested upto
-    // SUPERSLAB_SIZE.
-    SNMALLOC_ASSERT(offset <= SUPERSLAB_SIZE);
-
-    size_t align = bits::ctz(rsize);
-    size_t divider = rsize >> align;
-    // Maximum of 24 bits for 16MiB super/medium slab
-    if (INTERMEDIATE_BITS == 0 || divider == 1)
-    {
-      SNMALLOC_ASSERT(divider == 1);
-      return offset & ~(rsize - 1);
-    }
-
-    if constexpr (bits::is64() && INTERMEDIATE_BITS <= 2)
-    {
-      // Only works for 64 bit multiplication, as the following will overflow in
-      // 32bit.
-      // The code is using reciprocal division, with a shift of 26 bits, this
-      // is considerably more bits than we need in the result.  If SUPERSLABS
-      // get larger then we should review this code.
-      static_assert(SUPERSLAB_BITS <= 24, "The following code assumes 24 bits");
-      static constexpr size_t shift = 26;
-      size_t back_shift = shift + align;
-      static constexpr size_t mul_shift = 1ULL << shift;
-      static constexpr uint32_t constants[8] = {0,
-                                                mul_shift,
-                                                0,
-                                                (mul_shift / 3) + 1,
-                                                0,
-                                                (mul_shift / 5) + 1,
-                                                0,
-                                                (mul_shift / 7) + 1};
-      return ((constants[divider] * offset) >> back_shift) * rsize;
-    }
-    else
-      // Use 32-bit division as considerably faster than 64-bit, and
-      // everything fits into 32bits here.
-      return static_cast<uint32_t>(offset / rsize) * rsize;
-  }
-
-  inline static bool is_multiple_of_sizeclass(size_t rsize, size_t offset)
-  {
-    // Must be called with a rounded size.
-    SNMALLOC_ASSERT(sizeclass_to_size(size_to_sizeclass(rsize)) == rsize);
-    // Only works up to certain offsets, exhaustively tested upto
-    // SUPERSLAB_SIZE.
-    SNMALLOC_ASSERT(offset <= SUPERSLAB_SIZE);
-
-    size_t align = bits::ctz(rsize);
-    size_t divider = rsize >> align;
-    // Maximum of 24 bits for 16MiB super/medium slab
-    if (INTERMEDIATE_BITS == 0 || divider == 1)
-    {
-      SNMALLOC_ASSERT(divider == 1);
-      return (offset & (rsize - 1)) == 0;
-    }
-
-    if constexpr (bits::is64() && INTERMEDIATE_BITS <= 2)
-    {
-      // Only works for 64 bit multiplication, as the following will overflow in
-      // 32bit.
-      // The code is using reciprocal division, with a shift of 26 bits, this
-      // is considerably more bits than we need in the result.  If SUPERSLABS
-      // get larger then we should review this code.
-      static_assert(SUPERSLAB_BITS <= 24, "The following code assumes 24 bits");
-      static constexpr size_t shift = 31;
-      static constexpr size_t mul_shift = 1ULL << shift;
-      static constexpr uint32_t constants[8] = {0,
-                                                mul_shift,
-                                                0,
-                                                (mul_shift / 3) + 1,
-                                                0,
-                                                (mul_shift / 5) + 1,
-                                                0,
-                                                (mul_shift / 7) + 1};
-
-      // There is a long chain of zeros after the backshift
-      // However, not all zero so just check a range.
-      // This is exhaustively tested for the current use case
-      return (((constants[divider] * offset)) &
-              (((1ULL << (align + 3)) - 1) << (shift - 3))) == 0;
-    }
-    else
-      // Use 32-bit division as considerably faster than 64-bit, and
-      // everything fits into 32bits here.
-      return static_cast<uint32_t>(offset % rsize) == 0;
-  }
-
 #ifdef CACHE_FRIENDLY_OFFSET
   SNMALLOC_FAST_PATH static void*
   remove_cache_friendly_offset(void* p, sizeclass_t sizeclass)
@@ -200,6 +107,9 @@ namespace snmalloc
     }
     return sizeclass_to_size(size_to_sizeclass(size));
   }
+
+  // Uses table for reciprocal division, so provide forward reference.
+  static bool is_multiple_of_sizeclass(sizeclass_t sc, size_t offset);
 
   /// Returns the alignment that this size naturally has, that is
   /// all allocations of size `size` will be aligned to the returned value.

@@ -243,8 +243,11 @@ void test_external_pointer()
       void* p2 = pointer_offset(p1, offset);
       void* p3 = alloc->external_pointer(p2);
       void* p4 = alloc->external_pointer<End>(p2);
-      UNUSED(p3);
-      UNUSED(p4);
+      if (p1 != p3)
+      {
+        std::cout << "size: " << size << " offset: " << offset << " p1: " << p1
+                  << "  p3: " << p3 << std::endl;
+      }
       SNMALLOC_CHECK(p1 == p3);
       SNMALLOC_CHECK((size_t)p4 == (size_t)p1 + size - 1);
     }
