@@ -272,12 +272,6 @@ namespace snmalloc
 
   using Stats = AllocStats<NUM_SIZECLASSES, NUM_LARGE_CLASSES>;
 
-  enum AllowReserve
-  {
-    NoReserve,
-    YesReserve
-  };
-
   template<class MemoryProvider>
   class LargeAlloc
   {
@@ -289,7 +283,7 @@ namespace snmalloc
 
     LargeAlloc(MemoryProvider& mp) : memory_provider(mp) {}
 
-    template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
+    template<ZeroMem zero_mem = NoZero>
     void* alloc(size_t large_class, size_t size)
     {
       size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
