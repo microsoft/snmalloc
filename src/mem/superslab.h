@@ -186,43 +186,50 @@ namespace snmalloc
       return meta[slab_to_index(slab)];
     }
 
-    Slab* alloc_short_slab(sizeclass_t sizeclass)
+    // This is pre-factored to take an explicit self parameter so that we can
+    // eventually annotate that pointer with additional information.
+    static Slab* alloc_short_slab(Superslab* self, sizeclass_t sizeclass)
     {
-      if ((used & 1) == 1)
-        return alloc_slab(sizeclass);
+      if ((self->used & 1) == 1)
+        return alloc_slab(self, sizeclass);
 
-      meta[0].free_queue.init();
+      auto& metaz = self->meta[0];
+
+      metaz.free_queue.init();
       // Set up meta data as if the entire slab has been turned into a free
       // list. This means we don't have to check for special cases where we have
       // returned all the elements, but this is a slab that is still being bump
       // allocated from. Hence, the bump allocator slab will never be returned
       // for use in another size class.
-      meta[0].set_full();
-      meta[0].sizeclass = static_cast<uint8_t>(sizeclass);
+      metaz.set_full();
+      metaz.sizeclass = static_cast<uint8_t>(sizeclass);
 
-      used++;
-      return reinterpret_cast<Slab*>(this);
+      self->used++;
+      return reinterpret_cast<Slab*>(self);
     }
 
-    Slab* alloc_slab(sizeclass_t sizeclass)
+    // This is pre-factored to take an explicit self parameter so that we can
+    // eventually annotate that pointer with additional information.
+    static Slab* alloc_slab(Superslab* self, sizeclass_t sizeclass)
     {
-      uint8_t h = head;
+      uint8_t h = self->head;
       Slab* slab = reinterpret_cast<Slab*>(
-        pointer_offset(this, (static_cast<size_t>(h) << SLAB_BITS)));
+        pointer_offset(self, (static_cast<size_t>(h) << SLAB_BITS)));
 
-      uint8_t n = meta[h].next;
+      auto& metah = self->meta[h];
+      uint8_t n = metah.next;
 
-      meta[h].free_queue.init();
+      metah.free_queue.init();
       // Set up meta data as if the entire slab has been turned into a free
       // list. This means we don't have to check for special cases where we have
       // returned all the elements, but this is a slab that is still being bump
       // allocated from. Hence, the bump allocator slab will never be returned
       // for use in another size class.
-      meta[h].set_full();
-      meta[h].sizeclass = static_cast<uint8_t>(sizeclass);
+      metah.set_full();
+      metah.sizeclass = static_cast<uint8_t>(sizeclass);
 
-      head = h + n + 1;
-      used += 2;
+      self->head = h + n + 1;
+      self->used += 2;
 
       return slab;
     }

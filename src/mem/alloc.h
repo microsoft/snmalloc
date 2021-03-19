@@ -973,7 +973,7 @@ namespace snmalloc
 
         if (super != nullptr)
         {
-          Slab* slab = super->alloc_short_slab(sizeclass);
+          auto slab = Superslab::alloc_short_slab(super, sizeclass);
           SNMALLOC_ASSERT(super->is_full());
           return slab;
         }
@@ -983,7 +983,7 @@ namespace snmalloc
         if (super == nullptr)
           return nullptr;
 
-        Slab* slab = super->alloc_short_slab(sizeclass);
+        auto slab = Superslab::alloc_short_slab(super, sizeclass);
         reposition_superslab(super);
         return slab;
       }
@@ -993,7 +993,7 @@ namespace snmalloc
       if (super == nullptr)
         return nullptr;
 
-      Slab* slab = super->alloc_slab(sizeclass);
+      auto slab = Superslab::alloc_slab(super, sizeclass);
       reposition_superslab(super);
       return slab;
     }
