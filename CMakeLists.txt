@@ -11,7 +11,6 @@ include(CheckCSourceCompiles)
 
 option(USE_SNMALLOC_STATS "Track allocation stats" OFF)
 option(SNMALLOC_CI_BUILD "Disable features not sensible for CI" OFF)
-option(USE_MEASURE "Measure performance with histograms" OFF)
 option(EXPOSE_EXTERNAL_PAGEMAP "Expose the global pagemap" OFF)
 option(EXPOSE_EXTERNAL_RESERVE "Expose an interface to reserve memory using the default memory provider" OFF)
 option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF)
@@ -147,10 +146,6 @@ endif()
 
 if(SNMALLOC_QEMU_WORKAROUND)
   target_compile_definitions(snmalloc_lib INTERFACE -DSNMALLOC_QEMU_WORKAROUND)
-endif()
-
-if(USE_MEASURE)
-  target_compile_definitions(snmalloc_lib INTERFACE -DUSE_MEASURE)
 endif()
 
 if(SNMALLOC_CI_BUILD)
