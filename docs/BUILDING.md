@@ -88,7 +88,6 @@ These can be added to your cmake command line.
 
 ```
 -DUSE_SNMALLOC_STATS=ON // Track allocation stats
--DUSE_MEASURE=ON // Measure performance with histograms
 ```
 
 # Using snmalloc as header-only library

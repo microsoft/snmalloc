@@ -7,7 +7,6 @@
 #endif
 
 #include "../pal/pal_consts.h"
-#include "../test/histogram.h"
 #include "allocstats.h"
 #include "chunkmap.h"
 #include "external_alloc.h"
@@ -1002,12 +1001,6 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     SNMALLOC_FAST_PATH void* small_alloc(size_t size)
     {
-      MEASURE_TIME_MARKERS(
-        small_alloc,
-        4,
-        16,
-        MARKERS(zero_mem == YesZero ? "zeromem" : "nozeromem"));
-
       SNMALLOC_ASSUME(size <= SLAB_SIZE);
       sizeclass_t sizeclass = size_to_sizeclass(size);
       return small_alloc_inner<zero_mem>(sizeclass, size);
@@ -1212,7 +1205,6 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void small_dealloc_offseted(
       Superslab* super, Slab* slab, void* p, sizeclass_t sizeclass)
     {
-      MEASURE_TIME(small_dealloc, 4, 16);
       stats().sizeclass_dealloc(sizeclass);
 
       small_dealloc_offseted_inner(super, slab, p, sizeclass);
@@ -1283,12 +1275,6 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     void* medium_alloc(sizeclass_t sizeclass, size_t rsize, size_t size)
     {
-      MEASURE_TIME_MARKERS(
-        medium_alloc,
-        4,
-        16,
-        MARKERS(zero_mem == YesZero ? "zeromem" : "nozeromem"));
-
       sizeclass_t medium_class = sizeclass - NUM_SMALL_CLASSES;
 
       DLList<Mediumslab>* sc = &medium_classes[medium_class];
@@ -1382,7 +1368,6 @@ namespace snmalloc
     SNMALLOC_FAST_PATH
     void medium_dealloc_local(Mediumslab* slab, void* p, sizeclass_t sizeclass)
     {
-      MEASURE_TIME(medium_dealloc, 4, 16);
       stats().sizeclass_dealloc(sizeclass);
       bool was_full = Mediumslab::dealloc(slab, p);
 
@@ -1410,12 +1395,6 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     void* large_alloc(size_t size)
     {
-      MEASURE_TIME_MARKERS(
-        large_alloc,
-        4,
-        16,
-        MARKERS(zero_mem == YesZero ? "zeromem" : "nozeromem"));
-
       if (NeedsInitialisation(this))
       {
         return InitThreadAllocator([size](void* alloc) {
@@ -1478,8 +1457,6 @@ namespace snmalloc
 
       size_t large_class = chunkmap_slab_kind - SUPERSLAB_BITS;
 
-      MEASURE_TIME(large_dealloc, 4, 16);
-
       chunkmap().clear_large_size(p, size);
 
       stats().large_dealloc(large_class);
@@ -1496,7 +1473,6 @@ namespace snmalloc
     SNMALLOC_FAST_PATH
     void remote_dealloc(RemoteAllocator* target, void* p, sizeclass_t sizeclass)
     {
-      MEASURE_TIME(remote_dealloc, 4, 16);
       SNMALLOC_ASSERT(target->trunc_id() != get_trunc_id());
 
       // Check whether this will overflow the cache first.  If we are a fake
