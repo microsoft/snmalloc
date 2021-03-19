@@ -750,15 +750,15 @@ namespace snmalloc
         auto& bp = bump_ptrs[i];
         auto rsize = sizeclass_to_size(i);
         FreeListIter ffl;
+
+        Superslab* super = Superslab::get(bp);
+        Slab* slab = Metaslab::get_slab(bp);
         while (pointer_align_up(bp, SLAB_SIZE) != bp)
         {
           Slab::alloc_new_list(bp, ffl, rsize);
           while (!ffl.empty())
           {
-            auto curr = ffl.take();
-            Superslab* super = Superslab::get(curr);
-            Slab* slab = Metaslab::get_slab(curr);
-            small_dealloc_offseted_inner(super, slab, curr, i);
+            small_dealloc_offseted_inner(super, slab, ffl.take(), i);
           }
         }
       }
