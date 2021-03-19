@@ -119,17 +119,11 @@ namespace snmalloc
     /**
      * Allocate memory of a statically known size.
      */
-    template<
-      size_t size,
-      ZeroMem zero_mem = NoZero,
-      AllowReserve allow_reserve = YesReserve>
+    template<size_t size, ZeroMem zero_mem = NoZero>
     SNMALLOC_FAST_PATH ALLOCATOR void* alloc()
     {
       static_assert(size != 0, "Size must not be zero.");
 #ifdef SNMALLOC_PASS_THROUGH
-      static_assert(
-        allow_reserve == YesReserve,
-        "When passing to malloc, cannot require NoResereve");
       // snmalloc guarantees a lot of alignment, so we can depend on this
       // make pass through call aligned_alloc with the alignment snmalloc
       // would guarantee.
@@ -145,18 +139,18 @@ namespace snmalloc
 
       if constexpr (sizeclass < NUM_SMALL_CLASSES)
       {
-        return small_alloc<zero_mem, allow_reserve>(size);
+        return small_alloc<zero_mem>(size);
       }
       else if constexpr (sizeclass < NUM_SIZECLASSES)
       {
         handle_message_queue();
         constexpr size_t rsize = sizeclass_to_size(sizeclass);
-        return medium_alloc<zero_mem, allow_reserve>(sizeclass, rsize, size);
+        return medium_alloc<zero_mem>(sizeclass, rsize, size);
       }
       else
       {
         handle_message_queue();
-        return large_alloc<zero_mem, allow_reserve>(size);
+        return large_alloc<zero_mem>(size);
       }
 #endif
     }
@@ -164,13 +158,10 @@ namespace snmalloc
     /**
      * Allocate memory of a dynamically known size.
      */
-    template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
+    template<ZeroMem zero_mem = NoZero>
     SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
     {
 #ifdef SNMALLOC_PASS_THROUGH
-      static_assert(
-        allow_reserve == YesReserve,
-        "When passing to malloc, cannot require NoResereve");
       // snmalloc guarantees a lot of alignment, so we can depend on this
       // make pass through call aligned_alloc with the alignment snmalloc
       // would guarantee.
@@ -186,30 +177,30 @@ namespace snmalloc
       {
         // Allocations smaller than the slab size are more likely. Improve
         // branch prediction by placing this case first.
-        return small_alloc<zero_mem, allow_reserve>(size);
+        return small_alloc<zero_mem>(size);
       }
 
-      return alloc_not_small<zero_mem, allow_reserve>(size);
+      return alloc_not_small<zero_mem>(size);
     }
 
-    template<ZeroMem zero_mem = NoZero, AllowReserve allow_reserve = YesReserve>
+    template<ZeroMem zero_mem = NoZero>
     SNMALLOC_SLOW_PATH ALLOCATOR void* alloc_not_small(size_t size)
     {
       handle_message_queue();
 
       if (size == 0)
       {
-        return small_alloc<zero_mem, allow_reserve>(1);
+        return small_alloc<zero_mem>(1);
       }
 
       sizeclass_t sizeclass = size_to_sizeclass(size);
       if (sizeclass < NUM_SIZECLASSES)
       {
         size_t rsize = sizeclass_to_size(sizeclass);
-        return medium_alloc<zero_mem, allow_reserve>(sizeclass, rsize, size);
+        return medium_alloc<zero_mem>(sizeclass, rsize, size);
       }
 
-      return large_alloc<zero_mem, allow_reserve>(size);
+      return large_alloc<zero_mem>(size);
 
 #endif
     }
@@ -919,7 +910,6 @@ namespace snmalloc
       handle_message_queue_inner();
     }
 
-    template<AllowReserve allow_reserve>
     Superslab* get_superslab()
     {
       Superslab* super = super_available.get_head();
@@ -928,8 +918,7 @@ namespace snmalloc
         return super;
 
       super = reinterpret_cast<Superslab*>(
-        large_allocator.template alloc<NoZero, allow_reserve>(
-          0, SUPERSLAB_SIZE));
+        large_allocator.template alloc<NoZero>(0, SUPERSLAB_SIZE));
 
       if (super == nullptr)
         return super;
@@ -974,7 +963,6 @@ namespace snmalloc
       }
     }
 
-    template<AllowReserve allow_reserve>
     SNMALLOC_SLOW_PATH Slab* alloc_slab(sizeclass_t sizeclass)
     {
       stats().sizeclass_alloc_slab(sizeclass);
@@ -991,7 +979,7 @@ namespace snmalloc
           return slab;
         }
 
-        super = get_superslab<allow_reserve>();
+        super = get_superslab();
 
         if (super == nullptr)
           return nullptr;
@@ -1001,7 +989,7 @@ namespace snmalloc
         return slab;
       }
 
-      Superslab* super = get_superslab<allow_reserve>();
+      Superslab* super = get_superslab();
 
       if (super == nullptr)
         return nullptr;
@@ -1011,23 +999,21 @@ namespace snmalloc
       return slab;
     }
 
-    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    template<ZeroMem zero_mem>
     SNMALLOC_FAST_PATH void* small_alloc(size_t size)
     {
       MEASURE_TIME_MARKERS(
         small_alloc,
         4,
         16,
-        MARKERS(
-          zero_mem == YesZero ? "zeromem" : "nozeromem",
-          allow_reserve == NoReserve ? "noreserve" : "reserve"));
+        MARKERS(zero_mem == YesZero ? "zeromem" : "nozeromem"));
 
       SNMALLOC_ASSUME(size <= SLAB_SIZE);
       sizeclass_t sizeclass = size_to_sizeclass(size);
-      return small_alloc_inner<zero_mem, allow_reserve>(sizeclass, size);
+      return small_alloc_inner<zero_mem>(sizeclass, size);
     }
 
-    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    template<ZeroMem zero_mem>
     SNMALLOC_FAST_PATH void*
     small_alloc_inner(sizeclass_t sizeclass, size_t size)
     {
@@ -1046,30 +1032,28 @@ namespace snmalloc
       }
 
       if (likely(!has_messages()))
-        return small_alloc_next_free_list<zero_mem, allow_reserve>(
-          sizeclass, size);
+        return small_alloc_next_free_list<zero_mem>(sizeclass, size);
 
-      return small_alloc_mq_slow<zero_mem, allow_reserve>(sizeclass, size);
+      return small_alloc_mq_slow<zero_mem>(sizeclass, size);
     }
 
     /**
      * Slow path for handling message queue, before dealing with small
      * allocation request.
      */
-    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH void*
     small_alloc_mq_slow(sizeclass_t sizeclass, size_t size)
     {
       handle_message_queue_inner();
 
-      return small_alloc_next_free_list<zero_mem, allow_reserve>(
-        sizeclass, size);
+      return small_alloc_next_free_list<zero_mem>(sizeclass, size);
     }
 
     /**
      * Attempt to find a new free list to allocate from
      */
-    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH void*
     small_alloc_next_free_list(sizeclass_t sizeclass, size_t size)
     {
@@ -1086,7 +1070,7 @@ namespace snmalloc
         return Metaslab::alloc<zero_mem, typename MemoryProvider::Pal>(
           meta, ffl, rsize);
       }
-      return small_alloc_rare<zero_mem, allow_reserve>(sizeclass, size);
+      return small_alloc_rare<zero_mem>(sizeclass, size);
     }
 
     /**
@@ -1094,7 +1078,7 @@ namespace snmalloc
      * Could be due to using the dummy allocator, or needing to bump allocate a
      * new free list.
      */
-    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH void*
     small_alloc_rare(sizeclass_t sizeclass, size_t size)
     {
@@ -1102,23 +1086,22 @@ namespace snmalloc
       {
         stats().alloc_request(size);
         stats().sizeclass_alloc(sizeclass);
-        return small_alloc_new_free_list<zero_mem, allow_reserve>(sizeclass);
+        return small_alloc_new_free_list<zero_mem>(sizeclass);
       }
-      return small_alloc_first_alloc<zero_mem, allow_reserve>(sizeclass, size);
+      return small_alloc_first_alloc<zero_mem>(sizeclass, size);
     }
 
     /**
      * Called on first allocation to set up the thread local allocator,
      * then directs the allocation request to the newly created allocator.
      */
-    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH void*
     small_alloc_first_alloc(sizeclass_t sizeclass, size_t size)
     {
       return InitThreadAllocator([sizeclass, size](void* alloc) {
         return reinterpret_cast<Allocator*>(alloc)
-          ->template small_alloc_inner<zero_mem, allow_reserve>(
-            sizeclass, size);
+          ->template small_alloc_inner<zero_mem>(sizeclass, size);
       });
     }
 
@@ -1126,23 +1109,23 @@ namespace snmalloc
      * Called to create a new free list, and service the request from that new
      * list.
      */
-    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    template<ZeroMem zero_mem>
     SNMALLOC_FAST_PATH void* small_alloc_new_free_list(sizeclass_t sizeclass)
     {
       auto& bp = bump_ptrs[sizeclass];
       if (likely(pointer_align_up(bp, SLAB_SIZE) != bp))
       {
-        return small_alloc_build_free_list<zero_mem, allow_reserve>(sizeclass);
+        return small_alloc_build_free_list<zero_mem>(sizeclass);
       }
       // Fetch new slab
-      return small_alloc_new_slab<zero_mem, allow_reserve>(sizeclass);
+      return small_alloc_new_slab<zero_mem>(sizeclass);
     }
 
     /**
      * Creates a new free list from the thread local bump allocator and service
      * the request from that new list.
      */
-    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    template<ZeroMem zero_mem>
     SNMALLOC_FAST_PATH void* small_alloc_build_free_list(sizeclass_t sizeclass)
     {
       auto& bp = bump_ptrs[sizeclass];
@@ -1165,18 +1148,18 @@ namespace snmalloc
      * for this size class, and then builds a new free list from the thread
      * local bump allocator and service the request from that new list.
      */
-    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH void* small_alloc_new_slab(sizeclass_t sizeclass)
     {
       auto& bp = bump_ptrs[sizeclass];
       // Fetch new slab
-      Slab* slab = alloc_slab<allow_reserve>(sizeclass);
+      Slab* slab = alloc_slab(sizeclass);
       if (slab == nullptr)
         return nullptr;
       bp = pointer_offset<void>(
         slab, get_initial_offset(sizeclass, Metaslab::is_short(slab)));
 
-      return small_alloc_build_free_list<zero_mem, allow_reserve>(sizeclass);
+      return small_alloc_build_free_list<zero_mem>(sizeclass);
     }
 
     SNMALLOC_FAST_PATH void
@@ -1297,16 +1280,14 @@ namespace snmalloc
       }
     }
 
-    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    template<ZeroMem zero_mem>
     void* medium_alloc(sizeclass_t sizeclass, size_t rsize, size_t size)
     {
       MEASURE_TIME_MARKERS(
         medium_alloc,
         4,
         16,
-        MARKERS(
-          zero_mem == YesZero ? "zeromem" : "nozeromem",
-          allow_reserve == NoReserve ? "noreserve" : "reserve"));
+        MARKERS(zero_mem == YesZero ? "zeromem" : "nozeromem"));
 
       sizeclass_t medium_class = sizeclass - NUM_SMALL_CLASSES;
 
@@ -1327,13 +1308,12 @@ namespace snmalloc
         if (NeedsInitialisation(this))
         {
           return InitThreadAllocator([size, rsize, sizeclass](void* alloc) {
-            return reinterpret_cast<Allocator*>(alloc)
-              ->medium_alloc<zero_mem, allow_reserve>(sizeclass, rsize, size);
+            return reinterpret_cast<Allocator*>(alloc)->medium_alloc<zero_mem>(
+              sizeclass, rsize, size);
           });
         }
         slab = reinterpret_cast<Mediumslab*>(
-          large_allocator.template alloc<NoZero, allow_reserve>(
-            0, SUPERSLAB_SIZE));
+          large_allocator.template alloc<NoZero>(0, SUPERSLAB_SIZE));
 
         if (slab == nullptr)
           return nullptr;
@@ -1427,22 +1407,20 @@ namespace snmalloc
       }
     }
 
-    template<ZeroMem zero_mem, AllowReserve allow_reserve>
+    template<ZeroMem zero_mem>
     void* large_alloc(size_t size)
     {
       MEASURE_TIME_MARKERS(
         large_alloc,
         4,
         16,
-        MARKERS(
-          zero_mem == YesZero ? "zeromem" : "nozeromem",
-          allow_reserve == NoReserve ? "noreserve" : "reserve"));
+        MARKERS(zero_mem == YesZero ? "zeromem" : "nozeromem"));
 
       if (NeedsInitialisation(this))
       {
         return InitThreadAllocator([size](void* alloc) {
-          return reinterpret_cast<Allocator*>(alloc)
-            ->large_alloc<zero_mem, allow_reserve>(size);
+          return reinterpret_cast<Allocator*>(alloc)->large_alloc<zero_mem>(
+            size);
         });
       }
 
@@ -1450,8 +1428,7 @@ namespace snmalloc
       size_t large_class = size_bits - SUPERSLAB_BITS;
       SNMALLOC_ASSERT(large_class < NUM_LARGE_CLASSES);
 
-      void* p = large_allocator.template alloc<zero_mem, allow_reserve>(
-        large_class, size);
+      void* p = large_allocator.template alloc<zero_mem>(large_class, size);
       if (likely(p != nullptr))
       {
         chunkmap().set_large_size(p, size);
