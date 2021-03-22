@@ -14,6 +14,8 @@ namespace snmalloc
   constexpr static uintptr_t SIZECLASS_MASK = 0xFF;
 
   constexpr static uint16_t get_initial_offset(sizeclass_t sc, bool is_short);
+  constexpr static uint16_t get_slab_capacity(sizeclass_t sc, bool is_short);
+
   constexpr static size_t sizeclass_to_size(sizeclass_t sizeclass);
   constexpr static size_t
   sizeclass_to_cache_friendly_mask(sizeclass_t sizeclass);

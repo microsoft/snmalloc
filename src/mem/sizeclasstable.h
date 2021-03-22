@@ -29,6 +29,8 @@ namespace snmalloc
     ModArray<NUM_SIZECLASSES, size_t> inverse_cache_friendly_mask;
     ModArray<NUM_SMALL_CLASSES, uint16_t> initial_offset_ptr;
     ModArray<NUM_SMALL_CLASSES, uint16_t> short_initial_offset_ptr;
+    ModArray<NUM_SMALL_CLASSES, uint16_t> capacity;
+    ModArray<NUM_SMALL_CLASSES, uint16_t> short_capacity;
     ModArray<NUM_MEDIUM_CLASSES, uint16_t> medium_slab_slots;
     // Table of constants for reciprocal division for each sizeclass.
     ModArray<NUM_SIZECLASSES, size_t> div_mult;
@@ -41,6 +43,8 @@ namespace snmalloc
       inverse_cache_friendly_mask(),
       initial_offset_ptr(),
       short_initial_offset_ptr(),
+      capacity(),
+      short_capacity(),
       medium_slab_slots(),
       div_mult(),
       mod_mult()
@@ -90,6 +94,11 @@ namespace snmalloc
         initial_offset_ptr[i] = static_cast<uint16_t>(correction);
         short_initial_offset_ptr[i] =
           static_cast<uint16_t>(header_size + short_correction);
+
+        capacity[i] = static_cast<uint16_t>(
+          (SLAB_SIZE - initial_offset_ptr[i]) / (size[i]));
+        short_capacity[i] = static_cast<uint16_t>(
+          (SLAB_SIZE - short_initial_offset_ptr[i]) / (size[i]));
       }
 
       for (sizeclass_t i = NUM_SMALL_CLASSES; i < NUM_SIZECLASSES; i++)
@@ -109,6 +118,15 @@ namespace snmalloc
       return sizeclass_metadata.short_initial_offset_ptr[sc];
 
     return sizeclass_metadata.initial_offset_ptr[sc];
+  }
+
+  static inline constexpr uint16_t
+  get_slab_capacity(sizeclass_t sc, bool is_short)
+  {
+    if (is_short)
+      return sizeclass_metadata.short_capacity[sc];
+
+    return sizeclass_metadata.capacity[sc];
   }
 
   constexpr static inline size_t sizeclass_to_size(sizeclass_t sizeclass)
