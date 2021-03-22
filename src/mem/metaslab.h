@@ -30,7 +30,7 @@ namespace snmalloc
     /**
      *  Pointer to first free entry in this slab
      *
-     *  The list will be (allocated - needed) long.
+     *  The list will be (slab_capacity - needed) long.
      */
     FreeListBuilder free_queue;
 
@@ -43,11 +43,6 @@ namespace snmalloc
      *  case with a single operation subtract and test.
      */
     uint16_t needed = 0;
-
-    /**
-     *  How many entries have been allocated from this slab.
-     */
-    uint16_t allocated = 0;
 
     uint8_t sizeclass;
     // Initially zero to encode the superslabs relative list of slabs.
@@ -136,7 +131,8 @@ namespace snmalloc
       void* n = fast_free_list.take();
 
       // Treat stealing the free list as allocating it all.
-      self->needed = self->allocated;
+      self->needed =
+        get_slab_capacity(self->sizeclass, Metaslab::is_short(slab));
       self->remove();
       self->set_full();
 
@@ -195,8 +191,8 @@ namespace snmalloc
         SNMALLOC_ASSERT(SLAB_SIZE >= accounted_for);
       }
 
-      auto bumpptr = (allocated * size) + offset;
-      // Check we haven't allocaated more than gits in a slab
+      auto bumpptr = (get_slab_capacity(sizeclass, is_short) * size) + offset;
+      // Check we haven't allocated more than fits in a slab
       SNMALLOC_ASSERT(bumpptr <= SLAB_SIZE);
 
       // Account for to be bump allocated space
