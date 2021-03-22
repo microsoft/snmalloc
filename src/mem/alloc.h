@@ -306,7 +306,7 @@ namespace snmalloc
          */
         Slab* slab = Metaslab::get_slab(p);
         Metaslab& meta = super->get_meta(slab);
-        sizeclass_t sizeclass = meta.sizeclass;
+        sizeclass_t sizeclass = meta.sizeclass();
 
         small_dealloc_checked_sizeclass(super, slab, p, sizeclass);
         return;
@@ -361,7 +361,7 @@ namespace snmalloc
         Slab* slab = Metaslab::get_slab(p);
         Metaslab& meta = super->get_meta(slab);
 
-        sizeclass_t sc = meta.sizeclass;
+        sizeclass_t sc = meta.sizeclass();
         void* slab_end = pointer_offset(slab, SLAB_SIZE);
 
         return external_pointer<location>(p, sc, slab_end);
@@ -436,7 +436,7 @@ namespace snmalloc
         Slab* slab = Metaslab::get_slab(p);
         Metaslab& meta = super->get_meta(slab);
 
-        return sizeclass_to_size(meta.sizeclass);
+        return sizeclass_to_size(meta.sizeclass());
       }
 
       if (likely(chunkmap_slab_kind == CMMediumslab))
@@ -1170,7 +1170,7 @@ namespace snmalloc
     {
       Slab* slab = Metaslab::get_slab(p);
       check_client(
-        sizeclass == super->get_meta(slab).sizeclass,
+        sizeclass == super->get_meta(slab).sizeclass(),
         "Claimed small deallocation with mismatching size class");
 
       small_dealloc_checked_sizeclass(super, slab, p, sizeclass);

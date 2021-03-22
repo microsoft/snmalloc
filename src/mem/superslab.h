@@ -4,7 +4,6 @@
 #include "allocslab.h"
 #include "metaslab.h"
 
-#include <iostream>
 #include <new>
 
 namespace snmalloc
@@ -134,7 +133,7 @@ namespace snmalloc
       auto curr = head;
       for (size_t i = 0; i < SLAB_COUNT - used - 1; i++)
       {
-        curr = (curr + meta[curr].next + 1) & (SLAB_COUNT - 1);
+        curr = (curr + meta[curr].next() + 1) & (SLAB_COUNT - 1);
       }
       if (curr != 0)
         abort();
@@ -202,7 +201,7 @@ namespace snmalloc
       // allocated from. Hence, the bump allocator slab will never be returned
       // for use in another size class.
       metaz.set_full();
-      metaz.sizeclass = static_cast<uint8_t>(sizeclass);
+      metaz.sizeclass() = static_cast<uint8_t>(sizeclass);
 
       self->used++;
       return reinterpret_cast<Slab*>(self);
@@ -217,7 +216,7 @@ namespace snmalloc
         pointer_offset(self, (static_cast<size_t>(h) << SLAB_BITS)));
 
       auto& metah = self->meta[h];
-      uint8_t n = metah.next;
+      uint8_t n = metah.next();
 
       metah.free_queue.init();
       // Set up meta data as if the entire slab has been turned into a free
@@ -226,7 +225,7 @@ namespace snmalloc
       // allocated from. Hence, the bump allocator slab will never be returned
       // for use in another size class.
       metah.set_full();
-      metah.sizeclass = static_cast<uint8_t>(sizeclass);
+      metah.sizeclass() = static_cast<uint8_t>(sizeclass);
 
       self->head = h + n + 1;
       self->used += 2;
@@ -241,8 +240,8 @@ namespace snmalloc
       uint8_t index = static_cast<uint8_t>(slab_to_index(slab));
       uint8_t n = head - index - 1;
 
-      meta[index].sizeclass = 0;
-      meta[index].next = n;
+      meta[index].sizeclass() = 0;
+      meta[index].next() = n;
       head = index;
       bool was_almost_full = is_almost_full();
       used -= 2;

@@ -95,7 +95,7 @@ namespace snmalloc
       if (meta.is_full())
       {
         auto allocated = get_slab_capacity(
-          meta.sizeclass, Metaslab::is_short(Metaslab::get_slab(p)));
+          meta.sizeclass(), Metaslab::is_short(Metaslab::get_slab(p)));
         // We are not on the sizeclass list.
         if (allocated == 1)
         {
@@ -108,7 +108,7 @@ namespace snmalloc
         SNMALLOC_ASSERT(meta.free_queue.empty());
         meta.free_queue.open(p);
         meta.free_queue.add(p);
-        meta.needed = allocated - 1;
+        meta.needed() = allocated - 1;
 
         // Push on the list of slabs for this sizeclass.
         sl->insert_prev(&meta);
