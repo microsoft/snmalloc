@@ -76,8 +76,6 @@ namespace snmalloc
       // Update the head and the next pointer in the free list.
       meta.free_queue.add(p);
 
-      SNMALLOC_ASSERT(meta.valid_head());
-
       return true;
     }
 

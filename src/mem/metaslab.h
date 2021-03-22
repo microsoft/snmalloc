@@ -81,16 +81,6 @@ namespace snmalloc
       null_prev();
     }
 
-    bool valid_head()
-    {
-      size_t size = sizeclass_to_size(sizeclass);
-      auto h = address_cast(free_queue.peek_head());
-      address_t slab_end = (h | ~SLAB_MASK) + 1;
-      address_t allocation_start = remove_cache_friendly_offset(h, sizeclass);
-
-      return (slab_end - allocation_start) % size == 0;
-    }
-
     static Slab* get_slab(const void* p)
     {
       return pointer_align_down<SLAB_SIZE, Slab>(const_cast<void*>(p));
@@ -123,10 +113,6 @@ namespace snmalloc
       SNMALLOC_ASSERT(rsize == sizeclass_to_size(self->sizeclass));
       SNMALLOC_ASSERT(!self->is_full());
 
-      auto slab = get_slab(self->free_queue.peek_head());
-
-      self->debug_slab_invariant(slab);
-
       self->free_queue.close(fast_free_list);
       void* n = fast_free_list.take();
 
@@ -139,7 +125,7 @@ namespace snmalloc
       void* p = remove_cache_friendly_offset(n, self->sizeclass);
       SNMALLOC_ASSERT(is_start_of_object(self, p));
 
-      self->debug_slab_invariant(slab);
+      self->debug_slab_invariant(Metaslab::get_slab(p));
 
       if constexpr (zero_mem == YesZero)
       {
