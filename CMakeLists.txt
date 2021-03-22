@@ -294,28 +294,31 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         # Windows does not support aligned allocation well enough
         # for pass through.
         # NetBSD, OpenBSD and DragonFlyBSD do not support malloc*size calls.
-        set(FLAVOURS 1;16;oe)
+        set(FLAVOURS 1;16;oe;check)
       else()
-        set(FLAVOURS 1;16;oe;malloc)
+        set(FLAVOURS 1;16;oe;malloc;check)
       endif()
-      foreach(SUPER_SLAB_SIZE ${FLAVOURS})
+      foreach(FLAVOUR ${FLAVOURS})
         unset(SRC)
         aux_source_directory(${TESTDIR}/${TEST_CATEGORY}/${TEST} SRC)
-        set(TESTNAME "${TEST_CATEGORY}-${TEST}-${SUPER_SLAB_SIZE}")
+        set(TESTNAME "${TEST_CATEGORY}-${TEST}-${FLAVOUR}")
 
         add_executable(${TESTNAME} ${SRC})
 
         # For all tests enable commit checking.
         target_compile_definitions(${TESTNAME} PRIVATE -DUSE_POSIX_COMMIT_CHECKS)
 
-        if (${SUPER_SLAB_SIZE} EQUAL 16)
+        if (${FLAVOUR} EQUAL 16)
           target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
         endif()
-        if (${SUPER_SLAB_SIZE} STREQUAL "oe")
+        if (${FLAVOUR} STREQUAL "oe")
           oe_simulate(${TESTNAME})
         endif()
-        if (${SUPER_SLAB_SIZE} STREQUAL "malloc")
+        if (${FLAVOUR} STREQUAL "malloc")
           target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_PASS_THROUGH)
+        endif()
+        if (${FLAVOUR} STREQUAL "check")
+          target_compile_definitions(${TESTNAME} PRIVATE CHECK_CLIENT)
         endif()
         if(CONST_QUALIFIED_MALLOC_USABLE_SIZE)
           target_compile_definitions(${TESTNAME} PRIVATE -DMALLOC_USABLE_SIZE_QUALIFIER=const)
