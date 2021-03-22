@@ -10,54 +10,55 @@ void test_alloc_dealloc(size_t count, size_t size, bool write)
 {
   auto* alloc = ThreadAlloc::get();
 
-  DO_TIME(
-    "Count: " << std::setw(6) << count << ", Size: " << std::setw(6) << size
-              << ", ZeroMem: " << (zero_mem == YesZero) << ", Write: " << write,
+  {
+    MeasureTime m;
+    m << "Count: " << std::setw(6) << count << ", Size: " << std::setw(6)
+      << size << ", ZeroMem: " << (zero_mem == YesZero) << ", Write: " << write;
+
+    std::unordered_set<void*> set;
+
+    // alloc 1.5x objects
+    for (size_t i = 0; i < ((count * 3) / 2); i++)
     {
-      std::unordered_set<void*> set;
+      void* p = alloc->alloc<zero_mem>(size);
+      SNMALLOC_CHECK(set.find(p) == set.end());
 
-      // alloc 1.5x objects
-      for (size_t i = 0; i < ((count * 3) / 2); i++)
-      {
-        void* p = alloc->alloc<zero_mem>(size);
-        SNMALLOC_CHECK(set.find(p) == set.end());
+      if (write)
+        *(int*)p = 4;
 
-        if (write)
-          *(int*)p = 4;
+      set.insert(p);
+    }
 
-        set.insert(p);
-      }
+    // free 0.25x of the objects
+    for (size_t i = 0; i < (count / 4); i++)
+    {
+      auto it = set.begin();
+      void* p = *it;
+      alloc->dealloc(p, size);
+      set.erase(it);
+      SNMALLOC_CHECK(set.find(p) == set.end());
+    }
 
-      // free 0.25x of the objects
-      for (size_t i = 0; i < (count / 4); i++)
-      {
-        auto it = set.begin();
-        void* p = *it;
-        alloc->dealloc(p, size);
-        set.erase(it);
-        SNMALLOC_CHECK(set.find(p) == set.end());
-      }
+    // alloc 1x objects
+    for (size_t i = 0; i < count; i++)
+    {
+      void* p = alloc->alloc<zero_mem>(size);
+      SNMALLOC_CHECK(set.find(p) == set.end());
 
-      // alloc 1x objects
-      for (size_t i = 0; i < count; i++)
-      {
-        void* p = alloc->alloc<zero_mem>(size);
-        SNMALLOC_CHECK(set.find(p) == set.end());
+      if (write)
+        *(int*)p = 4;
 
-        if (write)
-          *(int*)p = 4;
+      set.insert(p);
+    }
 
-        set.insert(p);
-      }
-
-      // free everything
-      while (!set.empty())
-      {
-        auto it = set.begin();
-        alloc->dealloc(*it, size);
-        set.erase(it);
-      }
-    });
+    // free everything
+    while (!set.empty())
+    {
+      auto it = set.begin();
+      alloc->dealloc(*it, size);
+      set.erase(it);
+    }
+  }
 
   current_alloc_pool()->debug_check_empty();
 }

@@ -64,7 +64,9 @@ namespace test
 #endif
     setup(r, alloc);
 
-    DO_TIME("External pointer queries ", {
+    {
+      MeasureTime m;
+      m << "External pointer queries ";
       for (size_t i = 0; i < iterations; i++)
       {
         size_t rand = (size_t)r.next();
@@ -77,7 +79,7 @@ namespace test
         if (calced_external != external_ptr)
           abort();
       }
-    });
+    }
 
     teardown(alloc);
   }

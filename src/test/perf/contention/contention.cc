@@ -1,4 +1,3 @@
-#include "test/measuretime.h"
 #include "test/opt.h"
 #include "test/setup.h"
 #include "test/usage.h"

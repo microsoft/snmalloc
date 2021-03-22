@@ -1,6 +1,5 @@
 #include <iostream>
 #include <snmalloc.h>
-#include <test/measuretime.h>
 #include <test/opt.h>
 #include <test/setup.h>
 #include <unordered_set>
