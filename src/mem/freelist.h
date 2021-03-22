@@ -10,27 +10,42 @@
 #include "../ds/helpers.h"
 #include "allocconfig.h"
 
-#include <iostream>
+#include <cstdint>
 
 namespace snmalloc
 {
 #ifdef CHECK_CLIENT
+  static constexpr std::size_t PRESERVE_BOTTOM_BITS = 16;
+
   /**
    * The key that is used to encode free list pointers.
    * This should be randomised at startup in the future.
    */
-  inline static address_t global_key =
-    static_cast<size_t>(bits::is64() ? 0x9999'9999'9999'9999 : 0x9999'9999);
+  inline static address_t global_key = static_cast<std::size_t>(
+    bits::is64() ? 0x9999'9999'9999'9999 : 0x9999'9999);
+#endif
 
   /**
    * Used to turn a location into a key.  This is currently
-   * just the value of the previous location + 1.
+   * just the slab address truncated to 16bits and offset by 1.
    */
-  inline static uintptr_t initial_key(void* p)
+  inline static address_t initial_key(void* slab)
   {
-    return address_cast(p) + 1;
-  }
+#ifdef CHECK_CLIENT
+    /**
+     * This file assumes that SLAB_BITS is smaller than 16.  In multiple
+     * places it uses uint16_t to represent the offset into a slab.
+     */
+    static_assert(
+      SLAB_BITS <= 16,
+      "Encoding requires slab offset representable in 16bits.");
+
+    return (address_cast(slab) & SLAB_MASK) + 1;
+#else
+    UNUSED(slab);
+    return 0;
 #endif
+  }
 
   static inline bool different_slab(uintptr_t p1, uintptr_t p2)
   {
@@ -47,19 +62,15 @@ namespace snmalloc
     return different_slab(address_cast(p1), address_cast(p2));
   }
 
-  /**
-   * Free objects within each slab point directly to the next.
-   * The next_object pointer can be encoded to detect
-   * corruption caused by writes in a UAF or a double free.
-   *
-   * If cache-friendly offsets are used, then the FreeObject is
-   * potentially offset from the start of the object.
-   */
-  class FreeObject
-  {
-    FreeObject* next_object;
+  class FreeObject;
 
-    static FreeObject* encode(uintptr_t local_key, FreeObject* next_object)
+  class EncodeFreeObjectReference
+  {
+    FreeObject* reference;
+
+  public:
+    static inline FreeObject*
+    encode(uint16_t local_key, FreeObject* next_object)
     {
 #ifdef CHECK_CLIENT
       if constexpr (aal_supports<IntegerPointers>)
@@ -70,9 +81,12 @@ namespace snmalloc
         // resulting word's top half is XORed into the pointer value before it
         // is stored.
         auto next = address_cast(next_object);
-        constexpr uintptr_t MASK = bits::one_at_bit(bits::BITS / 2) - 1;
+        constexpr uintptr_t MASK = bits::one_at_bit(PRESERVE_BOTTOM_BITS) - 1;
         // Mix in local_key
-        auto key = local_key ^ global_key;
+        // We shift local key to the critical bits have more effect on the high
+        // bits.
+        address_t lk = local_key;
+        auto key = (lk << PRESERVE_BOTTOM_BITS) ^ global_key;
         next ^= (((next & MASK) + 1) * key) & ~MASK;
         next_object = reinterpret_cast<FreeObject*>(next);
       }
@@ -82,7 +96,30 @@ namespace snmalloc
       return next_object;
     }
 
+    void store(FreeObject* value, uint16_t local_key)
+    {
+      reference = encode(local_key, value);
+    }
+
+    FreeObject* read(uint16_t local_key)
+    {
+      return encode(local_key, reference);
+    }
+  };
+
+  /**
+   * Free objects within each slab point directly to the next.
+   * The next_object pointer can be encoded to detect
+   * corruption caused by writes in a UAF or a double free.
+   *
+   * If cache-friendly offsets are used, then the FreeObject is
+   * potentially offset from the start of the object.
+   */
+  class FreeObject
+  {
   public:
+    EncodeFreeObjectReference next_object;
+
     static FreeObject* make(void* p)
     {
       return static_cast<FreeObject*>(p);
@@ -91,37 +128,28 @@ namespace snmalloc
     /**
      * Read the next pointer handling any required decoding of the pointer
      */
-    FreeObject* read_next(uintptr_t key)
+    FreeObject* read_next(uint16_t key)
     {
-      auto next = encode(key, next_object);
-      return next;
-    }
-
-    /**
-     * Store the next pointer handling any required encoding of the pointer
-     */
-    void store_next(FreeObject* next, uintptr_t key)
-    {
-      next_object = encode(key, next);
-      SNMALLOC_ASSERT(next == read_next(key));
+      return next_object.read(key);
     }
   };
 
   /**
-   * Wrapper class that allows the keys for pointer encoding to be
-   * conditionally compiled.
+   * Used to iterate a free list in object space.
+   *
+   * Checks signing of pointers
    */
-  class FreeObjectCursor
+  class FreeListIter
   {
     FreeObject* curr = nullptr;
 #ifdef CHECK_CLIENT
     uintptr_t prev = 0;
 #endif
 
-    uintptr_t get_prev()
+    uint16_t get_prev()
     {
 #ifdef CHECK_CLIENT
-      return prev;
+      return prev & 0xffff;
 #else
       return 0;
 #endif
@@ -150,72 +178,30 @@ namespace snmalloc
     }
 
   public:
-    FreeObject* get_curr()
-    {
-      return curr;
-    }
-
-    /**
-     * Advance the cursor through the list
-     */
-    void move_next()
-    {
+    FreeListIter(FreeObject* head)
+    : curr(head)
 #ifdef CHECK_CLIENT
-      check_client(
-        !different_slab(prev, curr), "Heap corruption - free list corrupted!");
+      ,
+      prev(initial_key(head))
 #endif
-      update_cursor(curr->read_next(get_prev()));
+    {
+      SNMALLOC_ASSERT(head != nullptr);
     }
 
-    /**
-     * Update the next pointer at the location in the list pointed to
-     * by the cursor.
-     */
-    void set_next(FreeObject* next)
-    {
-      curr->store_next(next, get_prev());
-    }
-
-    /**
-     * Update the next pointer at the location in the list pointed to
-     * by the cursor, and move the cursor to that new value.
-     */
-    void set_next_and_move(FreeObject* next)
-    {
-      set_next(next);
-      update_cursor(next);
-    }
-
-    /**
-     * Resets the key to an initial value. So the cursor can be used
-     * on a new sequence.
-     */
-    void reset_cursor(FreeObject* next)
-    {
+    FreeListIter()
+    : curr(nullptr)
 #ifdef CHECK_CLIENT
-      prev = initial_key(next);
+      ,
+      prev(0)
 #endif
-      curr = next;
-    }
-  };
+    {}
 
-  /**
-   * Used to iterate a free list in object space.
-   *
-   * Checks signing of pointers
-   */
-  class FreeListIter
-  {
-  protected:
-    FreeObjectCursor front;
-
-  public:
     /**
      * Checks if there are any more values to iterate.
      */
     bool empty()
     {
-      return front.get_curr() == nullptr;
+      return curr == nullptr;
     }
 
     /**
@@ -223,7 +209,7 @@ namespace snmalloc
      */
     void* peek()
     {
-      return front.get_curr();
+      return curr;
     }
 
     /**
@@ -231,8 +217,12 @@ namespace snmalloc
      */
     void* take()
     {
-      auto c = front.get_curr();
-      front.move_next();
+#ifdef CHECK_CLIENT
+      check_client(
+        !different_slab(prev, curr), "Heap corruption - free list corrupted!");
+#endif
+      auto c = curr;
+      update_cursor(curr->read_next(get_prev()));
       return c;
     }
   };
@@ -240,22 +230,43 @@ namespace snmalloc
   /**
    * Used to build a free list in object space.
    *
-   * Checks signing of pointers
+   * Adds signing of pointers
    */
-  class FreeListBuilder : FreeListIter
+  class FreeListBuilder
   {
-    FreeObjectCursor end;
+    EncodeFreeObjectReference head;
+    EncodeFreeObjectReference* end;
+#ifdef CHECK_CLIENT
+    uint16_t prev;
+    uint16_t curr;
+#endif
+
+    uint16_t get_prev()
+    {
+#ifdef CHECK_CLIENT
+      return prev;
+#else
+      return 0;
+#endif
+    }
+
+    static constexpr uint16_t HEAD_KEY = 1;
 
   public:
     /**
      * Start building a new free list.
+     * Provide pointer to the slab to initialise the system.
      */
-    void open(void* n)
+    void open(void* p)
     {
       SNMALLOC_ASSERT(empty());
-      FreeObject* next = FreeObject::make(n);
-      end.reset_cursor(next);
-      front.reset_cursor(next);
+#ifdef CHECK_CLIENT
+      prev = HEAD_KEY;
+      curr = initial_key(p) & 0xffff;
+#else
+      UNUSED(p);
+#endif
+      end = &head;
     }
 
     /**
@@ -263,7 +274,7 @@ namespace snmalloc
      */
     void* peek_head()
     {
-      return peek();
+      return head.read(HEAD_KEY);
     }
 
     /**
@@ -271,7 +282,7 @@ namespace snmalloc
      */
     bool empty()
     {
-      return FreeListIter::empty();
+      return end == &head;
     }
 
     /**
@@ -279,9 +290,14 @@ namespace snmalloc
      */
     void add(void* n)
     {
-      SNMALLOC_ASSERT(!different_slab(end.get_curr(), n));
+      SNMALLOC_ASSERT(!different_slab(end, n) || empty());
       FreeObject* next = FreeObject::make(n);
-      end.set_next_and_move(next);
+      end->store(next, get_prev());
+      end = &(next->next_object);
+#ifdef CHECK_CLIENT
+      prev = curr;
+      curr = address_cast(next) & 0xffff;
+#endif
     }
 
     /**
@@ -296,8 +312,10 @@ namespace snmalloc
     FreeListIter terminate()
     {
       if (!empty())
-        end.set_next(nullptr);
-      return *this;
+        end->store(nullptr, get_prev());
+      // Build prev
+      auto h = head.read(HEAD_KEY);
+      return {h};
     }
 
     /**
@@ -306,8 +324,7 @@ namespace snmalloc
      */
     void close(FreeListIter& dst)
     {
-      terminate();
-      dst = *this;
+      dst = terminate();
       init();
     }
 
@@ -316,7 +333,7 @@ namespace snmalloc
      */
     void init()
     {
-      front.reset_cursor(nullptr);
+      end = &head;
     }
   };
 } // namespace snmalloc

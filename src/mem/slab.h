@@ -37,19 +37,7 @@ namespace snmalloc
       FreeListBuilder b;
       SNMALLOC_ASSERT(b.empty());
 
-      // Builder does not check for setup on add as used on fast path
-      // deallocation This lambda wraps checking for initialisation.
-      auto push = [&](void* next) {
-        SNMALLOC_ASSERT(!different_slab(bumpptr, next));
-        if (b.empty())
-        {
-          b.open(next);
-        }
-        else
-        {
-          b.add(next);
-        }
-      };
+      b.open(bumpptr);
 
       // This code needs generalising, but currently applies
       // various offsets with a stride of seven to increase chance of catching
@@ -60,7 +48,7 @@ namespace snmalloc
         void* newbumpptr = pointer_offset(bumpptr, rsize * offset);
         while (newbumpptr < slab_end)
         {
-          push(newbumpptr);
+          b.add(newbumpptr);
           newbumpptr = pointer_offset(newbumpptr, rsize * start_index.size());
         }
       }
@@ -121,6 +109,7 @@ namespace snmalloc
         }
         SNMALLOC_ASSERT(meta.free_queue.empty());
         meta.free_queue.open(p);
+        meta.free_queue.add(p);
         meta.needed = allocated - 1;
 
         // Push on the list of slabs for this sizeclass.
