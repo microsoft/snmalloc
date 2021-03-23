@@ -32,8 +32,7 @@ namespace snmalloc
     static SNMALLOC_FAST_PATH void
     alloc_new_list(void*& bumpptr, FreeListIter& fast_free_list, size_t rsize)
     {
-      void* slab_end =
-        pointer_align_up<SLAB_SIZE>(pointer_offset(bumpptr, rsize));
+      void* slab_end = pointer_align_up<SLAB_SIZE>(pointer_offset(bumpptr, 1));
 
       FreeListBuilder b;
       SNMALLOC_ASSERT(b.empty());
