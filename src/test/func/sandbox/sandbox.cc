@@ -75,7 +75,7 @@ namespace
        *
        * This method must be implemented for `LargeAlloc` to work.
        */
-      void* pop_large_stack(size_t large_class)
+      CapPtr<Largeslab, CBArena> pop_large_stack(size_t large_class)
       {
         return real_state->pop_large_stack(large_class);
       };
@@ -98,7 +98,7 @@ namespace
        * This method must be implemented for `LargeAlloc` to work.
        */
       template<bool committed>
-      void* reserve(size_t large_class) noexcept
+      CapPtr<Largeslab, CBArena> reserve(size_t large_class) noexcept
       {
         return real_state->template reserve<committed>(large_class);
       }
@@ -159,7 +159,7 @@ namespace
       top(pointer_offset(start, sb_size)),
       shared_state(new (start) SharedState()),
       state(
-        pointer_offset(start, sizeof(SharedState)),
+        pointer_offset(CapPtr<void, CBArena>(start), sizeof(SharedState)),
         sb_size - sizeof(SharedState)),
       alloc(state, SNMALLOC_DEFAULT_CHUNKMAP(), &shared_state->queue)
     {
