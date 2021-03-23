@@ -68,29 +68,45 @@ namespace snmalloc
   {
     FreeObject* reference;
 
-  public:
-    static inline FreeObject*
-    encode(uint16_t local_key, FreeObject* next_object)
-    {
-#ifdef CHECK_CLIENT
-      if constexpr (aal_supports<IntegerPointers>)
-      {
-        // Simple involutional encoding.  The bottom half of each word is
-        // multiplied by a function of both global and local keys (the latter,
-        // in practice, being the address of the previous list entry) and the
-        // resulting word's top part is XORed into the pointer value before it
-        // is stored.
-        auto next = address_cast(next_object);
-        constexpr address_t MASK = bits::one_at_bit(PRESERVE_BOTTOM_BITS) - 1;
-        // Mix in local_key
-        address_t key = (local_key + 1) * global_key;
-        next ^= (((next & MASK) + 1) * key) &
-          ~(bits::one_at_bit(PRESERVE_BOTTOM_BITS) - 1);
-        next_object = reinterpret_cast<FreeObject*>(next);
-      }
+    /**
+     * On architectures which use IntegerPointers, we can obfuscate our free
+     * lists and use this to drive some probabilistic checks for integrity.
+     *
+     * There are two definitions of encode() below, which use std::enable_if_t
+     * to gate on do_encode.
+     */
+#ifndef CHECK_CLIENT
+    static constexpr bool do_encode = false;
 #else
-      UNUSED(local_key);
+    static constexpr bool do_encode = aal_supports<IntegerPointers, Aal>;
 #endif
+
+  public:
+#ifdef CHECK_CLIENT
+    template<typename T = FreeObject>
+    static std::enable_if_t<do_encode, T*>
+    encode(uint16_t local_key, T* next_object)
+    {
+      // Simple involutional encoding.  The bottom half of each word is
+      // multiplied by a function of both global and local keys (the latter,
+      // in practice, being the address of the previous list entry) and the
+      // resulting word's top part is XORed into the pointer value before it
+      // is stored.
+      auto next = address_cast(next_object);
+      constexpr address_t MASK = bits::one_at_bit(PRESERVE_BOTTOM_BITS) - 1;
+      // Mix in local_key
+      address_t key = (local_key + 1) * global_key;
+      next ^= (((next & MASK) + 1) * key) &
+        ~(bits::one_at_bit(PRESERVE_BOTTOM_BITS) - 1);
+      return reinterpret_cast<FreeObject*>(next);
+    }
+#endif
+
+    template<typename T = FreeObject>
+    static std::enable_if_t<!do_encode, T*>
+    encode(uint16_t local_key, T* next_object)
+    {
+      UNUSED(local_key);
       return next_object;
     }
 
