@@ -150,7 +150,7 @@ namespace snmalloc
       else
       {
         handle_message_queue();
-        return large_alloc<zero_mem>(size);
+        return large_alloc<zero_mem>(size).unsafe_capptr;
       }
 #endif
     }
@@ -200,7 +200,7 @@ namespace snmalloc
         return medium_alloc<zero_mem>(sizeclass, rsize, size);
       }
 
-      return large_alloc<zero_mem>(size);
+      return large_alloc<zero_mem>(size).unsafe_capptr;
 
 #endif
     }
@@ -1485,14 +1485,17 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem>
-    void* large_alloc(size_t size)
+    CapPtr<void, CBArena> large_alloc(size_t size)
     {
       if (NeedsInitialisation(this))
       {
-        return InitThreadAllocator([size](void* alloc) {
-          return reinterpret_cast<Allocator*>(alloc)->large_alloc<zero_mem>(
-            size);
+        // MSVC-vs-CapPtr triggering; xref CapPtr's constructor
+        void* ret = InitThreadAllocator([size](void* alloc) {
+          CapPtr<void, CBArena> ret =
+            reinterpret_cast<Allocator*>(alloc)->large_alloc<zero_mem>(size);
+          return ret.unsafe_capptr;
         });
+        return CapPtr<void, CBArena>(ret);
       }
 
       size_t size_bits = bits::next_pow2_bits(size);
@@ -1513,7 +1516,7 @@ namespace snmalloc
         stats().alloc_request(size);
         stats().large_alloc(large_class);
       }
-      return p.unsafe_capptr;
+      return p.as_void();
     }
 
     void large_dealloc_unchecked(
