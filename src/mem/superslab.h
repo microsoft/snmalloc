@@ -5,6 +5,7 @@
 #include "metaslab.h"
 
 #include <new>
+#include <iostream>
 
 namespace snmalloc
 {
@@ -73,8 +74,10 @@ namespace snmalloc
 
     static bool is_short_sizeclass(sizeclass_t sizeclass)
     {
-      constexpr sizeclass_t h = size_to_sizeclass_const(sizeof(Superslab));
-      return sizeclass <= h;
+      static_assert(SLAB_SIZE > sizeof(Superslab), "Meta data requires this.");
+      // Note that h will be the next size class above the space, so use < in comparison.
+      constexpr sizeclass_t h = size_to_sizeclass_const(SLAB_SIZE - sizeof(Superslab));
+      return sizeclass < h;
     }
 
     void init(RemoteAllocator* alloc)
