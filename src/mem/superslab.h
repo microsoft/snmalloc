@@ -75,7 +75,13 @@ namespace snmalloc
     static bool is_short_sizeclass(sizeclass_t sizeclass)
     {
       static_assert(SLAB_SIZE > sizeof(Superslab), "Meta data requires this.");
-      // Note that h will be the next size class above the space, so use < in comparison.
+      /*
+       * size_to_sizeclass_const rounds *up* and returns the smallest class that
+       * could contain (and so may be larger than) the free space available for the
+       * short slab.  While we could detect the exact fit case and compare `<= h`
+       * therein, it's simpler to just treat this class as a strict upper bound and
+       * only permit strictly smaller classes in short slabs.
+       */
       constexpr sizeclass_t h = size_to_sizeclass_const(SLAB_SIZE - sizeof(Superslab));
       return sizeclass < h;
     }
