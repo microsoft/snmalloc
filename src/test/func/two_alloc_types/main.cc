@@ -48,7 +48,7 @@ int main()
   // For 1MiB superslabs, SUPERSLAB_BITS + 2 is not big enough for the example.
   size_t large_class = 26 - SUPERSLAB_BITS;
   size_t size = bits::one_at_bit(SUPERSLAB_BITS + large_class);
-  void* oe_base = mp.reserve<true>(large_class);
+  void* oe_base = mp.reserve<true>(large_class).unsafe_capptr;
   void* oe_end = (uint8_t*)oe_base + size;
   oe_allocator_init(oe_base, oe_end);
   std::cout << "Allocated region " << oe_base << " - " << oe_end << std::endl;

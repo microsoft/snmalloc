@@ -32,7 +32,7 @@ namespace snmalloc
     friend class MPMCStack;
     template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     friend class MemoryProviderStateMixin;
-    std::atomic<Largeslab*> next;
+    AtomicCapPtr<Largeslab, CBArena> next = nullptr;
 
   public:
     void init()
@@ -89,7 +89,10 @@ namespace snmalloc
     /**
      * Stack of large allocations that have been returned for reuse.
      */
-    ModArray<NUM_LARGE_CLASSES, MPMCStack<Largeslab, RequiresInit>> large_stack;
+    ModArray<
+      NUM_LARGE_CLASSES,
+      MPMCStack<Largeslab, RequiresInit, CapPtrCBArena, AtomicCapPtrCBArena>>
+      large_stack;
 
   public:
     using Pal = PAL;
@@ -99,9 +102,10 @@ namespace snmalloc
      * concurrently with other acceses.  If there is no large allocation on a
      * particular stack then this will return `nullptr`.
      */
-    SNMALLOC_FAST_PATH void* pop_large_stack(size_t large_class)
+    SNMALLOC_FAST_PATH CapPtr<Largeslab, CBArena>
+    pop_large_stack(size_t large_class)
     {
-      void* p = large_stack[large_class].pop();
+      auto p = large_stack[large_class].pop();
       if (p != nullptr)
       {
         const size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
@@ -119,7 +123,7 @@ namespace snmalloc
     {
       const size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
       available_large_chunks_in_bytes += rsize;
-      large_stack[large_class].push(slab.unsafe_capptr);
+      large_stack[large_class].push(slab);
     }
 
     /**
@@ -133,7 +137,7 @@ namespace snmalloc
      * memory providers constructed in this way does not have to be able to
      * allocate memory, if the initial reservation is sufficient.
      */
-    MemoryProviderStateMixin(void* start, size_t len)
+    MemoryProviderStateMixin(CapPtr<void, CBArena> start, size_t len)
     : address_space(start, len)
     {}
     /**
@@ -146,9 +150,11 @@ namespace snmalloc
 
       // Allocate permanent storage for the allocator usung temporary allocator
       MemoryProviderStateMixin<PAL>* allocated =
-        reinterpret_cast<MemoryProviderStateMixin<PAL>*>(
-          local.template reserve_with_left_over<true>(
-            sizeof(MemoryProviderStateMixin<PAL>)));
+        local
+          .template reserve_with_left_over<true>(
+            sizeof(MemoryProviderStateMixin<PAL>))
+          .template as_static<MemoryProviderStateMixin<PAL>>()
+          .unsafe_capptr;
 
       if (allocated == nullptr)
         error("Failed to initialise system!");
@@ -193,22 +199,23 @@ namespace snmalloc
         size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
         size_t decommit_size = rsize - OS_PAGE_SIZE;
         // Grab all of the chunks of this size class.
-        auto* slab = large_stack[large_class].pop_all();
-        while (slab)
+        CapPtr<Largeslab, CBArena> slab = large_stack[large_class].pop_all();
+        while (slab != nullptr)
         {
           // Decommit all except for the first page and then put it back on
           // the stack.
           if (slab->get_kind() != Decommitted)
           {
             PAL::notify_not_using(
-              pointer_offset(slab, OS_PAGE_SIZE), decommit_size);
+              pointer_offset(slab.unsafe_capptr, OS_PAGE_SIZE), decommit_size);
           }
           // Once we've removed these from the stack, there will be no
           // concurrent accesses and removal should have established a
           // happens-before relationship, so it's safe to use relaxed loads
           // here.
           auto next = slab->next.load(std::memory_order_relaxed);
-          large_stack[large_class].push(new (slab) Decommittedslab());
+          large_stack[large_class].push(CapPtr<Largeslab, CBArena>(
+            new (slab.unsafe_capptr) Decommittedslab()));
           slab = next;
         }
       }
@@ -247,21 +254,22 @@ namespace snmalloc
       // Cache line align
       size_t size = bits::align_up(sizeof(T), 64);
       size = bits::max(size, alignment);
-      void* p = address_space.template reserve_with_left_over<true>(size);
+      auto p = address_space.template reserve_with_left_over<true>(size);
       if (p == nullptr)
         return nullptr;
 
       peak_memory_used_bytes += size;
 
-      return new (p) T(std::forward<Args...>(args)...);
+      return new (p.unsafe_capptr) T(std::forward<Args...>(args)...);
     }
 
     template<bool committed>
-    void* reserve(size_t large_class) noexcept
+    CapPtr<Largeslab, CBArena> reserve(size_t large_class) noexcept
     {
       size_t size = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
       peak_memory_used_bytes += size;
-      return address_space.template reserve<committed>(size);
+      return address_space.template reserve<committed>(size)
+        .template as_static<Largeslab>();
     }
 
     /**
@@ -290,19 +298,22 @@ namespace snmalloc
     LargeAlloc(MemoryProvider& mp) : memory_provider(mp) {}
 
     template<ZeroMem zero_mem = NoZero>
-    void* alloc(size_t large_class, size_t rsize, size_t size)
+    CapPtr<Largeslab, CBArena>
+    alloc(size_t large_class, size_t rsize, size_t size)
     {
       SNMALLOC_ASSERT(
         (bits::one_at_bit(SUPERSLAB_BITS) << large_class) == rsize);
 
-      void* p = memory_provider.pop_large_stack(large_class);
+      CapPtr<Largeslab, CBArena> p =
+        memory_provider.pop_large_stack(large_class);
 
       if (p == nullptr)
       {
         p = memory_provider.template reserve<false>(large_class);
         if (p == nullptr)
           return nullptr;
-        MemoryProvider::Pal::template notify_using<zero_mem>(p, rsize);
+        MemoryProvider::Pal::template notify_using<zero_mem>(
+          p.unsafe_capptr, rsize);
       }
       else
       {
@@ -311,7 +322,8 @@ namespace snmalloc
         // Cross-reference alloc.h's large_dealloc decommitment condition.
         bool decommitted =
           ((decommit_strategy == DecommitSuperLazy) &&
-           (static_cast<Baseslab*>(p)->get_kind() == Decommitted)) ||
+           (p.template as_static<Baseslab>().unsafe_capptr->get_kind() ==
+            Decommitted)) ||
           (large_class > 0) || (decommit_strategy == DecommitSuper);
 
         if (decommitted)
@@ -325,7 +337,8 @@ namespace snmalloc
           // Passing zero_mem ensures the PAL provides zeroed pages if
           // required.
           MemoryProvider::Pal::template notify_using<zero_mem>(
-            pointer_offset(p, OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
+            pointer_offset(p.unsafe_capptr, OS_PAGE_SIZE),
+            rsize - OS_PAGE_SIZE);
         }
         else
         {
@@ -338,7 +351,7 @@ namespace snmalloc
         }
       }
 
-      SNMALLOC_ASSERT(p == pointer_align_up(p, rsize));
+      SNMALLOC_ASSERT(p.as_void() == pointer_align_up(p.as_void(), rsize));
       return p;
     }
 

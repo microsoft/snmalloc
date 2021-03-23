@@ -955,9 +955,10 @@ namespace snmalloc
       if (super != nullptr)
         return super;
 
-      super =
-        reinterpret_cast<Superslab*>(large_allocator.template alloc<NoZero>(
-          0, SUPERSLAB_SIZE, SUPERSLAB_SIZE));
+      super = large_allocator
+                .template alloc<NoZero>(0, SUPERSLAB_SIZE, SUPERSLAB_SIZE)
+                .template as_reinterpret<Superslab>()
+                .unsafe_capptr;
 
       if (super == nullptr)
         return super;
@@ -1371,9 +1372,9 @@ namespace snmalloc
               sizeclass, rsize, size);
           });
         }
-        slab = CapPtr<void, CBArena>(large_allocator.template alloc<NoZero>(
-                                       0, SUPERSLAB_SIZE, SUPERSLAB_SIZE))
-                 .template as_static<Mediumslab>();
+        slab = large_allocator
+                 .template alloc<NoZero>(0, SUPERSLAB_SIZE, SUPERSLAB_SIZE)
+                 .template as_reinterpret<Mediumslab>();
 
         if (slab == nullptr)
           return nullptr;
@@ -1503,7 +1504,7 @@ namespace snmalloc
       if (large_class == 0)
         size = rsize;
 
-      void* p =
+      auto p =
         large_allocator.template alloc<zero_mem>(large_class, rsize, size);
       if (likely(p != nullptr))
       {
@@ -1512,7 +1513,7 @@ namespace snmalloc
         stats().alloc_request(size);
         stats().large_alloc(large_class);
       }
-      return p;
+      return p.unsafe_capptr;
     }
 
     void large_dealloc_unchecked(

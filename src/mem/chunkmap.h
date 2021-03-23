@@ -149,7 +149,7 @@ namespace snmalloc
      * Update the pagemap to reflect a large allocation, of `size` bytes from
      * address `p`.
      */
-    static void set_large_size(void* p, size_t size)
+    static void set_large_size(CapPtr<Largeslab, CBArena> p, size_t size)
     {
       size_t size_bits = bits::next_pow2_bits(size);
       set(address_cast(p), static_cast<uint8_t>(size_bits));

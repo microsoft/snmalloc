@@ -34,7 +34,7 @@ namespace snmalloc
      * bits::BITS is used for simplicity, we do not use below the pointer size,
      * and large entries will be unlikely to be supported by the platform.
      */
-    std::array<std::array<void*, 2>, bits::BITS> ranges = {};
+    std::array<std::array<CapPtr<void, CBArena>, 2>, bits::BITS> ranges = {};
 
     /**
      * This is infrequently used code, a spin lock simplifies the code
@@ -45,7 +45,7 @@ namespace snmalloc
     /**
      * Checks a block satisfies its invariant.
      */
-    inline void check_block(void* base, size_t align_bits)
+    inline void check_block(CapPtr<void, CBArena> base, size_t align_bits)
     {
       SNMALLOC_ASSERT(
         base == pointer_align_up(base, bits::one_at_bit(align_bits)));
@@ -58,7 +58,7 @@ namespace snmalloc
     /**
      * Adds a block to `ranges`.
      */
-    void add_block(size_t align_bits, void* base)
+    void add_block(size_t align_bits, CapPtr<void, CBArena> base)
     {
       check_block(base, align_bits);
       SNMALLOC_ASSERT(align_bits < 64);
@@ -73,7 +73,8 @@ namespace snmalloc
       {
         // Add to linked list.
         commit_block(base, sizeof(void*));
-        *reinterpret_cast<void**>(base) = ranges[align_bits][1];
+        *(base.template as_static<CapPtr<void, CBArena>>().unsafe_capptr) =
+          ranges[align_bits][1];
         check_block(ranges[align_bits][1], align_bits);
       }
 
@@ -86,9 +87,9 @@ namespace snmalloc
      * Find a block of the correct size. May split larger blocks
      * to satisfy this request.
      */
-    void* remove_block(size_t align_bits)
+    CapPtr<void, CBArena> remove_block(size_t align_bits)
     {
-      auto first = ranges[align_bits][0];
+      CapPtr<void, CBArena> first = ranges[align_bits][0];
       if (first == nullptr)
       {
         if (align_bits == (bits::BITS - 1))
@@ -98,7 +99,7 @@ namespace snmalloc
         }
 
         // Look for larger block and split up recursively
-        void* bigger = remove_block(align_bits + 1);
+        CapPtr<void, CBArena> bigger = remove_block(align_bits + 1);
         if (bigger != nullptr)
         {
           auto left_over = pointer_offset(bigger, bits::one_at_bit(align_bits));
@@ -109,14 +110,16 @@ namespace snmalloc
         return bigger;
       }
 
-      auto second = ranges[align_bits][1];
+      CapPtr<void, CBArena> second = ranges[align_bits][1];
       if (second != nullptr)
       {
         commit_block(second, sizeof(void*));
-        auto next = *reinterpret_cast<void**>(second);
+        auto psecond =
+          second.template as_static<CapPtr<void, CBArena>>().unsafe_capptr;
+        auto next = *psecond;
         ranges[align_bits][1] = next;
         // Zero memory. Client assumes memory contains only zeros.
-        *reinterpret_cast<void**>(second) = nullptr;
+        *psecond = nullptr;
         check_block(second, align_bits);
         check_block(next, align_bits);
         return second;
@@ -131,7 +134,7 @@ namespace snmalloc
      * Add a range of memory to the address space.
      * Divides blocks into power of two sizes with natural alignment
      */
-    void add_range(void* base, size_t length)
+    void add_range(CapPtr<void, CBArena> base, size_t length)
     {
       // Find the minimum set of maximally aligned blocks in this range.
       // Each block's alignment and size are equal.
@@ -153,14 +156,14 @@ namespace snmalloc
     /**
      * Commit a block of memory
      */
-    void commit_block(void* base, size_t size)
+    void commit_block(CapPtr<void, CBArena> base, size_t size)
     {
       // Rounding required for sub-page allocations.
       auto page_start = pointer_align_down<OS_PAGE_SIZE, char>(base);
       auto page_end =
         pointer_align_up<OS_PAGE_SIZE, char>(pointer_offset(base, size));
-      PAL::template notify_using<NoZero>(
-        page_start, static_cast<size_t>(page_end - page_start));
+      size_t using_size = pointer_diff(page_start, page_end);
+      PAL::template notify_using<NoZero>(page_start.unsafe_capptr, using_size);
     }
 
   public:
@@ -172,7 +175,7 @@ namespace snmalloc
      * Only request 2^n sizes, and not less than a pointer.
      */
     template<bool committed>
-    void* reserve(size_t size)
+    CapPtr<void, CBArena> reserve(size_t size)
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= sizeof(void*));
@@ -180,22 +183,24 @@ namespace snmalloc
       if constexpr (pal_supports<AlignedAllocation, PAL>)
       {
         if (size >= PAL::minimum_alloc_size)
-          return PAL::template reserve_aligned<committed>(size);
+          return CapPtr<void, CBArena>(
+            PAL::template reserve_aligned<committed>(size));
       }
 
-      void* res;
+      CapPtr<void, CBArena> res;
       {
         FlagLock lock(spin_lock);
         res = remove_block(bits::next_pow2_bits(size));
         if (res == nullptr)
         {
           // Allocation failed ask OS for more memory
-          void* block = nullptr;
+          CapPtr<void, CBArena> block = nullptr;
           size_t block_size = 0;
           if constexpr (pal_supports<AlignedAllocation, PAL>)
           {
             block_size = PAL::minimum_alloc_size;
-            block = PAL::template reserve_aligned<false>(block_size);
+            block = CapPtr<void, CBArena>(
+              PAL::template reserve_aligned<false>(block_size));
           }
           else if constexpr (!pal_supports<NoAllocation, PAL>)
           {
@@ -204,7 +209,7 @@ namespace snmalloc
             // the PAL, and this could lead to suprious OOM.  This is
             // particularly bad if the PAL gives all the memory on first call.
             auto block_and_size = PAL::reserve_at_least(size * 2);
-            block = block_and_size.first;
+            block = CapPtr<void, CBArena>(block_and_size.first);
             block_size = block_and_size.second;
 
             // Ensure block is pointer aligned.
@@ -244,7 +249,7 @@ namespace snmalloc
      * used, by smaller objects.
      */
     template<bool committed>
-    void* reserve_with_left_over(size_t size)
+    CapPtr<void, CBArena> reserve_with_left_over(size_t size)
     {
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
@@ -279,7 +284,7 @@ namespace snmalloc
      * Constructor that pre-initialises the address-space manager with a region
      * of memory.
      */
-    AddressSpaceManager(void* base, size_t length)
+    AddressSpaceManager(CapPtr<void, CBArena> base, size_t length)
     {
       add_range(base, length);
     }
