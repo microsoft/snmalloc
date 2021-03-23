@@ -4,15 +4,32 @@
 #include "allocslab.h"
 #include "metaslab.h"
 
-#include <new>
 #include <iostream>
+#include <new>
 
 namespace snmalloc
 {
+  /**
+   * Superslabs are, to first approximation, a `CHUNK_SIZE`-sized and -aligned
+   * region of address space, internally composed of a header (a `Superslab`
+   * structure) followed by an array of `Slab`s, each `SLAB_SIZE`-sized and
+   * -aligned.  Each active `Slab` holds an array of identically sized
+   * allocations strung on an invasive free list, which is lazily constructed
+   * from a bump-pointer allocator (see `Metaslab::alloc_new_list`).
+   *
+   * In order to minimize overheads, Slab metadata is held externally, in
+   * `Metaslab` structures; all `Metaslab`s for the Slabs within a Superslab are
+   * densely packed within the `Superslab` structure itself.  Moreover, as the
+   * `Superslab` structure is typically much smaller than `SLAB_SIZE`, a "short
+   * Slab" is overlaid with the `Superslab`.  This short Slab can hold only
+   * allocations that are smaller than the `SLAB_SIZE - sizeof(Superslab)`
+   * bytes; see `Superslab::is_short_sizeclass`.  The Metaslab state for a short
+   * slabs is constructed in a way that avoids branches on fast paths;
+   * effectively, the object slots that overlay the `Superslab` at the start are
+   * omitted from consideration.
+   */
   class Superslab : public Allocslab
   {
-    // This is the view of a 16 mb superslab when it is being used to allocate
-    // 64 kb slabs.
   private:
     friend DLList<Superslab>;
 
@@ -77,12 +94,13 @@ namespace snmalloc
       static_assert(SLAB_SIZE > sizeof(Superslab), "Meta data requires this.");
       /*
        * size_to_sizeclass_const rounds *up* and returns the smallest class that
-       * could contain (and so may be larger than) the free space available for the
-       * short slab.  While we could detect the exact fit case and compare `<= h`
-       * therein, it's simpler to just treat this class as a strict upper bound and
-       * only permit strictly smaller classes in short slabs.
+       * could contain (and so may be larger than) the free space available for
+       * the short slab.  While we could detect the exact fit case and compare
+       * `<= h` therein, it's simpler to just treat this class as a strict upper
+       * bound and only permit strictly smaller classes in short slabs.
        */
-      constexpr sizeclass_t h = size_to_sizeclass_const(SLAB_SIZE - sizeof(Superslab));
+      constexpr sizeclass_t h =
+        size_to_sizeclass_const(SLAB_SIZE - sizeof(Superslab));
       return sizeclass < h;
     }
 
