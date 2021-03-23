@@ -297,8 +297,8 @@ namespace snmalloc
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
     static size_t to_exp_mant(size_t value)
     {
-      size_t LEADING_BIT = one_at_bit(MANTISSA_BITS + LOW_BITS) >> 1;
-      size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
+      constexpr size_t LEADING_BIT = one_at_bit(MANTISSA_BITS + LOW_BITS) >> 1;
+      constexpr size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
 
       value = value - 1;
 
@@ -313,8 +313,8 @@ namespace snmalloc
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
     constexpr static size_t to_exp_mant_const(size_t value)
     {
-      size_t LEADING_BIT = one_at_bit(MANTISSA_BITS + LOW_BITS) >> 1;
-      size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
+      constexpr size_t LEADING_BIT = one_at_bit(MANTISSA_BITS + LOW_BITS) >> 1;
+      constexpr size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
 
       value = value - 1;
 
@@ -332,7 +332,7 @@ namespace snmalloc
       if (MANTISSA_BITS > 0)
       {
         m_e = m_e + 1;
-        size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
+        constexpr size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
         size_t m = m_e & MANTISSA_MASK;
         size_t e = m_e >> MANTISSA_BITS;
         size_t b = e == 0 ? 0 : 1;
