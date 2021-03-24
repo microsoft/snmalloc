@@ -62,7 +62,7 @@ namespace snmalloc
       return free_queue.s.needed;
     }
 
-    uint8_t& sizeclass()
+    uint8_t sizeclass()
     {
       return free_queue.s.sizeclass;
     }
@@ -70,6 +70,18 @@ namespace snmalloc
     uint8_t& next()
     {
       return free_queue.s.next;
+    }
+
+    void initialise(sizeclass_t sizeclass, Slab* slab)
+    {
+      free_queue.s.sizeclass = static_cast<uint8_t>(sizeclass);
+      free_queue.init();
+      // Set up meta data as if the entire slab has been turned into a free
+      // list. This means we don't have to check for special cases where we have
+      // returned all the elements, but this is a slab that is still being bump
+      // allocated from. Hence, the bump allocator slab will never be returned
+      // for use in another size class.
+      set_full(slab);
     }
 
     /**
@@ -91,17 +103,34 @@ namespace snmalloc
 
     bool is_full()
     {
-      auto result = get_prev() == nullptr;
-      SNMALLOC_ASSERT(!result || free_queue.empty());
-      return result;
+      return get_prev() == nullptr;
     }
 
-    SNMALLOC_FAST_PATH void set_full()
+    /**
+     * Only wake slab if we have this many free allocations
+     *
+     * This helps remove bouncing around empty to non-empty cases.
+     *
+     * It also increases entropy, when we have randomisation.
+     */
+    uint16_t threshold_for_waking_slab(bool is_short_slab)
+    {
+      auto capacity = get_slab_capacity(sizeclass(), is_short_slab);
+      uint16_t threshold = (capacity / 8) | 1;
+      uint16_t max = 32;
+      return bits::min(threshold, max);
+    }
+
+    SNMALLOC_FAST_PATH void set_full(Slab* slab)
     {
       SNMALLOC_ASSERT(free_queue.empty());
-      // Set needed to 1, so that "return_object" will return true after calling
-      // set_full
-      needed() = 1;
+
+      // Prepare for the next free queue to be built.
+      free_queue.open(slab);
+
+      // Set needed to at least one, possibly more so we only use
+      // a slab when it has a reasonable amount of free elements
+      needed() = threshold_for_waking_slab(Metaslab::is_short(slab));
       null_prev();
     }
 
@@ -141,10 +170,8 @@ namespace snmalloc
       void* n = fast_free_list.take();
 
       // Treat stealing the free list as allocating it all.
-      self->needed() = get_slab_capacity(
-        self->sizeclass(), Metaslab::is_short(Metaslab::get_slab(n)));
       self->remove();
-      self->set_full();
+      self->set_full(Metaslab::get_slab(n));
 
       void* p = remove_cache_friendly_offset(n, self->sizeclass());
       SNMALLOC_ASSERT(is_start_of_object(self, p));
@@ -173,7 +200,8 @@ namespace snmalloc
 
       if (is_full())
       {
-        // There is no free list to validate
+        size_t count = free_queue.debug_length();
+        SNMALLOC_ASSERT(count < threshold_for_waking_slab(is_short));
         return;
       }
 
@@ -187,19 +215,11 @@ namespace snmalloc
       // Block is not full
       SNMALLOC_ASSERT(SLAB_SIZE > accounted_for);
 
-      // Walk bump-free-list-segment accounting for unused space
-      FreeListIter fl = free_queue.terminate();
+      // Account for list size
+      size_t count = free_queue.debug_length();
+      accounted_for += count * size;
 
-      while (!fl.empty())
-      {
-        // Check we are looking at a correctly aligned block
-        void* start = remove_cache_friendly_offset(fl.take(), sizeclass());
-        SNMALLOC_ASSERT(((pointer_diff(slab, start) - offset) % size) == 0);
-
-        // Account for free elements in free list
-        accounted_for += size;
-        SNMALLOC_ASSERT(SLAB_SIZE >= accounted_for);
-      }
+      SNMALLOC_ASSERT(count <= get_slab_capacity(sizeclass(), is_short));
 
       auto bumpptr = (get_slab_capacity(sizeclass(), is_short) * size) + offset;
       // Check we haven't allocated more than fits in a slab
