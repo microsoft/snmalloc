@@ -37,19 +37,7 @@ namespace snmalloc
       FreeListBuilder b;
       SNMALLOC_ASSERT(b.empty());
 
-      // Builder does not check for setup on add as used on fast path
-      // deallocation This lambda wraps checking for initialisation.
-      auto push = [&](void* next) {
-        SNMALLOC_ASSERT(!different_slab(bumpptr, next));
-        if (b.empty())
-        {
-          b.open(next);
-        }
-        else
-        {
-          b.add(next);
-        }
-      };
+      b.open(bumpptr);
 
       // This code needs generalising, but currently applies
       // various offsets with a stride of seven to increase chance of catching
@@ -60,7 +48,7 @@ namespace snmalloc
         void* newbumpptr = pointer_offset(bumpptr, rsize * offset);
         while (newbumpptr < slab_end)
         {
-          push(newbumpptr);
+          b.add(newbumpptr);
           newbumpptr = pointer_offset(newbumpptr, rsize * start_index.size());
         }
       }
@@ -88,8 +76,6 @@ namespace snmalloc
       // Update the head and the next pointer in the free list.
       meta.free_queue.add(p);
 
-      SNMALLOC_ASSERT(meta.valid_head());
-
       return true;
     }
 
@@ -109,7 +95,7 @@ namespace snmalloc
       if (meta.is_full())
       {
         auto allocated = get_slab_capacity(
-          meta.sizeclass, Metaslab::is_short(Metaslab::get_slab(p)));
+          meta.sizeclass(), Metaslab::is_short(Metaslab::get_slab(p)));
         // We are not on the sizeclass list.
         if (allocated == 1)
         {
@@ -121,7 +107,8 @@ namespace snmalloc
         }
         SNMALLOC_ASSERT(meta.free_queue.empty());
         meta.free_queue.open(p);
-        meta.needed = allocated - 1;
+        meta.free_queue.add(p);
+        meta.needed() = allocated - 1;
 
         // Push on the list of slabs for this sizeclass.
         sl->insert_prev(&meta);

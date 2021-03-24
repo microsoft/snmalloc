@@ -22,18 +22,14 @@ namespace snmalloc
     sizeof(SlabLink) <= MIN_ALLOC_SIZE,
     "Need to be able to pack a SlabLink into any free small alloc");
 
-  // The Metaslab represent the status of a single slab.
-  // This can be either a short or a standard slab.
-  class Metaslab : public SlabLink
+  /**
+   * This struct is used inside FreeListBuilder to account for the
+   * alignment space that is wasted in sizeof.
+   *
+   * This is part of Metaslab abstraction.
+   */
+  struct MetaslabEnd
   {
-  public:
-    /**
-     *  Pointer to first free entry in this slab
-     *
-     *  The list will be (slab_capacity - needed) long.
-     */
-    FreeListBuilder free_queue;
-
     /**
      *  How many entries are not in the free list of slab, i.e.
      *  how many entries are needed to fully free this slab.
@@ -47,6 +43,34 @@ namespace snmalloc
     uint8_t sizeclass;
     // Initially zero to encode the superslabs relative list of slabs.
     uint8_t next = 0;
+  };
+
+  // The Metaslab represent the status of a single slab.
+  // This can be either a short or a standard slab.
+  class Metaslab : public SlabLink
+  {
+  public:
+    /**
+     *  Data-structure for building the free list for this slab.
+     *
+     *  Spare 32bits are used for the fields in MetaslabEnd.
+     */
+    FreeListBuilder<MetaslabEnd> free_queue;
+
+    uint16_t& needed()
+    {
+      return free_queue.s.needed;
+    }
+
+    uint8_t& sizeclass()
+    {
+      return free_queue.s.sizeclass;
+    }
+
+    uint8_t& next()
+    {
+      return free_queue.s.next;
+    }
 
     /**
      * Updates statistics for adding an entry to the free list, if the
@@ -57,12 +81,12 @@ namespace snmalloc
      */
     bool return_object()
     {
-      return (--needed) == 0;
+      return (--needed()) == 0;
     }
 
     bool is_unused()
     {
-      return needed == 0;
+      return needed() == 0;
     }
 
     bool is_full()
@@ -77,18 +101,8 @@ namespace snmalloc
       SNMALLOC_ASSERT(free_queue.empty());
       // Set needed to 1, so that "return_object" will return true after calling
       // set_full
-      needed = 1;
+      needed() = 1;
       null_prev();
-    }
-
-    bool valid_head()
-    {
-      size_t size = sizeclass_to_size(sizeclass);
-      auto h = address_cast(free_queue.peek_head());
-      address_t slab_end = (h | ~SLAB_MASK) + 1;
-      address_t allocation_start = remove_cache_friendly_offset(h, sizeclass);
-
-      return (slab_end - allocation_start) % size == 0;
     }
 
     static Slab* get_slab(const void* p)
@@ -104,7 +118,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH static bool is_start_of_object(Metaslab* self, void* p)
     {
       return is_multiple_of_sizeclass(
-        self->sizeclass,
+        self->sizeclass(),
         SLAB_SIZE - pointer_diff(pointer_align_down<SLAB_SIZE>(p), p));
     }
 
@@ -120,26 +134,22 @@ namespace snmalloc
     static SNMALLOC_FAST_PATH void*
     alloc(Metaslab* self, FreeListIter& fast_free_list, size_t rsize)
     {
-      SNMALLOC_ASSERT(rsize == sizeclass_to_size(self->sizeclass));
+      SNMALLOC_ASSERT(rsize == sizeclass_to_size(self->sizeclass()));
       SNMALLOC_ASSERT(!self->is_full());
-
-      auto slab = get_slab(self->free_queue.peek_head());
-
-      self->debug_slab_invariant(slab);
 
       self->free_queue.close(fast_free_list);
       void* n = fast_free_list.take();
 
       // Treat stealing the free list as allocating it all.
-      self->needed =
-        get_slab_capacity(self->sizeclass, Metaslab::is_short(slab));
+      self->needed() = get_slab_capacity(
+        self->sizeclass(), Metaslab::is_short(Metaslab::get_slab(n)));
       self->remove();
       self->set_full();
 
-      void* p = remove_cache_friendly_offset(n, self->sizeclass);
+      void* p = remove_cache_friendly_offset(n, self->sizeclass());
       SNMALLOC_ASSERT(is_start_of_object(self, p));
 
-      self->debug_slab_invariant(slab);
+      self->debug_slab_invariant(Metaslab::get_slab(p));
 
       if constexpr (zero_mem == YesZero)
       {
@@ -170,9 +180,9 @@ namespace snmalloc
       if (is_unused())
         return;
 
-      size_t size = sizeclass_to_size(sizeclass);
-      size_t offset = get_initial_offset(sizeclass, is_short);
-      size_t accounted_for = needed * size + offset;
+      size_t size = sizeclass_to_size(sizeclass());
+      size_t offset = get_initial_offset(sizeclass(), is_short);
+      size_t accounted_for = needed() * size + offset;
 
       // Block is not full
       SNMALLOC_ASSERT(SLAB_SIZE > accounted_for);
@@ -183,7 +193,7 @@ namespace snmalloc
       while (!fl.empty())
       {
         // Check we are looking at a correctly aligned block
-        void* start = remove_cache_friendly_offset(fl.take(), sizeclass);
+        void* start = remove_cache_friendly_offset(fl.take(), sizeclass());
         SNMALLOC_ASSERT(((pointer_diff(slab, start) - offset) % size) == 0);
 
         // Account for free elements in free list
@@ -191,7 +201,7 @@ namespace snmalloc
         SNMALLOC_ASSERT(SLAB_SIZE >= accounted_for);
       }
 
-      auto bumpptr = (get_slab_capacity(sizeclass, is_short) * size) + offset;
+      auto bumpptr = (get_slab_capacity(sizeclass(), is_short) * size) + offset;
       // Check we haven't allocated more than fits in a slab
       SNMALLOC_ASSERT(bumpptr <= SLAB_SIZE);
 
