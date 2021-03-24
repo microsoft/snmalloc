@@ -47,12 +47,12 @@ namespace snmalloc
 #endif
   }
 
-  static inline bool different_slab(uintptr_t p1, uintptr_t p2)
+  static inline bool different_slab(address_t p1, address_t p2)
   {
     return ((p1 ^ p2) >= SLAB_SIZE);
   }
 
-  static inline bool different_slab(uintptr_t p1, void* p2)
+  static inline bool different_slab(address_t p1, void* p2)
   {
     return different_slab(p1, address_cast(p2));
   }
@@ -78,16 +78,14 @@ namespace snmalloc
         // Simple involutional encoding.  The bottom half of each word is
         // multiplied by a function of both global and local keys (the latter,
         // in practice, being the address of the previous list entry) and the
-        // resulting word's top half is XORed into the pointer value before it
+        // resulting word's top part is XORed into the pointer value before it
         // is stored.
         auto next = address_cast(next_object);
-        constexpr uintptr_t MASK = bits::one_at_bit(PRESERVE_BOTTOM_BITS) - 1;
+        constexpr address_t MASK = bits::one_at_bit(PRESERVE_BOTTOM_BITS) - 1;
         // Mix in local_key
-        // We shift local key to the critical bits have more effect on the high
-        // bits.
-        address_t lk = local_key;
-        auto key = (lk << PRESERVE_BOTTOM_BITS) + global_key;
-        next ^= (((next & MASK) + 1) * key) & ~MASK;
+        address_t key = (local_key + 1) * global_key;
+        next ^= (((next & MASK) + 1) * key) &
+          ~(bits::one_at_bit(PRESERVE_BOTTOM_BITS) - 1);
         next_object = reinterpret_cast<FreeObject*>(next);
       }
 #else
@@ -143,7 +141,7 @@ namespace snmalloc
   {
     FreeObject* curr = nullptr;
 #ifdef CHECK_CLIENT
-    uintptr_t prev = 0;
+    address_t prev = 0;
 #endif
 
     uint16_t get_prev()
@@ -310,7 +308,7 @@ namespace snmalloc
      */
     void open(void* p)
     {
-      interleave = 0xDEADBEEF;
+      interleave = 0xDEADBEEF; // TODO RANDOM
 
       SNMALLOC_ASSERT(empty());
 #ifdef CHECK_CLIENT
@@ -323,6 +321,8 @@ namespace snmalloc
 #endif
       end[0] = &head[0];
       end[1] = &head[1];
+
+      SNMALLOC_ASSERT(debug_length() == 0);
     }
 
     /**
@@ -350,6 +350,34 @@ namespace snmalloc
       prev[index] = curr[index];
       curr[index] = address_cast(next) & 0xffff;
 #endif
+    }
+
+    /**
+     *  Calculates the length of the queue.
+     *  This is O(n) as it walks the queue.
+     *  If this is needed in a non-debug setting then
+     *  we should look at redesigning the queue.
+     */
+    size_t debug_length()
+    {
+      size_t count = 0;
+      for (size_t i = 0; i < 2; i++)
+      {
+        uint16_t local_prev = HEAD_KEY;
+        EncodeFreeObjectReference* iter = &head[i];
+        FreeObject* prev_obj = iter->read(local_prev);
+        uint16_t local_curr = initial_key(prev_obj) & 0xffff;
+        while (end[i] != iter)
+        {
+          FreeObject* next = iter->read(local_prev);
+          check_client(!different_slab(next, prev_obj), "Heap corruption");
+          local_prev = local_curr;
+          local_curr = address_cast(next) & 0xffff;
+          count++;
+          iter = &next->next_object;
+        }
+      }
+      return count;
     }
 
     /**

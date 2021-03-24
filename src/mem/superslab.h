@@ -192,19 +192,13 @@ namespace snmalloc
       if ((self->used & 1) == 1)
         return alloc_slab(self, sizeclass);
 
+      Slab* slab = reinterpret_cast<Slab*>(self);
       auto& metaz = self->meta[0];
 
-      metaz.free_queue.init();
-      // Set up meta data as if the entire slab has been turned into a free
-      // list. This means we don't have to check for special cases where we have
-      // returned all the elements, but this is a slab that is still being bump
-      // allocated from. Hence, the bump allocator slab will never be returned
-      // for use in another size class.
-      metaz.set_full();
-      metaz.sizeclass() = static_cast<uint8_t>(sizeclass);
+      metaz.initialise(sizeclass, slab);
 
       self->used++;
-      return reinterpret_cast<Slab*>(self);
+      return slab;
     }
 
     // This is pre-factored to take an explicit self parameter so that we can
@@ -218,14 +212,7 @@ namespace snmalloc
       auto& metah = self->meta[h];
       uint8_t n = metah.next();
 
-      metah.free_queue.init();
-      // Set up meta data as if the entire slab has been turned into a free
-      // list. This means we don't have to check for special cases where we have
-      // returned all the elements, but this is a slab that is still being bump
-      // allocated from. Hence, the bump allocator slab will never be returned
-      // for use in another size class.
-      metah.set_full();
-      metah.sizeclass() = static_cast<uint8_t>(sizeclass);
+      metah.initialise(sizeclass, slab);
 
       self->head = h + n + 1;
       self->used += 2;
@@ -240,7 +227,6 @@ namespace snmalloc
       uint8_t index = static_cast<uint8_t>(slab_to_index(slab));
       uint8_t n = head - index - 1;
 
-      meta[index].sizeclass() = 0;
       meta[index].next() = n;
       head = index;
       bool was_almost_full = is_almost_full();

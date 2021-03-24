@@ -105,10 +105,12 @@ namespace snmalloc
 
           return super->dealloc_slab(self);
         }
-        SNMALLOC_ASSERT(meta.free_queue.empty());
-        meta.free_queue.open(p);
+
         meta.free_queue.add(p);
-        meta.needed() = allocated - 1;
+        //  Remove trigger threshold from how many we need before we have fully
+        //  freed the slab.
+        meta.needed() =
+          allocated - meta.threshold_for_waking_slab(Metaslab::is_short(self));
 
         // Push on the list of slabs for this sizeclass.
         sl->insert_prev(&meta);
