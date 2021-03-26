@@ -160,14 +160,19 @@ namespace snmalloc
      * eventually annotate that pointer with additional information.
      */
     template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
-    static SNMALLOC_FAST_PATH void*
-    alloc(Metaslab* self, FreeListIter& fast_free_list, size_t rsize)
+    static SNMALLOC_FAST_PATH void* alloc(
+      Metaslab* self,
+      FreeListIter& fast_free_list,
+      size_t rsize,
+      LocalEntropy& entropy)
     {
       SNMALLOC_ASSERT(rsize == sizeclass_to_size(self->sizeclass()));
       SNMALLOC_ASSERT(!self->is_full());
 
-      self->free_queue.close(fast_free_list);
-      void* n = fast_free_list.take();
+      self->free_queue.close(fast_free_list, entropy);
+      void* n = fast_free_list.take(entropy);
+
+      entropy.refresh_bits();
 
       // Treat stealing the free list as allocating it all.
       self->remove();
@@ -176,7 +181,7 @@ namespace snmalloc
       void* p = remove_cache_friendly_offset(n, self->sizeclass());
       SNMALLOC_ASSERT(is_start_of_object(self, p));
 
-      self->debug_slab_invariant(Metaslab::get_slab(p));
+      self->debug_slab_invariant(Metaslab::get_slab(p), entropy);
 
       if constexpr (zero_mem == YesZero)
       {
@@ -193,14 +198,14 @@ namespace snmalloc
       return p;
     }
 
-    void debug_slab_invariant(Slab* slab)
+    void debug_slab_invariant(Slab* slab, LocalEntropy& entropy)
     {
 #if !defined(NDEBUG) && !defined(SNMALLOC_CHEAP_CHECKS)
       bool is_short = Metaslab::is_short(slab);
 
       if (is_full())
       {
-        size_t count = free_queue.debug_length();
+        size_t count = free_queue.debug_length(entropy);
         SNMALLOC_ASSERT(count < threshold_for_waking_slab(is_short));
         return;
       }
@@ -216,7 +221,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(SLAB_SIZE > accounted_for);
 
       // Account for list size
-      size_t count = free_queue.debug_length();
+      size_t count = free_queue.debug_length(entropy);
       accounted_for += count * size;
 
       SNMALLOC_ASSERT(count <= get_slab_capacity(sizeclass(), is_short));
@@ -234,6 +239,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(SLAB_SIZE == accounted_for);
 #else
       UNUSED(slab);
+      UNUSED(entropy);
 #endif
     }
   };

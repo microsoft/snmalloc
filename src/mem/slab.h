@@ -29,8 +29,11 @@ namespace snmalloc
      * worth of allocations, or one if the allocation size is larger than a
      * page.
      */
-    static SNMALLOC_FAST_PATH void
-    alloc_new_list(void*& bumpptr, FreeListIter& fast_free_list, size_t rsize)
+    static SNMALLOC_FAST_PATH void alloc_new_list(
+      void*& bumpptr,
+      FreeListIter& fast_free_list,
+      size_t rsize,
+      LocalEntropy& entropy)
     {
       void* slab_end = pointer_align_up<SLAB_SIZE>(pointer_offset(bumpptr, 1));
 
@@ -48,14 +51,14 @@ namespace snmalloc
         void* newbumpptr = pointer_offset(bumpptr, rsize * offset);
         while (newbumpptr < slab_end)
         {
-          b.add(newbumpptr);
+          b.add(newbumpptr, entropy);
           newbumpptr = pointer_offset(newbumpptr, rsize * start_index.size());
         }
       }
       bumpptr = slab_end;
 
       SNMALLOC_ASSERT(!b.empty());
-      b.close(fast_free_list);
+      b.close(fast_free_list, entropy);
     }
 
     // Returns true, if it deallocation can proceed without changing any status
@@ -65,7 +68,7 @@ namespace snmalloc
     // This is pre-factored to take an explicit self parameter so that we can
     // eventually annotate that pointer with additional information.
     static SNMALLOC_FAST_PATH bool
-    dealloc_fast(Slab* self, Superslab* super, void* p)
+    dealloc_fast(Slab* self, Superslab* super, void* p, LocalEntropy& entropy)
     {
       Metaslab& meta = super->get_meta(self);
       SNMALLOC_ASSERT(!meta.is_unused());
@@ -74,7 +77,7 @@ namespace snmalloc
         return false;
 
       // Update the head and the next pointer in the free list.
-      meta.free_queue.add(p);
+      meta.free_queue.add(p, entropy);
 
       return true;
     }
@@ -86,11 +89,15 @@ namespace snmalloc
     //
     // This is pre-factored to take an explicit self parameter so that we can
     // eventually annotate that pointer with additional information.
-    static SNMALLOC_SLOW_PATH typename Superslab::Action
-    dealloc_slow(Slab* self, SlabList* sl, Superslab* super, void* p)
+    static SNMALLOC_SLOW_PATH typename Superslab::Action dealloc_slow(
+      Slab* self,
+      SlabList* sl,
+      Superslab* super,
+      void* p,
+      LocalEntropy& entropy)
     {
       Metaslab& meta = super->get_meta(self);
-      meta.debug_slab_invariant(self);
+      meta.debug_slab_invariant(self, entropy);
 
       if (meta.is_full())
       {
@@ -106,7 +113,7 @@ namespace snmalloc
           return super->dealloc_slab(self);
         }
 
-        meta.free_queue.add(p);
+        meta.free_queue.add(p, entropy);
         //  Remove trigger threshold from how many we need before we have fully
         //  freed the slab.
         meta.needed() =
@@ -114,7 +121,7 @@ namespace snmalloc
 
         // Push on the list of slabs for this sizeclass.
         sl->insert_prev(&meta);
-        meta.debug_slab_invariant(self);
+        meta.debug_slab_invariant(self, entropy);
         return Superslab::NoSlabReturn;
       }
 
@@ -123,11 +130,11 @@ namespace snmalloc
       // Check free list is well-formed on platforms with
       // integers as pointers.
       FreeListIter fl;
-      meta.free_queue.close(fl);
+      meta.free_queue.close(fl, entropy);
 
       while (!fl.empty())
       {
-        fl.take();
+        fl.take(entropy);
         count++;
       }
 #endif
