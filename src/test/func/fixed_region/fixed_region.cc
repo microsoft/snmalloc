@@ -15,6 +15,14 @@ extern "C" void* oe_memset_s(void* p, size_t p_size, int c, size_t size)
   return memset(p, c, size);
 }
 
+extern "C" int oe_random(void* p, size_t p_size)
+{
+  UNUSED(p_size);
+  UNUSED(p);
+  // Stub for random data.
+  return 0;
+}
+
 extern "C" void oe_abort()
 {
   abort();

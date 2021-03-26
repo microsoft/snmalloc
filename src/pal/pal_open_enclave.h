@@ -7,6 +7,7 @@
 #include <array>
 #ifdef OPEN_ENCLAVE
 extern "C" void* oe_memset_s(void* p, size_t p_size, int c, size_t size);
+extern "C" int oe_random(void* data, size_t size);
 extern "C" [[noreturn]] void oe_abort();
 
 namespace snmalloc
@@ -37,7 +38,7 @@ namespace snmalloc
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
      */
-    static constexpr uint64_t pal_features = 0;
+    static constexpr uint64_t pal_features = Entropy;
 
     static constexpr size_t page_size = Aal::smallest_page_size;
 
@@ -65,6 +66,17 @@ namespace snmalloc
     static void zero(void* p, size_t size) noexcept
     {
       oe_memset_s(p, size, 0, size);
+    }
+
+    /**
+     * Source of Entropy
+     */
+    static uint64_t get_entropy64()
+    {
+      uint64_t result = 0;
+      if (oe_random(&result, sizeof(result)) != 0)
+        error("Failed to get system randomness");
+      return result;
     }
   };
 }
