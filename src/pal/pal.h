@@ -66,12 +66,6 @@ namespace snmalloc
     Pal::error(str);
   }
 
-  /**
-   * Query whether the PAL supports a specific feature.
-   */
-  template<PalFeatures F, SNMALLOC_CONCEPT(ConceptPAL) PAL = Pal>
-  constexpr static bool pal_supports = (PAL::pal_features & F) == F;
-
   // Used to keep Superslab metadata committed.
   static constexpr size_t OS_PAGE_SIZE = Pal::page_size;
 

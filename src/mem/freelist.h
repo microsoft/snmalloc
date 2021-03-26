@@ -9,6 +9,7 @@
 #include "../ds/dllist.h"
 #include "../ds/helpers.h"
 #include "allocconfig.h"
+#include "entropy.h"
 
 #include <cstdint>
 
@@ -16,13 +17,6 @@ namespace snmalloc
 {
 #ifdef CHECK_CLIENT
   static constexpr std::size_t PRESERVE_BOTTOM_BITS = 16;
-
-  /**
-   * The key that is used to encode free list pointers.
-   * This should be randomised at startup in the future.
-   */
-  inline static address_t global_key = static_cast<std::size_t>(
-    bits::is64() ? 0x5a59'DEAD'BEEF'5A59 : 0x5A59'BEEF);
 #endif
 
   /**
@@ -85,7 +79,7 @@ namespace snmalloc
 #ifdef CHECK_CLIENT
     template<typename T = FreeObject>
     static std::enable_if_t<do_encode, T*>
-    encode(uint16_t local_key, T* next_object)
+    encode(uint16_t local_key, T* next_object, LocalEntropy& entropy)
     {
       // Simple involutional encoding.  The bottom half of each word is
       // multiplied by a function of both global and local keys (the latter,
@@ -95,7 +89,7 @@ namespace snmalloc
       auto next = address_cast(next_object);
       constexpr address_t MASK = bits::one_at_bit(PRESERVE_BOTTOM_BITS) - 1;
       // Mix in local_key
-      address_t key = (local_key + 1) * global_key;
+      address_t key = (local_key + 1) * entropy.get_constant_key();
       next ^= (((next & MASK) + 1) * key) &
         ~(bits::one_at_bit(PRESERVE_BOTTOM_BITS) - 1);
       return reinterpret_cast<FreeObject*>(next);
@@ -104,20 +98,21 @@ namespace snmalloc
 
     template<typename T = FreeObject>
     static std::enable_if_t<!do_encode, T*>
-    encode(uint16_t local_key, T* next_object)
+    encode(uint16_t local_key, T* next_object, LocalEntropy& entropy)
     {
       UNUSED(local_key);
+      UNUSED(entropy);
       return next_object;
     }
 
-    void store(FreeObject* value, uint16_t local_key)
+    void store(FreeObject* value, uint16_t local_key, LocalEntropy& entropy)
     {
-      reference = encode(local_key, value);
+      reference = encode(local_key, value, entropy);
     }
 
-    FreeObject* read(uint16_t local_key)
+    FreeObject* read(uint16_t local_key, LocalEntropy& entropy)
     {
-      return encode(local_key, reference);
+      return encode(local_key, reference, entropy);
     }
   };
 
@@ -142,9 +137,9 @@ namespace snmalloc
     /**
      * Read the next pointer handling any required decoding of the pointer
      */
-    FreeObject* read_next(uint16_t key)
+    FreeObject* read_next(uint16_t key, LocalEntropy& entropy)
     {
-      return next_object.read(key);
+      return next_object.read(key, entropy);
     }
   };
 
@@ -223,14 +218,14 @@ namespace snmalloc
     /**
      * Moves the iterator on, and returns the current value.
      */
-    void* take()
+    void* take(LocalEntropy& entropy)
     {
 #ifdef CHECK_CLIENT
       check_client(
         !different_slab(prev, curr), "Heap corruption - free list corrupted!");
 #endif
       auto c = curr;
-      update_cursor(curr->read_next(get_prev()));
+      update_cursor(curr->read_next(get_prev(), entropy));
       return c;
     }
   };
@@ -266,7 +261,6 @@ namespace snmalloc
     // In the empty case end[i] == &head[i]
     // This enables branch free enqueuing.
     EncodeFreeObjectReference* end[2];
-    uint32_t interleave;
 #ifdef CHECK_CLIENT
     // The bottom 16 bits of the previous pointer
     uint16_t prev[2];
@@ -300,18 +294,6 @@ namespace snmalloc
 
     static constexpr uint16_t HEAD_KEY = 1;
 
-    /**
-     * Rotate the bits for interleaving.
-     *
-     * Returns the bottom bit.
-     */
-    uint32_t next_interleave()
-    {
-      uint32_t bottom_bit = interleave & 1;
-      interleave = (bottom_bit << 31) | (interleave >> 1);
-      return bottom_bit;
-    }
-
   public:
     FreeListBuilder()
     {
@@ -324,8 +306,6 @@ namespace snmalloc
      */
     void open(void* p)
     {
-      interleave = 0xDEADBEEF; // TODO RANDOM
-
       SNMALLOC_ASSERT(empty());
 #ifdef CHECK_CLIENT
       prev[0] = HEAD_KEY;
@@ -337,8 +317,6 @@ namespace snmalloc
 #endif
       end[0] = &head[0];
       end[1] = &head[1];
-
-      SNMALLOC_ASSERT(debug_length() == 0);
     }
 
     /**
@@ -352,15 +330,15 @@ namespace snmalloc
     /**
      * Adds an element to the builder
      */
-    void add(void* n)
+    void add(void* n, LocalEntropy& entropy)
     {
       SNMALLOC_ASSERT(
         !different_slab(end[0], n) || !different_slab(end[1], n) || empty());
       FreeObject* next = FreeObject::make(n);
 
-      uint32_t index = next_interleave();
+      auto index = entropy.next_bit();
 
-      end[index]->store(next, get_prev(index));
+      end[index]->store(next, get_prev(index), entropy);
       end[index] = &(next->next_object);
 #ifdef CHECK_CLIENT
       prev[index] = curr[index];
@@ -374,18 +352,18 @@ namespace snmalloc
      *  If this is needed in a non-debug setting then
      *  we should look at redesigning the queue.
      */
-    size_t debug_length()
+    size_t debug_length(LocalEntropy& entropy)
     {
       size_t count = 0;
       for (size_t i = 0; i < 2; i++)
       {
         uint16_t local_prev = HEAD_KEY;
         EncodeFreeObjectReference* iter = &head[i];
-        FreeObject* prev_obj = iter->read(local_prev);
+        FreeObject* prev_obj = iter->read(local_prev, entropy);
         uint16_t local_curr = initial_key(prev_obj) & 0xffff;
         while (end[i] != iter)
         {
-          FreeObject* next = iter->read(local_prev);
+          FreeObject* next = iter->read(local_prev, entropy);
           check_client(!different_slab(next, prev_obj), "Heap corruption");
           local_prev = local_curr;
           local_curr = address_cast(next) & 0xffff;
@@ -412,7 +390,7 @@ namespace snmalloc
      *
      * It is used with preserve_queue disabled by close.
      */
-    FreeListIter terminate(bool preserve_queue = true)
+    FreeListIter terminate(LocalEntropy& entropy, bool preserve_queue = true)
     {
       SNMALLOC_ASSERT(end[1] != &head[0]);
       SNMALLOC_ASSERT(end[0] != &head[1]);
@@ -420,25 +398,25 @@ namespace snmalloc
       // If second list is empty, then append is trivial.
       if (end[1] == &head[1])
       {
-        end[0]->store(nullptr, get_prev(0));
-        return {head[0].read(HEAD_KEY)};
+        end[0]->store(nullptr, get_prev(0), entropy);
+        return {head[0].read(HEAD_KEY, entropy)};
       }
 
-      end[1]->store(nullptr, get_prev(1));
+      end[1]->store(nullptr, get_prev(1), entropy);
 
       // Append 1 to 0
-      auto mid = head[1].read(HEAD_KEY);
-      end[0]->store(mid, get_prev(0));
+      auto mid = head[1].read(HEAD_KEY, entropy);
+      end[0]->store(mid, get_prev(0), entropy);
       // Re-code first link in second list (if there is one).
       // The first link in the second list will be encoded with initial_key,
       // But that needs to be changed to the curr of the first list.
       if (mid != nullptr)
       {
-        auto mid_next = mid->read_next(initial_key(mid) & 0xffff);
-        mid->next_object.store(mid_next, get_curr(0));
+        auto mid_next = mid->read_next(initial_key(mid) & 0xffff, entropy);
+        mid->next_object.store(mid_next, get_curr(0), entropy);
       }
 
-      auto h = head[0].read(HEAD_KEY);
+      auto h = head[0].read(HEAD_KEY, entropy);
 
       // If we need to continue adding to the builder
       // Set up the second list as empty,
@@ -467,9 +445,9 @@ namespace snmalloc
      * Close a free list, and set the iterator parameter
      * to iterate it.
      */
-    void close(FreeListIter& dst)
+    void close(FreeListIter& dst, LocalEntropy& entropy)
     {
-      dst = terminate(false);
+      dst = terminate(entropy, false);
       init();
     }
 

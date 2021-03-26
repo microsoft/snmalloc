@@ -72,7 +72,7 @@ namespace snmalloc
  *     internal tree node in the non-flat pagemap).
  */
 #  define SNMALLOC_MAX_FLATPAGEMAP_SIZE \
-    (pal_supports<LazyCommit> ? 256ULL * 1024 * 1024 : PAGEMAP_NODE_SIZE)
+    (pal_supports<LazyCommit, Pal> ? 256ULL * 1024 * 1024 : PAGEMAP_NODE_SIZE)
 #endif
   static constexpr bool CHUNKMAP_USE_FLATPAGEMAP =
     SNMALLOC_MAX_FLATPAGEMAP_SIZE >=

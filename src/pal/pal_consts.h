@@ -41,6 +41,10 @@ namespace snmalloc
      * should be pre-allocated.
      */
     NoAllocation = (1 << 3),
+    /**
+     * This Pal provides a source of Entropy
+     */
+    Entropy = (1 << 4),
   };
   /**
    * Flag indicating whether requested memory should be zeroed.
@@ -125,4 +129,10 @@ namespace snmalloc
       }
     }
   };
+
+  /**
+   * Query whether the PAL supports a specific feature.
+   */
+  template<PalFeatures F, typename PAL>
+  constexpr static bool pal_supports = (PAL::pal_features & F) == F;
 } // namespace snmalloc

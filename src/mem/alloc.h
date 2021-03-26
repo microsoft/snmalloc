@@ -98,6 +98,7 @@ namespace snmalloc
   {
     LargeAlloc<MemoryProvider> large_allocator;
     ChunkMap chunk_map;
+    LocalEntropy entropy;
 
     /**
      * Per size class bumpptr for building new free lists
@@ -683,6 +684,11 @@ namespace snmalloc
       if (isFake)
         return;
 
+      // Entropy must be first, so that all data-structures can use the key
+      // it generates.
+      // This must occur before any freelists are constructed.
+      entropy.init<typename MemoryProvider::Pal>();
+
       init_message_queue();
       message_queue().invariant();
 
@@ -745,10 +751,10 @@ namespace snmalloc
         Slab* slab = Metaslab::get_slab(bp);
         while (pointer_align_up(bp, SLAB_SIZE) != bp)
         {
-          Slab::alloc_new_list(bp, ffl, rsize);
+          Slab::alloc_new_list(bp, ffl, rsize, entropy);
           while (!ffl.empty())
           {
-            small_dealloc_offseted_inner(super, slab, ffl.take(), i);
+            small_dealloc_offseted_inner(super, slab, ffl.take(entropy), i);
           }
         }
       }
@@ -762,7 +768,7 @@ namespace snmalloc
           auto slab = Metaslab::get_slab(head);
           do
           {
-            auto curr = small_fast_free_lists[i].take();
+            auto curr = small_fast_free_lists[i].take(entropy);
             small_dealloc_offseted_inner(super, slab, curr, i);
           } while (!small_fast_free_lists[i].empty());
 
@@ -1016,7 +1022,7 @@ namespace snmalloc
       {
         stats().alloc_request(size);
         stats().sizeclass_alloc(sizeclass);
-        void* p = remove_cache_friendly_offset(fl.take(), sizeclass);
+        void* p = remove_cache_friendly_offset(fl.take(entropy), sizeclass);
         if constexpr (zero_mem == YesZero)
         {
           MemoryProvider::Pal::zero(p, sizeclass_to_size(sizeclass));
@@ -1061,7 +1067,7 @@ namespace snmalloc
         auto meta = reinterpret_cast<Metaslab*>(sl.get_next());
         auto& ffl = small_fast_free_lists[sizeclass];
         return Metaslab::alloc<zero_mem, typename MemoryProvider::Pal>(
-          meta, ffl, rsize);
+          meta, ffl, rsize, entropy);
       }
       return small_alloc_rare<zero_mem>(sizeclass, size);
     }
@@ -1125,9 +1131,9 @@ namespace snmalloc
       auto rsize = sizeclass_to_size(sizeclass);
       auto& ffl = small_fast_free_lists[sizeclass];
       SNMALLOC_ASSERT(ffl.empty());
-      Slab::alloc_new_list(bp, ffl, rsize);
+      Slab::alloc_new_list(bp, ffl, rsize, entropy);
 
-      auto p = remove_cache_friendly_offset(ffl.take(), sizeclass);
+      auto p = remove_cache_friendly_offset(ffl.take(entropy), sizeclass);
 
       if constexpr (zero_mem == YesZero)
       {
@@ -1213,7 +1219,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void small_dealloc_offseted_inner(
       Superslab* super, Slab* slab, void* p, sizeclass_t sizeclass)
     {
-      if (likely(Slab::dealloc_fast(slab, super, p)))
+      if (likely(Slab::dealloc_fast(slab, super, p, entropy)))
         return;
 
       small_dealloc_offseted_slow(super, slab, p, sizeclass);
@@ -1224,7 +1230,7 @@ namespace snmalloc
     {
       bool was_full = super->is_full();
       SlabList* sl = &small_classes[sizeclass];
-      Superslab::Action a = Slab::dealloc_slow(slab, sl, super, p);
+      Superslab::Action a = Slab::dealloc_slow(slab, sl, super, p, entropy);
       if (likely(a == Superslab::NoSlabReturn))
         return;
       stats().sizeclass_dealloc_slab(sizeclass);
