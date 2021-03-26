@@ -12,6 +12,12 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <utility>
+#if __has_include(<sys/random.h>)
+#  include <sys/random.h>
+#endif
+#if __has_include(<unistd.h>)
+#  include <unistd.h>
+#endif
 
 extern "C" int puts(const char* str);
 
@@ -113,7 +119,7 @@ namespace snmalloc
      *
      * POSIX systems are assumed to support lazy commit.
      */
-    static constexpr uint64_t pal_features = LazyCommit;
+    static constexpr uint64_t pal_features = LazyCommit | Entropy;
 
     static constexpr size_t page_size = Aal::smallest_page_size;
 
@@ -263,6 +269,32 @@ namespace snmalloc
       }
 
       OS::error("Out of memory");
+    }
+
+    /**
+     * Source of Entropy
+     *
+     * This is a default that works on many POSIX platforms.
+     */
+    static uint64_t get_entropy64()
+    {
+      if constexpr (!pal_supports<Entropy, OS>)
+      {
+        // Derived Pal does not provide entropy.
+        return 0;
+      }
+      else if constexpr (OS::get_entropy64 != get_entropy64)
+      {
+        // Derived Pal has provided a custom definition.
+        return OS::get_entropy64();
+      }
+      else
+      {
+        uint64_t result;
+        if (getentropy(&result, sizeof(result)) != 0)
+          error("Failed to get system randomness");
+        return result;
+      }
     }
   };
 } // namespace snmalloc

@@ -18,8 +18,11 @@ namespace snmalloc
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
      *
+     * Disable the POSIX default implementation of Entropy as not supported on
+     * Haiku.
      */
-    static constexpr uint64_t pal_features = PALPOSIX::pal_features;
+    static constexpr uint64_t pal_features =
+      PALPOSIX::pal_features & ~(Entropy);
 
     /**
      * Haiku requires an explicit no-reserve flag in `mmap` to guarantee lazy
