@@ -12,6 +12,8 @@
 #    define NOMINMAX
 #  endif
 #  include <windows.h>
+#  pragma comment(lib, "bcrypt.lib")
+#  include <bcrypt.h>
 // VirtualAlloc2 is exposed in RS5 headers.
 #  ifdef NTDDI_WIN10_RS5
 #    if (NTDDI_VERSION >= NTDDI_WIN10_RS5) && \
@@ -50,7 +52,7 @@ namespace snmalloc
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.  This PAL supports low-memory notifications.
      */
-    static constexpr uint64_t pal_features = LowMemoryNotification
+    static constexpr uint64_t pal_features = LowMemoryNotification | Entropy
 #  if defined(PLATFORM_HAS_VIRTUALALLOC2) && !defined(USE_SYSTEMATIC_TESTING)
       | AlignedAllocation
 #  endif
@@ -235,6 +237,22 @@ namespace snmalloc
       error("Failed to allocate memory\n");
     }
 #  endif
+
+    /**
+     * Source of Entropy
+     */
+    static uint64_t get_entropy64()
+    {
+      uint64_t result;
+      if (
+        BCryptGenRandom(
+          nullptr,
+          reinterpret_cast<PUCHAR>(&result),
+          sizeof(result),
+          BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0)
+        error("Failed to get entropy.");
+      return result;
+    }
   };
 }
 #endif
