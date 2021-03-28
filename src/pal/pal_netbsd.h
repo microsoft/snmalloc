@@ -22,8 +22,13 @@ namespace snmalloc
      * generic BSD with support for arbitrary alignment from `mmap`.  This
      * field is declared explicitly to remind anyone modifying this class to
      * add new features that they should add any required feature flags.
+     *
+     * We disable the default implementation of randomness on NetBSD as it
+     * does not have the getentropy call. This will currently fallback to
+     * C++ libraries std::random_device.
      */
-    static constexpr uint64_t pal_features = PALBSD_Aligned::pal_features;
+    static constexpr uint64_t pal_features =
+      PALBSD_Aligned::pal_features & ~Entropy;
   };
 } // namespace snmalloc
 #endif
