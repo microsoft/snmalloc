@@ -74,7 +74,7 @@ namespace snmalloc
     static uint64_t get_entropy64()
     {
       uint64_t result = 0;
-      if (oe_random(&result, sizeof(result)) != 0)
+      if (oe_random(&result, sizeof(result)) != OE_OK)
         error("Failed to get system randomness");
       return result;
     }

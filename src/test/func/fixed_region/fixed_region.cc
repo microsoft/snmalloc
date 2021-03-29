@@ -1,5 +1,6 @@
 #define SNMALLOC_SGX
 #define OPEN_ENCLAVE
+#define OE_OK 0
 #define OPEN_ENCLAVE_SIMULATION
 #include <iostream>
 #include <snmalloc.h>
