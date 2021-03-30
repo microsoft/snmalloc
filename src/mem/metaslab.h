@@ -13,11 +13,6 @@ namespace snmalloc
   using SlabList = CDLLNode<>;
   using SlabLink = CDLLNode<>;
 
-  SNMALLOC_FAST_PATH Slab* get_slab(SlabLink* sl)
-  {
-    return pointer_align_down<SLAB_SIZE, Slab>(sl);
-  }
-
   static_assert(
     sizeof(SlabLink) <= MIN_ALLOC_SIZE,
     "Need to be able to pack a SlabLink into any free small alloc");
