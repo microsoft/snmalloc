@@ -50,29 +50,32 @@ namespace snmalloc
         const_cast<void*>(p));
     }
 
-    void init(RemoteAllocator* alloc, sizeclass_t sc, size_t rsize)
+    // This is pre-factored to take an explicit self parameter so that we can
+    // eventually annotate that pointer with additional information.
+    static void
+    init(Mediumslab* self, RemoteAllocator* alloc, sizeclass_t sc, size_t rsize)
     {
       SNMALLOC_ASSERT(sc >= NUM_SMALL_CLASSES);
       SNMALLOC_ASSERT((sc - NUM_SMALL_CLASSES) < NUM_MEDIUM_CLASSES);
 
-      allocator = alloc;
-      head = 0;
+      self->allocator = alloc;
+      self->head = 0;
 
       // If this was previously a Mediumslab of the same sizeclass, don't
       // initialise the allocation stack.
-      if ((kind != Medium) || (sizeclass != sc))
+      if ((self->kind != Medium) || (self->sizeclass != sc))
       {
-        sizeclass = static_cast<uint8_t>(sc);
+        self->sizeclass = static_cast<uint8_t>(sc);
         uint16_t ssize = static_cast<uint16_t>(rsize >> 8);
-        kind = Medium;
-        free = medium_slab_free(sc);
-        for (uint16_t i = free; i > 0; i--)
-          stack[free - i] =
+        self->kind = Medium;
+        self->free = medium_slab_free(sc);
+        for (uint16_t i = self->free; i > 0; i--)
+          self->stack[self->free - i] =
             static_cast<uint16_t>((SUPERSLAB_SIZE >> 8) - (i * ssize));
       }
       else
       {
-        SNMALLOC_ASSERT(free == medium_slab_free(sc));
+        SNMALLOC_ASSERT(self->free == medium_slab_free(sc));
       }
     }
 
