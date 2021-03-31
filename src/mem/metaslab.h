@@ -181,9 +181,9 @@ namespace snmalloc
       if constexpr (zero_mem == YesZero)
       {
         if (rsize < PAGE_ALIGNED_SIZE)
-          PAL::zero(p, rsize);
+          pal_zero<PAL>(p, rsize);
         else
-          PAL::template zero<true>(p, rsize);
+          pal_zero<PAL, true>(p, rsize);
       }
       else
       {

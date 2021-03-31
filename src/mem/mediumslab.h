@@ -94,7 +94,7 @@ namespace snmalloc
       self->free--;
 
       if constexpr (zero_mem == YesZero)
-        PAL::zero(p, size);
+        pal_zero<PAL>(p, size);
       else
         UNUSED(size);
 
