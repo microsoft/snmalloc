@@ -922,8 +922,9 @@ namespace snmalloc
       if (super != nullptr)
         return super;
 
-      super = reinterpret_cast<Superslab*>(
-        large_allocator.template alloc<NoZero>(0, SUPERSLAB_SIZE));
+      super =
+        reinterpret_cast<Superslab*>(large_allocator.template alloc<NoZero>(
+          0, SUPERSLAB_SIZE, SUPERSLAB_SIZE));
 
       if (super == nullptr)
         return super;
@@ -1304,8 +1305,9 @@ namespace snmalloc
               sizeclass, rsize, size);
           });
         }
-        slab = reinterpret_cast<Mediumslab*>(
-          large_allocator.template alloc<NoZero>(0, SUPERSLAB_SIZE));
+        slab =
+          reinterpret_cast<Mediumslab*>(large_allocator.template alloc<NoZero>(
+            0, SUPERSLAB_SIZE, SUPERSLAB_SIZE));
 
         if (slab == nullptr)
           return nullptr;
@@ -1413,7 +1415,13 @@ namespace snmalloc
       size_t large_class = size_bits - SUPERSLAB_BITS;
       SNMALLOC_ASSERT(large_class < NUM_LARGE_CLASSES);
 
-      void* p = large_allocator.template alloc<zero_mem>(large_class, size);
+      size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
+      // For superslab size, we always commit the whole range.
+      if (large_class == 0)
+        size = rsize;
+
+      void* p =
+        large_allocator.template alloc<zero_mem>(large_class, rsize, size);
       if (likely(p != nullptr))
       {
         chunkmap().set_large_size(p, size);
