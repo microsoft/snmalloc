@@ -1310,7 +1310,7 @@ namespace snmalloc
         if (slab == nullptr)
           return nullptr;
 
-        slab->init(public_state(), sizeclass, rsize);
+        Mediumslab::init(slab, public_state(), sizeclass, rsize);
         chunkmap().set_slab(slab);
         p =
           Mediumslab::alloc<zero_mem, typename MemoryProvider::Pal>(slab, size);
