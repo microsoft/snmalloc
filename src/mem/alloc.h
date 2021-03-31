@@ -1026,7 +1026,8 @@ namespace snmalloc
         void* p = remove_cache_friendly_offset(fl.take(entropy), sizeclass);
         if constexpr (zero_mem == YesZero)
         {
-          MemoryProvider::Pal::zero(p, sizeclass_to_size(sizeclass));
+          pal_zero<typename MemoryProvider::Pal>(
+            p, sizeclass_to_size(sizeclass));
         }
         return p;
       }
@@ -1138,7 +1139,7 @@ namespace snmalloc
 
       if constexpr (zero_mem == YesZero)
       {
-        MemoryProvider::Pal::zero(p, sizeclass_to_size(sizeclass));
+        pal_zero<typename MemoryProvider::Pal>(p, sizeclass_to_size(sizeclass));
       }
       return p;
     }

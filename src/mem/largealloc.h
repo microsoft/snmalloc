@@ -319,7 +319,7 @@ namespace snmalloc
           // The first page is already in "use" for the stack element,
           // this will need zeroing for a YesZero call.
           if constexpr (zero_mem == YesZero)
-            MemoryProvider::Pal::template zero<true>(p, OS_PAGE_SIZE);
+            pal_zero<typename MemoryProvider::Pal, true>(p, OS_PAGE_SIZE);
 
           // Notify we are using the rest of the allocation.
           // Passing zero_mem ensures the PAL provides zeroed pages if
@@ -331,7 +331,7 @@ namespace snmalloc
         {
           // This is a superslab that has not been decommitted.
           if constexpr (zero_mem == YesZero)
-            MemoryProvider::Pal::template zero<true>(
+            pal_zero<typename MemoryProvider::Pal, true>(
               p, bits::align_up(size, OS_PAGE_SIZE));
           else
             UNUSED(size);

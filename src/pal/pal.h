@@ -69,6 +69,16 @@ namespace snmalloc
   // Used to keep Superslab metadata committed.
   static constexpr size_t OS_PAGE_SIZE = Pal::page_size;
 
+  /**
+   * A centralized, inlinable wrapper around PAL::zero.  This will matter more
+   * when we introduce AuthPtr-s.
+   */
+  template<typename PAL, bool page_aligned = false>
+  static SNMALLOC_FAST_PATH void pal_zero(void* p, size_t sz)
+  {
+    PAL::template zero<page_aligned>(p, sz);
+  }
+
   static_assert(
     bits::is_pow2(OS_PAGE_SIZE), "OS_PAGE_SIZE must be a power of two");
   static_assert(
