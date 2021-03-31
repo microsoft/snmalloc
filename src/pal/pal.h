@@ -109,13 +109,6 @@ namespace snmalloc
     PAL::template zero<page_aligned>(p.unsafe_capptr, sz);
   }
 
-  // TODO: Remove once CapPtr<>s plumbed everywhere they need to be
-  template<typename PAL, bool page_aligned = false>
-  static SNMALLOC_FAST_PATH void pal_zero(void* p, size_t sz)
-  {
-    PAL::template zero<page_aligned>(p, sz);
-  }
-
   static_assert(
     bits::is_pow2(OS_PAGE_SIZE), "OS_PAGE_SIZE must be a power of two");
   static_assert(
