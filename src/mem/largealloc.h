@@ -290,12 +290,10 @@ namespace snmalloc
     LargeAlloc(MemoryProvider& mp) : memory_provider(mp) {}
 
     template<ZeroMem zero_mem = NoZero>
-    void* alloc(size_t large_class, size_t size)
+    void* alloc(size_t large_class, size_t rsize, size_t size)
     {
-      size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
-      // For superslab size, we always commit the whole range.
-      if (large_class == 0)
-        size = rsize;
+      SNMALLOC_ASSERT(
+        (bits::one_at_bit(SUPERSLAB_BITS) << large_class) == rsize);
 
       void* p = memory_provider.pop_large_stack(large_class);
 
