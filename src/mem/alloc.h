@@ -1289,8 +1289,8 @@ namespace snmalloc
 
       if (slab != nullptr)
       {
-        p =
-          Mediumslab::alloc<zero_mem, typename MemoryProvider::Pal>(slab, size);
+        p = Mediumslab::alloc<zero_mem, typename MemoryProvider::Pal>(
+          slab, rsize);
 
         if (Mediumslab::full(slab))
           sc->pop();
@@ -1312,8 +1312,8 @@ namespace snmalloc
 
         Mediumslab::init(slab, public_state(), sizeclass, rsize);
         chunkmap().set_slab(slab);
-        p =
-          Mediumslab::alloc<zero_mem, typename MemoryProvider::Pal>(slab, size);
+        p = Mediumslab::alloc<zero_mem, typename MemoryProvider::Pal>(
+          slab, rsize);
 
         if (!Mediumslab::full(slab))
           sc->insert(slab);
