@@ -199,20 +199,10 @@ namespace
     template<typename PAL = DefaultPal>
     void* alloc_sandbox_heap(size_t sb_size)
     {
-      if constexpr (pal_supports<AlignedAllocation, PAL>)
-      {
-        return PAL::template reserve_aligned<true>(sb_size);
-      }
-      else
-      {
-        // Note: This wastes address space because the PAL will reserve
-        // double the amount we ask for to ensure alignment.  It's fine for
-        // the test, but any call to this function that ignores `.second`
-        // (the allocated size) is deeply suspect.
-        void* ptr = PAL::reserve_at_least(sb_size).first;
-        PAL::template notify_using<YesZero>(ptr, sb_size);
-        return ptr;
-      }
+      // Use the outside-sandbox snmalloc to allocate memory, rather than using
+      // the PAL directly, so that our out-of-sandbox can amplify sandbox
+      // pointers
+      return ThreadAlloc::get_noncachable()->alloc(sb_size);
     }
   };
 }
