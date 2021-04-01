@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../mem/baseslab.h"
+#include "baseslab.h"
 #include "remoteallocator.h"
 
 namespace snmalloc
