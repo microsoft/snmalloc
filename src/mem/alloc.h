@@ -638,10 +638,10 @@ namespace snmalloc
     };
 
     SlabList small_classes[NUM_SMALL_CLASSES];
-    DLList<Mediumslab, CapPtrCBArena> medium_classes[NUM_MEDIUM_CLASSES];
+    DLList<Mediumslab, CapPtrCBChunk> medium_classes[NUM_MEDIUM_CLASSES];
 
-    DLList<Superslab> super_available;
-    DLList<Superslab> super_only_short_available;
+    DLList<Superslab, CapPtrCBChunk> super_available;
+    DLList<Superslab, CapPtrCBChunk> super_only_short_available;
 
     RemoteCache remote;
 
@@ -901,7 +901,7 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH void dealloc_not_large_local(
-      CapPtr<Superslab, CBArena> super,
+      CapPtr<Superslab, CBChunkD> super,
       CapPtr<Remote, CBArena> p_auth_offseted,
       sizeclass_t sizeclass)
     {
@@ -963,28 +963,27 @@ namespace snmalloc
       handle_message_queue_inner();
     }
 
-    Superslab* get_superslab()
+    CapPtr<Superslab, CBChunk> get_superslab()
     {
-      Superslab* super = super_available.get_head();
+      auto super = super_available.get_head();
 
       if (super != nullptr)
         return super;
 
       super = large_allocator
                 .template alloc<NoZero>(0, SUPERSLAB_SIZE, SUPERSLAB_SIZE)
-                .template as_reinterpret<Superslab>()
-                .unsafe_capptr;
+                .template as_reinterpret<Superslab>();
 
       if (super == nullptr)
         return super;
 
       super->init(public_state());
-      chunkmap().set_slab(CapPtr<Superslab, CBArena>(super));
+      chunkmap().set_slab(super);
       super_available.insert(super);
       return super;
     }
 
-    void reposition_superslab(Superslab* super)
+    void reposition_superslab(CapPtr<Superslab, CBChunk> super)
     {
       switch (super->get_status())
       {
@@ -1025,11 +1024,12 @@ namespace snmalloc
       {
         // Pull a short slab from the list of superslabs that have only the
         // short slab available.
-        Superslab* super = super_only_short_available.pop();
+        CapPtr<Superslab, CBChunk> super = super_only_short_available.pop();
 
         if (super != nullptr)
         {
-          auto slab = Superslab::alloc_short_slab(super, sizeclass);
+          auto slab =
+            Superslab::alloc_short_slab(super.unsafe_capptr, sizeclass);
           SNMALLOC_ASSERT(super->is_full());
           return CapPtr<Slab, CBArena>(slab);
         }
@@ -1039,17 +1039,17 @@ namespace snmalloc
         if (super == nullptr)
           return nullptr;
 
-        auto slab = Superslab::alloc_short_slab(super, sizeclass);
+        auto slab = Superslab::alloc_short_slab(super.unsafe_capptr, sizeclass);
         reposition_superslab(super);
         return CapPtr<Slab, CBArena>(slab);
       }
 
-      Superslab* super = get_superslab();
+      auto super = get_superslab();
 
       if (super == nullptr)
         return nullptr;
 
-      auto slab = Superslab::alloc_slab(super, sizeclass);
+      auto slab = Superslab::alloc_slab(super.unsafe_capptr, sizeclass);
       reposition_superslab(super);
       return CapPtr<Slab, CBArena>(slab);
     }
@@ -1233,7 +1233,7 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH void small_dealloc_unchecked(
-      CapPtr<Superslab, CBArena> super,
+      CapPtr<Superslab, CBChunkD> super,
       CapPtr<void, CBArena> p_auth,
       CapPtr<void, CBAllocE> p_ret,
       sizeclass_t sizeclass)
@@ -1246,7 +1246,7 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH void small_dealloc_checked_chunkmap(
-      CapPtr<Superslab, CBArena> super,
+      CapPtr<Superslab, CBChunkD> super,
       CapPtr<void, CBArena> p_auth,
       CapPtr<void, CBAllocE> p_ret,
       sizeclass_t sizeclass)
@@ -1260,8 +1260,8 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH void small_dealloc_checked_sizeclass(
-      CapPtr<Superslab, CBArena> super,
-      CapPtr<Slab, CBArena> slab,
+      CapPtr<Superslab, CBChunkD> super,
+      CapPtr<Slab, CBChunkD> slab,
       CapPtr<void, CBArena> p_auth,
       CapPtr<void, CBAllocE> p_ret,
       sizeclass_t sizeclass)
@@ -1274,8 +1274,8 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH void small_dealloc_start(
-      CapPtr<Superslab, CBArena> super,
-      CapPtr<Slab, CBArena> slab,
+      CapPtr<Superslab, CBChunkD> super,
+      CapPtr<Slab, CBChunkD> slab,
       CapPtr<void, CBArena> p_auth,
       CapPtr<void, CBAllocE> p_ret,
       sizeclass_t sizeclass)
@@ -1295,8 +1295,8 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH void small_dealloc_offseted(
-      CapPtr<Superslab, CBArena> super,
-      CapPtr<Slab, CBArena> slab,
+      CapPtr<Superslab, CBChunkD> super,
+      CapPtr<Slab, CBChunkD> slab,
       CapPtr<FreeObject, CBArena> p,
       sizeclass_t sizeclass)
     {
@@ -1306,8 +1306,8 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH void small_dealloc_offseted_inner(
-      CapPtr<Superslab, CBArena> super,
-      CapPtr<Slab, CBArena> slab,
+      CapPtr<Superslab, CBChunkD> super,
+      CapPtr<Slab, CBChunkD> slab,
       CapPtr<FreeObject, CBArena> p,
       sizeclass_t sizeclass)
     {
@@ -1318,8 +1318,8 @@ namespace snmalloc
     }
 
     SNMALLOC_SLOW_PATH void small_dealloc_offseted_slow(
-      CapPtr<Superslab, CBArena> super,
-      CapPtr<Slab, CBArena> slab,
+      CapPtr<Superslab, CBChunkD> super,
+      CapPtr<Slab, CBChunkD> slab,
       CapPtr<FreeObject, CBArena> p,
       sizeclass_t sizeclass)
     {
@@ -1333,6 +1333,8 @@ namespace snmalloc
       if (a == Superslab::NoStatusChange)
         return;
 
+      auto super_slab = capptr_chunk_from_chunkd(super, SUPERSLAB_SIZE);
+
       switch (super->get_status())
       {
         case Superslab::Full:
@@ -1345,29 +1347,29 @@ namespace snmalloc
         {
           if (was_full)
           {
-            super_available.insert(super.unsafe_capptr);
+            super_available.insert(super_slab);
           }
           else
           {
-            super_only_short_available.remove(super.unsafe_capptr);
-            super_available.insert(super.unsafe_capptr);
+            super_only_short_available.remove(super_slab);
+            super_available.insert(super_slab);
           }
           break;
         }
 
         case Superslab::OnlyShortSlabAvailable:
         {
-          super_only_short_available.insert(super.unsafe_capptr);
+          super_only_short_available.insert(super_slab);
           break;
         }
 
         case Superslab::Empty:
         {
-          super_available.remove(super.unsafe_capptr);
+          super_available.remove(super_slab);
 
-          chunkmap().clear_slab(super);
+          chunkmap().clear_slab(super_slab);
           large_allocator.dealloc(
-            super.template as_reinterpret<Largeslab>(), 0);
+            super_slab.template as_reinterpret<Largeslab>(), 0);
           stats().superslab_push();
           break;
         }
@@ -1381,7 +1383,7 @@ namespace snmalloc
       sizeclass_t medium_class = sizeclass - NUM_SMALL_CLASSES;
 
       auto sc = &medium_classes[medium_class];
-      auto slab = sc->get_head();
+      CapPtr<Mediumslab, CBChunk> slab = sc->get_head();
       CapPtr<void, CBAllocE> p;
 
       if (slab != nullptr)
@@ -1437,7 +1439,7 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH
     void medium_dealloc_unchecked(
-      CapPtr<Mediumslab, CBArena> slab,
+      CapPtr<Mediumslab, CBChunkD> slab,
       CapPtr<void, CBArena> p_auth,
       CapPtr<void, CBAllocE> p_ret,
       sizeclass_t sizeclass)
@@ -1451,7 +1453,7 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH
     void medium_dealloc_checked_chunkmap(
-      CapPtr<Mediumslab, CBArena> slab,
+      CapPtr<Mediumslab, CBChunkD> slab,
       CapPtr<void, CBArena> p_auth,
       CapPtr<void, CBAllocE> p_ret,
       sizeclass_t sizeclass)
@@ -1465,7 +1467,7 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH
     void medium_dealloc_checked_sizeclass(
-      CapPtr<Mediumslab, CBArena> slab,
+      CapPtr<Mediumslab, CBChunkD> slab,
       CapPtr<void, CBArena> p_auth,
       CapPtr<void, CBAllocE> p_ret,
       sizeclass_t sizeclass)
@@ -1480,7 +1482,7 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH
     void medium_dealloc_start(
-      CapPtr<Mediumslab, CBArena> slab,
+      CapPtr<Mediumslab, CBChunkD> slab,
       CapPtr<void, CBArena> p_auth,
       CapPtr<void, CBAllocE> p_ret,
       sizeclass_t sizeclass)
@@ -1498,12 +1500,14 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH
     void medium_dealloc_local(
-      CapPtr<Mediumslab, CBArena> slab,
+      CapPtr<Mediumslab, CBChunkD> slab,
       CapPtr<void, CBArena> p,
       sizeclass_t sizeclass)
     {
       stats().sizeclass_dealloc(sizeclass);
       bool was_full = Mediumslab::dealloc(slab, p);
+
+      auto slab_bounded = capptr_chunk_from_chunkd(slab, SUPERSLAB_SIZE);
 
       if (Mediumslab::empty(slab))
       {
@@ -1511,18 +1515,19 @@ namespace snmalloc
         {
           sizeclass_t medium_class = sizeclass - NUM_SMALL_CLASSES;
           auto sc = &medium_classes[medium_class];
-          sc->remove(slab);
+          sc->remove(slab_bounded);
         }
 
-        chunkmap().clear_slab(slab);
-        large_allocator.dealloc(slab.template as_reinterpret<Largeslab>(), 0);
+        chunkmap().clear_slab(slab_bounded);
+        large_allocator.dealloc(
+          slab_bounded.template as_reinterpret<Largeslab>(), 0);
         stats().superslab_push();
       }
       else if (was_full)
       {
         sizeclass_t medium_class = sizeclass - NUM_SMALL_CLASSES;
         auto sc = &medium_classes[medium_class];
-        sc->insert(slab);
+        sc->insert(slab_bounded);
       }
     }
 
@@ -1549,7 +1554,7 @@ namespace snmalloc
       if (large_class == 0)
         size = rsize;
 
-      auto p =
+      CapPtr<Largeslab, CBChunk> p =
         large_allocator.template alloc<zero_mem>(large_class, rsize, size);
       if (likely(p != nullptr))
       {
@@ -1615,13 +1620,13 @@ namespace snmalloc
       }
 
       size_t large_class = chunkmap_slab_kind - SUPERSLAB_BITS;
+      auto slab = Aal::capptr_bound<Largeslab, CBChunk>(p_auth, size);
 
-      chunkmap().clear_large_size(p_auth, size);
+      chunkmap().clear_large_size(slab, size);
 
       stats().large_dealloc(large_class);
 
       // Initialise in order to set the correct SlabKind.
-      auto slab = p_auth.template as_static<Largeslab>();
       slab->init();
       large_allocator.dealloc(slab, large_class);
     }

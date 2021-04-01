@@ -30,15 +30,15 @@ namespace snmalloc
   class Superslab : public Allocslab
   {
   private:
-    friend DLList<Superslab>;
+    friend DLList<Superslab, CapPtrCBChunk>;
 
     // Keep the allocator pointer on a separate cache line. It is read by
     // other threads, and does not change, so we avoid false sharing.
     alignas(CACHELINE_SIZE)
       // The superslab is kept on a doubly linked list of superslabs which
       // have some space.
-      Superslab* next;
-    Superslab* prev;
+      CapPtr<Superslab, CBChunk> next;
+    CapPtr<Superslab, CBChunk> prev;
 
     // This is a reference to the first unused slab in the free slab list
     // It is does not contain the short slab, which is handled using a bit
@@ -83,12 +83,24 @@ namespace snmalloc
       StatusChange = 2
     };
 
+    /**
+     * Given a highly-privileged pointer pointing to or within an object in
+     * this slab, return a pointer to the slab headers.
+     *
+     * In debug builds on StrictProvenance architectures, we will enforce the
+     * slab bounds on this returned pointer.  In non-debug builds, we will
+     * return a highly-privileged pointer (i.e., CBArena) instead as these
+     * pointers are not exposed from the allocator.
+     */
     template<typename T, capptr_bounds B>
-    static SNMALLOC_FAST_PATH CapPtr<Superslab, B> get(CapPtr<T, B> p)
+    static SNMALLOC_FAST_PATH CapPtr<Superslab, capptr_bound_chunkd_bounds<B>()>
+    get(CapPtr<T, B> p)
     {
-      static_assert(B == CBArena || B == CBChunk);
+      static_assert(B == CBArena || B == CBChunkD || B == CBChunk);
 
-      return pointer_align_down<SUPERSLAB_SIZE, Superslab>(p.as_void());
+      return capptr_bound_chunkd(
+        pointer_align_down<SUPERSLAB_SIZE, Superslab>(p.as_void()),
+        SUPERSLAB_SIZE);
     }
 
     static bool is_short_sizeclass(sizeclass_t sizeclass)
@@ -199,7 +211,7 @@ namespace snmalloc
       Slab* slab = reinterpret_cast<Slab*>(self);
       auto& metaz = self->meta[0];
 
-      metaz.initialise(sizeclass, CapPtr<Slab, CBArena>(slab));
+      metaz.initialise(sizeclass, CapPtr<Slab, CBChunk>(slab));
 
       self->used++;
       return slab;
@@ -216,7 +228,7 @@ namespace snmalloc
       auto& metah = self->meta[h];
       uint8_t n = metah.next();
 
-      metah.initialise(sizeclass, CapPtr<Slab, CBArena>(slab));
+      metah.initialise(sizeclass, CapPtr<Slab, CBChunk>(slab));
 
       self->head = h + n + 1;
       self->used += 2;
@@ -228,7 +240,7 @@ namespace snmalloc
     template<capptr_bounds B>
     Action dealloc_slab(CapPtr<Slab, B> slab)
     {
-      static_assert(B == CBArena || B == CBChunk);
+      static_assert(B == CBArena || B == CBChunkD || B == CBChunk);
 
       // This is not the short slab.
       uint8_t index = static_cast<uint8_t>(slab_to_index(slab));

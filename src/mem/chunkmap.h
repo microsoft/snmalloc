@@ -118,21 +118,21 @@ namespace snmalloc
      * Set a pagemap entry indicating that there is a superslab at the
      * specified index.
      */
-    static void set_slab(CapPtr<Superslab, CBArena> slab)
+    static void set_slab(CapPtr<Superslab, CBChunk> slab)
     {
       set(address_cast(slab), static_cast<size_t>(CMSuperslab));
     }
     /**
      * Add a pagemap entry indicating that a medium slab has been allocated.
      */
-    static void set_slab(CapPtr<Mediumslab, CBArena> slab)
+    static void set_slab(CapPtr<Mediumslab, CBChunk> slab)
     {
       set(address_cast(slab), static_cast<size_t>(CMMediumslab));
     }
     /**
      * Remove an entry from the pagemap corresponding to a superslab.
      */
-    static void clear_slab(CapPtr<Superslab, CBArena> slab)
+    static void clear_slab(CapPtr<Superslab, CBChunk> slab)
     {
       SNMALLOC_ASSERT(get(address_cast(slab)) == CMSuperslab);
       set(address_cast(slab), static_cast<size_t>(CMNotOurs));
@@ -140,7 +140,7 @@ namespace snmalloc
     /**
      * Remove an entry corresponding to a medium slab.
      */
-    static void clear_slab(CapPtr<Mediumslab, CBArena> slab)
+    static void clear_slab(CapPtr<Mediumslab, CBChunk> slab)
     {
       SNMALLOC_ASSERT(get(address_cast(slab)) == CMMediumslab);
       set(address_cast(slab), static_cast<size_t>(CMNotOurs));
@@ -149,7 +149,7 @@ namespace snmalloc
      * Update the pagemap to reflect a large allocation, of `size` bytes from
      * address `p`.
      */
-    static void set_large_size(CapPtr<Largeslab, CBArena> p, size_t size)
+    static void set_large_size(CapPtr<Largeslab, CBChunk> p, size_t size)
     {
       size_t size_bits = bits::next_pow2_bits(size);
       set(address_cast(p), static_cast<uint8_t>(size_bits));
@@ -167,7 +167,7 @@ namespace snmalloc
      * Update the pagemap to remove a large allocation, of `size` bytes from
      * address `p`.
      */
-    static void clear_large_size(CapPtr<void, CBArena> vp, size_t size)
+    static void clear_large_size(CapPtr<Largeslab, CBChunk> vp, size_t size)
     {
       auto p = address_cast(vp);
       size_t rounded_size = bits::next_pow2(size);

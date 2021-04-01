@@ -325,7 +325,8 @@ namespace snmalloc
      * Start building a new free list.
      * Provide pointer to the slab to initialise the system.
      */
-    void open(CapPtr<void, CBArena> p)
+    template<capptr_bounds B> // TODO: CBChunk-only
+    void open(CapPtr<void, B> p)
     {
       SNMALLOC_ASSERT(empty());
       for (size_t i = 0; i < LENGTH; i++)

@@ -32,7 +32,7 @@ namespace snmalloc
     friend class MPMCStack;
     template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename ArenaMap>
     friend class MemoryProviderStateMixin;
-    AtomicCapPtr<Largeslab, CBArena> next = nullptr;
+    AtomicCapPtr<Largeslab, CBChunk> next = nullptr;
 
   public:
     void init()
@@ -104,7 +104,7 @@ namespace snmalloc
      */
     ModArray<
       NUM_LARGE_CLASSES,
-      MPMCStack<Largeslab, RequiresInit, CapPtrCBArena, AtomicCapPtrCBArena>>
+      MPMCStack<Largeslab, RequiresInit, CapPtrCBChunk, AtomicCapPtrCBChunk>>
       large_stack;
 
   public:
@@ -115,7 +115,7 @@ namespace snmalloc
      * concurrently with other acceses.  If there is no large allocation on a
      * particular stack then this will return `nullptr`.
      */
-    SNMALLOC_FAST_PATH CapPtr<Largeslab, CBArena>
+    SNMALLOC_FAST_PATH CapPtr<Largeslab, CBChunk>
     pop_large_stack(size_t large_class)
     {
       auto p = large_stack[large_class].pop();
@@ -132,7 +132,7 @@ namespace snmalloc
      * class specified by `large_class`.  Always succeeds.
      */
     SNMALLOC_FAST_PATH void
-    push_large_stack(CapPtr<Largeslab, CBArena> slab, size_t large_class)
+    push_large_stack(CapPtr<Largeslab, CBChunk> slab, size_t large_class)
     {
       const size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
       available_large_chunks_in_bytes += rsize;
@@ -150,7 +150,7 @@ namespace snmalloc
      * memory providers constructed in this way does not have to be able to
      * allocate memory, if the initial reservation is sufficient.
      */
-    MemoryProviderStateMixin(CapPtr<void, CBArena> start, size_t len)
+    MemoryProviderStateMixin(CapPtr<void, CBChunk> start, size_t len)
     : address_space(start, len)
     {}
     /**
@@ -214,7 +214,7 @@ namespace snmalloc
         size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
         size_t decommit_size = rsize - OS_PAGE_SIZE;
         // Grab all of the chunks of this size class.
-        CapPtr<Largeslab, CBArena> slab = large_stack[large_class].pop_all();
+        CapPtr<Largeslab, CBChunk> slab = large_stack[large_class].pop_all();
         while (slab != nullptr)
         {
           // Decommit all except for the first page and then put it back on
@@ -229,7 +229,7 @@ namespace snmalloc
           // happens-before relationship, so it's safe to use relaxed loads
           // here.
           auto next = slab->next.load(std::memory_order_relaxed);
-          large_stack[large_class].push(CapPtr<Largeslab, CBArena>(
+          large_stack[large_class].push(CapPtr<Largeslab, CBChunk>(
             new (slab.unsafe_capptr) Decommittedslab()));
           slab = next;
         }
@@ -279,7 +279,7 @@ namespace snmalloc
     }
 
     template<bool committed>
-    CapPtr<Largeslab, CBArena> reserve(size_t large_class) noexcept
+    CapPtr<Largeslab, CBChunk> reserve(size_t large_class) noexcept
     {
       size_t size = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
       peak_memory_used_bytes += size;
@@ -324,13 +324,13 @@ namespace snmalloc
     LargeAlloc(MemoryProvider& mp) : memory_provider(mp) {}
 
     template<ZeroMem zero_mem = NoZero>
-    CapPtr<Largeslab, CBArena>
+    CapPtr<Largeslab, CBChunk>
     alloc(size_t large_class, size_t rsize, size_t size)
     {
       SNMALLOC_ASSERT(
         (bits::one_at_bit(SUPERSLAB_BITS) << large_class) == rsize);
 
-      CapPtr<Largeslab, CBArena> p =
+      CapPtr<Largeslab, CBChunk> p =
         memory_provider.pop_large_stack(large_class);
 
       if (p == nullptr)
@@ -381,7 +381,7 @@ namespace snmalloc
       return p;
     }
 
-    void dealloc(CapPtr<Largeslab, CBArena> p, size_t large_class)
+    void dealloc(CapPtr<Largeslab, CBChunk> p, size_t large_class)
     {
       if constexpr (decommit_strategy == DecommitSuperLazy)
       {
