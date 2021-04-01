@@ -1,6 +1,7 @@
 #pragma once
 
 #include "freelist.h"
+#include "ptrhelpers.h"
 #include "superslab.h"
 
 #include <array>
@@ -20,7 +21,7 @@ namespace snmalloc
     template<capptr_bounds B>
     static CapPtr<Metaslab, B> get_meta(CapPtr<Slab, B> self)
     {
-      static_assert(B == CBArena || B == CBChunk);
+      static_assert(B == CBArena || B == CBChunkD || B == CBChunk);
 
       auto super = Superslab::get(self);
       return super->get_meta(self);
@@ -102,8 +103,8 @@ namespace snmalloc
     // bits. Note that this does remove the use from the meta slab, so it
     // doesn't need doing on the slow path.
     static SNMALLOC_FAST_PATH bool dealloc_fast(
-      CapPtr<Slab, CBArena> self,
-      CapPtr<Superslab, CBArena> super,
+      CapPtr<Slab, CBChunkD> self,
+      CapPtr<Superslab, CBChunkD> super,
       CapPtr<FreeObject, CBArena> p,
       LocalEntropy& entropy)
     {
@@ -124,9 +125,9 @@ namespace snmalloc
     // Returns a complex return code for managing the superslab meta data.
     // i.e. This deallocation could make an entire superslab free.
     static SNMALLOC_SLOW_PATH typename Superslab::Action dealloc_slow(
-      CapPtr<Slab, CBArena> self,
+      CapPtr<Slab, CBChunkD> self,
       SlabList* sl,
-      CapPtr<Superslab, CBArena> super,
+      CapPtr<Superslab, CBChunkD> super,
       CapPtr<FreeObject, CBArena> p,
       LocalEntropy& entropy)
     {
@@ -154,7 +155,12 @@ namespace snmalloc
           allocated - meta->threshold_for_waking_slab(Metaslab::is_short(self));
 
         // Push on the list of slabs for this sizeclass.
-        sl->insert_prev(meta.template as_static<SlabLink>());
+        // ChunkD-to-Chunk conversion might apply bounds, so we need to do so to
+        // the aligned object and then shift over to these bounds.
+        auto super_chunk = capptr_chunk_from_chunkd(super, SUPERSLAB_SIZE);
+        auto metalink = Aal::capptr_rebound(
+          super_chunk.as_void(), meta.template as_static<SlabLink>());
+        sl->insert_prev(metalink);
         meta->debug_slab_invariant(self, entropy);
         return Superslab::NoSlabReturn;
       }

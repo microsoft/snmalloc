@@ -4,14 +4,15 @@
 #include "../ds/dllist.h"
 #include "../ds/helpers.h"
 #include "freelist.h"
+#include "ptrhelpers.h"
 #include "sizeclass.h"
 
 namespace snmalloc
 {
   class Slab;
 
-  using SlabList = CDLLNode<CapPtrCBArena>;
-  using SlabLink = CDLLNode<CapPtrCBArena>;
+  using SlabList = CDLLNode<CapPtrCBChunk>;
+  using SlabLink = CDLLNode<CapPtrCBChunk>;
 
   static_assert(
     sizeof(SlabLink) <= MIN_ALLOC_SIZE,
@@ -71,7 +72,7 @@ namespace snmalloc
       return free_queue.s.next;
     }
 
-    void initialise(sizeclass_t sizeclass, CapPtr<Slab, CBArena> slab)
+    void initialise(sizeclass_t sizeclass, CapPtr<Slab, CBChunk> slab)
     {
       free_queue.s.sizeclass = static_cast<uint8_t>(sizeclass);
       free_queue.init();
@@ -120,8 +121,10 @@ namespace snmalloc
       return bits::min(threshold, max);
     }
 
-    SNMALLOC_FAST_PATH void set_full(CapPtr<Slab, CBArena> slab)
+    template<capptr_bounds B>
+    SNMALLOC_FAST_PATH void set_full(CapPtr<Slab, B> slab)
     {
+      static_assert(B == CBChunkD || B == CBChunk);
       SNMALLOC_ASSERT(free_queue.empty());
 
       // Prepare for the next free queue to be built.
@@ -134,9 +137,13 @@ namespace snmalloc
     }
 
     template<typename T, capptr_bounds B>
-    static CapPtr<Slab, B> get_slab(CapPtr<T, B> p)
+    static SNMALLOC_FAST_PATH CapPtr<Slab, capptr_bound_chunkd_bounds<B>()>
+    get_slab(CapPtr<T, B> p)
     {
-      return pointer_align_down<SLAB_SIZE, Slab>(p.as_void());
+      static_assert(B == CBArena || B == CBChunkD || B == CBChunk);
+
+      return capptr_bound_chunkd(
+        pointer_align_down<SLAB_SIZE, Slab>(p.as_void()), SLAB_SIZE);
     }
 
     template<capptr_bounds B>
@@ -145,8 +152,9 @@ namespace snmalloc
       return pointer_align_down<SUPERSLAB_SIZE, Slab>(p.as_void()) == p;
     }
 
-    SNMALLOC_FAST_PATH
-    static bool is_start_of_object(CapPtr<Metaslab, CBArena> self, address_t p)
+    template<capptr_bounds B>
+    SNMALLOC_FAST_PATH static bool
+    is_start_of_object(CapPtr<Metaslab, B> self, address_t p)
     {
       return is_multiple_of_sizeclass(
         self->sizeclass(), SLAB_SIZE - (p - address_align_down<SLAB_SIZE>(p)));
@@ -159,7 +167,7 @@ namespace snmalloc
      */
     template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
     static SNMALLOC_FAST_PATH CapPtr<void, CBAllocE> alloc(
-      CapPtr<Metaslab, CBArena> self,
+      CapPtr<Metaslab, CBChunk> self,
       FreeListIter& fast_free_list,
       size_t rsize,
       LocalEntropy& entropy)
@@ -169,17 +177,18 @@ namespace snmalloc
 
       self->free_queue.close(fast_free_list, entropy);
       auto n = fast_free_list.take(entropy);
+      auto n_slab = Aal::capptr_rebound(self.as_void(), n);
 
       entropy.refresh_bits();
 
       // Treat stealing the free list as allocating it all.
       self->remove();
-      self->set_full(Metaslab::get_slab(n));
+      self->set_full(Metaslab::get_slab(n_slab));
 
       auto p = remove_cache_friendly_offset(n, self->sizeclass());
       SNMALLOC_ASSERT(is_start_of_object(self, address_cast(p)));
 
-      self->debug_slab_invariant(Metaslab::get_slab(n), entropy);
+      self->debug_slab_invariant(Metaslab::get_slab(n_slab), entropy);
 
       if constexpr (zero_mem == YesZero)
       {
@@ -196,8 +205,11 @@ namespace snmalloc
       return capptr_export(Aal::capptr_bound<void, CBAlloc>(p, rsize));
     }
 
-    void debug_slab_invariant(CapPtr<Slab, CBArena> slab, LocalEntropy& entropy)
+    template<capptr_bounds B>
+    void debug_slab_invariant(CapPtr<Slab, B> slab, LocalEntropy& entropy)
     {
+      static_assert(B == CBChunkD || B == CBChunk);
+
 #if !defined(NDEBUG) && !defined(SNMALLOC_CHEAP_CHECKS)
       bool is_short = Metaslab::is_short(slab);
 

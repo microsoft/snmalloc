@@ -12,12 +12,12 @@ namespace snmalloc
     // This is the view of a 16 mb area when it is being used to allocate
     // medium sized classes: 64 kb to 16 mb, non-inclusive.
   private:
-    friend DLList<Mediumslab, CapPtrCBArena>;
+    friend DLList<Mediumslab, CapPtrCBChunk>;
 
     // Keep the allocator pointer on a separate cache line. It is read by
     // other threads, and does not change, so we avoid false sharing.
-    alignas(CACHELINE_SIZE) CapPtr<Mediumslab, CBArena> next;
-    CapPtr<Mediumslab, CBArena> prev;
+    alignas(CACHELINE_SIZE) CapPtr<Mediumslab, CBChunk> next;
+    CapPtr<Mediumslab, CBChunk> prev;
 
     uint16_t free;
     uint8_t head;
@@ -44,16 +44,26 @@ namespace snmalloc
       return bits::align_up(sizeof(Mediumslab), min(OS_PAGE_SIZE, SLAB_SIZE));
     }
 
-    template<typename T, capptr_bounds B>
-    static SNMALLOC_FAST_PATH CapPtr<Mediumslab, B> get(CapPtr<T, B> p)
+    /**
+     * Given a highly-privileged pointer pointing to or within an object in
+     * this slab, return a pointer to the slab headers.
+     *
+     * In debug builds on StrictProvenance architectures, we will enforce the
+     * slab bounds on this returned pointer.  In non-debug builds, we will
+     * return a highly-privileged pointer (i.e., CBArena) instead as these
+     * pointers are not exposed from the allocator.
+     */
+    template<typename T>
+    static SNMALLOC_FAST_PATH CapPtr<Mediumslab, CBChunkD>
+    get(CapPtr<T, CBArena> p)
     {
-      static_assert(B == CBArena || B == CBChunk);
-
-      return pointer_align_down<SUPERSLAB_SIZE, Mediumslab>(p);
+      return capptr_bound_chunkd(
+        pointer_align_down<SUPERSLAB_SIZE, Mediumslab>(p.as_void()),
+        SUPERSLAB_SIZE);
     }
 
     static void init(
-      CapPtr<Mediumslab, CBArena> self,
+      CapPtr<Mediumslab, CBChunk> self,
       RemoteAllocator* alloc,
       sizeclass_t sc,
       size_t rsize)
@@ -89,7 +99,7 @@ namespace snmalloc
 
     template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
     static CapPtr<void, CBAllocE>
-    alloc(CapPtr<Mediumslab, CBArena> self, size_t size)
+    alloc(CapPtr<Mediumslab, CBChunk> self, size_t size)
     {
       SNMALLOC_ASSERT(!full(self));
 
@@ -106,7 +116,7 @@ namespace snmalloc
     }
 
     static bool
-    dealloc(CapPtr<Mediumslab, CBArena> self, CapPtr<void, CBArena> p)
+    dealloc(CapPtr<Mediumslab, CBChunkD> self, CapPtr<void, CBArena> p)
     {
       SNMALLOC_ASSERT(self->head > 0);
 
