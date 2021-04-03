@@ -1438,11 +1438,17 @@ namespace snmalloc
       uint8_t claimed_chunkmap_slab_kind =
         static_cast<uint8_t>(bits::next_pow2_bits(size));
 
+      // This also catches some "not deallocating start of an object" cases: if
+      // we're so far from the start that our actual chunkmap slab kind is not a
+      // legitimate large class
       check_client(
         chunkmap().get(address_cast(p)) == claimed_chunkmap_slab_kind,
         "Claimed large deallocation with wrong size class");
 
-      large_dealloc_checked_sizeclass(p, size, claimed_chunkmap_slab_kind);
+      // round up as we would if we had had to look up the chunkmap_slab_kind
+      size_t rsize = bits::one_at_bit(claimed_chunkmap_slab_kind);
+
+      large_dealloc_checked_sizeclass(p, rsize, claimed_chunkmap_slab_kind);
     }
 
     void large_dealloc_checked_sizeclass(
