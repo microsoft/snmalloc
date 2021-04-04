@@ -55,7 +55,11 @@ namespace snmalloc
      *
      *  Spare 32bits are used for the fields in MetaslabEnd.
      */
-    FreeListBuilder<MetaslabEnd> free_queue;
+#ifdef CHECK_CLIENT
+    FreeListBuilder<true, MetaslabEnd> free_queue;
+#else
+    FreeListBuilder<false, MetaslabEnd> free_queue;
+#endif
 
     uint16_t& needed()
     {

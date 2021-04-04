@@ -27,6 +27,8 @@ namespace snmalloc
     uint64_t local_key;
     uint64_t local_counter;
     address_t constant_key;
+    uint64_t fresh_bits;
+    uint64_t count;
 
   public:
     template<typename PAL>
@@ -92,6 +94,45 @@ namespace snmalloc
     void refresh_bits()
     {
       bit_source = get_next();
+    }
+
+    /**
+     * Pseudo random bit source.
+     *
+     * Does not cycle as frequently as `next_bit`.
+     */
+    uint16_t next_fresh_bits(size_t n)
+    {
+      if (count <= n)
+      {
+        fresh_bits = get_next();
+        count = 64;
+      }
+      uint16_t result =
+        static_cast<uint16_t>(fresh_bits & (bits::one_at_bit(n) - 1));
+      fresh_bits >>= n;
+      count -= n;
+      return result;
+    }
+
+    /***
+     * Approximation of a uniform distribution
+     *
+     * Biases high numbers. A proper uniform distribution
+     * was too expensive.  This maps a uniform distribution
+     * over the next power of two (2^m), and for numbers that
+     * are drawn larger then n-1, they are mapped onto uniform
+     * top range of n.
+     */
+    uint16_t sample(uint16_t n)
+    {
+      size_t i = bits::next_pow2_bits(n);
+      uint16_t bits = next_fresh_bits(i);
+      uint16_t result = bits;
+      // Put over flowing bits at the top.
+      if (bits >= n)
+        result = n - (1 + bits - n);
+      return result;
     }
   };
 } // namespace snmalloc
