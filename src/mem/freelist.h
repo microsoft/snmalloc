@@ -251,23 +251,28 @@ namespace snmalloc
    * The fields are paired up to give better codegen as then they are offset
    * by a power of 2, and the bit extract from the interleaving seed can
    * be shifted to calculate the relevant offset to index the fields.
+   *
+   * If RANDOM is set to false, then the code does not perform any
+   * randomisation.
    */
-  template<typename S = uint32_t>
+  template<bool RANDOM = true, typename S = uint32_t>
   class FreeListBuilder
   {
+    static constexpr size_t LENGTH = RANDOM ? 2 : 1;
+
     // Pointer to the first element.
-    EncodeFreeObjectReference head[2];
+    EncodeFreeObjectReference head[LENGTH];
     // Pointer to the reference to the last element.
     // In the empty case end[i] == &head[i]
     // This enables branch free enqueuing.
-    EncodeFreeObjectReference* end[2];
+    EncodeFreeObjectReference* end[LENGTH];
 #ifdef CHECK_CLIENT
     // The bottom 16 bits of the previous pointer
-    uint16_t prev[2];
+    uint16_t prev[LENGTH];
     // The bottom 16 bits of the current pointer
     // This needs to be stored for the empty case
     // where it is `initial_key()` for the slab.
-    uint16_t curr[2];
+    uint16_t curr[LENGTH];
 #endif
   public:
     S s;
@@ -307,16 +312,16 @@ namespace snmalloc
     void open(void* p)
     {
       SNMALLOC_ASSERT(empty());
+      for (size_t i = 0; i < LENGTH; i++)
+      {
 #ifdef CHECK_CLIENT
-      prev[0] = HEAD_KEY;
-      curr[0] = initial_key(p) & 0xffff;
-      prev[1] = HEAD_KEY;
-      curr[1] = initial_key(p) & 0xffff;
+        prev[i] = HEAD_KEY;
+        curr[i] = initial_key(p) & 0xffff;
 #else
-      UNUSED(p);
+        UNUSED(p);
 #endif
-      end[0] = &head[0];
-      end[1] = &head[1];
+        end[i] = &head[i];
+      }
     }
 
     /**
@@ -324,7 +329,22 @@ namespace snmalloc
      */
     bool empty()
     {
-      return end[0] == &head[0] && end[1] == &head[1];
+      for (size_t i = 0; i < LENGTH; i++)
+      {
+        if (end[i] != &head[i])
+          return false;
+      }
+      return true;
+    }
+
+    bool debug_different_slab(void* n)
+    {
+      for (size_t i = 0; i < LENGTH; i++)
+      {
+        if (!different_slab(end[i], n))
+          return false;
+      }
+      return true;
     }
 
     /**
@@ -332,11 +352,10 @@ namespace snmalloc
      */
     void add(void* n, LocalEntropy& entropy)
     {
-      SNMALLOC_ASSERT(
-        !different_slab(end[0], n) || !different_slab(end[1], n) || empty());
+      SNMALLOC_ASSERT(!debug_different_slab(n) || empty());
       FreeObject* next = FreeObject::make(n);
 
-      auto index = entropy.next_bit();
+      auto index = RANDOM ? entropy.next_bit() : 0;
 
       end[index]->store(next, get_prev(index), entropy);
       end[index] = &(next->next_object);
@@ -355,7 +374,7 @@ namespace snmalloc
     size_t debug_length(LocalEntropy& entropy)
     {
       size_t count = 0;
-      for (size_t i = 0; i < 2; i++)
+      for (size_t i = 0; i < LENGTH; i++)
       {
         uint16_t local_prev = HEAD_KEY;
         EncodeFreeObjectReference* iter = &head[i];
@@ -392,53 +411,60 @@ namespace snmalloc
      */
     FreeListIter terminate(LocalEntropy& entropy, bool preserve_queue = true)
     {
-      SNMALLOC_ASSERT(end[1] != &head[0]);
-      SNMALLOC_ASSERT(end[0] != &head[1]);
-
-      // If second list is empty, then append is trivial.
-      if (end[1] == &head[1])
+      if constexpr (RANDOM)
       {
-        end[0]->store(nullptr, get_prev(0), entropy);
-        return {head[0].read(HEAD_KEY, entropy)};
-      }
+        SNMALLOC_ASSERT(end[1] != &head[0]);
+        SNMALLOC_ASSERT(end[0] != &head[1]);
 
-      end[1]->store(nullptr, get_prev(1), entropy);
+        // If second list is non-empty, perform append.
+        if (end[1] != &head[1])
+        {
+          end[1]->store(nullptr, get_prev(1), entropy);
 
-      // Append 1 to 0
-      auto mid = head[1].read(HEAD_KEY, entropy);
-      end[0]->store(mid, get_prev(0), entropy);
-      // Re-code first link in second list (if there is one).
-      // The first link in the second list will be encoded with initial_key,
-      // But that needs to be changed to the curr of the first list.
-      if (mid != nullptr)
-      {
-        auto mid_next = mid->read_next(initial_key(mid) & 0xffff, entropy);
-        mid->next_object.store(mid_next, get_curr(0), entropy);
-      }
+          // Append 1 to 0
+          auto mid = head[1].read(HEAD_KEY, entropy);
+          end[0]->store(mid, get_prev(0), entropy);
+          // Re-code first link in second list (if there is one).
+          // The first link in the second list will be encoded with initial_key,
+          // But that needs to be changed to the curr of the first list.
+          if (mid != nullptr)
+          {
+            auto mid_next = mid->read_next(initial_key(mid) & 0xffff, entropy);
+            mid->next_object.store(mid_next, get_curr(0), entropy);
+          }
 
-      auto h = head[0].read(HEAD_KEY, entropy);
+          auto h = head[0].read(HEAD_KEY, entropy);
 
-      // If we need to continue adding to the builder
-      // Set up the second list as empty,
-      // and extend the first list to cover all of the second.
-      if (preserve_queue && h != nullptr)
-      {
+          // If we need to continue adding to the builder
+          // Set up the second list as empty,
+          // and extend the first list to cover all of the second.
+          if (preserve_queue && h != nullptr)
+          {
 #ifdef CHECK_CLIENT
-        prev[0] = prev[1];
-        curr[0] = curr[1];
+            prev[0] = prev[1];
+            curr[0] = curr[1];
 #endif
-        end[0] = end[1];
+            end[0] = end[1];
 #ifdef CHECK_CLIENT
-        prev[1] = HEAD_KEY;
-        curr[1] = initial_key(h) & 0xffff;
+            prev[1] = HEAD_KEY;
+            curr[1] = initial_key(h) & 0xffff;
 #endif
-        end[1] = &(head[1]);
+            end[1] = &(head[1]);
+          }
+
+          SNMALLOC_ASSERT(end[1] != &head[0]);
+          SNMALLOC_ASSERT(end[0] != &head[1]);
+
+          return {h};
+        }
+      }
+      else
+      {
+        UNUSED(preserve_queue);
       }
 
-      SNMALLOC_ASSERT(end[1] != &head[0]);
-      SNMALLOC_ASSERT(end[0] != &head[1]);
-
-      return {h};
+      end[0]->store(nullptr, get_prev(0), entropy);
+      return {head[0].read(HEAD_KEY, entropy)};
     }
 
     /**
@@ -456,8 +482,10 @@ namespace snmalloc
      */
     void init()
     {
-      end[0] = &head[0];
-      end[1] = &head[1];
+      for (size_t i = 0; i < LENGTH; i++)
+      {
+        end[i] = &head[i];
+      }
     }
   };
 } // namespace snmalloc

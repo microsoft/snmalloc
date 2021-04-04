@@ -37,24 +37,54 @@ namespace snmalloc
     {
       void* slab_end = pointer_align_up<SLAB_SIZE>(pointer_offset(bumpptr, 1));
 
-      FreeListBuilder b;
+      FreeListBuilder<false> b;
       SNMALLOC_ASSERT(b.empty());
 
       b.open(bumpptr);
 
-      // This code needs generalising, but currently applies
-      // various offsets with a stride of seven to increase chance of catching
-      // accidental OOB write.
-      std::array<size_t, 7> start_index = {3, 5, 0, 2, 4, 1, 6};
-      for (size_t offset : start_index)
+#ifdef CHECK_CLIENT
+      // Structure to represent the temporary list elements
+      struct PreAllocObject
       {
-        void* newbumpptr = pointer_offset(bumpptr, rsize * offset);
-        while (newbumpptr < slab_end)
-        {
-          b.add(newbumpptr, entropy);
-          newbumpptr = pointer_offset(newbumpptr, rsize * start_index.size());
-        }
+        PreAllocObject* next;
+      };
+      // The following code implements Sattolo's algorithm for generating
+      // random cyclic permutations.  This implementation is in the opposite
+      // direction, so that the original space does not need initialising.  This
+      // is described as outside-in without citation on Wikipedia, appears to be
+      // Folklore algorithm.
+      PreAllocObject* curr = pointer_offset<PreAllocObject>(bumpptr, 0);
+      curr->next = curr;
+      uint16_t count = 1;
+      for (PreAllocObject* p = pointer_offset<PreAllocObject>(bumpptr, rsize);
+           p < slab_end;
+           p = pointer_offset<PreAllocObject>(p, rsize))
+      {
+        size_t insert_index = entropy.sample(count);
+        p->next = std::exchange(
+          pointer_offset<PreAllocObject>(bumpptr, insert_index * rsize)->next,
+          p);
+        count++;
       }
+
+      // Pick entry into space, and then build linked list by traversing cycle
+      // to the start.
+      auto start_index = entropy.sample(count);
+      auto start_ptr =
+        pointer_offset<PreAllocObject>(bumpptr, start_index * rsize);
+      auto curr_ptr = start_ptr;
+      do
+      {
+        b.add(curr_ptr, entropy);
+        curr_ptr = curr_ptr->next;
+      } while (curr_ptr != start_ptr);
+#else
+      for (void* p = bumpptr; p < slab_end; p = pointer_offset<void>(p, rsize))
+      {
+        b.add(p, entropy);
+      }
+#endif
+      // This code consumes everything up to slab_end.
       bumpptr = slab_end;
 
       SNMALLOC_ASSERT(!b.empty());
