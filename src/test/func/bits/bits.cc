@@ -2,8 +2,8 @@
  * Unit tests for operations in bits.h
  */
 
-#include <ds/bits.h>
 #include <iostream>
+#include <snmalloc.h>
 #include <test/setup.h>
 
 void test_ctz()
