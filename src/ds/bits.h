@@ -55,6 +55,7 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH size_t clz(size_t x)
     {
+      SNMALLOC_ASSERT(x != 0); // Calling with 0 is UB on some implementations
 #if defined(_MSC_VER)
 #  ifdef USE_LZCNT
 #    ifdef SNMALLOC_VA_BITS_64
@@ -148,6 +149,8 @@ namespace snmalloc
 
     inline size_t ctz(size_t x)
     {
+      SNMALLOC_ASSERT(x != 0); // Calling with 0 is UB on some implementations
+
 #if defined(_MSC_VER)
 #  ifdef SNMALLOC_VA_BITS_64
       return _tzcnt_u64(x);
@@ -229,7 +232,9 @@ namespace snmalloc
     inline size_t next_pow2_bits(size_t x)
     {
       // Correct for numbers [1..MAX_SIZE].
-      // Returns 64 for 0. Approximately 2 cycles.
+      if (x == 1)
+        return 0;
+
       return BITS - clz(x - 1);
     }
 
