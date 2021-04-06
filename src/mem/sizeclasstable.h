@@ -65,6 +65,10 @@ namespace snmalloc
           (bits::one_at_bit(bits::BITS - 1) / size[sizeclass]);
         if (!bits::is_pow2(size[sizeclass]))
           mod_mult[sizeclass]++;
+        // Shift multiplier, so that the result of division completely
+        // overflows, and thus the top SUPERSLAB_BITS will be zero if the mod is
+        // zero.
+        mod_mult[sizeclass] *= 2;
 
         if (sizeclass < NUM_SMALL_CLASSES)
         {
@@ -214,8 +218,8 @@ namespace snmalloc
       // square of the offset to be representable.
       static_assert(
         SUPERSLAB_BITS <= 24, "The following code assumes max of 24 bits");
-      static constexpr size_t MASK = (bits::one_at_bit(bits::BITS - 1) - 1) ^
-        (bits::one_at_bit(bits::BITS - 1 - SUPERSLAB_BITS) - 1);
+      static constexpr size_t MASK =
+        ~(bits::one_at_bit(bits::BITS - 1 - SUPERSLAB_BITS) - 1);
 
       return ((offset * sizeclass_metadata.mod_mult[sc]) & MASK) == 0;
     }
