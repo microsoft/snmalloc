@@ -19,7 +19,7 @@ namespace snmalloc
   concept ConceptPAL_static_members = requires()
   {
     typename std::integral_constant<uint64_t, PAL::pal_features>;
-    typename std::integral_constant<size_t, PAL::page_size>;
+    typename std::integral_constant<std::size_t, PAL::page_size>;
   };
 
   /**
@@ -35,7 +35,7 @@ namespace snmalloc
    * PALs expose a basic library of memory operations.
    */
   template<typename PAL>
-  concept ConceptPAL_memops = requires(void* vp, size_t sz)
+  concept ConceptPAL_memops = requires(void* vp, std::size_t sz)
   {
     { PAL::notify_not_using(vp, sz) } noexcept -> ConceptSame<void>;
 
@@ -52,17 +52,18 @@ namespace snmalloc
    * Absent any feature flags, the PAL must support a crude primitive allocator
    */
   template<typename PAL>
-  concept ConceptPAL_reserve_at_least = requires(PAL p, void* vp, size_t sz)
+  concept ConceptPAL_reserve_at_least =
+    requires(PAL p, void* vp, std::size_t sz)
   {
     { PAL::reserve_at_least(sz) } noexcept
-      -> ConceptSame<std::pair<void*, size_t>>;
+      -> ConceptSame<std::pair<void*, std::size_t>>;
   };
 
   /**
    * Some PALs expose a richer allocator which understands aligned allocations
    */
   template<typename PAL>
-  concept ConceptPAL_reserve_aligned = requires(size_t sz)
+  concept ConceptPAL_reserve_aligned = requires(std::size_t sz)
   {
     { PAL::template reserve_aligned<true>(sz) } noexcept -> ConceptSame<void*>;
     { PAL::template reserve_aligned<false>(sz) } noexcept
@@ -90,13 +91,13 @@ namespace snmalloc
     ConceptPAL_static_members<PAL> &&
     ConceptPAL_error<PAL> &&
     ConceptPAL_memops<PAL> &&
-    (!(PAL::pal_features & LowMemoryNotification) ||
+    (!pal_supports<LowMemoryNotification, PAL> ||
       ConceptPAL_mem_low_notify<PAL>) &&
-	(!(PAL::pal_features & NoAllocation) && (
-    (!!(PAL::pal_features & AlignedAllocation) ||
-      ConceptPAL_reserve_at_least<PAL>) &&
-    (!(PAL::pal_features & AlignedAllocation) ||
-      ConceptPAL_reserve_aligned<PAL>)));
+    (pal_supports<NoAllocation, PAL> ||
+     (pal_supports<AlignedAllocation, PAL> &&
+        ConceptPAL_reserve_aligned<PAL>) ||
+     (!pal_supports<AlignedAllocation, PAL> &&
+          ConceptPAL_reserve_at_least<PAL>));
 
 } // namespace snmalloc
 #endif
