@@ -105,7 +105,7 @@ namespace snmalloc
      * If aligned to a SLAB start, then it is empty, and a new
      * slab is required.
      */
-    CapPtr<void, CBArena> bump_ptrs[NUM_SMALL_CLASSES] = {nullptr};
+    CapPtr<void, CBChunk> bump_ptrs[NUM_SMALL_CLASSES] = {nullptr};
 
   public:
     Stats& stats()
@@ -779,14 +779,19 @@ namespace snmalloc
         auto rsize = sizeclass_to_size(i);
         FreeListIter ffl;
 
-        auto super = Superslab::get(bp);
-        auto slab = Metaslab::get_slab(bp);
+        CapPtr<Superslab, CBChunk> super = Superslab::get(bp);
+        auto super_slabd = capptr_debug_chunkd_from_chunk(super);
+
+        CapPtr<Slab, CBChunk> slab = Metaslab::get_slab(bp);
+        auto slab_slabd = capptr_debug_chunkd_from_chunk(slab);
+
         while (pointer_align_up(bp, SLAB_SIZE) != bp)
         {
           Slab::alloc_new_list(bp, ffl, rsize, entropy);
           while (!ffl.empty())
           {
-            small_dealloc_offseted_inner(super, slab, ffl.take(entropy), i);
+            small_dealloc_offseted_inner(
+              super_slabd, slab_slabd, ffl.take(entropy), i);
           }
         }
       }
@@ -1018,7 +1023,7 @@ namespace snmalloc
       }
     }
 
-    SNMALLOC_SLOW_PATH CapPtr<Slab, CBArena> alloc_slab(sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH CapPtr<Slab, CBChunk> alloc_slab(sizeclass_t sizeclass)
     {
       stats().sizeclass_alloc_slab(sizeclass);
       if (Superslab::is_short_sizeclass(sizeclass))
@@ -1029,10 +1034,9 @@ namespace snmalloc
 
         if (super != nullptr)
         {
-          auto slab =
-            Superslab::alloc_short_slab(super.unsafe_capptr, sizeclass);
+          auto slab = Superslab::alloc_short_slab(super, sizeclass);
           SNMALLOC_ASSERT(super->is_full());
-          return CapPtr<Slab, CBArena>(slab);
+          return slab;
         }
 
         super = get_superslab();
@@ -1040,9 +1044,9 @@ namespace snmalloc
         if (super == nullptr)
           return nullptr;
 
-        auto slab = Superslab::alloc_short_slab(super.unsafe_capptr, sizeclass);
+        auto slab = Superslab::alloc_short_slab(super, sizeclass);
         reposition_superslab(super);
-        return CapPtr<Slab, CBArena>(slab);
+        return slab;
       }
 
       auto super = get_superslab();
@@ -1050,9 +1054,9 @@ namespace snmalloc
       if (super == nullptr)
         return nullptr;
 
-      auto slab = Superslab::alloc_slab(super.unsafe_capptr, sizeclass);
+      auto slab = Superslab::alloc_slab(super, sizeclass);
       reposition_superslab(super);
-      return CapPtr<Slab, CBArena>(slab);
+      return slab;
     }
 
     template<ZeroMem zero_mem>

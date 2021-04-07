@@ -34,7 +34,7 @@ namespace snmalloc
      * page.
      */
     static SNMALLOC_FAST_PATH void alloc_new_list(
-      CapPtr<void, CBArena>& bumpptr,
+      CapPtr<void, CBChunk>& bumpptr,
       FreeListIter& fast_free_list,
       size_t rsize,
       LocalEntropy& entropy)
@@ -60,7 +60,7 @@ namespace snmalloc
 
       // Note the wide bounds on curr relative to each of the ->next fields;
       // curr is not persisted once the list is built.
-      CapPtr<PreAllocObject, CBArena> curr =
+      CapPtr<PreAllocObject, CBChunk> curr =
         pointer_offset(bumpptr, 0).template as_static<PreAllocObject>();
       curr->next = Aal::capptr_bound<PreAllocObject, CBAlloc>(curr, rsize);
 
