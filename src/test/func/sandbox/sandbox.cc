@@ -19,6 +19,8 @@ namespace
   /**
    * Helper for Alloc that is never used as a thread-local allocator and so is
    * always initialised.
+   *
+   * CapPtr-vs-MSVC triggering; xref CapPtr's constructor
    */
   bool never_init(void*)
   {
@@ -26,6 +28,8 @@ namespace
   }
   /**
    * Helper for Alloc that never needs lazy initialisation.
+   *
+   * CapPtr-vs-MSVC triggering; xref CapPtr's constructor
    */
   void* no_op_init(function_ref<void*(void*)>)
   {
