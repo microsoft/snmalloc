@@ -112,8 +112,22 @@ namespace snmalloc
 
     /**
      * all other constructions must be explicit
+     *
+     * Unfortunately, MSVC gets confused if an Allocator is instantiated in a
+     * way that never needs initialization (as our sandbox test does, for
+     * example) and, in that case, declares this constructor unreachable,
+     * presumably after some heroic feat of inlining that has also lost any
+     * semblance of context.  See the blocks tagged "CapPtr-vs-MSVC" for where
+     * this has been observed.
      */
+#ifdef _MSC_VER
+#  pragma warning(push)
+#  pragma warning(disable : 4702)
+#endif
     explicit CapPtr(T* p) : unsafe_capptr(p) {}
+#ifdef _MSC_VER
+#  pragma warning(pop)
+#endif
 
     /**
      * Allow static_cast<>-s that preserve bounds but vary the target type.
