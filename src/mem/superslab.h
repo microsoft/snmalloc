@@ -201,34 +201,32 @@ namespace snmalloc
       return CapPtr<Metaslab, B>(&meta[slab_to_index(slab)]);
     }
 
-    // This is pre-factored to take an explicit self parameter so that we can
-    // eventually annotate that pointer with additional information.
-    static Slab* alloc_short_slab(Superslab* self, sizeclass_t sizeclass)
+    static CapPtr<Slab, CBChunk>
+    alloc_short_slab(CapPtr<Superslab, CBChunk> self, sizeclass_t sizeclass)
     {
       if ((self->used & 1) == 1)
         return alloc_slab(self, sizeclass);
 
-      Slab* slab = reinterpret_cast<Slab*>(self);
+      auto slab = self.template as_reinterpret<Slab>();
       auto& metaz = self->meta[0];
 
-      metaz.initialise(sizeclass, CapPtr<Slab, CBChunk>(slab));
+      metaz.initialise(sizeclass, slab);
 
       self->used++;
       return slab;
     }
 
-    // This is pre-factored to take an explicit self parameter so that we can
-    // eventually annotate that pointer with additional information.
-    static Slab* alloc_slab(Superslab* self, sizeclass_t sizeclass)
+    static CapPtr<Slab, CBChunk>
+    alloc_slab(CapPtr<Superslab, CBChunk> self, sizeclass_t sizeclass)
     {
       uint8_t h = self->head;
-      Slab* slab = reinterpret_cast<Slab*>(
-        pointer_offset(self, (static_cast<size_t>(h) << SLAB_BITS)));
+      auto slab = pointer_offset(self, (static_cast<size_t>(h) << SLAB_BITS))
+                    .template as_static<Slab>();
 
       auto& metah = self->meta[h];
       uint8_t n = metah.next();
 
-      metah.initialise(sizeclass, CapPtr<Slab, CBChunk>(slab));
+      metah.initialise(sizeclass, slab);
 
       self->head = h + n + 1;
       self->used += 2;
