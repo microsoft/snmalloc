@@ -123,6 +123,7 @@ namespace snmalloc
     }
   };
 
+  struct Remote;
   /**
    * Free objects within each slab point directly to the next.
    * The next_object pointer can be encoded to detect

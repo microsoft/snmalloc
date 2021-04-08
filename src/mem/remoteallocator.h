@@ -2,7 +2,9 @@
 
 #include "../ds/mpscq.h"
 #include "../mem/allocconfig.h"
+#include "../mem/freelist.h"
 #include "../mem/sizeclass.h"
+#include "../mem/superslab.h"
 
 #include <atomic>
 
@@ -81,4 +83,136 @@ namespace snmalloc
         ~SIZECLASS_MASK;
     }
   };
+
+  /*
+   * A singly-linked list of Remote objects, supporting append and
+   * take-all operations.  Intended only for the private use of this
+   * allocator; the Remote objects here will later be taken and pushed
+   * to the inter-thread message queues.
+   */
+  struct RemoteList
+  {
+    /*
+     * A stub Remote object that will always be the head of this list;
+     * never taken for further processing.
+     */
+    Remote head{};
+
+    CapPtr<Remote, CBAlloc> last{&head};
+
+    void clear()
+    {
+      last = CapPtr<Remote, CBAlloc>(&head);
+    }
+
+    bool empty()
+    {
+      return address_cast(last) == address_cast(&head);
+    }
+  };
+
+  struct RemoteCache
+  {
+    /**
+     * The total amount of memory we are waiting for before we will dispatch
+     * to other allocators. Zero or negative mean we should dispatch on the
+     * next remote deallocation. This is initialised to the 0 so that we
+     * always hit a slow path to start with, when we hit the slow path and
+     * need to dispatch everything, we can check if we are a real allocator
+     * and lazily provide a real allocator.
+     */
+    int64_t capacity{0};
+    std::array<RemoteList, REMOTE_SLOTS> list{};
+
+    /// Used to find the index into the array of queues for remote
+    /// deallocation
+    /// r is used for which round of sending this is.
+    template<typename Alloc>
+    inline size_t get_slot(size_t id, size_t r)
+    {
+      constexpr size_t allocator_size = sizeof(Alloc);
+      constexpr size_t initial_shift =
+        bits::next_pow2_bits_const(allocator_size);
+      static_assert(
+        initial_shift >= 8,
+        "Can't embed sizeclass_t into allocator ID low bits");
+      SNMALLOC_ASSERT((initial_shift + (r * REMOTE_SLOT_BITS)) < 64);
+      return (id >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
+    }
+
+    template<typename Alloc>
+    SNMALLOC_FAST_PATH void dealloc(
+      Remote::alloc_id_t target_id,
+      CapPtr<FreeObject, CBAlloc> p,
+      sizeclass_t sizeclass)
+    {
+      this->capacity -= sizeclass_to_size(sizeclass);
+      auto r = p.template as_reinterpret<Remote>();
+
+      r->set_info(target_id, sizeclass);
+
+      RemoteList* l = &list[get_slot<Alloc>(target_id, 0)];
+      l->last->non_atomic_next = r;
+      l->last = r;
+    }
+
+    template<typename Alloc>
+    void post(Alloc* allocator, Remote::alloc_id_t id)
+    {
+      // When the cache gets big, post lists to their target allocators.
+      capacity = REMOTE_CACHE;
+
+      size_t post_round = 0;
+
+      while (true)
+      {
+        auto my_slot = get_slot<Alloc>(id, post_round);
+
+        for (size_t i = 0; i < REMOTE_SLOTS; i++)
+        {
+          if (i == my_slot)
+            continue;
+
+          RemoteList* l = &list[i];
+          CapPtr<Remote, CBAlloc> first = l->head.non_atomic_next;
+
+          if (!l->empty())
+          {
+            // Send all slots to the target at the head of the list.
+            auto first_auth =
+              allocator->large_allocator.template capptr_amplify<Remote>(first);
+            auto super = Superslab::get(first_auth);
+            super->get_allocator()->message_queue.enqueue(first, l->last);
+            l->clear();
+          }
+        }
+
+        RemoteList* resend = &list[my_slot];
+        if (resend->empty())
+          break;
+
+        // Entries could map back onto the "resend" list,
+        // so take copy of the head, mark the last element,
+        // and clear the original list.
+        CapPtr<Remote, CBAlloc> r = resend->head.non_atomic_next;
+        resend->last->non_atomic_next = nullptr;
+        resend->clear();
+
+        post_round++;
+
+        while (r != nullptr)
+        {
+          // Use the next N bits to spread out remote deallocs in our own
+          // slot.
+          size_t slot = get_slot<Alloc>(r->trunc_target_id(), post_round);
+          RemoteList* l = &list[slot];
+          l->last->non_atomic_next = r;
+          l->last = r;
+
+          r = r->non_atomic_next;
+        }
+      }
+    }
+  };
+
 } // namespace snmalloc
