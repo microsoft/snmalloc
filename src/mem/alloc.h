@@ -916,18 +916,29 @@ namespace snmalloc
       if (likely(sizeclass < NUM_SMALL_CLASSES))
       {
         SNMALLOC_ASSERT(super->get_kind() == Super);
+        check_client(
+          super->get_kind() == Super,
+          "Heap Corruption: Sizeclass of remote dealloc corrupt.");
         auto slab =
           Metaslab::get_slab(Aal::capptr_rebound(super.as_void(), p_offseted));
+        check_client(
+          super->get_meta(slab)->sizeclass() == sizeclass,
+          "Heap Corruption: Sizeclass of remote dealloc corrupt.");
         small_dealloc_offseted(
           super, slab, FreeObject::make(p_offseted), sizeclass);
       }
       else
       {
-        SNMALLOC_ASSERT(super->get_kind() == Medium);
+        auto medium = super.template as_reinterpret<Mediumslab>();
+        SNMALLOC_ASSERT(medium->get_kind() == Medium);
+        check_client(
+          medium->get_kind() == Medium,
+          "Heap Corruption: Sizeclass of remote dealloc corrupt.");
+        check_client(
+          medium->get_sizeclass() == sizeclass,
+          "Heap Corruption: Sizeclass of remote dealloc corrupt.");
         medium_dealloc_local(
-          super.template as_reinterpret<Mediumslab>(),
-          Remote::clear(p_offseted, sizeclass),
-          sizeclass);
+          medium, Remote::clear(p_offseted, sizeclass), sizeclass);
       }
     }
 
