@@ -1,10 +1,11 @@
 #pragma once
 
 #include "baseslab.h"
-#include "remoteallocator.h"
 
 namespace snmalloc
 {
+  struct RemoteAllocator;
+
   class Allocslab : public Baseslab
   {
   protected:
