@@ -734,16 +734,11 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH void handle_dealloc_remote(CapPtr<Remote, CBAlloc> p)
     {
-      if (likely(p->trunc_target_id() == get_trunc_id()))
+      if (likely(Remote::trunc_target_id(p, &large_allocator) == get_trunc_id()))
       {
         // Destined for my slabs
         auto p_auth = large_allocator.template capptr_amplify<Remote>(p);
         auto super = Superslab::get(p_auth);
-
-        check_client(
-          p->trunc_target_id() == super->get_allocator()->trunc_id(),
-          "Detected memory corruption.  Potential use-after-free");
-
         dealloc_not_large_local(super, p, p->sizeclass());
       }
       else
@@ -751,7 +746,7 @@ namespace snmalloc
         // Merely routing; despite the cast here, p is going to be cast right
         // back to a Remote.
         remote.dealloc<Allocator>(
-          p->trunc_target_id(),
+          Remote::trunc_target_id(p, &large_allocator),
           p.template as_reinterpret<FreeObject>(),
           p->sizeclass());
       }
