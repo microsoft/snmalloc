@@ -8,6 +8,10 @@
 
 #include <atomic>
 
+#ifdef CHECK_CLIENT
+#  define SNMALLOC_DONT_CACHE_ALLOCATOR_PTR
+#endif
+
 namespace snmalloc
 {
   /*
@@ -24,7 +28,21 @@ namespace snmalloc
       AtomicCapPtr<Remote, CBAlloc> next{nullptr};
     };
 
-    /*
+#ifdef SNMALLOC_DONT_CACHE_ALLOCATOR_PTR
+    /**
+     * Cache the size class of the object to improve performance.
+     *
+     * This implementation does not cache the allocator id due to security
+     * concerns. Alternative implementations may store the allocator
+     * id, so that amplification costs can be mitigated on CHERI with MTE.
+     */
+    sizeclass_t sizeclasscache;
+#else
+    /* This implementation assumes that storing the allocator ID in a freed
+     * object is not a security concern.  Either we trust the code running on
+     * top of the allocator, or additional security measure are in place such
+     * as MTE + CHERI.
+     *
      * We embed the size class in the bottom 8 bits of an allocator ID (i.e.,
      * the address of an Alloc's remote_alloc's message_queue; in practice we
      * only need 7 bits, but using 8 is conjectured to be faster).  The hashing
@@ -38,20 +56,45 @@ namespace snmalloc
      * and use SNMALLOC_ASSERT to verify that they do not exist in debug builds.
      */
     alloc_id_t alloc_id_and_sizeclass;
+#endif
 
+    /**
+     * Set up a remote object.  Potentially cache sizeclass and allocator id.
+     */
     void set_info(alloc_id_t id, sizeclass_t sc)
     {
+#ifdef SNMALLOC_DONT_CACHE_ALLOCATOR_PTR
+      UNUSED(id);
+      sizeclasscache = sc;
+#else
       alloc_id_and_sizeclass = (id & ~SIZECLASS_MASK) | sc;
+#endif
     }
 
-    alloc_id_t trunc_target_id()
+    /**
+     * Return allocator for this object.  This may perform amplification.
+     */
+    template<typename LargeAlloc>
+    static alloc_id_t trunc_target_id(CapPtr<Remote, CBAlloc> r, LargeAlloc* large_allocator)
     {
-      return alloc_id_and_sizeclass & ~SIZECLASS_MASK;
+#ifdef SNMALLOC_DONT_CACHE_ALLOCATOR_PTR
+      // Rederive allocator id.
+      auto r_auth = large_allocator->template capptr_amplify<Remote>(r);
+      auto super = Superslab::get(r_auth);
+      return super->get_allocator()->trunc_id();
+#else
+      UNUSED(large_allocator);
+      return r->alloc_id_and_sizeclass & ~SIZECLASS_MASK;
+#endif
     }
 
     sizeclass_t sizeclass()
     {
+#ifdef SNMALLOC_DONT_CACHE_ALLOCATOR_PTR
+      return sizeclasscache;
+#else
       return alloc_id_and_sizeclass & SIZECLASS_MASK;
+#endif
     }
 
     /** Zero out a Remote tracking structure, return pointer to object base */
@@ -204,7 +247,8 @@ namespace snmalloc
         {
           // Use the next N bits to spread out remote deallocs in our own
           // slot.
-          size_t slot = get_slot<Alloc>(r->trunc_target_id(), post_round);
+          size_t slot = get_slot<Alloc>(
+            Remote::trunc_target_id(r, &allocator->large_allocator), post_round);
           RemoteList* l = &list[slot];
           l->last->non_atomic_next = r;
           l->last = r;
