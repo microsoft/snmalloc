@@ -1,6 +1,18 @@
 #pragma once
 
 #ifdef __NetBSD__
+#  include <cassert>
+
+namespace snmalloc
+{
+  template<typename... Args>
+  int getentropy(Args...)
+  {
+    assert(0 && "Unreachable path");
+    return -1;
+  }
+}
+
 #  include "pal_bsd_aligned.h"
 
 namespace snmalloc
