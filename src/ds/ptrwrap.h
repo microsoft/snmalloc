@@ -50,7 +50,8 @@ namespace snmalloc
     CBChunk, /*        Chunk                                              */
     CBChunkE, /*       Chunk   (+ platform constraints)                   */
     CBAlloc, /*        Alloc                                              */
-    CBAllocE /*        Alloc   (+ platform constraints)                   */
+    CBAllocE, /*       Alloc   (+ platform constraints)                   */
+    CBAllocEW /*       Alloc,  (+ E, might be "Wild"/forged)              */
   };
 
   /**
@@ -211,6 +212,14 @@ namespace snmalloc
   SNMALLOC_FAST_PATH void* capptr_reveal(CapPtr<void, CBAllocE> p)
   {
     return p.unsafe_capptr;
+  }
+
+  /**
+   * Dually, given a void* from the client, it's fine to call it CBAllocEW.
+   */
+  SNMALLOC_FAST_PATH CapPtr<void, CBAllocEW> capptr_from_client(void* p)
+  {
+    return CapPtr<void, CBAllocEW>(p);
   }
 
   /**

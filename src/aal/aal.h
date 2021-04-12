@@ -156,6 +156,12 @@ namespace snmalloc
       UNUSED(a);
       return CapPtr<T, BOut>(r.unsafe_capptr);
     }
+
+    static SNMALLOC_FAST_PATH CapPtr<void, CBAllocE>
+    capptr_dewild(CapPtr<void, CBAllocEW> p) noexcept
+    {
+      return CapPtr<void, CBAllocE>(p.unsafe_capptr);
+    }
   };
 } // namespace snmalloc
 

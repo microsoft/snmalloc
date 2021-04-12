@@ -40,7 +40,7 @@ namespace snmalloc
   };
 
   template<typename AAL>
-  concept ConceptAAL_capptr_methods =
+  concept ConceptAAL_capptr_bounds =
   requires(CapPtr<void, CBArena> auth, CapPtr<void, CBAlloc> ret, size_t sz)
   {
     /**
@@ -59,11 +59,19 @@ namespace snmalloc
   };
 
   template<typename AAL>
+  concept ConceptAAL_capptr_dewild =
+  requires(CapPtr<void, CBAllocEW> w)
+  {
+    { AAL::capptr_dewild(w) } noexcept -> ConceptSame<CapPtr<void, CBAllocE>>;
+  };
+
+  template<typename AAL>
   concept ConceptAAL =
     ConceptAAL_static_members<AAL> &&
     ConceptAAL_prefetch<AAL> &&
     ConceptAAL_tick<AAL> &&
-    ConceptAAL_capptr_methods<AAL>;
+    ConceptAAL_capptr_bounds<AAL> &&
+    ConceptAAL_capptr_dewild<AAL>;
 
 } // namespace snmalloc
 #endif
