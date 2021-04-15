@@ -298,7 +298,7 @@ namespace snmalloc
       return {peak - avail, peak};
     }
 
-    template<typename T, typename U, capptr_bounds B>
+    template<typename T, typename U, SNMALLOC_CONCEPT(capptr_bounds::c) B>
     SNMALLOC_FAST_PATH CapPtr<T, CBArena> capptr_amplify(CapPtr<U, B> r)
     {
       return arena_map.template capptr_amplify<T, U, B>(r);
@@ -406,7 +406,10 @@ namespace snmalloc
       memory_provider.push_large_stack(p, large_class);
     }
 
-    template<typename T = void, typename U, capptr_bounds B>
+    template<
+      typename T = void,
+      typename U,
+      SNMALLOC_CONCEPT(capptr_bounds::c) B>
     SNMALLOC_FAST_PATH CapPtr<T, CBArena> capptr_amplify(CapPtr<U, B> r)
     {
       return memory_provider.template capptr_amplify<T, U, B>(r);

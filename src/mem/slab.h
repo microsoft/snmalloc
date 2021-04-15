@@ -18,10 +18,10 @@ namespace snmalloc
     }
 
   public:
-    template<capptr_bounds B>
+    template<SNMALLOC_CONCEPT(capptr_bounds::c) B>
     static CapPtr<Metaslab, B> get_meta(CapPtr<Slab, B> self)
     {
-      static_assert(B == CBArena || B == CBChunkD || B == CBChunk);
+      static_assert(B::spatial >= capptr_bounds::spatial::Chunk);
 
       auto super = Superslab::get(self);
       return super->get_meta(self);

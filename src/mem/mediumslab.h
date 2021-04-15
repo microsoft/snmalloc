@@ -134,13 +134,13 @@ namespace snmalloc
       return was_full;
     }
 
-    template<capptr_bounds B>
+    template<SNMALLOC_CONCEPT(capptr_bounds::c) B>
     static bool full(CapPtr<Mediumslab, B> self)
     {
       return self->free == 0;
     }
 
-    template<capptr_bounds B>
+    template<SNMALLOC_CONCEPT(capptr_bounds::c) B>
     static bool empty(CapPtr<Mediumslab, B> self)
     {
       return self->head == 0;

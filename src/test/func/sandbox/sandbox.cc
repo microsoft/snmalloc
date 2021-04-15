@@ -54,7 +54,10 @@ namespace
       /**
        * Amplify using arena_root; that is, exclusively within the sandbox.
        */
-      template<typename T = void, typename U, capptr_bounds B>
+      template<
+        typename T = void,
+        typename U,
+        SNMALLOC_CONCEPT(capptr_bounds::c) B>
       SNMALLOC_FAST_PATH CapPtr<T, CBArena> capptr_amplify(CapPtr<U, B> r)
       {
         return Aal::capptr_rebound<T>(arena_root, r);
@@ -145,7 +148,10 @@ namespace
        * Amplify by appealing to the real_state, which has our sandbox
        * ArenaMap implementation.
        */
-      template<typename T = void, typename U, capptr_bounds B>
+      template<
+        typename T = void,
+        typename U,
+        SNMALLOC_CONCEPT(capptr_bounds::c) B>
       SNMALLOC_FAST_PATH CapPtr<T, CBArena> capptr_amplify(CapPtr<U, B> r)
       {
         return real_state->template capptr_amplify<T>(r);

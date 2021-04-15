@@ -53,7 +53,7 @@ namespace snmalloc
     }
 
     /** Zero out a Remote tracking structure, return pointer to object base */
-    template<capptr_bounds B>
+    template<SNMALLOC_CONCEPT(capptr_bounds::c) B>
     SNMALLOC_FAST_PATH static CapPtr<void, B>
     clear(CapPtr<Remote, B> self, sizeclass_t sizeclass)
     {

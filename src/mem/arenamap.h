@@ -109,12 +109,16 @@ namespace snmalloc
       }
     }
 
-    template<typename T = void, typename U, capptr_bounds B>
+    template<
+      typename T = void,
+      typename U,
+      SNMALLOC_CONCEPT(capptr_bounds::c) B>
     static SNMALLOC_FAST_PATH CapPtr<T, CBArena> capptr_amplify(CapPtr<U, B> r)
     {
       static_assert(
-        B == CBAllocE || B == CBAlloc,
+        B::spatial == capptr_bounds::spatial::Alloc,
         "Attempting to amplify an unexpectedly high pointer");
+
       return Aal::capptr_rebound(
                CapPtr<void, CBArena>(
                  PagemapProvider::pagemap().get(address_cast(r))),

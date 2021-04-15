@@ -59,7 +59,7 @@ namespace snmalloc
     ModArray<SLAB_COUNT, Metaslab> meta;
 
     // Used size_t as results in better code in MSVC
-    template<capptr_bounds B>
+    template<SNMALLOC_CONCEPT(capptr_bounds::c) B>
     size_t slab_to_index(CapPtr<Slab, B> slab)
     {
       auto res = (pointer_diff(this, slab.unsafe_capptr) >> SLAB_BITS);
@@ -92,11 +92,11 @@ namespace snmalloc
      * return a highly-privileged pointer (i.e., CBArena) instead as these
      * pointers are not exposed from the allocator.
      */
-    template<typename T, capptr_bounds B>
-    static SNMALLOC_FAST_PATH CapPtr<Superslab, capptr_bound_chunkd_bounds<B>()>
+    template<typename T, SNMALLOC_CONCEPT(capptr_bounds::c) B>
+    static SNMALLOC_FAST_PATH CapPtr<Superslab, capptr_bound_chunkd_bounds<B>>
     get(CapPtr<T, B> p)
     {
-      static_assert(B == CBArena || B == CBChunkD || B == CBChunk);
+      static_assert(B::spatial >= capptr_bounds::spatial::Chunk);
 
       return capptr_bound_chunkd(
         pointer_align_down<SUPERSLAB_SIZE, Superslab>(p.as_void()),
@@ -195,7 +195,7 @@ namespace snmalloc
       return Full;
     }
 
-    template<capptr_bounds B>
+    template<SNMALLOC_CONCEPT(capptr_bounds::c) B>
     CapPtr<Metaslab, B> get_meta(CapPtr<Slab, B> slab)
     {
       return CapPtr<Metaslab, B>(&meta[slab_to_index(slab)]);
@@ -235,10 +235,10 @@ namespace snmalloc
     }
 
     // Returns true, if this alters the value of get_status
-    template<capptr_bounds B>
+    template<SNMALLOC_CONCEPT(capptr_bounds::c) B>
     Action dealloc_slab(CapPtr<Slab, B> slab)
     {
-      static_assert(B == CBArena || B == CBChunkD || B == CBChunk);
+      static_assert(B::spatial >= capptr_bounds::spatial::Chunk);
 
       // This is not the short slab.
       uint8_t index = static_cast<uint8_t>(slab_to_index(slab));

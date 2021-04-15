@@ -18,19 +18,11 @@ namespace snmalloc
    * used in the signatures of below and in those of wrappers around them.
    */
 
-  template<capptr_bounds B>
-  constexpr capptr_bounds capptr_bound_chunkd_bounds()
-  {
-    switch (B)
-    {
-      case CBArena:
-        return CBChunkD;
-      case CBChunkD:
-        return CBChunkD;
-      case CBChunk:
-        return CBChunk;
-    }
-  }
+  template<SNMALLOC_CONCEPT(capptr_bounds::c) B>
+  using capptr_bound_chunkd_bounds = std::conditional_t<
+    B::spatial == capptr_bounds::spatial::Chunk,
+    B,
+    typename B::template with_spatial<capptr_bounds::spatial::ChunkD>>;
 
   /**
    * Construct an CapPtr<T, CBChunkD> from an CapPtr<T, CBArena> or
@@ -42,22 +34,24 @@ namespace snmalloc
    * Requires that `p` point at a multiple of `sz` (that is, at the base of a
    * highly-aligned object) to avoid representability issues.
    */
-  template<typename T, capptr_bounds B>
-  SNMALLOC_FAST_PATH CapPtr<T, capptr_bound_chunkd_bounds<B>()>
+  template<typename T, SNMALLOC_CONCEPT(capptr_bounds::c) B>
+  SNMALLOC_FAST_PATH CapPtr<T, capptr_bound_chunkd_bounds<B>>
   capptr_bound_chunkd(CapPtr<T, B> p, size_t sz)
   {
-    static_assert(B == CBArena || B == CBChunkD || B == CBChunk);
+    static_assert(B::spatial >= capptr_bounds::spatial::Chunk);
+    static_assert(B::platform == capptr_bounds::platform::High);
+
     SNMALLOC_ASSERT((address_cast(p) % sz) == 0);
 
 #ifndef NDEBUG
     // On Debug builds, apply bounds if not already there
-    if constexpr (B == CBArena)
+    if constexpr (B::spatial == capptr_bounds::spatial::Arena)
       return Aal::capptr_bound<T, CBChunkD>(p, sz);
     else // quiesce MSVC's warnings about unreachable code below
 #endif
     {
       UNUSED(sz);
-      return CapPtr<T, capptr_bound_chunkd_bounds<B>()>(p.unsafe_capptr);
+      return CapPtr<T, capptr_bound_chunkd_bounds<B>>(p.unsafe_capptr);
     }
   }
 

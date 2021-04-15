@@ -23,7 +23,7 @@ namespace snmalloc
    * Used to turn a location into a key.  This is currently
    * just the slab address truncated to 16bits and offset by 1.
    */
-  template<typename T, capptr_bounds B>
+  template<typename T, SNMALLOC_CONCEPT(capptr_bounds::c) B>
   inline static address_t initial_key(CapPtr<T, B> slab)
   {
 #ifdef CHECK_CLIENT

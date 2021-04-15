@@ -75,21 +75,31 @@ namespace snmalloc
    * This is here, rather than in every PAL proper, merely to minimize
    * disruption to PALs for platforms that do not support StrictProvenance AALs.
    */
-  template<typename PAL = Pal, typename AAL = Aal, typename T, capptr_bounds B>
+  template<
+    typename PAL = Pal,
+    typename AAL = Aal,
+    typename T,
+    SNMALLOC_CONCEPT(capptr_bounds::c) B>
   static SNMALLOC_FAST_PATH typename std::enable_if_t<
     !aal_supports<StrictProvenance, AAL>,
-    CapPtr<T, capptr_export_type<B>()>>
+    CapPtr<T, capptr_export_type<B>>>
   capptr_export(CapPtr<T, B> p)
   {
-    return CapPtr<T, capptr_export_type<B>()>(p.unsafe_capptr);
+    return CapPtr<T, capptr_export_type<B>>(p.unsafe_capptr);
   }
 
-  template<typename PAL = Pal, typename AAL = Aal, typename T, capptr_bounds B>
+  template<
+    typename PAL = Pal,
+    typename AAL = Aal,
+    typename T,
+    SNMALLOC_CONCEPT(capptr_bounds::c) B>
   static SNMALLOC_FAST_PATH typename std::enable_if_t<
     aal_supports<StrictProvenance, AAL>,
-    CapPtr<T, capptr_export_type<B>()>>
+    CapPtr<T, capptr_export_type<B>>>
   capptr_export(CapPtr<T, B> p)
   {
+    static_assert(B::spatial <= capptr_bounds::spatial::Chunk);
+
     return PAL::capptr_export(p);
   }
 
@@ -101,11 +111,14 @@ namespace snmalloc
    * disruption and avoid code bloat.  This wrapper ought to compile down to
    * nothing if SROA is doing its job.
    */
-  template<typename PAL, bool page_aligned = false, typename T, capptr_bounds B>
+  template<
+    typename PAL,
+    bool page_aligned = false,
+    typename T,
+    SNMALLOC_CONCEPT(capptr_bounds::c) B>
   static SNMALLOC_FAST_PATH void pal_zero(CapPtr<T, B> p, size_t sz)
   {
-    static_assert(
-      !page_aligned || B == CBArena || B == CBChunkD || B == CBChunk);
+    static_assert(!page_aligned || B::spatial >= capptr_bounds::spatial::Chunk);
     PAL::template zero<page_aligned>(p.unsafe_capptr, sz);
   }
 

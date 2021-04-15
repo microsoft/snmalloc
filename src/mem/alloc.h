@@ -651,7 +651,7 @@ namespace snmalloc
 #ifdef CACHE_FRIENDLY_OFFSET
     size_t remote_offset = 0;
 
-    template<capptr_bounds B>
+    template<SNMALLOC_CONCEPT(capptr_bounds::c) B>
     CapPtr<FreeObject, B>
     apply_cache_friendly_offset(CapPtr<void, B> p, sizeclass_t sizeclass)
     {
@@ -664,7 +664,7 @@ namespace snmalloc
         reinterpret_cast<uintptr_t>(p.unsafe_capptr) + offset));
     }
 #else
-    template<capptr_bounds B>
+    template<SNMALLOC_CONCEPT(capptr_bounds::c) B>
     static CapPtr<FreeObject, B>
     apply_cache_friendly_offset(CapPtr<void, B> p, sizeclass_t sizeclass)
     {

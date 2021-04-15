@@ -38,59 +38,111 @@ namespace snmalloc
    * *E forms are "exported" and have had platform constraints applied.  That
    * means, for example, on CheriBSD, that they have had their VMMAP permission
    * stripped.
-   *
-   * Yes, I wish the start-of-comment characters were aligned below as well.
-   * I blame clang format.
    */
-  enum capptr_bounds
+
+  namespace capptr_bounds
   {
-    /*                Spatial  Notes                                      */
-    CBArena, /*        Arena                                              */
-    CBChunkD, /*       Arena   Chunk-bounded in debug; internal use only! */
-    CBChunk, /*        Chunk                                              */
-    CBChunkE, /*       Chunk   (+ platform constraints)                   */
-    CBAlloc, /*        Alloc                                              */
-    CBAllocE /*        Alloc   (+ platform constraints)                   */
+    /*
+     * Bounds dimensions are sorted so that < reflects authority.  For example,
+     * spatial::Alloc is less capable than spatial::Arena.
+     */
+    enum class spatial
+    {
+      Alloc,
+      Chunk,
+      ChunkD,
+      Arena
+    };
+    enum class platform
+    {
+      Exported,
+      High
+    };
+
+    template<spatial S, platform P>
+    struct t
+    {
+      static constexpr enum spatial spatial = S;
+      static constexpr enum platform platform = P;
+
+      template<enum spatial SO>
+      using with_spatial = t<SO, P>;
+
+      template<enum platform PO>
+      using with_platform = t<S, PO>;
+
+      /*
+       * The dimensions here are not used completely orthogonally.  In
+       * particular, high-authority spatial bounds imply high-authority in other
+       * dimensions and unchecked pointers must be annotated as tightly bounded.
+       */
+      static_assert(!(S == spatial::Arena) || (P == platform::High));
+    };
+
+    using CBArena = t<spatial::Arena, platform::High>;
+    using CBChunk = t<spatial::Chunk, platform::High>;
+    using CBChunkD = t<spatial::ChunkD, platform::High>;
+    using CBChunkE = t<spatial::Chunk, platform::Exported>;
+    using CBAlloc = t<spatial::Alloc, platform::High>;
+    using CBAllocE = t<spatial::Alloc, platform::Exported>;
+
+    // clang-format off
+#ifdef __cpp_concepts
+    template<typename T>
+    concept c = requires()
+    {
+      { T::spatial } ->ConceptSame<const spatial>;
+      { T::platform } ->ConceptSame<const platform>;
+    };
+#endif
+    // clang-format on
   };
+
+  /*
+   * Defining these above and then `using` them to hide the namespace label like
+   * this is still shorter than defining these completely out here, since there
+   * isn't a notion of local namespace imports.
+   */
+  using CBArena = capptr_bounds::CBArena;
+  using CBChunk = capptr_bounds::CBChunk;
+  using CBChunkD = capptr_bounds::CBChunkD;
+  using CBChunkE = capptr_bounds::CBChunkE;
+  using CBAlloc = capptr_bounds::CBAlloc;
+  using CBAllocE = capptr_bounds::CBAllocE;
 
   /**
    * Compute the "exported" variant of a capptr_bounds annotation.  This is
    * used by the PAL's capptr_export function to compute its return value's
    * annotation.
    */
-  template<capptr_bounds B>
-  constexpr capptr_bounds capptr_export_type()
-  {
-    static_assert(
-      (B == CBChunk) || (B == CBAlloc), "capptr_export_type of bad type");
+  template<SNMALLOC_CONCEPT(capptr_bounds::c) B>
+  using capptr_export_type =
+    typename B::template with_platform<capptr_bounds::platform::Exported>;
 
-    switch (B)
-    {
-      case CBChunk:
-        return CBChunkE;
-      case CBAlloc:
-        return CBAllocE;
-    }
-  }
-
-  template<capptr_bounds BI, capptr_bounds BO>
-  constexpr bool capptr_is_bounds_refinement()
+  template<
+    SNMALLOC_CONCEPT(capptr_bounds::c) BI,
+    SNMALLOC_CONCEPT(capptr_bounds::c) BO>
+  constexpr bool capptr_is_spatial_refinement()
   {
-    switch (BI)
+    if (BI::platform != BO::platform)
+      return false;
+
+    switch (BI::spatial)
     {
-      case CBAllocE:
-        return BO == CBAllocE;
-      case CBAlloc:
-        return BO == CBAlloc;
-      case CBChunkE:
-        return BO == CBAllocE || BO == CBChunkE;
-      case CBChunk:
-        return BO == CBAlloc || BO == CBChunk || BO == CBChunkD;
-      case CBChunkD:
-        return BO == CBAlloc || BO == CBChunk || BO == CBChunkD;
-      case CBArena:
-        return BO == CBAlloc || BO == CBChunk || BO == CBChunkD ||
-          BO == CBArena;
+      using namespace capptr_bounds;
+      case spatial::Arena:
+        return true;
+
+      case spatial::ChunkD:
+        return BO::spatial == spatial::Alloc || BO::spatial == spatial::Chunk ||
+          BO::spatial == spatial::ChunkD;
+
+      case spatial::Chunk:
+        return BO::spatial == spatial::Alloc || BO::spatial == spatial::Chunk ||
+          BO::spatial == spatial::ChunkD;
+
+      case spatial::Alloc:
+        return BO::spatial == spatial::Alloc;
     }
   }
 
@@ -98,7 +150,7 @@ namespace snmalloc
    * A pointer annotated with a "phantom type parameter" carrying a static
    * summary of its StrictProvenance metadata.
    */
-  template<typename T, capptr_bounds bounds>
+  template<typename T, SNMALLOC_CONCEPT(capptr_bounds::c) bounds>
   struct CapPtr
   {
     T* unsafe_capptr;
@@ -170,10 +222,13 @@ namespace snmalloc
     SNMALLOC_FAST_PATH T* operator->() const
     {
       /*
-       * CBAllocE bounds are associated with objects coming from or going to the
-       * client; we should be doing nothing with them.
+       * Alloc-bounded, platform-constrained pointers are associated with
+       * objects coming from or going to the client; we should be doing nothing
+       * with them.
        */
-      static_assert(bounds != CBAllocE);
+      static_assert(
+        (bounds::spatial != capptr_bounds::spatial::Alloc) ||
+        (bounds::platform != capptr_bounds::platform::Exported));
       return this->unsafe_capptr;
     }
   };
@@ -222,7 +277,7 @@ namespace snmalloc
    * annotations around an un-annotated std::atomic<T*>, to appease C++, yet
    * will expose or consume only CapPtr<T> with the same bounds annotation.
    */
-  template<typename T, capptr_bounds bounds>
+  template<typename T, SNMALLOC_CONCEPT(capptr_bounds::c) bounds>
   struct AtomicCapPtr
   {
     std::atomic<T*> unsafe_capptr;

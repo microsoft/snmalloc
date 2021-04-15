@@ -58,7 +58,7 @@ namespace snmalloc
     bits::ADDRESS_BITS - SUPERSLAB_BITS;
 
 #ifdef CACHE_FRIENDLY_OFFSET
-  template<typename T, capptr_bounds B>
+  template<typename T, SNMALLOC_CONCEPT(capptr_bounds::c) B>
   SNMALLOC_FAST_PATH static CapPtr<void, B>
   remove_cache_friendly_offset(CapPtr<T, B> p, sizeclass_t sizeclass)
   {
@@ -73,7 +73,7 @@ namespace snmalloc
     return relative & mask;
   }
 #else
-  template<typename T, capptr_bounds B>
+  template<typename T, SNMALLOC_CONCEPT(capptr_bounds::c) B>
   SNMALLOC_FAST_PATH static CapPtr<void, B>
   remove_cache_friendly_offset(CapPtr<T, B> p, sizeclass_t sizeclass)
   {

@@ -129,27 +129,28 @@ namespace snmalloc
      */
     template<
       typename T,
-      enum capptr_bounds nbounds,
-      enum capptr_bounds obounds,
+      SNMALLOC_CONCEPT(capptr_bounds::c) BOut,
+      SNMALLOC_CONCEPT(capptr_bounds::c) BIn,
       typename U = T>
-    static SNMALLOC_FAST_PATH CapPtr<T, nbounds>
-    capptr_bound(CapPtr<U, obounds> a, size_t size) noexcept
+    static SNMALLOC_FAST_PATH CapPtr<T, BOut>
+    capptr_bound(CapPtr<U, BIn> a, size_t size) noexcept
     {
       // Impose constraints on bounds annotations.
-      static_assert(
-        obounds == CBArena || obounds == CBChunkD || obounds == CBChunk ||
-        obounds == CBChunkE);
-      static_assert(capptr_is_bounds_refinement<obounds, nbounds>());
+      static_assert(BIn::spatial >= capptr_bounds::spatial::Chunk);
+      static_assert(capptr_is_spatial_refinement<BIn, BOut>());
 
       UNUSED(size);
-      return CapPtr<T, nbounds>(a.template as_static<T>().unsafe_capptr);
+      return CapPtr<T, BOut>(a.template as_static<T>().unsafe_capptr);
     }
 
     /**
      * For architectures which do not enforce StrictProvenance, there's nothing
      * to be done, so just return the pointer unmodified with new annotation.
      */
-    template<typename T, capptr_bounds BOut, capptr_bounds BIn>
+    template<
+      typename T,
+      SNMALLOC_CONCEPT(capptr_bounds::c) BOut,
+      SNMALLOC_CONCEPT(capptr_bounds::c) BIn>
     static SNMALLOC_FAST_PATH CapPtr<T, BOut>
     capptr_rebound(CapPtr<void, BOut> a, CapPtr<T, BIn> r) noexcept
     {

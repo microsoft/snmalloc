@@ -34,9 +34,15 @@ namespace snmalloc
    */
   template<typename T, typename U>
   concept ConceptSame = std::same_as<T, U>;
+
+  template<typename D, typename B>
+  concept ConceptSubtype = std::derived_from<D, B>;
 #  else
   template<typename T, typename U>
   concept ConceptSame = std::is_same<T, U>::value;
+
+  template<typename D, typename B>
+  concept ConceptSubtype = std::is_base_of<B, D>::value;
 #  endif
 } // namespace snmalloc
 #endif
