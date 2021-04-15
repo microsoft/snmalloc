@@ -304,6 +304,12 @@ namespace snmalloc
       return arena_map.template capptr_amplify<T, U, B>(r);
     }
 
+    template<typename T>
+    SNMALLOC_FAST_PATH CapPtr<T, CBAllocE> capptr_dewild(CapPtr<T, CBAllocEW> p)
+    {
+      return Aal::capptr_dewild(p);
+    }
+
     ArenaMap& arenamap()
     {
       return arena_map;
@@ -413,6 +419,12 @@ namespace snmalloc
     SNMALLOC_FAST_PATH CapPtr<T, CBArena> capptr_amplify(CapPtr<U, B> r)
     {
       return memory_provider.template capptr_amplify<T, U, B>(r);
+    }
+
+    template<typename T>
+    SNMALLOC_FAST_PATH CapPtr<T, CBAllocE> capptr_dewild(CapPtr<T, CBAllocEW> p)
+    {
+      return memory_provider.capptr_dewild(p);
     }
   };
 

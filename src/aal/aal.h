@@ -154,8 +154,16 @@ namespace snmalloc
     static SNMALLOC_FAST_PATH CapPtr<T, BOut>
     capptr_rebound(CapPtr<void, BOut> a, CapPtr<T, BIn> r) noexcept
     {
+      static_assert(BIn::wild == capptr_bounds::wild::Checked);
+
       UNUSED(a);
       return CapPtr<T, BOut>(r.unsafe_capptr);
+    }
+
+    static SNMALLOC_FAST_PATH CapPtr<void, CBAllocE>
+    capptr_dewild(CapPtr<void, CBAllocEW> p) noexcept
+    {
+      return CapPtr<void, CBAllocE>(p.unsafe_capptr);
     }
   };
 } // namespace snmalloc

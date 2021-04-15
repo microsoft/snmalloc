@@ -118,6 +118,9 @@ namespace snmalloc
       static_assert(
         B::spatial == capptr_bounds::spatial::Alloc,
         "Attempting to amplify an unexpectedly high pointer");
+      static_assert(
+        B::wild == capptr_bounds::wild::Checked,
+        "Attempting to amplify a wild pointer");
 
       return Aal::capptr_rebound(
                CapPtr<void, CBArena>(

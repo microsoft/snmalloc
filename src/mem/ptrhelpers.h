@@ -40,6 +40,7 @@ namespace snmalloc
   {
     static_assert(B::spatial >= capptr_bounds::spatial::Chunk);
     static_assert(B::platform == capptr_bounds::platform::High);
+    static_assert(B::wild == capptr_bounds::wild::Checked);
 
     SNMALLOC_ASSERT((address_cast(p) % sz) == 0);
 

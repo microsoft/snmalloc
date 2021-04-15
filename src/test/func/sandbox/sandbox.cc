@@ -77,6 +77,35 @@ namespace
     using NoOpMemoryProvider = MemoryProviderStateMixin<NoOpPal, ArenaMap>;
 
     /**
+     * A NoOpMemoryProvider that additionally dewilds pointers by testing
+     * whether they are in the sandbox region.  This will be used by
+     * ExternalAlloc-s but not by the InternalAlloc-s, which are presumed never
+     * to hold out-of-sandbox memory.
+     */
+    struct ExternalMemoryProvider : public NoOpMemoryProvider
+    {
+      const address_t arena_addr;
+      const address_t arena_end;
+
+      ExternalMemoryProvider(CapPtr<void, CBChunk> start, size_t len)
+      : NoOpMemoryProvider(start, len),
+        arena_addr(address_cast(start)),
+        arena_end(arena_addr + len)
+      {}
+
+      template<typename T>
+      SNMALLOC_FAST_PATH CapPtr<T, CBAllocE>
+      capptr_dewild(CapPtr<T, CBAllocEW> p)
+      {
+        address_t a = address_cast(p);
+        if ((arena_addr <= a) && (a < arena_end))
+          return Aal::capptr_dewild(p);
+        else
+          return nullptr;
+      }
+    };
+
+    /**
      * Type for the allocator that lives outside of the sandbox and allocates
      * sandbox-owned memory.
      * This Allocator, by virtue of having its amplification confined to
@@ -87,7 +116,7 @@ namespace
     using ExternalAlloc = Allocator<
       never_init,
       no_op_init,
-      NoOpMemoryProvider,
+      ExternalMemoryProvider,
       SNMALLOC_DEFAULT_CHUNKMAP,
       false>;
     /**
@@ -193,7 +222,10 @@ namespace
     /**
      * The memory provider for this sandbox.
      */
-    NoOpMemoryProvider state;
+    ExternalMemoryProvider extstate;
+
+    /* extstate, but upcast to change static dispatch */
+    NoOpMemoryProvider* state;
 
     /**
      * The allocator for callers outside the sandbox to allocate memory inside.
@@ -212,17 +244,18 @@ namespace
     : start(alloc_sandbox_heap(sb_size)),
       top(pointer_offset(start, sb_size)),
       shared_state(new (start) SharedState()),
-      state(
+      extstate(
         pointer_offset(CapPtr<void, CBChunk>(start), sizeof(SharedState)),
         sb_size - sizeof(SharedState)),
-      alloc(state, SNMALLOC_DEFAULT_CHUNKMAP(), &shared_state->queue)
+      state(&extstate),
+      alloc(extstate, SNMALLOC_DEFAULT_CHUNKMAP(), &shared_state->queue)
     {
       // Register the sandbox memory with the sandbox arenamap
-      state.arenamap().arena_root = CapPtr<void, CBArena>(start);
+      state->arenamap().arena_root = CapPtr<void, CBArena>(start);
 
       auto* state_proxy = static_cast<MemoryProviderProxy*>(
         alloc.alloc(sizeof(MemoryProviderProxy)));
-      state_proxy->real_state = &state;
+      state_proxy->real_state = state;
       // In real code, allocators should never be constructed like this, they
       // should always come from an alloc pool.  This is just to test that both
       // kinds of allocator can be created.
@@ -231,15 +264,6 @@ namespace
     }
 
     Sandbox() = delete;
-
-    /**
-     * Predicate function for querying whether an object is entirely within the
-     * sandbox.
-     */
-    bool is_in_sandbox(void* ptr, size_t sz)
-    {
-      return (ptr >= start) && (pointer_offset(ptr, sz) < top);
-    }
 
     /**
      * Predicate function for querying whether an object is entirely within the

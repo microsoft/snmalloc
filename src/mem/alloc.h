@@ -217,7 +217,7 @@ namespace snmalloc
 #else
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
 
-      auto p_ret = CapPtr<void, CBAllocE>(p_raw);
+      auto p_ret = large_allocator.capptr_dewild(capptr_from_client(p_raw));
       auto p_auth = large_allocator.capptr_amplify(p_ret);
 
       if (sizeclass < NUM_SMALL_CLASSES)
@@ -251,7 +251,7 @@ namespace snmalloc
 #else
       SNMALLOC_ASSERT(p_raw != nullptr);
 
-      auto p_ret = CapPtr<void, CBAllocE>(p_raw);
+      auto p_ret = large_allocator.capptr_dewild(capptr_from_client(p_raw));
       auto p_auth = large_allocator.capptr_amplify(p_ret);
 
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
@@ -294,7 +294,7 @@ namespace snmalloc
 
       uint8_t chunkmap_slab_kind = chunkmap().get(address_cast(p_raw));
 
-      auto p_ret = CapPtr<void, CBAllocE>(p_raw);
+      auto p_ret = large_allocator.capptr_dewild(capptr_from_client(p_raw));
       auto p_auth = large_allocator.capptr_amplify(p_ret);
 
       if (likely(chunkmap_slab_kind == CMSuperslab))
@@ -369,6 +369,14 @@ namespace snmalloc
       UNUSED(p_raw);
 #else
       uint8_t chunkmap_slab_kind = chunkmap().get(address_cast(p_raw));
+
+      /*
+       * Skip the validation performed by capptr_dewild.  While this might
+       * seem unsafe (and it's certainly playing a bit with fire), on
+       * StrictProvenance architectures the capptr_rebound at the end here is
+       * meaningful and prevents this function from returning pointers outside
+       * the bounds of p_raw, making this function merely an information leak.
+       */
       auto p_ret = CapPtr<void, CBAllocE>(p_raw);
       auto p_auth = large_allocator.capptr_amplify(p_ret);
 
@@ -450,6 +458,13 @@ namespace snmalloc
 #else
       // This must be called on an external pointer.
       size_t chunkmap_slab_kind = chunkmap().get(address_cast(p_raw));
+      /*
+       * As with external_pointer we can skip the validation provided by
+       * capptr_dewild, but for an even simpler reason: alloc_size does not
+       * return pointers.  That is, while this might be unsafe, it discloses no
+       * more information than some state about heap layout (not even whether or
+       * not an object is allocated).
+       */
       auto p_ret = CapPtr<void, CBAllocE>(const_cast<void*>(p_raw));
       auto p_auth = large_allocator.capptr_amplify(p_ret);
 
