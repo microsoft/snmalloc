@@ -381,6 +381,45 @@ void test_calloc_large_bug()
   alloc->dealloc(p1);
 }
 
+template<size_t asz, int dealloc>
+void test_static_sized_alloc()
+{
+  auto alloc = ThreadAlloc::get();
+  auto p = alloc->alloc<asz>();
+
+  static_assert((dealloc >= 0) && (dealloc <= 2), "bad dealloc flavor");
+  switch (dealloc)
+  {
+    case 0:
+      alloc->dealloc(p);
+      break;
+    case 1:
+      alloc->dealloc(p, asz);
+      break;
+    case 2:
+      alloc->dealloc<asz>(p);
+      break;
+  }
+}
+
+void test_static_sized_allocs()
+{
+  // For each small, medium, and large class, do each kind dealloc.  This is
+  // mostly to ensure that all of these forms compile.
+
+  test_static_sized_alloc<sizeclass_to_size(1), 0>();
+  test_static_sized_alloc<sizeclass_to_size(1), 1>();
+  test_static_sized_alloc<sizeclass_to_size(1), 2>();
+
+  test_static_sized_alloc<sizeclass_to_size(NUM_SMALL_CLASSES + 1), 0>();
+  test_static_sized_alloc<sizeclass_to_size(NUM_SMALL_CLASSES + 1), 1>();
+  test_static_sized_alloc<sizeclass_to_size(NUM_SMALL_CLASSES + 1), 2>();
+
+  test_static_sized_alloc<large_sizeclass_to_size(0), 0>();
+  test_static_sized_alloc<large_sizeclass_to_size(0), 1>();
+  test_static_sized_alloc<large_sizeclass_to_size(0), 2>();
+}
+
 int main(int argc, char** argv)
 {
   setup();
@@ -412,6 +451,7 @@ int main(int argc, char** argv)
   test_calloc();
   test_double_alloc();
 #ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
+  test_static_sized_allocs();
   test_calloc_large_bug();
   test_external_pointer_dealloc_bug();
   test_external_pointer_large();
