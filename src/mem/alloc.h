@@ -139,18 +139,18 @@ namespace snmalloc
 
       if constexpr (sizeclass < NUM_SMALL_CLASSES)
       {
-        return small_alloc<zero_mem>(size);
+        return capptr_reveal(small_alloc<zero_mem>(size));
       }
       else if constexpr (sizeclass < NUM_SIZECLASSES)
       {
         handle_message_queue();
         constexpr size_t rsize = sizeclass_to_size(sizeclass);
-        return medium_alloc<zero_mem>(sizeclass, rsize, size);
+        return capptr_reveal(medium_alloc<zero_mem>(sizeclass, rsize, size));
       }
       else
       {
         handle_message_queue();
-        return large_alloc<zero_mem>(size).unsafe_capptr;
+        return capptr_reveal(large_alloc<zero_mem>(size));
       }
 #endif
     }
