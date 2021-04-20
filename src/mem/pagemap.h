@@ -107,12 +107,20 @@ namespace snmalloc
 
     struct Leaf
     {
-      std::atomic<T> values[ENTRIES_PER_LEAF];
+      TrivialInitAtomic<T> values[ENTRIES_PER_LEAF];
+
+      static_assert(sizeof(TrivialInitAtomic<T>) == sizeof(T));
+      static_assert(alignof(TrivialInitAtomic<T>) == alignof(T));
     };
 
     struct PagemapEntry
     {
-      std::atomic<PagemapEntry*> entries[ENTRIES_PER_INDEX_LEVEL];
+      TrivialInitAtomic<PagemapEntry*> entries[ENTRIES_PER_INDEX_LEVEL];
+
+      static_assert(
+        sizeof(TrivialInitAtomic<PagemapEntry*>) == sizeof(PagemapEntry*));
+      static_assert(
+        alignof(TrivialInitAtomic<PagemapEntry*>) == alignof(PagemapEntry*));
     };
 
     static_assert(
@@ -127,11 +135,11 @@ namespace snmalloc
     // allocation.
     //  TODO: This is fragile that it is not being memset, and we should review
     //  to ensure we don't get bitten by this in the future.
-    std::atomic<PagemapEntry*> top[TOPLEVEL_ENTRIES]; // = {nullptr};
+    TrivialInitAtomic<PagemapEntry*> top[TOPLEVEL_ENTRIES];
 
     template<bool create_addr>
     SNMALLOC_FAST_PATH PagemapEntry*
-    get_node(std::atomic<PagemapEntry*>* e, bool& result)
+    get_node(TrivialInitAtomic<PagemapEntry*>* e, bool& result)
     {
       // The page map nodes are all allocated directly from the OS zero
       // initialised with a system call.  We don't need any ordered to guarantee
@@ -156,7 +164,7 @@ namespace snmalloc
     }
 
     SNMALLOC_SLOW_PATH PagemapEntry*
-    get_node_slow(std::atomic<PagemapEntry*>* e, bool& result)
+    get_node_slow(TrivialInitAtomic<PagemapEntry*>* e, bool& result)
     {
       // The page map nodes are all allocated directly from the OS zero
       // initialised with a system call.  We don't need any ordered to guarantee
@@ -198,7 +206,7 @@ namespace snmalloc
 #endif
       size_t ix = addr >> TOPLEVEL_SHIFT;
       size_t shift = TOPLEVEL_SHIFT;
-      std::atomic<PagemapEntry*>* e = &top[ix];
+      TrivialInitAtomic<PagemapEntry*>* e = &top[ix];
 
       // This is effectively a
       //   for (size_t i = 0; i < INDEX_LEVELS; i++)
@@ -242,13 +250,14 @@ namespace snmalloc
     }
 
     template<bool create_addr>
-    SNMALLOC_FAST_PATH std::atomic<T>* get_addr(uintptr_t p, bool& success)
+    SNMALLOC_FAST_PATH TrivialInitAtomic<T>*
+    get_addr(uintptr_t p, bool& success)
     {
       auto leaf_ix = get_leaf_index<create_addr>(p, success);
       return &(leaf_ix.first->values[leaf_ix.second]);
     }
 
-    std::atomic<T>* get_ptr(uintptr_t p)
+    TrivialInitAtomic<T>* get_ptr(uintptr_t p)
     {
       bool success;
       return get_addr<true>(p, success);
@@ -333,7 +342,7 @@ namespace snmalloc
         for (; ix < last; ix++)
         {
           SNMALLOC_ASSUME(leaf_ix.first != nullptr);
-          leaf_ix.first->values[ix] = x;
+          leaf_ix.first->values[ix].store(x);
         }
 
         length = length - diff;
@@ -355,7 +364,10 @@ namespace snmalloc
     static constexpr size_t ENTRIES = 1ULL << COVERED_BITS;
     static constexpr size_t SHIFT = GRANULARITY_BITS;
 
-    std::atomic<T> top[ENTRIES];
+    TrivialInitAtomic<T> top[ENTRIES];
+
+    static_assert(sizeof(TrivialInitAtomic<T>) == sizeof(T));
+    static_assert(alignof(TrivialInitAtomic<T>) == alignof(T));
 
   public:
     /**
