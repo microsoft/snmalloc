@@ -3,7 +3,6 @@
 mkdir build
 cd build
 
-CMAKE_CXX_FLAGS="-std=c++17"
 if [[ "$CXX" == clang++* ]]; then
     CMAKE_CXX_FLAGS+=" -stdlib=libstdc++";
 fi
