@@ -52,6 +52,14 @@ jobs:
         CMakeArgs: ''
         Image: snmallocciteam/build_linux_x64:latest
 
+      64-bit Clang-10 Debug C++20:
+        CC: clang-10
+        CXX: clang++-10
+        BuildType: Debug
+        SelfHost: false
+        CMakeArgs: '-DSNMALLOC_USE_CXX20=On'
+        Image: snmallocciteam/build_linux_x64:latest
+
       64-bit Clang-9 Release:
         CC: clang-9
         CXX: clang++-9
