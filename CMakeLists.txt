@@ -19,6 +19,7 @@ option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory
 option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off)
 set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
 set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
+option(SNMALLOC_USE_CXX20 "Build as C++20, not C++17; experimental as yet" OFF)
 
 # malloc.h will error if you include it on FreeBSD, so this test must not
 # unconditionally include it.
@@ -138,7 +139,11 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif ()
 
 # Have to set this globally, as can't be set on an interface target.
-set(CMAKE_CXX_STANDARD 17)
+if(SNMALLOC_USE_CXX20)
+  set(CMAKE_CXX_STANDARD 20)
+else()
+  set(CMAKE_CXX_STANDARD 17)
+endif()
 
 if(USE_SNMALLOC_STATS)
   target_compile_definitions(snmalloc_lib INTERFACE -DUSE_SNMALLOC_STATS)
