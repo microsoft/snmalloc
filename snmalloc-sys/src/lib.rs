@@ -1,8 +1,7 @@
 #![no_std]
 #![allow(non_camel_case_types)]
 
-use core::ffi::c_void;
-use libc::size_t;
+use {core::ffi::c_void, core::usize};
 
 extern "C" {
     /// Allocate the memory with the given alignment and size.
@@ -12,14 +11,14 @@ extern "C" {
     /// - `alignment` is greater than zero
     /// - `alignment` is a power of 2
     /// The program may be forced to abort if the constrains are not full-filled.
-    pub fn rust_alloc(alignment: size_t, size: size_t) -> *mut c_void;
+    pub fn rust_alloc(alignment: usize, size: usize) -> *mut c_void;
 
     /// De-allocate the memory at the given address with the given alignment and size.
     /// The client must assure the following things:
     /// - the memory is acquired using the same allocator and the pointer points to the start position.
     /// - `alignment` and `size` is the same as allocation
     /// The program may be forced to abort if the constrains are not full-filled.
-    pub fn rust_dealloc(ptr: *mut c_void, alignment: size_t, size: size_t) -> c_void;
+    pub fn rust_dealloc(ptr: *mut c_void, alignment: usize, size: usize) -> c_void;
 
     /// Re-allocate the memory at the given address with the given alignment and size.
     /// On success, it returns a pointer pointing to the required memory address.
@@ -32,9 +31,9 @@ extern "C" {
     /// The program may be forced to abort if the constrains are not full-filled.
     pub fn rust_realloc(
         ptr: *mut c_void,
-        alignment: size_t,
-        old_size: size_t,
-        new_size: size_t,
+        alignment: usize,
+        old_size: usize,
+        new_size: usize,
     ) -> *mut c_void;
 
     /// Allocate `count` items of `size` length each.
