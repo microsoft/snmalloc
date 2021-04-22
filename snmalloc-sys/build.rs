@@ -33,7 +33,6 @@ fn main() {
     build.flag_if_supported("-g");
     build.flag_if_supported("-fomit-frame-pointer");
     build.flag_if_supported("-fpermissive");
-	build.flag_if_supported("-Wmaybe-uninitialized");
     build.static_crt(true);
     build.cpp(true);
     build.debug(false);
