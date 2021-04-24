@@ -8,6 +8,7 @@
 #  define SNMALLOC_SLOW_PATH NOINLINE
 #  define SNMALLOC_FAST_PATH ALWAYSINLINE
 #  define SNMALLOC_PURE
+#  define SNMALLOC_COLD
 #else
 #  define likely(x) __builtin_expect(!!(x), 1)
 #  define unlikely(x) __builtin_expect(!!(x), 0)
@@ -16,6 +17,7 @@
 #  define SNMALLOC_SLOW_PATH NOINLINE
 #  define SNMALLOC_FAST_PATH inline ALWAYSINLINE
 #  define SNMALLOC_PURE __attribute__((const))
+#  define SNMALLOC_COLD __attribute__((cold))
 #endif
 
 #if !defined(__clang__) && defined(__GNUC__)
@@ -37,7 +39,7 @@
 namespace snmalloc
 {
   // Forwards reference so that the platform can define how to handle errors.
-  [[noreturn]] void error(const char* const str);
+  [[noreturn]] SNMALLOC_COLD void error(const char* const str);
 } // namespace snmalloc
 
 #define TOSTRING(expr) TOSTRING2(expr)
