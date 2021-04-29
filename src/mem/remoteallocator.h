@@ -75,7 +75,8 @@ namespace snmalloc
      * Return allocator for this object.  This may perform amplification.
      */
     template<typename LargeAlloc>
-    static alloc_id_t trunc_target_id(CapPtr<Remote, CBAlloc> r, LargeAlloc* large_allocator)
+    static alloc_id_t
+    trunc_target_id(CapPtr<Remote, CBAlloc> r, LargeAlloc* large_allocator)
     {
 #ifdef SNMALLOC_DONT_CACHE_ALLOCATOR_PTR
       // Rederive allocator id.
@@ -248,7 +249,8 @@ namespace snmalloc
           // Use the next N bits to spread out remote deallocs in our own
           // slot.
           size_t slot = get_slot<Alloc>(
-            Remote::trunc_target_id(r, &allocator->large_allocator), post_round);
+            Remote::trunc_target_id(r, &allocator->large_allocator),
+            post_round);
           RemoteList* l = &list[slot];
           l->last->non_atomic_next = r;
           l->last = r;

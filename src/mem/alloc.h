@@ -512,7 +512,7 @@ namespace snmalloc
     DLList<Superslab, CapPtrCBChunk> super_available;
     DLList<Superslab, CapPtrCBChunk> super_only_short_available;
 
-    RemoteCache remote;
+    RemoteCache remote_cache;
 
     std::conditional_t<IsQueueInline, RemoteAllocator, RemoteAllocator*>
       remote_alloc;
@@ -734,7 +734,8 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH void handle_dealloc_remote(CapPtr<Remote, CBAlloc> p)
     {
-      if (likely(Remote::trunc_target_id(p, &large_allocator) == get_trunc_id()))
+      auto target_id = Remote::trunc_target_id(p, &large_allocator);
+      if (likely(target_id == get_trunc_id()))
       {
         // Destined for my slabs
         auto p_auth = large_allocator.template capptr_amplify<Remote>(p);
@@ -745,10 +746,8 @@ namespace snmalloc
       {
         // Merely routing; despite the cast here, p is going to be cast right
         // back to a Remote.
-        remote.dealloc<Allocator>(
-          Remote::trunc_target_id(p, &large_allocator),
-          p.template as_reinterpret<FreeObject>(),
-          p->sizeclass());
+        remote_cache.dealloc<Allocator>(
+          target_id, p.template as_reinterpret<FreeObject>(), p->sizeclass());
       }
     }
 
@@ -819,11 +818,11 @@ namespace snmalloc
       }
 
       // Our remote queues may be larger due to forwarding remote frees.
-      if (likely(remote.capacity > 0))
+      if (likely(remote_cache.capacity > 0))
         return;
 
       stats().remote_post();
-      remote.post<Allocator>(this, get_trunc_id());
+      remote_cache.post<Allocator>(this, get_trunc_id());
     }
 
     /**
@@ -1535,11 +1534,12 @@ namespace snmalloc
       // Check whether this will overflow the cache first.  If we are a fake
       // allocator, then our cache will always be full and so we will never hit
       // this path.
-      if (remote.capacity > 0)
+      if (remote_cache.capacity > 0)
       {
         stats().remote_free(sizeclass);
         auto offseted = apply_cache_friendly_offset(p, sizeclass);
-        remote.dealloc<Allocator>(target->trunc_id(), offseted, sizeclass);
+        remote_cache.dealloc<Allocator>(
+          target->trunc_id(), offseted, sizeclass);
         return;
       }
 
@@ -1578,10 +1578,10 @@ namespace snmalloc
 
       stats().remote_free(sizeclass);
       auto offseted = apply_cache_friendly_offset(p_auth, sizeclass);
-      remote.dealloc<Allocator>(target->trunc_id(), offseted, sizeclass);
+      remote_cache.dealloc<Allocator>(target->trunc_id(), offseted, sizeclass);
 
       stats().remote_post();
-      remote.post<Allocator>(this, get_trunc_id());
+      remote_cache.post<Allocator>(this, get_trunc_id());
     }
 
     ChunkMap& chunkmap()
