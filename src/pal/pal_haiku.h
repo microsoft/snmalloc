@@ -1,6 +1,18 @@
 #pragma once
 
 #if defined(__HAIKU__)
+#  include <cassert>
+
+namespace snmalloc
+{
+  template<typename... Args>
+  int getentropy(Args...)
+  {
+    assert(0 && "Unreachable path");
+    return -1;
+  }
+}
+
 #  include "pal_posix.h"
 
 #  include <sys/mman.h>
