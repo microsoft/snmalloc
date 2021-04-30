@@ -152,12 +152,10 @@ namespace snmalloc
       return pointer_align_down<SUPERSLAB_SIZE, Slab>(p.as_void()) == p;
     }
 
-    template<capptr_bounds B>
-    SNMALLOC_FAST_PATH static bool
-    is_start_of_object(CapPtr<Metaslab, B> self, address_t p)
+    SNMALLOC_FAST_PATH bool is_start_of_object(address_t p)
     {
       return is_multiple_of_sizeclass(
-        self->sizeclass(), SLAB_SIZE - (p - address_align_down<SLAB_SIZE>(p)));
+        sizeclass(), SLAB_SIZE - (p - address_align_down<SLAB_SIZE>(p)));
     }
 
     /**
@@ -187,7 +185,7 @@ namespace snmalloc
       self->set_full(meta);
 
       auto p = remove_cache_friendly_offset(n, self->sizeclass());
-      SNMALLOC_ASSERT(is_start_of_object(self, address_cast(p)));
+      SNMALLOC_ASSERT(self->is_start_of_object(address_cast(p)));
 
       self->debug_slab_invariant(meta, entropy);
 

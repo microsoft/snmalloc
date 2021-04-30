@@ -1140,7 +1140,7 @@ namespace snmalloc
       sizeclass_t sizeclass)
     {
       check_client(
-        Metaslab::is_start_of_object(Slab::get_meta(slab), address_cast(p_ret)),
+        Slab::get_meta(slab)->is_start_of_object(address_cast(p_ret)),
         "Not deallocating start of an object");
 
       small_dealloc_start(super, slab, p_auth, p_ret, sizeclass);
