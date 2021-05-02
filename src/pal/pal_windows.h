@@ -58,7 +58,7 @@ namespace snmalloc
 #  endif
       ;
 
-    static constexpr size_t minimum_alloc_size = 0x10000;
+    static SNMALLOC_CONSTINIT_STATIC size_t minimum_alloc_size = 0x10000;
 
     static constexpr size_t page_size = 0x1000;
 
