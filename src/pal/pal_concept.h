@@ -80,6 +80,12 @@ namespace snmalloc
     { PAL::register_for_low_memory_callback(pno) } -> ConceptSame<void>;
   };
 
+  template<typename PAL>
+  concept ConceptPAL_get_entropy64 = requires()
+  {
+    { PAL::get_entropy64() } -> ConceptSame<uint64_t>;
+  };
+
   /**
    * PALs ascribe to the conjunction of several concepts.  These are broken
    * out by the shape of the requires() quantifiers required and by any
@@ -91,6 +97,8 @@ namespace snmalloc
     ConceptPAL_static_members<PAL> &&
     ConceptPAL_error<PAL> &&
     ConceptPAL_memops<PAL> &&
+    (!pal_supports<Entropy, PAL> ||
+      ConceptPAL_get_entropy64<PAL>) &&
     (!pal_supports<LowMemoryNotification, PAL> ||
       ConceptPAL_mem_low_notify<PAL>) &&
     (pal_supports<NoAllocation, PAL> ||
