@@ -23,7 +23,7 @@ namespace snmalloc
     static constexpr uint64_t pal_features =
       AlignedAllocation | PALBSD<OS>::pal_features;
 
-    static constexpr size_t minimum_alloc_size = 4096;
+    static SNMALLOC_CONSTINIT_STATIC size_t minimum_alloc_size = 4096;
 
     /**
      * Reserve memory at a specific alignment.

@@ -20,6 +20,14 @@
 #  define SNMALLOC_COLD __attribute__((cold))
 #endif
 
+#if defined(__cpp_constinit) && __cpp_constinit >= 201907
+#  define SNMALLOC_CONSTINIT_FN constinit
+#  define SNMALLOC_CONSTINIT_STATIC constinit const
+#else
+#  define SNMALLOC_CONSTINIT_FN constexpr
+#  define SNMALLOC_CONSTINIT_STATIC constexpr
+#endif
+
 #if !defined(__clang__) && defined(__GNUC__)
 #  define GCC_NOT_CLANG
 #endif
