@@ -21,11 +21,12 @@ There are three features defined in this crate:
 - `16mib`: Use the `16mib` chunk configuration.
 - `cache-friendly`: Make the allocator more cache friendly (setting `CACHE_FRIENDLY_OFFSET` to `64` in building the library).
 - `native-cpu`: Optimize `snmalloc` for the native CPU of the host machine. (this is not a default behavior since `0.2.14`)
-- `qemu`: workaround `madvise` problem of QEMU environment
-- `stats`: enable statistics
-- `local_dynamic_tls`: workaround cannot allocate memory in static tls block
-- `build_cc`: use of cc crate instead of cmake (cmake still default) as builder (more platform agnostic)
-
+- `qemu`: Workaround `madvise` problem of QEMU environment
+- `stats`: Enable statistics
+- `local_dynamic_tls`: Workaround cannot allocate memory in static tls block
+- `build_cc`: Use of cc crate instead of cmake (cmake still default) as builder (more platform agnostic)
+- `usecxx20`: Enable C++20 standard if available
+- `win8compat`: Improve compatibility for old Windows platforms (removing usages of `VirtualAlloc2` and other new APIs) 
 
 **To get the crates compiled, you need to choose either `1mib` or `16mib` to determine the chunk configuration**
 
@@ -66,6 +67,13 @@ Hence, please make sure the following libs are in your `PATH`:
 
 ## Changelog
 
+### 0.2.27
+- Reduction of libc dependency
+- **upstream** Windows 7 and windows 8 compatibility added
+- **upstream** Option to use C++20 standards if available
+- **upstream** Preparations of cherification (heavy refactors of the structure)
+- **upstream** Cold routine annotations
+
 ### 0.2.26
 
 - **upstream** Building adjustment
@@ -83,9 +91,5 @@ Hence, please make sure the following libs are in your `PATH`:
 
 - **upstream** update to use a more efficient power of 2 check
 - fix msvc support w/ crt-static
-
-### 0.2.23
-
-- **upstream** fix external pagemap usage
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 

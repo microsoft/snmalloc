@@ -5,6 +5,8 @@
 - Reduction of libc dependency
 - **upstream** Windows 7 and windows 8 compatibility added
 - **upstream** Option to use C++20 standards if available
+- **upstream** Preparations of cherification (heavy refactors of the structure)
+- **upstream** Cold routine annotations
 
 ### 0.2.26
 
