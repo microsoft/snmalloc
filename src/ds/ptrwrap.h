@@ -59,7 +59,7 @@ namespace snmalloc
    * annotation.
    */
   template<capptr_bounds B>
-  constexpr capptr_bounds capptr_export_type()
+  SNMALLOC_CONSTEVAL capptr_bounds capptr_export_type()
   {
     static_assert(
       (B == CBChunk) || (B == CBAlloc), "capptr_export_type of bad type");
@@ -74,7 +74,7 @@ namespace snmalloc
   }
 
   template<capptr_bounds BI, capptr_bounds BO>
-  constexpr bool capptr_is_bounds_refinement()
+  SNMALLOC_CONSTEVAL bool capptr_is_bounds_refinement()
   {
     switch (BI)
     {

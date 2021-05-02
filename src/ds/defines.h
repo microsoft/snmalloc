@@ -28,6 +28,12 @@
 #  define SNMALLOC_CONSTINIT_STATIC constexpr
 #endif
 
+#if defined(__cpp_consteval)
+#  define SNMALLOC_CONSTEVAL consteval
+#else
+#  define SNMALLOC_CONSTEVAL constexpr
+#endif
+
 #if !defined(__clang__) && defined(__GNUC__)
 #  define GCC_NOT_CLANG
 #endif
