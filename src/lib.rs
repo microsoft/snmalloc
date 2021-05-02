@@ -79,7 +79,7 @@ mod tests {
             let layout = Layout::from_size_align(8, 8).unwrap();
             let alloc = SnMalloc;
 
-            let ptr = alloc.alloc(layout.clone());
+            let ptr = alloc.alloc(layout);
             alloc.dealloc(ptr, layout);
         }
     }
@@ -90,7 +90,7 @@ mod tests {
             let layout = Layout::from_size_align(8, 8).unwrap();
             let alloc = SnMalloc;
 
-            let ptr = alloc.alloc_zeroed(layout.clone());
+            let ptr = alloc.alloc_zeroed(layout);
             alloc.dealloc(ptr, layout);
         }
     }
@@ -101,8 +101,8 @@ mod tests {
             let layout = Layout::from_size_align(8, 8).unwrap();
             let alloc = SnMalloc;
 
-            let ptr = alloc.alloc(layout.clone());
-            let ptr = alloc.realloc(ptr, layout.clone(), 16);
+            let ptr = alloc.alloc(layout);
+            let ptr = alloc.realloc(ptr, layout, 16);
             alloc.dealloc(ptr, layout);
         }
     }

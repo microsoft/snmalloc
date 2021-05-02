@@ -1,5 +1,11 @@
 ## Changelog
 
+### 0.2.27
+
+- Reduction of libc dependency
+- **upstream** Windows 7 and windows 8 compatibility added
+- **upstream** Option to use C++20 standards if available
+
 ### 0.2.26
 
 - **upstream** Building adjustment

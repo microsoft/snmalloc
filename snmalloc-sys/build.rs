@@ -14,7 +14,6 @@ fn main() {
     build.flag_if_supported("/Ob2");
     build.flag_if_supported("/DNDEBUG");
     build.flag_if_supported("/EHsc");
-    build.flag_if_supported("/std:c++17");
     build.flag_if_supported("/Gd");
     build.flag_if_supported("/TP");
     build.flag_if_supported("/Gm-");
@@ -24,9 +23,6 @@ fn main() {
     build.flag_if_supported("/Zc:forScope");
     build.flag_if_supported("/Zc:inline");
     build.flag_if_supported("-O3");
-    build.flag_if_supported("-Wc++17-extensions");
-    build.flag_if_supported("-std=c++1z");
-    build.flag_if_supported("-std=gnu++1z");
     build.flag_if_supported("-mcx16");
     build.flag_if_supported("-fno-exceptions");
     build.flag_if_supported("-fno-rtti");
@@ -36,6 +32,21 @@ fn main() {
     build.static_crt(true);
     build.cpp(true);
     build.debug(false);
+    if cfg!(feature = "usecxx20") {
+        build.flag_if_supported("-std=c++17"); //original required if cxx20 not supported
+        build.flag_if_supported("/std:c++17");
+        build.flag_if_supported("-Wc++17-extensions");
+        build.flag_if_supported("/Wc++17-extensions");
+        build.flag_if_supported("-std=c++20");
+        build.flag_if_supported("/std:c++20");
+        build.flag_if_supported("-Wc++20-extensions");
+        build.flag_if_supported("/Wc++20-extensions");
+    } else {
+        build.flag_if_supported("-std=c++17");
+        build.flag_if_supported("/std:c++17");
+        build.flag_if_supported("-Wc++17-extensions");
+        build.flag_if_supported("/Wc++17-extensions");
+    }
 
     let triple = std::env::var("TARGET").unwrap();
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").expect("target_os not defined!");
@@ -57,7 +68,7 @@ fn main() {
         } else if triple.contains("x86_64") {
             build.define("ANDROID_ABI", "x86_64");
         } else if triple.contains("i686") {
-            build.define("ANDROID_ABI", "x86_64");
+            build.define("ANDROID_ABI", "x86");
         } else if triple.contains("neon") {
             build.define("ANDROID_ABI", "armeabi-v7a with NEON");
         } else if triple.contains("arm") {
@@ -71,6 +82,10 @@ fn main() {
         } else {
             build.flag_if_supported("-ftls-model=initial-exec");
         }
+    }
+
+    if cfg!(feature = "win8compat") {
+        build.flag_if_supported("-DWINVER=0x0603");
     }
 
     let target = if cfg!(feature = "1mib") {
@@ -105,7 +120,9 @@ fn main() {
     }
 
     if target_env == "msvc" {
-        println!("cargo:rustc-link-lib=dylib=mincore");
+        if cfg!(not(feature = "win8compat")) {
+            println!("cargo:rustc-link-lib=dylib=mincore");
+        }
     }
 
     if target_os == "windows" && target_env == "gnu" {
@@ -179,7 +196,7 @@ fn main() {
         } else if triple.contains("x86_64") {
             cfg = cfg.define("ANDROID_ABI", "x86_64");
         } else if triple.contains("i686") {
-            cfg = cfg.define("ANDROID_ABI", "x86_64");
+            cfg = cfg.define("ANDROID_ABI", "x86");
         } else if triple.contains("neon") {
             cfg = cfg.define("ANDROID_ABI", "armeabi-v7a with NEON")
         } else if triple.contains("arm") {
@@ -190,6 +207,9 @@ fn main() {
     if cfg!(all(windows, target_env = "msvc")) {
         cfg = cfg.define("CMAKE_CXX_FLAGS_RELEASE", "/O2 /Ob2 /DNDEBUG /EHsc");
         cfg = cfg.define("CMAKE_C_FLAGS_RELEASE", "/O2 /Ob2 /DNDEBUG /EHsc");
+        if cfg!(feature = "win8compat") {
+            cfg = cfg.define("WIN8COMPAT", "ON")
+        }
     }
 
     if cfg!(all(windows, target_env = "gnu")) {
@@ -206,6 +226,10 @@ fn main() {
 
     if cfg!(feature = "native-cpu") {
         cfg = cfg.define("SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE", "ON")
+    }
+
+    if cfg!(feature = "usecxx20") {
+        cfg = cfg.define("SNMALLOC_USE_CXX20", "ON")
     }
 
     if cfg!(feature = "stats") {
@@ -229,7 +253,9 @@ fn main() {
     println!("cargo:rustc-link-lib={}", target);
 
     if cfg!(all(windows, target_env = "msvc")) {
-        println!("cargo:rustc-link-lib=dylib=mincore");
+        if cfg!(not(feature = "win8compat")) {
+            println!("cargo:rustc-link-lib=dylib=mincore");
+        }
         println!(
             "cargo:rustc-link-search=native={}/{}",
             dst.display(),
@@ -258,7 +284,7 @@ fn main() {
             .lines()
             .filter(|line| line.starts_with("libraries: ="))
             .map(|line| line.split_at("libraries: =".len()).1)
-            .flat_map(|line| line.split(";"))
+            .flat_map(|line| line.split(';'))
             .for_each(|path| {
                 println!("cargo:rustc-link-search=native={}", path);
             });

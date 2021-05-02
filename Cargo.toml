@@ -31,4 +31,5 @@ android-lld = ["snmalloc-sys/android-lld"]
 android-shared-stl = ["snmalloc-sys/android-shared-stl"]
 native-cpu = ["snmalloc-sys/native-cpu"]
 local_dynamic_tls = ["snmalloc-sys/local_dynamic_tls"]
-
+win8compat = ["snmalloc-sys/win8compat"]
+usecxx20 = ["snmalloc-sys/usecxx20"]
