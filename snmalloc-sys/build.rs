@@ -1,9 +1,9 @@
 #[cfg(feature = "build_cc")]
 fn main() {
-    let (debug, optim) = if cfg!(feature = "debug") {
-        (true, "-O0")
+    let (debug, optim_unix, optim_msvc, prof_msvc_hint) = if cfg!(feature = "debug") {
+        (true, "-O0", "/O0", "/DEBUG")
     } else {
-        (false, "-O3")
+        (false, "-O3", "/O2", "/RELEASE")
     };
     let mut build = cc::Build::new();
     build.include("snmalloc/src");
@@ -27,7 +27,9 @@ fn main() {
     build.flag_if_supported("/Zc:wchar_t");
     build.flag_if_supported("/Zc:forScope");
     build.flag_if_supported("/Zc:inline");
-    build.flag_if_supported(optim);
+    build.flag_if_supported(prof_msvc_hint);
+    build.flag_if_supported(optim_msvc);
+    build.flag_if_supported(optim_unix);
     build.flag_if_supported("-mcx16");
     build.flag_if_supported("-fno-exceptions");
     build.flag_if_supported("-fno-rtti");
