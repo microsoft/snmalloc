@@ -25,8 +25,6 @@ namespace snmalloc
   {
     sizeclass_t sizeclass_lookup[sizeclass_lookup_size] = {{}};
     ModArray<NUM_SIZECLASSES, size_t> size;
-    ModArray<NUM_SIZECLASSES, size_t> cache_friendly_mask;
-    ModArray<NUM_SIZECLASSES, size_t> inverse_cache_friendly_mask;
     ModArray<NUM_SMALL_CLASSES, uint16_t> initial_offset_ptr;
     ModArray<NUM_SMALL_CLASSES, uint16_t> short_initial_offset_ptr;
     ModArray<NUM_SMALL_CLASSES, uint16_t> capacity;
@@ -39,8 +37,6 @@ namespace snmalloc
 
     constexpr SizeClassTable()
     : size(),
-      cache_friendly_mask(),
-      inverse_cache_friendly_mask(),
       initial_offset_ptr(),
       short_initial_offset_ptr(),
       capacity(),
@@ -77,11 +73,6 @@ namespace snmalloc
             sizeclass_lookup[sizeclass_lookup_index(curr)] = sizeclass;
           }
         }
-
-        size_t alignment = bits::min(
-          bits::one_at_bit(bits::ctz_const(size[sizeclass])), OS_PAGE_SIZE);
-        cache_friendly_mask[sizeclass] = (alignment - 1);
-        inverse_cache_friendly_mask[sizeclass] = ~(alignment - 1);
       }
 
       size_t header_size = sizeof(Superslab);
@@ -136,18 +127,6 @@ namespace snmalloc
   constexpr static inline size_t sizeclass_to_size(sizeclass_t sizeclass)
   {
     return sizeclass_metadata.size[sizeclass];
-  }
-
-  constexpr static inline size_t
-  sizeclass_to_cache_friendly_mask(sizeclass_t sizeclass)
-  {
-    return sizeclass_metadata.cache_friendly_mask[sizeclass];
-  }
-
-  constexpr static SNMALLOC_FAST_PATH size_t
-  sizeclass_to_inverse_cache_friendly_mask(sizeclass_t sizeclass)
-  {
-    return sizeclass_metadata.inverse_cache_friendly_mask[sizeclass];
   }
 
   static inline sizeclass_t size_to_sizeclass(size_t size)

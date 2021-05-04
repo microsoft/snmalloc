@@ -517,31 +517,6 @@ namespace snmalloc
     std::conditional_t<IsQueueInline, RemoteAllocator, RemoteAllocator*>
       remote_alloc;
 
-#ifdef CACHE_FRIENDLY_OFFSET
-    size_t remote_offset = 0;
-
-    template<capptr_bounds B>
-    CapPtr<FreeObject, B>
-    apply_cache_friendly_offset(CapPtr<void, B> p, sizeclass_t sizeclass)
-    {
-      size_t mask = sizeclass_to_cache_friendly_mask(sizeclass);
-
-      size_t offset = remote_offset & mask;
-      remote_offset += CACHE_FRIENDLY_OFFSET;
-
-      return CapPtr<FreeObject, B>(reinterpret_cast<FreeObject*>(
-        reinterpret_cast<uintptr_t>(p.unsafe_capptr) + offset));
-    }
-#else
-    template<capptr_bounds B>
-    static CapPtr<FreeObject, B>
-    apply_cache_friendly_offset(CapPtr<void, B> p, sizeclass_t sizeclass)
-    {
-      UNUSED(sizeclass);
-      return p.template as_static<FreeObject>();
-    }
-#endif
-
     auto* public_state()
     {
       if constexpr (IsQueueInline)
@@ -740,14 +715,15 @@ namespace snmalloc
         // Destined for my slabs
         auto p_auth = large_allocator.template capptr_amplify<Remote>(p);
         auto super = Superslab::get(p_auth);
-        dealloc_not_large_local(super, p, p->sizeclass());
+        auto sizeclass = p->sizeclass();
+        dealloc_not_large_local(super, Remote::clear(p), sizeclass);
       }
       else
       {
         // Merely routing; despite the cast here, p is going to be cast right
         // back to a Remote.
         remote_cache.dealloc<Allocator>(
-          target_id, p.template as_reinterpret<FreeObject>(), p->sizeclass());
+          target_id, p.template as_reinterpret<void>(), p->sizeclass());
       }
     }
 
@@ -758,9 +734,7 @@ namespace snmalloc
       {
         auto p_auth = large_allocator.capptr_amplify(p);
         auto super = Superslab::get(p_auth);
-        auto offseted = apply_cache_friendly_offset(p, sizeclass)
-                          .template as_reinterpret<Remote>();
-        dealloc_not_large_local(super, offseted, sizeclass);
+        dealloc_not_large_local(super, p, sizeclass);
       }
       else
       {
@@ -768,9 +742,11 @@ namespace snmalloc
       }
     }
 
+    // TODO: Adjust when medium slab same as super slab.
+    //    Second parameter should be a FreeObject.
     SNMALLOC_FAST_PATH void dealloc_not_large_local(
       CapPtr<Superslab, CBChunkD> super,
-      CapPtr<Remote, CBAlloc> p_offseted,
+      CapPtr<void, CBAlloc> p,
       sizeclass_t sizeclass)
     {
       // Guard against remote queues that have colliding IDs
@@ -782,13 +758,11 @@ namespace snmalloc
         check_client(
           super->get_kind() == Super,
           "Heap Corruption: Sizeclass of remote dealloc corrupt.");
-        auto slab =
-          Metaslab::get_slab(Aal::capptr_rebound(super.as_void(), p_offseted));
+        auto slab = Metaslab::get_slab(Aal::capptr_rebound(super.as_void(), p));
         check_client(
           super->get_meta(slab)->sizeclass() == sizeclass,
           "Heap Corruption: Sizeclass of remote dealloc corrupt.");
-        small_dealloc_offseted(
-          super, slab, FreeObject::make(p_offseted), sizeclass);
+        small_dealloc_offseted(super, slab, p, sizeclass);
       }
       else
       {
@@ -800,8 +774,7 @@ namespace snmalloc
         check_client(
           medium->get_sizeclass() == sizeclass,
           "Heap Corruption: Sizeclass of remote dealloc corrupt.");
-        medium_dealloc_local(
-          medium, Remote::clear(p_offseted, sizeclass), sizeclass);
+        medium_dealloc_local(medium, p, sizeclass);
       }
     }
 
@@ -951,14 +924,15 @@ namespace snmalloc
       {
         stats().alloc_request(size);
         stats().sizeclass_alloc(sizeclass);
-        auto p = remove_cache_friendly_offset(fl.take(entropy), sizeclass);
+        auto p = fl.take(entropy);
         if constexpr (zero_mem == YesZero)
         {
           pal_zero<typename MemoryProvider::Pal>(
             p, sizeclass_to_size(sizeclass));
         }
 
-        return capptr_export(p);
+        // TODO: Should this be zeroing the next pointer?
+        return capptr_export(p.as_void());
       }
 
       if (likely(!has_messages()))
@@ -1075,14 +1049,15 @@ namespace snmalloc
       SNMALLOC_ASSERT(ffl.empty());
       Slab::alloc_new_list(bp, ffl, rsize, entropy);
 
-      auto p = remove_cache_friendly_offset(ffl.take(entropy), sizeclass);
+      auto p = ffl.take(entropy);
 
       if constexpr (zero_mem == YesZero)
       {
         pal_zero<typename MemoryProvider::Pal>(p, sizeclass_to_size(sizeclass));
       }
 
-      return capptr_export(p);
+      // TODO: Should this be zeroing the next pointer?
+      return capptr_export(p.as_void());
     }
 
     /**
@@ -1163,8 +1138,7 @@ namespace snmalloc
 
       if (likely(target == public_state()))
       {
-        auto offseted = apply_cache_friendly_offset(p, sizeclass);
-        small_dealloc_offseted(super, slab, offseted, sizeclass);
+        small_dealloc_offseted(super, slab, p, sizeclass);
       }
       else
         remote_dealloc(target, p, sizeclass);
@@ -1173,12 +1147,12 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void small_dealloc_offseted(
       CapPtr<Superslab, CBChunkD> super,
       CapPtr<Slab, CBChunkD> slab,
-      CapPtr<FreeObject, CBAlloc> p,
+      CapPtr<void, CBAlloc> p,
       sizeclass_t sizeclass)
     {
       stats().sizeclass_dealloc(sizeclass);
 
-      small_dealloc_offseted_inner(super, slab, p, sizeclass);
+      small_dealloc_offseted_inner(super, slab, FreeObject::make(p), sizeclass);
     }
 
     SNMALLOC_FAST_PATH void small_dealloc_offseted_inner(
@@ -1537,9 +1511,7 @@ namespace snmalloc
       if (remote_cache.capacity > 0)
       {
         stats().remote_free(sizeclass);
-        auto offseted = apply_cache_friendly_offset(p, sizeclass);
-        remote_cache.dealloc<Allocator>(
-          target->trunc_id(), offseted, sizeclass);
+        remote_cache.dealloc<Allocator>(target->trunc_id(), p, sizeclass);
         return;
       }
 
@@ -1577,8 +1549,7 @@ namespace snmalloc
       handle_message_queue();
 
       stats().remote_free(sizeclass);
-      auto offseted = apply_cache_friendly_offset(p_auth, sizeclass);
-      remote_cache.dealloc<Allocator>(target->trunc_id(), offseted, sizeclass);
+      remote_cache.dealloc<Allocator>(target->trunc_id(), p_auth, sizeclass);
 
       stats().remote_post();
       remote_cache.post<Allocator>(this, get_trunc_id());

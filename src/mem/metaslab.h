@@ -174,9 +174,9 @@ namespace snmalloc
       SNMALLOC_ASSERT(!self->is_full());
 
       self->free_queue.close(fast_free_list, entropy);
-      auto n = fast_free_list.take(entropy);
-      auto n_slab = Aal::capptr_rebound(self.as_void(), n);
-      auto meta = Metaslab::get_slab(n_slab);
+      auto p = fast_free_list.take(entropy);
+      auto slab = Aal::capptr_rebound(self.as_void(), p);
+      auto meta = Metaslab::get_slab(slab);
 
       entropy.refresh_bits();
 
@@ -184,7 +184,6 @@ namespace snmalloc
       self->remove();
       self->set_full(meta);
 
-      auto p = remove_cache_friendly_offset(n, self->sizeclass());
       SNMALLOC_ASSERT(self->is_start_of_object(address_cast(p)));
 
       self->debug_slab_invariant(meta, entropy);
@@ -201,7 +200,8 @@ namespace snmalloc
         UNUSED(rsize);
       }
 
-      return capptr_export(p);
+      // TODO: Should this be zeroing the FreeObject state?
+      return capptr_export(p.as_void());
     }
 
     template<capptr_bounds B>

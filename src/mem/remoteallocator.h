@@ -100,11 +100,10 @@ namespace snmalloc
 
     /** Zero out a Remote tracking structure, return pointer to object base */
     template<capptr_bounds B>
-    SNMALLOC_FAST_PATH static CapPtr<void, B>
-    clear(CapPtr<Remote, B> self, sizeclass_t sizeclass)
+    SNMALLOC_FAST_PATH static CapPtr<void, B> clear(CapPtr<Remote, B> self)
     {
       pal_zero<Pal>(self, sizeof(Remote));
-      return remove_cache_friendly_offset(self, sizeclass);
+      return self.as_void();
     }
   };
 
@@ -187,7 +186,7 @@ namespace snmalloc
     template<typename Alloc>
     SNMALLOC_FAST_PATH void dealloc(
       Remote::alloc_id_t target_id,
-      CapPtr<FreeObject, CBAlloc> p,
+      CapPtr<void, CBAlloc> p,
       sizeclass_t sizeclass)
     {
       this->capacity -= sizeclass_to_size(sizeclass);

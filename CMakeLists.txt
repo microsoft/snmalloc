@@ -17,7 +17,6 @@ option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF)
 option(SNMALLOC_STATIC_LIBRARY   "Build static libraries" ON)
 option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory on Linux" Off)
 option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off)
-set(CACHE_FRIENDLY_OFFSET OFF CACHE STRING "Base offset to place linked-list nodes.")
 set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
 option(SNMALLOC_USE_CXX20 "Build as C++20, not C++17; experimental as yet" OFF)
 
@@ -155,10 +154,6 @@ endif()
 
 if(SNMALLOC_CI_BUILD)
   target_compile_definitions(snmalloc_lib INTERFACE -DSNMALLOC_CI_BUILD)
-endif()
-
-if(CACHE_FRIENDLY_OFFSET)
-  target_compile_definitions(snmalloc_lib INTERFACE -DCACHE_FRIENDLY_OFFSET=${CACHE_FRIENDLY_OFFSET})
 endif()
 
 if(USE_POSIX_COMMIT_CHECKS)
