@@ -1,5 +1,10 @@
 #[cfg(feature = "build_cc")]
 fn main() {
+    let (debug, optim_unix, optim_msvc, prof_msvc_hint) = if cfg!(feature = "debug") {
+        (true, "-O0", "/O0", "/DEBUG")
+    } else {
+        (false, "-O3", "/O2", "/RELEASE")
+    };
     let mut build = cc::Build::new();
     build.include("snmalloc/src");
     build.file("snmalloc/src/override/rust.cc".to_string());
@@ -22,7 +27,9 @@ fn main() {
     build.flag_if_supported("/Zc:wchar_t");
     build.flag_if_supported("/Zc:forScope");
     build.flag_if_supported("/Zc:inline");
-    build.flag_if_supported("-O3");
+    build.flag_if_supported(prof_msvc_hint);
+    build.flag_if_supported(optim_msvc);
+    build.flag_if_supported(optim_unix);
     build.flag_if_supported("-mcx16");
     build.flag_if_supported("-fno-exceptions");
     build.flag_if_supported("-fno-rtti");
@@ -31,7 +38,7 @@ fn main() {
     build.flag_if_supported("-fpermissive");
     build.static_crt(true);
     build.cpp(true);
-    build.debug(false);
+    build.debug(debug);
     if cfg!(feature = "usecxx20") {
         build.flag_if_supported("-std=c++17"); //original required if cxx20 not supported
         build.flag_if_supported("/std:c++17");
