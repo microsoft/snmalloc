@@ -92,14 +92,6 @@ jobs:
         CMakeArgs: ''
         Image: snmallocciteam/build_linux_x64:latest
 
-      64-bit Cache Friendly:
-        CC: clang-7
-        CXX: clang++-7
-        BuildType: Debug
-        SelfHost: false
-        CMakeArgs: '-DCACHE_FRIENDLY_OFFSET=64'
-        Image: snmallocciteam/build_linux_x64:latest
-
       32-bit Clang-9 Debug:
         CC: clang-9
         CXX: clang++-9

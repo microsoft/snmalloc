@@ -17,10 +17,6 @@ namespace snmalloc
   constexpr static uint16_t get_slab_capacity(sizeclass_t sc, bool is_short);
 
   constexpr static size_t sizeclass_to_size(sizeclass_t sizeclass);
-  constexpr static size_t
-  sizeclass_to_cache_friendly_mask(sizeclass_t sizeclass);
-  constexpr static size_t
-  sizeclass_to_inverse_cache_friendly_mask(sizeclass_t sc);
   constexpr static uint16_t medium_slab_free(sizeclass_t sizeclass);
   static sizeclass_t size_to_sizeclass(size_t size);
 
@@ -56,38 +52,6 @@ namespace snmalloc
   // Large classes range from [SUPERSLAB, ADDRESS_SPACE).
   static constexpr size_t NUM_LARGE_CLASSES =
     bits::ADDRESS_BITS - SUPERSLAB_BITS;
-
-#ifdef CACHE_FRIENDLY_OFFSET
-  template<typename T, capptr_bounds B>
-  SNMALLOC_FAST_PATH static CapPtr<void, B>
-  remove_cache_friendly_offset(CapPtr<T, B> p, sizeclass_t sizeclass)
-  {
-    size_t mask = sizeclass_to_inverse_cache_friendly_mask(sizeclass);
-    return CapPtr<void, B>((void*)((uintptr_t)p.unsafe_capptr & mask));
-  }
-
-  SNMALLOC_FAST_PATH static address_t
-  remove_cache_friendly_offset(address_t relative, sizeclass_t sizeclass)
-  {
-    size_t mask = sizeclass_to_inverse_cache_friendly_mask(sizeclass);
-    return relative & mask;
-  }
-#else
-  template<typename T, capptr_bounds B>
-  SNMALLOC_FAST_PATH static CapPtr<void, B>
-  remove_cache_friendly_offset(CapPtr<T, B> p, sizeclass_t sizeclass)
-  {
-    UNUSED(sizeclass);
-    return p.as_void();
-  }
-
-  SNMALLOC_FAST_PATH static address_t
-  remove_cache_friendly_offset(address_t relative, sizeclass_t sizeclass)
-  {
-    UNUSED(sizeclass);
-    return relative;
-  }
-#endif
 
   SNMALLOC_FAST_PATH static size_t aligned_size(size_t alignment, size_t size)
   {

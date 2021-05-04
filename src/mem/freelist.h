@@ -128,9 +128,6 @@ namespace snmalloc
    * Free objects within each slab point directly to the next.
    * The next_object pointer can be encoded to detect
    * corruption caused by writes in a UAF or a double free.
-   *
-   * If cache-friendly offsets are used, then the FreeObject is
-   * potentially offset from the start of the object.
    */
   class FreeObject
   {
