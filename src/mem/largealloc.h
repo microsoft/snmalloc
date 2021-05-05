@@ -71,18 +71,6 @@ namespace snmalloc
      */
     std::atomic_flag lazy_decommit_guard = {};
 
-    /**
-     * Instantiate the ArenaMap here.
-     *
-     * In most cases, this will be a purely static object (a DefaultArenaMap
-     * using a GlobalPagemapTemplate or ExternalGlobalPagemapTemplate).  For
-     * sandboxes, this may have per-instance state (e.g., the sandbox root);
-     * presently, that's handled by the MemoryProviderStateMixin constructor
-     * that takes a pointer to address space it owns.  There is some
-     * non-orthogonality of concerns here.
-     */
-    ArenaMap arena_map = {};
-
     using ASM = AddressSpaceManager<PAL, ArenaMap>;
     /**
      * Manages address space for this memory provider.
@@ -160,13 +148,12 @@ namespace snmalloc
     {
       // Temporary stack-based storage to start the allocator in.
       ASM local_asm{};
-      ArenaMap local_am{};
 
       // Allocate permanent storage for the allocator usung temporary allocator
       MemoryProviderStateMixin* allocated =
         local_asm
           .template reserve_with_left_over<true>(
-            sizeof(MemoryProviderStateMixin), local_am)
+            sizeof(MemoryProviderStateMixin))
           .template as_static<MemoryProviderStateMixin>()
           .unsafe_capptr;
 
@@ -175,7 +162,6 @@ namespace snmalloc
 
       // Move address range inside itself
       allocated->address_space = std::move(local_asm);
-      allocated->arena_map = std::move(local_am);
 
       // Register this allocator for low-memory call-backs
       if constexpr (pal_supports<LowMemoryNotification, PAL>)
@@ -269,7 +255,7 @@ namespace snmalloc
       size_t size = bits::align_up(sizeof(T), 64);
       size = bits::max(size, alignment);
       auto p =
-        address_space.template reserve_with_left_over<true>(size, arena_map);
+        address_space.template reserve_with_left_over<true>(size);
       if (p == nullptr)
         return nullptr;
 
@@ -283,7 +269,7 @@ namespace snmalloc
     {
       size_t size = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
       peak_memory_used_bytes += size;
-      return address_space.template reserve<committed>(size, arena_map)
+      return address_space.template reserve<committed>(size)
         .template as_static<Largeslab>();
     }
 
@@ -301,12 +287,12 @@ namespace snmalloc
     template<typename T, typename U, capptr_bounds B>
     SNMALLOC_FAST_PATH CapPtr<T, CBArena> capptr_amplify(CapPtr<U, B> r)
     {
-      return arena_map.template capptr_amplify<T, U, B>(r);
+      return address_space.arenamap().template capptr_amplify<T, U, B>(r);
     }
 
     ArenaMap& arenamap()
     {
-      return arena_map;
+      return address_space.arenamap();
     }
   };
 

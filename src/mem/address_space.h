@@ -18,6 +18,18 @@ namespace snmalloc
   class AddressSpaceManager
   {
     /**
+     * Instantiate the ArenaMap here.
+     *
+     * In most cases, this will be a purely static object (a DefaultArenaMap
+     * using a GlobalPagemapTemplate or ExternalGlobalPagemapTemplate).  For
+     * sandboxes, this may have per-instance state (e.g., the sandbox root);
+     * presently, that's handled by the AddressSpaceManager constructor
+     * that takes a pointer to address space it owns.  There is some
+     * non-orthogonality of concerns here.
+     */
+    ArenaMap arena_map = {};
+
+    /**
      * Stores the blocks of address space
      *
      * The first level of array indexes based on power of two size.
@@ -182,7 +194,7 @@ namespace snmalloc
      * arena_map for use in subsequent amplification.
      */
     template<bool committed>
-    CapPtr<void, CBChunk> reserve(size_t size, ArenaMap& arena_map)
+    CapPtr<void, CBChunk> reserve(size_t size)
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= sizeof(void*));
@@ -300,7 +312,7 @@ namespace snmalloc
      */
     template<bool committed>
     CapPtr<void, CBChunk>
-    reserve_with_left_over(size_t size, ArenaMap& arena_map)
+    reserve_with_left_over(size_t size)
     {
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
@@ -308,7 +320,7 @@ namespace snmalloc
 
       size_t rsize = bits::next_pow2(size);
 
-      auto res = reserve<false>(rsize, arena_map);
+      auto res = reserve<false>(rsize);
 
       if (res != nullptr)
       {
@@ -352,6 +364,11 @@ namespace snmalloc
         abort();
       ranges = other.ranges;
       return *this;
+    }
+
+    ArenaMap& arenamap()
+    {
+      return arena_map;
     }
   };
 } // namespace snmalloc
