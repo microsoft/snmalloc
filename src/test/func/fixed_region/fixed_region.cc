@@ -33,7 +33,7 @@ using namespace snmalloc;
 int main()
 {
 #ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
-  auto& mp = *MemoryProviderStateMixin<
+  auto& mp = *ChunkAllocator<
     DefaultPal,
     DefaultArenaMap<DefaultPal, DefaultPrimAlloc>>::make();
 

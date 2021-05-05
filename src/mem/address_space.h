@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../ds/address.h"
 #include "../ds/flaglock.h"
 #include "../pal/pal.h"

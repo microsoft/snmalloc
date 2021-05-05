@@ -64,7 +64,7 @@ namespace snmalloc
    *   PrimAlloc: A class used to source PageMap-internal memory; it must have a
    *   method callable as if it had the following type:
    *
-   *      template<typename T, size_t alignment> static T* alloc_chunk(void);
+   *      template<typename T, size_t alignment> static T* alloc_meta(void);
    */
   template<
     size_t GRANULARITY_BITS,
@@ -178,7 +178,7 @@ namespace snmalloc
         if (e->compare_exchange_strong(
               value, LOCKED_ENTRY, std::memory_order_relaxed))
         {
-          value = PrimAlloc::template alloc_chunk<PagemapEntry, OS_PAGE_SIZE>();
+          value = PrimAlloc::template alloc_meta<PagemapEntry, OS_PAGE_SIZE>();
           e->store(value, std::memory_order_release);
         }
         else

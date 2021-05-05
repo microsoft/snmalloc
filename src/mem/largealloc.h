@@ -7,6 +7,7 @@
 #include "address_space.h"
 #include "allocstats.h"
 #include "baseslab.h"
+#include "metadataalloc.h"
 #include "sizeclass.h"
 
 #include <new>
@@ -14,9 +15,6 @@
 
 namespace snmalloc
 {
-  template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename ArenaMap>
-  class MemoryProviderStateMixin;
-
   class Largeslab : public Baseslab
   {
     // This is the view of a contiguous memory area when it is being kept
@@ -31,7 +29,7 @@ namespace snmalloc
       typename AP>
     friend class MPMCStack;
     template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename ArenaMap>
-    friend class MemoryProviderStateMixin;
+    friend class ChunkAllocator;
     AtomicCapPtr<Largeslab, CBChunk> next = nullptr;
 
   public:
@@ -63,19 +61,14 @@ namespace snmalloc
   // global state of the allocator.  This is currently stored in the memory
   // provider, so we add this in.
   template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename ArenaMap>
-  class MemoryProviderStateMixin
+  class ChunkAllocator : public MetadataAllocator<PAL, ArenaMap>
   {
+  private:
     /**
      * Simple flag for checking if another instance of lazy-decommit is
      * running
      */
     std::atomic_flag lazy_decommit_guard = {};
-
-    using ASM = AddressSpaceManager<PAL, ArenaMap>;
-    /**
-     * Manages address space for this memory provider.
-     */
-    ASM address_space = {};
 
     /**
      * High-water mark of used memory.
@@ -97,6 +90,7 @@ namespace snmalloc
 
   public:
     using Pal = PAL;
+    using base = MetadataAllocator<PAL, ArenaMap>;
 
     /**
      * Pop an allocation from a large-allocation stack.  This is safe to call
@@ -131,46 +125,48 @@ namespace snmalloc
      * Default constructor.  This constructs a memory provider that doesn't yet
      * own any memory, but which can claim memory from the PAL.
      */
-    MemoryProviderStateMixin() = default;
+    ChunkAllocator() = default;
 
     /**
      * Construct a memory provider owning some memory.  The PAL provided with
      * memory providers constructed in this way does not have to be able to
      * allocate memory, if the initial reservation is sufficient.
      */
-    MemoryProviderStateMixin(CapPtr<void, CBChunk> start, size_t len)
-    : address_space(start, len)
+    ChunkAllocator(CapPtr<void, CBChunk> start, size_t len) : base(start, len)
     {}
+
+    /**
+     * Construct a memory provider using an already initialised metadata
+     * allocator used during bootstrapping
+     */
+    ChunkAllocator(base& b) : base(b) {}
+
     /**
      * Make a new memory provide for this PAL.
      */
-    static MemoryProviderStateMixin* make() noexcept
+    static ChunkAllocator* make() noexcept
     {
       // Temporary stack-based storage to start the allocator in.
-      ASM local_asm{};
+      base local_alloc{};
 
-      // Allocate permanent storage for the allocator usung temporary allocator
-      MemoryProviderStateMixin* allocated =
-        local_asm
-          .template reserve_with_left_over<true>(
-            sizeof(MemoryProviderStateMixin))
-          .template as_static<MemoryProviderStateMixin>()
-          .unsafe_capptr;
+      // Allocate permanent storage for the allocator using temporary allocator
+      ChunkAllocator* allocated =
+        local_alloc.template alloc_meta<ChunkAllocator, 1>(local_alloc);
 
       if (allocated == nullptr)
         error("Failed to initialise system!");
-
-      // Move address range inside itself
-      allocated->address_space = std::move(local_asm);
 
       // Register this allocator for low-memory call-backs
       if constexpr (pal_supports<LowMemoryNotification, PAL>)
       {
         auto callback =
-          allocated->template alloc_chunk<LowMemoryNotificationObject, 1>(
+          allocated->template alloc_meta<LowMemoryNotificationObject, 1>(
             allocated);
         PAL::register_for_low_memory_callback(callback);
       }
+
+      // TODO: This should initialise ChunkMap at this point.
+      // User allocation need the chunk map to exist.
 
       return allocated;
     }
@@ -225,7 +221,7 @@ namespace snmalloc
 
     class LowMemoryNotificationObject : public PalNotificationObject
     {
-      MemoryProviderStateMixin* memory_provider;
+      ChunkAllocator* memory_provider;
 
       /***
        * Method for callback object to perform lazy decommit.
@@ -238,38 +234,18 @@ namespace snmalloc
       }
 
     public:
-      LowMemoryNotificationObject(MemoryProviderStateMixin* memory_provider)
+      LowMemoryNotificationObject(ChunkAllocator* memory_provider)
       : PalNotificationObject(&process), memory_provider(memory_provider)
       {}
     };
 
   public:
-    /**
-     * Primitive allocator for structure that are required before
-     * the allocator can be running.
-     */
-    template<typename T, size_t alignment, typename... Args>
-    T* alloc_chunk(Args&&... args)
-    {
-      // Cache line align
-      size_t size = bits::align_up(sizeof(T), 64);
-      size = bits::max(size, alignment);
-      auto p =
-        address_space.template reserve_with_left_over<true>(size);
-      if (p == nullptr)
-        return nullptr;
-
-      peak_memory_used_bytes += size;
-
-      return new (p.unsafe_capptr) T(std::forward<Args...>(args)...);
-    }
-
     template<bool committed>
     CapPtr<Largeslab, CBChunk> reserve(size_t large_class) noexcept
     {
       size_t size = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
       peak_memory_used_bytes += size;
-      return address_space.template reserve<committed>(size)
+      return base::address_space.template reserve<committed>(size)
         .template as_static<Largeslab>();
     }
 
@@ -287,12 +263,12 @@ namespace snmalloc
     template<typename T, typename U, capptr_bounds B>
     SNMALLOC_FAST_PATH CapPtr<T, CBArena> capptr_amplify(CapPtr<U, B> r)
     {
-      return address_space.arenamap().template capptr_amplify<T, U, B>(r);
+      return arenamap().template capptr_amplify<T, U, B>(r);
     }
 
     ArenaMap& arenamap()
     {
-      return address_space.arenamap();
+      return base::get_address_space().arenamap();
     }
   };
 
@@ -401,18 +377,18 @@ namespace snmalloc
 
   struct DefaultPrimAlloc;
 
-#ifndef SNMALLOC_DEFAULT_MEMORY_PROVIDER
-#  define SNMALLOC_DEFAULT_MEMORY_PROVIDER \
-    MemoryProviderStateMixin<Pal, DefaultArenaMap<Pal, DefaultPrimAlloc>>
+#ifndef SNMALLOC_DEFAULT_CHUNK_ALLOCATOR
+#  define SNMALLOC_DEFAULT_CHUNK_ALLOCATOR \
+    ChunkAllocator<Pal, DefaultArenaMap<Pal, DefaultPrimAlloc>>
 #endif
 
   /**
    * The type of the default memory allocator.  This can be changed by defining
-   * `SNMALLOC_DEFAULT_MEMORY_PROVIDER` before including this file.  By default
-   * it is `MemoryProviderStateMixin<Pal>` a class that allocates directly from
+   * `SNMALLOC_DEFAULT_CHUNK_ALLOCATOR` before including this file.  By default
+   * it is `ChunkAllocator<Pal>` a class that allocates directly from
    * the platform abstraction layer.
    */
-  using GlobalVirtual = SNMALLOC_DEFAULT_MEMORY_PROVIDER;
+  using GlobalVirtual = SNMALLOC_DEFAULT_CHUNK_ALLOCATOR;
 
   /**
    * The memory provider that will be used if no other provider is explicitly
@@ -426,9 +402,10 @@ namespace snmalloc
   struct DefaultPrimAlloc
   {
     template<typename T, size_t alignment, typename... Args>
-    static T* alloc_chunk(Args&&... args)
+    static T* alloc_meta(Args&&... args)
     {
-      return default_memory_provider().alloc_chunk<T, alignment>(args...);
+      return default_memory_provider().template alloc_meta<T, alignment>(
+        args...);
     }
   };
 } // namespace snmalloc

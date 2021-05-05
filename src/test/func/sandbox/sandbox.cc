@@ -71,7 +71,7 @@ namespace
      * outside the sandbox proper: no memory allocation operations and
      * amplification confined to sandbox memory.
      */
-    using NoOpMemoryProvider = MemoryProviderStateMixin<NoOpPal, ArenaMap>;
+    using NoOpMemoryProvider = ChunkAllocator<NoOpPal, ArenaMap>;
 
     /**
      * Type for the allocator that lives outside of the sandbox and allocates

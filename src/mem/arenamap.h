@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../ds/ptrwrap.h"
 #include "pagemap.h"
 

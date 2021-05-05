@@ -41,7 +41,7 @@ int main()
 {
   setup();
 
-  MemoryProviderStateMixin<
+  ChunkAllocator<
     DefaultPal,
     DefaultArenaMap<DefaultPal, DefaultPrimAlloc>>
     mp;
