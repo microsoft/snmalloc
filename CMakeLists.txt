@@ -116,7 +116,7 @@ if(NOT MSVC)
   if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
     target_link_libraries(snmalloc_lib INTERFACE atomic)
   endif()
-  if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
+  if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64" AND NOT ${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
    target_compile_options(snmalloc_lib INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-mcx16>)
   elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "amd64")
    target_compile_options(snmalloc_lib INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-mcx16>)
@@ -125,6 +125,7 @@ if(NOT MSVC)
   elseif(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86")
    target_compile_options(snmalloc_lib INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-mcx16>)
   # XXX elseif ARM?
+    endif()
   endif()
 endif()
 
@@ -182,6 +183,10 @@ endif()
 
 if(CONST_QUALIFIED_MALLOC_USABLE_SIZE)
   target_compile_definitions(snmalloc_lib INTERFACE -DMALLOC_USABLE_SIZE_QUALIFIER=const)
+endif()
+
+if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -no-inline-max-size -no-inline-max-total-size -diag-disable=2196")
 endif()
 
 

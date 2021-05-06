@@ -112,7 +112,8 @@ namespace snmalloc
           (__int64*)&old);
 #  else
 #    if defined(__GNUC__) && defined(SNMALLOC_VA_BITS_64) && \
-      !defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_16)
+      !defined(__GCC_HAVE_SYNC_COMPARE_AND_SWAP_16) && \
+      !defined(__INTEL_COMPILER)
 #error You must compile with -mcx16 to enable 16-byte atomic compare and swap.
 #    endif
 

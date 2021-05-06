@@ -30,6 +30,7 @@ namespace snmalloc
       case CBChunk:
         return CBChunk;
     }
+    SNMALLOC_ICPC_UNREACHABLE;
   }
 
   /**
@@ -59,6 +60,7 @@ namespace snmalloc
       UNUSED(sz);
       return CapPtr<T, capptr_bound_chunkd_bounds<B>()>(p.unsafe_capptr);
     }
+    SNMALLOC_ICPC_UNREACHABLE;
   }
 
   /**

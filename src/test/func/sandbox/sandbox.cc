@@ -230,10 +230,12 @@ namespace
      * Predicate function for querying whether an object is entirely within the
      * sandbox.
      */
-    bool is_in_sandbox(void* ptr, size_t sz)
+#  ifndef __INTEL_COMPILER
+    [[maybe_unused]] bool is_in_sandbox(void* ptr, size_t sz)
     {
       return (ptr >= start) && (pointer_offset(ptr, sz) < top);
     }
+#  endif
 
     /**
      * Predicate function for querying whether an object is entirely within the

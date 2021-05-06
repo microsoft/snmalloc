@@ -161,6 +161,7 @@ namespace snmalloc
         result = false;
         return nullptr;
       }
+      SNMALLOC_ICPC_UNREACHABLE;
     }
 
     SNMALLOC_SLOW_PATH PagemapEntry*

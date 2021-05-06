@@ -87,6 +87,7 @@ namespace snmalloc
       {
         return static_cast<size_t>(__builtin_clz(x));
       }
+      SNMALLOC_ICPC_UNREACHABLE;
 #endif
     }
 
@@ -170,6 +171,7 @@ namespace snmalloc
       {
         return static_cast<size_t>(__builtin_ctz(x));
       }
+      SNMALLOC_ICPC_UNREACHABLE;
 #endif
     }
 

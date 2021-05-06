@@ -154,6 +154,7 @@ namespace snmalloc
         handle_message_queue();
         return capptr_reveal(large_alloc<zero_mem>(size));
       }
+      SNMALLOC_ICPC_UNREACHABLE;
 #endif
     }
 
@@ -527,6 +528,7 @@ namespace snmalloc
       {
         return remote_alloc;
       }
+      SNMALLOC_ICPC_UNREACHABLE;
     }
 
     auto& message_queue()

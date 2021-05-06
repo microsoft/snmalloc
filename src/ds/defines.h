@@ -20,6 +20,10 @@
 #  define SNMALLOC_COLD __attribute__((cold))
 #endif
 
+#ifdef __INTEL_COMPILER
+#  define SNMALLOC_ICPC_UNREACHABLE __builtin_unreachable()
+#endif
+
 #if defined(__cpp_constinit) && __cpp_constinit >= 201907
 #  define SNMALLOC_CONSTINIT_FN constinit
 #  define SNMALLOC_CONSTINIT_STATIC constinit const
