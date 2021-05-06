@@ -204,7 +204,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     if(${Backtrace_FOUND})
       target_compile_definitions(snmalloc_lib INTERFACE -DBACKTRACE_HEADER="${Backtrace_HEADER}")
       target_link_libraries(snmalloc_lib INTERFACE ${Backtrace_LIBRARIES})
-      target_include_directories(snmalloc_lib INTERFACE ${Backtrace_INCLUD_DIRS})
+      target_include_directories(snmalloc_lib INTERFACE ${Backtrace_INCLUDE_DIRS})
     endif()
 
   endif()
