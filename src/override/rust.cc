@@ -14,6 +14,13 @@ extern "C" SNMALLOC_EXPORT void* rust_alloc(size_t alignment, size_t size)
   return ThreadAlloc::get_noncachable()->alloc(aligned_size(alignment, size));
 }
 
+extern "C" SNMALLOC_EXPORT void*
+rust_alloc_zeroed(size_t alignment, size_t size)
+{
+  return ThreadAlloc::get_noncachable()->alloc<YesZero>(
+    aligned_size(alignment, size));
+}
+
 extern "C" SNMALLOC_EXPORT void
 rust_dealloc(void* ptr, size_t alignment, size_t size)
 {
