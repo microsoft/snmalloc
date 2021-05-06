@@ -112,7 +112,7 @@ namespace snmalloc
         return Arch::tick();
 #endif
       }
-      SNMALLOC_ICPC_UNREACHABLE;
+      SNMALLOC_UNREACHABLE;
     }
   };
 

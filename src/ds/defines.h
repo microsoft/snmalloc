@@ -9,6 +9,7 @@
 #  define SNMALLOC_FAST_PATH ALWAYSINLINE
 #  define SNMALLOC_PURE
 #  define SNMALLOC_COLD
+#  define SNMALLOC_UNREACHABLE __assume(0)
 #else
 #  define likely(x) __builtin_expect(!!(x), 1)
 #  define unlikely(x) __builtin_expect(!!(x), 0)
@@ -18,11 +19,9 @@
 #  define SNMALLOC_FAST_PATH inline ALWAYSINLINE
 #  define SNMALLOC_PURE __attribute__((const))
 #  define SNMALLOC_COLD __attribute__((cold))
+#  define SNMALLOC_UNREACHABLE __builtin_unreachable()
 #endif
 
-#ifdef __INTEL_COMPILER
-#  define SNMALLOC_ICPC_UNREACHABLE __builtin_unreachable()
-#endif
 
 #if defined(__cpp_constinit) && __cpp_constinit >= 201907
 #  define SNMALLOC_CONSTINIT_FN constinit

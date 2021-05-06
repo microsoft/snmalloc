@@ -71,7 +71,7 @@ namespace snmalloc
       case CBAlloc:
         return CBAllocE;
     }
-    SNMALLOC_ICPC_UNREACHABLE;
+    SNMALLOC_UNREACHABLE;
   }
 
   template<capptr_bounds BI, capptr_bounds BO>
@@ -93,7 +93,7 @@ namespace snmalloc
         return BO == CBAlloc || BO == CBChunk || BO == CBChunkD ||
           BO == CBArena;
     }
-    SNMALLOC_ICPC_UNREACHABLE;
+    SNMALLOC_UNREACHABLE;
   }
 
   /**

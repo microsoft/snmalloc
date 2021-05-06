@@ -274,7 +274,7 @@ namespace snmalloc
       }
 
       OS::error("Out of memory");
-      SNMALLOC_ICPC_UNREACHABLE;
+      SNMALLOC_UNREACHABLE;
     }
 
     /**

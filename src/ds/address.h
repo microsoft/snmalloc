@@ -110,7 +110,7 @@ namespace snmalloc
         bits::align_down(reinterpret_cast<uintptr_t>(p), alignment));
 #endif
     }
-    SNMALLOC_ICPC_UNREACHABLE;
+    SNMALLOC_UNREACHABLE;
   }
 
   template<size_t alignment, typename T, capptr_bounds bounds>
@@ -145,7 +145,7 @@ namespace snmalloc
         bits::align_up(reinterpret_cast<uintptr_t>(p), alignment));
 #endif
     }
-    SNMALLOC_ICPC_UNREACHABLE;
+    SNMALLOC_UNREACHABLE;
   }
 
   template<size_t alignment, typename T = void, enum capptr_bounds bounds>
