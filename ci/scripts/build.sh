@@ -7,6 +7,10 @@ if [[ "$CXX" == clang++* ]]; then
     CMAKE_CXX_FLAGS+=" -stdlib=libstdc++";
 fi
 
+if [[ "$CXX" == icpc ]]; then
+    source  /opt/intel/oneapi/setvars.sh;
+fi
+
 cmake \
   $CMAKE_ARGS \
   -GNinja \

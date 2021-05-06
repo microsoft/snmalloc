@@ -1,0 +1,13 @@
+FROM ubuntu:20.04
+
+RUN apt-get update -y \
+    && apt-get install -y software-properties-common wget \
+    && wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+    && apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+    && add-apt-repository "deb https://apt.repos.intel.com/oneapi all main" \
+    && apt-get update -y \
+    && apt-get install -y --no-install-recommends -o=Dpkg::Use-Pty=0 \
+       intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic \
+    && apt-get remove -y software-properties-common wget \
+    && apt-get -y autoremove \
+    && apt-get -y clean

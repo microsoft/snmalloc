@@ -92,6 +92,22 @@ jobs:
         CMakeArgs: ''
         Image: snmallocciteam/build_linux_x64:latest
 
+      64-bit ICC Debug:
+        CC: icc
+        CXX: icpc
+        BuildType: Debug
+        SelfHost: false
+        CMakeArgs: ''
+        Image: schrodingerzhu/build_linux_icc:latest
+
+      64-bit ICC Release:
+        CC: icc
+        CXX: icpc
+        BuildType: Release
+        SelfHost: false
+        CMakeArgs: ''
+        Image: schrodingerzhu/build_linux_icc:latest
+
       32-bit Clang-9 Debug:
         CC: clang-9
         CXX: clang++-9
