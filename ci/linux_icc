@@ -1,7 +1,8 @@
 FROM ubuntu:20.04
 
 RUN apt-get update -y \
-    && apt-get install -y software-properties-common wget \
+    && apt-get install -y  --no-install-recommends -o=Dpkg::Use-Pty=0 \
+       software-properties-common wget cmake ninja-build git gnupg-agent gcc g++ \
     && wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
     && apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
     && add-apt-repository "deb https://apt.repos.intel.com/oneapi all main" \
