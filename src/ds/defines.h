@@ -22,7 +22,6 @@
 #  define SNMALLOC_UNREACHABLE __builtin_unreachable()
 #endif
 
-
 #if defined(__cpp_constinit) && __cpp_constinit >= 201907
 #  define SNMALLOC_CONSTINIT_FN constinit
 #  define SNMALLOC_CONSTINIT_STATIC constinit const
