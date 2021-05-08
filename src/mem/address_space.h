@@ -186,6 +186,7 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= sizeof(void*));
+      UNUSED(arena_map); // unused in some branches
 
       /*
        * For sufficiently large allocations with platforms that support aligned

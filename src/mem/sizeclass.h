@@ -53,7 +53,7 @@ namespace snmalloc
   static constexpr size_t NUM_LARGE_CLASSES =
     bits::ADDRESS_BITS - SUPERSLAB_BITS;
 
-  SNMALLOC_FAST_PATH static size_t aligned_size(size_t alignment, size_t size)
+  static SNMALLOC_FAST_PATH size_t aligned_size(size_t alignment, size_t size)
   {
     // Client responsible for checking alignment is not zero
     SNMALLOC_ASSERT(alignment != 0);
@@ -63,7 +63,7 @@ namespace snmalloc
     return ((alignment - 1) | (size - 1)) + 1;
   }
 
-  SNMALLOC_FAST_PATH static size_t round_size(size_t size)
+  static SNMALLOC_FAST_PATH size_t round_size(size_t size)
   {
     if (size > sizeclass_to_size(NUM_SIZECLASSES - 1))
     {
@@ -81,7 +81,7 @@ namespace snmalloc
 
   /// Returns the alignment that this size naturally has, that is
   /// all allocations of size `size` will be aligned to the returned value.
-  SNMALLOC_FAST_PATH static size_t natural_alignment(size_t size)
+  static SNMALLOC_FAST_PATH size_t natural_alignment(size_t size)
   {
     auto rsize = round_size(size);
     return bits::one_at_bit(bits::ctz(rsize));

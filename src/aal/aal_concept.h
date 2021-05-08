@@ -12,7 +12,7 @@ namespace snmalloc
 {
   /**
    * AALs must advertise the bit vector of supported features, their name,
-   * 
+   *
    */
   template<typename AAL>
   concept ConceptAAL_static_members = requires()
@@ -25,9 +25,12 @@ namespace snmalloc
    * AALs provide a prefetch operation.
    */
   template<typename AAL>
-  concept ConceptAAL_prefetch = requires(void *ptr)
+  concept ConceptAAL_prefetch = requires(void* ptr)
   {
-    { AAL::prefetch(ptr) } noexcept -> ConceptSame<void>;
+    {
+      AAL::prefetch(ptr)
+    }
+    noexcept->ConceptSame<void>;
   };
 
   /**
@@ -36,34 +39,39 @@ namespace snmalloc
   template<typename AAL>
   concept ConceptAAL_tick = requires()
   {
-    { AAL::tick() } noexcept -> ConceptSame<uint64_t>;
+    {
+      AAL::tick()
+    }
+    noexcept->ConceptSame<uint64_t>;
   };
 
   template<typename AAL>
   concept ConceptAAL_capptr_methods =
-  requires(CapPtr<void, CBArena> auth, CapPtr<void, CBAlloc> ret, size_t sz)
+    requires(CapPtr<void, CBArena> auth, CapPtr<void, CBAlloc> ret, size_t sz)
   {
     /**
      * Produce a pointer with reduced authority from a more privilged pointer.
      * The resulting pointer will have base at auth's address and length of
      * exactly sz.  auth+sz must not exceed auth's limit.
      */
-    { AAL::template capptr_bound<void, CBChunk>(auth, sz) } noexcept
-      -> ConceptSame<CapPtr<void, CBChunk>>;
+    {
+      AAL::template capptr_bound<void, CBChunk>(auth, sz)
+    }
+    noexcept->ConceptSame<CapPtr<void, CBChunk>>;
 
     /**
      * Construct a copy of auth with its target set to that of ret.
      */
-    { AAL::capptr_rebound(auth, ret) } noexcept
-      -> ConceptSame<CapPtr<void, CBArena>>;
+    {
+      AAL::capptr_rebound(auth, ret)
+    }
+    noexcept->ConceptSame<CapPtr<void, CBArena>>;
   };
 
   template<typename AAL>
   concept ConceptAAL =
-    ConceptAAL_static_members<AAL> &&
-    ConceptAAL_prefetch<AAL> &&
-    ConceptAAL_tick<AAL> &&
-    ConceptAAL_capptr_methods<AAL>;
+    ConceptAAL_static_members<AAL>&& ConceptAAL_prefetch<AAL>&&
+      ConceptAAL_tick<AAL>&& ConceptAAL_capptr_methods<AAL>;
 
 } // namespace snmalloc
 #endif

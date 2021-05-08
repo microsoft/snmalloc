@@ -336,7 +336,7 @@ namespace snmalloc
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
     constexpr static size_t from_exp_mant(size_t m_e)
     {
-      if (MANTISSA_BITS > 0)
+      if constexpr (MANTISSA_BITS > 0)
       {
         m_e = m_e + 1;
         constexpr size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;

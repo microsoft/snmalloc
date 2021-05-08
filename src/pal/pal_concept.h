@@ -28,7 +28,10 @@ namespace snmalloc
   template<typename PAL>
   concept ConceptPAL_error = requires(const char* const str)
   {
-    { PAL::error(str) } -> ConceptSame<void>;
+    {
+      PAL::error(str)
+    }
+    ->ConceptSame<void>;
   };
 
   /**
@@ -37,15 +40,28 @@ namespace snmalloc
   template<typename PAL>
   concept ConceptPAL_memops = requires(void* vp, std::size_t sz)
   {
-    { PAL::notify_not_using(vp, sz) } noexcept -> ConceptSame<void>;
+    {
+      PAL::notify_not_using(vp, sz)
+    }
+    noexcept->ConceptSame<void>;
 
-    { PAL::template notify_using<NoZero>(vp, sz) } noexcept
-      -> ConceptSame<void>;
-    { PAL::template notify_using<YesZero>(vp, sz) } noexcept
-      -> ConceptSame<void>;
+    {
+      PAL::template notify_using<NoZero>(vp, sz)
+    }
+    noexcept->ConceptSame<void>;
+    {
+      PAL::template notify_using<YesZero>(vp, sz)
+    }
+    noexcept->ConceptSame<void>;
 
-    { PAL::template zero<false>(vp, sz) } noexcept -> ConceptSame<void>;
-    { PAL::template zero<true>(vp, sz) } noexcept -> ConceptSame<void>;
+    {
+      PAL::template zero<false>(vp, sz)
+    }
+    noexcept->ConceptSame<void>;
+    {
+      PAL::template zero<true>(vp, sz)
+    }
+    noexcept->ConceptSame<void>;
   };
 
   /**
@@ -55,8 +71,10 @@ namespace snmalloc
   concept ConceptPAL_reserve_at_least =
     requires(PAL p, void* vp, std::size_t sz)
   {
-    { PAL::reserve_at_least(sz) } noexcept
-      -> ConceptSame<std::pair<void*, std::size_t>>;
+    {
+      PAL::reserve_at_least(sz)
+    }
+    noexcept->ConceptSame<std::pair<void*, std::size_t>>;
   };
 
   /**
@@ -65,9 +83,14 @@ namespace snmalloc
   template<typename PAL>
   concept ConceptPAL_reserve_aligned = requires(std::size_t sz)
   {
-    { PAL::template reserve_aligned<true>(sz) } noexcept -> ConceptSame<void*>;
-    { PAL::template reserve_aligned<false>(sz) } noexcept
-      -> ConceptSame<void*>;
+    {
+      PAL::template reserve_aligned<true>(sz)
+    }
+    noexcept->ConceptSame<void*>;
+    {
+      PAL::template reserve_aligned<false>(sz)
+    }
+    noexcept->ConceptSame<void*>;
   };
 
   /**
@@ -76,14 +99,23 @@ namespace snmalloc
   template<typename PAL>
   concept ConceptPAL_mem_low_notify = requires(PalNotificationObject* pno)
   {
-    { PAL::expensive_low_memory_check() } -> ConceptSame<bool>;
-    { PAL::register_for_low_memory_callback(pno) } -> ConceptSame<void>;
+    {
+      PAL::expensive_low_memory_check()
+    }
+    ->ConceptSame<bool>;
+    {
+      PAL::register_for_low_memory_callback(pno)
+    }
+    ->ConceptSame<void>;
   };
 
   template<typename PAL>
   concept ConceptPAL_get_entropy64 = requires()
   {
-    { PAL::get_entropy64() } -> ConceptSame<uint64_t>;
+    {
+      PAL::get_entropy64()
+    }
+    ->ConceptSame<uint64_t>;
   };
 
   /**
@@ -93,19 +125,17 @@ namespace snmalloc
    * are, naturally, not bound by the corresponding concept.
    */
   template<typename PAL>
-  concept ConceptPAL =
-    ConceptPAL_static_members<PAL> &&
-    ConceptPAL_error<PAL> &&
-    ConceptPAL_memops<PAL> &&
+  concept ConceptPAL = ConceptPAL_static_members<PAL>&& ConceptPAL_error<PAL>&&
+                         ConceptPAL_memops<PAL> &&
     (!pal_supports<Entropy, PAL> ||
-      ConceptPAL_get_entropy64<PAL>) &&
-    (!pal_supports<LowMemoryNotification, PAL> ||
-      ConceptPAL_mem_low_notify<PAL>) &&
-    (pal_supports<NoAllocation, PAL> ||
-     (pal_supports<AlignedAllocation, PAL> &&
-        ConceptPAL_reserve_aligned<PAL>) ||
-     (!pal_supports<AlignedAllocation, PAL> &&
-          ConceptPAL_reserve_at_least<PAL>));
+     ConceptPAL_get_entropy64<
+       PAL>)&&(!pal_supports<LowMemoryNotification, PAL> ||
+               ConceptPAL_mem_low_notify<
+                 PAL>)&&(pal_supports<NoAllocation, PAL> ||
+                         (pal_supports<AlignedAllocation, PAL> &&
+                          ConceptPAL_reserve_aligned<PAL>) ||
+                         (!pal_supports<AlignedAllocation, PAL> &&
+                          ConceptPAL_reserve_at_least<PAL>));
 
 } // namespace snmalloc
 #endif
