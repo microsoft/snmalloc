@@ -320,10 +320,10 @@ jobs:
         CompilerDir: 'C:\Program Files (x86)\Intel\oneAPI'
   steps:
     - task: Cache@2
-        inputs:
-          path: C:\Program Files (x86)\Intel\oneAPI\compiler
-          key: '"Dependencies" | "$(CompilerURI)" | "compiler" | ci/scripts/prepare_cache_icc.sh'
-          cacheHitVar: CACHE_RESTORED
+      inputs:
+        path: C:\Program Files (x86)\Intel\oneAPI\compiler
+        key: '"Dependencies" | "$(CompilerURI)" | "compiler" | ci/scripts/prepare_cache_icc.sh'
+        cacheHitVar: CACHE_RESTORED
     - script: |
         bash -c "cat /proc/cpuinfo"
         bash -c "cat /proc/meminfo"
