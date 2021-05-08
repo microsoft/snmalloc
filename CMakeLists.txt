@@ -192,7 +192,12 @@ endif()
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
   if(MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd2586 /Qdiag-disable=280 /Qdiag-disable=3280")
+    # intel compiler jumps over and over from unreachable
+    # code and missing return values, but in fact the regions are safely guarded by constexprs.
+    # We finally decide to suppress unreachable statement [code: 111, 128]
+    # Another remark is more like a code style problem, which forbids the use of same names with member fields in the
+    # args of ctors. However, it is also a common practice to use this naming style. [code: 3280]
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd2586 /Qdiag-disable=280 /Qdiag-disable=128 /Qdiag-disable=111 /Qdiag-disable=3280")
     if(SNMALLOC_UNLIMITED_INLINE)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Qno-inline-max-size /Qno-inline-max-total-size")
     endif()
