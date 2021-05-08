@@ -19,6 +19,7 @@ option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory
 option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off)
 set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
 option(SNMALLOC_USE_CXX20 "Build as C++20, not C++17; experimental as yet" OFF)
+option(SNMALLOC_UNLIMITED_INLINE "Enable unlimited inline for intel compiler; may consume huge memory" OFF)
 
 # malloc.h will error if you include it on FreeBSD, so this test must not
 # unconditionally include it.
@@ -190,10 +191,16 @@ if(CONST_QUALIFIED_MALLOC_USABLE_SIZE)
 endif()
 
 if(${CMAKE_CXX_COMPILER_ID} STREQUAL "Intel")
-  if(NOT MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -no-inline-max-size -no-inline-max-total-size -diag-disable=2196")
-  else()
+  if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd2586 /Qdiag-disable=280 /Qdiag-disable=3280")
+    if(SNMALLOC_UNLIMITED_INLINE)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Qno-inline-max-size /Qno-inline-max-total-size")
+    endif()
+  else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -diag-disable=2196")
+    if(SNMALLOC_UNLIMITED_INLINE)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -no-inline-max-size -no-inline-max-total-size")
+    endif()
   endif()
 endif()
 
