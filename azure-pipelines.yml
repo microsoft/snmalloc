@@ -299,6 +299,55 @@ jobs:
     workingDirectory: build
     displayName: 'Run Ctest'
 
+- job:
+  displayName: Win Intel
+  pool:
+    vmImage:  'windows-2019'
+  strategy:
+    matrix:
+      64-bit Debug Clang:
+        BuildType: Debug
+        CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="icl" -DCMAKE_CXX_COMPILER="icl"'
+        JFlag: -j 4
+        CompilerURI: "https://registrationcenter-download.intel.com/akdlm/irc_nas/17762/w_HPCKit_p_2021.2.0.2901_offline.exe"
+        CompilerPackage: "w_HPCKit_p_2021.2.0.2901_offline.exe"
+        CompilerDir: "C:\Program Files (x86)\Intel\oneAPI"
+      64-bit Release Clang:
+        BuildType: Release
+        CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="icl" -DCMAKE_CXX_COMPILER="icl"'
+        JFlag: -j 4
+        CompilerPackage: "w_HPCKit_p_2021.2.0.2901_offline.exe"
+        CompilerURI: "https://registrationcenter-download.intel.com/akdlm/irc_nas/17762/"
+        CompilerDir: "C:\Program Files (x86)\Intel\oneAPI"
+  steps:
+    - script: |
+        bash -c "cat /proc/cpuinfo"
+        bash -c "cat /proc/meminfo"
+      displayName: 'Machine stats'
+
+    - script: |
+        choco install --accept-license -y Ninja wget
+        wget "$(CompilerURI)$(CompilerPackage)"
+        $(CompilerPackage) -s -a --silent --eula accept
+      displayName: 'Dependencies'
+
+    - script: |
+        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+        call "$(CompilerDir)\setvars.bat"
+        mkdir build
+        cd build
+        cmake .. $(CMakeArgs) -DCMAKE_BUILD_TYPE=$(BuildType) -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On
+        cmake --build . --config ${BuildType}
+      displayName: 'build'
+
+    - script: |
+        call "$(CompilerDir)\setvars.bat"
+        func-statistics-1.exe
+        ctest $(JFlag) --interactive-debug-mode 0 --output-on-failure -C $(BuildType)
+
+      workingDirectory: build
+      displayName: 'Run Ctest'
+
 - job: 
   displayName: macOS
   pool:
