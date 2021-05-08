@@ -311,14 +311,14 @@ jobs:
         JFlag: -j 4
         CompilerURI: "https://registrationcenter-download.intel.com/akdlm/irc_nas/17762/w_HPCKit_p_2021.2.0.2901_offline.exe"
         CompilerPackage: "w_HPCKit_p_2021.2.0.2901_offline.exe"
-        CompilerDir: "C:\Program Files (x86)\Intel\oneAPI"
+        CompilerDir: 'C:\Program Files (x86)\Intel\oneAPI'
       64-bit Release Clang:
         BuildType: Release
         CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="icl" -DCMAKE_CXX_COMPILER="icl"'
         JFlag: -j 4
         CompilerPackage: "w_HPCKit_p_2021.2.0.2901_offline.exe"
         CompilerURI: "https://registrationcenter-download.intel.com/akdlm/irc_nas/17762/"
-        CompilerDir: "C:\Program Files (x86)\Intel\oneAPI"
+        CompilerDir: 'C:\Program Files (x86)\Intel\oneAPI'
   steps:
     - script: |
         bash -c "cat /proc/cpuinfo"
