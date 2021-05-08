@@ -331,7 +331,7 @@ jobs:
 
     - script: |
         choco install --accept-license -y Ninja curl
-        ci\scripts\install_icc.bat $(CompilerURI) intel.oneapi.win.cpp-compiler
+        ci\scripts\intel_icc.bat $(CompilerURI) intel.oneapi.win.cpp-compiler
       displayName: 'Dependencies'
       condition: ne(variables.CACHE_RESTORED, 'true')
 
