@@ -9,7 +9,11 @@
 #  define SNMALLOC_FAST_PATH ALWAYSINLINE
 #  define SNMALLOC_PURE
 #  define SNMALLOC_COLD
-#  define SNMALLOC_UNREACHABLE do { __assume(0); } while ( 1 );
+#  define SNMALLOC_UNREACHABLE \
+    do \
+    { \
+      __assume(0); \
+    } while (1);
 #else
 #  define likely(x) __builtin_expect(!!(x), 1)
 #  define unlikely(x) __builtin_expect(!!(x), 0)
