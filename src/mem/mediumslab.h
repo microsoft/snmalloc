@@ -45,7 +45,8 @@ namespace snmalloc
        * our SLABs are occasionally small by comparison (e.g., in OE, when
        * we take them to be 8KiB).
        */
-      return bits::align_up(sizeof(Mediumslab), min(OS_PAGE_SIZE, SLAB_SIZE));
+      return bits::align_up(
+        sizeof(Mediumslab), bits::min(OS_PAGE_SIZE, SLAB_SIZE));
     }
 
     /**

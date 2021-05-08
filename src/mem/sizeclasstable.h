@@ -1,6 +1,8 @@
 #pragma once
 
+#include "../ds/bits.h"
 #include "../ds/helpers.h"
+#include "mediumslab.h"
 #include "superslab.h"
 
 namespace snmalloc

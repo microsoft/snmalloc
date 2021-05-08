@@ -15,7 +15,7 @@
 #  define ALWAYSINLINE __attribute__((always_inline))
 #  define NOINLINE __attribute__((noinline))
 #  define SNMALLOC_SLOW_PATH NOINLINE
-#  define SNMALLOC_FAST_PATH inline ALWAYSINLINE
+#  define SNMALLOC_FAST_PATH ALWAYSINLINE
 #  define SNMALLOC_PURE __attribute__((const))
 #  define SNMALLOC_COLD __attribute__((cold))
 #endif

@@ -24,7 +24,7 @@ namespace snmalloc
    * just the slab address truncated to 16bits and offset by 1.
    */
   template<typename T, capptr_bounds B>
-  inline static address_t initial_key(CapPtr<T, B> slab)
+  constexpr inline static address_t initial_key(CapPtr<T, B> slab)
   {
 #ifdef CHECK_CLIENT
     /**
@@ -164,9 +164,9 @@ namespace snmalloc
    */
   class FreeListIter
   {
-    CapPtr<FreeObject, CBAlloc> curr = nullptr;
+    CapPtr<FreeObject, CBAlloc> curr{nullptr};
 #ifdef CHECK_CLIENT
-    address_t prev = 0;
+    address_t prev{0};
 #endif
 
     uint16_t get_prev()
@@ -201,7 +201,7 @@ namespace snmalloc
     }
 
   public:
-    FreeListIter(CapPtr<FreeObject, CBAlloc> head)
+    constexpr FreeListIter(CapPtr<FreeObject, CBAlloc> head)
     : curr(head)
 #ifdef CHECK_CLIENT
       ,
@@ -211,7 +211,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(head != nullptr);
     }
 
-    FreeListIter() = default;
+    constexpr FreeListIter() = default;
 
     /**
      * Checks if there are any more values to iterate.

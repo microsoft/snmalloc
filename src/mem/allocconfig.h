@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds/bits.h"
+#include "../pal/pal.h"
 
 namespace snmalloc
 {
@@ -10,7 +11,8 @@ namespace snmalloc
 #  define CHECK_CLIENT
 #endif
 
-  SNMALLOC_FAST_PATH void check_client_impl(bool test, const char* const str)
+  inline SNMALLOC_FAST_PATH void
+  check_client_impl(bool test, const char* const str)
   {
 #ifdef CHECK_CLIENT
     if (unlikely(!test))

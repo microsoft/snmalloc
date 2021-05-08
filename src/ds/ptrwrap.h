@@ -1,5 +1,6 @@
 #pragma once
 
+#include "defines.h"
 #include <atomic>
 
 namespace snmalloc
@@ -106,9 +107,9 @@ namespace snmalloc
     /**
      * nullptr is implicitly constructable at any bounds type
      */
-    CapPtr(const std::nullptr_t n) : unsafe_capptr(n) {}
+    constexpr CapPtr(const std::nullptr_t n) : unsafe_capptr(n) {}
 
-    CapPtr() : CapPtr(nullptr) {}
+    constexpr CapPtr() : CapPtr(nullptr){};
 
     /**
      * all other constructions must be explicit
@@ -198,7 +199,7 @@ namespace snmalloc
    * several chunks) to be the allocation.
    */
   template<typename T>
-  SNMALLOC_FAST_PATH CapPtr<T, CBAllocE>
+  inline SNMALLOC_FAST_PATH CapPtr<T, CBAllocE>
   capptr_chunk_is_alloc(CapPtr<T, CBChunkE> p)
   {
     return CapPtr<T, CBAlloc>(p.unsafe_capptr);
@@ -208,7 +209,7 @@ namespace snmalloc
    * With all the bounds and constraints in place, it's safe to extract a void
    * pointer (to reveal to the client).
    */
-  SNMALLOC_FAST_PATH void* capptr_reveal(CapPtr<void, CBAllocE> p)
+  inline SNMALLOC_FAST_PATH void* capptr_reveal(CapPtr<void, CBAllocE> p)
   {
     return p.unsafe_capptr;
   }

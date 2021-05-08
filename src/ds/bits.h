@@ -53,7 +53,7 @@ namespace snmalloc
 
     static constexpr size_t ADDRESS_BITS = is64() ? 48 : 32;
 
-    SNMALLOC_FAST_PATH size_t clz(size_t x)
+    inline SNMALLOC_FAST_PATH size_t clz(size_t x)
     {
       SNMALLOC_ASSERT(x != 0); // Calling with 0 is UB on some implementations
 #if defined(_MSC_VER)
@@ -219,7 +219,7 @@ namespace snmalloc
       return (x & (x - 1)) == 0;
     }
 
-    SNMALLOC_FAST_PATH size_t next_pow2(size_t x)
+    inline SNMALLOC_FAST_PATH size_t next_pow2(size_t x)
     {
       // Correct for numbers [0..MAX_SIZE >> 1).
       // Returns 1 for x > (MAX_SIZE >> 1).
@@ -246,12 +246,12 @@ namespace snmalloc
       return one_at_bit(BITS - clz_const(x - 1));
     }
 
-    constexpr size_t next_pow2_bits_const(size_t x)
+    inline constexpr size_t next_pow2_bits_const(size_t x)
     {
       return BITS - clz_const(x - 1);
     }
 
-    constexpr SNMALLOC_FAST_PATH size_t
+    inline constexpr SNMALLOC_FAST_PATH size_t
     align_down(size_t value, size_t alignment)
     {
       SNMALLOC_ASSERT(is_pow2(alignment));
@@ -261,7 +261,8 @@ namespace snmalloc
       return value;
     }
 
-    constexpr SNMALLOC_FAST_PATH size_t align_up(size_t value, size_t alignment)
+    inline constexpr SNMALLOC_FAST_PATH size_t
+    align_up(size_t value, size_t alignment)
     {
       SNMALLOC_ASSERT(is_pow2(alignment));
 

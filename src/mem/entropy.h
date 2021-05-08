@@ -23,14 +23,16 @@ namespace snmalloc
 
   class LocalEntropy
   {
-    uint64_t bit_source;
-    uint64_t local_key;
-    uint64_t local_counter;
-    address_t constant_key;
-    uint64_t fresh_bits;
-    uint64_t count;
+    uint64_t bit_source{0};
+    uint64_t local_key{0};
+    uint64_t local_counter{0};
+    address_t constant_key{0};
+    uint64_t fresh_bits{0};
+    uint64_t count{0};
 
   public:
+    constexpr LocalEntropy() {}
+
     template<typename PAL>
     void init()
     {
