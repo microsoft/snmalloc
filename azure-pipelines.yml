@@ -310,26 +310,30 @@ jobs:
         CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="icl" -DCMAKE_CXX_COMPILER="icl"'
         JFlag: -j 4
         CompilerURI: "https://registrationcenter-download.intel.com/akdlm/irc_nas/17762/w_HPCKit_p_2021.2.0.2901_offline.exe"
-        CompilerPackage: "w_HPCKit_p_2021.2.0.2901_offline.exe"
+        CompilerPackage:
         CompilerDir: 'C:\Program Files (x86)\Intel\oneAPI'
       64-bit Release ICL:
         BuildType: Release
         CMakeArgs: '-GNinja -DCMAKE_C_COMPILER="icl" -DCMAKE_CXX_COMPILER="icl"'
         JFlag: -j 4
-        CompilerPackage: "w_HPCKit_p_2021.2.0.2901_offline.exe"
-        CompilerURI: "https://registrationcenter-download.intel.com/akdlm/irc_nas/17762/"
+        CompilerURI: "https://registrationcenter-download.intel.com/akdlm/irc_nas/17762/w_HPCKit_p_2021.2.0.2901_offline.exe"
         CompilerDir: 'C:\Program Files (x86)\Intel\oneAPI'
   steps:
+    - task: Cache@2
+        inputs:
+          path: C:\Program Files (x86)\Intel\oneAPI\compiler
+          key: '"Dependencies" | "$(CompilerURI)" | "compiler" | ci/scripts/prepare_cache_icc.sh'
+          cacheHitVar: CACHE_RESTORED
     - script: |
         bash -c "cat /proc/cpuinfo"
         bash -c "cat /proc/meminfo"
       displayName: 'Machine stats'
 
     - script: |
-        choco install --accept-license -y Ninja wget
-        wget "$(CompilerURI)$(CompilerPackage)"
-        $(CompilerPackage) -s -a --silent --eula accept
+        choco install --accept-license -y Ninja curl
+        ci\scripts\install_icc.bat $(CompilerURI) intel.oneapi.win.cpp-compiler
       displayName: 'Dependencies'
+      condition: ne(variables.CACHE_RESTORED, 'true')
 
     - script: |
         call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
@@ -347,6 +351,10 @@ jobs:
 
       workingDirectory: build
       displayName: 'Run Ctest'
+
+    - bash: ci/scripts/prepare_cache_icc.sh
+      displayName: "Exclude unused files from cache"
+      condition: ne(variables.CACHE_RESTORED, 'true')
 
 - job: 
   displayName: macOS
