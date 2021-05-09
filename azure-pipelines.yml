@@ -319,11 +319,6 @@ jobs:
         CompilerURI: "https://registrationcenter-download.intel.com/akdlm/irc_nas/17762/w_HPCKit_p_2021.2.0.2901_offline.exe"
         CompilerDir: 'C:\Program Files (x86)\Intel\oneAPI'
   steps:
-    - task: Cache@2
-      inputs:
-        path: C:\Program Files (x86)\Intel\oneAPI\compiler
-        key: '"Dependencies" | "$(CompilerURI)" | "compiler" | ci/scripts/prepare_cache_icc.sh'
-        cacheHitVar: CACHE_RESTORED
     - script: |
         bash -c "cat /proc/cpuinfo"
         bash -c "cat /proc/meminfo"
@@ -333,7 +328,6 @@ jobs:
         choco install --accept-license -y Ninja curl
         ci\scripts\intel_icc.bat $(CompilerURI) intel.oneapi.win.cpp-compiler
       displayName: 'Dependencies'
-      condition: ne(variables.CACHE_RESTORED, 'true')
 
     - script: |
         call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
@@ -345,16 +339,13 @@ jobs:
       displayName: 'build'
 
     - script: |
+        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
         call "$(CompilerDir)\setvars.bat"
         func-statistics-1.exe
         ctest $(JFlag) --interactive-debug-mode 0 --output-on-failure -C $(BuildType)
 
       workingDirectory: build
       displayName: 'Run Ctest'
-
-    - bash: ci/scripts/prepare_cache_icc.sh
-      displayName: "Exclude unused files from cache"
-      condition: ne(variables.CACHE_RESTORED, 'true')
 
 - job: 
   displayName: macOS

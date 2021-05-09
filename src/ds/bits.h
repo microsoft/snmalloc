@@ -346,7 +346,9 @@ namespace snmalloc
         size_t shifted_e = e - b;
         size_t extended_m = (m + (b << MANTISSA_BITS));
         return extended_m << (shifted_e + LOW_BITS);
-      } else {
+      }
+      else
+      {
         return one_at_bit(m_e + LOW_BITS);
       }
       SNMALLOC_UNREACHABLE;
