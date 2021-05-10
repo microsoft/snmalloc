@@ -76,7 +76,7 @@ namespace snmalloc
    * Special class for cyclic doubly linked non-empty linked list
    *
    * This code assumes there is always one element in the list. The client
-   * must ensure there is a sentinal element.
+   * must ensure there is a sentinel element.
    */
   template<template<typename> typename Ptr = Pointer>
   class CDLLNode : public CDLLNodeParent<CDLLNode<Ptr>, Ptr>
