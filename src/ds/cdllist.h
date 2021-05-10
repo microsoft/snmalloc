@@ -86,11 +86,17 @@ namespace snmalloc
   public:
     /**
      * Single element cyclic list.  This is the empty case.
+     * -----------------------------------------------------
+     * Notice that Intel Compiler somehow wrongly optimised out the code:
+     *
+     *     this->prev = this;
+     *
+     * which causes serious bugs. Therefore, we have to move the initialisation
+     * to the ctor list.
      */
-    CDLLNode()
+    CDLLNode() : prev(this)
     {
       this->set_next(Ptr<CDLLNode>(this));
-      prev = Ptr<CDLLNode>(this);
     }
 
     /**
