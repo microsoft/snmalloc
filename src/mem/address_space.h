@@ -313,8 +313,7 @@ namespace snmalloc
      * used, by smaller objects.
      */
     template<bool committed>
-    CapPtr<void, CBChunk>
-    reserve_with_left_over(size_t size)
+    CapPtr<void, CBChunk> reserve_with_left_over(size_t size)
     {
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
