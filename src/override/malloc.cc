@@ -57,14 +57,25 @@ extern "C"
     SNMALLOC_NAME_MANGLE(free)(ptr);
   }
 
+  /**
+   * Clang was helpfully inlining the constant return value, and
+   * thus converting from a tail call to an ordinary call.
+   */
+  SNMALLOC_EXPORT inline void* snmalloc_not_allocated = nullptr;
+
+  static SNMALLOC_SLOW_PATH void* SNMALLOC_NAME_MANGLE(snmalloc_set_error)()
+  {
+    errno = ENOMEM;
+    return snmalloc_not_allocated;
+  }
+
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(calloc)(size_t nmemb, size_t size)
   {
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
-    if (overflow)
+    if (unlikely(overflow))
     {
-      errno = ENOMEM;
-      return nullptr;
+      return SNMALLOC_NAME_MANGLE(snmalloc_set_error)();
     }
     return ThreadAlloc::get_noncachable()->alloc<ZeroMem::YesZero>(sz);
   }
