@@ -57,7 +57,7 @@ namespace snmalloc
 
       p = memory_provider
             .template alloc_meta<T, bits::next_pow2_const(sizeof(T))>(
-              std::forward<Args...>(args)...);
+              std::forward<Args>(args)...);
 
       FlagLock f(lock);
       p->list_next = list;
