@@ -9,6 +9,7 @@
 #  define SNMALLOC_FAST_PATH ALWAYSINLINE
 #  define SNMALLOC_PURE
 #  define SNMALLOC_COLD
+#  define SNMALLOC_REQUIRE_CONSTINIT
 #else
 #  define likely(x) __builtin_expect(!!(x), 1)
 #  define unlikely(x) __builtin_expect(!!(x), 0)
@@ -18,6 +19,11 @@
 #  define SNMALLOC_FAST_PATH ALWAYSINLINE
 #  define SNMALLOC_PURE __attribute__((const))
 #  define SNMALLOC_COLD __attribute__((cold))
+#  ifdef __clang__
+#    define SNMALLOC_REQUIRE_CONSTINIT [[clang::require_constant_initialization]]
+#  else
+#    define SNMALLOC_REQUIRE_CONSTINIT
+#  endif
 #endif
 
 #if defined(__cpp_constinit) && __cpp_constinit >= 201907
