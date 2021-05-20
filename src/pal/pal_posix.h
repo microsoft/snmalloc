@@ -117,9 +117,14 @@ namespace snmalloc
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
      *
-     * POSIX systems are assumed to support lazy commit.
+     * POSIX systems are assumed to support lazy commit. The build system checks
+     * getentropy is available.
      */
-    static constexpr uint64_t pal_features = LazyCommit | Entropy;
+    static constexpr uint64_t pal_features = LazyCommit
+#ifdef LIBC_HAS_GETENTROPY
+      | Entropy
+#endif
+      ;
 
     static constexpr size_t page_size = Aal::smallest_page_size;
 
@@ -290,10 +295,16 @@ namespace snmalloc
       }
       else
       {
+#ifdef LIBC_HAS_GETENTROPY
         uint64_t result;
         if (getentropy(&result, sizeof(result)) != 0)
           error("Failed to get system randomness");
         return result;
+#else
+        // TODO: we should actually never land here, we should safely error out
+        // here
+        return 0;
+#endif
       }
     }
   };

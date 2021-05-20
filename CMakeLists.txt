@@ -34,6 +34,19 @@ size_t malloc_usable_size(const void* ptr) { return 0; }
 int main() { return 0; }
 " CONST_QUALIFIED_MALLOC_USABLE_SIZE)
 
+# older libcs might not have getentropy, e.g. it appeared in gliobc 2.25
+# so we need to fallback if we cannot compile this
+CHECK_C_SOURCE_COMPILES("
+#if __has_include(<sys/random.h>
+#include <sys/random.h>
+#endif
+int main() {
+  int entropy = 0;
+  int res = getentropy(&entropy, sizeof(entropy));
+  return res;
+})
+" LIBC_HAS_GETENTROPY)
+
 if (NOT SNMALLOC_CI_BUILD)
   option(USE_POSIX_COMMIT_CHECKS "Instrument Posix PAL to check for access to unused blocks of memory." Off)
 else ()
@@ -158,6 +171,10 @@ endif()
 
 if(USE_POSIX_COMMIT_CHECKS)
   target_compile_definitions(snmalloc_lib INTERFACE -DUSE_POSIX_COMMIT_CHECKS)
+endif()
+
+if(LIBC_HAS_GETENTROPY)
+  target_compile_definitions(snmalloc_lib INTERFACE -DLIBC_HAS_GETENTROPY)
 endif()
 
 if(CONST_QUALIFIED_MALLOC_USABLE_SIZE)
