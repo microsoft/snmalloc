@@ -40,6 +40,9 @@ CHECK_C_SOURCE_COMPILES("
 #if __has_include(<sys/random.h>)
 #include <sys/random.h>
 #endif
+#if __has_include(<unistd.h>)
+#  include <unistd.h>
+#endif
 int main() {
   int entropy = 0;
   int res = getentropy(&entropy, sizeof(entropy));
