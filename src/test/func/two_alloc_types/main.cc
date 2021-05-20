@@ -41,10 +41,7 @@ int main()
 {
   setup();
 
-  ChunkAllocator<
-    DefaultPal,
-    DefaultArenaMap<DefaultPal, DefaultPrimAlloc>>
-    mp;
+  ChunkAllocator<DefaultPal, DefaultArenaMap<DefaultPal, DefaultPrimAlloc>> mp;
 
   // 26 is large enough to produce a nested allocator.
   // It is also large enough for the example to run in.

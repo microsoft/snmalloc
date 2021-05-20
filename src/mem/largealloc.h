@@ -7,6 +7,7 @@
 #include "address_space.h"
 #include "allocstats.h"
 #include "baseslab.h"
+#include "fastcache.h"
 #include "metadataalloc.h"
 #include "sizeclass.h"
 
@@ -271,8 +272,6 @@ namespace snmalloc
       return base::get_address_space().arenamap();
     }
   };
-
-  using Stats = AllocStats<NUM_SIZECLASSES, NUM_LARGE_CLASSES>;
 
   template<class MemoryProvider>
   class LargeAlloc

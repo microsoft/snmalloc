@@ -1,7 +1,7 @@
 #include <test/setup.h>
 
 #define SNMALLOC_EXTERNAL_THREAD_ALLOC
-#include <mem/globalalloc.h>
+#include <mem/fastalloc.h>
 using namespace snmalloc;
 
 class ThreadAllocUntyped
@@ -9,14 +9,15 @@ class ThreadAllocUntyped
 public:
   static void* get()
   {
-    static thread_local void* alloc = nullptr;
-    if (alloc != nullptr)
+    static thread_local bool inited = false;
+    static thread_local Alloc alloc;
+    if (!inited)
     {
-      return alloc;
+      alloc.init();
+      inited = true;
     }
 
-    alloc = current_alloc_pool()->acquire();
-    return alloc;
+    return &alloc;
   }
 };
 

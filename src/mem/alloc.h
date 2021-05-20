@@ -10,6 +10,7 @@
 #include "allocstats.h"
 #include "chunkmap.h"
 #include "external_alloc.h"
+#include "fastcache.h"
 #include "largealloc.h"
 #include "mediumslab.h"
 #include "pooled.h"
@@ -39,34 +40,8 @@ namespace snmalloc
     OnePastEnd
   };
 
-  // This class is just used so that the free lists are the first entry
-  // in the allocator and hence has better code gen.
-  // It contains a free list per small size class.  These are used for
-  // allocation on the fast path. This part of the code is inspired by mimalloc.
-  class FastFreeLists
-  {
-  protected:
-    FreeListIter small_fast_free_lists[NUM_SMALL_CLASSES];
-
-  public:
-    FastFreeLists() : small_fast_free_lists() {}
-  };
-
   /**
-   * Allocator.  This class is parameterised on five template parameters.
-   *
-   * The first two template parameter provides a hook to allow the allocator in
-   * use to be dynamically modified.  This is used to implement a trick from
-   * mimalloc that avoids a conditional branch on the fast path.  We
-   * initialise the thread-local allocator pointer with the address of a global
-   * allocator, which never owns any memory.  The first returns true, if is
-   * passed the global allocator.  The second initialises the thread-local
-   * allocator if it is has been been initialised already. Splitting into two
-   * functions allows for the code to be structured into tail calls to improve
-   * codegen.  The second template takes a function that takes the allocator
-   * that is initialised, and the value returned, is returned by
-   * `InitThreadAllocator`.  This is used incase we are running during teardown
-   * and the thread local allocator cannot be kept alive.
+   * Allocator.  This class is parameterised on three template parameters.
    *
    * The `MemoryProvider` defines the source of memory for this allocator.
    * Allocators try to reuse address space by allocating from existing slabs or
@@ -83,24 +58,21 @@ namespace snmalloc
    * in the address space (`false`).
    */
   template<
-    bool (*NeedsInitialisation)(void*),
-    void* (*InitThreadAllocator)(function_ref<void*(void*)>),
     class MemoryProvider = GlobalVirtual,
     class ChunkMap = SNMALLOC_DEFAULT_CHUNKMAP,
     bool IsQueueInline = true>
-  class Allocator : public FastFreeLists,
-                    public Pooled<Allocator<
-                      NeedsInitialisation,
-                      InitThreadAllocator,
-                      MemoryProvider,
-                      ChunkMap,
-                      IsQueueInline>>
+  class Allocator
+  : public Pooled<Allocator<MemoryProvider, ChunkMap, IsQueueInline>>
   {
     friend RemoteCache;
+
+    template<typename Alloc, void (*register_clean_up)()>
+    friend class FastAllocator;
 
     LargeAlloc<MemoryProvider> large_allocator;
     ChunkMap chunk_map;
     LocalEntropy entropy;
+    FastCache* attached_cache;
 
     /**
      * Per size class bumpptr for building new free lists
@@ -113,6 +85,12 @@ namespace snmalloc
     Stats& stats()
     {
       return large_allocator.stats;
+    }
+
+    Stats* attached_stats()
+    {
+      if (attached_cache == nullptr) return nullptr;
+      return &(attached_cache->stats);
     }
 
     template<class MP, class Alloc>
@@ -138,10 +116,11 @@ namespace snmalloc
       constexpr sizeclass_t sizeclass = size_to_sizeclass_const(size);
 
       stats().alloc_request(size);
+      stats().sizeclass_alloc(sizeclass);
 
       if constexpr (sizeclass < NUM_SMALL_CLASSES)
       {
-        return capptr_reveal(small_alloc<zero_mem>(size));
+        return capptr_reveal(small_alloc_one<zero_mem>(size));
       }
       else if constexpr (sizeclass < NUM_SIZECLASSES)
       {
@@ -177,33 +156,59 @@ namespace snmalloc
       // slow path.
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
       {
-        // Allocations smaller than the slab size are more likely. Improve
-        // branch prediction by placing this case first.
-        return capptr_reveal(small_alloc<zero_mem>(size));
+        return small_alloc_one<zero_mem>(size);
+        // return capptr_reveal(small_alloc<zero_mem>(size));
       }
 
-      return capptr_reveal(alloc_not_small<zero_mem>(size));
+      return alloc_not_small<zero_mem>(size);
+#endif
     }
 
     template<ZeroMem zero_mem = NoZero>
-    SNMALLOC_SLOW_PATH CapPtr<void, CBAllocE> alloc_not_small(size_t size)
+    void* small_alloc_one(size_t size)
+    {
+      if (attached_cache != nullptr)
+        return attached_cache->template alloc<zero_mem>(size, 
+          [&](sizeclass_t sizeclass, FreeListIter* fl){return small_alloc<zero_mem>(sizeclass, *fl);}
+        );
+
+      auto sizeclass = size_to_sizeclass(size);
+      stats().alloc_request(size);
+      stats().sizeclass_alloc(sizeclass);
+
+      // This is a debug path.  When we reallocate a message queue in
+      // debug check empty, that might occur when the allocator is not attached
+      // to any thread.  Hence, the following unperformant code is acceptable.
+      // TODO: Potentially do something nicer.
+      FreeListIter temp;
+      auto r = small_alloc<zero_mem>(sizeclass, temp);
+      while (!temp.empty())
+      {
+        // Fake statistics up.
+        stats().sizeclass_alloc(sizeclass);
+        dealloc(capptr_reveal(capptr_export(temp.take(entropy).as_void())));
+      }
+      return r;
+    }
+
+    template<ZeroMem zero_mem = NoZero>
+    SNMALLOC_SLOW_PATH void* alloc_not_small(size_t size)
     {
       handle_message_queue();
 
       if (size == 0)
       {
-        return small_alloc<zero_mem>(1);
+        return small_alloc_one<zero_mem>(1);
       }
 
       sizeclass_t sizeclass = size_to_sizeclass(size);
       if (sizeclass < NUM_SIZECLASSES)
       {
         size_t rsize = sizeclass_to_size(sizeclass);
-        return medium_alloc<zero_mem>(sizeclass, rsize, size);
+        return capptr_reveal(medium_alloc<zero_mem>(sizeclass, rsize, size));
       }
 
-      return large_alloc<zero_mem>(size);
-#endif
+      return capptr_reveal(large_alloc<zero_mem>(size));
     }
 
     /*
@@ -539,11 +544,12 @@ namespace snmalloc
 
   public:
     Allocator(
+      FastCache* cache,
       MemoryProvider& m,
       ChunkMap&& c = ChunkMap(),
       RemoteAllocator* r = nullptr,
       bool isFake = false)
-    : large_allocator(m), chunk_map(c)
+    : large_allocator(m), chunk_map(c), attached_cache(cache)
     {
       if constexpr (IsQueueInline)
       {
@@ -564,6 +570,7 @@ namespace snmalloc
       // it generates.
       // This must occur before any freelists are constructed.
       entropy.init<typename MemoryProvider::Pal>();
+      stats().start();
 
       init_message_queue();
       message_queue().invariant();
@@ -640,23 +647,8 @@ namespace snmalloc
         }
       }
 
-      for (size_t i = 0; i < NUM_SMALL_CLASSES; i++)
-      {
-        if (!small_fast_free_lists[i].empty())
-        {
-          auto head = small_fast_free_lists[i].peek();
-          auto head_auth = large_allocator.capptr_amplify(head);
-          auto super = Superslab::get(head_auth);
-          auto slab = Metaslab::get_slab(head_auth);
-          do
-          {
-            auto curr = small_fast_free_lists[i].take(entropy);
-            small_dealloc_offseted_inner(super, slab, curr, i);
-          } while (!small_fast_free_lists[i].empty());
-
-          test(small_classes[i]);
-        }
-      }
+      if (attached_cache != nullptr)
+        attached_cache->flush([&](auto p) { dealloc(p); });
 
       for (auto& medium_class : medium_classes)
       {
@@ -907,38 +899,13 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem>
-    SNMALLOC_FAST_PATH CapPtr<void, CBAllocE> small_alloc(size_t size)
+    SNMALLOC_SLOW_PATH void*
+    small_alloc(sizeclass_t sizeclass, FreeListIter& fast_free_list)
     {
-      SNMALLOC_ASSUME(size <= SLAB_SIZE);
-      sizeclass_t sizeclass = size_to_sizeclass(size);
-      return small_alloc_inner<zero_mem>(sizeclass, size);
-    }
-
-    template<ZeroMem zero_mem>
-    SNMALLOC_FAST_PATH CapPtr<void, CBAllocE>
-    small_alloc_inner(sizeclass_t sizeclass, size_t size)
-    {
-      SNMALLOC_ASSUME(sizeclass < NUM_SMALL_CLASSES);
-      auto& fl = small_fast_free_lists[sizeclass];
-      if (likely(!fl.empty()))
-      {
-        stats().alloc_request(size);
-        stats().sizeclass_alloc(sizeclass);
-        auto p = fl.take(entropy);
-        if constexpr (zero_mem == YesZero)
-        {
-          pal_zero<typename MemoryProvider::Pal>(
-            p, sizeclass_to_size(sizeclass));
-        }
-
-        // TODO: Should this be zeroing the next pointer?
-        return capptr_export(p.as_void());
-      }
-
       if (likely(!has_messages()))
-        return small_alloc_next_free_list<zero_mem>(sizeclass, size);
+        return capptr_reveal(small_alloc_next_free_list<zero_mem>(sizeclass, fast_free_list));
 
-      return small_alloc_mq_slow<zero_mem>(sizeclass, size);
+      return capptr_reveal(small_alloc_mq_slow<zero_mem>(sizeclass, fast_free_list));
     }
 
     /**
@@ -947,34 +914,30 @@ namespace snmalloc
      */
     template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH CapPtr<void, CBAllocE>
-    small_alloc_mq_slow(sizeclass_t sizeclass, size_t size)
+    small_alloc_mq_slow(sizeclass_t sizeclass, FreeListIter& fast_free_list)
     {
       handle_message_queue_inner();
 
-      return small_alloc_next_free_list<zero_mem>(sizeclass, size);
+      return small_alloc_next_free_list<zero_mem>(sizeclass, fast_free_list);
     }
 
     /**
      * Attempt to find a new free list to allocate from
      */
     template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH CapPtr<void, CBAllocE>
-    small_alloc_next_free_list(sizeclass_t sizeclass, size_t size)
+    SNMALLOC_FAST_PATH CapPtr<void, CBAllocE> small_alloc_next_free_list(
+      sizeclass_t sizeclass, FreeListIter& fast_free_list)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
       auto& sl = small_classes[sizeclass];
 
       if (likely(!sl.is_empty()))
       {
-        stats().alloc_request(size);
-        stats().sizeclass_alloc(sizeclass);
-
         auto meta = sl.get_next().template as_static<Metaslab>();
-        auto& ffl = small_fast_free_lists[sizeclass];
         return Metaslab::alloc<zero_mem, typename MemoryProvider::Pal>(
-          meta, ffl, rsize, entropy);
+          meta, fast_free_list, rsize, entropy);
       }
-      return small_alloc_rare<zero_mem>(sizeclass, size);
+      return small_alloc_rare<zero_mem>(sizeclass, fast_free_list);
     }
 
     /**
@@ -984,38 +947,9 @@ namespace snmalloc
      */
     template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH CapPtr<void, CBAllocE>
-    small_alloc_rare(sizeclass_t sizeclass, size_t size)
+    small_alloc_rare(sizeclass_t sizeclass, FreeListIter& fast_free_list)
     {
-      if (likely(!NeedsInitialisation(this)))
-      {
-        stats().alloc_request(size);
-        stats().sizeclass_alloc(sizeclass);
-        return small_alloc_new_free_list<zero_mem>(sizeclass);
-      }
-      return small_alloc_first_alloc<zero_mem>(sizeclass, size);
-    }
-
-    /**
-     * Called on first allocation to set up the thread local allocator,
-     * then directs the allocation request to the newly created allocator.
-     */
-    template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH CapPtr<void, CBAllocE>
-    small_alloc_first_alloc(sizeclass_t sizeclass, size_t size)
-    {
-      /*
-       * We have to convert through void* as part of the thread allocator
-       * initializer API.  Be a little more verbose than strictly necessary to
-       * demonstrate that small_alloc_inner is giving us a CBAllocE-annotated
-       * pointer before we just go slapping that label on a void* later.
-       */
-      void* ret = InitThreadAllocator([sizeclass, size](void* alloc) {
-        CapPtr<void, CBAllocE> ret =
-          reinterpret_cast<Allocator*>(alloc)
-            ->template small_alloc_inner<zero_mem>(sizeclass, size);
-        return ret.unsafe_capptr;
-      });
-      return CapPtr<void, CBAllocE>(ret);
+      return small_alloc_new_free_list<zero_mem>(sizeclass, fast_free_list);
     }
 
     /**
@@ -1023,16 +957,16 @@ namespace snmalloc
      * list.
      */
     template<ZeroMem zero_mem>
-    SNMALLOC_FAST_PATH CapPtr<void, CBAllocE>
-    small_alloc_new_free_list(sizeclass_t sizeclass)
+    SNMALLOC_FAST_PATH CapPtr<void, CBAllocE> small_alloc_new_free_list(
+      sizeclass_t sizeclass, FreeListIter& fast_free_list)
     {
       auto& bp = bump_ptrs[sizeclass];
       if (likely(pointer_align_up(bp, SLAB_SIZE) != bp))
       {
-        return small_alloc_build_free_list<zero_mem>(sizeclass);
+        return small_alloc_build_free_list<zero_mem>(sizeclass, fast_free_list);
       }
       // Fetch new slab
-      return small_alloc_new_slab<zero_mem>(sizeclass);
+      return small_alloc_new_slab<zero_mem>(sizeclass, fast_free_list);
     }
 
     /**
@@ -1040,16 +974,15 @@ namespace snmalloc
      * the request from that new list.
      */
     template<ZeroMem zero_mem>
-    SNMALLOC_FAST_PATH CapPtr<void, CBAllocE>
-    small_alloc_build_free_list(sizeclass_t sizeclass)
+    SNMALLOC_FAST_PATH CapPtr<void, CBAllocE> small_alloc_build_free_list(
+      sizeclass_t sizeclass, FreeListIter& fast_free_list)
     {
       auto& bp = bump_ptrs[sizeclass];
       auto rsize = sizeclass_to_size(sizeclass);
-      auto& ffl = small_fast_free_lists[sizeclass];
-      SNMALLOC_ASSERT(ffl.empty());
-      Slab::alloc_new_list(bp, ffl, rsize, entropy);
+      SNMALLOC_ASSERT(fast_free_list.empty());
+      Slab::alloc_new_list(bp, fast_free_list, rsize, entropy);
 
-      auto p = ffl.take(entropy);
+      auto p = fast_free_list.take(entropy);
 
       if constexpr (zero_mem == YesZero)
       {
@@ -1067,7 +1000,7 @@ namespace snmalloc
      */
     template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH CapPtr<void, CBAllocE>
-    small_alloc_new_slab(sizeclass_t sizeclass)
+    small_alloc_new_slab(sizeclass_t sizeclass, FreeListIter& fast_free_list)
     {
       auto& bp = bump_ptrs[sizeclass];
       // Fetch new slab
@@ -1077,7 +1010,7 @@ namespace snmalloc
       bp = pointer_offset(
         slab, get_initial_offset(sizeclass, Metaslab::is_short(slab)));
 
-      return small_alloc_build_free_list<zero_mem>(sizeclass);
+      return small_alloc_build_free_list<zero_mem>(sizeclass, fast_free_list);
     }
 
     SNMALLOC_FAST_PATH void small_dealloc_unchecked(
@@ -1246,24 +1179,6 @@ namespace snmalloc
       }
       else
       {
-        if (NeedsInitialisation(this))
-        {
-          /*
-           * We have to convert through void* as part of the thread allocator
-           * initializer API.  Be a little more verbose than strictly necessary
-           * to demonstrate that small_alloc_inner is giving us an annotated
-           * pointer before we just go slapping that label on a void* later.
-           */
-          void* ret =
-            InitThreadAllocator([size, rsize, sizeclass](void* alloc) {
-              CapPtr<void, CBAllocE> ret =
-                reinterpret_cast<Allocator*>(alloc)->medium_alloc<zero_mem>(
-                  sizeclass, rsize, size);
-              return ret.unsafe_capptr;
-            });
-          return CapPtr<void, CBAllocE>(ret);
-        }
-
         auto newslab =
           large_allocator
             .template alloc<NoZero>(0, SUPERSLAB_SIZE, SUPERSLAB_SIZE)
@@ -1399,20 +1314,12 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     CapPtr<void, CBAllocE> large_alloc(size_t size)
     {
-      if (NeedsInitialisation(this))
-      {
-        // MSVC-vs-CapPtr triggering; xref CapPtr's constructor
-        void* ret = InitThreadAllocator([size](void* alloc) {
-          CapPtr<void, CBAllocE> ret =
-            reinterpret_cast<Allocator*>(alloc)->large_alloc<zero_mem>(size);
-          return ret.unsafe_capptr;
-        });
-        return CapPtr<void, CBAllocE>(ret);
-      }
-
       size_t size_bits = bits::next_pow2_bits(size);
       size_t large_class = size_bits - SUPERSLAB_BITS;
       SNMALLOC_ASSERT(large_class < NUM_LARGE_CLASSES);
+
+      stats().alloc_request(size);
+      stats().large_alloc(large_class);
 
       size_t rsize = bits::one_at_bit(SUPERSLAB_BITS) << large_class;
       // For superslab size, we always commit the whole range.
@@ -1424,9 +1331,6 @@ namespace snmalloc
       if (likely(p != nullptr))
       {
         chunkmap().set_large_size(p, size);
-
-        stats().alloc_request(size);
-        stats().large_alloc(large_class);
       }
       return capptr_export(Aal::capptr_bound<void, CBAlloc>(p, rsize));
     }
@@ -1460,29 +1364,16 @@ namespace snmalloc
       check_client(
         address_cast(Superslab::get(p_auth)) == address_cast(p_ret),
         "Not deallocating start of an object");
+      UNUSED(p_ret);
       SNMALLOC_ASSERT(bits::one_at_bit(chunkmap_slab_kind) >= SUPERSLAB_SIZE);
 
-      large_dealloc_start(p_auth, p_ret, size, chunkmap_slab_kind);
+      large_dealloc_start(p_auth, size, chunkmap_slab_kind);
     }
 
     void large_dealloc_start(
-      CapPtr<void, CBArena> p_auth,
-      CapPtr<void, CBAllocE> p_ret,
-      size_t size,
-      uint8_t chunkmap_slab_kind)
+      CapPtr<void, CBArena> p_auth, size_t size, uint8_t chunkmap_slab_kind)
     {
       // TODO: with SSM/MTE, guard against double-frees
-
-      if (NeedsInitialisation(this))
-      {
-        InitThreadAllocator(
-          [p_auth, p_ret, size, chunkmap_slab_kind](void* alloc) {
-            reinterpret_cast<Allocator*>(alloc)->large_dealloc_start(
-              p_auth, p_ret, size, chunkmap_slab_kind);
-            return nullptr;
-          });
-        return;
-      }
 
       size_t large_class = chunkmap_slab_kind - SUPERSLAB_BITS;
       auto slab = Aal::capptr_bound<Largeslab, CBChunk>(p_auth, size);
@@ -1524,19 +1415,6 @@ namespace snmalloc
       sizeclass_t sizeclass)
     {
       SNMALLOC_ASSERT(target->trunc_id() != get_trunc_id());
-
-      // Now that we've established that we're in the slow path (if we're a
-      // real allocator, we will have to empty our cache now), check if we are
-      // a real allocator and construct one if we aren't.
-      if (NeedsInitialisation(this))
-      {
-        InitThreadAllocator([target, p_auth, sizeclass](void* alloc) {
-          reinterpret_cast<Allocator*>(alloc)->dealloc_not_large(
-            target, p_auth, sizeclass);
-          return nullptr;
-        });
-        return;
-      }
 
       remote_dealloc_and_post(target, p_auth, sizeclass);
     }

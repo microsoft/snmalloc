@@ -1,6 +1,6 @@
 #pragma once
 
-#include "globalalloc.h"
+#include "fastalloc.h"
 
 namespace snmalloc
 {
@@ -18,11 +18,11 @@ namespace snmalloc
     /**
      * The allocator that this wrapper will use.
      */
-    Alloc* alloc;
+    Alloc alloc;
     /**
      * Constructor.  Claims an allocator from the global pool
      */
-    SlowAllocator() : alloc(current_alloc_pool()->acquire()) {}
+    SlowAllocator() {}
     /**
      * Copying is not supported, it could easily lead to accidental sharing of
      * allocators.
@@ -48,7 +48,7 @@ namespace snmalloc
      */
     ~SlowAllocator()
     {
-      current_alloc_pool()->release(alloc);
+      alloc.flush();
     }
     /**
      * Arrow operator, allows methods exposed by `Alloc` to be called on the
@@ -56,7 +56,7 @@ namespace snmalloc
      */
     Alloc* operator->()
     {
-      return alloc;
+      return &alloc;
     }
   };
   /**

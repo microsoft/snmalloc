@@ -1,4 +1,4 @@
-#ifdef SNMALLOC_PASS_THROUGH
+#if defined(SNMALLOC_PASS_THROUGH) || true
 /*
  * This test does not make sense with malloc pass-through, skip it.
  */
@@ -17,24 +17,13 @@ using namespace snmalloc;
 namespace
 {
   /**
-   * Helper for Alloc that is never used as a thread-local allocator and so is
-   * always initialised.
-   *
-   * CapPtr-vs-MSVC triggering; xref CapPtr's constructor
-   */
-  bool never_init(void*)
-  {
-    return false;
-  }
-  /**
    * Helper for Alloc that never needs lazy initialisation.
    *
    * CapPtr-vs-MSVC triggering; xref CapPtr's constructor
    */
-  void* no_op_init(function_ref<void*(void*)>)
+  void no_op_register_clean_up()
   {
     SNMALLOC_CHECK(0 && "Should never be called!");
-    return nullptr;
   }
   /**
    * Sandbox class.  Allocates a memory region and an allocator that can
@@ -81,12 +70,12 @@ namespace
      * memory.  It (insecurely) routes messages to in-sandbox snmallocs,
      * though, so it can free any sandbox-backed snmalloc allocation.
      */
-    using ExternalAlloc = Allocator<
-      never_init,
-      no_op_init,
-      NoOpMemoryProvider,
-      SNMALLOC_DEFAULT_CHUNKMAP,
-      false>;
+    using ExternalCoreAlloc =
+      Allocator<NoOpMemoryProvider, SNMALLOC_DEFAULT_CHUNKMAP, false>;
+
+    using ExternalAlloc =
+      FastAllocator<ExternalCoreAlloc, no_op_register_clean_up>;
+
     /**
      * Proxy class that forwards requests for large allocations to the real
      * memory provider.
@@ -158,8 +147,9 @@ namespace
      * Note that a real version of this would not have access to the shared
      * pagemap and would not be used outside of the sandbox.
      */
+    using InternalCoreAlloc = Allocator<MemoryProviderProxy>;
     using InternalAlloc =
-      Allocator<never_init, no_op_init, MemoryProviderProxy>;
+      FastAllocator<InternalCoreAlloc, no_op_register_clean_up>;
 
     /**
      * The start of the sandbox memory region.

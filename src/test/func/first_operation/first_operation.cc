@@ -6,6 +6,7 @@
  */
 
 #include "test/setup.h"
+#include "mem/slowalloc.h"
 
 #include <snmalloc.h>
 #include <thread>
@@ -148,30 +149,31 @@ void f(size_t size)
   auto t7 = std::thread(calloc3, size);
   auto t8 = std::thread(calloc4, size);
 
-  auto a = snmalloc::current_alloc_pool()->acquire();
-  auto p1 = a->alloc(size);
-  auto p2 = a->alloc(size);
-  auto p3 = a->alloc(size);
-  auto p4 = a->alloc(size);
+  {
+    auto a = snmalloc::get_slow_allocator();
+    auto p1 = a->alloc(size);
+    auto p2 = a->alloc(size);
+    auto p3 = a->alloc(size);
+    auto p4 = a->alloc(size);
 
-  auto t9 = std::thread(dealloc1, p1, size);
-  auto t10 = std::thread(dealloc2, p2, size);
-  auto t11 = std::thread(dealloc3, p3, size);
-  auto t12 = std::thread(dealloc4, p4, size);
+    auto t9 = std::thread(dealloc1, p1, size);
+    auto t10 = std::thread(dealloc2, p2, size);
+    auto t11 = std::thread(dealloc3, p3, size);
+    auto t12 = std::thread(dealloc4, p4, size);
 
-  t1.join();
-  t2.join();
-  t3.join();
-  t4.join();
-  t5.join();
-  t6.join();
-  t7.join();
-  t8.join();
-  t9.join();
-  t10.join();
-  t11.join();
-  t12.join();
-  snmalloc::current_alloc_pool()->release(a);
+    t1.join();
+    t2.join();
+    t3.join();
+    t4.join();
+    t5.join();
+    t6.join();
+    t7.join();
+    t8.join();
+    t9.join();
+    t10.join();
+    t11.join();
+    t12.join();
+  } // Drops a.
   snmalloc::current_alloc_pool()->debug_in_use(0);
   printf(".");
   fflush(stdout);

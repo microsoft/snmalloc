@@ -18,11 +18,13 @@ namespace snmalloc
   template<size_t N, size_t LARGE_N>
   struct AllocStats
   {
+    constexpr AllocStats() {}
+
     struct CurrentMaxPair
     {
-      size_t current = 0;
-      size_t max = 0;
-      size_t used = 0;
+      size_t current{0};
+      size_t max{0};
+      size_t used{0};
 
       void inc()
       {
@@ -34,7 +36,9 @@ namespace snmalloc
 
       void dec()
       {
-        SNMALLOC_ASSERT(current > 0);
+// Split stats means this is not true.
+// TODO reestablish checks, when we sanitise the stats.
+//        SNMALLOC_ASSERT(current > 0);
         current--;
       }
 
@@ -64,11 +68,13 @@ namespace snmalloc
 
     struct Stats
     {
+      constexpr Stats() {}
+
       CurrentMaxPair count;
       CurrentMaxPair slab_count;
-      uint64_t time = Aal::tick();
-      uint64_t ticks = 0;
-      double online_average = 0;
+      uint64_t time{0};
+      uint64_t ticks{0};
+      double online_average{0};
 
       bool is_empty()
       {
@@ -413,5 +419,13 @@ namespace snmalloc
           << csv.endl;
     }
 #endif
+
+    void start()
+    {
+#ifdef USE_SNMALLOC_STATS
+      for (size_t i = 0; i < N; i++)
+        sizeclass[i].time = Aal::tick();
+#endif
+    }
   };
 } // namespace snmalloc

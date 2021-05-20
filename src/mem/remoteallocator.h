@@ -7,6 +7,7 @@
 #include "../mem/superslab.h"
 
 #include <atomic>
+#include <array>
 
 #ifdef CHECK_CLIENT
 #  define SNMALLOC_DONT_CACHE_ALLOCATOR_PTR

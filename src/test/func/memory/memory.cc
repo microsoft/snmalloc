@@ -1,5 +1,6 @@
 #include <iostream>
 #include <snmalloc.h>
+#include <mem/slowalloc.h>
 #include <test/opt.h>
 #include <test/setup.h>
 #include <test/xoroshiro.h>
@@ -184,47 +185,47 @@ void test_calloc()
 
 void test_double_alloc()
 {
-  auto* a1 = current_alloc_pool()->acquire();
-  auto* a2 = current_alloc_pool()->acquire();
-
-  const size_t n = (1 << 16) / 32;
-
-  for (size_t k = 0; k < 4; k++)
   {
-    std::unordered_set<void*> set1;
-    std::unordered_set<void*> set2;
+    auto a1 = snmalloc::get_slow_allocator();
+    auto a2 = snmalloc::get_slow_allocator();
 
-    for (size_t i = 0; i < (n * 2); i++)
+    const size_t n = (1 << 16) / 32;
+
+    for (size_t k = 0; k < 4; k++)
     {
-      void* p = a1->alloc(20);
-      SNMALLOC_CHECK(set1.find(p) == set1.end());
-      set1.insert(p);
+      std::unordered_set<void*> set1;
+      std::unordered_set<void*> set2;
+
+      for (size_t i = 0; i < (n * 2); i++)
+      {
+        void* p = a1->alloc(20);
+        SNMALLOC_CHECK(set1.find(p) == set1.end());
+        set1.insert(p);
+      }
+
+      for (size_t i = 0; i < (n * 2); i++)
+      {
+        void* p = a2->alloc(20);
+        SNMALLOC_CHECK(set2.find(p) == set2.end());
+        set2.insert(p);
+      }
+
+      while (!set1.empty())
+      {
+        auto it = set1.begin();
+        a2->dealloc(*it, 20);
+        set1.erase(it);
+      }
+
+      while (!set2.empty())
+      {
+        auto it = set2.begin();
+        a1->dealloc(*it, 20);
+        set2.erase(it);
+      }
     }
 
-    for (size_t i = 0; i < (n * 2); i++)
-    {
-      void* p = a2->alloc(20);
-      SNMALLOC_CHECK(set2.find(p) == set2.end());
-      set2.insert(p);
-    }
-
-    while (!set1.empty())
-    {
-      auto it = set1.begin();
-      a2->dealloc(*it, 20);
-      set1.erase(it);
-    }
-
-    while (!set2.empty())
-    {
-      auto it = set2.begin();
-      a1->dealloc(*it, 20);
-      set2.erase(it);
-    }
   }
-
-  current_alloc_pool()->release(a1);
-  current_alloc_pool()->release(a2);
   current_alloc_pool()->debug_check_empty();
 }
 

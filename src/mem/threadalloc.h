@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../ds/helpers.h"
-#include "globalalloc.h"
+#include "fastalloc.h"
 #if defined(SNMALLOC_USE_THREAD_DESTRUCTOR) && \
   defined(SNMALLOC_USE_THREAD_CLEANUP)
 #error At most one out of SNMALLOC_USE_THREAD_CLEANUP and SNMALLOC_USE_THREAD_DESTRUCTOR may be defined.
@@ -62,10 +62,9 @@ namespace snmalloc
 #    pragma warning(push)
 #    pragma warning(disable : 4702)
 #  endif
-  SNMALLOC_FAST_PATH void* init_thread_allocator(function_ref<void*(void*)> f)
+  SNMALLOC_FAST_PATH void register_clean_up()
   {
     error("Critical Error: This should never be called.");
-    return f(nullptr);
   }
 #  ifdef _MSC_VER
 #    pragma warning(pop)
@@ -101,29 +100,12 @@ namespace snmalloc
    */
   class ThreadAllocCommon
   {
-    friend void* init_thread_allocator(function_ref<void*(void*)>);
+    friend void register_clean_up();
 
   protected:
-    /**
-     * Thread local variable that is set to true, once `inner_release`
-     * has been run.  If we try to reinitialise the allocator once
-     * `inner_release` has run, then we can stay on the slow path so we don't
-     * leak allocators.
-     *
-     * This is required to allow for the allocator to be called during
-     * destructors of other thread_local state.
-     */
-    inline static thread_local bool destructor_has_run = false;
-
     static inline void inner_release()
     {
-      auto& per_thread = get_reference();
-      if (per_thread != get_GlobalPlaceHolder())
-      {
-        current_alloc_pool()->release(per_thread);
-        destructor_has_run = true;
-        per_thread = get_GlobalPlaceHolder();
-      }
+      get()->teardown();
     }
 
     /**
@@ -153,24 +135,13 @@ namespace snmalloc
 
   public:
     /**
-     * Returns a reference to the allocator for the current thread. This allows
-     * the caller to replace the current thread's allocator.
-     */
-    static inline Alloc*& get_reference()
-    {
-      // Inline casting as codegen doesn't create a lazy init like this.
-      static thread_local Alloc* alloc =
-        const_cast<Alloc*>(reinterpret_cast<const Alloc*>(&GlobalPlaceHolder));
-      return alloc;
-    }
-
-    /**
+     * TODO: new API
      * Public interface, returns the allocator for this thread, constructing
      * one if necessary.
      *
      * If no operations have been performed on an allocator returned by either
      * `get()` nor `get_noncachable()`, then the value contained in the return
-     * will be an Alloc* that will always use the slow path.
+     * will be an Alloc that will always use the slow path.
      *
      * Only use this API if you intend to use the returned allocator just once
      * per call, or if you know other calls have already been made to the
@@ -178,10 +149,12 @@ namespace snmalloc
      */
     static inline Alloc* get_noncachable()
     {
-      return get_reference();
+      SNMALLOC_REQUIRE_CONSTINIT static thread_local Alloc alloc;
+      return &alloc;
     }
 
     /**
+     * TODO API
      * Public interface, returns the allocator for this thread, constructing
      * one if necessary.
      * This incurs a cost, so use `get_noncachable` if you can meet its
@@ -189,20 +162,7 @@ namespace snmalloc
      */
     static SNMALLOC_FAST_PATH Alloc* get()
     {
-#  ifdef SNMALLOC_PASS_THROUGH
-      return get_reference();
-#  else
-      auto*& alloc = get_reference();
-      if (unlikely(needs_initialisation(alloc)) && !destructor_has_run)
-      {
-        // Call `init_thread_allocator` to perform down call in case
-        // register_clean_up does more.
-        // During teardown for the destructor based ThreadAlloc this will set
-        // alloc to GlobalPlaceHolder;
-        init_thread_allocator([](void*) { return nullptr; });
-      }
-      return alloc;
-#  endif
+      return get_noncachable();
     }
   };
 
@@ -243,13 +203,11 @@ namespace snmalloc
     friend class OnDestruct;
 
   public:
-    static bool register_cleanup()
+    static void register_cleanup()
     {
       static thread_local OnDestruct<ThreadAllocCommon::inner_release> tidier;
 
       ThreadAllocCommon::register_cleanup();
-
-      return destructor_has_run;
     }
   };
 
@@ -268,41 +226,14 @@ namespace snmalloc
 #  endif
 
   /**
-   * Slow path for the placeholder replacement.
-   * Function passed as a tempalte parameter to `Allocator` to allow lazy
-   * replacement.  This function initialises the thread local state if requried.
-   * The simple check that this is the global placeholder is inlined, the rest
-   * of it is only hit in a very unusual case and so should go off the fast
-   * path.
-   * The second component of the return indicates if this TLS is being torndown.
-   */
-  SNMALLOC_FAST_PATH void* init_thread_allocator(function_ref<void*(void*)> f)
-  {
-    auto*& local_alloc = ThreadAlloc::get_reference();
-    // If someone reuses a noncachable call, then we can end up here
-    // with an already initialised allocator. Could either error
-    // to say stop doing this, or just give them the initialised version.
-    if (local_alloc == get_GlobalPlaceHolder())
-    {
-      local_alloc = current_alloc_pool()->acquire();
-    }
-    auto result = f(local_alloc);
-    // Check if we have already run the destructor for the TLS.  If so,
-    // we need to deallocate the allocator.
-    if (ThreadAlloc::register_cleanup())
-      ThreadAlloc::inner_release();
-    return result;
-  }
-
-  /**
    * Function passed as a template parameter to `Allocator` to allow lazy
    * replacement. This function returns true, if the allocated passed in,
    * is the placeholder allocator.  If it returns true, then
    * `init_thread_allocator` should be called.
    */
-  SNMALLOC_FAST_PATH bool needs_initialisation(void* existing)
+  inline SNMALLOC_FAST_PATH void register_clean_up()
   {
-    return existing == get_GlobalPlaceHolder();
+    ThreadAlloc::register_cleanup();
   }
 #endif
 } // namespace snmalloc

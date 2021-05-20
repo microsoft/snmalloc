@@ -2,6 +2,7 @@
 
 #include "../ds/helpers.h"
 #include "alloc.h"
+#include "fastcache.h"
 #include "pool.h"
 
 namespace snmalloc
@@ -29,9 +30,9 @@ namespace snmalloc
       return make(default_memory_provider());
     }
 
-    Alloc* acquire()
+    Alloc* acquire(FastCache* attached_cache)
     {
-      return Parent::acquire(Parent::memory_provider);
+      return Parent::acquire(attached_cache, Parent::memory_provider);
     }
 
     void release(Alloc* a)
@@ -46,6 +47,9 @@ namespace snmalloc
 
       while (alloc != nullptr)
       {
+        auto a = alloc->attached_stats();
+        if (a != nullptr)
+          stats.add(*a);
         stats.add(alloc->stats());
         alloc = Parent::iterate(alloc);
       }
@@ -58,7 +62,9 @@ namespace snmalloc
 
       while (alloc != nullptr)
       {
-        alloc->stats().template print<Alloc>(o, dumpid, alloc->id());
+        auto stats = alloc->stats();
+        if (stats != nullptr)
+          stats->template print<Alloc>(o, dumpid, alloc->id());
         alloc = Parent::iterate(alloc);
       }
     }
@@ -177,24 +183,20 @@ namespace snmalloc
     }
   };
 
-  using Alloc = Allocator<
-    needs_initialisation,
-    init_thread_allocator,
-    GlobalVirtual,
-    SNMALLOC_DEFAULT_CHUNKMAP,
-    true>;
+  using CoreAlloc = Allocator<GlobalVirtual, SNMALLOC_DEFAULT_CHUNKMAP, true>;
 
-  inline AllocPool<GlobalVirtual, Alloc>*& current_alloc_pool()
+  inline AllocPool<GlobalVirtual, CoreAlloc>*& current_alloc_pool()
   {
     return Singleton<
-      AllocPool<GlobalVirtual, Alloc>*,
-      AllocPool<GlobalVirtual, Alloc>::make>::get();
+      AllocPool<GlobalVirtual, CoreAlloc>*,
+      AllocPool<GlobalVirtual, CoreAlloc>::make>::get();
   }
 
-  template<class MemoryProvider, class Alloc>
-  inline AllocPool<MemoryProvider, Alloc>* make_alloc_pool(MemoryProvider& mp)
+  template<class MemoryProvider, class CoreAlloc>
+  inline AllocPool<MemoryProvider, CoreAlloc>*
+  make_alloc_pool(MemoryProvider& mp)
   {
-    return AllocPool<MemoryProvider, Alloc>::make(mp);
+    return AllocPool<MemoryProvider, CoreAlloc>::make(mp);
   }
 
 } // namespace snmalloc
