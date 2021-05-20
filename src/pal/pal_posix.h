@@ -19,6 +19,10 @@
 #  include <unistd.h>
 #endif
 
+#ifndef LIBC_HAS_GETENTROPY
+#  include <cassert>
+#endif
+
 extern "C" int puts(const char* str);
 
 namespace snmalloc
@@ -118,7 +122,7 @@ namespace snmalloc
      * PAL supports.
      *
      * POSIX systems are assumed to support lazy commit. The build system checks
-     * getentropy is available.
+     * getentropy is available, only then this PAL supports Entropy.
      */
     static constexpr uint64_t pal_features = LazyCommit
 #ifdef LIBC_HAS_GETENTROPY
@@ -301,8 +305,7 @@ namespace snmalloc
           error("Failed to get system randomness");
         return result;
 #else
-        // TODO: we should actually never land here, we should safely error out
-        // here
+        assert(0 && "Unreachable path");
         return 0;
 #endif
       }

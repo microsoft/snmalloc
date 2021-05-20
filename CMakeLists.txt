@@ -37,14 +37,14 @@ int main() { return 0; }
 # older libcs might not have getentropy, e.g. it appeared in gliobc 2.25
 # so we need to fallback if we cannot compile this
 CHECK_C_SOURCE_COMPILES("
-#if __has_include(<sys/random.h>
+#if __has_include(<sys/random.h>)
 #include <sys/random.h>
 #endif
 int main() {
   int entropy = 0;
   int res = getentropy(&entropy, sizeof(entropy));
   return res;
-})
+}
 " LIBC_HAS_GETENTROPY)
 
 if (NOT SNMALLOC_CI_BUILD)

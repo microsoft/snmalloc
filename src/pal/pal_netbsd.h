@@ -1,18 +1,6 @@
 #pragma once
 
 #ifdef __NetBSD__
-#  include <cassert>
-
-namespace snmalloc
-{
-  template<typename... Args>
-  int getentropy(Args...)
-  {
-    assert(0 && "Unreachable path");
-    return -1;
-  }
-}
-
 #  include "pal_bsd_aligned.h"
 
 namespace snmalloc
@@ -35,12 +23,10 @@ namespace snmalloc
      * field is declared explicitly to remind anyone modifying this class to
      * add new features that they should add any required feature flags.
      *
-     * We disable the default implementation of randomness on NetBSD as it
-     * does not have the getentropy call. This will currently fallback to
-     * C++ libraries std::random_device.
+     * As NetBSD does not have the getentropy call, get_entropy64 will
+     * currently fallback to C++ libraries std::random_device.
      */
-    static constexpr uint64_t pal_features =
-      PALBSD_Aligned::pal_features & ~Entropy;
+    static constexpr uint64_t pal_features = PALBSD_Aligned::pal_featuresy;
   };
 } // namespace snmalloc
 #endif
