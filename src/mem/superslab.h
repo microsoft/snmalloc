@@ -62,7 +62,7 @@ namespace snmalloc
     template<capptr_bounds B>
     size_t slab_to_index(CapPtr<Slab, B> slab)
     {
-      auto res = (pointer_diff(this, slab.unsafe_capptr) >> SLAB_BITS);
+      auto res = (pointer_diff(this, slab.unsafe_ptr()) >> SLAB_BITS);
       SNMALLOC_ASSERT(res == static_cast<uint8_t>(res));
       return static_cast<uint8_t>(res);
     }

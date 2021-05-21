@@ -101,14 +101,20 @@ namespace snmalloc
   template<typename T, capptr_bounds bounds>
   struct CapPtr
   {
-    T* unsafe_capptr;
+    uintptr_t unsafe_capptr;
 
     /**
-     * nullptr is implicitly constructable at any bounds type
+     * nullptr is implicitly constructable at any bounds type.
+     *
+     * Annoyingly, this isn't possible in constexpr context: the
+     * reinterpret_cast isn't allowed.  If you're after the all-zeros CapPtr,
+     * use the uintptr_t-consuming constructor below.
      */
-    CapPtr(const std::nullptr_t n) : unsafe_capptr(n) {}
+    SNMALLOC_FAST_PATH CapPtr(const std::nullptr_t n)
+    : unsafe_capptr(reinterpret_cast<uintptr_t>(n))
+    {}
 
-    CapPtr() : CapPtr(nullptr) {}
+    SNMALLOC_FAST_PATH CapPtr() : CapPtr(nullptr) {}
 
     /**
      * all other constructions must be explicit
@@ -124,10 +130,21 @@ namespace snmalloc
 #  pragma warning(push)
 #  pragma warning(disable : 4702)
 #endif
-    explicit CapPtr(T* p) : unsafe_capptr(p) {}
+    SNMALLOC_FAST_PATH explicit CapPtr(T* p)
+    : unsafe_capptr(reinterpret_cast<uintptr_t>(p))
+    {}
 #ifdef _MSC_VER
 #  pragma warning(pop)
 #endif
+
+    /**
+     * We permit construction of CapPtr-s from integral values as well.  Notably
+     * this works in constexpr.  Because of the special-casing of literal 0, one
+     * may need to say "CapPtr<>(static_cast<uintptr_t>(0))" to avoid matching
+     * the (non-constexpr) nullptr constructor above.
+     */
+    SNMALLOC_FAST_PATH constexpr explicit CapPtr(uintptr_t p) : unsafe_capptr(p)
+    {}
 
     /**
      * Allow static_cast<>-s that preserve bounds but vary the target type.
@@ -135,7 +152,7 @@ namespace snmalloc
     template<typename U>
     SNMALLOC_FAST_PATH CapPtr<U, bounds> as_static()
     {
-      return CapPtr<U, bounds>(static_cast<U*>(this->unsafe_capptr));
+      return CapPtr<U, bounds>(reinterpret_cast<U*>(this->unsafe_capptr));
     }
 
     SNMALLOC_FAST_PATH CapPtr<void, bounds> as_void()
@@ -152,19 +169,24 @@ namespace snmalloc
       return CapPtr<U, bounds>(reinterpret_cast<U*>(this->unsafe_capptr));
     }
 
-    SNMALLOC_FAST_PATH bool operator==(const CapPtr& rhs) const
+    constexpr SNMALLOC_FAST_PATH bool operator==(const CapPtr& rhs) const
     {
       return this->unsafe_capptr == rhs.unsafe_capptr;
     }
 
-    SNMALLOC_FAST_PATH bool operator!=(const CapPtr& rhs) const
+    constexpr SNMALLOC_FAST_PATH bool operator!=(const CapPtr& rhs) const
     {
       return this->unsafe_capptr != rhs.unsafe_capptr;
     }
 
-    SNMALLOC_FAST_PATH bool operator<(const CapPtr& rhs) const
+    constexpr SNMALLOC_FAST_PATH bool operator<(const CapPtr& rhs) const
     {
       return this->unsafe_capptr < rhs.unsafe_capptr;
+    }
+
+    [[nodiscard]] SNMALLOC_FAST_PATH T* unsafe_ptr() const
+    {
+      return reinterpret_cast<T*>(this->unsafe_capptr);
     }
 
     SNMALLOC_FAST_PATH T* operator->() const
@@ -174,7 +196,7 @@ namespace snmalloc
        * client; we should be doing nothing with them.
        */
       static_assert(bounds != CBAllocE);
-      return this->unsafe_capptr;
+      return this->unsafe_ptr();
     }
   };
 
@@ -201,7 +223,7 @@ namespace snmalloc
   SNMALLOC_FAST_PATH CapPtr<T, CBAllocE>
   capptr_chunk_is_alloc(CapPtr<T, CBChunkE> p)
   {
-    return CapPtr<T, CBAlloc>(p.unsafe_capptr);
+    return CapPtr<T, CBAlloc>(p.unsafe_ptr());
   }
 
   /**
@@ -210,7 +232,7 @@ namespace snmalloc
    */
   SNMALLOC_FAST_PATH void* capptr_reveal(CapPtr<void, CBAllocE> p)
   {
-    return p.unsafe_capptr;
+    return p.as_void().unsafe_ptr();
   }
 
   /**
@@ -225,27 +247,32 @@ namespace snmalloc
   template<typename T, capptr_bounds bounds>
   struct AtomicCapPtr
   {
-    std::atomic<T*> unsafe_capptr;
+    std::atomic<uintptr_t> unsafe_capptr;
 
     /**
      * nullptr is constructable at any bounds type
      */
-    AtomicCapPtr(const std::nullptr_t n) : unsafe_capptr(n) {}
+    SNMALLOC_FAST_PATH AtomicCapPtr(const std::nullptr_t n)
+    : unsafe_capptr(reinterpret_cast<uintptr_t>(n))
+    {}
 
     /**
      * Interconversion with CapPtr
      */
-    AtomicCapPtr(CapPtr<T, bounds> p) : unsafe_capptr(p.unsafe_capptr) {}
+    SNMALLOC_FAST_PATH AtomicCapPtr(CapPtr<T, bounds> p)
+    : unsafe_capptr(p.unsafe_capptr)
+    {}
 
-    operator CapPtr<T, bounds>() const noexcept
+    SNMALLOC_FAST_PATH operator CapPtr<T, bounds>() const noexcept
     {
-      return CapPtr<T, bounds>(this->unsafe_capptr);
+      return CapPtr<T, bounds>(
+        reinterpret_cast<T*>(this->unsafe_capptr.load()));
     }
 
     // Our copy-assignment operator follows std::atomic and returns a copy of
     // the RHS.  Clang finds this surprising; we suppress the warning.
     // NOLINTNEXTLINE(misc-unconventional-assign-operator)
-    CapPtr<T, bounds> operator=(CapPtr<T, bounds> p) noexcept
+    SNMALLOC_FAST_PATH CapPtr<T, bounds> operator=(CapPtr<T, bounds> p) noexcept
     {
       this->store(p);
       return p;
@@ -254,7 +281,8 @@ namespace snmalloc
     SNMALLOC_FAST_PATH CapPtr<T, bounds>
     load(std::memory_order order = std::memory_order_seq_cst) noexcept
     {
-      return CapPtr<T, bounds>(this->unsafe_capptr.load(order));
+      return CapPtr<T, bounds>(
+        reinterpret_cast<T*>(this->unsafe_capptr.load(order)));
     }
 
     SNMALLOC_FAST_PATH void store(
@@ -268,21 +296,21 @@ namespace snmalloc
       CapPtr<T, bounds> desired,
       std::memory_order order = std::memory_order_seq_cst) noexcept
     {
-      return CapPtr<T, bounds>(
-        this->unsafe_capptr.exchange(desired.unsafe_capptr, order));
+      return CapPtr<T, bounds>(reinterpret_cast<T*>(
+        this->unsafe_capptr.exchange(desired.unsafe_capptr, order)));
     }
 
-    SNMALLOC_FAST_PATH bool operator==(const AtomicCapPtr& rhs) const
+    constexpr SNMALLOC_FAST_PATH bool operator==(const AtomicCapPtr& rhs) const
     {
       return this->unsafe_capptr == rhs.unsafe_capptr;
     }
 
-    SNMALLOC_FAST_PATH bool operator!=(const AtomicCapPtr& rhs) const
+    constexpr SNMALLOC_FAST_PATH bool operator!=(const AtomicCapPtr& rhs) const
     {
       return this->unsafe_capptr != rhs.unsafe_capptr;
     }
 
-    SNMALLOC_FAST_PATH bool operator<(const AtomicCapPtr& rhs) const
+    constexpr SNMALLOC_FAST_PATH bool operator<(const AtomicCapPtr& rhs) const
     {
       return this->unsafe_capptr < rhs.unsafe_capptr;
     }

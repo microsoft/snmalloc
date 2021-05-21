@@ -74,7 +74,7 @@ namespace snmalloc
       {
         // Add to linked list.
         commit_block(base, sizeof(void*));
-        *(base.template as_static<CapPtr<void, CBChunk>>().unsafe_capptr) =
+        *(base.template as_static<CapPtr<void, CBChunk>>().unsafe_ptr()) =
           ranges[align_bits][1];
         check_block(ranges[align_bits][1], align_bits);
       }
@@ -118,7 +118,7 @@ namespace snmalloc
       {
         commit_block(second, sizeof(void*));
         auto psecond =
-          second.template as_static<CapPtr<void, CBChunk>>().unsafe_capptr;
+          second.template as_static<CapPtr<void, CBChunk>>().unsafe_ptr();
         auto next = *psecond;
         ranges[align_bits][1] = next;
         // Zero memory. Client assumes memory contains only zeros.
@@ -166,7 +166,7 @@ namespace snmalloc
       auto page_end =
         pointer_align_up<OS_PAGE_SIZE, char>(pointer_offset(base, size));
       size_t using_size = pointer_diff(page_start, page_end);
-      PAL::template notify_using<NoZero>(page_start.unsafe_capptr, using_size);
+      PAL::template notify_using<NoZero>(page_start.unsafe_ptr(), using_size);
     }
 
   public:

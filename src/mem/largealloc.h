@@ -168,7 +168,7 @@ namespace snmalloc
           .template reserve_with_left_over<true>(
             sizeof(MemoryProviderStateMixin), local_am)
           .template as_static<MemoryProviderStateMixin>()
-          .unsafe_capptr;
+          .unsafe_ptr();
 
       if (allocated == nullptr)
         error("Failed to initialise system!");
@@ -222,7 +222,7 @@ namespace snmalloc
           if (slab->get_kind() != Decommitted)
           {
             PAL::notify_not_using(
-              pointer_offset(slab.unsafe_capptr, OS_PAGE_SIZE), decommit_size);
+              pointer_offset(slab.unsafe_ptr(), OS_PAGE_SIZE), decommit_size);
           }
           // Once we've removed these from the stack, there will be no
           // concurrent accesses and removal should have established a
@@ -230,7 +230,7 @@ namespace snmalloc
           // here.
           auto next = slab->next.load(std::memory_order_relaxed);
           large_stack[large_class].push(CapPtr<Largeslab, CBChunk>(
-            new (slab.unsafe_capptr) Decommittedslab()));
+            new (slab.unsafe_ptr()) Decommittedslab()));
           slab = next;
         }
       }
@@ -275,7 +275,7 @@ namespace snmalloc
 
       peak_memory_used_bytes += size;
 
-      return new (p.unsafe_capptr) T(std::forward<Args...>(args)...);
+      return new (p.unsafe_ptr()) T(std::forward<Args...>(args)...);
     }
 
     template<bool committed>
@@ -339,7 +339,7 @@ namespace snmalloc
         if (p == nullptr)
           return nullptr;
         MemoryProvider::Pal::template notify_using<zero_mem>(
-          p.unsafe_capptr, rsize);
+          p.unsafe_ptr(), rsize);
       }
       else
       {
@@ -348,7 +348,7 @@ namespace snmalloc
         // Cross-reference alloc.h's large_dealloc decommitment condition.
         bool decommitted =
           ((decommit_strategy == DecommitSuperLazy) &&
-           (p.template as_static<Baseslab>().unsafe_capptr->get_kind() ==
+           (p.template as_static<Baseslab>().unsafe_ptr()->get_kind() ==
             Decommitted)) ||
           (large_class > 0) || (decommit_strategy == DecommitSuper);
 
@@ -363,8 +363,7 @@ namespace snmalloc
           // Passing zero_mem ensures the PAL provides zeroed pages if
           // required.
           MemoryProvider::Pal::template notify_using<zero_mem>(
-            pointer_offset(p.unsafe_capptr, OS_PAGE_SIZE),
-            rsize - OS_PAGE_SIZE);
+            pointer_offset(p.unsafe_ptr(), OS_PAGE_SIZE), rsize - OS_PAGE_SIZE);
         }
         else
         {
@@ -399,7 +398,7 @@ namespace snmalloc
         (large_class != 0 || decommit_strategy == DecommitSuper))
       {
         MemoryProvider::Pal::notify_not_using(
-          pointer_offset(p, OS_PAGE_SIZE).unsafe_capptr, rsize - OS_PAGE_SIZE);
+          pointer_offset(p, OS_PAGE_SIZE).unsafe_ptr(), rsize - OS_PAGE_SIZE);
       }
 
       stats.superslab_push();

@@ -272,7 +272,7 @@ namespace snmalloc
       CapPtr<void, CBArena> p_auth, CapPtr<void, CBAllocE> p_ret, size_t size)
     {
       if (size == 0)
-        return dealloc(p_ret.unsafe_capptr, 1);
+        return dealloc(p_ret.unsafe_ptr(), 1);
 
       if (likely(size <= sizeclass_to_size(NUM_SIZECLASSES - 1)))
       {
@@ -1013,7 +1013,7 @@ namespace snmalloc
         CapPtr<void, CBAllocE> ret =
           reinterpret_cast<Allocator*>(alloc)
             ->template small_alloc_inner<zero_mem>(sizeclass, size);
-        return ret.unsafe_capptr;
+        return ret.unsafe_ptr();
       });
       return CapPtr<void, CBAllocE>(ret);
     }
@@ -1259,7 +1259,7 @@ namespace snmalloc
               CapPtr<void, CBAllocE> ret =
                 reinterpret_cast<Allocator*>(alloc)->medium_alloc<zero_mem>(
                   sizeclass, rsize, size);
-              return ret.unsafe_capptr;
+              return ret.unsafe_ptr();
             });
           return CapPtr<void, CBAllocE>(ret);
         }
@@ -1380,7 +1380,7 @@ namespace snmalloc
            * pointer we are just about to drop on the floor; remove() uses its
            * argument but does not persist it.
            */
-          sc->remove(CapPtr<Mediumslab, CBChunkE>(slab_bounded.unsafe_capptr));
+          sc->remove(CapPtr<Mediumslab, CBChunkE>(slab_bounded.unsafe_ptr()));
         }
 
         chunkmap().clear_slab(slab_bounded);
@@ -1405,7 +1405,7 @@ namespace snmalloc
         void* ret = InitThreadAllocator([size](void* alloc) {
           CapPtr<void, CBAllocE> ret =
             reinterpret_cast<Allocator*>(alloc)->large_alloc<zero_mem>(size);
-          return ret.unsafe_capptr;
+          return ret.unsafe_ptr();
         });
         return CapPtr<void, CBAllocE>(ret);
       }

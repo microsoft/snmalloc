@@ -101,7 +101,7 @@ namespace snmalloc
     {
       if constexpr (aal_supports<StrictProvenance>)
       {
-        PagemapProvider::pagemap().set(address_cast(root), root.unsafe_capptr);
+        PagemapProvider::pagemap().set(address_cast(root), root.unsafe_ptr());
       }
       else
       {

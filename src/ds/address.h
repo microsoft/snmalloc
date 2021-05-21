@@ -26,10 +26,10 @@ namespace snmalloc
   }
 
   template<enum capptr_bounds bounds, typename T>
-  inline CapPtr<void, bounds>
+  constexpr inline CapPtr<void, bounds>
   pointer_offset(CapPtr<T, bounds> base, size_t diff)
   {
-    return CapPtr<void, bounds>(pointer_offset(base.unsafe_capptr, diff));
+    return CapPtr<void, bounds>(base.unsafe_capptr + diff);
   }
 
   /**
@@ -45,8 +45,7 @@ namespace snmalloc
   inline CapPtr<void, bounds>
   pointer_offset_signed(CapPtr<T, bounds> base, ptrdiff_t diff)
   {
-    return CapPtr<void, bounds>(
-      pointer_offset_signed(base.unsafe_capptr, diff));
+    return CapPtr<void, bounds>(pointer_offset_signed(base.unsafe_ptr(), diff));
   }
 
   /**
@@ -58,6 +57,11 @@ namespace snmalloc
     return reinterpret_cast<address_t>(ptr);
   }
 
+  constexpr inline address_t address_cast(uintptr_t ptr)
+  {
+    return static_cast<address_t>(ptr);
+  }
+
   /*
    * Provide address_cast methods for the provenance-hinting pointer wrapper
    * types as well.  While we'd prefer that these be methods on the wrapper
@@ -67,7 +71,7 @@ namespace snmalloc
    */
 
   template<typename T, enum capptr_bounds bounds>
-  inline address_t address_cast(CapPtr<T, bounds> a)
+  constexpr SNMALLOC_FAST_PATH address_t address_cast(CapPtr<T, bounds> a)
   {
     return address_cast(a.unsafe_capptr);
   }
@@ -115,7 +119,7 @@ namespace snmalloc
   template<size_t alignment, typename T, capptr_bounds bounds>
   inline CapPtr<T, bounds> pointer_align_down(CapPtr<void, bounds> p)
   {
-    return CapPtr<T, bounds>(pointer_align_down<alignment, T>(p.unsafe_capptr));
+    return CapPtr<T, bounds>(pointer_align_down<alignment, T>(p.unsafe_ptr()));
   }
 
   template<size_t alignment>
@@ -149,7 +153,7 @@ namespace snmalloc
   template<size_t alignment, typename T = void, enum capptr_bounds bounds>
   inline CapPtr<T, bounds> pointer_align_up(CapPtr<void, bounds> p)
   {
-    return CapPtr<T, bounds>(pointer_align_up<alignment, T>(p.unsafe_capptr));
+    return CapPtr<T, bounds>(pointer_align_up<alignment, T>(p.unsafe_ptr()));
   }
 
   template<size_t alignment>
@@ -196,7 +200,7 @@ namespace snmalloc
   inline CapPtr<T, bounds>
   pointer_align_up(CapPtr<void, bounds> p, size_t alignment)
   {
-    return CapPtr<T, bounds>(pointer_align_up<T>(p.unsafe_capptr, alignment));
+    return CapPtr<T, bounds>(pointer_align_up<T>(p.unsafe_ptr(), alignment));
   }
 
   /**
@@ -216,9 +220,10 @@ namespace snmalloc
     typename U = void,
     enum capptr_bounds Tbounds,
     enum capptr_bounds Ubounds>
-  inline size_t pointer_diff(CapPtr<T, Tbounds> base, CapPtr<U, Ubounds> cursor)
+  constexpr SNMALLOC_FAST_PATH size_t
+  pointer_diff(CapPtr<T, Tbounds> base, CapPtr<U, Ubounds> cursor)
   {
-    return pointer_diff(base.unsafe_capptr, cursor.unsafe_capptr);
+    return static_cast<size_t>(cursor.unsafe_capptr - base.unsafe_capptr);
   }
 
   /**
@@ -236,10 +241,10 @@ namespace snmalloc
     typename U = void,
     enum capptr_bounds Tbounds,
     enum capptr_bounds Ubounds>
-  inline ptrdiff_t
+  constexpr SNMALLOC_FAST_PATH ptrdiff_t
   pointer_diff_signed(CapPtr<T, Tbounds> base, CapPtr<U, Ubounds> cursor)
   {
-    return pointer_diff_signed(base.unsafe_capptr, cursor.unsafe_capptr);
+    return static_cast<ptrdiff_t>(cursor.unsafe_capptr - base.unsafe_capptr);
   }
 
 } // namespace snmalloc
