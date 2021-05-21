@@ -78,7 +78,15 @@ void check_calloc(void* p, size_t size)
     for (size_t i = 0; i < size; i++)
     {
       if (((uint8_t*)p)[i] != 0)
+      {
+        std::cout << "Calloc contents:" << std::endl;
+        for (size_t j = 0; j < size; j++)
+        {
+          std::cout << std::hex << (size_t)((uint8_t*)p)[j] << " ";
+          if (j % 32 == 0) std::cout << std::endl;
+        }
         abort();
+      }
       //      ((uint8_t*)p)[i] = 0x5a;
     }
   }
