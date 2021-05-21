@@ -19,10 +19,6 @@
 #  include <unistd.h>
 #endif
 
-#ifndef LIBC_HAS_GETENTROPY
-#  include <cassert>
-#endif
-
 extern "C" int puts(const char* str);
 
 namespace snmalloc
@@ -124,11 +120,8 @@ namespace snmalloc
      * POSIX systems are assumed to support lazy commit. The build system checks
      * getentropy is available, only then this PAL supports Entropy.
      */
-    static constexpr uint64_t pal_features = LazyCommit
-#ifdef LIBC_HAS_GETENTROPY
-      | Entropy
-#endif
-      ;
+    static constexpr uint64_t pal_features =
+      LazyCommit | SNMALLOC_PLATFORM_HAS_GETENTROPY;
 
     static constexpr size_t page_size = Aal::smallest_page_size;
 
@@ -299,16 +292,14 @@ namespace snmalloc
       }
       else
       {
-#ifdef LIBC_HAS_GETENTROPY
+#ifdef SNMALLOC_PLATFORM_HAS_GETENTROPY
         uint64_t result;
         if (getentropy(&result, sizeof(result)) != 0)
           error("Failed to get system randomness");
         return result;
-#else
-        assert(0 && "Unreachable path");
-        return 0;
 #endif
       }
+      error("Entropy requested on platform that does not provide entropy");
     }
   };
 } // namespace snmalloc

@@ -48,7 +48,7 @@ int main() {
   int res = getentropy(&entropy, sizeof(entropy));
   return res;
 }
-" LIBC_HAS_GETENTROPY)
+" SNMALLOC_PLATFORM_HAS_GETENTROPY)
 
 if (NOT SNMALLOC_CI_BUILD)
   option(USE_POSIX_COMMIT_CHECKS "Instrument Posix PAL to check for access to unused blocks of memory." Off)
@@ -176,8 +176,10 @@ if(USE_POSIX_COMMIT_CHECKS)
   target_compile_definitions(snmalloc_lib INTERFACE -DUSE_POSIX_COMMIT_CHECKS)
 endif()
 
-if(LIBC_HAS_GETENTROPY)
-  target_compile_definitions(snmalloc_lib INTERFACE -DLIBC_HAS_GETENTROPY)
+if(SNMALLOC_PLATFORM_HAS_GETENTROPY)
+  target_compile_definitions(snmalloc_lib INTERFACE -DSNMALLOC_PLATFORM_HAS_GETENTROPY=Entropy)
+else()
+  target_compile_definitions(snmalloc_lib INTERFACE -DSNMALLOC_PLATFORM_HAS_GETENTROPY=0)
 endif()
 
 if(CONST_QUALIFIED_MALLOC_USABLE_SIZE)
