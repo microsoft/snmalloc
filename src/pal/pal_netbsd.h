@@ -26,7 +26,7 @@ namespace snmalloc
      * As NetBSD does not have the getentropy call, get_entropy64 will
      * currently fallback to C++ libraries std::random_device.
      */
-    static constexpr uint64_t pal_features = PALBSD_Aligned::pal_featuresy;
+    static constexpr uint64_t pal_features = PALBSD_Aligned::pal_features;
   };
 } // namespace snmalloc
 #endif
