@@ -19,6 +19,11 @@
 #  include <unistd.h>
 #endif
 
+// default value for builds not using CMake
+#ifndef SNMALLOC_PLATFORM_HAS_GETENTROPY
+#  define SNMALLOC_PLATFORM_HAS_GETENTROPY 0
+#endif
+
 extern "C" int puts(const char* str);
 
 namespace snmalloc
