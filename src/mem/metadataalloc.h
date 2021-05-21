@@ -1,16 +1,7 @@
 #pragma once
 
-#include "../ds/flaglock.h"
-#include "../ds/helpers.h"
-#include "../ds/mpmcstack.h"
-#include "../pal/pal.h"
 #include "address_space.h"
-#include "allocstats.h"
-#include "baseslab.h"
-#include "sizeclass.h"
-
 #include <new>
-#include <string.h>
 
 namespace snmalloc
 {
