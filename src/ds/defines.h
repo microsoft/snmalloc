@@ -6,7 +6,7 @@
 #  define likely(x) !!(x)
 #  define unlikely(x) !!(x)
 #  define SNMALLOC_SLOW_PATH NOINLINE
-#  define SNMALLOC_FAST_PATH ALWAYSINLINE
+#  define SNMALLOC_FAST_PATH [[msvc::forceinline]]
 #  define SNMALLOC_PURE
 #  define SNMALLOC_COLD
 #  define SNMALLOC_REQUIRE_CONSTINIT
