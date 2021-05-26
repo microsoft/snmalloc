@@ -20,7 +20,8 @@
 #  define SNMALLOC_PURE __attribute__((const))
 #  define SNMALLOC_COLD __attribute__((cold))
 #  ifdef __clang__
-#    define SNMALLOC_REQUIRE_CONSTINIT [[clang::require_constant_initialization]]
+#    define SNMALLOC_REQUIRE_CONSTINIT \
+      [[clang::require_constant_initialization]]
 #  else
 #    define SNMALLOC_REQUIRE_CONSTINIT
 #  endif

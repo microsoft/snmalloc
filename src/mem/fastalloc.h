@@ -3,8 +3,8 @@
 #include "../ds/ptrwrap.h"
 #include "fastcache.h"
 #include "freelist.h"
-#include "remoteallocator.h"
 #include "globalalloc.h"
+#include "remoteallocator.h"
 #include "sizeclasstable.h"
 
 #include <string.h>
@@ -17,6 +17,7 @@ namespace snmalloc
   class FastAllocator
   {
     inline static RemoteAllocator unused_remote;
+
   private:
     // Free list per small size class.  These are used for
     // allocation on the fast path. This part of the code is inspired by
@@ -72,9 +73,9 @@ namespace snmalloc
 
       init();
 
-      // register_clean_up must be called after init.  register clean up may be 
-      // implemented with allocation, so need to ensure we have a valid allocator at
-      // this point.
+      // register_clean_up must be called after init.  register clean up may be
+      // implemented with allocation, so need to ensure we have a valid
+      // allocator at this point.
       if (!post_teardown)
         // TODO: Should this be a singleton, so we only call it once?
         register_clean_up();
@@ -94,7 +95,7 @@ namespace snmalloc
     }
 
     /**
-     * Allocation that are larger than are handled by the fast allocator must be 
+     * Allocation that are larger than are handled by the fast allocator must be
      * passed to the core allocator.
      */
     template<ZeroMem zero_mem = NoZero>
@@ -111,23 +112,27 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void* small_alloc(size_t size)
     {
       SNMALLOC_ASSUME(size <= SLAB_SIZE);
-      auto slowpath = 
-        [&](sizeclass_t sizeclass, FreeListIter* fl) SNMALLOC_FAST_PATH {
-          return check_init(
-            //  Note:  FreeListIter& for fl would be nice, but codegen gets
-            //  upset in clang.
-            [&](CoreAlloc* core_alloc, sizeclass_t sizeclass, FreeListIter* fl) {
-              // Setting up the message queue can cause a free list to be populated, so need to
-              // check that initialisation hasn't caused that.  Aggressive inlining will remove this.
-              if (fl->empty())
-                return core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
-              
-              auto r = capptr_reveal(capptr_export(fl->take(small_cache.entropy).as_void()));
+      auto slowpath = [&](
+                        sizeclass_t sizeclass,
+                        FreeListIter* fl) SNMALLOC_FAST_PATH {
+        return check_init(
+          //  Note:  FreeListIter& for fl would be nice, but codegen gets
+          //  upset in clang.
+          [&](CoreAlloc* core_alloc, sizeclass_t sizeclass, FreeListIter* fl) {
+            // Setting up the message queue can cause a free list to be
+            // populated, so need to check that initialisation hasn't caused
+            // that.  Aggressive inlining will remove this.
+            if (fl->empty())
+              return core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
 
-              return FastCache::zeroing_wrapper(r, sizeclass_to_size(sizeclass));
-            },
-            sizeclass,
-            fl);};
+            auto r = capptr_reveal(
+              capptr_export(fl->take(small_cache.entropy).as_void()));
+
+            return FastCache::zeroing_wrapper(r, sizeclass_to_size(sizeclass));
+          },
+          sizeclass,
+          fl);
+      };
 
       return small_cache.template alloc<zero_mem>(size, slowpath);
     }
@@ -138,7 +143,7 @@ namespace snmalloc
     // This is effectively the constructor for the FastAllocator, but due to
     // not wanting initialisation checks on the fast path, it is initialised
     // lazily.
-    void init() 
+    void init()
     {
       // Should only be called if the allocator has not been initialised.
       SNMALLOC_ASSERT(core_alloc == nullptr);

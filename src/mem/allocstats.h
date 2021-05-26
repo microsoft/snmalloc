@@ -36,9 +36,9 @@ namespace snmalloc
 
       void dec()
       {
-// Split stats means this is not true.
-// TODO reestablish checks, when we sanitise the stats.
-//        SNMALLOC_ASSERT(current > 0);
+        // Split stats means this is not true.
+        // TODO reestablish checks, when we sanitise the stats.
+        //        SNMALLOC_ASSERT(current > 0);
         current--;
       }
 

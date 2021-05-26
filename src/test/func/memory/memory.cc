@@ -1,6 +1,6 @@
 #include <iostream>
-#include <snmalloc.h>
 #include <mem/slowalloc.h>
+#include <snmalloc.h>
 #include <test/opt.h>
 #include <test/setup.h>
 #include <test/xoroshiro.h>
@@ -224,7 +224,6 @@ void test_double_alloc()
         set2.erase(it);
       }
     }
-
   }
   current_alloc_pool()->debug_check_empty();
 }

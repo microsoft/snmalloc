@@ -15,13 +15,11 @@
 
 namespace snmalloc
 {
-#ifdef CHECK_CLIENT
-  static constexpr std::size_t PRESERVE_BOTTOM_BITS = 16;
-#endif
+  static constexpr std::size_t PRESERVE_BOTTOM_BITS = 32;
 
   static inline bool different_slab(address_t p1, address_t p2)
   {
-    return ((p1 ^ p2) >= SLAB_SIZE);
+    return (p1 ^ p2) >= bits::one_at_bit(PRESERVE_BOTTOM_BITS);
   }
 
   template<typename T>

@@ -11,8 +11,8 @@ namespace snmalloc
 {
   class Slab;
 
-  using SlabList = CDLLNode<CapPtrCBChunk>;
-  using SlabLink = CDLLNode<CapPtrCBChunk>;
+  using SlabList = CDLLNode<>;
+  using SlabLink = CDLLNode<>;
 
   static_assert(
     sizeof(SlabLink) <= MIN_ALLOC_SIZE,

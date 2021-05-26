@@ -24,23 +24,19 @@ namespace snmalloc
   // fall back to locked implementation.
 #if defined(PLATFORM_IS_X86) && \
   !(defined(GCC_NOT_CLANG) && defined(OPEN_ENCLAVE))
-  template<
-    typename T,
-    Construction c = RequiresInit,
-    template<typename> typename Ptr = Pointer,
-    template<typename> typename AtomicPtr = AtomicPointer>
+  template<typename T, Construction c = RequiresInit>
   class ABA
   {
   public:
     struct alignas(2 * sizeof(std::size_t)) Linked
     {
-      Ptr<T> ptr;
+      T* ptr;
       uintptr_t aba;
     };
 
     struct Independent
     {
-      AtomicPtr<T> ptr;
+      std::atomic<T*> ptr;
       std::atomic<uintptr_t> aba;
     };
 
@@ -65,7 +61,7 @@ namespace snmalloc
         init(nullptr);
     }
 
-    void init(Ptr<T> x)
+    void init(T* x)
     {
       independent.ptr.store(x, std::memory_order_relaxed);
       independent.aba.store(0, std::memory_order_relaxed);
@@ -97,12 +93,12 @@ namespace snmalloc
        */
       Cmp(Linked old, ABA* parent) : old(old), parent(parent) {}
 
-      Ptr<T> ptr()
+      T* ptr()
       {
         return old.ptr;
       }
 
-      bool store_conditional(Ptr<T> value)
+      bool store_conditional(T* value)
       {
 #  if defined(_MSC_VER) && defined(SNMALLOC_VA_BITS_64)
         auto result = _InterlockedCompareExchange128(
@@ -137,7 +133,7 @@ namespace snmalloc
     };
 
     // This method is used in Verona
-    Ptr<T> peek()
+    T* peek()
     {
       return independent.ptr.load(std::memory_order_relaxed);
     }
@@ -146,14 +142,10 @@ namespace snmalloc
   /**
    * Naive implementation of ABA protection using a spin lock.
    */
-  template<
-    typename T,
-    Construction c = RequiresInit,
-    template<typename> typename Ptr = Pointer,
-    template<typename> typename AtomicPtr = AtomicPointer>
+  template<typename T, Construction c = RequiresInit>
   class ABA
   {
-    AtomicPtr<T> ptr = nullptr;
+    std::atomic<T*> ptr = nullptr;
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
 
   public:
@@ -189,7 +181,7 @@ namespace snmalloc
         return parent->ptr;
       }
 
-      bool store_conditional(Ptr<T> t)
+      bool store_conditional(T* t)
       {
         parent->ptr = t;
         return true;
@@ -205,7 +197,7 @@ namespace snmalloc
     };
 
     // This method is used in Verona
-    Ptr<T> peek()
+    T* peek()
     {
       return ptr.load(std::memory_order_relaxed);
     }

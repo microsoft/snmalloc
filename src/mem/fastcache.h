@@ -1,9 +1,9 @@
 #pragma once
 
 #include "../ds/ptrwrap.h"
+#include "allocstats.h"
 #include "freelist.h"
 #include "sizeclasstable.h"
-#include "allocstats.h"
 
 #include <string.h>
 

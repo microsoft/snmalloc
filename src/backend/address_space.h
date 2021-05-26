@@ -3,7 +3,7 @@
 #include "../ds/address.h"
 #include "../ds/flaglock.h"
 #include "../pal/pal.h"
-#include "arenamap.h"
+//#include "arenamap.h"
 
 #include <array>
 namespace snmalloc
@@ -16,7 +16,7 @@ namespace snmalloc
    * It cannot unreserve memory, so this does not require the
    * usual complexity of a buddy allocator.
    */
-  template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename ArenaMap>
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL /*, typename ArenaMap*/>
   class AddressSpaceManager
   {
     /**
@@ -29,7 +29,7 @@ namespace snmalloc
      * that takes a pointer to address space it owns.  There is some
      * non-orthogonality of concerns here.
      */
-    ArenaMap arena_map = {};
+    //    ArenaMap arena_map = {};
 
     /**
      * Stores the blocks of address space
@@ -229,16 +229,16 @@ namespace snmalloc
              * aal_supports<StrictProvenance> ends up here, too, and we ensure
              * that we always allocate whole ArenaMap granules.
              */
-            if constexpr (aal_supports<StrictProvenance>)
-            {
-              static_assert(
-                !aal_supports<StrictProvenance> ||
-                  (ArenaMap::alloc_size >= PAL::minimum_alloc_size),
-                "Provenance root granule must be at least PAL's "
-                "minimum_alloc_size");
-              block_size = bits::align_up(size, ArenaMap::alloc_size);
-            }
-            else
+            // if constexpr (aal_supports<StrictProvenance>)
+            // {
+            //   // static_assert(
+            //   //   !aal_supports<StrictProvenance> ||
+            //   //     (ArenaMap::alloc_size >= PAL::minimum_alloc_size),
+            //   //   "Provenance root granule must be at least PAL's "
+            //   //   "minimum_alloc_size");
+            //   block_size = bits::align_up(size, ArenaMap::alloc_size);
+            // }
+            // else
             {
               /*
                * We will have handled the case where size >= minimum_alloc_size
@@ -254,17 +254,18 @@ namespace snmalloc
             // rest of our internals expect CBChunk bounds.
             block = CapPtr<void, CBChunk>(block_raw);
 
-            if constexpr (aal_supports<StrictProvenance>)
-            {
-              auto root_block = CapPtr<void, CBArena>(block_raw);
-              auto root_size = block_size;
-              do
-              {
-                arena_map.register_root(root_block);
-                root_block = pointer_offset(root_block, ArenaMap::alloc_size);
-                root_size -= ArenaMap::alloc_size;
-              } while (root_size > 0);
-            }
+            //             if constexpr (aal_supports<StrictProvenance>)
+            //             {
+            //               auto root_block = CapPtr<void, CBArena>(block_raw);
+            //               auto root_size = block_size;
+            //               do
+            //               {
+            // //                arena_map.register_root(root_block);
+            //                 root_block = pointer_offset(root_block,
+            //                 ArenaMap::alloc_size); root_size -=
+            //                 ArenaMap::alloc_size;
+            //               } while (root_size > 0);
+            //             }
           }
           else if constexpr (!pal_supports<NoAllocation, PAL>)
           {
@@ -367,9 +368,9 @@ namespace snmalloc
       return *this;
     }
 
-    ArenaMap& arenamap()
-    {
-      return arena_map;
-    }
+    // ArenaMap& arenamap()
+    // {
+    //   return arena_map;
+    // }
   };
 } // namespace snmalloc

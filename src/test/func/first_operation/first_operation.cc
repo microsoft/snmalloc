@@ -5,8 +5,8 @@
  * operation.
  */
 
-#include "test/setup.h"
 #include "mem/slowalloc.h"
+#include "test/setup.h"
 
 #include <snmalloc.h>
 #include <thread>
@@ -83,7 +83,8 @@ void check_calloc(void* p, size_t size)
         for (size_t j = 0; j < size; j++)
         {
           std::cout << std::hex << (size_t)((uint8_t*)p)[j] << " ";
-          if (j % 32 == 0) std::cout << std::endl;
+          if (j % 32 == 0)
+            std::cout << std::endl;
         }
         abort();
       }

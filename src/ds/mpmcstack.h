@@ -4,47 +4,43 @@
 
 namespace snmalloc
 {
-  template<
-    class T,
-    Construction c = RequiresInit,
-    template<typename> typename Ptr = Pointer,
-    template<typename> typename AtomicPtr = AtomicPointer>
+  template<class T, Construction c = RequiresInit>
   class MPMCStack
   {
-    using ABAT = ABA<T, c, Ptr, AtomicPtr>;
+    using ABAT = ABA<T, c>;
 
   private:
     static_assert(
-      std::is_same<decltype(T::next), AtomicPtr<T>>::value,
-      "T->next must be an AtomicPtr<T>");
+      std::is_same<decltype(T::next), std::atomic<T*>>::value,
+      "T->next must be an std::atomic<T*>");
 
     ABAT stack;
 
   public:
-    void push(Ptr<T> item)
+    void push(T* item)
     {
       return push(item, item);
     }
 
-    void push(Ptr<T> first, Ptr<T> last)
+    void push(T* first, T* last)
     {
       // Pushes an item on the stack.
       auto cmp = stack.read();
 
       do
       {
-        Ptr<T> top = cmp.ptr();
+        auto top = cmp.ptr();
         last->next.store(top, std::memory_order_release);
       } while (!cmp.store_conditional(first));
     }
 
-    Ptr<T> pop()
+    T* pop()
     {
       // Returns the next item. If the returned value is decommitted, it is
       // possible for the read of top->next to segfault.
       auto cmp = stack.read();
-      Ptr<T> top;
-      Ptr<T> next;
+      T* top;
+      T* next;
 
       do
       {
@@ -59,11 +55,11 @@ namespace snmalloc
       return top;
     }
 
-    Ptr<T> pop_all()
+    T* pop_all()
     {
       // Returns all items as a linked list, leaving an empty stack.
       auto cmp = stack.read();
-      Ptr<T> top;
+      T* top;
 
       do
       {

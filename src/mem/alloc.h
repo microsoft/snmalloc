@@ -89,7 +89,8 @@ namespace snmalloc
 
     Stats* attached_stats()
     {
-      if (attached_cache == nullptr) return nullptr;
+      if (attached_cache == nullptr)
+        return nullptr;
       return &(attached_cache->stats);
     }
 
@@ -168,9 +169,10 @@ namespace snmalloc
     void* small_alloc_one(size_t size)
     {
       if (attached_cache != nullptr)
-        return attached_cache->template alloc<zero_mem>(size, 
-          [&](sizeclass_t sizeclass, FreeListIter* fl){return small_alloc<zero_mem>(sizeclass, *fl);}
-        );
+        return attached_cache->template alloc<zero_mem>(
+          size, [&](sizeclass_t sizeclass, FreeListIter* fl) {
+            return small_alloc<zero_mem>(sizeclass, *fl);
+          });
 
       auto sizeclass = size_to_sizeclass(size);
       stats().alloc_request(size);
@@ -903,9 +905,11 @@ namespace snmalloc
     small_alloc(sizeclass_t sizeclass, FreeListIter& fast_free_list)
     {
       if (likely(!has_messages()))
-        return capptr_reveal(small_alloc_next_free_list<zero_mem>(sizeclass, fast_free_list));
+        return capptr_reveal(
+          small_alloc_next_free_list<zero_mem>(sizeclass, fast_free_list));
 
-      return capptr_reveal(small_alloc_mq_slow<zero_mem>(sizeclass, fast_free_list));
+      return capptr_reveal(
+        small_alloc_mq_slow<zero_mem>(sizeclass, fast_free_list));
     }
 
     /**
