@@ -19,28 +19,6 @@ namespace snmalloc
   static constexpr std::size_t PRESERVE_BOTTOM_BITS = 16;
 #endif
 
-  /**
-   * Used to turn a location into a key.  This is currently
-   * just the slab address truncated to 16bits and offset by 1.
-   */
-  constexpr inline static address_t initial_key(address_t slab)
-  {
-#ifdef CHECK_CLIENT
-    /**
-     * This file assumes that SLAB_BITS is smaller than 16.  In multiple
-     * places it uses uint16_t to represent the offset into a slab.
-     */
-    static_assert(
-      SLAB_BITS <= 16,
-      "Encoding requires slab offset representable in 16bits.");
-
-    return slab;
-#else
-    UNUSED(slab);
-    return 0;
-#endif
-  }
-
   static inline bool different_slab(address_t p1, address_t p2)
   {
     return ((p1 ^ p2) >= SLAB_SIZE);
@@ -82,7 +60,7 @@ namespace snmalloc
 #ifdef CHECK_CLIENT
     template<typename T = FreeObject>
     static std::enable_if_t<do_encode, CapPtr<T, CBAlloc>> encode(
-      uint16_t local_key, CapPtr<T, CBAlloc> next_object, LocalEntropy& entropy)
+      uint32_t local_key, CapPtr<T, CBAlloc> next_object, LocalEntropy& entropy)
     {
       // Simple involutional encoding.  The bottom half of each word is
       // multiplied by a function of both global and local keys (the latter,
@@ -101,7 +79,7 @@ namespace snmalloc
 
     template<typename T = FreeObject>
     static std::enable_if_t<!do_encode, CapPtr<T, CBAlloc>> encode(
-      uint16_t local_key, CapPtr<T, CBAlloc> next_object, LocalEntropy& entropy)
+      uint32_t local_key, CapPtr<T, CBAlloc> next_object, LocalEntropy& entropy)
     {
       UNUSED(local_key);
       UNUSED(entropy);
@@ -110,13 +88,13 @@ namespace snmalloc
 
     void store(
       CapPtr<FreeObject, CBAlloc> value,
-      uint16_t local_key,
+      uint32_t local_key,
       LocalEntropy& entropy)
     {
       reference = encode(local_key, value, entropy);
     }
 
-    CapPtr<FreeObject, CBAlloc> read(uint16_t local_key, LocalEntropy& entropy)
+    CapPtr<FreeObject, CBAlloc> read(uint32_t local_key, LocalEntropy& entropy)
     {
       return encode(local_key, reference, entropy);
     }
@@ -150,7 +128,7 @@ namespace snmalloc
     /**
      * Read the next pointer handling any required decoding of the pointer
      */
-    CapPtr<FreeObject, CBAlloc> read_next(uint16_t key, LocalEntropy& entropy)
+    CapPtr<FreeObject, CBAlloc> read_next(uint32_t key, LocalEntropy& entropy)
     {
       return next_object.read(key, entropy);
     }
@@ -168,10 +146,10 @@ namespace snmalloc
     address_t prev{0};
 #endif
 
-    uint16_t get_prev()
+    uint32_t get_prev()
     {
 #ifdef CHECK_CLIENT
-      return prev & 0xffff;
+      return prev & 0xffff'ffff;
 #else
       return 0;
 #endif
@@ -203,7 +181,7 @@ namespace snmalloc
     constexpr FreeListIter(CapPtr<FreeObject, CBAlloc> head, address_t prev_value)
     : curr(head)
 #ifdef CHECK_CLIENT
-     , prev(initial_key(prev_value))
+     , prev(prev_value)
 #endif
     {
 //      SNMALLOC_ASSERT(head != nullptr);
@@ -283,13 +261,13 @@ namespace snmalloc
     // This enables branch free enqueuing.
     EncodeFreeObjectReference* end[LENGTH];
 #ifdef CHECK_CLIENT
-    // The bottom 16 bits of the previous pointer
-    uint16_t prev[LENGTH];
+    // The bottom 32 bits of the previous pointer
+    uint32_t prev[LENGTH];
 #endif
   public:
     S s;
 
-    uint16_t get_prev(uint32_t index)
+    uint32_t get_prev(uint32_t index)
     {
 #ifdef CHECK_CLIENT
       return prev[index];
@@ -299,17 +277,17 @@ namespace snmalloc
 #endif
     }
 
-    uint16_t get_curr(uint32_t index)
+    uint32_t get_curr(uint32_t index)
     {
 #ifdef CHECK_CLIENT
-      return address_cast(end[index]) & 0xffff;
+      return address_cast(end[index]) & 0xffff'ffff;
 #else
       UNUSED(index);
       return 0;
 #endif
     }
 
-    static constexpr uint16_t HEAD_KEY = 1;
+    static constexpr uint32_t HEAD_KEY = 1;
 
   public:
     FreeListBuilder()
@@ -386,17 +364,17 @@ namespace snmalloc
       size_t count = 0;
       for (size_t i = 0; i < LENGTH; i++)
       {
-        uint16_t local_prev = HEAD_KEY;
+        uint32_t local_prev = HEAD_KEY;
         EncodeFreeObjectReference* iter = &head[i];
         CapPtr<FreeObject, CBAlloc> prev_obj = iter->read(local_prev, entropy);
         // TODO TODO TODO
-        uint16_t local_curr = initial_key(address_cast(&head[i])) & 0xffff;
+        uint32_t local_curr = address_cast(&head[i]) & 0xffff'ffff;
         while (end[i] != iter)
         {
           CapPtr<FreeObject, CBAlloc> next = iter->read(local_prev, entropy);
           check_client(!different_slab(next, prev_obj), "Heap corruption");
           local_prev = local_curr;
-          local_curr = address_cast(next) & 0xffff;
+          local_curr = address_cast(next) & 0xffff'ffff;
           count++;
           iter = &next->next_object;
         }
@@ -436,11 +414,11 @@ namespace snmalloc
           auto mid = head[1].read(HEAD_KEY, entropy);
           end[0]->store(mid, get_prev(0), entropy);
           // Re-code first link in second list (if there is one).
-          // The first link in the second list will be encoded with initial_key,
+          // The first link in the second list will be encoded with initial key of the head,
           // But that needs to be changed to the curr of the first list.
           if (mid != nullptr)
           {
-            auto mid_next = mid->read_next(initial_key(address_cast(&head[1])) & 0xffff, entropy);
+            auto mid_next = mid->read_next(address_cast(&head[1]) & 0xffff'ffff, entropy);
             mid->next_object.store(mid_next, get_curr(0), entropy);
           }
 
