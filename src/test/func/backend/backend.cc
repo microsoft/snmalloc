@@ -60,17 +60,15 @@ SNMALLOC_SLOW_PATH void dealloc_object_slow(
   UNUSED(entropy);
   if (meta->is_full())
   {
-    auto allocated = snmalloc::get_slab_capacity(meta->sizeclass(), false);
+    auto allocated = snmalloc::sizeclass_to_slab_object_count(meta->sizeclass());
     //  Remove trigger threshold from how many we need before we have fully
     //  freed the slab.
-    meta->needed() = allocated - meta->threshold_for_waking_slab(false);
+    meta->needed() = allocated - meta->threshold_for_waking_slab();
 
-    // We are not on the sizeclass list.
-    if (meta->needed() == 0)
-    {
-      std::cout << "Slab is full" << std::endl;
-      return;
-    }
+    // Design ensures we can't move from full to empty.
+    // There are always some more elements to free at this
+    // point.
+    SNMALLOC_ASSERT(meta->needed() != 0);
 
     sl.insert_prev(meta);
     std::cout << "Slab is woken up" << std::endl;
@@ -78,7 +76,7 @@ SNMALLOC_SLOW_PATH void dealloc_object_slow(
     return;
   }
 
-  std::cout << "Slab is full" << std::endl;
+  std::cout << "Slab is unused" << std::endl;
 }
 
 template<typename SharedStateHandle>
@@ -133,26 +131,32 @@ int main(int argc, char** argv)
   std::cout << "Get meta-data " << BA::get_meta_data(h, address_cast(q)).meta
             << std::endl;
 
-  snmalloc::FreeListIter fl;
-  snmalloc::LocalEntropy entropy;
-  entropy.template init<snmalloc::Globals::Pal>();
-  auto first_alloc =
-    snmalloc::SlabAllocator::alloc(h, 27, /*remote*/ nullptr, fl, entropy);
-  std::cout << "First alloc " << first_alloc << std::endl;
-
-  snmalloc::SlabList sl;
-
-  dealloc_object(h, first_alloc, entropy, sl);
-
-  int count = 1;
-  while (!fl.empty())
+  for(size_t i = 0; i < 50; i++)
   {
-    auto alloc = fl.take(entropy).unsafe_capptr;
-    std::cout << "alloc " << alloc << std::endl;
+    std::cout << "sizeclass: " << i << std::endl;
+    snmalloc::FreeListIter fl;
+    snmalloc::LocalEntropy entropy;
+    entropy.template init<snmalloc::Globals::Pal>();
+    auto first_alloc =
+      snmalloc::SlabAllocator::alloc(h, i, /*remote*/ nullptr, fl, entropy);
+    std::cout << "First alloc " << first_alloc << std::endl;
 
-    dealloc_object(h, alloc, entropy, sl);
+    snmalloc::SlabList sl;
 
-    count++;
+    dealloc_object(h, first_alloc, entropy, sl);
+
+    int count = 1;
+    while (!fl.empty())
+    {
+      auto alloc = fl.take(entropy).unsafe_capptr;
+      std::cout << "alloc " << count << ": " << alloc << std::endl;
+
+      dealloc_object(h, alloc, entropy, sl);
+
+      count++;
+    }
+    std::cout << "Allocated " << count << " objects." << std::endl;
+    std::cout << "-----------------------------------------------" << std::endl;
+    
   }
-  std::cout << "Allocated " << count << " objects." << std::endl;
 }

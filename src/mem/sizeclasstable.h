@@ -25,7 +25,7 @@ namespace snmalloc
 
   struct SizeClassTable
   {
-    sizeclass_t sizeclass_lookup[sizeclass_lookup_size] = {{}};
+    sizeclass_compress_t sizeclass_lookup[sizeclass_lookup_size] = {{}};
     ModArray<NUM_SIZECLASSES, size_t> size;
     ModArray<NUM_SMALL_CLASSES, uint16_t> initial_offset_ptr;
     ModArray<NUM_SMALL_CLASSES, uint16_t> short_initial_offset_ptr;
@@ -48,7 +48,7 @@ namespace snmalloc
       mod_mult()
     {
       size_t curr = 1;
-      for (sizeclass_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass++)
+      for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass++)
       {
         size[sizeclass] =
           bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);

@@ -60,26 +60,6 @@ namespace snmalloc
 
   class SlabAllocator
   {
-    static constexpr size_t MIN_OBJECT_COUNT = 16;
-    static size_t sizeclass_to_slab_size(sizeclass_t sizeclass)
-    {
-      size_t rsize = sizeclass_to_size(sizeclass);
-      size_t slab_bits =
-        bits::max(bits::next_pow2_bits(MIN_OBJECT_COUNT * rsize), MIN_CHUNK_BITS);
-      return bits::one_at_bit(slab_bits);
-    }
-
-    static size_t sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)
-    {
-      size_t rsize = sizeclass_to_size(sizeclass);
-      if (bits::next_pow2_bits(rsize) <= MIN_CHUNK_BITS / MIN_OBJECT_COUNT)
-      {
-        return 0;
-      }
-
-      return bits::next_pow2_bits(rsize) - (MIN_CHUNK_BITS / MIN_OBJECT_COUNT);
-    }
-
     static SNMALLOC_FAST_PATH void alloc_new_list(
       CapPtr<void, CBChunk>& bumpptr,
       FreeListIter& fast_free_list,

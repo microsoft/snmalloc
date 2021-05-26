@@ -41,6 +41,34 @@ namespace snmalloc
     uint8_t next = 0;
   };
 
+  static constexpr size_t MIN_OBJECT_COUNT = 16;
+  
+  inline static size_t sizeclass_to_slab_size(sizeclass_t sizeclass)
+    {
+      size_t rsize = sizeclass_to_size(sizeclass);
+      size_t slab_bits =
+        bits::max(bits::next_pow2_bits(MIN_OBJECT_COUNT * rsize), MIN_CHUNK_BITS);
+      return bits::one_at_bit(slab_bits);
+    }
+
+  static size_t sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)
+  {
+    size_t rsize = sizeclass_to_size(sizeclass);
+    if (bits::next_pow2_bits(rsize) <= MIN_CHUNK_BITS / MIN_OBJECT_COUNT)
+    {
+      return 0;
+    }
+
+    return bits::next_pow2_bits(rsize) - (MIN_CHUNK_BITS / MIN_OBJECT_COUNT);
+  }
+
+  inline static uint16_t sizeclass_to_slab_object_count(sizeclass_t sizeclass)
+  {
+    size_t rsize = sizeclass_to_size(sizeclass);
+
+    return (uint16_t)(sizeclass_to_slab_size(sizeclass) / rsize);
+  }
+
   // The Metaslab represent the status of a single slab.
   // This can be either a short or a standard slab.
   class Metaslab : public SlabLink
@@ -113,10 +141,10 @@ namespace snmalloc
      *
      * It also increases entropy, when we have randomisation.
      */
-    uint16_t threshold_for_waking_slab(bool is_short_slab)
+    uint16_t threshold_for_waking_slab()
     {
-      auto capacity = get_slab_capacity(sizeclass(), is_short_slab);
-      uint16_t threshold = (capacity / 8) | 1;
+      auto capacity = sizeclass_to_slab_object_count(sizeclass());
+      uint16_t threshold = (capacity / 32) + 4;
       uint16_t max = 32;
       return bits::min(threshold, max);
     }
@@ -132,7 +160,7 @@ namespace snmalloc
 
       // Set needed to at least one, possibly more so we only use
       // a slab when it has a reasonable amount of free elements
-      needed() = threshold_for_waking_slab(Metaslab::is_short(slab));
+      needed() = threshold_for_waking_slab();
       null_prev();
     }
 
@@ -215,7 +243,7 @@ namespace snmalloc
       if (is_full())
       {
         size_t count = free_queue.debug_length(entropy);
-        SNMALLOC_ASSERT(count < threshold_for_waking_slab(is_short));
+        SNMALLOC_ASSERT(count < threshold_for_waking_slab());
         return;
       }
 
