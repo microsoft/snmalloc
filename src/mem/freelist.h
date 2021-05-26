@@ -23,8 +23,7 @@ namespace snmalloc
    * Used to turn a location into a key.  This is currently
    * just the slab address truncated to 16bits and offset by 1.
    */
-  template<typename T, capptr_bounds B>
-  constexpr inline static address_t initial_key(CapPtr<T, B> slab)
+  constexpr inline static address_t initial_key(address_t slab)
   {
 #ifdef CHECK_CLIENT
     /**
@@ -35,7 +34,7 @@ namespace snmalloc
       SLAB_BITS <= 16,
       "Encoding requires slab offset representable in 16bits.");
 
-    return (address_cast(slab) & SLAB_MASK) + 1;
+    return slab;
 #else
     UNUSED(slab);
     return 0;
@@ -191,7 +190,7 @@ namespace snmalloc
       if (next != nullptr)
       {
         check_client(
-          !different_slab(prev, next),
+          !different_slab(curr, next),
           "Heap corruption - free list corrupted!");
       }
 #  endif
@@ -201,14 +200,14 @@ namespace snmalloc
     }
 
   public:
-    constexpr FreeListIter(CapPtr<FreeObject, CBAlloc> head)
+    constexpr FreeListIter(CapPtr<FreeObject, CBAlloc> head, address_t prev_value)
     : curr(head)
 #ifdef CHECK_CLIENT
-      ,
-      prev(initial_key(head))
+     , prev(initial_key(prev_value))
 #endif
     {
-      SNMALLOC_ASSERT(head != nullptr);
+//      SNMALLOC_ASSERT(head != nullptr);
+   //   UNUSED(prev_value);
     }
 
     constexpr FreeListIter() = default;
@@ -234,10 +233,13 @@ namespace snmalloc
      */
     CapPtr<FreeObject, CBAlloc> take(LocalEntropy& entropy)
     {
-#ifdef CHECK_CLIENT
-      check_client(
-        !different_slab(prev, curr), "Heap corruption - free list corrupted!");
-#endif
+// Disabled as want to remove curr from builder.
+// Need to move to curr=next check.
+// This requires bottom bit terminator!
+// #ifdef CHECK_CLIENT
+//       check_client(
+//         !different_slab(prev, curr), "Heap corruption - free list corrupted!");
+// #endif
       auto c = curr;
       update_cursor(curr->read_next(get_prev(), entropy));
       return c;
@@ -283,10 +285,6 @@ namespace snmalloc
 #ifdef CHECK_CLIENT
     // The bottom 16 bits of the previous pointer
     uint16_t prev[LENGTH];
-    // The bottom 16 bits of the current pointer
-    // This needs to be stored for the empty case
-    // where it is `initial_key()` for the slab.
-    uint16_t curr[LENGTH];
 #endif
   public:
     S s;
@@ -304,7 +302,7 @@ namespace snmalloc
     uint16_t get_curr(uint32_t index)
     {
 #ifdef CHECK_CLIENT
-      return curr[index];
+      return address_cast(end[index]) & 0xffff;
 #else
       UNUSED(index);
       return 0;
@@ -325,12 +323,12 @@ namespace snmalloc
      */
     void open(CapPtr<void, CBChunk> p)
     {
+      UNUSED(p);
       SNMALLOC_ASSERT(empty());
       for (size_t i = 0; i < LENGTH; i++)
       {
 #ifdef CHECK_CLIENT
         prev[i] = HEAD_KEY;
-        curr[i] = initial_key(p) & 0xffff;
 #else
         UNUSED(p);
 #endif
@@ -371,11 +369,10 @@ namespace snmalloc
       auto index = RANDOM ? entropy.next_bit() : 0;
 
       end[index]->store(n, get_prev(index), entropy);
-      end[index] = &(n->next_object);
 #ifdef CHECK_CLIENT
-      prev[index] = curr[index];
-      curr[index] = address_cast(n) & 0xffff;
+      prev[index] = get_curr(index);
 #endif
+      end[index] = &(n->next_object);
     }
 
     /**
@@ -392,7 +389,8 @@ namespace snmalloc
         uint16_t local_prev = HEAD_KEY;
         EncodeFreeObjectReference* iter = &head[i];
         CapPtr<FreeObject, CBAlloc> prev_obj = iter->read(local_prev, entropy);
-        uint16_t local_curr = initial_key(prev_obj) & 0xffff;
+        // TODO TODO TODO
+        uint16_t local_curr = initial_key(address_cast(&head[i])) & 0xffff;
         while (end[i] != iter)
         {
           CapPtr<FreeObject, CBAlloc> next = iter->read(local_prev, entropy);
@@ -442,7 +440,7 @@ namespace snmalloc
           // But that needs to be changed to the curr of the first list.
           if (mid != nullptr)
           {
-            auto mid_next = mid->read_next(initial_key(mid) & 0xffff, entropy);
+            auto mid_next = mid->read_next(initial_key(address_cast(&head[1])) & 0xffff, entropy);
             mid->next_object.store(mid_next, get_curr(0), entropy);
           }
 
@@ -455,12 +453,10 @@ namespace snmalloc
           {
 #ifdef CHECK_CLIENT
             prev[0] = prev[1];
-            curr[0] = curr[1];
 #endif
             end[0] = end[1];
 #ifdef CHECK_CLIENT
             prev[1] = HEAD_KEY;
-            curr[1] = initial_key(h) & 0xffff;
 #endif
             end[1] = &(head[1]);
           }
@@ -468,7 +464,7 @@ namespace snmalloc
           SNMALLOC_ASSERT(end[1] != &head[0]);
           SNMALLOC_ASSERT(end[0] != &head[1]);
 
-          return {h};
+          return {h, address_cast(&head[0])};
         }
       }
       else
@@ -477,7 +473,7 @@ namespace snmalloc
       }
 
       end[0]->store(nullptr, get_prev(0), entropy);
-      return {head[0].read(HEAD_KEY, entropy)};
+      return {head[0].read(HEAD_KEY, entropy), address_cast(&head[0])};
     }
 
     /**
