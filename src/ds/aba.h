@@ -157,6 +157,12 @@ namespace snmalloc
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
 
   public:
+    // This method is used in Verona
+    void init(Ptr<T> x)
+    {
+      ptr.store(x, std::memory_order_relaxed);
+    }
+
     struct Cmp;
 
     Cmp read()
