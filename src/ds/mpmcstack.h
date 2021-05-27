@@ -10,15 +10,15 @@ namespace snmalloc
     using ABAT = ABA<T, c>;
 
   private:
-    static_assert(
-      std::is_same<decltype(T::next), std::atomic<T*>>::value,
-      "T->next must be an std::atomic<T*>");
-
     ABAT stack;
 
   public:
     void push(T* item)
     {
+      static_assert(
+        std::is_same<decltype(T::next), std::atomic<T*>>::value,
+        "T->next must be an std::atomic<T*>");
+
       return push(item, item);
     }
 

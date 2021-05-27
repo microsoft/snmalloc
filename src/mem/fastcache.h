@@ -19,7 +19,7 @@ namespace snmalloc
     // Free list per small size class.  These are used for
     // allocation on the fast path. This part of the code is inspired by
     // mimalloc.
-    FreeListIter small_fast_free_lists[NUM_SMALL_CLASSES];
+    FreeListIter small_fast_free_lists[NUM_SIZECLASSES];
 
     // This is the entropy for a particular thread.
     LocalEntropy entropy;
@@ -33,7 +33,7 @@ namespace snmalloc
     {
       // Return all the free lists to the allocator.
       // Used during thread teardown
-      for (size_t i = 0; i < NUM_SMALL_CLASSES; i++)
+      for (size_t i = 0; i < NUM_SIZECLASSES; i++)
       {
         // TODO could optimise this, to return the whole list in one append
         // call.

@@ -5,6 +5,7 @@
 #include "../mem/sizeclass.h"
 #include "../mem/sizeclasstable.h"
 #include "backend.h"
+
 #include <iostream>
 
 namespace snmalloc
@@ -182,13 +183,11 @@ namespace snmalloc
     }
 
     template<typename SharedStateHandle>
-    void dealloc(SharedStateHandle h, void* p)
+    static void
+    dealloc(SharedStateHandle h, SlabRecord* p, size_t slab_sizeclass)
     {
       UNUSED(h);
-      UNUSED(p);
-      // Teardown free list checking valid.
-
-      // push onto stack
+      h.get_slab_allocator_state().slab_stack[slab_sizeclass].push(p);
     }
   };
 

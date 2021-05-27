@@ -21,7 +21,7 @@ namespace snmalloc
   }
 
   constexpr static size_t sizeclass_lookup_size =
-    sizeclass_lookup_index(SLAB_SIZE + 1);
+    sizeclass_lookup_index(SUPERSLAB_SIZE + 1);
 
   struct SizeClassTable
   {
@@ -48,7 +48,8 @@ namespace snmalloc
       mod_mult()
     {
       size_t curr = 1;
-      for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass++)
+      for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
+           sizeclass++)
       {
         size[sizeclass] =
           bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
@@ -68,7 +69,7 @@ namespace snmalloc
         // zero.
         mod_mult[sizeclass] *= 2;
 
-        if (sizeclass < NUM_SMALL_CLASSES)
+        if (sizeclass < NUM_SIZECLASSES)
         {
           for (; curr <= size[sizeclass]; curr += 1 << PTR_BITS)
           {
@@ -133,10 +134,9 @@ namespace snmalloc
 
   static inline sizeclass_t size_to_sizeclass(size_t size)
   {
-    if ((size - 1) <= (SLAB_SIZE - 1))
+    auto index = sizeclass_lookup_index(size);
+    if (index < sizeclass_lookup_size)
     {
-      auto index = sizeclass_lookup_index(size);
-      SNMALLOC_ASSUME(index <= sizeclass_lookup_index(SLAB_SIZE));
       return sizeclass_metadata.sizeclass_lookup[index];
     }
 

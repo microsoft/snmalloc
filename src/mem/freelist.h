@@ -176,14 +176,16 @@ namespace snmalloc
     }
 
   public:
-    constexpr FreeListIter(CapPtr<FreeObject, CBAlloc> head, address_t prev_value)
+    constexpr FreeListIter(
+      CapPtr<FreeObject, CBAlloc> head, address_t prev_value)
     : curr(head)
 #ifdef CHECK_CLIENT
-     , prev(prev_value)
+      ,
+      prev(prev_value)
 #endif
     {
-//      SNMALLOC_ASSERT(head != nullptr);
-   //   UNUSED(prev_value);
+      //      SNMALLOC_ASSERT(head != nullptr);
+      //   UNUSED(prev_value);
     }
 
     constexpr FreeListIter() = default;
@@ -209,13 +211,14 @@ namespace snmalloc
      */
     CapPtr<FreeObject, CBAlloc> take(LocalEntropy& entropy)
     {
-// Disabled as want to remove curr from builder.
-// Need to move to curr=next check.
-// This requires bottom bit terminator!
-// #ifdef CHECK_CLIENT
-//       check_client(
-//         !different_slab(prev, curr), "Heap corruption - free list corrupted!");
-// #endif
+      // Disabled as want to remove curr from builder.
+      // Need to move to curr=next check.
+      // This requires bottom bit terminator!
+      // #ifdef CHECK_CLIENT
+      //       check_client(
+      //         !different_slab(prev, curr), "Heap corruption - free list
+      //         corrupted!");
+      // #endif
       auto c = curr;
       update_cursor(curr->read_next(get_prev(), entropy));
       return c;
@@ -412,11 +415,13 @@ namespace snmalloc
           auto mid = head[1].read(HEAD_KEY, entropy);
           end[0]->store(mid, get_prev(0), entropy);
           // Re-code first link in second list (if there is one).
-          // The first link in the second list will be encoded with initial key of the head,
-          // But that needs to be changed to the curr of the first list.
+          // The first link in the second list will be encoded with initial key
+          // of the head, But that needs to be changed to the curr of the first
+          // list.
           if (mid != nullptr)
           {
-            auto mid_next = mid->read_next(address_cast(&head[1]) & 0xffff'ffff, entropy);
+            auto mid_next =
+              mid->read_next(address_cast(&head[1]) & 0xffff'ffff, entropy);
             mid->next_object.store(mid_next, get_curr(0), entropy);
           }
 

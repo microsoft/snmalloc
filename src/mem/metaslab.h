@@ -41,15 +41,15 @@ namespace snmalloc
     uint8_t next = 0;
   };
 
-  static constexpr size_t MIN_OBJECT_COUNT = 16;
-  
+  static constexpr size_t MIN_OBJECT_COUNT = 13;
+
   inline static size_t sizeclass_to_slab_size(sizeclass_t sizeclass)
-    {
-      size_t rsize = sizeclass_to_size(sizeclass);
-      size_t slab_bits =
-        bits::max(bits::next_pow2_bits(MIN_OBJECT_COUNT * rsize), MIN_CHUNK_BITS);
-      return bits::one_at_bit(slab_bits);
-    }
+  {
+    size_t rsize = sizeclass_to_size(sizeclass);
+    size_t slab_bits =
+      bits::max(bits::next_pow2_bits(MIN_OBJECT_COUNT * rsize), MIN_CHUNK_BITS);
+    return bits::one_at_bit(slab_bits);
+  }
 
   static size_t sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)
   {
@@ -144,7 +144,7 @@ namespace snmalloc
     uint16_t threshold_for_waking_slab()
     {
       auto capacity = sizeclass_to_slab_object_count(sizeclass());
-      uint16_t threshold = (capacity / 32) + 4;
+      uint16_t threshold = (capacity / 16) + 3;
       uint16_t max = 32;
       return bits::min(threshold, max);
     }

@@ -1,9 +1,16 @@
 #pragma once
 
+#ifdef _MSC_VER
+#  define ALLOCATOR __declspec(allocator)
+#else
+#  define ALLOCATOR
+#endif
+
 #include "../ds/ptrwrap.h"
 #include "fastcache.h"
 #include "freelist.h"
-#include "globalalloc.h"
+#include "corealloc.h"
+#include "pool.h"
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
 
@@ -13,9 +20,10 @@
 namespace snmalloc
 {
   // This class contains the fastest path code for the allocator.
-  template<class CoreAlloc, void (*register_clean_up)()>
+  template<class SharedStateHandle>
   class FastAllocator
   {
+    using CoreAlloc = CoreAlloc<SharedStateHandle>;
     inline static RemoteAllocator unused_remote;
 
   private:
@@ -42,8 +50,14 @@ namespace snmalloc
     bool post_teardown{false};
 
     /**
-     * Checks if the core allocator has been initialised, and runs the `action`
-     * with the arguments, args.
+     * Contains a way to access all the shared state for this allocator.
+     * This may have no dynamic state, and be purely static.
+     */
+    SharedStateHandle handle;
+
+    /**
+     * Checks if the core allocator has been initialised, and runs the
+     * `action` with the arguments, args.
      *
      * If the core allocator is not initialised, then first initialise it,
      * and then perform the action using the core allocator.
@@ -71,6 +85,8 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(core_alloc == nullptr);
 
+      Singleton<int, SharedStateHandle::init>::get();
+
       init();
 
       // register_clean_up must be called after init.  register clean up may be
@@ -78,7 +94,7 @@ namespace snmalloc
       // allocator at this point.
       if (!post_teardown)
         // TODO: Should this be a singleton, so we only call it once?
-        register_clean_up();
+        SharedStateHandle::register_clean_up();
 
       // Perform underlying operation
       auto r = action(core_alloc, args...);
@@ -101,17 +117,20 @@ namespace snmalloc
     template<ZeroMem zero_mem = NoZero>
     SNMALLOC_SLOW_PATH void* alloc_not_small(size_t size)
     {
-      return check_init(
-        [](CoreAlloc* core_alloc, size_t size) {
-          return core_alloc->template alloc<zero_mem>(size);
-        },
-        size);
+      // TODO
+      UNUSED(size);
+      return nullptr;
+      // return check_init(
+      //   [](CoreAlloc* core_alloc, size_t size) {
+      //     return core_alloc->template alloc<zero_mem>(size);
+      //   },
+      //   size);
     }
 
     template<ZeroMem zero_mem>
     SNMALLOC_FAST_PATH void* small_alloc(size_t size)
     {
-      SNMALLOC_ASSUME(size <= SLAB_SIZE);
+// /      SNMALLOC_ASSUME(size <= SLAB_SIZE);
       auto slowpath = [&](
                         sizeclass_t sizeclass,
                         FreeListIter* fl) SNMALLOC_FAST_PATH {
@@ -138,7 +157,10 @@ namespace snmalloc
     }
 
   public:
-    constexpr FastAllocator(){};
+    constexpr FastAllocator()
+    {
+      handle = SharedStateHandle::get_handle();
+    };
 
     // This is effectively the constructor for the FastAllocator, but due to
     // not wanting initialisation checks on the fast path, it is initialised
@@ -148,11 +170,13 @@ namespace snmalloc
       // Should only be called if the allocator has not been initialised.
       SNMALLOC_ASSERT(core_alloc == nullptr);
 
-      core_alloc = current_alloc_pool()->acquire(&(this->small_cache));
+      // Grab an allocator for this thread.
+      core_alloc =
+        Pool<CoreAlloc>::acquire(handle, &(this->small_cache), handle);
       core_alloc->attached_cache = &(this->small_cache);
 
       small_cache.entropy = core_alloc->entropy;
-      small_cache.stats.start();
+      // small_cache.stats.start();
 
       // TODO: setup remote allocator
     }
@@ -167,13 +191,13 @@ namespace snmalloc
       {
         small_cache.flush([&](auto p) { dealloc(p); });
 
-        core_alloc->stats().add(small_cache.stats);
-        // Reset stats, required to deal with repeated flushing.
-        new (&small_cache.stats) Stats();
+        // core_alloc->stats().add(small_cache.stats);
+        // // Reset stats, required to deal with repeated flushing.
+        // new (&small_cache.stats) Stats();
 
         core_alloc->attached_cache = nullptr;
         // Return underlying allocator to the system.
-        current_alloc_pool()->release(core_alloc);
+        Pool<CoreAlloc>::release(handle, core_alloc);
 
         core_alloc = nullptr;
         remote_allocator = nullptr;
@@ -198,7 +222,7 @@ namespace snmalloc
 #else
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
-      if (likely((size - 1) <= (sizeclass_to_size(NUM_SMALL_CLASSES - 1) - 1)))
+      if (likely((size - 1) <= (sizeclass_to_size(NUM_SIZECLASSES - 1) - 1)))
       {
         // Allocations smaller than the slab size are more likely. Improve
         // branch prediction by placing this case first.
@@ -222,11 +246,33 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH void dealloc(void* p)
     {
-      check_init([p](CoreAlloc* core_alloc) -> void* {
-        core_alloc->dealloc(p);
-        return nullptr;
-      });
+      // MetaEntry entry = BackendAllocator::get_meta_data(handle, p);
+      // if (remote == entry.remote)
+        core_alloc->dealloc_local_object(p);
+      // else
+      //   dealloc_non_local(p);
     }
+      
+    // SNMALLOC_FAST_PATH void dealloc_non_local(void* p)
+    // {
+    //   if (remote == Unit)
+    //   {
+
+    //   }
+    //   else if (entry.remote == LargeRemote)
+    //   {
+    //     // TODO
+    //   }
+    //   else
+    //   {
+
+    //   }
+
+    //   // check_init([p](CoreAlloc* core_alloc) -> void* {
+    //   //   core_alloc->dealloc(p);
+    //   //   return nullptr;
+    //   // });
+    // }
 
     SNMALLOC_FAST_PATH void dealloc(void* p, size_t s)
     {
@@ -252,25 +298,28 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH size_t alloc_size(const void* p_raw)
     {
-      return check_init(
-        [](CoreAlloc* core_alloc, const void* p_raw) {
-          return core_alloc->alloc_size(p_raw);
-        },
-        p_raw);
+      UNUSED(p_raw);
+      return 0;
+
+      // return check_init(
+      //   [](CoreAlloc* core_alloc, const void* p_raw) {
+      //     return core_alloc->alloc_size(p_raw);
+      //   },
+      //   p_raw);
     }
 
-    template<Boundary location = Start>
-    void* external_pointer(void* p_raw)
-    {
-      // TODO, can we optimise to not need initialisation?
-      return check_init(
-        [](CoreAlloc* core_alloc, void* p_raw) {
-          return core_alloc->template external_pointer<location>(p_raw);
-        },
-        p_raw);
-    }
+    // template<Boundary location = Start>
+    // void* external_pointer(void* p_raw)
+    // {
+    //   return nullptr;
+    //   // // TODO, can we optimise to not need initialisation?
+    //   // return check_init(
+    //   //   [](CoreAlloc* core_alloc, void* p_raw) {
+    //   //     return core_alloc->template external_pointer<location>(p_raw);
+    //   //   },
+    //   //   p_raw);
+    // }
   };
 
   void register_clean_up();
-  using Alloc = FastAllocator<CoreAlloc, register_clean_up>;
 } // namespace snmalloc
