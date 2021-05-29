@@ -177,9 +177,7 @@ if(USE_POSIX_COMMIT_CHECKS)
 endif()
 
 if(SNMALLOC_PLATFORM_HAS_GETENTROPY)
-  target_compile_definitions(snmalloc_lib INTERFACE -DSNMALLOC_PLATFORM_HAS_GETENTROPY=Entropy)
-else()
-  target_compile_definitions(snmalloc_lib INTERFACE -DSNMALLOC_PLATFORM_HAS_GETENTROPY=0)
+  target_compile_definitions(snmalloc_lib INTERFACE -DSNMALLOC_PLATFORM_HAS_GETENTROPY)
 endif()
 
 if(CONST_QUALIFIED_MALLOC_USABLE_SIZE)
