@@ -19,12 +19,6 @@
 #  include <unistd.h>
 #endif
 
-// default value for builds not using CMake
-#ifndef SNMALLOC_PLATFORM_HAS_GETENTROPY
-#  define SNMALLOC_PLATFORM_HAS_GETENTROPY 0
-#  warning snmalloc not using entropy source. To silence this warning please define SNMALLOC_PLATFORM_HAS_GETENTROPY to 0, or to Entropy if your platform implements getentropy().
-#endif
-
 extern "C" int puts(const char* str);
 
 namespace snmalloc
@@ -126,8 +120,11 @@ namespace snmalloc
      * POSIX systems are assumed to support lazy commit. The build system checks
      * getentropy is available, only then this PAL supports Entropy.
      */
-    static constexpr uint64_t pal_features =
-      LazyCommit | SNMALLOC_PLATFORM_HAS_GETENTROPY;
+    static constexpr uint64_t pal_features = LazyCommit
+#if defined(SNMALLOC_PLATFORM_HAS_GETENTROPY)
+      | Entropy
+#endif
+      ;
 
     static constexpr size_t page_size = Aal::smallest_page_size;
 
