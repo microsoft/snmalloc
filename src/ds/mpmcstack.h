@@ -13,6 +13,8 @@ namespace snmalloc
     ABAT stack;
 
   public:
+    constexpr MPMCStack() {}
+
     void push(T* item)
     {
       static_assert(

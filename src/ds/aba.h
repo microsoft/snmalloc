@@ -30,14 +30,14 @@ namespace snmalloc
   public:
     struct alignas(2 * sizeof(std::size_t)) Linked
     {
-      T* ptr;
-      uintptr_t aba;
+      T* ptr{nullptr};
+      uintptr_t aba{0};
     };
 
     struct Independent
     {
-      std::atomic<T*> ptr;
-      std::atomic<uintptr_t> aba;
+      std::atomic<T*> ptr{nullptr};
+      std::atomic<uintptr_t> aba{0};
     };
 
     static_assert(
@@ -55,11 +55,7 @@ namespace snmalloc
     };
 
   public:
-    ABA()
-    {
-      if constexpr (c == RequiresInit)
-        init(nullptr);
-    }
+    constexpr ABA() {}
 
     void init(T* x)
     {

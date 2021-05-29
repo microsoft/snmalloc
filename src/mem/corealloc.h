@@ -112,7 +112,6 @@ namespace snmalloc
       message_queue().init(dummy);
     }
 
-
     /**
      * There are a few internal corner cases where we need to allocate
      * a small object.  These are not on the fast path,
@@ -125,14 +124,14 @@ namespace snmalloc
     {
       // Use attached cache, and fill it if it is empty.
       if (attached_cache != nullptr)
-        return attached_cache->template alloc<zero_mem>(
+        return attached_cache->template alloc<zero_mem, SharedStateHandle>(
           size, [&](sizeclass_t sizeclass, FreeListIter* fl) {
             return small_alloc<zero_mem>(sizeclass, *fl);
           });
 
       auto sizeclass = size_to_sizeclass(size);
-    //   stats().alloc_request(size);
-    //   stats().sizeclass_alloc(sizeclass);
+      //   stats().alloc_request(size);
+      //   stats().sizeclass_alloc(sizeclass);
 
       // This is a debug path.  When we reallocate a message queue in
       // debug check empty, that might occur when the allocator is not attached
@@ -144,7 +143,8 @@ namespace snmalloc
       {
         // Fake statistics up.
         // stats().sizeclass_alloc(sizeclass);
-        dealloc_local_object(capptr_reveal(capptr_export(temp.take(entropy).as_void())));
+        dealloc_local_object(
+          capptr_reveal(capptr_export(temp.take(entropy).as_void())));
       }
       return r;
     }
@@ -162,8 +162,8 @@ namespace snmalloc
       // Ignoring stats for now.
       //      stats().start();
 
-      //      init_message_queue();
-      //      message_queue().invariant();
+      init_message_queue();
+      message_queue().invariant();
 
 #ifndef NDEBUG
       for (sizeclass_t i = 0; i < NUM_SIZECLASSES; i++)
@@ -191,6 +191,8 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void
     dealloc_local_object_slow(snmalloc::Metaslab* meta, void* p)
     {
+      // TODO: Handle message queue on this path?
+
       sizeclass_t sizeclass = meta->sizeclass();
       UNUSED(entropy);
       if (meta->is_full())
@@ -268,9 +270,8 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void*
     small_alloc(sizeclass_t sizeclass, FreeListIter& fast_free_list)
     {
-      return snmalloc::SlabAllocator::alloc(
-        handle, sizeclass, /*remote*/ nullptr, fast_free_list, entropy);
-      // TODO zero mem
+      return snmalloc::SlabAllocator::alloc<zero_mem>(
+        handle, sizeclass, public_state(), fast_free_list, entropy);
     }
   };
 }

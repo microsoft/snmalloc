@@ -28,6 +28,9 @@ namespace snmalloc
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
     MPMCStack<T, PreZeroed> stack;
     T* list = nullptr;
+
+  public:
+    constexpr PoolState() {}
   };
 
   template<typename T>

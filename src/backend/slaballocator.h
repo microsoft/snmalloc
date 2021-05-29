@@ -25,19 +25,6 @@ namespace snmalloc
   constexpr size_t NUM_SLAB_SIZES = bits::ADDRESS_BITS - MIN_CHUNK_BITS;
 
   /**
-   * Entry stored in the pagemap.
-   */
-  struct MetaEntry
-  {
-    Metaslab* meta;
-    RemoteAllocator* remote;
-
-    MetaEntry(Metaslab* meta, RemoteAllocator* remote)
-    : meta(meta), remote(remote)
-    {}
-  };
-
-  /**
    * Used to ensure the per slab meta data is large enough for both use cases.
    */
   using MetaBlock = std::conditional<
@@ -68,7 +55,6 @@ namespace snmalloc
       size_t slab_size,
       LocalEntropy& entropy)
     {
-      // TODO, we now have multiple SLAB_SIZEs.
       auto slab_end = pointer_offset(bumpptr, slab_size + 1 - rsize);
 
       FreeListBuilder<false> b;
@@ -136,7 +122,7 @@ namespace snmalloc
     }
 
   public:
-    template<typename SharedStateHandle>
+    template<ZeroMem zero_mem, typename SharedStateHandle>
     static void* alloc(
       SharedStateHandle h,
       sizeclass_t sizeclass,
@@ -161,7 +147,8 @@ namespace snmalloc
         slab = slab_record->slab;
         meta = reinterpret_cast<Metaslab*>(slab_record);
         MetaEntry entry{meta, remote};
-        BackendAllocator::set_meta_data(h, address_cast(slab), entry);
+        BackendAllocator::set_meta_data(
+          h, address_cast(slab), slab_size, entry);
       }
       else
       {
@@ -178,8 +165,15 @@ namespace snmalloc
       // Set meta slab to empty.
       meta->initialise(sizeclass, slab.as_static<Slab>());
 
-      // return an allocation from the free list
-      return fl.take(entropy).unsafe_capptr;
+      // take an allocation from the free list
+      auto p = fl.take(entropy).unsafe_capptr;
+
+      if (zero_mem == YesZero)
+      {
+        SharedStateHandle::Pal::template zero<false>(p, rsize);
+      }
+
+      return p;
     }
 
     template<typename SharedStateHandle>

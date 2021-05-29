@@ -36,7 +36,8 @@ namespace snmalloc
      */
     uint16_t needed = 0;
 
-    uint8_t sizeclass;
+    // TODO something for the nullptr sizeclass
+    uint8_t sizeclass = 255;
     // Initially zero to encode the superslabs relative list of slabs.
     uint8_t next = 0;
   };
@@ -280,4 +281,20 @@ namespace snmalloc
 #endif
     }
   };
+
+  struct RemoteAllocator;
+
+  /**
+   * Entry stored in the pagemap.
+   */
+  struct MetaEntry
+  {
+    Metaslab* meta;
+    RemoteAllocator* remote;
+
+    constexpr MetaEntry(Metaslab* meta, RemoteAllocator* remote)
+    : meta(meta), remote(remote)
+    {}
+  };
+
 } // namespace snmalloc

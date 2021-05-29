@@ -185,7 +185,7 @@ namespace snmalloc
 #endif
     {
       //      SNMALLOC_ASSERT(head != nullptr);
-      //   UNUSED(prev_value);
+      UNUSED(prev_value);
     }
 
     constexpr FreeListIter() = default;
@@ -291,7 +291,7 @@ namespace snmalloc
     static constexpr uint32_t HEAD_KEY = 1;
 
   public:
-    FreeListBuilder()
+    constexpr FreeListBuilder()
     {
       init();
     }
@@ -368,7 +368,7 @@ namespace snmalloc
         uint32_t local_prev = HEAD_KEY;
         EncodeFreeObjectReference* iter = &head[i];
         CapPtr<FreeObject, CBAlloc> prev_obj = iter->read(local_prev, entropy);
-        // TODO TODO TODO
+        UNUSED(prev_obj);
         uint32_t local_curr = address_cast(&head[i]) & 0xffff'ffff;
         while (end[i] != iter)
         {
@@ -470,7 +470,7 @@ namespace snmalloc
     /**
      * Set the builder to a not building state.
      */
-    void init()
+    constexpr void init()
     {
       for (size_t i = 0; i < LENGTH; i++)
       {

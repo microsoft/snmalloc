@@ -13,21 +13,24 @@ namespace snmalloc
    * Simple pagemap that for each GRANULARITY_BITS of the address range
    * stores a T.
    */
-  template<size_t GRANULARITY_BITS, typename T, bool has_bounds>
+  template<
+    size_t GRANULARITY_BITS,
+    typename T,
+    bool has_bounds,
+    T* default_value = nullptr>
   class FlatPagemap
   {
   private:
     static constexpr size_t SHIFT = GRANULARITY_BITS;
 
-    // Make this const, so writing will hopefully trigger a fault.
-    inline static const T default_value;
+    T* body{default_value};
 
-    T* body{nullptr};
-
-    address_t base;
-    size_t size;
+    address_t base{0};
+    size_t size{0};
 
   public:
+    constexpr FlatPagemap() {}
+
     template<typename ASM>
     void init(ASM* a, address_t b = 0, size_t s = 0)
     {

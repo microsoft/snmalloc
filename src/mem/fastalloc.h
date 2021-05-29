@@ -7,9 +7,9 @@
 #endif
 
 #include "../ds/ptrwrap.h"
+#include "corealloc.h"
 #include "fastcache.h"
 #include "freelist.h"
-#include "corealloc.h"
 #include "pool.h"
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
@@ -25,6 +25,7 @@ namespace snmalloc
   {
     using CoreAlloc = CoreAlloc<SharedStateHandle>;
     inline static RemoteAllocator unused_remote;
+    inline static RemoteAllocator fake_large_remote;
 
   private:
     // Free list per small size class.  These are used for
@@ -32,8 +33,13 @@ namespace snmalloc
     // mimalloc.
     FastCache small_cache;
 
-    // Amount of bytes before we must send the remote
-    // deallocation batch.
+    /**
+     * The total amount of memory we are waiting for before we will dispatch
+     * to other allocators. Zero means we have not initialised the allocator
+     * yet. This is initialised to the 0 so that we always hit a slow path to
+     * start with, when we hit the slow path and need to dispatch everything, we
+     * can check if we are a real allocator and lazily provide a real allocator.
+     */
     int64_t capacity{0};
 
     // Underlying allocator for most non-fast path operations.
@@ -117,20 +123,33 @@ namespace snmalloc
     template<ZeroMem zero_mem = NoZero>
     SNMALLOC_SLOW_PATH void* alloc_not_small(size_t size)
     {
+      if (size == 0)
+      {
+        // Deal with alloc zero giving a small object.
+        // Alternative semantics of nullptr here is also allowed by the
+        // standard.
+        return small_alloc<zero_mem>(1);
+      }
+
       // TODO
+      //  ?Do we need to initialise the allocator on this path?
+      //   only if we are doing stats?
+
+      // Grab slab of correct size
+
+      // set up meta data so sizeclass is correct, and hence alloc size, and
+      // external pointer.
+
+      // Set remote as large allocator remote.
+
       UNUSED(size);
       return nullptr;
-      // return check_init(
-      //   [](CoreAlloc* core_alloc, size_t size) {
-      //     return core_alloc->template alloc<zero_mem>(size);
-      //   },
-      //   size);
     }
 
     template<ZeroMem zero_mem>
     SNMALLOC_FAST_PATH void* small_alloc(size_t size)
     {
-// /      SNMALLOC_ASSUME(size <= SLAB_SIZE);
+      // /      SNMALLOC_ASSUME(size <= SLAB_SIZE);
       auto slowpath = [&](
                         sizeclass_t sizeclass,
                         FreeListIter* fl) SNMALLOC_FAST_PATH {
@@ -138,6 +157,8 @@ namespace snmalloc
           //  Note:  FreeListIter& for fl would be nice, but codegen gets
           //  upset in clang.
           [&](CoreAlloc* core_alloc, sizeclass_t sizeclass, FreeListIter* fl) {
+            handle_message_queue();
+
             // Setting up the message queue can cause a free list to be
             // populated, so need to check that initialisation hasn't caused
             // that.  Aggressive inlining will remove this.
@@ -147,13 +168,103 @@ namespace snmalloc
             auto r = capptr_reveal(
               capptr_export(fl->take(small_cache.entropy).as_void()));
 
-            return FastCache::zeroing_wrapper(r, sizeclass_to_size(sizeclass));
+            if (zero_mem == YesZero)
+              SharedStateHandle::Pal::zero(r, sizeclass_to_size(sizeclass));
+
+            return r;
           },
           sizeclass,
           fl);
       };
 
-      return small_cache.template alloc<zero_mem>(size, slowpath);
+      return small_cache.template alloc<zero_mem, SharedStateHandle>(
+        size, slowpath);
+    }
+
+    /**
+     * Slow path for deallocation we do not have space for this remote
+     * deallocation. This could be because,
+     *   - we actually don't have space for this remote deallocation,
+     *     and need to spend them on; or
+     *   - the allocator was not already initialised.
+     * In the second case we need to recheck if this is a remote deallocation,
+     * as we might acquire the originating allocator.
+     */
+    SNMALLOC_SLOW_PATH void dealloc_slow(void* p)
+    {
+      if (core_alloc != nullptr)
+      {
+        handle_message_queue();
+
+        std::cout << "Remote dealloc post" << p << " size " << alloc_size(p)
+                  << std::endl;
+        MetaEntry entry =
+          BackendAllocator::get_meta_data(handle, address_cast(p));
+        core_alloc->remote_cache.template dealloc<SharedStateHandle>(
+          entry.remote->trunc_id(),
+          CapPtr<void, CBAlloc>(p),
+          entry.meta->sizeclass());
+        core_alloc->remote_cache.post(handle, remote_allocator->trunc_id());
+        capacity = REMOTE_CACHE;
+        return;
+      }
+      // Recheck what kind of dealloc we should do incase, the allocator we get
+      // from lazy_init is the originating allocator.
+      lazy_init(
+        [&](CoreAlloc*, void* p) {
+          dealloc(p);
+          return nullptr;
+        },
+        p);
+    }
+
+    /**
+     * Abstracts access to the message queue to handle different
+     * layout configurations of the allocator.
+     */
+    auto& message_queue()
+    {
+      return remote_allocator->message_queue;
+    }
+
+    /**
+     * Check if this allocator has messages to deallocate blocks from another
+     * thread
+     */
+    SNMALLOC_FAST_PATH bool has_messages()
+    {
+      return !(message_queue().is_empty());
+    }
+
+    SNMALLOC_FAST_PATH void handle_message_queue()
+    {
+      // Inline the empty check, but not necessarily the full queue handling.
+      if (likely(!has_messages()))
+        return;
+
+      handle_message_queue_inner();
+    }
+
+    /**
+     * Process remote frees into this allocator.
+     */
+    SNMALLOC_SLOW_PATH void handle_message_queue_inner()
+    {
+      for (size_t i = 0; i < REMOTE_BATCH; i++)
+      {
+        auto r = message_queue().dequeue();
+
+        if (unlikely(!r.second))
+          break;
+        std::cout << "Handling remote" << std::endl;
+        // Previously had special version of this code:
+        //   handle_dealloc_remote(r.first);
+        // TODO this needs to not double count stats
+        // TODO this needs to not double revoke if using MTE
+        // TODO batch post at the end of processing.
+        // TODO thread capabilities?
+        dealloc(r.first.unsafe_capptr);
+      }
     }
 
   public:
@@ -178,7 +289,7 @@ namespace snmalloc
       small_cache.entropy = core_alloc->entropy;
       // small_cache.stats.start();
 
-      // TODO: setup remote allocator
+      remote_allocator = core_alloc->public_state();
     }
 
     // Return all state in the fast allocator and release the underlying
@@ -208,7 +319,7 @@ namespace snmalloc
      * Allocate memory of a dynamically known size.
      */
     template<ZeroMem zero_mem = NoZero>
-    SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
+    SNMALLOC_SLOW_PATH ALLOCATOR void* alloc(size_t size)
     {
 #ifdef SNMALLOC_PASS_THROUGH
       // snmalloc guarantees a lot of alignment, so we can depend on this
@@ -244,35 +355,52 @@ namespace snmalloc
       return alloc<zero_mem>(size);
     }
 
-    SNMALLOC_FAST_PATH void dealloc(void* p)
+    SNMALLOC_SLOW_PATH void dealloc(void* p)
     {
-      // MetaEntry entry = BackendAllocator::get_meta_data(handle, p);
-      // if (remote == entry.remote)
+      // TODO Pass through code!
+
+      // TODO:
+      // Care is needed so that dealloc(nullptr) works before init
+      //  The backend allocator must ensure that a minimal page map exists
+      //  before init, that maps null to a remote_deallocator that will never be
+      //  in thread local state.
+
+      MetaEntry entry =
+        BackendAllocator::get_meta_data(handle, address_cast(p));
+      if (likely(remote_allocator == entry.remote))
+      {
         core_alloc->dealloc_local_object(p);
-      // else
-      //   dealloc_non_local(p);
+        return;
+      }
+
+      // Not on the fastest path.
+      if (unlikely(p == nullptr))
+        return;
+
+      // Check if we have space for the remote deallocation
+      if (likely(
+            capacity > (int64_t)sizeclass_to_size(entry.meta->sizeclass())))
+      {
+        capacity -= sizeclass_to_size(entry.meta->sizeclass());
+        core_alloc->remote_cache.template dealloc<SharedStateHandle>(
+          entry.remote->trunc_id(),
+          CapPtr<void, CBAlloc>(p),
+          entry.meta->sizeclass());
+        std::cout << "Remote dealloc fast" << p << " size " << alloc_size(p)
+                  << std::endl;
+        return;
+      }
+
+      if (entry.remote == &fake_large_remote)
+      {
+        // TODO Large deallocation
+        // TODO Doesn't require local init!
+
+        return;
+      }
+
+      dealloc_slow(p);
     }
-      
-    // SNMALLOC_FAST_PATH void dealloc_non_local(void* p)
-    // {
-    //   if (remote == Unit)
-    //   {
-
-    //   }
-    //   else if (entry.remote == LargeRemote)
-    //   {
-    //     // TODO
-    //   }
-    //   else
-    //   {
-
-    //   }
-
-    //   // check_init([p](CoreAlloc* core_alloc) -> void* {
-    //   //   core_alloc->dealloc(p);
-    //   //   return nullptr;
-    //   // });
-    // }
 
     SNMALLOC_FAST_PATH void dealloc(void* p, size_t s)
     {
@@ -296,16 +424,14 @@ namespace snmalloc
       }
     }
 
-    SNMALLOC_FAST_PATH size_t alloc_size(const void* p_raw)
+    SNMALLOC_SLOW_PATH size_t alloc_size(const void* p_raw)
     {
-      UNUSED(p_raw);
-      return 0;
-
-      // return check_init(
-      //   [](CoreAlloc* core_alloc, const void* p_raw) {
-      //     return core_alloc->alloc_size(p_raw);
-      //   },
-      //   p_raw);
+      // TODO nullptr, should return 0.
+      // Other than nullptr, we know the system will be initialised as it must
+      // be called with something we have already allocated.
+      MetaEntry entry =
+        BackendAllocator::get_meta_data(handle, address_cast(p_raw));
+      return sizeclass_to_size(entry.meta->sizeclass());
     }
 
     // template<Boundary location = Start>
@@ -320,6 +446,4 @@ namespace snmalloc
     //   //   p_raw);
     // }
   };
-
-  void register_clean_up();
 } // namespace snmalloc

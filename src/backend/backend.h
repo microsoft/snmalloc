@@ -75,9 +75,15 @@ namespace snmalloc
      */
     template<typename SharedStateHandle>
     static void set_meta_data(
-      SharedStateHandle h, address_t p, typename SharedStateHandle::Meta t)
+      SharedStateHandle h,
+      address_t p,
+      size_t size,
+      typename SharedStateHandle::Meta t)
     {
-      h.get_pagemap().set(p, t);
+      for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
+      {
+        h.get_pagemap().set(a, t);
+      }
     }
   };
 }

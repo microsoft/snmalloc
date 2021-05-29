@@ -44,12 +44,7 @@ namespace snmalloc
       }
     }
 
-    static SNMALLOC_SLOW_PATH void* zeroing_wrapper(void* p, size_t size)
-    {
-      return memset(p, 0, size);
-    }
-
-    template<ZeroMem zero_mem, typename Slowpath>
+    template<ZeroMem zero_mem, typename SharedStateHandle, typename Slowpath>
     SNMALLOC_FAST_PATH void* alloc(size_t size, Slowpath slowpath)
     {
       sizeclass_t sizeclass = size_to_sizeclass(size);
@@ -61,7 +56,7 @@ namespace snmalloc
         auto p = fl.take(entropy);
         auto r = capptr_reveal(capptr_export(p.as_void()));
         if constexpr (zero_mem == YesZero)
-          return zeroing_wrapper(r, sizeclass_to_size(sizeclass));
+          return SharedStateHandle::Pal::zero(r, sizeclass_to_size(sizeclass));
         else
           return r;
       }

@@ -14,11 +14,29 @@ namespace snmalloc
     using Meta = MetaEntry;
     using Pal = DefaultPal;
 
+    // SNMALLOC_REQUIRE_CONSTINIT
+    inline static Metaslab default_meta_slab;
+
+    SNMALLOC_REQUIRE_CONSTINIT
+    inline static MetaEntry default_entry{&default_meta_slab, nullptr};
+
+    SNMALLOC_REQUIRE_CONSTINIT
     inline static AddressSpaceManager<Pal> address_space;
+
+    SNMALLOC_REQUIRE_CONSTINIT
     inline static AddressSpaceManager<Pal> meta_address_space;
-    inline static FlatPagemap<MIN_CHUNK_BITS, Meta, false> pagemap;
+
+    SNMALLOC_REQUIRE_CONSTINIT
+    inline static FlatPagemap<MIN_CHUNK_BITS, Meta, false, &default_entry>
+      pagemap;
+
+    SNMALLOC_REQUIRE_CONSTINIT
     inline static SlabAllocatorState slab_allocator_state;
+
+    SNMALLOC_REQUIRE_CONSTINIT
     inline static PoolState<CoreAlloc<Globals>> alloc_pool;
+
+    inline static std::atomic<bool> initialised{false};
 
     AddressSpaceManager<DefaultPal>& get_meta_address_space()
     {
@@ -30,7 +48,7 @@ namespace snmalloc
       return address_space;
     }
 
-    FlatPagemap<MIN_CHUNK_BITS, Meta, false>& get_pagemap()
+    FlatPagemap<MIN_CHUNK_BITS, Meta, false, &default_entry>& get_pagemap()
     {
       return pagemap;
     }
@@ -56,7 +74,13 @@ namespace snmalloc
       // Need to initialise pagemap.
       pagemap.init(&meta_address_space);
 
+      initialised = true;
       return 0;
+    }
+
+    static bool is_initialised()
+    {
+      return initialised;
     }
 
     // This needs to be a forward reference as the
@@ -72,8 +96,6 @@ namespace snmalloc
   };
 }
 
-
-
 using Alloc = snmalloc::FastAllocator<snmalloc::Globals>;
 
 int main(int argc, char** argv)
@@ -81,20 +103,25 @@ int main(int argc, char** argv)
   UNUSED(argc);
   UNUSED(argv);
 
+  // Test freeing nullptr, before any allocations.
+  Alloc alloc_evil;
+  alloc_evil.dealloc(nullptr);
 
   for (size_t i = 0; i < 44; i++)
   {
     Alloc alloc;
+    Alloc alloc2;
     std::cout << "sizeclass: " << i << std::endl;
 
     for (size_t j = 0; j < 100; j++)
     {
       auto a = alloc.alloc(snmalloc::sizeclass_to_size(i));
       std::cout << "alloc " << j << ": " << a << std::endl;
-      alloc.dealloc(a);
+      alloc2.dealloc(a);
     }
     std::cout << "-----------------------------------------------" << std::endl;
     alloc.flush();
+    alloc2.flush();
   }
 }
 

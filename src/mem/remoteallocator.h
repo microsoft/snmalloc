@@ -157,15 +157,6 @@ namespace snmalloc
 
   struct RemoteCache
   {
-    /**
-     * The total amount of memory we are waiting for before we will dispatch
-     * to other allocators. Zero or negative mean we should dispatch on the
-     * next remote deallocation. This is initialised to the 0 so that we
-     * always hit a slow path to start with, when we hit the slow path and
-     * need to dispatch everything, we can check if we are a real allocator
-     * and lazily provide a real allocator.
-     */
-    int64_t capacity{0};
     std::array<RemoteList, REMOTE_SLOTS> list{};
 
     /// Used to find the index into the array of queues for remote
@@ -177,40 +168,38 @@ namespace snmalloc
       constexpr size_t allocator_size = sizeof(Alloc);
       constexpr size_t initial_shift =
         bits::next_pow2_bits_const(allocator_size);
-      static_assert(
-        initial_shift >= 8,
-        "Can't embed sizeclass_t into allocator ID low bits");
+      // static_assert(
+      //   initial_shift >= 8,
+      //   "Can't embed sizeclass_t into allocator ID low bits");
       SNMALLOC_ASSERT((initial_shift + (r * REMOTE_SLOT_BITS)) < 64);
       return (id >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
     }
 
-    template<typename Alloc>
+    template<typename SharedStateHandle>
     SNMALLOC_FAST_PATH void dealloc(
       Remote::alloc_id_t target_id,
       CapPtr<void, CBAlloc> p,
       sizeclass_t sizeclass)
     {
-      this->capacity -= sizeclass_to_size(sizeclass);
       auto r = p.template as_reinterpret<Remote>();
 
       r->set_info(target_id, sizeclass);
 
-      RemoteList* l = &list[get_slot<Alloc>(target_id, 0)];
+      // TODO fix SharedStateHandle to be size of allocator
+      RemoteList* l = &list[get_slot<SharedStateHandle>(target_id, 0)];
       l->last->non_atomic_next = r;
       l->last = r;
     }
 
-    template<typename Alloc>
-    void post(Alloc* allocator, Remote::alloc_id_t id)
+    template<typename SharedStateHandle>
+    void post(SharedStateHandle handle, Remote::alloc_id_t id)
     {
-      // When the cache gets big, post lists to their target allocators.
-      capacity = REMOTE_CACHE;
-
       size_t post_round = 0;
 
       while (true)
       {
-        auto my_slot = get_slot<Alloc>(id, post_round);
+        // TODO correct size for slot offset
+        auto my_slot = get_slot<SharedStateHandle>(id, post_round);
 
         for (size_t i = 0; i < REMOTE_SLOTS; i++)
         {
@@ -222,11 +211,9 @@ namespace snmalloc
 
           if (!l->empty())
           {
-            // Send all slots to the target at the head of the list.
-            auto first_auth =
-              allocator->large_allocator.template capptr_amplify<Remote>(first);
-            auto super = Superslab::get(first_auth);
-            super->get_allocator()->message_queue.enqueue(first, l->last);
+            MetaEntry entry =
+              BackendAllocator::get_meta_data(handle, address_cast(first));
+            entry.remote->message_queue.enqueue(first, l->last);
             l->clear();
           }
         }
@@ -248,9 +235,11 @@ namespace snmalloc
         {
           // Use the next N bits to spread out remote deallocs in our own
           // slot.
-          size_t slot = get_slot<Alloc>(
-            Remote::trunc_target_id(r, &allocator->large_allocator),
-            post_round);
+          MetaEntry entry =
+            BackendAllocator::get_meta_data(handle, address_cast(r));
+          auto id = entry.remote->trunc_id();
+          // TODO correct size for slot offset
+          size_t slot = get_slot<SharedStateHandle>(id, post_round);
           RemoteList* l = &list[slot];
           l->last->non_atomic_next = r;
           l->last = r;
