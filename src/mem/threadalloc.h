@@ -2,12 +2,15 @@
 
 #include "../ds/helpers.h"
 #include "fastalloc.h"
+#include "globalconfig.h"
+
 #if defined(SNMALLOC_USE_THREAD_DESTRUCTOR) && \
   defined(SNMALLOC_USE_THREAD_CLEANUP)
 #error At most one out of SNMALLOC_USE_THREAD_CLEANUP and SNMALLOC_USE_THREAD_DESTRUCTOR may be defined.
 #endif
 
 extern "C" void _malloc_thread_cleanup();
+
 
 namespace snmalloc
 {
@@ -40,18 +43,6 @@ namespace snmalloc
 
   /**
    * Function passed as a template parameter to `Allocator` to allow lazy
-   * replacement. This function returns true, if the allocator passed in
-   * requires initialisation. As the TLS state is managed externally,
-   * this will always return false.
-   */
-  SNMALLOC_FAST_PATH bool needs_initialisation(void* existing)
-  {
-    UNUSED(existing);
-    return false;
-  }
-
-  /**
-   * Function passed as a template parameter to `Allocator` to allow lazy
    * replacement.  There is nothing to initialise in this case, so we expect
    * this to never be called.
    */
@@ -72,27 +63,6 @@ namespace snmalloc
 
   using ThreadAlloc = ThreadAllocUntypedWrapper;
 #else
-  /**
-   * A global fake allocator object.  This never allocates memory and, as a
-   * result, never owns any slabs.  On the slow paths, where it would fetch
-   * slabs to allocate from, it will discover that it is the placeholder and
-   * replace itself with the thread-local allocator, allocating one if
-   * required.  This avoids a branch on the fast path.
-   *
-   * The fake allocator is a zero initialised area of memory of the correct
-   * size. All data structures used potentially before initialisation must be
-   * okay with zero init to move to the slow path, that is, zero must signify
-   * empty.
-   */
-  inline const char GlobalPlaceHolder[sizeof(Alloc)] = {0};
-  inline Alloc* get_GlobalPlaceHolder()
-  {
-    // This cast is not legal.  Effectively, we want a minimal constructor
-    // for the global allocator as zero, and then a second constructor for
-    // the rest.  This is UB.
-    auto a = reinterpret_cast<const Alloc*>(&GlobalPlaceHolder);
-    return const_cast<Alloc*>(a);
-  }
 
   /**
    * Common aspects of thread local allocator. Subclasses handle how releasing
@@ -226,6 +196,7 @@ namespace snmalloc
 #  endif
 
   /**
+   * TODO revise comment (probably all in this file.)
    * Function passed as a template parameter to `Allocator` to allow lazy
    * replacement. This function returns true, if the allocated passed in,
    * is the placeholder allocator.  If it returns true, then

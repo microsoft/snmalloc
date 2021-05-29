@@ -417,6 +417,7 @@ namespace snmalloc
 
     void teardown()
     {
+      std::cout << "Teardown" << std::endl;
       post_teardown = true;
       if (core_alloc != nullptr)
       {
