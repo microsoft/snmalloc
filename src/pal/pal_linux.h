@@ -29,6 +29,14 @@ namespace snmalloc
       Aal::aal_name == PowerPC ? 0x10000 : PALPOSIX::page_size;
 
     /**
+     * Linux requires an explicit no-reserve flag in `mmap` to guarantee lazy
+     * commit if /proc/sys/vm/overcommit_memory is set to `heuristic` (0).
+     *
+     *   https://www.kernel.org/doc/html/latest/vm/overcommit-accounting.html
+     */
+    static constexpr int default_mmap_flags = MAP_NORESERVE;
+
+    /**
      * OS specific function for zeroing memory.
      *
      * Linux implements an unusual interpretation of `MADV_DONTNEED`, which
