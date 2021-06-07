@@ -136,6 +136,8 @@ int main(int argc, char** argv)
 
   setup();
 
+  our_free(nullptr);
+
   constexpr int SUCCESS = 0;
 
   for (sizeclass_t sc = 0; sc < (SUPERSLAB_BITS); sc++)

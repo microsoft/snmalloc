@@ -23,6 +23,14 @@ namespace snmalloc
   private:
     static constexpr size_t SHIFT = GRANULARITY_BITS;
 
+    // Before init is called will contain a single entry
+    // that is the default value.  This is needed so that
+    // various calls do not have to check for nullptr.
+    //   free(nullptr)
+    // and
+    //   malloc_usable_size(nullptr)
+    // do not require an allocation to have ocurred before
+    // they are called.
     T* body{default_value};
 
     address_t base{0};
@@ -80,6 +88,7 @@ namespace snmalloc
       //  This means external pointer on Windows will be slow.
       if constexpr (potentially_out_of_range)
       {
+        // TODO: need to uncomment
         Pal::notify_using<NoZero>(&body[p >> SHIFT], sizeof(T));
       }
 
@@ -114,7 +123,7 @@ namespace snmalloc
       // This could be the first time this page is used
       // This will potentially be expensive on Windows,
       // and we should revisit the performance here.
-      // TODO:
+      // TODO: need to uncomment
 //      Pal::notify_using<NoZero>(&body[p >> SHIFT], sizeof(T));
 
       body[p >> SHIFT] = t;
