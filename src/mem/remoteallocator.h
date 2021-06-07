@@ -133,6 +133,23 @@ namespace snmalloc
     }
   };
 
+
+  /**
+   * Special remote that should never be used as a real remote.
+   * This is used to initialise allocators that should always hit the
+   * remote path for deallocation. Hence moving a branch of the critical
+   * path.
+   */
+  inline static RemoteAllocator unused_remote;
+
+  /**
+   * Special remote that is used in meta-data for large allocations.
+   *
+   * nullptr is considered a large allocations for this purpose to move
+   * of the critical path.
+   */
+  inline static RemoteAllocator fake_large_remote;
+
   /*
    * A singly-linked list of Remote objects, supporting append and
    * take-all operations.  Intended only for the private use of this

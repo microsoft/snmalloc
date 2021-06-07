@@ -150,6 +150,8 @@ int main(int argc, char** argv)
 
   test_calloc(0, 0, SUCCESS, false);
 
+  our_free(nullptr);
+
   for (sizeclass_t sc = 0; sc < NUM_SIZECLASSES; sc++)
   {
     const size_t size = sizeclass_to_size(sc);

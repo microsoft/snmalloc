@@ -43,8 +43,6 @@ namespace snmalloc
   class FastAllocator
   {
     using CoreAlloc = CoreAlloc<SharedStateHandle>;
-    inline static RemoteAllocator unused_remote;
-    inline static RemoteAllocator fake_large_remote;
 
   private:
     // Free list per small size class.  These are used for
@@ -396,35 +394,45 @@ namespace snmalloc
         return;
       }
 
-      // Not on the fastest path.
-      if (unlikely(p == nullptr))
-        return;
 
-      // Check if we have space for the remote deallocation
-      if (likely(
-            capacity > (int64_t)sizeclass_to_size(entry.meta->sizeclass())))
+      if (likely(entry.remote != &fake_large_remote))
       {
-        capacity -= sizeclass_to_size(entry.meta->sizeclass());
-        core_alloc->remote_cache.template dealloc<SharedStateHandle>(
-          entry.remote->trunc_id(),
-          CapPtr<void, CBAlloc>(p),
-          entry.meta->sizeclass());
-#ifdef SNMALLOC_TRACING
-        std::cout << "Remote dealloc fast" << p << " size " << alloc_size(p)
-                  << std::endl;
-#endif
+        // Check if we have space for the remote deallocation
+        if (likely(
+              capacity > (int64_t)sizeclass_to_size(entry.meta->sizeclass())))
+        {
+          capacity -= sizeclass_to_size(entry.meta->sizeclass());
+          core_alloc->remote_cache.template dealloc<SharedStateHandle>(
+            entry.remote->trunc_id(),
+            CapPtr<void, CBAlloc>(p),
+            entry.meta->sizeclass());
+  #ifdef SNMALLOC_TRACING
+          std::cout << "Remote dealloc fast" << p << " size " << alloc_size(p)
+                    << std::endl;
+  #endif
+          return;
+        }
+
+        dealloc_slow(p);
         return;
       }
 
-      if (entry.remote == &fake_large_remote)
+      // Large deallocation or null.
+      if (likely(p != nullptr))
       {
+  #ifdef SNMALLOC_TRACING
+        std::cout << "Large deallocation" << std::endl;
+  #endif
         // TODO Large deallocation
         // TODO Doesn't require local init!
-
+        abort();
         return;
       }
 
-      dealloc_slow(p);
+  #ifdef SNMALLOC_TRACING
+      std::cout << "nullptr deallocation" << std::endl;
+  #endif
+      return;
     }
 
     SNMALLOC_FAST_PATH void dealloc(void* p, size_t s)

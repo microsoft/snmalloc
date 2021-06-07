@@ -21,8 +21,12 @@ namespace snmalloc
     // SNMALLOC_REQUIRE_CONSTINIT
     inline static Metaslab default_meta_slab;
 
+    /**
+     * We use fake_large_remote so that nullptr, will hit the large
+     * allocation path which is less performance sensitive.
+     */
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static MetaEntry default_entry{&default_meta_slab, nullptr};
+    inline static MetaEntry default_entry{&default_meta_slab, &fake_large_remote};
 
     SNMALLOC_REQUIRE_CONSTINIT
     inline static AddressSpaceManager<Pal> address_space;

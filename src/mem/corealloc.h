@@ -150,39 +150,77 @@ namespace snmalloc
       return r;
     }
 
-  public:
-    CoreAlloc(FastCache* cache, SharedStateHandle handle)
-    : handle(handle), attached_cache(cache)
+    static SNMALLOC_FAST_PATH void alloc_new_list(
+      CapPtr<void, CBChunk>& bumpptr,
+      FreeListIter& fast_free_list,
+      size_t rsize,
+      size_t slab_size,
+      LocalEntropy& entropy)
     {
-#ifdef SNMALLOC_TRACING
-      std::cout << "Making an allocator." << std::endl;
-#endif
-      // Entropy must be first, so that all data-structures can use the key
-      // it generates.
-      // This must occur before any freelists are constructed.
-      entropy.init<typename SharedStateHandle::Pal>();
+      auto slab_end = pointer_offset(bumpptr, slab_size + 1 - rsize);
 
-      // Ignoring stats for now.
-      //      stats().start();
+      FreeListBuilder<false> b;
+      SNMALLOC_ASSERT(b.empty());
 
-      init_message_queue();
-      message_queue().invariant();
+      b.open(bumpptr);
 
-#ifndef NDEBUG
-      for (sizeclass_t i = 0; i < NUM_SIZECLASSES; i++)
+#ifdef CHECK_CLIENT
+      // Structure to represent the temporary list elements
+      struct PreAllocObject
       {
-        size_t size = sizeclass_to_size(i);
-        sizeclass_t sc1 = size_to_sizeclass(size);
-        sizeclass_t sc2 = size_to_sizeclass_const(size);
-        size_t size1 = sizeclass_to_size(sc1);
-        size_t size2 = sizeclass_to_size(sc2);
+        CapPtr<PreAllocObject, CBAlloc> next;
+      };
+      // The following code implements Sattolo's algorithm for generating
+      // random cyclic permutations.  This implementation is in the opposite
+      // direction, so that the original space does not need initialising.  This
+      // is described as outside-in without citation on Wikipedia, appears to be
+      // Folklore algorithm.
 
-        SNMALLOC_ASSERT(sc1 == i);
-        SNMALLOC_ASSERT(sc1 == sc2);
-        SNMALLOC_ASSERT(size1 == size);
-        SNMALLOC_ASSERT(size1 == size2);
+      // Note the wide bounds on curr relative to each of the ->next fields;
+      // curr is not persisted once the list is built.
+      CapPtr<PreAllocObject, CBChunk> curr =
+        pointer_offset(bumpptr, 0).template as_static<PreAllocObject>();
+      curr->next = Aal::capptr_bound<PreAllocObject, CBAlloc>(curr, rsize);
+
+      uint16_t count = 1;
+      for (curr =
+             pointer_offset(curr, rsize).template as_static<PreAllocObject>();
+           curr.as_void() < slab_end;
+           curr =
+             pointer_offset(curr, rsize).template as_static<PreAllocObject>())
+      {
+        size_t insert_index = entropy.sample(count);
+        curr->next = std::exchange(
+          pointer_offset(bumpptr, insert_index * rsize)
+            .template as_static<PreAllocObject>()
+            ->next,
+          Aal::capptr_bound<PreAllocObject, CBAlloc>(curr, rsize));
+        count++;
+      }
+
+      // Pick entry into space, and then build linked list by traversing cycle
+      // to the start.  Use ->next to jump from CBArena to CBAlloc.
+      auto start_index = entropy.sample(count);
+      auto start_ptr = pointer_offset(bumpptr, start_index * rsize)
+                         .template as_static<PreAllocObject>()
+                         ->next;
+      auto curr_ptr = start_ptr;
+      do
+      {
+        b.add(FreeObject::make(curr_ptr.as_void()), entropy);
+        curr_ptr = curr_ptr->next;
+      } while (curr_ptr != start_ptr);
+#else
+      for (auto p = bumpptr; p < slab_end; p = pointer_offset(p, rsize))
+      {
+        b.add(Aal::capptr_bound<FreeObject, CBAlloc>(p, rsize), entropy);
       }
 #endif
+       // This code consumes everything up to slab_end.
+      bumpptr = slab_end;
+
+      SNMALLOC_ASSERT(!b.empty());
+      b.close(fast_free_list, entropy);
     }
 
     /**
@@ -255,6 +293,41 @@ namespace snmalloc
 #endif
     }
 
+  public:
+    CoreAlloc(FastCache* cache, SharedStateHandle handle)
+    : handle(handle), attached_cache(cache)
+    {
+#ifdef SNMALLOC_TRACING
+      std::cout << "Making an allocator." << std::endl;
+#endif
+      // Entropy must be first, so that all data-structures can use the key
+      // it generates.
+      // This must occur before any freelists are constructed.
+      entropy.init<typename SharedStateHandle::Pal>();
+
+      // Ignoring stats for now.
+      //      stats().start();
+
+      init_message_queue();
+      message_queue().invariant();
+
+#ifndef NDEBUG
+      for (sizeclass_t i = 0; i < NUM_SIZECLASSES; i++)
+      {
+        size_t size = sizeclass_to_size(i);
+        sizeclass_t sc1 = size_to_sizeclass(size);
+        sizeclass_t sc2 = size_to_sizeclass_const(size);
+        size_t size1 = sizeclass_to_size(sc1);
+        size_t size2 = sizeclass_to_size(sc2);
+
+        SNMALLOC_ASSERT(sc1 == i);
+        SNMALLOC_ASSERT(sc1 == sc2);
+        SNMALLOC_ASSERT(size1 == size);
+        SNMALLOC_ASSERT(size1 == size2);
+      }
+#endif
+    }
+
     SNMALLOC_SLOW_PATH void dealloc_local_object(void* p)
     {
       auto meta = snmalloc::BackendAllocator::get_meta_data(
@@ -277,8 +350,32 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void*
     small_alloc(sizeclass_t sizeclass, FreeListIter& fast_free_list)
     {
-      return snmalloc::SlabAllocator::alloc<zero_mem>(
-        handle, sizeclass, public_state(), fast_free_list, entropy);
+      size_t rsize = sizeclass_to_size(sizeclass);
+      size_t slab_size = sizeclass_to_slab_size(sizeclass);
+      size_t slab_sizeclass = sizeclass_to_slab_sizeclass(sizeclass);
+
+#ifdef SNMALLOC_TRACING
+      std::cout << "rsize " << rsize << std::endl;
+      std::cout << "slab size " << slab_size << std::endl;
+#endif
+
+      auto [slab, meta] = snmalloc::SlabAllocator::alloc<zero_mem>(handle, slab_sizeclass, slab_size, public_state());
+
+      // Build a free list for the slab
+      alloc_new_list(slab, fast_free_list, rsize, slab_size, entropy);
+
+      // Set meta slab to empty.
+      meta->initialise(sizeclass, slab.template as_static<Slab>());
+
+      // take an allocation from the free list
+      auto p = fast_free_list.take(entropy).unsafe_capptr;
+
+      if (zero_mem == YesZero)
+      {
+        SharedStateHandle::Pal::template zero<false>(p, rsize);
+      }
+
+      return p;
     }
   };
 }
