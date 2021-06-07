@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fastalloc.h"
+#include "globalconfig.h"
 
 namespace snmalloc
 {

@@ -114,7 +114,8 @@ namespace snmalloc
       // This could be the first time this page is used
       // This will potentially be expensive on Windows,
       // and we should revisit the performance here.
-      Pal::notify_using<NoZero>(&body[p >> SHIFT], sizeof(T));
+      // TODO:
+//      Pal::notify_using<NoZero>(&body[p >> SHIFT], sizeof(T));
 
       body[p >> SHIFT] = t;
     }

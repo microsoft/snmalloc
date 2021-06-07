@@ -5,6 +5,7 @@
 #include "pooled.h"
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
+#include "../backend/slaballocator.h"
 
 namespace snmalloc
 {
@@ -153,7 +154,9 @@ namespace snmalloc
     CoreAlloc(FastCache* cache, SharedStateHandle handle)
     : handle(handle), attached_cache(cache)
     {
+#ifdef SNMALLOC_TRACING
       std::cout << "Making an allocator." << std::endl;
+#endif
       // Entropy must be first, so that all data-structures can use the key
       // it generates.
       // This must occur before any freelists are constructed.
@@ -210,7 +213,9 @@ namespace snmalloc
         SNMALLOC_ASSERT(meta->needed() != 0);
 
         alloc_classes[sizeclass].insert_prev(meta);
+#ifdef SNMALLOC_TRACING
         std::cout << "Slab is woken up" << std::endl;
+#endif
 
         return;
       }
@@ -245,7 +250,9 @@ namespace snmalloc
       slab_record->slab = CapPtr<void, CBChunk>(start_of_slab);
       SlabAllocator::dealloc(
         handle, slab_record, sizeclass_to_slab_sizeclass(sizeclass));
+#ifdef SNMALLOC_TRACING
       std::cout << "Slab is unused" << std::endl;
+#endif
     }
 
     SNMALLOC_SLOW_PATH void dealloc_local_object(void* p)

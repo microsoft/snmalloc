@@ -19,6 +19,25 @@
 
 namespace snmalloc
 {
+
+  enum Boundary
+  {
+    /**
+     * The location of the first byte of this allocation.
+     */
+    Start,
+    /**
+     * The location of the last byte of the allocation.
+     */
+    End,
+    /**
+     * The location one past the end of the allocation.  This is mostly useful
+     * for bounds checking, where anything less than this value is safe.
+     */
+    OnePastEnd
+  };
+
+
   // This class contains the fastest path code for the allocator.
   template<class SharedStateHandle>
   class FastAllocator
@@ -196,8 +215,10 @@ namespace snmalloc
       {
         handle_message_queue();
 
+#ifdef SNMALLOC_TRACING
         std::cout << "Remote dealloc post" << p << " size " << alloc_size(p)
                   << std::endl;
+#endif
         MetaEntry entry =
           BackendAllocator::get_meta_data(handle, address_cast(p));
         core_alloc->remote_cache.template dealloc<SharedStateHandle>(
@@ -256,7 +277,9 @@ namespace snmalloc
 
         if (unlikely(!r.second))
           break;
+#ifdef SNMALLOC_TRACING
         std::cout << "Handling remote" << std::endl;
+#endif
         // Previously had special version of this code:
         //   handle_dealloc_remote(r.first);
         // TODO this needs to not double count stats
@@ -386,8 +409,10 @@ namespace snmalloc
           entry.remote->trunc_id(),
           CapPtr<void, CBAlloc>(p),
           entry.meta->sizeclass());
+#ifdef SNMALLOC_TRACING
         std::cout << "Remote dealloc fast" << p << " size " << alloc_size(p)
                   << std::endl;
+#endif
         return;
       }
 
@@ -417,7 +442,9 @@ namespace snmalloc
 
     void teardown()
     {
+#ifdef SNMALLOC_TRACING
       std::cout << "Teardown" << std::endl;
+#endif
       post_teardown = true;
       if (core_alloc != nullptr)
       {
@@ -435,16 +462,17 @@ namespace snmalloc
       return sizeclass_to_size(entry.meta->sizeclass());
     }
 
-    // template<Boundary location = Start>
-    // void* external_pointer(void* p_raw)
-    // {
-    //   return nullptr;
-    //   // // TODO, can we optimise to not need initialisation?
-    //   // return check_init(
-    //   //   [](CoreAlloc* core_alloc, void* p_raw) {
-    //   //     return core_alloc->template external_pointer<location>(p_raw);
-    //   //   },
-    //   //   p_raw);
-    // }
+    template<Boundary location = Start>
+    void* external_pointer(void* p_raw)
+    {
+      UNUSED(p_raw);
+      return nullptr;
+      // // TODO, can we optimise to not need initialisation?
+      // return check_init(
+      //   [](CoreAlloc* core_alloc, void* p_raw) {
+      //     return core_alloc->template external_pointer<location>(p_raw);
+      //   },
+      //   p_raw);
+    }
   };
 } // namespace snmalloc

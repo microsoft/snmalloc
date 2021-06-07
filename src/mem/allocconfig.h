@@ -118,6 +118,11 @@ namespace snmalloc
   static constexpr size_t MIN_ALLOC_SIZE = 2 * sizeof(void*);
   static constexpr size_t MIN_ALLOC_BITS = bits::ctz_const(MIN_ALLOC_SIZE);
 
+  // Minimuium slab size.
+  static constexpr size_t MIN_CHUNK_BITS = 14;
+  static constexpr size_t MIN_CHUNK_SIZE = bits::one_at_bit(MIN_CHUNK_BITS);
+
+
   // Slabs are 64 KiB unless constrained to 16 or even 8 KiB
   static constexpr size_t SLAB_BITS =
     USE_SMALL_CHUNKS ? 13 : (USE_LARGE_CHUNKS ? 16 : 14);

@@ -74,9 +74,16 @@ namespace snmalloc
     // before any other datastructures are accessed.
     static int init() noexcept
     {
+#ifdef SNMALLOC_TRACING
       std::cout << "Run init_impl" << std::endl;
+#endif
       // Need to initialise pagemap.
       pagemap.init(&meta_address_space);
+
+      // The nullptr should contain the default value.
+      // This will make alloc_size of nullptr return 0
+      // as required.
+      pagemap.add(0, default_entry);
 
       initialised = true;
       return 0;

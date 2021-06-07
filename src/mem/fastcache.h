@@ -56,9 +56,9 @@ namespace snmalloc
         auto p = fl.take(entropy);
         auto r = capptr_reveal(capptr_export(p.as_void()));
         if constexpr (zero_mem == YesZero)
-          return SharedStateHandle::Pal::zero(r, sizeclass_to_size(sizeclass));
-        else
-          return r;
+          SharedStateHandle::Pal::zero(r, sizeclass_to_size(sizeclass));
+
+        return r;
       }
       return slowpath(sizeclass, &fl);
     }

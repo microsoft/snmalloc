@@ -2,12 +2,10 @@
 #include "address_space.h"
 #include "pagemap.h"
 #include "pal/pal.h"
+#include "mem/allocconfig.h"
 
 namespace snmalloc
 {
-  static constexpr size_t MIN_CHUNK_BITS = 14;
-  static constexpr size_t MIN_CHUNK_SIZE = bits::one_at_bit(MIN_CHUNK_BITS);
-
   /**
    * This class abstracts the platform to a consistent
    * way of handling memory for the front end.

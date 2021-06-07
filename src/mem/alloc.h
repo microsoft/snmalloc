@@ -23,23 +23,6 @@
 
 namespace snmalloc
 {
-  enum Boundary
-  {
-    /**
-     * The location of the first byte of this allocation.
-     */
-    Start,
-    /**
-     * The location of the last byte of the allocation.
-     */
-    End,
-    /**
-     * The location one past the end of the allocation.  This is mostly useful
-     * for bounds checking, where anything less than this value is safe.
-     */
-    OnePastEnd
-  };
-
   /**
    * Allocator.  This class is parameterised on three template parameters.
    *

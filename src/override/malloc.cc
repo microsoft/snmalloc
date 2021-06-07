@@ -27,10 +27,12 @@ extern "C"
   void SNMALLOC_NAME_MANGLE(check_start)(void* ptr)
   {
 #if !defined(NDEBUG) && !defined(SNMALLOC_PASS_THROUGH)
-    if (ThreadAlloc::get_noncachable()->external_pointer<Start>(ptr) != ptr)
-    {
-      error("Using pointer that is not to the start of an allocation");
-    }
+    // TODO
+    UNUSED(ptr);
+    // if (ThreadAlloc::get_noncachable()->external_pointer<Start>(ptr) != ptr)
+    // {
+    //   error("Using pointer that is not to the start of an allocation");
+    // }
 #else
     UNUSED(ptr);
 #endif

@@ -4,7 +4,9 @@
 #include "../mem/remoteallocator.h"
 #include "../mem/sizeclass.h"
 #include "../mem/sizeclasstable.h"
+#include "../ds/mpmcstack.h"
 #include "backend.h"
+
 
 #include <iostream>
 
@@ -134,8 +136,10 @@ namespace snmalloc
       size_t slab_size = sizeclass_to_slab_size(sizeclass);
       size_t slab_sizeclass = sizeclass_to_slab_sizeclass(sizeclass);
 
+#ifdef SNMALLOC_TRACING
       std::cout << "rsize " << rsize << std::endl;
       std::cout << "slab size " << slab_size << std::endl;
+#endif
 
       SlabAllocatorState& state = h.get_slab_allocator_state();
       // Pop a slab

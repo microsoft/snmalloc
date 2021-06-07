@@ -2,8 +2,6 @@
 
 #include "../ds/bits.h"
 #include "../ds/helpers.h"
-#include "mediumslab.h"
-#include "superslab.h"
 
 namespace snmalloc
 {
@@ -27,11 +25,8 @@ namespace snmalloc
   {
     sizeclass_compress_t sizeclass_lookup[sizeclass_lookup_size] = {{}};
     ModArray<NUM_SIZECLASSES, size_t> size;
-    ModArray<NUM_SMALL_CLASSES, uint16_t> initial_offset_ptr;
-    ModArray<NUM_SMALL_CLASSES, uint16_t> short_initial_offset_ptr;
+
     ModArray<NUM_SMALL_CLASSES, uint16_t> capacity;
-    ModArray<NUM_SMALL_CLASSES, uint16_t> short_capacity;
-    ModArray<NUM_MEDIUM_CLASSES, uint16_t> medium_slab_slots;
     // Table of constants for reciprocal division for each sizeclass.
     ModArray<NUM_SIZECLASSES, size_t> div_mult;
     // Table of constants for reciprocal modulus for each sizeclass.
@@ -39,11 +34,7 @@ namespace snmalloc
 
     constexpr SizeClassTable()
     : size(),
-      initial_offset_ptr(),
-      short_initial_offset_ptr(),
       capacity(),
-      short_capacity(),
-      medium_slab_slots(),
       div_mult(),
       mod_mult()
     {
@@ -78,31 +69,10 @@ namespace snmalloc
         }
       }
 
-      size_t header_size = sizeof(Superslab);
-      size_t short_slab_size = SLAB_SIZE - header_size;
-
       for (sizeclass_t i = 0; i < NUM_SMALL_CLASSES; i++)
       {
-        // We align to the end of the block to remove special cases for the
-        // short block. Calculate remainders
-        size_t short_correction = short_slab_size % size[i];
-        size_t correction = SLAB_SIZE % size[i];
-
-        // First element in the block is the link
-        initial_offset_ptr[i] = static_cast<uint16_t>(correction);
-        short_initial_offset_ptr[i] =
-          static_cast<uint16_t>(header_size + short_correction);
-
-        capacity[i] = static_cast<uint16_t>(
-          (SLAB_SIZE - initial_offset_ptr[i]) / (size[i]));
-        short_capacity[i] = static_cast<uint16_t>(
-          (SLAB_SIZE - short_initial_offset_ptr[i]) / (size[i]));
-      }
-
-      for (sizeclass_t i = NUM_SMALL_CLASSES; i < NUM_SIZECLASSES; i++)
-      {
-        medium_slab_slots[i - NUM_SMALL_CLASSES] = static_cast<uint16_t>(
-          (SUPERSLAB_SIZE - Mediumslab::header_size()) / size[i]);
+        // TODO
+        capacity[i] = 0;
       }
     }
   };
@@ -110,20 +80,8 @@ namespace snmalloc
   static constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
 
   static inline constexpr uint16_t
-  get_initial_offset(sizeclass_t sc, bool is_short)
+  get_slab_capacity(sizeclass_t sc)
   {
-    if (is_short)
-      return sizeclass_metadata.short_initial_offset_ptr[sc];
-
-    return sizeclass_metadata.initial_offset_ptr[sc];
-  }
-
-  static inline constexpr uint16_t
-  get_slab_capacity(sizeclass_t sc, bool is_short)
-  {
-    if (is_short)
-      return sizeclass_metadata.short_capacity[sc];
-
     return sizeclass_metadata.capacity[sc];
   }
 
@@ -145,12 +103,6 @@ namespace snmalloc
     // problematic for some data due to alignment issues.
     return static_cast<sizeclass_t>(
       bits::to_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(size));
-  }
-
-  constexpr static inline uint16_t medium_slab_free(sizeclass_t sizeclass)
-  {
-    return sizeclass_metadata
-      .medium_slab_slots[(sizeclass - NUM_SMALL_CLASSES)];
   }
 
   inline static size_t round_by_sizeclass(sizeclass_t sc, size_t offset)
