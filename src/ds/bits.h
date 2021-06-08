@@ -246,6 +246,14 @@ namespace snmalloc
       return one_at_bit(BITS - clz_const(x - 1));
     }
 
+    constexpr size_t prev_pow2_const(size_t x)
+    {
+      if (x <= 2)
+        return x;
+
+      return one_at_bit(BITS - (clz_const(x + 1) + 1));
+    }
+
     inline constexpr size_t next_pow2_bits_const(size_t x)
     {
       return BITS - clz_const(x - 1);

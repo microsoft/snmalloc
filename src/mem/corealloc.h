@@ -279,7 +279,6 @@ namespace snmalloc
 
       meta->remove();
       SlabRecord* slab_record = reinterpret_cast<SlabRecord*>(meta);
-      snmalloc::sizeclass_to_slab_sizeclass(sizeclass);
       // TODO: This is a capability amplification as we are saying we have the
       // whole slab.
       auto start_of_slab = pointer_align_down<void>(
@@ -328,7 +327,7 @@ namespace snmalloc
 #endif
     }
 
-    SNMALLOC_SLOW_PATH void dealloc_local_object(void* p)
+    SNMALLOC_FAST_PATH void dealloc_local_object(void* p)
     {
       auto meta = snmalloc::BackendAllocator::get_meta_data(
                     handle, snmalloc::address_cast(p))
@@ -359,7 +358,7 @@ namespace snmalloc
       std::cout << "slab size " << slab_size << std::endl;
 #endif
 
-      auto [slab, meta] = snmalloc::SlabAllocator::alloc<zero_mem>(handle, slab_sizeclass, slab_size, public_state());
+      auto [slab, meta] = snmalloc::SlabAllocator::alloc(handle, slab_sizeclass, slab_size, public_state());
 
       // Build a free list for the slab
       alloc_new_list(slab, fast_free_list, rsize, slab_size, entropy);

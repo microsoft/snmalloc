@@ -16,7 +16,7 @@
 
 #include <string.h>
 #include <utility>
-
+#include <iostream>
 namespace snmalloc
 {
 
@@ -64,7 +64,7 @@ namespace snmalloc
 
     // Pointer to the remote allocator message_queue, used to check
     // if a deallocation is local.
-    RemoteAllocator* remote_allocator{&unused_remote};
+    RemoteAllocator* remote_allocator;
 
     // As allocation and deallocation can occur during thread teardown
     // we need to record if we are already in that state as we will not
@@ -94,7 +94,7 @@ namespace snmalloc
     {
       if (likely(core_alloc != nullptr))
       {
-        return action(core_alloc, args...);
+        return handle_message_queue(action, core_alloc, args...);
       }
       return lazy_init(action, args...);
     }
@@ -130,6 +130,7 @@ namespace snmalloc
         // We need to return any local state, so we don't leak it.
         flush();
       }
+
       return r;
     }
 
@@ -137,7 +138,7 @@ namespace snmalloc
      * Allocation that are larger than are handled by the fast allocator must be
      * passed to the core allocator.
      */
-    template<ZeroMem zero_mem = NoZero>
+    template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH void* alloc_not_small(size_t size)
     {
       if (size == 0)
@@ -148,19 +149,28 @@ namespace snmalloc
         return small_alloc<zero_mem>(1);
       }
 
+
+      
       // TODO
       //  ?Do we need to initialise the allocator on this path?
       //   only if we are doing stats?
 
       // Grab slab of correct size
-
+      // Set remote as large allocator remote.
+      auto [slab, meta] = SlabAllocator::alloc(handle, large_size_to_slab_sizeclass(size), large_size_to_slab_size(size), handle.fake_large_remote);
       // set up meta data so sizeclass is correct, and hence alloc size, and
       // external pointer.
+#ifdef SNMALLOC_TRACING
+      std::cout << "size " << size << " sizeclass " << size_to_sizeclass(size) << std::endl;
+#endif
+      meta->initialise(size_to_sizeclass(size));
 
-      // Set remote as large allocator remote.
+      if (zero_mem == YesZero)
+      {
+        SharedStateHandle::Pal::template zero<false>(slab.unsafe_capptr, size);
+      }
 
-      UNUSED(size);
-      return nullptr;
+      return slab.unsafe_capptr;
     }
 
     template<ZeroMem zero_mem>
@@ -174,13 +184,12 @@ namespace snmalloc
           //  Note:  FreeListIter& for fl would be nice, but codegen gets
           //  upset in clang.
           [&](CoreAlloc* core_alloc, sizeclass_t sizeclass, FreeListIter* fl) {
-            handle_message_queue();
-
             // Setting up the message queue can cause a free list to be
             // populated, so need to check that initialisation hasn't caused
             // that.  Aggressive inlining will remove this.
             if (fl->empty())
               return core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
+
 
             auto r = capptr_reveal(
               capptr_export(fl->take(small_cache.entropy).as_void()));
@@ -211,7 +220,7 @@ namespace snmalloc
     {
       if (core_alloc != nullptr)
       {
-        handle_message_queue();
+//        handle_message_queue();
 
 #ifdef SNMALLOC_TRACING
         std::cout << "Remote dealloc post" << p << " size " << alloc_size(p)
@@ -227,6 +236,7 @@ namespace snmalloc
         capacity = REMOTE_CACHE;
         return;
       }
+
       // Recheck what kind of dealloc we should do incase, the allocator we get
       // from lazy_init is the originating allocator.
       lazy_init(
@@ -255,19 +265,23 @@ namespace snmalloc
       return !(message_queue().is_empty());
     }
 
-    SNMALLOC_FAST_PATH void handle_message_queue()
+    template<typename Action, typename... Args>
+    SNMALLOC_FAST_PATH decltype(auto) handle_message_queue(Action action, Args... args)
     {
       // Inline the empty check, but not necessarily the full queue handling.
       if (likely(!has_messages()))
-        return;
+      {
+        return action(args...);
+      }
 
-      handle_message_queue_inner();
+      return handle_message_queue_inner(action, args...);
     }
 
     /**
      * Process remote frees into this allocator.
      */
-    SNMALLOC_SLOW_PATH void handle_message_queue_inner()
+    template<typename Action, typename... Args>
+    SNMALLOC_SLOW_PATH decltype(auto) handle_message_queue_inner(Action action, Args... args)
     {
       for (size_t i = 0; i < REMOTE_BATCH; i++)
       {
@@ -286,12 +300,15 @@ namespace snmalloc
         // TODO thread capabilities?
         dealloc(r.first.unsafe_capptr);
       }
+
+      return action(args...);
     }
 
   public:
     constexpr FastAllocator()
     {
       handle = SharedStateHandle::get_handle();
+      remote_allocator = &handle.unused_remote;
     };
 
     // This is effectively the constructor for the FastAllocator, but due to
@@ -340,7 +357,7 @@ namespace snmalloc
      * Allocate memory of a dynamically known size.
      */
     template<ZeroMem zero_mem = NoZero>
-    SNMALLOC_SLOW_PATH ALLOCATOR void* alloc(size_t size)
+    SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
     {
 #ifdef SNMALLOC_PASS_THROUGH
       // snmalloc guarantees a lot of alignment, so we can depend on this
@@ -376,10 +393,9 @@ namespace snmalloc
       return alloc<zero_mem>(size);
     }
 
-    SNMALLOC_SLOW_PATH void dealloc(void* p)
+    SNMALLOC_FAST_PATH void dealloc(void* p)
     {
       // TODO Pass through code!
-
       // TODO:
       // Care is needed so that dealloc(nullptr) works before init
       //  The backend allocator must ensure that a minimal page map exists
@@ -394,8 +410,7 @@ namespace snmalloc
         return;
       }
 
-
-      if (likely(entry.remote != &fake_large_remote))
+      if (likely(entry.remote != handle.fake_large_remote))
       {
         // Check if we have space for the remote deallocation
         if (likely(
@@ -423,9 +438,14 @@ namespace snmalloc
   #ifdef SNMALLOC_TRACING
         std::cout << "Large deallocation" << std::endl;
   #endif
-        // TODO Large deallocation
-        // TODO Doesn't require local init!
-        abort();
+        // TODO Doesn't require local init! unless stats are on.
+        // TODO check for start of allocation.
+        size_t size = sizeclass_to_size(entry.meta->sizeclass());
+        size_t sizeclass = large_size_to_slab_sizeclass(size);
+        SlabRecord* slab_record = reinterpret_cast<SlabRecord*>(entry.meta);
+        slab_record->slab = CapPtr<void, CBChunk>(p);
+        SlabAllocator::dealloc(
+          handle, slab_record, sizeclass_to_slab_sizeclass(sizeclass));
         return;
       }
 

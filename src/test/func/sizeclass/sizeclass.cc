@@ -76,7 +76,7 @@ int main(int, char**)
 
   std::cout << "sizeclass |-> [size_low, size_high] " << std::endl;
 
-  for (snmalloc::sizeclass_t sz = 0; sz < snmalloc::NUM_SIZECLASSES; sz++)
+  for (snmalloc::sizeclass_t sz = 0; sz < snmalloc::NUM_SIZECLASSES + 20; sz++)
   {
     // Separate printing for small and medium sizeclasses
     if (sz == snmalloc::NUM_SMALL_CLASSES)

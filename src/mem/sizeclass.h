@@ -45,10 +45,6 @@ namespace snmalloc
   static constexpr size_t NUM_SIZECLASSES =
     size_to_sizeclass_const(SUPERSLAB_SIZE);
 
-  // Medium classes range from (SLAB, SUPERSLAB), i.e. non-inclusive.
-  static constexpr size_t NUM_MEDIUM_CLASSES =
-    NUM_SIZECLASSES - NUM_SMALL_CLASSES;
-
   // Large classes range from [SUPERSLAB, ADDRESS_SPACE).
   static constexpr size_t NUM_LARGE_CLASSES =
     bits::ADDRESS_BITS - SUPERSLAB_BITS;

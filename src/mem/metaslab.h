@@ -54,20 +54,33 @@ namespace snmalloc
 
   static size_t sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)
   {
-    size_t rsize = sizeclass_to_size(sizeclass);
-    if (bits::next_pow2_bits(rsize) <= MIN_CHUNK_BITS / MIN_OBJECT_COUNT)
-    {
-      return 0;
-    }
-
-    return bits::next_pow2_bits(rsize) - (MIN_CHUNK_BITS / MIN_OBJECT_COUNT);
+    size_t ssize = sizeclass_to_slab_size(sizeclass);
+    
+    return bits::next_pow2_bits(ssize) - MIN_CHUNK_BITS;
   }
+
+#ifdef SNMALLOC_TRACING
+  static size_t slab_sizeclass_to_size(sizeclass_t sizeclass)
+  {
+    return bits::one_at_bit(MIN_CHUNK_BITS + sizeclass);
+  }
+#endif
 
   inline static uint16_t sizeclass_to_slab_object_count(sizeclass_t sizeclass)
   {
     size_t rsize = sizeclass_to_size(sizeclass);
 
     return (uint16_t)(sizeclass_to_slab_size(sizeclass) / rsize);
+  }
+
+  inline static size_t large_size_to_slab_size(size_t size)
+  {
+    return bits::next_pow2(size);
+  }
+
+  static size_t large_size_to_slab_sizeclass(size_t size)
+  {
+    return bits::next_pow2_bits(size) - MIN_CHUNK_BITS;
   }
 
   // The Metaslab represent the status of a single slab.
@@ -111,6 +124,13 @@ namespace snmalloc
       // allocated from. Hence, the bump allocator slab will never be returned
       // for use in another size class.
       set_full(slab);
+    }
+
+    void initialise(sizeclass_t sizeclass)
+    {
+      // TODO: Assert this is a Large alloc
+      // TODO: other fields for other data?
+      free_queue.s.sizeclass = static_cast<uint8_t>(sizeclass);
     }
 
     /**

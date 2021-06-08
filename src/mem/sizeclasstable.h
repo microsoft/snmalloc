@@ -5,26 +5,22 @@
 
 namespace snmalloc
 {
-  constexpr size_t PTR_BITS = bits::next_pow2_bits_const(sizeof(void*));
-
   constexpr static SNMALLOC_PURE size_t sizeclass_lookup_index(const size_t s)
   {
-    // We subtract and shirt to reduce the size of the table, i.e. we don't have
-    // to store a value for every size class.
-    // We could shift by MIN_ALLOC_BITS, as this would give us the most
-    // compressed table, but by shifting by PTR_BITS the code-gen is better
-    // as the most important path using this subsequently shifts left by
-    // PTR_BITS, hence they can be fused into a single mask.
-    return (s - 1) >> PTR_BITS;
+    // We subtract and shift to reduce the size of the table, i.e. we don't have
+    // to store a value for every size.
+    return (s - 1) >> MIN_ALLOC_BITS;
   }
 
+  constexpr static size_t NUM_SIZECLASSES_EXTENDED = size_to_sizeclass_const(bits::one_at_bit(bits::ADDRESS_BITS));
+
   constexpr static size_t sizeclass_lookup_size =
-    sizeclass_lookup_index(SUPERSLAB_SIZE + 1);
+    sizeclass_lookup_index(SUPERSLAB_SIZE);
 
   struct SizeClassTable
   {
     sizeclass_compress_t sizeclass_lookup[sizeclass_lookup_size] = {{}};
-    ModArray<NUM_SIZECLASSES, size_t> size;
+    ModArray<NUM_SIZECLASSES_EXTENDED, size_t> size;
 
     ModArray<NUM_SMALL_CLASSES, uint16_t> capacity;
     // Table of constants for reciprocal division for each sizeclass.
@@ -38,13 +34,22 @@ namespace snmalloc
       div_mult(),
       mod_mult()
     {
-      size_t curr = 1;
       for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
            sizeclass++)
       {
         size[sizeclass] =
           bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
+      }
+      for (sizeclass_compress_t sizeclass = NUM_SIZECLASSES; sizeclass < NUM_SIZECLASSES_EXTENDED;
+           sizeclass++)
+      {
+        size[sizeclass] =
+          bits::prev_pow2_const(bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass));
+      }
 
+      for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
+           sizeclass++)
+      {
         div_mult[sizeclass] =
           (bits::one_at_bit(bits::BITS - SUPERSLAB_BITS) /
            (size[sizeclass] / MIN_ALLOC_SIZE));
@@ -59,13 +64,18 @@ namespace snmalloc
         // overflows, and thus the top SUPERSLAB_BITS will be zero if the mod is
         // zero.
         mod_mult[sizeclass] *= 2;
+      }
 
-        if (sizeclass < NUM_SIZECLASSES)
+      size_t curr = 1;
+      for (sizeclass_compress_t sizeclass = 0; sizeclass <= NUM_SIZECLASSES;
+           sizeclass++)
+      {
+        for (; curr <= size[sizeclass]; curr += 1 << MIN_ALLOC_BITS)
         {
-          for (; curr <= size[sizeclass]; curr += 1 << PTR_BITS)
-          {
-            sizeclass_lookup[sizeclass_lookup_index(curr)] = sizeclass;
-          }
+          auto i = sizeclass_lookup_index(curr);
+          if (i == sizeclass_lookup_size)
+            break;
+          sizeclass_lookup[i] = sizeclass;
         }
       }
 
@@ -87,7 +97,9 @@ namespace snmalloc
 
   constexpr static inline size_t sizeclass_to_size(sizeclass_t sizeclass)
   {
-    return sizeclass_metadata.size[sizeclass];
+//    if (sizeclass < NUM_SIZECLASSES)
+      return sizeclass_metadata.size[sizeclass];
+//    return bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
   }
 
   static inline sizeclass_t size_to_sizeclass(size_t size)
@@ -101,6 +113,10 @@ namespace snmalloc
     // Don't use sizeclasses that are not a multiple of the alignment.
     // For example, 24 byte allocations can be
     // problematic for some data due to alignment issues.
+    
+    //TODO hack to power of 2 for large sizes
+    size = bits::next_pow2(size);
+
     return static_cast<sizeclass_t>(
       bits::to_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(size));
   }

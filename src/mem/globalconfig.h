@@ -22,11 +22,28 @@ namespace snmalloc
     inline static Metaslab default_meta_slab;
 
     /**
+     * Special remote that should never be used as a real remote.
+     * This is used to initialise allocators that should always hit the
+     * remote path for deallocation. Hence moving a branch of the critical
+     * path.
+     */
+    inline static RemoteAllocator unused_remote;
+
+    /**
+     * Special remote that is used in meta-data for large allocations.
+     *
+     * nullptr is considered a large allocations for this purpose to move
+     * of the critical path.
+     */
+    inline static RemoteAllocator fake_large_remote_impl;
+    inline static constexpr RemoteAllocator* fake_large_remote{&fake_large_remote_impl};
+
+    /**
      * We use fake_large_remote so that nullptr, will hit the large
      * allocation path which is less performance sensitive.
      */
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static MetaEntry default_entry{&default_meta_slab, &fake_large_remote};
+    inline static MetaEntry default_entry{&default_meta_slab, fake_large_remote};
 
     SNMALLOC_REQUIRE_CONSTINIT
     inline static AddressSpaceManager<Pal> address_space;
