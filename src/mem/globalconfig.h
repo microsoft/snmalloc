@@ -49,9 +49,6 @@ namespace snmalloc
     inline static AddressSpaceManager<Pal> address_space;
 
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static AddressSpaceManager<Pal> meta_address_space;
-
-    SNMALLOC_REQUIRE_CONSTINIT
     inline static FlatPagemap<MIN_CHUNK_BITS, Meta, false, &default_entry>
       pagemap;
 
@@ -65,7 +62,7 @@ namespace snmalloc
 
     AddressSpaceManager<DefaultPal>& get_meta_address_space()
     {
-      return meta_address_space;
+      return address_space;
     }
 
     AddressSpaceManager<DefaultPal>& get_object_address_space()
