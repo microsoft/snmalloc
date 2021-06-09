@@ -1,11 +1,11 @@
 #pragma once
 
+#include "../backend/backend.h"
 #include "../ds/mpscq.h"
 #include "../mem/allocconfig.h"
 #include "../mem/freelist.h"
-#include "../mem/sizeclass.h"
 #include "../mem/metaslab.h"
-#include "../backend/backend.h"
+#include "../mem/sizeclass.h"
 
 #include <array>
 #include <atomic>
@@ -87,7 +87,8 @@ namespace snmalloc
       // return super->get_allocator()->trunc_id();
 
       // TODO
-      UNUSED(r); UNUSED(large_allocator);
+      UNUSED(r);
+      UNUSED(large_allocator);
       return 0;
 #else
       UNUSED(large_allocator);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "address.h"
 #include "helpers.h"
 #include "invalidptr.h"
 #include "ptrwrap.h"

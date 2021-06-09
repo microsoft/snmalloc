@@ -199,13 +199,13 @@ int main(int argc, char** argv)
     }
   }
 
-//  test_realloc(our_malloc(64), 4194304, SUCCESS, false);
+  //  test_realloc(our_malloc(64), 4194304, SUCCESS, false);
 
   test_posix_memalign(0, 0, EINVAL, true);
   test_posix_memalign((size_t)-1, 0, EINVAL, true);
   test_posix_memalign(OS_PAGE_SIZE, sizeof(uintptr_t) / 2, EINVAL, true);
 
-  for (size_t align = sizeof(uintptr_t); align < SUPERSLAB_SIZE/2;
+  for (size_t align = sizeof(uintptr_t); align < SUPERSLAB_SIZE / 2;
        align <<= 1)
   {
     for (sizeclass_t sc = 0; sc < NUM_SIZECLASSES - 6; sc++)
@@ -220,13 +220,12 @@ int main(int argc, char** argv)
     test_posix_memalign(0, align + 1, EINVAL, true);
   }
 
-
   if (our_malloc_usable_size(nullptr) != 0)
   {
     printf("malloc_usable_size(nullptr) should be zero");
     abort();
   }
 
-//  current_alloc_pool()->debug_check_empty();
+  //  current_alloc_pool()->debug_check_empty();
   return 0;
 }

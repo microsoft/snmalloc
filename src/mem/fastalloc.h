@@ -14,12 +14,11 @@
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
 
+#include <iostream>
 #include <string.h>
 #include <utility>
-#include <iostream>
 namespace snmalloc
 {
-
   enum Boundary
   {
     /**
@@ -36,7 +35,6 @@ namespace snmalloc
      */
     OnePastEnd
   };
-
 
   // This class contains the fastest path code for the allocator.
   template<class SharedStateHandle>
@@ -149,19 +147,22 @@ namespace snmalloc
         return small_alloc<zero_mem>(1);
       }
 
-
-      
       // TODO
       //  ?Do we need to initialise the allocator on this path?
       //   only if we are doing stats?
 
       // Grab slab of correct size
       // Set remote as large allocator remote.
-      auto [slab, meta] = SlabAllocator::alloc(handle, large_size_to_slab_sizeclass(size), large_size_to_slab_size(size), handle.fake_large_remote);
+      auto [slab, meta] = SlabAllocator::alloc(
+        handle,
+        large_size_to_slab_sizeclass(size),
+        large_size_to_slab_size(size),
+        handle.fake_large_remote);
       // set up meta data so sizeclass is correct, and hence alloc size, and
       // external pointer.
 #ifdef SNMALLOC_TRACING
-      std::cout << "size " << size << " sizeclass " << size_to_sizeclass(size) << std::endl;
+      std::cout << "size " << size << " sizeclass " << size_to_sizeclass(size)
+                << std::endl;
 #endif
       meta->initialise(size_to_sizeclass(size));
 
@@ -189,7 +190,6 @@ namespace snmalloc
             // that.  Aggressive inlining will remove this.
             if (fl->empty())
               return core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
-
 
             auto r = capptr_reveal(
               capptr_export(fl->take(small_cache.entropy).as_void()));
@@ -220,7 +220,7 @@ namespace snmalloc
     {
       if (core_alloc != nullptr)
       {
-//        handle_message_queue();
+        //        handle_message_queue();
 
 #ifdef SNMALLOC_TRACING
         std::cout << "Remote dealloc post" << p << " size " << alloc_size(p)
@@ -266,7 +266,8 @@ namespace snmalloc
     }
 
     template<typename Action, typename... Args>
-    SNMALLOC_FAST_PATH decltype(auto) handle_message_queue(Action action, Args... args)
+    SNMALLOC_FAST_PATH decltype(auto)
+    handle_message_queue(Action action, Args... args)
     {
       // Inline the empty check, but not necessarily the full queue handling.
       if (likely(!has_messages()))
@@ -281,7 +282,8 @@ namespace snmalloc
      * Process remote frees into this allocator.
      */
     template<typename Action, typename... Args>
-    SNMALLOC_SLOW_PATH decltype(auto) handle_message_queue_inner(Action action, Args... args)
+    SNMALLOC_SLOW_PATH decltype(auto)
+    handle_message_queue_inner(Action action, Args... args)
     {
       for (size_t i = 0; i < REMOTE_BATCH; i++)
       {
@@ -406,7 +408,9 @@ namespace snmalloc
         BackendAllocator::get_meta_data(handle, address_cast(p));
       if (likely(remote_allocator == entry.remote))
       {
-        core_alloc->dealloc_local_object(p);
+        if (core_alloc->dealloc_local_object(p))
+          return;
+        core_alloc->dealloc_local_object_slow(entry.meta, p);
         return;
       }
 
@@ -421,10 +425,10 @@ namespace snmalloc
             entry.remote->trunc_id(),
             CapPtr<void, CBAlloc>(p),
             entry.meta->sizeclass());
-  #ifdef SNMALLOC_TRACING
+#ifdef SNMALLOC_TRACING
           std::cout << "Remote dealloc fast" << p << " size " << alloc_size(p)
                     << std::endl;
-  #endif
+#endif
           return;
         }
 
@@ -435,9 +439,9 @@ namespace snmalloc
       // Large deallocation or null.
       if (likely(p != nullptr))
       {
-  #ifdef SNMALLOC_TRACING
+#ifdef SNMALLOC_TRACING
         std::cout << "Large deallocation" << std::endl;
-  #endif
+#endif
         // TODO Doesn't require local init! unless stats are on.
         // TODO check for start of allocation.
         size_t size = sizeclass_to_size(entry.meta->sizeclass());
@@ -449,9 +453,9 @@ namespace snmalloc
         return;
       }
 
-  #ifdef SNMALLOC_TRACING
+#ifdef SNMALLOC_TRACING
       std::cout << "nullptr deallocation" << std::endl;
-  #endif
+#endif
       return;
     }
 

@@ -182,7 +182,7 @@ void test_calloc()
     alloc->dealloc(p, size);
   }
 
-//  current_alloc_pool()->debug_check_empty();
+  //  current_alloc_pool()->debug_check_empty();
 }
 
 void test_double_alloc()
@@ -227,7 +227,7 @@ void test_double_alloc()
       }
     }
   }
-//  current_alloc_pool()->debug_check_empty();
+  //  current_alloc_pool()->debug_check_empty();
 }
 
 void test_external_pointer()
@@ -257,7 +257,7 @@ void test_external_pointer()
     alloc->dealloc(p1, size);
   }
 
-//  current_alloc_pool()->debug_check_empty();
+  //  current_alloc_pool()->debug_check_empty();
 };
 
 void check_offset(void* base, void* interior)

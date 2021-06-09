@@ -1,12 +1,10 @@
 #pragma once
 
 #include "../backend/backend.h"
-
 #include "../backend/slaballocator.h"
+#include "../ds/defines.h"
 #include "fastalloc.h"
 #include "pool.h"
-
-#include "../ds/defines.h"
 
 namespace snmalloc
 {
@@ -36,14 +34,16 @@ namespace snmalloc
      * of the critical path.
      */
     inline static RemoteAllocator fake_large_remote_impl;
-    inline static constexpr RemoteAllocator* fake_large_remote{&fake_large_remote_impl};
+    inline static constexpr RemoteAllocator* fake_large_remote{
+      &fake_large_remote_impl};
 
     /**
      * We use fake_large_remote so that nullptr, will hit the large
      * allocation path which is less performance sensitive.
      */
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static MetaEntry default_entry{&default_meta_slab, fake_large_remote};
+    inline static MetaEntry default_entry{&default_meta_slab,
+                                          fake_large_remote};
 
     SNMALLOC_REQUIRE_CONSTINIT
     inline static AddressSpaceManager<Pal> address_space;

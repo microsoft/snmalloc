@@ -55,7 +55,7 @@ namespace snmalloc
   static size_t sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)
   {
     size_t ssize = sizeclass_to_slab_size(sizeclass);
-    
+
     return bits::next_pow2_bits(ssize) - MIN_CHUNK_BITS;
   }
 
@@ -114,8 +114,12 @@ namespace snmalloc
       return free_queue.s.next;
     }
 
-    void initialise(sizeclass_t sizeclass, CapPtr<Slab, CBChunk> slab)
+    void initialise(sizeclass_t sizeclass)
     {
+      // TODO: Special version for large alloc?
+      //    TODO: Assert this is a Large alloc
+      //    TODO: other fields for other data?
+
       free_queue.s.sizeclass = static_cast<uint8_t>(sizeclass);
       free_queue.init();
       // Set up meta data as if the entire slab has been turned into a free
@@ -123,14 +127,7 @@ namespace snmalloc
       // returned all the elements, but this is a slab that is still being bump
       // allocated from. Hence, the bump allocator slab will never be returned
       // for use in another size class.
-      set_full(slab);
-    }
-
-    void initialise(sizeclass_t sizeclass)
-    {
-      // TODO: Assert this is a Large alloc
-      // TODO: other fields for other data?
-      free_queue.s.sizeclass = static_cast<uint8_t>(sizeclass);
+      set_full();
     }
 
     /**
@@ -170,14 +167,12 @@ namespace snmalloc
       return bits::min(threshold, max);
     }
 
-    template<capptr_bounds B>
-    SNMALLOC_FAST_PATH void set_full(CapPtr<Slab, B> slab)
+    SNMALLOC_FAST_PATH void set_full()
     {
-      static_assert(B == CBChunkD || B == CBChunk);
       SNMALLOC_ASSERT(free_queue.empty());
 
       // Prepare for the next free queue to be built.
-      free_queue.open(slab.as_void());
+      free_queue.open();
 
       // Set needed to at least one, possibly more so we only use
       // a slab when it has a reasonable amount of free elements
@@ -212,42 +207,24 @@ namespace snmalloc
      * Returns the link as the allocation, and places the free list into the
      * `fast_free_list` for further allocations.
      */
-    template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
     static SNMALLOC_FAST_PATH CapPtr<void, CBAllocE> alloc(
-      CapPtr<Metaslab, CBChunk> self,
+      Metaslab* meta,
       FreeListIter& fast_free_list,
-      size_t rsize,
       LocalEntropy& entropy)
     {
-      SNMALLOC_ASSERT(rsize == sizeclass_to_size(self->sizeclass()));
-      SNMALLOC_ASSERT(!self->is_full());
-
-      self->free_queue.close(fast_free_list, entropy);
+      meta->free_queue.close(fast_free_list, entropy);
       auto p = fast_free_list.take(entropy);
-      auto slab = Aal::capptr_rebound(self.as_void(), p);
-      auto meta = Metaslab::get_slab(slab);
 
       entropy.refresh_bits();
 
       // Treat stealing the free list as allocating it all.
-      self->remove();
-      self->set_full(meta);
+      meta->remove();
+      meta->set_full();
 
       SNMALLOC_ASSERT(self->is_start_of_object(address_cast(p)));
 
-      self->debug_slab_invariant(meta, entropy);
-
-      if constexpr (zero_mem == YesZero)
-      {
-        if (rsize < PAGE_ALIGNED_SIZE)
-          pal_zero<PAL>(p, rsize);
-        else
-          pal_zero<PAL, true>(Aal::capptr_rebound(self.as_void(), p), rsize);
-      }
-      else
-      {
-        UNUSED(rsize);
-      }
+//    TODO?
+//      self->debug_slab_invariant(meta, entropy);
 
       // TODO: Should this be zeroing the FreeObject state?
       return capptr_export(p.as_void());

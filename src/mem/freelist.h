@@ -298,18 +298,14 @@ namespace snmalloc
 
     /**
      * Start building a new free list.
-     * Provide pointer to the slab to initialise the system.
      */
-    void open(CapPtr<void, CBChunk> p)
+    void open()
     {
-      UNUSED(p);
       SNMALLOC_ASSERT(empty());
       for (size_t i = 0; i < LENGTH; i++)
       {
 #ifdef CHECK_CLIENT
         prev[i] = HEAD_KEY;
-#else
-        UNUSED(p);
 #endif
         end[i] = &head[i];
       }

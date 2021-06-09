@@ -1,8 +1,8 @@
 #pragma once
 #include "address_space.h"
+#include "mem/allocconfig.h"
 #include "pagemap.h"
 #include "pal/pal.h"
-#include "mem/allocconfig.h"
 
 namespace snmalloc
 {

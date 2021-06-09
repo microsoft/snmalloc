@@ -12,7 +12,8 @@ namespace snmalloc
     return (s - 1) >> MIN_ALLOC_BITS;
   }
 
-  constexpr static size_t NUM_SIZECLASSES_EXTENDED = size_to_sizeclass_const(bits::one_at_bit(bits::ADDRESS_BITS));
+  constexpr static size_t NUM_SIZECLASSES_EXTENDED =
+    size_to_sizeclass_const(bits::one_at_bit(bits::ADDRESS_BITS));
 
   constexpr static size_t sizeclass_lookup_size =
     sizeclass_lookup_index(SUPERSLAB_SIZE);
@@ -28,11 +29,7 @@ namespace snmalloc
     // Table of constants for reciprocal modulus for each sizeclass.
     ModArray<NUM_SIZECLASSES, size_t> mod_mult;
 
-    constexpr SizeClassTable()
-    : size(),
-      capacity(),
-      div_mult(),
-      mod_mult()
+    constexpr SizeClassTable() : size(), capacity(), div_mult(), mod_mult()
     {
       for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
            sizeclass++)
@@ -40,11 +37,12 @@ namespace snmalloc
         size[sizeclass] =
           bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
       }
-      for (sizeclass_compress_t sizeclass = NUM_SIZECLASSES; sizeclass < NUM_SIZECLASSES_EXTENDED;
+      for (sizeclass_compress_t sizeclass = NUM_SIZECLASSES;
+           sizeclass < NUM_SIZECLASSES_EXTENDED;
            sizeclass++)
       {
-        size[sizeclass] =
-          bits::prev_pow2_const(bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass));
+        size[sizeclass] = bits::prev_pow2_const(
+          bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass));
       }
 
       for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
@@ -89,17 +87,17 @@ namespace snmalloc
 
   static constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
 
-  static inline constexpr uint16_t
-  get_slab_capacity(sizeclass_t sc)
+  static inline constexpr uint16_t get_slab_capacity(sizeclass_t sc)
   {
     return sizeclass_metadata.capacity[sc];
   }
 
   constexpr static inline size_t sizeclass_to_size(sizeclass_t sizeclass)
   {
-//    if (sizeclass < NUM_SIZECLASSES)
-      return sizeclass_metadata.size[sizeclass];
-//    return bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
+    //    if (sizeclass < NUM_SIZECLASSES)
+    return sizeclass_metadata.size[sizeclass];
+    //    return bits::from_exp_mant<INTERMEDIATE_BITS,
+    //    MIN_ALLOC_BITS>(sizeclass);
   }
 
   static inline sizeclass_t size_to_sizeclass(size_t size)
@@ -113,8 +111,8 @@ namespace snmalloc
     // Don't use sizeclasses that are not a multiple of the alignment.
     // For example, 24 byte allocations can be
     // problematic for some data due to alignment issues.
-    
-    //TODO hack to power of 2 for large sizes
+
+    // TODO hack to power of 2 for large sizes
     size = bits::next_pow2(size);
 
     return static_cast<sizeclass_t>(

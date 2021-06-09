@@ -1,5 +1,6 @@
 #pragma once
 
+#include "address.h"
 #include "defines.h"
 #include "ptrwrap.h"
 

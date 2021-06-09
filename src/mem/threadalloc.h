@@ -11,7 +11,6 @@
 
 extern "C" void _malloc_thread_cleanup();
 
-
 namespace snmalloc
 {
 #ifdef SNMALLOC_EXTERNAL_THREAD_ALLOC

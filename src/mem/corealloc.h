@@ -1,11 +1,11 @@
 #pragma once
 
+#include "../backend/slaballocator.h"
 #include "allocconfig.h"
 #include "fastcache.h"
 #include "pooled.h"
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
-#include "../backend/slaballocator.h"
 
 namespace snmalloc
 {
@@ -162,7 +162,7 @@ namespace snmalloc
       FreeListBuilder<false> b;
       SNMALLOC_ASSERT(b.empty());
 
-      b.open(bumpptr);
+      b.open();
 
 #ifdef CHECK_CLIENT
       // Structure to represent the temporary list elements
@@ -216,7 +216,7 @@ namespace snmalloc
         b.add(Aal::capptr_bound<FreeObject, CBAlloc>(p, rsize), entropy);
       }
 #endif
-       // This code consumes everything up to slab_end.
+      // This code consumes everything up to slab_end.
       bumpptr = slab_end;
 
       SNMALLOC_ASSERT(!b.empty());
@@ -327,7 +327,7 @@ namespace snmalloc
 #endif
     }
 
-    SNMALLOC_FAST_PATH void dealloc_local_object(void* p)
+    SNMALLOC_FAST_PATH bool dealloc_local_object(void* p)
     {
       auto meta = snmalloc::BackendAllocator::get_meta_data(
                     handle, snmalloc::address_cast(p))
@@ -340,9 +340,7 @@ namespace snmalloc
       // Update the head and the next pointer in the free list.
       meta->free_queue.add(cp, entropy);
 
-      if (likely(!meta->return_object()))
-        return;
-      dealloc_local_object_slow(meta, p);
+      return (likely(!meta->return_object()));
     }
 
     template<ZeroMem zero_mem>
@@ -350,6 +348,21 @@ namespace snmalloc
     small_alloc(sizeclass_t sizeclass, FreeListIter& fast_free_list)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
+
+      // Look to see if we can grab a free list.
+      auto& sl = alloc_classes[sizeclass];
+      if (likely(!(sl.is_empty())))
+      {
+        auto meta = sl.get_next();
+        auto p = Metaslab::alloc((Metaslab*)meta, fast_free_list, entropy).unsafe_capptr;
+        if (zero_mem == YesZero)
+        {
+          SharedStateHandle::Pal::template zero<false>(p, rsize);
+        }
+        return p;
+      }
+
+      // No existing free list get a new slab.
       size_t slab_size = sizeclass_to_slab_size(sizeclass);
       size_t slab_sizeclass = sizeclass_to_slab_sizeclass(sizeclass);
 
@@ -358,13 +371,14 @@ namespace snmalloc
       std::cout << "slab size " << slab_size << std::endl;
 #endif
 
-      auto [slab, meta] = snmalloc::SlabAllocator::alloc(handle, slab_sizeclass, slab_size, public_state());
+      auto [slab, meta] = snmalloc::SlabAllocator::alloc(
+        handle, slab_sizeclass, slab_size, public_state());
 
       // Build a free list for the slab
       alloc_new_list(slab, fast_free_list, rsize, slab_size, entropy);
 
       // Set meta slab to empty.
-      meta->initialise(sizeclass, slab.template as_static<Slab>());
+      meta->initialise(sizeclass);
 
       // take an allocation from the free list
       auto p = fast_free_list.take(entropy).unsafe_capptr;
