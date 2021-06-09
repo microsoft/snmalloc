@@ -255,7 +255,7 @@ namespace snmalloc
       // Magic number for over-allocating chosen by the Pal
       // These should be further refined based on experiments.
       constexpr size_t min_size =
-        bits::is64() ? bits::one_at_bit(32) : bits::one_at_bit(28);
+        bits::is64() ? bits::one_at_bit(22) : bits::one_at_bit(22);
 
       for (size_t size_request = bits::max(size, min_size);
            size_request >= size;
