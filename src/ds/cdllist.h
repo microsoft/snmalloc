@@ -17,7 +17,7 @@ namespace snmalloc
      * This means that `is_empty` works even when the constructor hasn't
      * been run.
      */
-    ptrdiff_t to_next = 0;
+    ptrdiff_t to_next{0};
 
   protected:
     constexpr void set_next(Ptr<T> c)
@@ -47,7 +47,7 @@ namespace snmalloc
      *
      */
 
-    Ptr<T> next = nullptr;
+    Ptr<T> next{nullptr};
 
   protected:
     constexpr void set_next(Ptr<T> c)
@@ -82,7 +82,7 @@ namespace snmalloc
   template<template<typename> typename Ptr = Pointer>
   class CDLLNode : public CDLLNodeParent<CDLLNode<Ptr>, Ptr>
   {
-    Ptr<CDLLNode> prev = nullptr;
+    Ptr<CDLLNode> prev{nullptr};
 
   public:
     /**

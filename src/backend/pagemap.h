@@ -57,6 +57,7 @@ namespace snmalloc
         body = (a->template reserve<false, false>(ENTRIES * sizeof(T)))
                  .template as_static<T>()
                  .unsafe_capptr;
+//        madvise(body, size, MADV_NOHUGEPAGE);
       }
     }
 

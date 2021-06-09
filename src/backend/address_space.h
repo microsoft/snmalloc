@@ -6,6 +6,10 @@
 //#include "arenamap.h"
 
 #include <array>
+#ifdef SNMALLOC_TRACING
+#  include <iostream>
+#endif
+
 namespace snmalloc
 {
   /**
@@ -86,6 +90,9 @@ namespace snmalloc
 
       if (ranges[align_bits][1] != nullptr)
       {
+#ifdef SNMALLOC_TRACING
+        std::cout << "Add range linking." << std::endl;
+#endif
         // Add to linked list.
         commit_block(base, sizeof(void*));
         *(base.template as_static<CapPtr<void, CBChunk>>().unsafe_capptr) =
@@ -198,6 +205,10 @@ namespace snmalloc
     template<bool committed, bool align = true>
     CapPtr<void, CBChunk> reserve(size_t size)
     {
+#ifdef SNMALLOC_TRACING
+      std::cout << "ASM reserve request:" << size << std::endl;
+#endif
+
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
@@ -211,6 +222,9 @@ namespace snmalloc
         {
           auto [block, size2] = PAL::reserve_at_least(size);
           // TODO wasting size here.
+#ifdef SNMALLOC_TRACING
+          std::cout << "Unaligned alloc here:" << block << " (" << size2 << ")" << std::endl;
+#endif
           return CapPtr<void, CBChunk>(block);
         }
       }

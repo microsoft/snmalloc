@@ -221,7 +221,7 @@ namespace snmalloc
       meta->remove();
       meta->set_full();
 
-      SNMALLOC_ASSERT(self->is_start_of_object(address_cast(p)));
+      SNMALLOC_ASSERT(meta->is_start_of_object(address_cast(p)));
 
 //    TODO?
 //      self->debug_slab_invariant(meta, entropy);

@@ -85,7 +85,7 @@ namespace snmalloc
     }
   };
 
-  static constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
+  static inline constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
 
   static inline constexpr uint16_t get_slab_capacity(sizeclass_t sc)
   {
