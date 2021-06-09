@@ -96,7 +96,7 @@ namespace snmalloc
       std::cout << "Run init_impl" << std::endl;
 #endif
       // Need to initialise pagemap.
-      pagemap.init(&meta_address_space);
+      pagemap.init(&get_meta_address_space());
 
       // The nullptr should contain the default value.
       // This will make alloc_size of nullptr return 0
