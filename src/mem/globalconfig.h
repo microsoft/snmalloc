@@ -60,7 +60,7 @@ namespace snmalloc
 
     inline static std::atomic<bool> initialised{false};
 
-    AddressSpaceManager<DefaultPal>& get_meta_address_space()
+    static AddressSpaceManager<DefaultPal>& get_meta_address_space()
     {
       return address_space;
     }
