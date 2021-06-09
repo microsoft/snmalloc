@@ -16,7 +16,7 @@ namespace snmalloc
     using Meta = MetaEntry;
     using Pal = DefaultPal;
 
-    // SNMALLOC_REQUIRE_CONSTINIT
+    //SNMALLOC_REQUIRE_CONSTINIT
     inline static Metaslab default_meta_slab;
 
     /**
@@ -25,6 +25,7 @@ namespace snmalloc
      * remote path for deallocation. Hence moving a branch of the critical
      * path.
      */
+    SNMALLOC_REQUIRE_CONSTINIT
     inline static RemoteAllocator unused_remote;
 
     /**
@@ -33,7 +34,9 @@ namespace snmalloc
      * nullptr is considered a large allocations for this purpose to move
      * of the critical path.
      */
+    SNMALLOC_REQUIRE_CONSTINIT
     inline static RemoteAllocator fake_large_remote_impl;
+    SNMALLOC_REQUIRE_CONSTINIT
     inline static constexpr RemoteAllocator* fake_large_remote{
       &fake_large_remote_impl};
 

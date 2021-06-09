@@ -279,7 +279,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   endif ()
 
   if(NOT WIN32)
-    set(SHARED_FILES src/override/new.cc src/override/malloc.cc)
+    set(SHARED_FILES src/override/new.cc)
     add_shim(snmallocshim SHARED ${SHARED_FILES})
     add_shim(snmallocshim-checks SHARED ${SHARED_FILES})
     add_shim(snmallocshim-1mib SHARED ${SHARED_FILES})

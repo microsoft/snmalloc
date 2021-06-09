@@ -232,7 +232,7 @@ namespace snmalloc
     /**
      * nullptr is constructable at any bounds type
      */
-    AtomicCapPtr(const std::nullptr_t n) : unsafe_capptr(n) {}
+    constexpr AtomicCapPtr(const std::nullptr_t n) : unsafe_capptr(n) {}
 
     /**
      * Interconversion with CapPtr

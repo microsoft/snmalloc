@@ -20,7 +20,7 @@ namespace snmalloc
     ptrdiff_t to_next = 0;
 
   protected:
-    void set_next(Ptr<T> c)
+    constexpr void set_next(Ptr<T> c)
     {
       to_next = pointer_diff_signed(Ptr<CDLLNodeBase<T, Ptr>>(this), c);
     }
@@ -50,7 +50,7 @@ namespace snmalloc
     Ptr<T> next = nullptr;
 
   protected:
-    void set_next(Ptr<T> c)
+    constexpr void set_next(Ptr<T> c)
     {
       next = address_cast(c) == address_cast(this) ? nullptr : c;
     }
@@ -88,7 +88,7 @@ namespace snmalloc
     /**
      * Single element cyclic list.  This is the empty case.
      */
-    CDLLNode()
+    constexpr CDLLNode()
     {
       this->set_next(Ptr<CDLLNode>(this));
       prev = Ptr<CDLLNode>(this);

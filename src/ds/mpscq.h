@@ -18,9 +18,11 @@ namespace snmalloc
       "T->next must be an AtomicPtr<T>");
 
     AtomicPtr<T> back{nullptr};
-    Ptr<T> front = nullptr;
+    Ptr<T> front{nullptr};
 
   public:
+    constexpr MPSCQ() {};
+
     void invariant()
     {
       SNMALLOC_ASSERT(back != nullptr);

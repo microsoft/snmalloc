@@ -1,4 +1,5 @@
 #include "../mem/threadalloc.h"
+#include "malloc.cc"
 
 #ifdef _WIN32
 #  define EXCEPTSPEC
