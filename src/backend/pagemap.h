@@ -47,14 +47,14 @@ namespace snmalloc
         SNMALLOC_ASSERT(s != 0);
         base = b;
         size = s;
-        body = a->template reserve<false>((size >> SHIFT) * sizeof(T));
+        body = a->template reserve<false, false>((size >> SHIFT) * sizeof(T));
       }
       else
       {
         static constexpr size_t COVERED_BITS =
           bits::ADDRESS_BITS - GRANULARITY_BITS;
         static constexpr size_t ENTRIES = bits::one_at_bit(COVERED_BITS);
-        body = (a->template reserve<false>(ENTRIES * sizeof(T)))
+        body = (a->template reserve<false, false>(ENTRIES * sizeof(T)))
                  .template as_static<T>()
                  .unsafe_capptr;
       }

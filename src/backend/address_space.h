@@ -195,11 +195,25 @@ namespace snmalloc
      * part of satisfying the request will be registered with the provided
      * arena_map for use in subsequent amplification.
      */
-    template<bool committed>
+    template<bool committed, bool align = true>
     CapPtr<void, CBChunk> reserve(size_t size)
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= sizeof(void*));
+
+      if constexpr (align == false)
+      {
+        if constexpr (
+        pal_supports<AlignedAllocation, PAL>)
+          return CapPtr<void, CBChunk>(
+              PAL::template reserve_aligned<committed>(size));
+        else
+        {
+          auto [block, size2] = PAL::reserve_at_least(size);
+          // TODO wasting size here.
+          return CapPtr<void, CBChunk>(block);
+        }
+      }
 
       /*
        * For sufficiently large allocations with platforms that support aligned
