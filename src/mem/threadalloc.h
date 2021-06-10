@@ -4,7 +4,6 @@
 #include "fastalloc.h"
 #include "globalconfig.h"
 
-#include <pthread.h>
 #if defined(SNMALLOC_USE_THREAD_DESTRUCTOR) && \
   defined(SNMALLOC_USE_THREAD_CLEANUP)
 #error At most one out of SNMALLOC_USE_THREAD_CLEANUP and SNMALLOC_USE_THREAD_DESTRUCTOR may be defined.
@@ -73,7 +72,7 @@ namespace snmalloc
     friend void register_clean_up();
 
   protected:
-    static inline void inner_release(void*)
+    static inline void inner_release()
     {
       get()->teardown();
     }
@@ -175,10 +174,7 @@ namespace snmalloc
   public:
     static void register_cleanup()
     {
-//      static thread_local OnDestruct<ThreadAllocCommon::inner_release> tidier;
-
-      pthread_key_t h;
-      pthread_key_create(&h, &ThreadAllocCommon::inner_release);
+      static thread_local OnDestruct<ThreadAllocCommon::inner_release> tidier;
 
       ThreadAllocCommon::register_cleanup();
     }
