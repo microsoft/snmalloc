@@ -90,7 +90,7 @@ namespace snmalloc
       if constexpr (potentially_out_of_range)
       {
         // TODO: need to uncomment
-        Pal::notify_using<NoZero>(&body[p >> SHIFT], sizeof(T));
+        //Pal::notify_using<NoZero>(&body[p >> SHIFT], sizeof(T));
       }
 
       return body[p >> SHIFT];

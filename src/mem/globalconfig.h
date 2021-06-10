@@ -16,7 +16,7 @@ namespace snmalloc
     using Meta = MetaEntry;
     using Pal = DefaultPal;
 
-    //SNMALLOC_REQUIRE_CONSTINIT
+    SNMALLOC_REQUIRE_CONSTINIT
     inline static Metaslab default_meta_slab;
 
     /**

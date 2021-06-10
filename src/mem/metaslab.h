@@ -88,6 +88,8 @@ namespace snmalloc
   class Metaslab : public SlabLink
   {
   public:
+    constexpr Metaslab() : SlabLink(true) {}
+
     /**
      *  Data-structure for building the free list for this slab.
      *

@@ -88,11 +88,16 @@ namespace snmalloc
     /**
      * Single element cyclic list.  This is the empty case.
      */
-    constexpr CDLLNode()
+    CDLLNode()
     {
       this->set_next(Ptr<CDLLNode>(this));
       prev = Ptr<CDLLNode>(this);
     }
+
+    /**
+     * Single element cyclic list.  This is the uninitialised case.
+     */
+    constexpr CDLLNode(bool){}
 
     /**
      * Removes this element from the cyclic list is it part of.

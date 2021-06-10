@@ -471,6 +471,9 @@ namespace snmalloc
       for (size_t i = 0; i < LENGTH; i++)
       {
         end[i] = &head[i];
+#ifdef CHECK_CLIENT
+        prev[i] = HEAD_KEY;
+#endif
       }
     }
   };

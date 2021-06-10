@@ -14,7 +14,9 @@
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
 
-#include <iostream>
+#ifdef SNMALLOC_TRACING
+#  include <iostream>
+#endif
 #include <string.h>
 #include <utility>
 namespace snmalloc

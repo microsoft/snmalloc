@@ -73,29 +73,6 @@ namespace snmalloc
 #endif
     }
 
-    /**
-     * Return allocator for this object.  This may perform amplification.
-     */
-    template<typename LargeAlloc>
-    static alloc_id_t
-    trunc_target_id(CapPtr<Remote, CBAlloc> r, LargeAlloc* large_allocator)
-    {
-#ifdef SNMALLOC_DONT_CACHE_ALLOCATOR_PTR
-      // Rederive allocator id.
-      // auto r_auth = large_allocator->template capptr_amplify<Remote>(r);
-      // auto super = Superslab::get(r_auth);
-      // return super->get_allocator()->trunc_id();
-
-      // TODO
-      UNUSED(r);
-      UNUSED(large_allocator);
-      return 0;
-#else
-      UNUSED(large_allocator);
-      return r->alloc_id_and_sizeclass & ~SIZECLASS_MASK;
-#endif
-    }
-
     sizeclass_t sizeclass()
     {
 #ifdef SNMALLOC_DONT_CACHE_ALLOCATOR_PTR
