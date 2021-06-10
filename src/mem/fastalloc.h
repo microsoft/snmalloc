@@ -354,6 +354,7 @@ namespace snmalloc
 
         core_alloc = nullptr;
         remote_allocator = nullptr;
+        capacity = 0;
       }
     }
 
