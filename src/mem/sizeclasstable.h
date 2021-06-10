@@ -153,7 +153,7 @@ namespace snmalloc
   {
     // Only works up to certain offsets, exhaustively tested upto
     // SUPERSLAB_SIZE.
-    SNMALLOC_ASSERT(offset <= SUPERSLAB_SIZE);
+//    SNMALLOC_ASSERT(offset <= SUPERSLAB_SIZE);
 
     if constexpr (bits::is64())
     {

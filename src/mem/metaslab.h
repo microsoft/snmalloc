@@ -201,7 +201,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH bool is_start_of_object(address_t p)
     {
       return is_multiple_of_sizeclass(
-        sizeclass(), SLAB_SIZE - (p - address_align_down<SLAB_SIZE>(p)));
+        sizeclass(), p - (bits::align_down(p, sizeclass_to_slab_size(sizeclass()))));
     }
 
     /**
