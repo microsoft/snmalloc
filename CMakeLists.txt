@@ -141,6 +141,11 @@ if (WIN32)
   endif()
 endif()
 
+if (APPLE)
+  # SecRandomCopyBytes is exposed by Security.framework
+  target_link_libraries(snmalloc_lib INTERFACE "-framework Security")
+endif()
+
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   if(${CMAKE_SYSTEM_PROCESSOR} STREQUAL "x86_64")
     target_compile_options(snmalloc_lib INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-mcx16>)
