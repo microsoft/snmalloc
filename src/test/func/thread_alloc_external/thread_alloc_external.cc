@@ -2,6 +2,7 @@
 
 #define SNMALLOC_EXTERNAL_THREAD_ALLOC
 #include <mem/fastalloc.h>
+#include <mem/globalconfig.h>
 using namespace snmalloc;
 
 class ThreadAllocUntyped

@@ -8,9 +8,9 @@
 #include "mem/slowalloc.h"
 #include "test/setup.h"
 
+#include <iostream>
 #include <snmalloc.h>
 #include <thread>
-#include <iostream>
 
 /**
  * This test is checking lazy init is correctly done with `get`.
@@ -184,7 +184,7 @@ void f(size_t size)
     t11.join();
     t12.join();
   } // Drops a.
-//  snmalloc::current_alloc_pool()->debug_in_use(0);
+  //  snmalloc::current_alloc_pool()->debug_in_use(0);
   printf(".");
   fflush(stdout);
 }

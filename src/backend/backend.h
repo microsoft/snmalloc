@@ -1,8 +1,8 @@
 #pragma once
-#include "address_space.h"
 #include "../mem/allocconfig.h"
-#include "pagemap.h"
 #include "../pal/pal.h"
+#include "address_space.h"
+#include "pagemap.h"
 
 namespace snmalloc
 {
@@ -46,6 +46,18 @@ namespace snmalloc
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
       auto p = h.get_object_address_space().template reserve<true>(size);
+#ifdef SNMALLOC_TRACING
+      std::cout << "Alloc slab: " << p.unsafe_capptr << " (" << size << ")"
+                << std::endl;
+#endif
+      if (p == nullptr)
+      {
+#ifdef SNMALLOC_TRACING
+        std::cout << "Out of memory" << std::endl;
+#endif
+        return p;
+      }
+
       for (address_t a = address_cast(p);
            a < address_cast(pointer_offset(p, size));
            a += MIN_CHUNK_SIZE)

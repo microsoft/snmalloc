@@ -1,202 +1,154 @@
 #pragma once
 
 #include "../ds/helpers.h"
-#include "alloc.h"
-#include "fastcache.h"
-#include "pool.h"
+#include "fastalloc.h"
 
 namespace snmalloc
 {
-  inline bool needs_initialisation(void*);
-  inline void* init_thread_allocator(function_ref<void*(void*)>);
-
-  template<class MemoryProvider, class Alloc>
-  class AllocPool : Pool<Alloc, MemoryProvider>
+  template<class SharedStateHandle>
+  inline static void aggregate_stats(SharedStateHandle handle, Stats& stats)
   {
-    using Parent = Pool<Alloc, MemoryProvider>;
+    auto* alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle);
 
-  public:
-    static AllocPool* make(MemoryProvider& mp)
+    while (alloc != nullptr)
     {
-      static_assert(
-        sizeof(AllocPool) == sizeof(Parent),
-        "You cannot add fields to this class.");
-      // This cast is safe due to the static assert.
-      return static_cast<AllocPool*>(Parent::make(mp));
+      auto a = alloc->attached_stats();
+      if (a != nullptr)
+        stats.add(*a);
+      stats.add(alloc->stats());
+      alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle, alloc);
     }
-
-    static AllocPool* make() noexcept
-    {
-      return make(default_memory_provider());
-    }
-
-    Alloc* acquire(FastCache* attached_cache)
-    {
-      return Parent::acquire(attached_cache, Parent::memory_provider);
-    }
-
-    void release(Alloc* a)
-    {
-      Parent::release(a);
-    }
-
-  public:
-    void aggregate_stats(Stats& stats)
-    {
-      auto* alloc = Parent::iterate();
-
-      while (alloc != nullptr)
-      {
-        auto a = alloc->attached_stats();
-        if (a != nullptr)
-          stats.add(*a);
-        stats.add(alloc->stats());
-        alloc = Parent::iterate(alloc);
-      }
-    }
-
-#ifdef USE_SNMALLOC_STATS
-    void print_all_stats(std::ostream& o, uint64_t dumpid = 0)
-    {
-      auto alloc = Parent::iterate();
-
-      while (alloc != nullptr)
-      {
-        auto stats = alloc->stats();
-        if (stats != nullptr)
-          stats->template print<Alloc>(o, dumpid, alloc->id());
-        alloc = Parent::iterate(alloc);
-      }
-    }
-#else
-    void print_all_stats(void*& o, uint64_t dumpid = 0)
-    {
-      UNUSED(o);
-      UNUSED(dumpid);
-    }
-#endif
-
-    void cleanup_unused()
-    {
-#ifndef SNMALLOC_PASS_THROUGH
-      // Call this periodically to free and coalesce memory allocated by
-      // allocators that are not currently in use by any thread.
-      // One atomic operation to extract the stack, another to restore it.
-      // Handling the message queue for each stack is non-atomic.
-      auto* first = Parent::extract();
-      auto* alloc = first;
-      decltype(alloc) last;
-
-      if (alloc != nullptr)
-      {
-        while (alloc != nullptr)
-        {
-          alloc->handle_message_queue();
-          last = alloc;
-          alloc = Parent::extract(alloc);
-        }
-
-        restore(first, last);
-      }
-#endif
-    }
-
-    /**
-      If you pass a pointer to a bool, then it returns whether all the
-      allocators are empty. If you don't pass a pointer to a bool, then will
-      raise an error all the allocators are not empty.
-     */
-    void debug_check_empty(bool* result = nullptr)
-    {
-#ifndef SNMALLOC_PASS_THROUGH
-      // This is a debugging function. It checks that all memory from all
-      // allocators has been freed.
-      auto* alloc = Parent::iterate();
-
-      bool done = false;
-      bool okay = true;
-
-      while (!done)
-      {
-        done = true;
-        alloc = Parent::iterate();
-        okay = true;
-
-        while (alloc != nullptr)
-        {
-          // Check that the allocator has freed all memory.
-          alloc->debug_is_empty(&okay);
-
-          // Post all remotes, including forwarded ones. If any allocator posts,
-          // repeat the loop.
-          if (alloc->remote_cache.capacity < REMOTE_CACHE)
-          {
-            alloc->stats().remote_post();
-            alloc->remote_cache.post(alloc, alloc->get_trunc_id());
-            done = false;
-          }
-
-          alloc = Parent::iterate(alloc);
-        }
-      }
-
-      if (result != nullptr)
-      {
-        *result = okay;
-        return;
-      }
-
-      if (!okay)
-      {
-        alloc = Parent::iterate();
-        while (alloc != nullptr)
-        {
-          alloc->debug_is_empty(nullptr);
-          alloc = Parent::iterate(alloc);
-        }
-      }
-#else
-      UNUSED(result);
-#endif
-    }
-
-    void debug_in_use(size_t count)
-    {
-      auto alloc = Parent::iterate();
-      while (alloc != nullptr)
-      {
-        if (alloc->debug_is_in_use())
-        {
-          if (count == 0)
-          {
-            error("ERROR: allocator in use.");
-          }
-          count--;
-        }
-        alloc = Parent::iterate(alloc);
-
-        if (count != 0)
-        {
-          error("Error: two few allocators in use.");
-        }
-      }
-    }
-  };
-
-  using CoreAlloc = Allocator<GlobalVirtual, SNMALLOC_DEFAULT_CHUNKMAP, true>;
-
-  inline AllocPool<GlobalVirtual, CoreAlloc>*& current_alloc_pool()
-  {
-    return Singleton<
-      AllocPool<GlobalVirtual, CoreAlloc>*,
-      AllocPool<GlobalVirtual, CoreAlloc>::make>::get();
   }
 
-  template<class MemoryProvider, class CoreAlloc>
-  inline AllocPool<MemoryProvider, CoreAlloc>*
-  make_alloc_pool(MemoryProvider& mp)
+#ifdef USE_SNMALLOC_STATS
+  template<class SharedStateHandle>
+  inline static void print_all_stats(
+    SharedStateHandle handle, std::ostream& o, uint64_t dumpid = 0)
   {
-    return AllocPool<MemoryProvider, CoreAlloc>::make(mp);
+    auto alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle);
+
+    while (alloc != nullptr)
+    {
+      auto stats = alloc->stats();
+      if (stats != nullptr)
+        stats->template print<Alloc>(o, dumpid, alloc->id());
+      alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle, alloc);
+    }
+  }
+#else
+  template<class SharedStateHandle>
+  inline static void
+  print_all_stats(SharedStateHandle handle, void*& o, uint64_t dumpid = 0)
+  {
+    UNUSED(o);
+    UNUSED(dumpid);
+    UNUSED(handle);
+  }
+#endif
+
+  template<class SharedStateHandle>
+  inline static void cleanup_unused(SharedStateHandle handle)
+  {
+#ifndef SNMALLOC_PASS_THROUGH
+    // Call this periodically to free and coalesce memory allocated by
+    // allocators that are not currently in use by any thread.
+    // One atomic operation to extract the stack, another to restore it.
+    // Handling the message queue for each stack is non-atomic.
+    auto* first = Pool<CoreAlloc<SharedStateHandle>>::extract(handle);
+    auto* alloc = first;
+    decltype(alloc) last;
+
+    if (alloc != nullptr)
+    {
+      while (alloc != nullptr)
+      {
+        alloc->flush();
+        last = alloc;
+        alloc = Pool<CoreAlloc<SharedStateHandle>>::extract(handle, alloc);
+      }
+
+      Pool<CoreAlloc<SharedStateHandle>>::restore(handle, first, last);
+    }
+#endif
+  }
+
+  /**
+    If you pass a pointer to a bool, then it returns whether all the
+    allocators are empty. If you don't pass a pointer to a bool, then will
+    raise an error all the allocators are not empty.
+   */
+  template<class SharedStateHandle>
+  inline static void
+  debug_check_empty(SharedStateHandle handle, bool* result = nullptr)
+  {
+#ifndef SNMALLOC_PASS_THROUGH
+    // This is a debugging function. It checks that all memory from all
+    // allocators has been freed.
+    auto* alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle);
+
+    bool done = false;
+    bool okay = true;
+
+    while (!done)
+    {
+      done = true;
+      alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle);
+      okay = true;
+
+      while (alloc != nullptr)
+      {
+        // Check that the allocator has freed all memory.
+        // repeat the loop if empty caused message sends.
+        if (alloc->debug_is_empty(&okay))
+        {
+          done = false;
+        }
+
+        alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle, alloc);
+      }
+    }
+
+    if (result != nullptr)
+    {
+      *result = okay;
+      return;
+    }
+
+    if (!okay)
+    {
+      alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle);
+      while (alloc != nullptr)
+      {
+        alloc->debug_is_empty(nullptr);
+        alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle, alloc);
+      }
+    }
+#else
+    UNUSED(result);
+#endif
+  }
+
+  template<class SharedStateHandle>
+  inline static void debug_in_use(SharedStateHandle handle, size_t count)
+  {
+    auto alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle);
+    while (alloc != nullptr)
+    {
+      if (alloc->debug_is_in_use())
+      {
+        if (count == 0)
+        {
+          error("ERROR: allocator in use.");
+        }
+        count--;
+      }
+      alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle, alloc);
+
+      if (count != 0)
+      {
+        error("Error: two few allocators in use.");
+      }
+    }
   }
 
 } // namespace snmalloc

@@ -47,7 +47,10 @@ namespace snmalloc
         SNMALLOC_ASSERT(s != 0);
         base = b;
         size = s;
-        body = a->template reserve<false, false>((size >> SHIFT) * sizeof(T));
+        body = a->template reserve<false, false>((size >> SHIFT) * sizeof(T))
+                 .template as_static<T>()
+                 .unsafe_capptr;
+        ;
       }
       else
       {
@@ -57,7 +60,7 @@ namespace snmalloc
         body = (a->template reserve<false, false>(ENTRIES * sizeof(T)))
                  .template as_static<T>()
                  .unsafe_capptr;
-//        madvise(body, size, MADV_NOHUGEPAGE);
+        //        madvise(body, size, MADV_NOHUGEPAGE);
       }
     }
 
@@ -90,7 +93,7 @@ namespace snmalloc
       if constexpr (potentially_out_of_range)
       {
         // TODO: need to uncomment
-        //Pal::notify_using<NoZero>(&body[p >> SHIFT], sizeof(T));
+        // Pal::notify_using<NoZero>(&body[p >> SHIFT], sizeof(T));
       }
 
       return body[p >> SHIFT];

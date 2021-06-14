@@ -52,19 +52,17 @@ namespace snmalloc
     return bits::one_at_bit(slab_bits);
   }
 
-  static size_t sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)
+  inline static size_t sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)
   {
     size_t ssize = sizeclass_to_slab_size(sizeclass);
 
     return bits::next_pow2_bits(ssize) - MIN_CHUNK_BITS;
   }
 
-#ifdef SNMALLOC_TRACING
-  static size_t slab_sizeclass_to_size(sizeclass_t sizeclass)
+  inline static size_t slab_sizeclass_to_size(sizeclass_t sizeclass)
   {
     return bits::one_at_bit(MIN_CHUNK_BITS + sizeclass);
   }
-#endif
 
   inline static uint16_t sizeclass_to_slab_object_count(sizeclass_t sizeclass)
   {
@@ -78,7 +76,7 @@ namespace snmalloc
     return bits::next_pow2(size);
   }
 
-  static size_t large_size_to_slab_sizeclass(size_t size)
+  inline static size_t large_size_to_slab_sizeclass(size_t size)
   {
     return bits::next_pow2_bits(size) - MIN_CHUNK_BITS;
   }
@@ -201,7 +199,8 @@ namespace snmalloc
     SNMALLOC_FAST_PATH bool is_start_of_object(address_t p)
     {
       return is_multiple_of_sizeclass(
-        sizeclass(), p - (bits::align_down(p, sizeclass_to_slab_size(sizeclass()))));
+        sizeclass(),
+        p - (bits::align_down(p, sizeclass_to_slab_size(sizeclass()))));
     }
 
     /**
@@ -209,10 +208,8 @@ namespace snmalloc
      * Returns the link as the allocation, and places the free list into the
      * `fast_free_list` for further allocations.
      */
-    static SNMALLOC_FAST_PATH CapPtr<void, CBAllocE> alloc(
-      Metaslab* meta,
-      FreeListIter& fast_free_list,
-      LocalEntropy& entropy)
+    static SNMALLOC_FAST_PATH CapPtr<void, CBAllocE>
+    alloc(Metaslab* meta, FreeListIter& fast_free_list, LocalEntropy& entropy)
     {
       meta->free_queue.close(fast_free_list, entropy);
       auto p = fast_free_list.take(entropy);
@@ -225,8 +222,8 @@ namespace snmalloc
 
       SNMALLOC_ASSERT(meta->is_start_of_object(address_cast(p)));
 
-//    TODO?
-//      self->debug_slab_invariant(meta, entropy);
+      //    TODO?
+      //      self->debug_slab_invariant(meta, entropy);
 
       // TODO: Should this be zeroing the FreeObject state?
       return capptr_export(p.as_void());

@@ -142,7 +142,7 @@ void test_tasks(size_t num_tasks, size_t count, size_t size)
   }
 
 #ifndef NDEBUG
-  current_alloc_pool()->debug_check_empty();
+  snmalloc::debug_check_empty(Globals::get_handle());
 #endif
 };
 

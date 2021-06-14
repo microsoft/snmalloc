@@ -11,8 +11,9 @@ namespace snmalloc
   // Forward reference to thread local cleanup.
   void register_clean_up();
 
-  struct Globals
+  class CommonConfig
   {
+  public:
     using Meta = MetaEntry;
     using Pal = DefaultPal;
 
@@ -36,6 +37,7 @@ namespace snmalloc
      */
     SNMALLOC_REQUIRE_CONSTINIT
     inline static RemoteAllocator fake_large_remote_impl;
+
     SNMALLOC_REQUIRE_CONSTINIT
     inline static constexpr RemoteAllocator* fake_large_remote{
       &fake_large_remote_impl};
@@ -47,7 +49,10 @@ namespace snmalloc
     SNMALLOC_REQUIRE_CONSTINIT
     inline static MetaEntry default_entry{&default_meta_slab,
                                           fake_large_remote};
+  };
 
+  class Globals : public CommonConfig
+  {
     SNMALLOC_REQUIRE_CONSTINIT
     inline static AddressSpaceManager<Pal> address_space;
 
@@ -61,9 +66,14 @@ namespace snmalloc
     SNMALLOC_REQUIRE_CONSTINIT
     inline static PoolState<CoreAlloc<Globals>> alloc_pool;
 
+    SNMALLOC_REQUIRE_CONSTINIT
     inline static std::atomic<bool> initialised{false};
 
-    static AddressSpaceManager<DefaultPal>& get_meta_address_space()
+    SNMALLOC_REQUIRE_CONSTINIT
+    inline static std::atomic_flag initialisation_lock{};
+
+  public:
+    AddressSpaceManager<DefaultPal>& get_meta_address_space()
     {
       return address_space;
     }
@@ -83,7 +93,7 @@ namespace snmalloc
       return slab_allocator_state;
     }
 
-    static PoolState<CoreAlloc<Globals>>& pool()
+    PoolState<CoreAlloc<Globals>>& pool()
     {
       return alloc_pool;
     }
@@ -91,13 +101,18 @@ namespace snmalloc
     static constexpr bool IsQueueInline = true;
 
     // Performs initialisation for this configuration
-    // of allocators.  Will be called at most once
-    // before any other datastructures are accessed.
-    static int init() noexcept
+    // of allocators.  Needs to be idempotent,
+    // and concurrency safe.
+    void ensure_init()
     {
+      FlagLock lock{initialisation_lock};
 #ifdef SNMALLOC_TRACING
       std::cout << "Run init_impl" << std::endl;
 #endif
+
+      if (initialised)
+        return;
+
       // Need to initialise pagemap.
       pagemap.init(&get_meta_address_space());
 
@@ -107,17 +122,16 @@ namespace snmalloc
       pagemap.add(0, default_entry);
 
       initialised = true;
-      return 0;
     }
 
-    static bool is_initialised()
+    bool is_initialised()
     {
       return initialised;
     }
 
     // This needs to be a forward reference as the
     // thread local state will need to know about this.
-    static void register_clean_up()
+    void register_clean_up()
     {
       snmalloc::register_clean_up();
     }
@@ -129,6 +143,6 @@ namespace snmalloc
       return {};
     }
   };
-}
 
-using Alloc = snmalloc::FastAllocator<snmalloc::Globals>;
+  using Alloc = snmalloc::FastAllocator<snmalloc::Globals>;
+}

@@ -50,15 +50,6 @@ namespace snmalloc
     // mimalloc.
     FastCache small_cache;
 
-    /**
-     * The total amount of memory we are waiting for before we will dispatch
-     * to other allocators. Zero means we have not initialised the allocator
-     * yet. This is initialised to the 0 so that we always hit a slow path to
-     * start with, when we hit the slow path and need to dispatch everything, we
-     * can check if we are a real allocator and lazily provide a real allocator.
-     */
-    int64_t capacity{0};
-
     // Underlying allocator for most non-fast path operations.
     CoreAlloc* core_alloc{nullptr};
 
@@ -94,7 +85,7 @@ namespace snmalloc
     {
       if (likely(core_alloc != nullptr))
       {
-        return handle_message_queue(action, core_alloc, args...);
+        return core_alloc->handle_message_queue(action, core_alloc, args...);
       }
       return lazy_init(action, args...);
     }
@@ -108,8 +99,10 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(core_alloc == nullptr);
 
-      Singleton<int, SharedStateHandle::init>::get();
+      // Initialise the global allocator structures
+      handle.ensure_init();
 
+      // Initialise the thread local allocator
       init();
 
       // register_clean_up must be called after init.  register clean up may be
@@ -117,7 +110,7 @@ namespace snmalloc
       // allocator at this point.
       if (!post_teardown)
         // TODO: Should this be a singleton, so we only call it once?
-        SharedStateHandle::register_clean_up();
+        handle.register_clean_up();
 
       // Perform underlying operation
       auto r = action(core_alloc, args...);
@@ -210,10 +203,18 @@ namespace snmalloc
     }
 
     /**
+     * Send all remote deallocation to other threads.
+     */
+    void post_remote_cache()
+    {
+      core_alloc->post();
+    }
+
+    /**
      * Slow path for deallocation we do not have space for this remote
      * deallocation. This could be because,
      *   - we actually don't have space for this remote deallocation,
-     *     and need to spend them on; or
+     *     and need to send them on; or
      *   - the allocator was not already initialised.
      * In the second case we need to recheck if this is a remote deallocation,
      * as we might acquire the originating allocator.
@@ -234,8 +235,7 @@ namespace snmalloc
           entry.remote->trunc_id(),
           CapPtr<void, CBAlloc>(p),
           entry.meta->sizeclass());
-        core_alloc->remote_cache.post(handle, remote_allocator->trunc_id());
-        capacity = REMOTE_CACHE;
+        post_remote_cache();
         return;
       }
 
@@ -258,62 +258,17 @@ namespace snmalloc
       return remote_allocator->message_queue;
     }
 
-    /**
-     * Check if this allocator has messages to deallocate blocks from another
-     * thread
-     */
-    SNMALLOC_FAST_PATH bool has_messages()
-    {
-      return !(message_queue().is_empty());
-    }
-
-    template<typename Action, typename... Args>
-    SNMALLOC_FAST_PATH decltype(auto)
-    handle_message_queue(Action action, Args... args)
-    {
-      // Inline the empty check, but not necessarily the full queue handling.
-      if (likely(!has_messages()))
-      {
-        return action(args...);
-      }
-
-      return handle_message_queue_inner(action, args...);
-    }
-
-    /**
-     * Process remote frees into this allocator.
-     */
-    template<typename Action, typename... Args>
-    SNMALLOC_SLOW_PATH decltype(auto)
-    handle_message_queue_inner(Action action, Args... args)
-    {
-      for (size_t i = 0; i < REMOTE_BATCH; i++)
-      {
-        auto r = message_queue().dequeue();
-
-        if (unlikely(!r.second))
-          break;
-#ifdef SNMALLOC_TRACING
-        std::cout << "Handling remote" << std::endl;
-#endif
-        // Previously had special version of this code:
-        //   handle_dealloc_remote(r.first);
-        // TODO this needs to not double count stats
-        // TODO this needs to not double revoke if using MTE
-        // TODO batch post at the end of processing.
-        // TODO thread capabilities?
-        dealloc(r.first.unsafe_capptr);
-      }
-
-      return action(args...);
-    }
-
   public:
     constexpr FastAllocator()
     {
       handle = SharedStateHandle::get_handle();
       remote_allocator = &handle.unused_remote;
     };
+
+    FastAllocator(SharedStateHandle handle) : handle(handle)
+    {
+      remote_allocator = &handle.unused_remote;
+    }
 
     // This is effectively the constructor for the FastAllocator, but due to
     // not wanting initialisation checks on the fast path, it is initialised
@@ -324,13 +279,28 @@ namespace snmalloc
       SNMALLOC_ASSERT(core_alloc == nullptr);
 
       // Grab an allocator for this thread.
-      core_alloc =
-        Pool<CoreAlloc>::acquire(handle, &(this->small_cache), handle);
+      auto c = Pool<CoreAlloc>::acquire(handle, &(this->small_cache), handle);
+
+      // Attach to it.
+      attach(c);
+    }
+
+    // This allows the caching layer to be attached to an underlying
+    // allocator instance.
+    void attach(CoreAlloc* c)
+    {
+      // Should only be called if the allocator has not been initialised.
+      SNMALLOC_ASSERT(core_alloc == nullptr);
+
+      // Link thread local state to allocator
+      core_alloc = c;
       core_alloc->attached_cache = &(this->small_cache);
 
+      // Set up secrets.
       small_cache.entropy = core_alloc->entropy;
       // small_cache.stats.start();
 
+      // Set up remote allocator.
       remote_allocator = core_alloc->public_state();
     }
 
@@ -342,19 +312,22 @@ namespace snmalloc
       // Detached thread local state from allocator.
       if (core_alloc != nullptr)
       {
-        small_cache.flush([&](auto p) { dealloc(p); });
+        core_alloc->flush();
 
         // core_alloc->stats().add(small_cache.stats);
         // // Reset stats, required to deal with repeated flushing.
         // new (&small_cache.stats) Stats();
 
+        // Detach underlying allocator
         core_alloc->attached_cache = nullptr;
         // Return underlying allocator to the system.
         Pool<CoreAlloc>::release(handle, core_alloc);
 
+        // Set up thread local allocator to look like
+        // it is new to hit slow paths.
         core_alloc = nullptr;
-        remote_allocator = nullptr;
-        capacity = 0;
+        remote_allocator = &handle.unused_remote;
+        small_cache.capacity = 0;
       }
     }
 
@@ -411,9 +384,7 @@ namespace snmalloc
         BackendAllocator::get_meta_data(handle, address_cast(p));
       if (likely(remote_allocator == entry.remote))
       {
-        if (core_alloc->dealloc_local_object(p))
-          return;
-        core_alloc->dealloc_local_object_slow(entry.meta, p);
+        core_alloc->dealloc_local_object(p);
         return;
       }
 
@@ -421,9 +392,10 @@ namespace snmalloc
       {
         // Check if we have space for the remote deallocation
         if (likely(
-              capacity > (int64_t)sizeclass_to_size(entry.meta->sizeclass())))
+              small_cache.capacity >
+              (int64_t)sizeclass_to_size(entry.meta->sizeclass())))
         {
-          capacity -= sizeclass_to_size(entry.meta->sizeclass());
+          small_cache.capacity -= sizeclass_to_size(entry.meta->sizeclass());
           core_alloc->remote_cache.template dealloc<SharedStateHandle>(
             entry.remote->trunc_id(),
             CapPtr<void, CBAlloc>(p),
@@ -489,25 +461,81 @@ namespace snmalloc
 
     SNMALLOC_SLOW_PATH size_t alloc_size(const void* p_raw)
     {
-      // TODO nullptr, should return 0.
+      // Note that this should return 0 for nullptr.
       // Other than nullptr, we know the system will be initialised as it must
       // be called with something we have already allocated.
+      // To handle this case we require the uninitialised pagemap contain an
+      // entry for the first chunk of memory, that states all objects have zero
+      // size.
       MetaEntry entry =
         BackendAllocator::get_meta_data(handle, address_cast(p_raw));
       return sizeclass_to_size(entry.meta->sizeclass());
     }
 
+    /**
+     * Returns the Start/End of an object allocated by this allocator
+     *
+     * It is valid to pass any pointer, if the object was not allocated
+     * by this allocator, then it give the start and end as the whole of
+     * the potential pointer space.
+     */
     template<Boundary location = Start>
     void* external_pointer(void* p_raw)
     {
-      UNUSED(p_raw);
-      return nullptr;
-      // // TODO, can we optimise to not need initialisation?
-      // return check_init(
-      //   [](CoreAlloc* core_alloc, void* p_raw) {
-      //     return core_alloc->template external_pointer<location>(p_raw);
-      //   },
-      //   p_raw);
+      // TODO bring back the CHERI bits. Wes to review if required.
+      if (likely(handle.is_initialised()))
+      {
+        MetaEntry entry =
+          BackendAllocator::get_meta_data(handle, address_cast(p_raw));
+        if (likely(entry.meta != nullptr))
+        {
+          auto sizeclass = entry.meta->sizeclass();
+          auto rsize = sizeclass_to_size(sizeclass);
+          if (likely(sizeclass < NUM_SIZECLASSES))
+          {
+            auto offset =
+              address_cast(p_raw) & (sizeclass_to_slab_size(sizeclass) - 1);
+            auto start_offset = round_by_sizeclass(sizeclass, offset);
+            if constexpr (location == Start)
+              return pointer_offset(p_raw, start_offset - offset);
+            else if constexpr (location == End)
+              return pointer_offset(p_raw, rsize + start_offset - offset - 1);
+            else
+              return pointer_offset(p_raw, rsize + start_offset - offset);
+          }
+
+          if (rsize != 0)
+          {
+            // This is a large allocation, find start by masking.
+            auto start = pointer_align_down(p_raw, rsize);
+            if constexpr (location == Start)
+              return start;
+            else if constexpr (location == End)
+              return pointer_offset(start, rsize);
+            else
+              return pointer_offset(start, rsize - 1);
+          }
+          else
+          {
+            // This is the nullptr hack case
+          }
+        }
+        else
+        {
+          // No metadata so not our allocation
+        }
+      }
+      else
+      {
+        // Allocator not initialised, so definitely not our allocation
+      }
+
+      if constexpr ((location == End) || (location == OnePastEnd))
+        // We don't know the End, so return MAX_PTR
+        return pointer_offset<void, void>(nullptr, UINTPTR_MAX);
+      else
+        // We don't know the Start, so return MIN_PTR
+        return nullptr;
     }
   };
 } // namespace snmalloc

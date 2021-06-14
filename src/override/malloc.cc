@@ -29,10 +29,10 @@ extern "C"
 #if !defined(NDEBUG) && !defined(SNMALLOC_PASS_THROUGH)
     // TODO
     UNUSED(ptr);
-    // if (ThreadAlloc::get_noncachable()->external_pointer<Start>(ptr) != ptr)
-    // {
-    //   error("Using pointer that is not to the start of an allocation");
-    // }
+    if (ThreadAlloc::get_noncachable()->external_pointer<Start>(ptr) != ptr)
+    {
+      error("Using pointer that is not to the start of an allocation");
+    }
 #else
     UNUSED(ptr);
 #endif

@@ -3,6 +3,7 @@
 #include "../backend/slaballocator.h"
 #include "allocconfig.h"
 #include "fastcache.h"
+#include "metaslab.h"
 #include "pooled.h"
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
@@ -292,6 +293,72 @@ namespace snmalloc
 #endif
     }
 
+    /**
+     * Check if this allocator has messages to deallocate blocks from another
+     * thread
+     */
+    SNMALLOC_FAST_PATH bool has_messages()
+    {
+      return !(message_queue().is_empty());
+    }
+
+    /**
+     * Process remote frees into this allocator.
+     */
+    template<typename Action, typename... Args>
+    SNMALLOC_SLOW_PATH decltype(auto)
+    handle_message_queue_inner(Action action, Args... args)
+    {
+      bool need_post = false;
+      for (size_t i = 0; i < REMOTE_BATCH; i++)
+      {
+        auto r = message_queue().dequeue();
+
+        if (unlikely(!r.second))
+          break;
+#ifdef SNMALLOC_TRACING
+        std::cout << "Handling remote" << std::endl;
+#endif
+        handle_dealloc_remote(r.first, need_post);
+      }
+
+      if (need_post)
+      {
+        post();
+      }
+
+      return action(args...);
+    }
+
+    /**
+     * Dealloc a message either by putting for a forward, or
+     * deallocating locally.
+     *
+     * need_post will be set to true, if capacity is exceeded.
+     */
+    void handle_dealloc_remote(CapPtr<Remote, CBAlloc> p, bool& need_post)
+    {
+      // TODO this needs to not double count stats
+      // TODO this needs to not double revoke if using MTE
+      // TODO batch post at the end of processing.
+      // TODO thread capabilities?
+
+      auto entry = snmalloc::BackendAllocator::get_meta_data(
+        handle, snmalloc::address_cast(p));
+      if (entry.remote == public_state())
+        dealloc_local_object(p.unsafe_capptr);
+      else
+      {
+        auto rsize = sizeclass_to_size(entry.meta->sizeclass());
+        if ((!need_post) && (attached_cache->capacity > (int64_t)rsize))
+          attached_cache->capacity -= rsize;
+        else
+          need_post = true;
+        remote_cache.template dealloc<SharedStateHandle>(
+          entry.remote->trunc_id(), p.as_void(), entry.meta->sizeclass());
+      }
+    }
+
   public:
     CoreAlloc(FastCache* cache, SharedStateHandle handle)
     : handle(handle), attached_cache(cache)
@@ -327,7 +394,36 @@ namespace snmalloc
 #endif
     }
 
-    SNMALLOC_FAST_PATH bool dealloc_local_object(void* p)
+    /**
+     * Post deallocations onto other threads.
+     *
+     * Returns true if it actually performed a post,
+     * and false otherwise.
+     */
+    SNMALLOC_FAST_PATH bool post()
+    {
+      // stats().remote_post();
+      bool sent_something =
+        remote_cache.post(handle, public_state()->trunc_id());
+      if (attached_cache != nullptr)
+        attached_cache->capacity = REMOTE_CACHE;
+      return sent_something;
+    }
+
+    template<typename Action, typename... Args>
+    SNMALLOC_FAST_PATH decltype(auto)
+    handle_message_queue(Action action, Args... args)
+    {
+      // Inline the empty check, but not necessarily the full queue handling.
+      if (likely(!has_messages()))
+      {
+        return action(args...);
+      }
+
+      return handle_message_queue_inner(action, args...);
+    }
+
+    SNMALLOC_FAST_PATH void dealloc_local_object(void* p)
     {
       auto meta = snmalloc::BackendAllocator::get_meta_data(
                     handle, snmalloc::address_cast(p))
@@ -340,7 +436,10 @@ namespace snmalloc
       // Update the head and the next pointer in the free list.
       meta->free_queue.add(cp, entropy);
 
-      return (likely(!meta->return_object()));
+      if (likely(!meta->return_object()))
+        return;
+
+      dealloc_local_object_slow(meta, p);
     }
 
     template<ZeroMem zero_mem>
@@ -354,7 +453,8 @@ namespace snmalloc
       if (likely(!(sl.is_empty())))
       {
         auto meta = sl.get_next();
-        auto p = Metaslab::alloc((Metaslab*)meta, fast_free_list, entropy).unsafe_capptr;
+        auto p = Metaslab::alloc((Metaslab*)meta, fast_free_list, entropy)
+                   .unsafe_capptr;
         if (zero_mem == YesZero)
         {
           SharedStateHandle::Pal::template zero<false>(p, rsize);
@@ -374,6 +474,11 @@ namespace snmalloc
       auto [slab, meta] = snmalloc::SlabAllocator::alloc(
         handle, slab_sizeclass, slab_size, public_state());
 
+      if (slab == nullptr)
+      {
+        return nullptr;
+      }
+
       // Build a free list for the slab
       alloc_new_list(slab, fast_free_list, rsize, slab_size, entropy);
 
@@ -389,6 +494,86 @@ namespace snmalloc
       }
 
       return p;
+    }
+
+    /**
+     * Checks if this allocator is attached to a caching layer.
+     */
+    bool debug_is_detached()
+    {
+      return attached_cache == nullptr;
+    }
+
+    /**
+     * Flush the cached state and delayed deallocations
+     *
+     * Returns true if messages are sent to other threads.
+     */
+    bool flush(bool destroy_queue = false)
+    {
+      // Drain the caches back to the originating allocator
+      if (attached_cache != nullptr)
+        attached_cache->flush([&](auto p) { dealloc_local_object(p); });
+
+      if (destroy_queue)
+      {
+        CapPtr<Remote, CBAlloc> p = message_queue().destroy();
+
+        while (p != nullptr)
+        {
+          bool need_post = true; // Always going to post, so ignore.
+          auto n = p->non_atomic_next;
+          handle_dealloc_remote(p, need_post);
+          p = n;
+        }
+      }
+      else
+      {
+        // Process incoming message queue
+        // Loop as normally only processes a batch
+        while (has_messages())
+          handle_message_queue([]() {});
+      }
+
+      // Flush remote cache at this point too.
+      // do this after handling messages as we
+      // may be forwarding messages.
+      return post();
+    }
+
+    /**
+     * If result parameter is non-null, then false is assigned into the
+     * the location pointed to by result if this allocator is non-empty.
+     *
+     * If result pointer is null, then this code raises a Pal::error on the
+     * particular check that fails, if any do fail.
+     *
+     * Do not run this while other thread could be deallocating as the
+     * message queue invariant is temporarily broken.
+     */
+    bool debug_is_empty(bool* result)
+    {
+      auto test = [&result](auto& queue) {
+        if (!queue.is_empty())
+        {
+          if (result != nullptr)
+            *result = false;
+          else
+            error("debug_is_empty: found non-empty allocator");
+        }
+      };
+
+      bool sent_something = flush(true);
+
+      for (auto& alloc_class : alloc_classes)
+      {
+        test(alloc_class);
+      }
+
+      // Place the static stub message on the queue.
+      init_message_queue();
+
+      return sent_something;
     }
   };
 }

@@ -1,3 +1,4 @@
+#include <mem/globalalloc.h>
 #include <stdio.h>
 #include <test/setup.h>
 
@@ -226,6 +227,6 @@ int main(int argc, char** argv)
     abort();
   }
 
-  //  current_alloc_pool()->debug_check_empty();
+  snmalloc::debug_check_empty(Globals::get_handle());
   return 0;
 }

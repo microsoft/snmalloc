@@ -14,13 +14,13 @@ int main(int argc, char** argv)
   UNUSED(argv);
 
   // Test freeing nullptr, before any allocations.
-  Alloc alloc_evil;
+  snmalloc::Alloc alloc_evil;
   alloc_evil.dealloc(nullptr);
 
   for (size_t i = 0; i < 44; i++)
   {
-    Alloc& alloc = *(snmalloc::ThreadAlloc::get());
-    Alloc alloc2;
+    snmalloc::Alloc& alloc = *(snmalloc::ThreadAlloc::get());
+    snmalloc::Alloc alloc2;
     std::cout << "sizeclass: " << i << std::endl;
 
     for (size_t j = 0; j < 100; j++)

@@ -1,6 +1,6 @@
+#include <iostream>
 #include <snmalloc.h>
 #include <test/setup.h>
-
 using namespace snmalloc;
 
 // Check for all sizeclass that we correctly round every offset within

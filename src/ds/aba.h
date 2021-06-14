@@ -172,7 +172,7 @@ namespace snmalloc
       ABA* parent;
 
     public:
-      Ptr<T> ptr()
+      T* ptr()
       {
         return parent->ptr;
       }

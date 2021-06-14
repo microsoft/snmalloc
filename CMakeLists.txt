@@ -269,9 +269,9 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   if (SNMALLOC_STATIC_LIBRARY)
     add_shim(snmallocshim-static STATIC src/override/malloc.cc)
     add_shim(snmallocshim-1mib-static STATIC src/override/malloc.cc)
-    add_shim(snmallocshim-16mib-static STATIC src/override/malloc.cc)
-    target_compile_definitions(snmallocshim-16mib-static PRIVATE SNMALLOC_USE_LARGE_CHUNKS
-            SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
+    # add_shim(snmallocshim-16mib-static STATIC src/override/malloc.cc)
+    # target_compile_definitions(snmallocshim-16mib-static PRIVATE SNMALLOC_USE_LARGE_CHUNKS
+    #         SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
     target_compile_definitions(snmallocshim-static PRIVATE
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
     target_compile_definitions(snmallocshim-1mib-static PRIVATE
@@ -283,8 +283,8 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     add_shim(snmallocshim SHARED ${SHARED_FILES})
     add_shim(snmallocshim-checks SHARED ${SHARED_FILES})
     add_shim(snmallocshim-1mib SHARED ${SHARED_FILES})
-    add_shim(snmallocshim-16mib SHARED ${SHARED_FILES})
-    target_compile_definitions(snmallocshim-16mib PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
+    # add_shim(snmallocshim-16mib SHARED ${SHARED_FILES})
+    # target_compile_definitions(snmallocshim-16mib PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
     target_compile_definitions(snmallocshim-checks PRIVATE CHECK_CLIENT)
     # Build a shim with some settings from oe.
     add_shim(snmallocshim-oe SHARED ${SHARED_FILES})
@@ -294,8 +294,8 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   if(SNMALLOC_RUST_SUPPORT)
     add_shim(snmallocshim-rust STATIC src/override/rust.cc)
     add_shim(snmallocshim-1mib-rust STATIC src/override/rust.cc)
-    add_shim(snmallocshim-16mib-rust STATIC src/override/rust.cc)
-    target_compile_definitions(snmallocshim-16mib-rust PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
+    # add_shim(snmallocshim-16mib-rust STATIC src/override/rust.cc)
+    # target_compile_definitions(snmallocshim-16mib-rust PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
   endif()
 
   enable_testing()
@@ -314,9 +314,9 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         # Windows does not support aligned allocation well enough
         # for pass through.
         # NetBSD, OpenBSD and DragonFlyBSD do not support malloc*size calls.
-        set(FLAVOURS 1;16;oe;check)
+        set(FLAVOURS 1;oe;check) #16 missing
       else()
-        set(FLAVOURS 1;16;oe;malloc;check)
+        set(FLAVOURS 1;oe;check) #malloc;16 missing
       endif()
       foreach(FLAVOUR ${FLAVOURS})
         unset(SRC)

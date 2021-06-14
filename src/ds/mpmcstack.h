@@ -1,6 +1,7 @@
 #pragma once
 
 #include "aba.h"
+#include "ptrwrap.h"
 
 namespace snmalloc
 {

@@ -97,7 +97,7 @@ namespace snmalloc
     /**
      * Single element cyclic list.  This is the uninitialised case.
      */
-    constexpr CDLLNode(bool){}
+    constexpr CDLLNode(bool) {}
 
     /**
      * Removes this element from the cyclic list is it part of.

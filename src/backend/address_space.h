@@ -1,5 +1,4 @@
 #pragma once
-
 #include "../ds/address.h"
 #include "../ds/flaglock.h"
 #include "../pal/pal.h"
@@ -158,7 +157,7 @@ namespace snmalloc
      * Add a range of memory to the address space.
      * Divides blocks into power of two sizes with natural alignment
      */
-    void add_range(CapPtr<void, CBChunk> base, size_t length)
+    void add_range_impl(CapPtr<void, CBChunk> base, size_t length)
     {
       // Find the minimum set of maximally aligned blocks in this range.
       // Each block's alignment and size are equal.
@@ -208,22 +207,23 @@ namespace snmalloc
 #ifdef SNMALLOC_TRACING
       std::cout << "ASM reserve request:" << size << std::endl;
 #endif
+      std::cout << "ASM reserve request:" << size << std::endl;
 
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
-      if constexpr (align == false)
+      if constexpr ((align == false) && !pal_supports<NoAllocation, PAL>)
       {
-        if constexpr (
-        pal_supports<AlignedAllocation, PAL>)
+        if constexpr (pal_supports<AlignedAllocation, PAL>)
           return CapPtr<void, CBChunk>(
-              PAL::template reserve_aligned<committed>(size));
+            PAL::template reserve_aligned<committed>(size));
         else
         {
           auto [block, size2] = PAL::reserve_at_least(size);
           // TODO wasting size here.
 #ifdef SNMALLOC_TRACING
-          std::cout << "Unaligned alloc here:" << block << " (" << size2 << ")" << std::endl;
+          std::cout << "Unaligned alloc here:" << block << " (" << size2 << ")"
+                    << std::endl;
 #endif
           return CapPtr<void, CBChunk>(block);
         }
@@ -320,7 +320,7 @@ namespace snmalloc
           {
             return nullptr;
           }
-          add_range(block, block_size);
+          add_range_impl(block, block_size);
 
           // still holding lock so guaranteed to succeed.
           res = remove_block(bits::next_pow2_bits(size));
@@ -357,7 +357,7 @@ namespace snmalloc
         if (rsize > size)
         {
           FlagLock lock(spin_lock);
-          add_range(pointer_offset(res, size), rsize - size);
+          add_range_impl(pointer_offset(res, size), rsize - size);
         }
 
         if constexpr (committed)
@@ -379,21 +379,17 @@ namespace snmalloc
      */
     AddressSpaceManager(CapPtr<void, CBChunk> base, size_t length)
     {
-      add_range(base, length);
+      add_range_impl(base, length);
     }
 
     /**
-     * Move assignment operator.  This should only be used during initialisation
-     * of the system.  There should be no concurrency.
+     * Add a range of memory to the address space.
+     * Divides blocks into power of two sizes with natural alignment
      */
-    AddressSpaceManager& operator=(AddressSpaceManager&& other) noexcept
+    void add_range(CapPtr<void, CBChunk> base, size_t length)
     {
-      // Lock address space manager.  This will prevent it being used by
-      // mistake. Fails with deadlock with any subsequent caller.
-      if (other.spin_lock.test_and_set())
-        abort();
-      ranges = other.ranges;
-      return *this;
+      FlagLock lock(spin_lock);
+      add_range_impl(base, length);
     }
 
     // ArenaMap& arenamap()

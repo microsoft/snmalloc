@@ -28,6 +28,15 @@ namespace snmalloc
     // This will be a zero-size structure if stats are not enabled.
     Stats stats;
 
+    /**
+     * The total amount of memory we are waiting for before we will dispatch
+     * to other allocators. Zero means we have not initialised the allocator
+     * yet. This is initialised to the 0 so that we always hit a slow path to
+     * start with, when we hit the slow path and need to dispatch everything, we
+     * can check if we are a real allocator and lazily provide a real allocator.
+     */
+    int64_t capacity{0};
+
     template<typename DeallocFun>
     void flush(DeallocFun dealloc)
     {

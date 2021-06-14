@@ -175,9 +175,10 @@ namespace snmalloc
     }
 
     template<typename SharedStateHandle>
-    void post(SharedStateHandle handle, Remote::alloc_id_t id)
+    bool post(SharedStateHandle handle, Remote::alloc_id_t id)
     {
       size_t post_round = 0;
+      bool sent_something = false;
 
       while (true)
       {
@@ -198,6 +199,7 @@ namespace snmalloc
               BackendAllocator::get_meta_data(handle, address_cast(first));
             entry.remote->message_queue.enqueue(first, l->last);
             l->clear();
+            sent_something = true;
           }
         }
 
@@ -230,6 +232,7 @@ namespace snmalloc
           r = r->non_atomic_next;
         }
       }
+      return sent_something;
     }
   };
 

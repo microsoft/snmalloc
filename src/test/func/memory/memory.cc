@@ -182,7 +182,7 @@ void test_calloc()
     alloc->dealloc(p, size);
   }
 
-  //  current_alloc_pool()->debug_check_empty();
+  snmalloc::debug_check_empty(Globals::get_handle());
 }
 
 void test_double_alloc()
@@ -227,7 +227,7 @@ void test_double_alloc()
       }
     }
   }
-  //  current_alloc_pool()->debug_check_empty();
+  snmalloc::debug_check_empty(Globals::get_handle());
 }
 
 void test_external_pointer()
@@ -251,13 +251,19 @@ void test_external_pointer()
                   << "  p3: " << p3 << std::endl;
       }
       SNMALLOC_CHECK(p1 == p3);
+      if ((size_t)p4 != (size_t)p1 + size - 1)
+      {
+        std::cout << "size: " << size << " end(p4): " << p4 << " p1: " << p1
+                  << "  p1+size-1: " << (void*)((size_t)p1 + size - 1)
+                  << std::endl;
+      }
       SNMALLOC_CHECK((size_t)p4 == (size_t)p1 + size - 1);
     }
 
     alloc->dealloc(p1, size);
   }
 
-  //  current_alloc_pool()->debug_check_empty();
+  snmalloc::debug_check_empty(Globals::get_handle());
 };
 
 void check_offset(void* base, void* interior)

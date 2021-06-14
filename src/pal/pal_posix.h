@@ -271,7 +271,13 @@ namespace snmalloc
           0);
 
         if (p != MAP_FAILED)
+        {
+#ifdef SNMALLOC_TRACING
+          std::cout << "Pal_posix reserved: " << p << " (" << size_request
+                    << ")" << std::endl;
+#endif
           return {p, size_request};
+        }
       }
 
       OS::error("Out of memory");
