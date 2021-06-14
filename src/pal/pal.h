@@ -120,7 +120,11 @@ namespace snmalloc
   // define `PAGE_SIZE` as a macro.  We don't use `PAGE_SIZE` as our variable
   // name, to avoid conflicts, but if we do see a macro definition then check
   // that our value matches the platform's expected value.
-#ifdef PAGE_SIZE
+#if defined(__APPLE__) && defined(PAGE_MAX_SIZE)
+  static_assert(
+    PAGE_MAX_SIZE == OS_PAGE_SIZE,
+    "Page size from system header does not match snmalloc config page size.");
+#elif defined(PAGE_SIZE)
   static_assert(
     PAGE_SIZE == OS_PAGE_SIZE,
     "Page size from system header does not match snmalloc config page size.");
