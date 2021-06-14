@@ -4,15 +4,14 @@
 
 #  include "../ds/address.h"
 
-#  include <Security/Security.h>
-#  include <errno.h>
+#  include <CommonCrypto/CommonRandom.h>
 #  include <execinfo.h>
 #  include <mach/mach_init.h>
 #  include <mach/mach_vm.h>
-#  include <mach/vm_region.h>
 #  include <mach/vm_statistics.h>
 #  include <mach/vm_types.h>
-#  include <utility>
+#  include <stdio.h>
+#  include <unistd.h>
 
 extern "C" int puts(const char* str);
 
@@ -170,17 +169,15 @@ namespace snmalloc
     /**
      * Source of Entropy
      *
-     * Apple platforms do not have a getentropy implementation, so use
-     * SecRandomCopyBytes instead.
+     * Apple platforms do not have a public getentropy implementation, so use
+     * CCRandomGenerateBytes instead.
      */
     static uint64_t get_entropy64()
     {
       uint64_t result;
       if (
-        SecRandomCopyBytes(
-          kSecRandomDefault,
-          sizeof(result),
-          reinterpret_cast<void*>(&result)) != errSecSuccess)
+        CCRandomGenerateBytes(
+          reinterpret_cast<void*>(&result), sizeof(result)) != kCCSuccess)
       {
         error("Failed to get system randomness");
       }
