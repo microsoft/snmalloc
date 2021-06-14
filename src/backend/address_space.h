@@ -207,7 +207,6 @@ namespace snmalloc
 #ifdef SNMALLOC_TRACING
       std::cout << "ASM reserve request:" << size << std::endl;
 #endif
-      std::cout << "ASM reserve request:" << size << std::endl;
 
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= sizeof(void*));

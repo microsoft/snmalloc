@@ -99,9 +99,6 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(core_alloc == nullptr);
 
-      // Initialise the global allocator structures
-      handle.ensure_init();
-
       // Initialise the thread local allocator
       init();
 
@@ -275,6 +272,9 @@ namespace snmalloc
     // lazily.
     void init()
     {
+      // Initialise the global allocator structures
+      handle.ensure_init();
+
       // Should only be called if the allocator has not been initialised.
       SNMALLOC_ASSERT(core_alloc == nullptr);
 
@@ -486,7 +486,7 @@ namespace snmalloc
       if (likely(handle.is_initialised()))
       {
         MetaEntry entry =
-          BackendAllocator::get_meta_data(handle, address_cast(p_raw));
+          BackendAllocator::get_meta_data<true>(handle, address_cast(p_raw));
         if (likely(entry.meta != nullptr))
         {
           auto sizeclass = entry.meta->sizeclass();

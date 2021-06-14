@@ -497,14 +497,6 @@ namespace snmalloc
     }
 
     /**
-     * Checks if this allocator is attached to a caching layer.
-     */
-    bool debug_is_detached()
-    {
-      return attached_cache == nullptr;
-    }
-
-    /**
      * Flush the cached state and delayed deallocations
      *
      * Returns true if messages are sent to other threads.
