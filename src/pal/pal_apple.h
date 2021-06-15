@@ -12,6 +12,7 @@
 #  include <mach/vm_statistics.h>
 #  include <mach/vm_types.h>
 #  include <stdio.h>
+#  include <stdlib.h>
 #  include <unistd.h>
 
 extern "C" int puts(const char* str);
