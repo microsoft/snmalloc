@@ -3,6 +3,7 @@
 #ifdef __APPLE__
 
 #  include "../ds/address.h"
+#  include "../ds/defines.h"
 
 #  include <CommonCrypto/CommonRandom.h>
 #  include <execinfo.h>
@@ -62,11 +63,24 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
 
+#  ifdef USE_POSIX_COMMIT_CHECKS
+      memset(p, 0x5a, size);
+#  endif
+
       mach_vm_behavior_set(
         mach_task_self(),
         reinterpret_cast<mach_vm_address_t>(p),
         mach_vm_size_t(size),
         VM_BEHAVIOR_REUSABLE);
+
+#  ifdef USE_POSIX_COMMIT_CHECKS
+      mach_vm_protect(
+        mach_task_self(),
+        reinterpret_cast<mach_vm_address_t>(p),
+        mach_vm_size_t(size),
+        FALSE,
+        VM_PROT_NONE);
+#  endif
     }
 
     /**
@@ -78,6 +92,44 @@ namespace snmalloc
       SNMALLOC_ASSERT(
         is_aligned_block<page_size>(p, size) || (zero_mem == NoZero));
 
+      if constexpr (zero_mem == YesZero)
+      {
+        // mask has least-significant bits set
+        mach_vm_offset_t mask = page_size - 1;
+
+        int flags =
+          VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE | VM_MAKE_TAG(PALAnonID);
+
+        mach_vm_address_t addr = reinterpret_cast<mach_vm_address_t>(p);
+
+        kern_return_t kr = mach_vm_map(
+          mach_task_self(),
+          &addr,
+          size,
+          mask,
+          flags,
+          MEMORY_OBJECT_NULL,
+          0,
+          TRUE,
+          VM_PROT_READ | VM_PROT_WRITE,
+          VM_PROT_READ | VM_PROT_WRITE,
+          VM_INHERIT_COPY);
+
+        if (likely(kr == KERN_SUCCESS))
+        {
+          return;
+        }
+      }
+
+#  ifdef USE_POSIX_COMMIT_CHECKS
+      mach_vm_protect(
+        mach_task_self(),
+        reinterpret_cast<mach_vm_address_t>(p),
+        mach_vm_size_t(size),
+        FALSE,
+        VM_PROT_READ | VM_PROT_WRITE);
+#  endif
+
       mach_vm_behavior_set(
         mach_task_self(),
         reinterpret_cast<mach_vm_address_t>(p),
@@ -86,7 +138,7 @@ namespace snmalloc
 
       if constexpr (zero_mem == YesZero)
       {
-        zero<true>(p, size);
+        ::bzero(p, size);
       }
     }
 
@@ -121,7 +173,7 @@ namespace snmalloc
           VM_PROT_READ | VM_PROT_WRITE,
           VM_INHERIT_COPY);
 
-        if (kr == KERN_SUCCESS)
+        if (likely(kr == KERN_SUCCESS))
         {
           return;
         }
@@ -145,6 +197,12 @@ namespace snmalloc
       // must be initialized to 0 or addr is interepreted as a lower-bound.
       mach_vm_address_t addr = 0;
 
+#  ifdef USE_POSIX_COMMIT_CHECKS
+      vm_prot_t prot = committed ? VM_PROT_READ | VM_PROT_WRITE : VM_PROT_NONE;
+#  else
+      vm_prot_t prot = VM_PROT_READ | VM_PROT_WRITE;
+#  endif
+
       kern_return_t kr = mach_vm_map(
         mach_task_self(),
         &addr,
@@ -154,11 +212,11 @@ namespace snmalloc
         MEMORY_OBJECT_NULL,
         0,
         TRUE,
-        VM_PROT_READ | VM_PROT_WRITE,
+        prot,
         VM_PROT_READ | VM_PROT_WRITE,
         VM_INHERIT_COPY);
 
-      if (kr != KERN_SUCCESS)
+      if (unlikely(kr != KERN_SUCCESS))
       {
         error("Failed to allocate memory\n");
       }
