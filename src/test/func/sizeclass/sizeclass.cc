@@ -38,7 +38,8 @@ void test_align_size()
       failed |= true;
     }
 
-    for (size_t alignment_bits = 0; alignment_bits < snmalloc::MAX_SIZECLASS_BITS;
+    for (size_t alignment_bits = 0;
+         alignment_bits < snmalloc::MAX_SIZECLASS_BITS;
          alignment_bits++)
     {
       auto alignment = (size_t)1 << alignment_bits;

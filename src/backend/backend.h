@@ -46,6 +46,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
       auto p = h.get_object_address_space().template reserve<true>(size);
+
 #ifdef SNMALLOC_TRACING
       std::cout << "Alloc slab: " << p.unsafe_capptr << " (" << size << ")"
                 << std::endl;

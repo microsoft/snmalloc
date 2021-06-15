@@ -87,7 +87,10 @@ public:
     pagemap.init(&address_space, address_cast(base), length);
   }
 
-  static FixedGlobals get_handle() {return {};}
+  static FixedGlobals get_handle()
+  {
+    return {};
+  }
 };
 
 using FixedAlloc = FastAllocator<FixedGlobals>;
@@ -138,7 +141,8 @@ int main()
   }
 
   std::cout << "Total allocated: " << count << " out of " << size << std::endl;
-  std::cout << "Overhead: 1/" << (double)size/(double)(size-count) << std::endl;
+  std::cout << "Overhead: 1/" << (double)size / (double)(size - count)
+            << std::endl;
 
   a.teardown();
 #endif

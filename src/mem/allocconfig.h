@@ -127,7 +127,8 @@ namespace snmalloc
 
   // Maximum size of an object that uses sizeclasses.
   static constexpr size_t MAX_SIZECLASS_BITS = 14;
-  static constexpr size_t MAX_SIZECLASS_SIZE = bits::one_at_bit(MAX_SIZECLASS_BITS);
+  static constexpr size_t MAX_SIZECLASS_SIZE =
+    bits::one_at_bit(MAX_SIZECLASS_BITS);
 
   // Number of slots for remote deallocation.
   static constexpr size_t REMOTE_SLOT_BITS = 6;

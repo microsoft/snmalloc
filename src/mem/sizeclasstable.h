@@ -23,14 +23,16 @@ namespace snmalloc
     sizeclass_compress_t sizeclass_lookup[sizeclass_lookup_size] = {{}};
     ModArray<NUM_SIZECLASSES_EXTENDED, size_t> size;
 
-//    ModArray<NUM_SMALL_CLASSES, uint16_t> capacity;
+    //    ModArray<NUM_SMALL_CLASSES, uint16_t> capacity;
     // Table of constants for reciprocal division for each sizeclass.
     ModArray<NUM_SIZECLASSES, size_t> div_mult;
     // Table of constants for reciprocal modulus for each sizeclass.
     ModArray<NUM_SIZECLASSES, size_t> mod_mult;
 
-    constexpr SizeClassTable() : size(), //capacity(), 
-    div_mult(), mod_mult()
+    constexpr SizeClassTable()
+    : size(), // capacity(),
+      div_mult(),
+      mod_mult()
     {
       for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
            sizeclass++)
@@ -49,7 +51,7 @@ namespace snmalloc
       for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
            sizeclass++)
       {
-        div_mult[sizeclass] =  //TODO is MAX_SIZECLASS_BITS right?
+        div_mult[sizeclass] = // TODO is MAX_SIZECLASS_BITS right?
           (bits::one_at_bit(bits::BITS - 24) /
            (size[sizeclass] / MIN_ALLOC_SIZE));
         if (!bits::is_pow2(size[sizeclass]))

@@ -62,6 +62,7 @@ namespace snmalloc
       SlabAllocatorState& state = h.get_slab_allocator_state();
       // Pop a slab
       auto slab_record = state.slab_stack[slab_sizeclass].pop();
+
       CapPtr<void, CBChunk> slab;
       Metaslab* meta;
       if (slab_record != nullptr)

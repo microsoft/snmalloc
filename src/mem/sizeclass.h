@@ -37,7 +37,7 @@ namespace snmalloc
   {
     UNUSED(large_class);
     abort();
-//    return bits::one_at_bit(large_class + SUPERSLAB_BITS);
+    //    return bits::one_at_bit(large_class + SUPERSLAB_BITS);
   }
 
   static constexpr size_t NUM_SIZECLASSES =

@@ -1,7 +1,7 @@
 #pragma once
 
 #ifdef SNMALLOC_TRACING
-#  include<iostream>
+#  include <iostream>
 #endif
 #include "../ds/address.h"
 #if defined(BACKTRACE_HEADER)

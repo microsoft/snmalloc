@@ -332,7 +332,9 @@ void test_external_pointer_large()
 void test_external_pointer_dealloc_bug()
 {
   auto alloc = ThreadAlloc::get();
-  size_t count = snmalloc::sizeclass_to_slab_object_count(bits::one_at_bit(MIN_CHUNK_SIZE)) * 2;
+  size_t count =
+    snmalloc::sizeclass_to_slab_object_count(bits::one_at_bit(MIN_CHUNK_SIZE)) *
+    2;
   void* allocs[count];
 
   for (size_t i = 0; i < count; i++)
