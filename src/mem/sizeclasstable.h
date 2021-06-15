@@ -2,6 +2,7 @@
 
 #include "../ds/bits.h"
 #include "../ds/helpers.h"
+#include "sizeclass.h"
 
 namespace snmalloc
 {
@@ -23,23 +24,32 @@ namespace snmalloc
     sizeclass_compress_t sizeclass_lookup[sizeclass_lookup_size] = {{}};
     ModArray<NUM_SIZECLASSES_EXTENDED, size_t> size;
 
-    //    ModArray<NUM_SMALL_CLASSES, uint16_t> capacity;
+    ModArray<NUM_SIZECLASSES, uint16_t> capacity;
+    ModArray<NUM_SIZECLASSES, size_t> slab_size;
+
     // Table of constants for reciprocal division for each sizeclass.
     ModArray<NUM_SIZECLASSES, size_t> div_mult;
     // Table of constants for reciprocal modulus for each sizeclass.
     ModArray<NUM_SIZECLASSES, size_t> mod_mult;
 
     constexpr SizeClassTable()
-    : size(), // capacity(),
+    : size(), capacity(), slab_size(),
       div_mult(),
       mod_mult()
     {
       for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
            sizeclass++)
       {
-        size[sizeclass] =
-          bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
+        size_t rsize =bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
+        size[sizeclass] = rsize;
+        size_t slab_bits =
+          bits::max(bits::next_pow2_bits_const(MIN_OBJECT_COUNT * rsize), MIN_CHUNK_BITS);
+        
+        slab_size[sizeclass] = bits::one_at_bit(slab_bits);
+
+        capacity[sizeclass] = (uint16_t)(slab_size[sizeclass] / rsize);
       }
+
       for (sizeclass_compress_t sizeclass = NUM_SIZECLASSES;
            sizeclass < NUM_SIZECLASSES_EXTENDED;
            sizeclass++)
@@ -79,28 +89,37 @@ namespace snmalloc
           sizeclass_lookup[i] = sizeclass;
         }
       }
-
-      // for (sizeclass_t i = 0; i < NUM_SMALL_CLASSES; i++)
-      // {
-      //   // TODO
-      //   capacity[i] = 0;
-      // }
     }
   };
 
   static inline constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
 
-  // static inline constexpr uint16_t get_slab_capacity(sizeclass_t sc)
-  // {
-  //   return sizeclass_metadata.capacity[sc];
-  // }
-
   constexpr static inline size_t sizeclass_to_size(sizeclass_t sizeclass)
   {
-    //    if (sizeclass < NUM_SIZECLASSES)
     return sizeclass_metadata.size[sizeclass];
-    //    return bits::from_exp_mant<INTERMEDIATE_BITS,
-    //    MIN_ALLOC_BITS>(sizeclass);
+  }
+
+
+  inline static size_t sizeclass_to_slab_size(sizeclass_t sizeclass)
+  {
+    return sizeclass_metadata.slab_size[sizeclass];
+  }
+
+  inline static size_t sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)
+  {
+    size_t ssize = sizeclass_to_slab_size(sizeclass);
+
+    return bits::next_pow2_bits(ssize) - MIN_CHUNK_BITS;
+  }
+
+  inline static size_t slab_sizeclass_to_size(sizeclass_t sizeclass)
+  {
+    return bits::one_at_bit(MIN_CHUNK_BITS + sizeclass);
+  }
+
+  inline static uint16_t sizeclass_to_slab_object_count(sizeclass_t sizeclass)
+  {
+    return  sizeclass_metadata.capacity[sizeclass];
   }
 
   static inline sizeclass_t size_to_sizeclass(size_t size)

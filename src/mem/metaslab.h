@@ -5,7 +5,7 @@
 #include "../ds/helpers.h"
 #include "freelist.h"
 #include "ptrhelpers.h"
-#include "sizeclass.h"
+#include "sizeclasstable.h"
 
 namespace snmalloc
 {
@@ -42,32 +42,6 @@ namespace snmalloc
     uint8_t next = 0;
   };
 
-  inline static size_t sizeclass_to_slab_size(sizeclass_t sizeclass)
-  {
-    size_t rsize = sizeclass_to_size(sizeclass);
-    size_t slab_bits =
-      bits::max(bits::next_pow2_bits(MIN_OBJECT_COUNT * rsize), MIN_CHUNK_BITS);
-    return bits::one_at_bit(slab_bits);
-  }
-
-  inline static size_t sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)
-  {
-    size_t ssize = sizeclass_to_slab_size(sizeclass);
-
-    return bits::next_pow2_bits(ssize) - MIN_CHUNK_BITS;
-  }
-
-  inline static size_t slab_sizeclass_to_size(sizeclass_t sizeclass)
-  {
-    return bits::one_at_bit(MIN_CHUNK_BITS + sizeclass);
-  }
-
-  inline static uint16_t sizeclass_to_slab_object_count(sizeclass_t sizeclass)
-  {
-    size_t rsize = sizeclass_to_size(sizeclass);
-
-    return (uint16_t)(sizeclass_to_slab_size(sizeclass) / rsize);
-  }
 
   inline static size_t large_size_to_slab_size(size_t size)
   {
