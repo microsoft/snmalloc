@@ -341,7 +341,11 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(!debug_different_slab(n) || empty());
 
-      auto index = RANDOM ? entropy.next_bit() : 0;
+      uint32_t index;
+      if constexpr (RANDOM)
+        index = entropy.next_bit();
+      else
+        index = 0;
 
       end[index]->store(n, get_prev(index), entropy);
 #ifdef CHECK_CLIENT

@@ -170,7 +170,9 @@ namespace snmalloc
       meta->free_queue.close(fast_free_list, entropy);
       auto p = fast_free_list.take(entropy);
 
+#ifdef CHECK_CLIENT
       entropy.refresh_bits();
+#endif
 
       // Treat stealing the free list as allocating it all.
       meta->remove();
