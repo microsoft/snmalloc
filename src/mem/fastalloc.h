@@ -169,7 +169,7 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     SNMALLOC_FAST_PATH void* small_alloc(size_t size)
     {
-      // /      SNMALLOC_ASSUME(size <= SLAB_SIZE);
+      SNMALLOC_ASSUME(size <= sizeclass_to_size(NUM_SIZECLASSES));
       auto slowpath = [&](
                         sizeclass_t sizeclass,
                         FreeListIter* fl) SNMALLOC_FAST_PATH {
@@ -414,17 +414,17 @@ namespace snmalloc
       // Large deallocation or null.
       if (likely(p != nullptr))
       {
-#ifdef SNMALLOC_TRACING
-        std::cout << "Large deallocation" << std::endl;
-#endif
         // TODO Doesn't require local init! unless stats are on.
         // TODO check for start of allocation.
         size_t size = sizeclass_to_size(entry.meta->sizeclass());
-        size_t sizeclass = large_size_to_slab_sizeclass(size);
+        size_t slab_sizeclass = large_size_to_slab_sizeclass(size);
+#ifdef SNMALLOC_TRACING
+        std::cout << "Large deallocation: " << size << " slab sizeclass: " << slab_sizeclass<< std::endl;
+#endif
         SlabRecord* slab_record = reinterpret_cast<SlabRecord*>(entry.meta);
         slab_record->slab = CapPtr<void, CBChunk>(p);
         SlabAllocator::dealloc(
-          handle, slab_record, sizeclass_to_slab_sizeclass(sizeclass));
+          handle, slab_record, slab_sizeclass);
         return;
       }
 

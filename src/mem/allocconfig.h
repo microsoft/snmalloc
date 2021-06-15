@@ -118,27 +118,16 @@ namespace snmalloc
   static constexpr size_t MIN_ALLOC_SIZE = 2 * sizeof(void*);
   static constexpr size_t MIN_ALLOC_BITS = bits::ctz_const(MIN_ALLOC_SIZE);
 
-  // Minimuium slab size.
+  // Minimum slab size.
   static constexpr size_t MIN_CHUNK_BITS = 14;
   static constexpr size_t MIN_CHUNK_SIZE = bits::one_at_bit(MIN_CHUNK_BITS);
 
-  // Slabs are 64 KiB unless constrained to 16 or even 8 KiB
-  static constexpr size_t SLAB_BITS =
-    USE_SMALL_CHUNKS ? 13 : (USE_LARGE_CHUNKS ? 16 : 14);
-  static constexpr size_t SLAB_SIZE = 1 << SLAB_BITS;
-  static constexpr size_t SLAB_MASK = ~(SLAB_SIZE - 1);
+  // Minimum number of objects on a slab
+  static constexpr size_t MIN_OBJECT_COUNT = 13;
 
-  // Superslabs are composed of this many slabs. Slab offsets are encoded as
-  // a byte, so the maximum count is 256. This must be a power of two to
-  // allow fast masking to find a superslab start address.
-  static constexpr size_t SLAB_COUNT_BITS =
-    USE_SMALL_CHUNKS ? 5 : (USE_LARGE_CHUNKS ? 8 : 6);
-  static constexpr size_t SLAB_COUNT = 1 << SLAB_COUNT_BITS;
-  static constexpr size_t SUPERSLAB_SIZE = SLAB_SIZE * SLAB_COUNT;
-  static constexpr size_t SUPERSLAB_MASK = ~(SUPERSLAB_SIZE - 1);
-  static constexpr size_t SUPERSLAB_BITS = SLAB_BITS + SLAB_COUNT_BITS;
-
-  static_assert((1ULL << SUPERSLAB_BITS) == SUPERSLAB_SIZE, "Sanity check");
+  // Maximum size of an object that uses sizeclasses.
+  static constexpr size_t MAX_SIZECLASS_BITS = 14;
+  static constexpr size_t MAX_SIZECLASS_SIZE = bits::one_at_bit(MAX_SIZECLASS_BITS);
 
   // Number of slots for remote deallocation.
   static constexpr size_t REMOTE_SLOT_BITS = 6;
@@ -151,12 +140,4 @@ namespace snmalloc
   static_assert(
     MIN_ALLOC_SIZE >= (sizeof(void*) * 2),
     "MIN_ALLOC_SIZE must be sufficient for two pointers");
-  static_assert(
-    SLAB_BITS <= (sizeof(uint16_t) * 8),
-    "SLAB_BITS must not be more than the bits in a uint16_t");
-  static_assert(
-    SLAB_COUNT == bits::next_pow2_const(SLAB_COUNT),
-    "SLAB_COUNT must be a power of 2");
-  static_assert(
-    SLAB_COUNT <= (UINT8_MAX + 1), "SLAB_COUNT must fit in a uint8_t");
 } // namespace snmalloc

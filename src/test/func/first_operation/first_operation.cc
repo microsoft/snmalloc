@@ -204,7 +204,7 @@ int main(int, char**)
   f(5);
   f(7);
   printf("\n");
-  for (size_t exp = 1; exp < snmalloc::SUPERSLAB_BITS; exp++)
+  for (size_t exp = 1; exp < snmalloc::MAX_SIZECLASS_BITS; exp++)
   {
     auto shifted = [exp](size_t v) { return v << exp; };
 

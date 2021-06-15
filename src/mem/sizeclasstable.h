@@ -16,20 +16,21 @@ namespace snmalloc
     size_to_sizeclass_const(bits::one_at_bit(bits::ADDRESS_BITS));
 
   constexpr static size_t sizeclass_lookup_size =
-    sizeclass_lookup_index(SUPERSLAB_SIZE);
+    sizeclass_lookup_index(MAX_SIZECLASS_SIZE);
 
   struct SizeClassTable
   {
     sizeclass_compress_t sizeclass_lookup[sizeclass_lookup_size] = {{}};
     ModArray<NUM_SIZECLASSES_EXTENDED, size_t> size;
 
-    ModArray<NUM_SMALL_CLASSES, uint16_t> capacity;
+//    ModArray<NUM_SMALL_CLASSES, uint16_t> capacity;
     // Table of constants for reciprocal division for each sizeclass.
     ModArray<NUM_SIZECLASSES, size_t> div_mult;
     // Table of constants for reciprocal modulus for each sizeclass.
     ModArray<NUM_SIZECLASSES, size_t> mod_mult;
 
-    constexpr SizeClassTable() : size(), capacity(), div_mult(), mod_mult()
+    constexpr SizeClassTable() : size(), //capacity(), 
+    div_mult(), mod_mult()
     {
       for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
            sizeclass++)
@@ -48,8 +49,8 @@ namespace snmalloc
       for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
            sizeclass++)
       {
-        div_mult[sizeclass] =
-          (bits::one_at_bit(bits::BITS - SUPERSLAB_BITS) /
+        div_mult[sizeclass] =  //TODO is MAX_SIZECLASS_BITS right?
+          (bits::one_at_bit(bits::BITS - 24) /
            (size[sizeclass] / MIN_ALLOC_SIZE));
         if (!bits::is_pow2(size[sizeclass]))
           div_mult[sizeclass]++;
@@ -77,20 +78,20 @@ namespace snmalloc
         }
       }
 
-      for (sizeclass_t i = 0; i < NUM_SMALL_CLASSES; i++)
-      {
-        // TODO
-        capacity[i] = 0;
-      }
+      // for (sizeclass_t i = 0; i < NUM_SMALL_CLASSES; i++)
+      // {
+      //   // TODO
+      //   capacity[i] = 0;
+      // }
     }
   };
 
   static inline constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
 
-  static inline constexpr uint16_t get_slab_capacity(sizeclass_t sc)
-  {
-    return sizeclass_metadata.capacity[sc];
-  }
+  // static inline constexpr uint16_t get_slab_capacity(sizeclass_t sc)
+  // {
+  //   return sizeclass_metadata.capacity[sc];
+  // }
 
   constexpr static inline size_t sizeclass_to_size(sizeclass_t sizeclass)
   {
@@ -136,11 +137,12 @@ namespace snmalloc
       // sufficient bits to do this completely efficiently as 24 * 3 is larger
       // than 64 bits.  But we can pre-round by MIN_ALLOC_SIZE which gets us an
       // extra 4 * 3 bits, and thus achievable in 64bit multiplication.
-      static_assert(
-        SUPERSLAB_BITS <= 24, "The following code assumes max of 24 bits");
+      // static_assert(
+      //   SUPERSLAB_BITS <= 24, "The following code assumes max of 24 bits");
 
+      // TODO 24 hack
       return (((offset >> MIN_ALLOC_BITS) * sizeclass_metadata.div_mult[sc]) >>
-              (bits::BITS - SUPERSLAB_BITS)) *
+              (bits::BITS - 24)) *
         rsize;
     }
     else
@@ -163,10 +165,10 @@ namespace snmalloc
       // get larger then we should review this code.  The modulus code
       // has fewer restrictions than division, as it only requires the
       // square of the offset to be representable.
-      static_assert(
-        SUPERSLAB_BITS <= 24, "The following code assumes max of 24 bits");
+      // TODO 24 hack. Redo the maths given the multiple
+      // slab sizes
       static constexpr size_t MASK =
-        ~(bits::one_at_bit(bits::BITS - 1 - SUPERSLAB_BITS) - 1);
+        ~(bits::one_at_bit(bits::BITS - 1 - 24) - 1);
 
       return ((offset * sizeclass_metadata.mod_mult[sc]) & MASK) == 0;
     }

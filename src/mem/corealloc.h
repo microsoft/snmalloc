@@ -289,7 +289,7 @@ namespace snmalloc
       SlabAllocator::dealloc(
         handle, slab_record, sizeclass_to_slab_sizeclass(sizeclass));
 #ifdef SNMALLOC_TRACING
-      std::cout << "Slab is unused" << std::endl;
+      std::cout << "Slab " << start_of_slab << " is unused, Object sizeclass " << sizeclass << std::endl;
 #endif
     }
 

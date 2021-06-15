@@ -33,21 +33,19 @@ namespace snmalloc
     return sc;
   }
 
-  constexpr static inline size_t large_sizeclass_to_size(uint8_t large_class)
+  static inline size_t large_sizeclass_to_size(uint8_t large_class)
   {
-    return bits::one_at_bit(large_class + SUPERSLAB_BITS);
+    UNUSED(large_class);
+    abort();
+//    return bits::one_at_bit(large_class + SUPERSLAB_BITS);
   }
 
-  // Small classes range from [MIN, SLAB], i.e. inclusive.
-  static constexpr size_t NUM_SMALL_CLASSES =
-    size_to_sizeclass_const(bits::one_at_bit(SLAB_BITS)) + 1;
-
   static constexpr size_t NUM_SIZECLASSES =
-    size_to_sizeclass_const(SUPERSLAB_SIZE);
+    size_to_sizeclass_const(MAX_SIZECLASS_SIZE);
 
-  // Large classes range from [SUPERSLAB, ADDRESS_SPACE).
+  // Large classes range from [SUPERSLAB, ADDRESS_SPACE).// TODO
   static constexpr size_t NUM_LARGE_CLASSES =
-    bits::ADDRESS_BITS - SUPERSLAB_BITS;
+    bits::ADDRESS_BITS - MAX_SIZECLASS_BITS;
 
   inline SNMALLOC_FAST_PATH static size_t
   aligned_size(size_t alignment, size_t size)

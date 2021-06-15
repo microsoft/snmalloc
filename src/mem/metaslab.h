@@ -42,8 +42,6 @@ namespace snmalloc
     uint8_t next = 0;
   };
 
-  static constexpr size_t MIN_OBJECT_COUNT = 13;
-
   inline static size_t sizeclass_to_slab_size(sizeclass_t sizeclass)
   {
     size_t rsize = sizeclass_to_size(sizeclass);
@@ -180,22 +178,6 @@ namespace snmalloc
       null_prev();
     }
 
-    template<typename T, capptr_bounds B>
-    static SNMALLOC_FAST_PATH CapPtr<Slab, capptr_bound_chunkd_bounds<B>()>
-    get_slab(CapPtr<T, B> p)
-    {
-      static_assert(B == CBArena || B == CBChunkD || B == CBChunk);
-
-      return capptr_bound_chunkd(
-        pointer_align_down<SLAB_SIZE, Slab>(p.as_void()), SLAB_SIZE);
-    }
-
-    template<capptr_bounds B>
-    static bool is_short(CapPtr<Slab, B> p)
-    {
-      return pointer_align_down<SUPERSLAB_SIZE, Slab>(p.as_void()) == p;
-    }
-
     SNMALLOC_FAST_PATH bool is_start_of_object(address_t p)
     {
       return is_multiple_of_sizeclass(
@@ -234,7 +216,7 @@ namespace snmalloc
     {
       static_assert(B == CBChunkD || B == CBChunk);
 
-#if !defined(NDEBUG) && !defined(SNMALLOC_CHEAP_CHECKS)
+#if false && !defined(NDEBUG) && !defined(SNMALLOC_CHEAP_CHECKS)
       bool is_short = Metaslab::is_short(slab);
 
       if (is_full())
