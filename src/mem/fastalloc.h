@@ -169,7 +169,7 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     SNMALLOC_FAST_PATH void* small_alloc(size_t size)
     {
-      SNMALLOC_ASSUME(size <= sizeclass_to_size(NUM_SIZECLASSES));
+//      SNMALLOC_ASSUME(size <= sizeclass_to_size(NUM_SIZECLASSES));
       auto slowpath = [&](
                         sizeclass_t sizeclass,
                         FreeListIter* fl) SNMALLOC_FAST_PATH {
