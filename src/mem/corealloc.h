@@ -466,10 +466,9 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH void*
-    small_alloc_slow(sizeclass_t sizeclass, FreeListIter& fast_free_list, size_t rsize)
+    SNMALLOC_SLOW_PATH void* small_alloc_slow(
+      sizeclass_t sizeclass, FreeListIter& fast_free_list, size_t rsize)
     {
-
       // No existing free list get a new slab.
       size_t slab_size = sizeclass_to_slab_size(sizeclass);
       size_t slab_sizeclass = sizeclass_to_slab_sizeclass(sizeclass);

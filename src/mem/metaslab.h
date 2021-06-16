@@ -42,7 +42,6 @@ namespace snmalloc
     uint8_t next = 0;
   };
 
-
   inline static size_t large_size_to_slab_size(size_t size)
   {
     return bits::next_pow2(size);

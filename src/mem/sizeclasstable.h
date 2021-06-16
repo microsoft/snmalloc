@@ -33,18 +33,17 @@ namespace snmalloc
     ModArray<NUM_SIZECLASSES, size_t> mod_mult;
 
     constexpr SizeClassTable()
-    : size(), capacity(), slab_size(),
-      div_mult(),
-      mod_mult()
+    : size(), capacity(), slab_size(), div_mult(), mod_mult()
     {
       for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
            sizeclass++)
       {
-        size_t rsize =bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
+        size_t rsize =
+          bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
         size[sizeclass] = rsize;
-        size_t slab_bits =
-          bits::max(bits::next_pow2_bits_const(MIN_OBJECT_COUNT * rsize), MIN_CHUNK_BITS);
-        
+        size_t slab_bits = bits::max(
+          bits::next_pow2_bits_const(MIN_OBJECT_COUNT * rsize), MIN_CHUNK_BITS);
+
         slab_size[sizeclass] = bits::one_at_bit(slab_bits);
 
         capacity[sizeclass] = (uint16_t)(slab_size[sizeclass] / rsize);
@@ -99,7 +98,6 @@ namespace snmalloc
     return sizeclass_metadata.size[sizeclass];
   }
 
-
   inline static size_t sizeclass_to_slab_size(sizeclass_t sizeclass)
   {
     return sizeclass_metadata.slab_size[sizeclass];
@@ -119,7 +117,7 @@ namespace snmalloc
 
   inline static uint16_t sizeclass_to_slab_object_count(sizeclass_t sizeclass)
   {
-    return  sizeclass_metadata.capacity[sizeclass];
+    return sizeclass_metadata.capacity[sizeclass];
   }
 
   static inline sizeclass_t size_to_sizeclass(size_t size)
