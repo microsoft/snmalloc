@@ -2,8 +2,7 @@
 
 #ifdef __APPLE__
 
-#  include "../ds/address.h"
-#  include "../ds/defines.h"
+#  include "pal_bsd.h"
 
 #  include <CommonCrypto/CommonRandom.h>
 #  include <execinfo.h>
@@ -13,6 +12,7 @@
 #  include <mach/vm_types.h>
 #  include <stdio.h>
 #  include <stdlib.h>
+#  include <sys/mman.h>
 #  include <unistd.h>
 
 extern "C" int puts(const char* str);
@@ -23,7 +23,7 @@ namespace snmalloc
    * PAL implementation for Apple systems (macOS, iOS, watchOS, tvOS...).
    */
   template<int PALAnonID = PALAnonDefaultID>
-  class PALApple
+  class PALApple : public PALBSD<PALApple<>>
   {
   public:
     /**
@@ -35,6 +35,10 @@ namespace snmalloc
     static constexpr size_t page_size = Aal::aal_name == ARM ? 0x4000 : 0x1000;
 
     static constexpr size_t minimum_alloc_size = page_size;
+
+    static constexpr int anonymous_memory_fd = VM_MAKE_TAG(PALAnonID);
+
+    static constexpr int default_mach_vm_map_flags = VM_MAKE_TAG(PALAnonID);
 
     static void print_stack_trace()
     {
@@ -48,16 +52,6 @@ namespace snmalloc
     }
 
     /**
-     * Report a fatal error and exit.
-     */
-    [[noreturn]] static void error(const char* const str) noexcept
-    {
-      puts(str);
-      print_stack_trace();
-      abort();
-    }
-
-    /**
      * Notify platform that we will not be using these pages.
      */
     static void notify_not_using(void* p, size_t size) noexcept
@@ -68,19 +62,17 @@ namespace snmalloc
       memset(p, 0x5a, size);
 #  endif
 
-      mach_vm_behavior_set(
-        mach_task_self(),
-        reinterpret_cast<mach_vm_address_t>(p),
-        mach_vm_size_t(size),
-        VM_BEHAVIOR_REUSABLE);
+      // `MADV_FREE_REUSABLE` can only be applied to writable pages,
+      // otherwise it's an error.
+      //
+      // `mach_vm_behavior_set` is observably slower in benchmarks.
+      madvise(p, size, MADV_FREE_REUSABLE);
 
 #  ifdef USE_POSIX_COMMIT_CHECKS
-      mach_vm_protect(
-        mach_task_self(),
-        reinterpret_cast<mach_vm_address_t>(p),
-        mach_vm_size_t(size),
-        FALSE,
-        VM_PROT_NONE);
+      // This must occur after `MADV_FREE_REUSABLE`.
+      //
+      // `mach_protect` is observably slower in benchmarks.
+      mprotect(p, size, PROT_NONE);
 #  endif
     }
 
@@ -95,92 +87,37 @@ namespace snmalloc
 
       if constexpr (zero_mem == YesZero)
       {
-        // mask has least-significant bits set
-        mach_vm_offset_t mask = page_size - 1;
-
-        int flags =
-          VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE | VM_MAKE_TAG(PALAnonID);
-
-        mach_vm_address_t addr = reinterpret_cast<mach_vm_address_t>(p);
-
-        kern_return_t kr = mach_vm_map(
-          mach_task_self(),
-          &addr,
+        void* r = mmap(
+          p,
           size,
-          mask,
-          flags,
-          MEMORY_OBJECT_NULL,
-          0,
-          TRUE,
-          VM_PROT_READ | VM_PROT_WRITE,
-          VM_PROT_READ | VM_PROT_WRITE,
-          VM_INHERIT_COPY);
+          PROT_READ | PROT_WRITE,
+          MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED,
+          anonymous_memory_fd,
+          0);
 
-        if (likely(kr == KERN_SUCCESS))
+        if (likely(r != MAP_FAILED))
         {
           return;
         }
       }
 
 #  ifdef USE_POSIX_COMMIT_CHECKS
-      mach_vm_protect(
-        mach_task_self(),
-        reinterpret_cast<mach_vm_address_t>(p),
-        mach_vm_size_t(size),
-        FALSE,
-        VM_PROT_READ | VM_PROT_WRITE);
+      // Mark pages as writable for `madvise` below.
+      //
+      // `mach_vm_protect` is observably slower in benchmarks.
+      mprotect(p, size, PROT_READ | PROT_WRITE);
 #  endif
 
-      mach_vm_behavior_set(
-        mach_task_self(),
-        reinterpret_cast<mach_vm_address_t>(p),
-        mach_vm_size_t(size),
-        VM_BEHAVIOR_REUSE);
+      // `MADV_FREE_REUSE` can only be applied to writable pages,
+      // otherwise it's an error.
+      //
+      // `mach_vm_behavior_set` is observably slower in benchmarks.
+      madvise(p, size, MADV_FREE_REUSE);
 
       if constexpr (zero_mem == YesZero)
       {
         ::bzero(p, size);
       }
-    }
-
-    /**
-     * OS specific function for zeroing memory.
-     */
-    template<bool page_aligned = false>
-    static void zero(void* p, size_t size) noexcept
-    {
-      if (page_aligned || is_aligned_block<page_size>(p, size))
-      {
-        SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
-
-        // mask has least-significant bits set
-        mach_vm_offset_t mask = page_size - 1;
-
-        int flags =
-          VM_FLAGS_FIXED | VM_FLAGS_OVERWRITE | VM_MAKE_TAG(PALAnonID);
-
-        mach_vm_address_t addr = reinterpret_cast<mach_vm_address_t>(p);
-
-        kern_return_t kr = mach_vm_map(
-          mach_task_self(),
-          &addr,
-          size,
-          mask,
-          flags,
-          MEMORY_OBJECT_NULL,
-          0,
-          TRUE,
-          VM_PROT_READ | VM_PROT_WRITE,
-          VM_PROT_READ | VM_PROT_WRITE,
-          VM_INHERIT_COPY);
-
-        if (likely(kr == KERN_SUCCESS))
-        {
-          return;
-        }
-      }
-
-      ::bzero(p, size);
     }
 
     template<bool committed>
@@ -193,7 +130,7 @@ namespace snmalloc
       mach_vm_offset_t mask = size - 1;
 
       int flags =
-        VM_FLAGS_ANYWHERE | VM_FLAGS_RANDOM_ADDR | VM_MAKE_TAG(PALAnonID);
+        VM_FLAGS_ANYWHERE | VM_FLAGS_RANDOM_ADDR | default_mach_vm_map_flags;
 
       // must be initialized to 0 or addr is interepreted as a lower-bound.
       mach_vm_address_t addr = 0;
