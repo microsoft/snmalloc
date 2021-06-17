@@ -36,7 +36,7 @@ namespace snmalloc
         else
         {
           auto& a = h.get_meta_address_space(); // TODO Which address space...
-          auto refill_size = size * 8; // TODO min and max heuristics
+          auto refill_size = bits::max(size * 8, 1<<18); // TODO min and max heuristics
           auto refill = a.template reserve<false>(refill_size);
           if (refill == nullptr)
             return nullptr;
@@ -85,7 +85,7 @@ namespace snmalloc
         else
         {
           auto& a = h.get_object_address_space();
-          auto refill_size = size * 8; // TODO min and max heuristics
+          auto refill_size = bits::max(size * 8, 1<<18); // TODO min and max heuristics
           auto refill = a.template reserve<false>(refill_size);
           if (refill == nullptr)
             return nullptr;
