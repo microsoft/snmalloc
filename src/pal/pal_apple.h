@@ -156,8 +156,7 @@ namespace snmalloc
       // mask has least-significant bits set
       mach_vm_offset_t mask = size - 1;
 
-      int flags =
-        VM_FLAGS_ANYWHERE | VM_FLAGS_RANDOM_ADDR | default_mach_vm_map_flags;
+      int flags = VM_FLAGS_ANYWHERE | default_mach_vm_map_flags;
 
       // must be initialized to 0 or addr is interepreted as a lower-bound.
       mach_vm_address_t addr = 0;
