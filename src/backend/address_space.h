@@ -97,8 +97,10 @@ namespace snmalloc
 
       CapPtr<void, CBChunk> res;
       {
-        FlagLock lock(spin_lock);
-        res = core.reserve(size);
+        {
+          FlagLock lock(spin_lock);
+          res = core.reserve(size);
+        }
         if (res == nullptr)
         {
           // Allocation failed ask OS for more memory
@@ -173,10 +175,13 @@ namespace snmalloc
           {
             return nullptr;
           }
-          core.add_range(block, block_size);
+          {
+            FlagLock lock(spin_lock);
+            core.add_range(block, block_size);
 
-          // still holding lock so guaranteed to succeed.
-          res = core.reserve(size);
+            // still holding lock so guaranteed to succeed.
+            res = core.reserve(size);
+          }
         }
       }
 
