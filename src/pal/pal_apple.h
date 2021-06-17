@@ -5,6 +5,7 @@
 #  include "pal_bsd.h"
 
 #  include <CommonCrypto/CommonRandom.h>
+#  include <errno.h>
 #  include <mach/mach_init.h>
 #  include <mach/mach_vm.h>
 #  include <mach/vm_statistics.h>
@@ -93,7 +94,10 @@ namespace snmalloc
       // otherwise it's an error.
       //
       // `mach_vm_behavior_set` is observably slower in benchmarks.
-      madvise(p, size, MADV_FREE_REUSABLE);
+      //
+      // macOS 11 Big Sur may behave in an undocumented manner.
+      while (madvise(p, size, MADV_FREE_REUSABLE) == -1 && errno == EAGAIN)
+        ;
 
 #  ifdef USE_POSIX_COMMIT_CHECKS
       // This must occur after `MADV_FREE_REUSABLE`.
@@ -139,7 +143,10 @@ namespace snmalloc
       // otherwise it's an error.
       //
       // `mach_vm_behavior_set` is observably slower in benchmarks.
-      madvise(p, size, MADV_FREE_REUSE);
+      //
+      // macOS 11 Big Sur may behave in an undocumented manner.
+      while (madvise(p, size, MADV_FREE_REUSE) == -1 && errno == EAGAIN)
+        ;
 
       if constexpr (zero_mem == YesZero)
       {
