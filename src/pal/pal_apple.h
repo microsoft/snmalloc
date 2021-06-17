@@ -5,7 +5,6 @@
 #  include "pal_bsd.h"
 
 #  include <CommonCrypto/CommonRandom.h>
-#  include <execinfo.h>
 #  include <mach/mach_init.h>
 #  include <mach/mach_vm.h>
 #  include <mach/vm_statistics.h>
@@ -14,8 +13,6 @@
 #  include <stdlib.h>
 #  include <sys/mman.h>
 #  include <unistd.h>
-
-extern "C" int puts(const char* str);
 
 namespace snmalloc
 {
@@ -39,17 +36,6 @@ namespace snmalloc
     static constexpr int anonymous_memory_fd = VM_MAKE_TAG(PALAnonID);
 
     static constexpr int default_mach_vm_map_flags = VM_MAKE_TAG(PALAnonID);
-
-    static void print_stack_trace()
-    {
-      constexpr int SIZE = 1024;
-      void* buffer[SIZE];
-      auto nptrs = backtrace(buffer, SIZE);
-      fflush(stdout);
-      backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
-      puts("");
-      fflush(stdout);
-    }
 
     /**
      * Notify platform that we will not be using these pages.
