@@ -19,7 +19,7 @@ namespace snmalloc
   /**
    * PAL implementation for Apple systems (macOS, iOS, watchOS, tvOS...).
    */
-  template<int PALAnonID = PALAnonDefaultID>
+  template<uint8_t PALAnonID = PALAnonDefaultID>
   class PALApple : public PALBSD<PALApple<>>
   {
   public:
@@ -71,10 +71,12 @@ namespace snmalloc
      */
 
     // Encoded memory tag passed to `mmap`.
-    static constexpr int anonymous_memory_fd = VM_MAKE_TAG(PALAnonID);
+    static constexpr int anonymous_memory_fd =
+      int(VM_MAKE_TAG(uint32_t(PALAnonID)));
 
     // Encoded memory tag passed to `mach_vm_map`.
-    static constexpr int default_mach_vm_map_flags = VM_MAKE_TAG(PALAnonID);
+    static constexpr int default_mach_vm_map_flags =
+      int(VM_MAKE_TAG(uint32_t(PALAnonID)));
 
     /**
      * Notify platform that we will not be using these pages.
