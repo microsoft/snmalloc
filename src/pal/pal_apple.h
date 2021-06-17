@@ -33,8 +33,47 @@ namespace snmalloc
 
     static constexpr size_t minimum_alloc_size = page_size;
 
+    /*
+     * Memory Tag
+     *
+     * A memory tag is an 8-bit value that denotes auxillary "type information"
+     * of a vm region. This tag can be used for marking memory for profiling and
+     * debugging, or instructing the kernel to perform tag-specific behavior.
+     * (E.g. VM_MEMORY_MALLOC{_*} is reused by default, unless it is no longer
+     * in its "original state". See `vm_map_entry_is_reusable` in
+     * `osfmk/vm/vm_map.c` for more details of this behavior.)
+     *
+     * Memory tags are encoded using `VM_MAKE_TAG(tag_value)`, and can be passed
+     * to the kernel by either `mmap` or `mach_vm_map`:
+     * 1. `fd` argument of `mmap`.
+     * 2. `flags` argument of `mach_vm_map`.
+     *
+     * There are currently 4 categories of memory tags:
+     *
+     * 1. Reserved: [0, 39]. Typically used for Apple libraries and services.
+     * Use may trigger undocumented kernel-based behavior.
+     *
+     * 2. Defined "placeholders": [39, 98]. Typically used for Apple libraries
+     * and services.
+     *
+     * 3. Undefined "placeholders": [99, 239]. Unallocated by Apple. Typically
+     * used for libraries. (E.g. LLVM sanitizers use 99.)
+     *
+     * 4. Application specific: [240, 255]
+     *
+     * See <mach/vm_statistics.h> for more details about memory tags and their
+     * uses.
+     *
+     * In the future, we may switch our default memory tag from "category 4" to
+     * "category 3", thereby affording us a "well-known" memory tag that can be
+     * easily identified in tools such as vmmap(1) or Instruments.
+     *
+     */
+
+    // Encoded memory tag passed to `mmap`.
     static constexpr int anonymous_memory_fd = VM_MAKE_TAG(PALAnonID);
 
+    // Encoded memory tag passed to `mach_vm_map`.
     static constexpr int default_mach_vm_map_flags = VM_MAKE_TAG(PALAnonID);
 
     /**
@@ -57,7 +96,7 @@ namespace snmalloc
 #  ifdef USE_POSIX_COMMIT_CHECKS
       // This must occur after `MADV_FREE_REUSABLE`.
       //
-      // `mach_protect` is observably slower in benchmarks.
+      // `mach_vm_protect` is observably slower in benchmarks.
       mprotect(p, size, PROT_NONE);
 #  endif
     }
