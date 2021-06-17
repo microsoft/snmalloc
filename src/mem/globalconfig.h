@@ -113,6 +113,8 @@ namespace snmalloc
       if (initialised)
         return;
 
+      // TODO the following should be atomic.
+
       // Need to initialise pagemap.
       pagemap.init(&get_meta_address_space());
 

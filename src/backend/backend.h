@@ -20,18 +20,43 @@ namespace snmalloc
      * address space to protect this from corruption.
      */
     template<typename U, typename SharedStateHandle, typename... Args>
-    static U* alloc_meta_data(SharedStateHandle h, Args&&... args)
+    static U* alloc_meta_data(
+      SharedStateHandle h,
+      AddressSpaceManagerCore<typename SharedStateHandle::Pal>* local_address_space,
+      Args&&... args)
     {
       // Cache line align
       size_t size = bits::align_up(sizeof(U), 64);
-      auto& a = h.get_meta_address_space();
-      auto p = a.template reserve_with_left_over<true>(size).unsafe_capptr;
+      CapPtr<void, CBChunk> p;
+      if (local_address_space != nullptr)
+      {
+        p = local_address_space->reserve_with_left_over(size);
+        if (p != nullptr)
+          local_address_space->commit_block(p, size);
+        else
+        {
+          auto& a = h.get_meta_address_space(); // TODO Which address space...
+          auto refill_size = size * 8; // TODO min and max heuristics
+          auto refill = a.template reserve<false>(refill_size);
+          if (refill == nullptr)
+            return nullptr;
+          local_address_space->add_range(refill, refill_size);
+          // This should succeed
+          p = local_address_space->reserve_with_left_over(size);
+        }
+      }
+      else
+      {
+        auto& a = h.get_meta_address_space();
+        p = a.template reserve_with_left_over<true>(size);
+      }
+
       if (p == nullptr)
         return nullptr;
 
       //      metadata_memory_used_bytes += size;
 
-      return new (p) U(std::forward<Args>(args)...);
+      return new (p.unsafe_capptr) U(std::forward<Args>(args)...);
     }
 
     /**
@@ -41,11 +66,40 @@ namespace snmalloc
      */
     template<typename SharedStateHandle>
     static CapPtr<void, CBChunk> alloc_slab(
-      SharedStateHandle h, size_t size, typename SharedStateHandle::Meta t)
+      SharedStateHandle h,
+      AddressSpaceManagerCore<typename SharedStateHandle::Pal>* local_address_space,
+      size_t size,
+      typename SharedStateHandle::Meta t)
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
-      auto p = h.get_object_address_space().template reserve<true>(size);
+      CapPtr<void, CBChunk> p;
+
+      // TODO code duplication with above
+      // TODO two types of local address space
+      if (local_address_space != nullptr)
+      {
+        p = local_address_space->reserve(size);
+        if (p != nullptr)
+          local_address_space->commit_block(p, size);
+        else
+        {
+          auto& a = h.get_object_address_space();
+          auto refill_size = size * 8; // TODO min and max heuristics
+          auto refill = a.template reserve<false>(refill_size);
+          if (refill == nullptr)
+            return nullptr;
+          local_address_space->add_range(refill, refill_size);
+          // This should succeed
+          p = local_address_space->reserve_with_left_over(size);
+          if (p != nullptr)
+            local_address_space->commit_block(p, size);
+          }
+      }
+      else
+      {
+        p = h.get_object_address_space().template reserve<true>(size);
+      }
 
 #ifdef SNMALLOC_TRACING
       std::cout << "Alloc slab: " << p.unsafe_capptr << " (" << size << ")"

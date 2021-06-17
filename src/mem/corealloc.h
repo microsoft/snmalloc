@@ -22,6 +22,12 @@ namespace snmalloc
     SharedStateHandle handle;
 
     /**
+     * A local area of address space managed by this allocator.
+     * Used to reduce calls on the global address space.
+     */
+    AddressSpaceManagerCore<typename SharedStateHandle::Pal> local_address_space;
+
+    /**
      * Per size class list of active slabs for this allocator.
      */
     SlabList alloc_classes[NUM_SIZECLASSES];
@@ -479,7 +485,7 @@ namespace snmalloc
 #endif
 
       auto [slab, meta] = snmalloc::SlabAllocator::alloc(
-        handle, slab_sizeclass, slab_size, public_state());
+        handle, local_address_space, slab_sizeclass, slab_size, public_state());
 
       if (slab == nullptr)
       {

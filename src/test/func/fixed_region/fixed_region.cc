@@ -85,6 +85,7 @@ public:
   {
     address_space.add_range(base, length);
     pagemap.init(&address_space, address_cast(base), length);
+    // TODO: nullptr setup
   }
 
   static FixedGlobals get_handle()

@@ -139,11 +139,12 @@ namespace snmalloc
         return small_alloc<zero_mem>(1);
       }
 
-      return check_init([&](CoreAlloc*) {
+      return check_init([&](CoreAlloc* core_alloc) {
         // Grab slab of correct size
         // Set remote as large allocator remote.
         auto [slab, meta] = SlabAllocator::alloc(
           handle,
+          core_alloc->local_address_space,
           large_size_to_slab_sizeclass(size),
           large_size_to_slab_size(size),
           handle.fake_large_remote);
@@ -215,7 +216,7 @@ namespace snmalloc
      * In the second case we need to recheck if this is a remote deallocation,
      * as we might acquire the originating allocator.
      */
-    SNMALLOC_SLOW_PATH void dealloc_slow(void* p)
+    SNMALLOC_SLOW_PATH void dealloc_remote_slow(void* p)
     {
       if (core_alloc != nullptr)
       {
@@ -239,7 +240,7 @@ namespace snmalloc
       // from lazy_init is the originating allocator.
       lazy_init(
         [&](CoreAlloc*, void* p) {
-          dealloc(p);
+          dealloc(p); // TODO don't double count statistics
           return nullptr;
         },
         p);
@@ -406,7 +407,7 @@ namespace snmalloc
           return;
         }
 
-        dealloc_slow(p);
+        dealloc_remote_slow(p);
         return;
       }
 
