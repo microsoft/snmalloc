@@ -44,7 +44,7 @@ namespace snmalloc
 #ifdef USE_REMOTE_CACHE
     USE_REMOTE_CACHE
 #else
-    1 << 20
+    1024
 #endif
     ;
 

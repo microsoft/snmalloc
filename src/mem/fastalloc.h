@@ -230,8 +230,7 @@ namespace snmalloc
           BackendAllocator::get_meta_data(handle, address_cast(p));
         core_alloc->remote_cache.template dealloc<SharedStateHandle>(
           entry.remote->trunc_id(),
-          CapPtr<void, CBAlloc>(p),
-          entry.meta->sizeclass());
+          CapPtr<void, CBAlloc>(p));
         post_remote_cache();
         return;
       }
@@ -392,14 +391,12 @@ namespace snmalloc
       {
         // Check if we have space for the remote deallocation
         if (likely(
-              small_cache.capacity >
-              (int64_t)sizeclass_to_size(entry.meta->sizeclass())))
+              small_cache.capacity > 0))
         {
-          small_cache.capacity -= sizeclass_to_size(entry.meta->sizeclass());
+          small_cache.capacity --;
           core_alloc->remote_cache.template dealloc<SharedStateHandle>(
             entry.remote->trunc_id(),
-            CapPtr<void, CBAlloc>(p),
-            entry.meta->sizeclass());
+            CapPtr<void, CBAlloc>(p));
 #ifdef SNMALLOC_TRACING
           std::cout << "Remote dealloc fast" << p << " size " << alloc_size(p)
                     << std::endl;

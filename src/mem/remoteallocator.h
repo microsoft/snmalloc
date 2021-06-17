@@ -161,12 +161,9 @@ namespace snmalloc
     template<typename SharedStateHandle>
     SNMALLOC_FAST_PATH void dealloc(
       Remote::alloc_id_t target_id,
-      CapPtr<void, CBAlloc> p,
-      sizeclass_t sizeclass)
+      CapPtr<void, CBAlloc> p)
     {
       auto r = p.template as_reinterpret<Remote>();
-
-      r->set_info(target_id, sizeclass);
 
       // TODO fix SharedStateHandle to be size of allocator
       RemoteList* l = &list[get_slot<SharedStateHandle>(target_id, 0)];

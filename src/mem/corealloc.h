@@ -356,13 +356,12 @@ namespace snmalloc
         dealloc_local_object(p.unsafe_capptr);
       else
       {
-        auto rsize = sizeclass_to_size(entry.meta->sizeclass());
-        if ((!need_post) && (attached_cache->capacity > (int64_t)rsize))
-          attached_cache->capacity -= rsize;
+        if ((!need_post) && (attached_cache->capacity > 0))
+          attached_cache->capacity --;
         else
           need_post = true;
         remote_cache.template dealloc<SharedStateHandle>(
-          entry.remote->trunc_id(), p.as_void(), entry.meta->sizeclass());
+          entry.remote->trunc_id(), p.as_void());
       }
     }
 
