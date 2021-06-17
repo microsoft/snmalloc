@@ -249,7 +249,7 @@ namespace snmalloc
         auto allocated = snmalloc::sizeclass_to_slab_object_count(sizeclass);
         //  Remove trigger threshold from how many we need before we have fully
         //  freed the slab.
-        meta->needed() = allocated - meta->threshold_for_waking_slab();
+        meta->needed() = allocated - threshold_for_waking_slab(meta->sizeclass());
 
         // Design ensures we can't move from full to empty.
         // There are always some more elements to free at this

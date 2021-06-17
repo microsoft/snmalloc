@@ -25,6 +25,7 @@ namespace snmalloc
     ModArray<NUM_SIZECLASSES_EXTENDED, size_t> size;
 
     ModArray<NUM_SIZECLASSES, uint16_t> capacity;
+    ModArray<NUM_SIZECLASSES, uint16_t> waking;
     ModArray<NUM_SIZECLASSES, size_t> slab_size;
 
     // Table of constants for reciprocal division for each sizeclass.
@@ -33,7 +34,7 @@ namespace snmalloc
     ModArray<NUM_SIZECLASSES, size_t> mod_mult;
 
     constexpr SizeClassTable()
-    : size(), capacity(), slab_size(), div_mult(), mod_mult()
+    : size(), capacity(), waking(), slab_size(), div_mult(), mod_mult()
     {
       for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
            sizeclass++)
@@ -47,6 +48,8 @@ namespace snmalloc
         slab_size[sizeclass] = bits::one_at_bit(slab_bits);
 
         capacity[sizeclass] = (uint16_t)(slab_size[sizeclass] / rsize);
+
+        waking[sizeclass] = (uint16_t)bits::min((capacity[sizeclass] / 16) + 3, 32);
       }
 
       for (sizeclass_compress_t sizeclass = NUM_SIZECLASSES;
@@ -101,6 +104,18 @@ namespace snmalloc
   inline static size_t sizeclass_to_slab_size(sizeclass_t sizeclass)
   {
     return sizeclass_metadata.slab_size[sizeclass];
+  }
+
+  /**
+   * Only wake slab if we have this many free allocations
+   *
+   * This helps remove bouncing around empty to non-empty cases.
+   *
+   * It also increases entropy, when we have randomisation.
+   */
+  inline uint16_t threshold_for_waking_slab(sizeclass_t sizeclass)
+  {
+    return sizeclass_metadata.waking[sizeclass];
   }
 
   inline static size_t sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)

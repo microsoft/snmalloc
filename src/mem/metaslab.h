@@ -123,21 +123,6 @@ namespace snmalloc
       return get_prev() == nullptr;
     }
 
-    /**
-     * Only wake slab if we have this many free allocations
-     *
-     * This helps remove bouncing around empty to non-empty cases.
-     *
-     * It also increases entropy, when we have randomisation.
-     */
-    uint16_t threshold_for_waking_slab()
-    {
-      auto capacity = sizeclass_to_slab_object_count(sizeclass());
-      uint16_t threshold = (capacity / 16) + 3;
-      uint16_t max = 32;
-      return bits::min(threshold, max);
-    }
-
     SNMALLOC_FAST_PATH void set_full()
     {
       SNMALLOC_ASSERT(free_queue.empty());
@@ -147,7 +132,7 @@ namespace snmalloc
 
       // Set needed to at least one, possibly more so we only use
       // a slab when it has a reasonable amount of free elements
-      needed() = threshold_for_waking_slab();
+      needed() = threshold_for_waking_slab(sizeclass());
       null_prev();
     }
 
@@ -197,7 +182,7 @@ namespace snmalloc
       if (is_full())
       {
         size_t count = free_queue.debug_length(entropy);
-        SNMALLOC_ASSERT(count < threshold_for_waking_slab());
+        SNMALLOC_ASSERT(count < threshold_for_waking_slab(sizeclass()));
         return;
       }
 
