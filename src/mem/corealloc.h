@@ -433,9 +433,10 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH void dealloc_local_object(void* p)
     {
-      auto meta = snmalloc::BackendAllocator::get_meta_data(
-                    handle, snmalloc::address_cast(p))
-                    .meta;
+      auto entry = snmalloc::BackendAllocator::get_meta_data(
+                    handle, snmalloc::address_cast(p));
+      auto meta = entry.meta;
+
       SNMALLOC_ASSERT(!meta->is_unused());
 
       auto cp = snmalloc::CapPtr<snmalloc::FreeObject, snmalloc::CBAlloc>(

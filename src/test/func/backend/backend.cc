@@ -1,9 +1,6 @@
 #include "backend/backend.h"
 
-#include "backend/slaballocator.h"
-#include "mem/fastalloc.h"
-#include "mem/pool.h"
-#include "mem/threadalloc.h"
+#include "snmalloc.h"
 
 #include <ds/defines.h>
 #include <iostream>

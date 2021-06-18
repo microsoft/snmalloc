@@ -1,4 +1,3 @@
-#include <mem/globalalloc.h>
 #include <stdio.h>
 #include <test/setup.h>
 

@@ -5,7 +5,6 @@
  * operation.
  */
 
-#include "mem/slowalloc.h"
 #include "test/setup.h"
 
 #include <iostream>
@@ -160,7 +159,7 @@ void f(size_t size)
   auto t8 = std::thread(calloc4, size);
 
   {
-    auto a = snmalloc::get_slow_allocator();
+    auto a = snmalloc::get_scoped_allocator();
     auto p1 = a->alloc(size);
     auto p2 = a->alloc(size);
     auto p3 = a->alloc(size);

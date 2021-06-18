@@ -1,15 +1,23 @@
-#undef SNMALLOC_USE_LARGE_CHUNKS
-#define OPEN_ENCLAVE
-#define OE_OK 0
-#define OPEN_ENCLAVE_SIMULATION
-#define NO_BOOTSTRAP_ALLOCATOR
-#define SNMALLOC_EXPOSE_PAGEMAP
-#define SNMALLOC_NAME_MANGLE(a) enclave_##a
+#define SNMALLOC_TRACING
+
 // Redefine the namespace, so we can have two versions.
 #define snmalloc snmalloc_enclave
+
+#include <snmalloc_core.h>
+#include <mem/fixedglobalconfig.h>
+
+// Specify type of allocator
+#define SNMALLOC_PROVIDE_OWN_CONFIG
+namespace snmalloc
+{
+  using Alloc = FastAllocator<FixedGlobals>;
+}
+
+#define SNMALLOC_NAME_MANGLE(a) enclave_##a
 #include "../../../override/malloc.cc"
 
 extern "C" void oe_allocator_init(void* base, void* end)
 {
-  snmalloc_enclave::PALOpenEnclave::setup_initial_range(base, end);
+  snmalloc::FixedGlobals fixed_handle;
+  fixed_handle.init(CapPtr<void, CBChunk>(base), address_cast(end) - address_cast(base));
 }

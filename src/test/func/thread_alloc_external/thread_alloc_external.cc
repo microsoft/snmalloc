@@ -1,8 +1,13 @@
 #include <test/setup.h>
 
+#include <snmalloc_core.h>
+
+// Specify using own 
 #define SNMALLOC_EXTERNAL_THREAD_ALLOC
-#include <mem/fastalloc.h>
-#include <mem/globalconfig.h>
+namespace snmalloc {
+  using Alloc = snmalloc::FastAllocator<snmalloc::Globals>;
+}
+
 using namespace snmalloc;
 
 class ThreadAllocUntyped
@@ -22,7 +27,7 @@ public:
   }
 };
 
-#include <snmalloc.h>
+#include <snmalloc_front.h>
 
 int main()
 {

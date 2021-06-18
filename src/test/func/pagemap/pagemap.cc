@@ -19,9 +19,9 @@ static T DEFAULT = 0xffff'ffff;
 
 AddressSpaceManager<DefaultPal> address_space;
 
-FlatPagemap<GRANULARITY_BITS, T, false, &DEFAULT> pagemap_test_unbound;
+FlatPagemap<GRANULARITY_BITS, T, DefaultPal, false, &DEFAULT> pagemap_test_unbound;
 
-FlatPagemap<GRANULARITY_BITS, T, true, &DEFAULT> pagemap_test_bound;
+FlatPagemap<GRANULARITY_BITS, T, DefaultPal, true, &DEFAULT> pagemap_test_bound;
 
 size_t failure_count = 0;
 

@@ -1,5 +1,4 @@
 #include <iostream>
-#include <mem/slowalloc.h>
 #include <snmalloc.h>
 #include <test/opt.h>
 #include <test/setup.h>
@@ -188,8 +187,8 @@ void test_calloc()
 void test_double_alloc()
 {
   {
-    auto a1 = snmalloc::get_slow_allocator();
-    auto a2 = snmalloc::get_slow_allocator();
+    auto a1 = snmalloc::get_scoped_allocator();
+    auto a2 = snmalloc::get_scoped_allocator();
 
     const size_t n = (1 << 16) / 32;
 

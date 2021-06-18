@@ -1,55 +1,11 @@
 #pragma once
 
-#include "../backend/backend.h"
-#include "../backend/slaballocator.h"
-#include "../ds/defines.h"
-#include "fastalloc.h"
-#include "pool.h"
+#include "commonconfig.h"
 
 namespace snmalloc
 {
   // Forward reference to thread local cleanup.
   void register_clean_up();
-
-  class CommonConfig
-  {
-  public:
-    using Meta = MetaEntry;
-    using Pal = DefaultPal;
-
-    SNMALLOC_REQUIRE_CONSTINIT
-    inline static Metaslab default_meta_slab;
-
-    /**
-     * Special remote that should never be used as a real remote.
-     * This is used to initialise allocators that should always hit the
-     * remote path for deallocation. Hence moving a branch of the critical
-     * path.
-     */
-    SNMALLOC_REQUIRE_CONSTINIT
-    inline static RemoteAllocator unused_remote;
-
-    /**
-     * Special remote that is used in meta-data for large allocations.
-     *
-     * nullptr is considered a large allocations for this purpose to move
-     * of the critical path.
-     */
-    SNMALLOC_REQUIRE_CONSTINIT
-    inline static RemoteAllocator fake_large_remote_impl;
-
-    SNMALLOC_REQUIRE_CONSTINIT
-    inline static constexpr RemoteAllocator* fake_large_remote{
-      &fake_large_remote_impl};
-
-    /**
-     * We use fake_large_remote so that nullptr, will hit the large
-     * allocation path which is less performance sensitive.
-     */
-    SNMALLOC_REQUIRE_CONSTINIT
-    inline static MetaEntry default_entry{&default_meta_slab,
-                                          fake_large_remote};
-  };
 
   class Globals : public CommonConfig
   {
@@ -57,7 +13,7 @@ namespace snmalloc
     inline static AddressSpaceManager<Pal> address_space;
 
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static FlatPagemap<MIN_CHUNK_BITS, Meta, false, &default_entry>
+    inline static FlatPagemap<MIN_CHUNK_BITS, Meta, Pal, false, &default_entry>
       pagemap;
 
     SNMALLOC_REQUIRE_CONSTINIT
@@ -83,7 +39,7 @@ namespace snmalloc
       return address_space;
     }
 
-    FlatPagemap<MIN_CHUNK_BITS, Meta, false, &default_entry>& get_pagemap()
+    FlatPagemap<MIN_CHUNK_BITS, Meta, Pal, false, &default_entry>& get_pagemap()
     {
       return pagemap;
     }
@@ -113,15 +69,8 @@ namespace snmalloc
       if (initialised)
         return;
 
-      // TODO the following should be atomic.
-
       // Need to initialise pagemap.
       pagemap.init(&get_meta_address_space());
-
-      // The nullptr should contain the default value.
-      // This will make alloc_size of nullptr return 0
-      // as required.
-      pagemap.add(0, default_entry);
 
       initialised = true;
     }
@@ -133,6 +82,8 @@ namespace snmalloc
 
     // This needs to be a forward reference as the
     // thread local state will need to know about this.
+    // This may allocate, so should only be called once
+    // a thread local allocator is available.
     void register_clean_up()
     {
       snmalloc::register_clean_up();
@@ -145,6 +96,4 @@ namespace snmalloc
       return {};
     }
   };
-
-  using Alloc = snmalloc::FastAllocator<snmalloc::Globals>;
 }

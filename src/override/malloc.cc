@@ -1,5 +1,15 @@
-#include "../mem/slowalloc.h"
-#include "../snmalloc.h"
+// Core implementation of snmalloc independent of the configuration mode
+#include "snmalloc_core.h"
+
+#ifndef SNMALLOC_PROVIDE_OWN_CONFIG
+// The default configuration for snmalloc is used if alternative not defined
+namespace snmalloc {
+  using Alloc = snmalloc::FastAllocator<snmalloc::Globals>;
+}
+#endif
+
+// User facing API surface, needs to know what `Alloc` is.
+#include "snmalloc_front.h"
 
 #include <errno.h>
 #include <string.h>
@@ -255,14 +265,14 @@ extern "C"
   }
 #endif
 
-#if !defined(__PIC__) && !defined(NO_BOOTSTRAP_ALLOCATOR)
+#if !defined(__PIC__) && defined(SNMALLOC_BOOTSTRAP_ALLOCATOR)
   // The following functions are required to work before TLS is set up, in
   // statically-linked programs.  These temporarily grab an allocator from the
   // pool and return it.
 
   void* __je_bootstrap_malloc(size_t size)
   {
-    return get_slow_allocator()->alloc(size);
+    return get_scoped_allocator()->alloc(size);
   }
 
   void* __je_bootstrap_calloc(size_t nmemb, size_t size)
@@ -276,12 +286,12 @@ extern "C"
     }
     // Include size 0 in the first sizeclass.
     sz = ((sz - 1) >> (bits::BITS - 1)) + sz;
-    return get_slow_allocator()->alloc<ZeroMem::YesZero>(sz);
+    return get_scoped_allocator()->alloc<ZeroMem::YesZero>(sz);
   }
 
   void __je_bootstrap_free(void* ptr)
   {
-    get_slow_allocator()->dealloc(ptr);
+    get_scoped_allocator()->dealloc(ptr);
   }
 #endif
 }

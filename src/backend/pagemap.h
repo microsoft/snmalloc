@@ -16,6 +16,7 @@ namespace snmalloc
   template<
     size_t GRANULARITY_BITS,
     typename T,
+    typename PAL,
     bool has_bounds,
     T* default_value = nullptr>
   class FlatPagemap
@@ -44,9 +45,14 @@ namespace snmalloc
     {
       if constexpr (has_bounds)
       {
+#ifdef SNMALLOC_TRACING
+      std::cout << "Pagemap.init " << (void*)b << " (" << s << ")" << std::endl;
+#endif        
         SNMALLOC_ASSERT(s != 0);
-        base = b;
-        size = s;
+        // Align the start and end.  We won't store for the very ends as they are not aligned to a chunk boundary.
+        base = bits::align_up(b, bits::one_at_bit(GRANULARITY_BITS));
+        auto end = bits::align_down(b + s, bits::one_at_bit(GRANULARITY_BITS));
+        size = end - base;
         body = a->template reserve<false, false>((size >> SHIFT) * sizeof(T))
                  .template as_static<T>()
                  .unsafe_capptr;
@@ -94,7 +100,7 @@ namespace snmalloc
             // still return the default value.
             if (p == 0)
               return *default_value;
-            Pal::error("Internal error.");
+            PAL::error("Internal error.");
           }
         }
         p = p - base;
@@ -112,11 +118,14 @@ namespace snmalloc
 
     void set(address_t p, T t)
     {
+#ifdef SNMALLOC_TRACING
+      std::cout << "Pagemap.Set " << (void*)p << std::endl;
+#endif
       if constexpr (has_bounds)
       {
         if (p - base > size)
         {
-          Pal::error("Internal error.");
+          PAL::error("Internal error.");
         }
         p = p - base;
       }
@@ -126,11 +135,14 @@ namespace snmalloc
 
     void add(address_t p, T t)
     {
+#ifdef SNMALLOC_TRACING
+      std::cout << "Pagemap.Add " << (void*)p << std::endl;
+#endif
       if constexpr (has_bounds)
       {
         if (p - base > size)
         {
-          Pal::error("Internal error.");
+          PAL::error("Internal error.");
         }
         p = p - base;
       }
