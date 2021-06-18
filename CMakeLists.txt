@@ -94,7 +94,7 @@ macro(clangformat_targets)
     message(WARNING "Not generating clangformat target, no clang-format tool found")
   else ()
     message(STATUS "Generating clangformat target using ${CLANG_FORMAT}")
-    file(GLOB_RECURSE ALL_SOURCE_FILES src/*.cc src/*.h src/*.hh)
+    file(GLOB_RECURSE ALL_SOURCE_FILES CONFIGURE_DEPENDS src/*.cc src/*.h src/*.hh)
     # clangformat does not yet understand concepts well; for the moment, don't
     # ask it to format them.  See https://reviews.llvm.org/D79773
     list(FILTER ALL_SOURCE_FILES EXCLUDE REGEX "src/[^/]*/[^/]*_concept\.h$")
@@ -225,7 +225,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   endif()
 
   macro(subdirlist result curdir)
-    file(GLOB children LIST_DIRECTORIES true RELATIVE ${curdir} ${curdir}/*)
+    file(GLOB children CONFIGURE_DEPENDS LIST_DIRECTORIES true RELATIVE ${curdir} ${curdir}/* )
     set(dirlist "")
     foreach(child ${children})
       if(IS_DIRECTORY ${curdir}/${child})
