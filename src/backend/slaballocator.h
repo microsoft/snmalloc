@@ -47,6 +47,14 @@ namespace snmalloc
      * Stack of slabs that have been returned for reuse.
      */
     ModArray<NUM_SLAB_SIZES, MPMCStack<SlabRecord, RequiresInit>> slab_stack;
+
+    std::atomic<size_t> memory_in_stacks{0};
+
+  public:
+    size_t unused_memory()
+    {
+      return memory_in_stacks;
+    }
   };
 
   class SlabAllocator
@@ -55,7 +63,8 @@ namespace snmalloc
     template<typename SharedStateHandle>
     static std::pair<CapPtr<void, CBChunk>, Metaslab*> alloc(
       SharedStateHandle h,
-      AddressSpaceManagerCore<typename SharedStateHandle::Pal>& local_address_space,
+      AddressSpaceManagerCore<typename SharedStateHandle::Pal>&
+        local_address_space,
       sizeclass_t slab_sizeclass, // TODO sizeclass_t
       size_t slab_size,
       RemoteAllocator* remote)
@@ -69,10 +78,13 @@ namespace snmalloc
       if (slab_record != nullptr)
       {
         slab = slab_record->slab;
+        state.memory_in_stacks -= slab_size;
         meta = reinterpret_cast<Metaslab*>(slab_record);
 #ifdef SNMALLOC_TRACING
         std::cout << "Reuse slab:" << slab.unsafe_capptr << " slab_sizeclass "
-                  << slab_sizeclass << " size " << slab_size << std::endl;
+                  << slab_sizeclass << " size " << slab_size
+                  << " memory in stacks " << state.memory_in_stacks
+                  << std::endl;
 #endif
         MetaEntry entry{meta, remote};
         BackendAllocator::set_meta_data(
@@ -98,12 +110,15 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH static void
     dealloc(SharedStateHandle h, SlabRecord* p, size_t slab_sizeclass)
     {
+      auto& state = h.get_slab_allocator_state();
 #ifdef SNMALLOC_TRACING
       std::cout << "Return slab:" << p->slab.unsafe_capptr << " slab_sizeclass "
                 << slab_sizeclass << " size "
-                << slab_sizeclass_to_size(slab_sizeclass) << std::endl;
+                << slab_sizeclass_to_size(slab_sizeclass)
+                << " memory in stacks " << state.memory_in_stacks << std::endl;
 #endif
-      h.get_slab_allocator_state().slab_stack[slab_sizeclass].push(p);
+      state.slab_stack[slab_sizeclass].push(p);
+      state.memory_in_stacks += slab_sizeclass_to_size(slab_sizeclass);
     }
   };
 }

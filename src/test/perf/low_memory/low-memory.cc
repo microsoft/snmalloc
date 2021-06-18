@@ -107,58 +107,61 @@ int main(int argc, char** argv)
 {
   opt::Opt opt(argc, argv);
 
-  if constexpr (pal_supports<LowMemoryNotification, GlobalVirtual::Pal>)
-  {
-    register_for_pal_notifications<GlobalVirtual>();
-  }
-  else
-  {
-    std::cout << "Pal does not support low-memory notification! Test not run"
-              << std::endl;
-    return 0;
-  }
+  // TODO reinstate
 
-#ifdef NDEBUG
-#  if defined(WIN32) && !defined(SNMALLOC_VA_BITS_64)
-  std::cout << "32-bit windows not supported for this test." << std::endl;
-#  else
+  //   if constexpr (pal_supports<LowMemoryNotification, GlobalVirtual::Pal>)
+  //   {
+  //     register_for_pal_notifications<GlobalVirtual>();
+  //   }
+  //   else
+  //   {
+  //     std::cout << "Pal does not support low-memory notification! Test not
+  //     run"
+  //               << std::endl;
+  //     return 0;
+  //   }
 
-  bool interactive = opt.has("--interactive");
+  // #ifdef NDEBUG
+  // #  if defined(WIN32) && !defined(SNMALLOC_VA_BITS_64)
+  //   std::cout << "32-bit windows not supported for this test." << std::endl;
+  // #  else
 
-  Queue allocations;
+  //   bool interactive = opt.has("--interactive");
 
-  std::cout
-    << "Expected use:" << std::endl
-    << "  run first instances with --interactive. Wait for first to print "
-    << std::endl
-    << "   'No allocations left. Press any key to terminate'" << std::endl
-    << "watch working set, and start second instance working set of first "
-    << "should drop to almost zero," << std::endl
-    << "and second should climb to physical ram." << std::endl
-    << std::endl;
+  //   Queue allocations;
 
-  setup();
+  //   std::cout
+  //     << "Expected use:" << std::endl
+  //     << "  run first instances with --interactive. Wait for first to print "
+  //     << std::endl
+  //     << "   'No allocations left. Press any key to terminate'" << std::endl
+  //     << "watch working set, and start second instance working set of first "
+  //     << "should drop to almost zero," << std::endl
+  //     << "and second should climb to physical ram." << std::endl
+  //     << std::endl;
 
-  for (size_t i = 0; i < 10; i++)
-  {
-    reach_pressure(allocations);
-    std::cout << "Pressure " << i << std::endl;
+  //   setup();
 
-    reduce_pressure(allocations);
-  }
+  //   for (size_t i = 0; i < 10; i++)
+  //   {
+  //     reach_pressure(allocations);
+  //     std::cout << "Pressure " << i << std::endl;
 
-  // Deallocate everything
-  while (allocations.try_remove())
-    ;
+  //     reduce_pressure(allocations);
+  //   }
 
-  if (interactive)
-  {
-    std::cout << "No allocations left. Press any key to terminate" << std::endl;
-    getchar();
-  }
-#  endif
-#else
-  std::cout << "Release test only." << std::endl;
-#endif
+  //   // Deallocate everything
+  //   while (allocations.try_remove())
+  //     ;
+
+  //   if (interactive)
+  //   {
+  //     std::cout << "No allocations left. Press any key to terminate" <<
+  //     std::endl; getchar();
+  //   }
+  // #  endif
+  // #else
+  //   std::cout << "Release test only." << std::endl;
+  // #endif
   return 0;
 }

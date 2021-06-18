@@ -25,7 +25,8 @@ namespace snmalloc
      * A local area of address space managed by this allocator.
      * Used to reduce calls on the global address space.
      */
-    AddressSpaceManagerCore<typename SharedStateHandle::Pal> local_address_space;
+    AddressSpaceManagerCore<typename SharedStateHandle::Pal>
+      local_address_space;
 
     /**
      * Per size class list of active slabs for this allocator.
@@ -249,7 +250,8 @@ namespace snmalloc
         auto allocated = snmalloc::sizeclass_to_slab_object_count(sizeclass);
         //  Remove trigger threshold from how many we need before we have fully
         //  freed the slab.
-        meta->needed() = allocated - threshold_for_waking_slab(meta->sizeclass());
+        meta->needed() =
+          allocated - threshold_for_waking_slab(meta->sizeclass());
 
         // Design ensures we can't move from full to empty.
         // There are always some more elements to free at this
@@ -357,7 +359,7 @@ namespace snmalloc
       else
       {
         if ((!need_post) && (attached_cache->capacity > 0))
-          attached_cache->capacity --;
+          attached_cache->capacity--;
         else
           need_post = true;
         remote_cache.template dealloc<SharedStateHandle>(

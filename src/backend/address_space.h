@@ -43,6 +43,11 @@ namespace snmalloc
      */
     std::atomic_flag spin_lock = ATOMIC_FLAG_INIT;
 
+    /**
+     * All memory issued by this address space manager
+     */
+    std::atomic<size_t> peak_memory_usage_{0};
+
   public:
     /**
      * Returns a pointer to a block of memory of the supplied size.
@@ -239,6 +244,19 @@ namespace snmalloc
     {
       FlagLock lock(spin_lock);
       core.add_range(base, length);
+    }
+
+    size_t peak_memory_usage()
+    {
+      return peak_memory_usage_;
+    }
+
+    void add_peak_memory_usage(size_t size)
+    {
+      peak_memory_usage_ += size;
+#ifdef SNMALLOC_TRACING
+      std::cout << "peak_memory_usage_: " << peak_memory_usage_ << std::endl;
+#endif
     }
 
     // ArenaMap& arenamap()

@@ -106,8 +106,7 @@ int main()
   // 28 is large enough to produce a nested allocator.
   // It is also large enough for the example to run in.
   // For 1MiB superslabs, SUPERSLAB_BITS + 4 is not big enough for the example.
-  size_t large_class = 28 - SUPERSLAB_BITS;
-  size_t size = bits::one_at_bit(SUPERSLAB_BITS + large_class);
+  size_t size = bits::one_at_bit(28);
   auto oe_base = address_space.reserve<true>(size);
   auto oe_end = pointer_offset(oe_base, size).unsafe_capptr;
   std::cout << "Allocated region " << oe_base.unsafe_capptr << " - "

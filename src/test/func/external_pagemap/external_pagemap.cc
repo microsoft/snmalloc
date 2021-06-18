@@ -1,4 +1,5 @@
-#if defined(SNMALLOC_PASS_THROUGH) || defined(_WIN32)
+#if defined(SNMALLOC_PASS_THROUGH) || defined(_WIN32) || \
+  !defined(TODO_REINSTATE_POSSIBLY)
 // This test does not make sense with malloc pass-through, skip it.
 // The malloc definitions are also currently incompatible with Windows headers
 // so skip this test on Windows as well.

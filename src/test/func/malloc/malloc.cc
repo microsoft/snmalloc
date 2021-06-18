@@ -141,7 +141,7 @@ int main(int argc, char** argv)
 
   constexpr int SUCCESS = 0;
 
-  for (sizeclass_t sc = 0; sc < (SUPERSLAB_BITS + 4); sc++)
+  for (sizeclass_t sc = 0; sc < (MAX_SIZECLASS_BITS + 4); sc++)
   {
     const size_t size = bits::one_at_bit(sc);
     printf("malloc: %zu\n", size);
@@ -158,7 +158,8 @@ int main(int argc, char** argv)
     const size_t size = sizeclass_to_size(sc);
 
     bool overflow = false;
-    for (size_t n = 1; bits::umul(size, n, overflow) <= SUPERSLAB_SIZE; n *= 5)
+    for (size_t n = 1; bits::umul(size, n, overflow) <= MAX_SIZECLASS_SIZE;
+         n *= 5)
     {
       if (overflow)
         break;
@@ -184,14 +185,14 @@ int main(int argc, char** argv)
     }
   }
 
-  for (sizeclass_t sc = 0; sc < (SUPERSLAB_BITS + 4); sc++)
+  for (sizeclass_t sc = 0; sc < (MAX_SIZECLASS_BITS + 4); sc++)
   {
     const size_t size = bits::one_at_bit(sc);
     test_realloc(our_malloc(size), size, SUCCESS, false);
     test_realloc(our_malloc(size), 0, SUCCESS, true);
     test_realloc(nullptr, size, SUCCESS, false);
     test_realloc(our_malloc(size), (size_t)-1, ENOMEM, true);
-    for (sizeclass_t sc2 = 0; sc2 < (SUPERSLAB_BITS + 4); sc2++)
+    for (sizeclass_t sc2 = 0; sc2 < (MAX_SIZECLASS_BITS + 4); sc2++)
     {
       const size_t size2 = bits::one_at_bit(sc2);
       printf("size1: %zu, size2:%zu\n", size, size2);
@@ -206,7 +207,7 @@ int main(int argc, char** argv)
   test_posix_memalign((size_t)-1, 0, EINVAL, true);
   test_posix_memalign(OS_PAGE_SIZE, sizeof(uintptr_t) / 2, EINVAL, true);
 
-  for (size_t align = sizeof(uintptr_t); align < SUPERSLAB_SIZE / 2;
+  for (size_t align = sizeof(uintptr_t); align < MAX_SIZECLASS_SIZE * 8;
        align <<= 1)
   {
     for (sizeclass_t sc = 0; sc < NUM_SIZECLASSES - 6; sc++)

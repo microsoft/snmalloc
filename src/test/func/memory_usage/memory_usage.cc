@@ -2,7 +2,6 @@
  * Memory usage test
  * Query memory usage repeatedly
  */
-
 #include <iostream>
 #include <test/setup.h>
 #include <vector>

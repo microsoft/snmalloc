@@ -201,7 +201,7 @@ namespace snmalloc
     CapPtr<void, CBChunk> reserve(size_t size)
     {
 #ifdef SNMALLOC_TRACING
-      std::cout << "ASM reserve request:" << size << std::endl;
+      std::cout << "ASM Core reserve request:" << size << std::endl;
 #endif
 
       SNMALLOC_ASSERT(bits::is_pow2(size));

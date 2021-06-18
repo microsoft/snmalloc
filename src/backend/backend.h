@@ -22,7 +22,8 @@ namespace snmalloc
     template<typename U, typename SharedStateHandle, typename... Args>
     static U* alloc_meta_data(
       SharedStateHandle h,
-      AddressSpaceManagerCore<typename SharedStateHandle::Pal>* local_address_space,
+      AddressSpaceManagerCore<typename SharedStateHandle::Pal>*
+        local_address_space,
       Args&&... args)
     {
       // Cache line align
@@ -36,7 +37,8 @@ namespace snmalloc
         else
         {
           auto& a = h.get_meta_address_space(); // TODO Which address space...
-          auto refill_size = bits::max(size * 8, bits::one_at_bit(21)); // TODO min and max heuristics
+          auto refill_size = bits::max(
+            size, bits::one_at_bit(21)); // TODO min and max heuristics
           auto refill = a.template reserve<false>(refill_size);
           if (refill == nullptr)
             return nullptr;
@@ -51,10 +53,10 @@ namespace snmalloc
         p = a.template reserve_with_left_over<true>(size);
       }
 
+      h.get_meta_address_space().add_peak_memory_usage(size);
+
       if (p == nullptr)
         return nullptr;
-
-      //      metadata_memory_used_bytes += size;
 
       return new (p.unsafe_capptr) U(std::forward<Args>(args)...);
     }
@@ -67,7 +69,8 @@ namespace snmalloc
     template<typename SharedStateHandle>
     static CapPtr<void, CBChunk> alloc_slab(
       SharedStateHandle h,
-      AddressSpaceManagerCore<typename SharedStateHandle::Pal>* local_address_space,
+      AddressSpaceManagerCore<typename SharedStateHandle::Pal>*
+        local_address_space,
       size_t size,
       typename SharedStateHandle::Meta t)
     {
@@ -85,7 +88,8 @@ namespace snmalloc
         else
         {
           auto& a = h.get_object_address_space();
-          auto refill_size = bits::max(size * 8, bits::one_at_bit(21)); // TODO min and max heuristics
+          auto refill_size = bits::max(
+            size, bits::one_at_bit(21)); // TODO min and max heuristics
           auto refill = a.template reserve<false>(refill_size);
           if (refill == nullptr)
             return nullptr;
@@ -94,7 +98,7 @@ namespace snmalloc
           p = local_address_space->reserve_with_left_over(size);
           if (p != nullptr)
             local_address_space->commit_block(p, size);
-          }
+        }
       }
       else
       {
@@ -112,6 +116,12 @@ namespace snmalloc
 #endif
         return p;
       }
+
+      // Register slab and pagemap memory usage.
+      h.get_object_address_space().add_peak_memory_usage(size);
+      // TODO handle bounded versus lazy pagemaps in stats
+      h.get_meta_address_space().add_peak_memory_usage(
+        (size / MIN_CHUNK_SIZE) * sizeof(typename SharedStateHandle::Meta));
 
       for (address_t a = address_cast(p);
            a < address_cast(pointer_offset(p, size));

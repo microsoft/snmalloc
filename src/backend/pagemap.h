@@ -57,9 +57,16 @@ namespace snmalloc
         static constexpr size_t COVERED_BITS =
           bits::ADDRESS_BITS - GRANULARITY_BITS;
         static constexpr size_t ENTRIES = bits::one_at_bit(COVERED_BITS);
-        body = (a->template reserve<false, false>(ENTRIES * sizeof(T)))
-                 .template as_static<T>()
-                 .unsafe_capptr;
+        auto new_body = (a->template reserve<false, false>(ENTRIES * sizeof(T)))
+                          .template as_static<T>()
+                          .unsafe_capptr;
+
+        // TODO Pal notify here
+        // Pal::notify_using<NoZero>(new_body, sizeof(T));
+        // Set up zero page
+        new_body[0] = body[0];
+
+        body = new_body;
         //        madvise(body, size, MADV_NOHUGEPAGE);
       }
     }
@@ -79,10 +86,14 @@ namespace snmalloc
         {
           if constexpr (potentially_out_of_range)
           {
-            return default_value;
+            return *default_value;
           }
           else
           {
+            // Out of range null should
+            // still return the default value.
+            if (p == 0)
+              return *default_value;
             Pal::error("Internal error.");
           }
         }
