@@ -9,70 +9,6 @@
 
 namespace snmalloc
 {
-  template<typename T, template<typename> typename Ptr = Pointer>
-  class CDLLNodeBase
-  {
-    /**
-     * to_next is used to handle a zero initialised data structure.
-     * This means that `is_empty` works even when the constructor hasn't
-     * been run.
-     */
-    ptrdiff_t to_next{0};
-
-  protected:
-    constexpr void set_next(Ptr<T> c)
-    {
-      to_next = pointer_diff_signed(Ptr<CDLLNodeBase<T, Ptr>>(this), c);
-    }
-
-  public:
-    SNMALLOC_FAST_PATH bool is_empty()
-    {
-      return to_next == 0;
-    }
-
-    SNMALLOC_FAST_PATH Ptr<T> get_next()
-    {
-      return static_cast<Ptr<T>>(pointer_offset_signed<T>(this, to_next));
-    }
-  };
-
-  template<typename T, template<typename> typename Ptr = Pointer>
-  class CDLLNodeBaseNext
-  {
-    /**
-     * Like to_next in the pointer-less case, this version still works with
-     * zero-initialized data structure.  To make `is_empty` work in this case,
-     * next is set to `nullptr` rather than `this` when the list is empty.
-     *
-     */
-
-    Ptr<T> next{nullptr};
-
-  protected:
-    constexpr void set_next(Ptr<T> c)
-    {
-      next = address_cast(c) == address_cast(this) ? nullptr : c;
-    }
-
-  public:
-    SNMALLOC_FAST_PATH bool is_empty()
-    {
-      return next == nullptr;
-    }
-
-    SNMALLOC_FAST_PATH Ptr<T> get_next()
-    {
-      return next == nullptr ? Ptr<T>(static_cast<T*>(this)) : next;
-    }
-  };
-
-  template<typename T, template<typename> typename Ptr = Pointer>
-  using CDLLNodeParent = std::conditional_t<
-    aal_supports<StrictProvenance>,
-    CDLLNodeBaseNext<T, Ptr>,
-    CDLLNodeBase<T, Ptr>>;
-
   /**
    * Special class for cyclic doubly linked non-empty linked list
    *
@@ -80,22 +16,41 @@ namespace snmalloc
    * must ensure there is a sentinal element.
    */
   template<template<typename> typename Ptr = Pointer>
-  class CDLLNode : public CDLLNodeParent<CDLLNode<Ptr>, Ptr>
+  class CDLLNode
   {
+    Ptr<CDLLNode> next{nullptr};
     Ptr<CDLLNode> prev{nullptr};
+
+    constexpr void set_next(Ptr<CDLLNode> c)
+    {
+      next = c;
+    }
 
   public:
     /**
      * Single element cyclic list.  This is the empty case.
      */
-    CDLLNode()
+    constexpr CDLLNode()
     {
       this->set_next(Ptr<CDLLNode>(this));
       prev = Ptr<CDLLNode>(this);
     }
 
+    SNMALLOC_FAST_PATH bool is_empty()
+    {
+      return next == this;
+    }
+
+    SNMALLOC_FAST_PATH Ptr<CDLLNode> get_next()
+    {
+      return next;
+    }
+
     /**
      * Single element cyclic list.  This is the uninitialised case.
+     *
+     * This entry should never be accessed and is only used to make
+     * a fake metaslab.
      */
     constexpr CDLLNode(bool) {}
 
