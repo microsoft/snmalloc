@@ -220,7 +220,9 @@ namespace snmalloc
       //         corrupted!");
       // #endif
       auto c = curr;
-      update_cursor(curr->read_next(get_prev(), entropy));
+      auto next = curr->read_next(get_prev(), entropy);
+      Aal::prefetch(next.unsafe_capptr);
+      update_cursor(next);
       return c;
     }
   };

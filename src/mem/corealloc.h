@@ -15,11 +15,6 @@ namespace snmalloc
   {
     template<class SharedStateHandle2>
     friend class FastAllocator;
-    /**
-     * This contains the way to access all the global state and
-     * configuration for the system setup.
-     */
-    SharedStateHandle handle;
 
     /**
      * Per size class list of active slabs for this allocator.
@@ -59,6 +54,12 @@ namespace snmalloc
      * allocator.
      */
     FastCache* attached_cache;
+
+    /**
+     * This contains the way to access all the global state and
+     * configuration for the system setup.
+     */
+    SharedStateHandle handle;
 
     /**
      * The message queue needs to be accessible from other threads
@@ -369,7 +370,7 @@ namespace snmalloc
 
   public:
     CoreAlloc(FastCache* cache, SharedStateHandle handle)
-    : handle(handle), attached_cache(cache)
+    : attached_cache(cache), handle(handle)
     {
 #ifdef SNMALLOC_TRACING
       std::cout << "Making an allocator." << std::endl;
