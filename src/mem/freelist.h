@@ -221,8 +221,8 @@ namespace snmalloc
       // #endif
       auto c = curr;
       auto next = curr->read_next(get_prev(), entropy);
-      Aal::prefetch(next.unsafe_capptr);
       update_cursor(next);
+      Aal::prefetch(next.unsafe_capptr);
       return c;
     }
   };
