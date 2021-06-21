@@ -154,6 +154,7 @@ namespace snmalloc
       FreeListIter tmp_fl;
       meta->free_queue.close(tmp_fl, entropy);
       auto p = tmp_fl.take(entropy);
+      fast_free_list = tmp_fl;
 
 #ifdef CHECK_CLIENT
       entropy.refresh_bits();
@@ -162,8 +163,6 @@ namespace snmalloc
       // Treat stealing the free list as allocating it all.
       meta->remove();
       meta->set_full();
-
-      fast_free_list = tmp_fl;
 
       SNMALLOC_ASSERT(meta->is_start_of_object(address_cast(p)));
 
