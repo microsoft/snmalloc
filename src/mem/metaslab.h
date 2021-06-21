@@ -151,8 +151,10 @@ namespace snmalloc
     static SNMALLOC_FAST_PATH CapPtr<void, CBAllocE>
     alloc(Metaslab* meta, FreeListIter& fast_free_list, LocalEntropy& entropy)
     {
-      meta->free_queue.close(fast_free_list, entropy);
-      auto p = fast_free_list.take(entropy);
+      FreeListIter tmp_fl;
+      meta->free_queue.close(tmp_fl, entropy);
+      auto p = tmp_fl.take(entropy);
+      fast_free_list = tmp_fl;
 
 #ifdef CHECK_CLIENT
       entropy.refresh_bits();

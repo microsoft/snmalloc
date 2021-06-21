@@ -399,7 +399,7 @@ namespace snmalloc
      *
      * It is used with preserve_queue disabled by close.
      */
-    FreeListIter terminate(LocalEntropy& entropy, bool preserve_queue = true)
+    void terminate(FreeListIter& fl, LocalEntropy& entropy, bool preserve_queue = true)
     {
       if constexpr (RANDOM)
       {
@@ -445,7 +445,8 @@ namespace snmalloc
           SNMALLOC_ASSERT(end[1] != &head[0]);
           SNMALLOC_ASSERT(end[0] != &head[1]);
 
-          return {h, address_cast(&head[0])};
+          fl = {h, address_cast(&head[0])};
+          return;
         }
       }
       else
@@ -454,7 +455,7 @@ namespace snmalloc
       }
 
       end[0]->store(nullptr, get_prev(0), entropy);
-      return {head[0].read(HEAD_KEY, entropy), address_cast(&head[0])};
+      fl = {head[0].read(HEAD_KEY, entropy), address_cast(&head[0])};
     }
 
     /**
@@ -463,7 +464,7 @@ namespace snmalloc
      */
     void close(FreeListIter& dst, LocalEntropy& entropy)
     {
-      dst = terminate(entropy, false);
+      terminate(dst, entropy, false);
       init();
     }
 
