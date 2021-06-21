@@ -154,6 +154,9 @@ namespace snmalloc
       }
     }
 
+    // Apple's `mmap` doesn't support user-specified alignment and only
+    // guarantees mappings are aligned to the system page size, so we use
+    // `mach_vm_map` instead.
     template<bool committed>
     static void* reserve_aligned(size_t size) noexcept
     {
@@ -198,8 +201,26 @@ namespace snmalloc
     /**
      * Source of Entropy
      *
-     * Apple platforms do not have a public getentropy implementation, so use
-     * CCRandomGenerateBytes instead.
+     * Apple platforms have a working `getentropy(2)` implementation.
+     * However, it is not allowed on the App Store and Apple actively
+     * discourages its use. The substitutes `arc4random_buf(3)`,
+     * `CCRandomGenerateBytes`, and `SecRandomCopyBytes` are recommended
+     * instead.
+     *
+     * `CCRandomGenerateBytes` was selected because:
+     *
+     * 1. The implementation of `arc4random_buf(3)` differs from its
+     * documentation. It is documented to never fail, yet its'
+     * implementation can fail silently: it calls the function
+     * `ccrng_generate`, but ignores the error case.
+     * `CCRandomGenerateBytes` is built on the same function, but can return an
+     * error code in case of failure. See:
+     *      https://opensource.apple.com/source/Libc/Libc-1439.40.11/gen/FreeBSD/arc4random.c.auto.html
+     *      https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60061/include/CommonRandom.h.auto.html
+     *
+     * 2. `SecRandomCopyBytes` introduces a dependency on `Security.framework`.
+     * `CCRandomGenerateBytes` introduces no new dependencies.
+     *
      */
     static uint64_t get_entropy64()
     {
