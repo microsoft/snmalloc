@@ -454,7 +454,7 @@ namespace snmalloc
         UNUSED(preserve_queue);
       }
 
-      end[0]->store(nullptr, get_prev(0), entropy);
+      //end[0]->store(nullptr, get_prev(0), entropy);
       fl = {head[0].read(HEAD_KEY, entropy), address_cast(&head[0])};
     }
 
