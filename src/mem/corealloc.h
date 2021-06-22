@@ -270,37 +270,39 @@ namespace snmalloc
 
       // Slab is no longer in use, return to global pool of slabs.
 
-#ifdef CHECK_CLIENT
-      // Check free list is well-formed on platforms with
-      // integers as pointers.
-      FreeListIter fl;
-      meta->free_queue.close(fl, entropy);
+      UNUSED(p);
+      // TODO Disable returning for now.
+// #ifdef CHECK_CLIENT
+//       // Check free list is well-formed on platforms with
+//       // integers as pointers.
+//       FreeListIter fl;
+//       meta->free_queue.close(fl, entropy);
 
-      size_t count = 0;
-      while (!fl.empty())
-      {
-        fl.take(entropy);
-        count++;
-      }
-      // Check the list contains all the elements
-      SNMALLOC_ASSERT(
-        count == snmalloc::sizeclass_to_slab_object_count(sizeclass));
-#endif
+//       size_t count = 0;
+//       while (!fl.empty())
+//       {
+//         fl.take(entropy);
+//         count++;
+//       }
+//       // Check the list contains all the elements
+//       SNMALLOC_ASSERT(
+//         count == snmalloc::sizeclass_to_slab_object_count(sizeclass));
+// #endif
 
-      meta->remove();
-      SlabRecord* slab_record = reinterpret_cast<SlabRecord*>(meta);
-      // TODO: This is a capability amplification as we are saying we have the
-      // whole slab.
-      auto start_of_slab = pointer_align_down<void>(
-        p, snmalloc::sizeclass_to_slab_size(sizeclass));
-      // TODO Add bounds correctly here
-      slab_record->slab = CapPtr<void, CBChunk>(start_of_slab);
-      SlabAllocator::dealloc(
-        handle, slab_record, sizeclass_to_slab_sizeclass(sizeclass));
-#ifdef SNMALLOC_TRACING
-      std::cout << "Slab " << start_of_slab << " is unused, Object sizeclass "
-                << sizeclass << std::endl;
-#endif
+//       meta->remove();
+//       SlabRecord* slab_record = reinterpret_cast<SlabRecord*>(meta);
+//       // TODO: This is a capability amplification as we are saying we have the
+//       // whole slab.
+//       auto start_of_slab = pointer_align_down<void>(
+//         p, snmalloc::sizeclass_to_slab_size(sizeclass));
+//       // TODO Add bounds correctly here
+//       slab_record->slab = CapPtr<void, CBChunk>(start_of_slab);
+//       SlabAllocator::dealloc(
+//         handle, slab_record, sizeclass_to_slab_sizeclass(sizeclass));
+// #ifdef SNMALLOC_TRACING
+//       std::cout << "Slab " << start_of_slab << " is unused, Object sizeclass "
+//                 << sizeclass << std::endl;
+// #endif
     }
 
     /**
@@ -462,7 +464,7 @@ namespace snmalloc
       auto& sl = alloc_classes[sizeclass];
       if (likely(!(sl.is_empty())))
       {
-        auto meta = sl.get_next();
+        auto meta = sl.pop();
         auto p = Metaslab::alloc((Metaslab*)meta, fast_free_list, entropy)
                    .unsafe_capptr;
         if (zero_mem == YesZero)

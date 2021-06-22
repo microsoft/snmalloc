@@ -32,13 +32,13 @@ namespace snmalloc
      */
     constexpr CDLLNode()
     {
-      this->set_next(Ptr<CDLLNode>(this));
-      prev = Ptr<CDLLNode>(this);
+      this->set_next(nullptr);
+//      prev = Ptr<CDLLNode>(this);
     }
 
     SNMALLOC_FAST_PATH bool is_empty()
     {
-      return next == this;
+      return next == nullptr;
     }
 
     SNMALLOC_FAST_PATH Ptr<CDLLNode> get_next()
@@ -54,23 +54,32 @@ namespace snmalloc
      */
     constexpr CDLLNode(bool) {}
 
-    /**
-     * Removes this element from the cyclic list is it part of.
-     */
-    SNMALLOC_FAST_PATH void remove()
+//     /**
+//      * Removes this element from the cyclic list is it part of.
+//      */
+//     SNMALLOC_FAST_PATH void remove()
+//     {
+//       SNMALLOC_ASSERT(!this->is_empty());
+//       debug_check();
+//       this->get_next()->prev = prev;
+//       prev->set_next(this->get_next());
+//       // As this is no longer in the list, check invariant for
+//       // neighbouring element.
+//       this->get_next()->debug_check();
+
+// #ifndef NDEBUG
+//       this->set_next(nullptr);
+//       prev = nullptr;
+// #endif
+//     }
+
+    SNMALLOC_FAST_PATH Ptr<CDLLNode> pop()
     {
       SNMALLOC_ASSERT(!this->is_empty());
-      debug_check();
-      this->get_next()->prev = prev;
-      prev->set_next(this->get_next());
-      // As this is no longer in the list, check invariant for
-      // neighbouring element.
-      this->get_next()->debug_check();
-
-#ifndef NDEBUG
-      this->set_next(nullptr);
-      prev = nullptr;
-#endif
+      auto result = get_next();
+      auto next = result->get_next();
+      set_next(next);
+      return result;
     }
 
     /**
@@ -93,7 +102,7 @@ namespace snmalloc
     {
       debug_check();
       item->set_next(this->get_next());
-      this->get_next()->prev = item;
+//      this->get_next()->prev = item;
       item->prev = this;
       set_next(item);
       debug_check();
@@ -101,12 +110,13 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH void insert_prev(Ptr<CDLLNode> item)
     {
-      debug_check();
-      item->prev = prev;
-      prev->set_next(item);
-      item->set_next(Ptr<CDLLNode>(this));
-      prev = item;
-      debug_check();
+      insert_next(item);
+      // debug_check();
+      // item->prev = prev;
+      // prev->set_next(item);
+      // item->set_next(Ptr<CDLLNode>(this));
+      // prev = item;
+      // debug_check();
     }
 
     /**
@@ -117,15 +127,15 @@ namespace snmalloc
     void debug_check()
     {
 #ifndef NDEBUG
-      Ptr<CDLLNode> item = this->get_next();
-      auto p = Ptr<CDLLNode>(this);
+      // Ptr<CDLLNode> item = this->get_next();
+      // auto p = Ptr<CDLLNode>(this);
 
-      do
-      {
-        SNMALLOC_ASSERT(item->prev == p);
-        p = item;
-        item = item->get_next();
-      } while (item != Ptr<CDLLNode>(this));
+      // do
+      // {
+      //   SNMALLOC_ASSERT(item->prev == p);
+      //   p = item;
+      //   item = item->get_next();
+      // } while (item != Ptr<CDLLNode>(this));
 #endif
     }
   };

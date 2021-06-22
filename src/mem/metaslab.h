@@ -161,7 +161,7 @@ namespace snmalloc
 #endif
 
       // Treat stealing the free list as allocating it all.
-      meta->remove();
+      // meta->remove();
       meta->set_full();
 
       SNMALLOC_ASSERT(meta->is_start_of_object(address_cast(p)));
