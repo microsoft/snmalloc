@@ -173,26 +173,18 @@ namespace snmalloc
       auto slowpath = [&](
                         sizeclass_t sizeclass,
                         FreeListIter* fl) SNMALLOC_FAST_PATH {
-        return check_init(
-          //  Note:  FreeListIter& for fl would be nice, but codegen gets
-          //  upset in clang.
-          [](CoreAlloc* core_alloc, sizeclass_t sizeclass, FreeListIter* fl) {
-            // Setting up the message queue can cause a free list to be
-            // populated, so need to check that initialisation hasn't caused
-            // that.  Aggressive inlining will remove this.
-            if (fl->empty())
-              return core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
+        if (unlikely(core_alloc == nullptr))
+        {
+          core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
+          auto r = capptr_reveal(
+            capptr_export(fl->take(core_alloc->entropy).as_void()));
 
-            auto r = capptr_reveal(
-              capptr_export(fl->take(core_alloc->entropy).as_void()));
+          if (zero_mem == YesZero)
+            SharedStateHandle::Pal::zero(r, sizeclass_to_size(sizeclass));
 
-            if (zero_mem == YesZero)
-              SharedStateHandle::Pal::zero(r, sizeclass_to_size(sizeclass));
-
-            return r;
-          },
-          sizeclass,
-          fl);
+          return r;
+        }
+        return lazy_init([&](CoreAlloc*, sizeclass_t sizeclass){ return small_alloc<zero_mem>(sizeclass_to_size(sizeclass)); }, sizeclass);
       };
 
       return small_cache.template alloc<zero_mem, SharedStateHandle>(
