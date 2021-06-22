@@ -173,7 +173,7 @@ namespace snmalloc
       auto slowpath = [&](
                         sizeclass_t sizeclass,
                         FreeListIter* fl) SNMALLOC_FAST_PATH {
-        if (unlikely(core_alloc == nullptr))
+        if (likely(core_alloc != nullptr))
         {
           core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
           auto r = capptr_reveal(
