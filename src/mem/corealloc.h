@@ -462,7 +462,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem>
-    SNMALLOC_FAST_PATH void*
+    SNMALLOC_SLOW_PATH void*
     small_alloc(sizeclass_t sizeclass, FreeListIter& fast_free_list)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
