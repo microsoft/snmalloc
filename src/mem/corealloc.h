@@ -453,14 +453,13 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH void*
+    SNMALLOC_FAST_PATH void*
     small_alloc(sizeclass_t sizeclass, FreeListIter& fast_free_list)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
 
       // Look to see if we can grab a free list.
       auto& sl = alloc_classes[sizeclass];
-      Aal::prefetch(sl.get_next());
       if (likely(!(sl.is_empty())))
       {
         auto meta = sl.get_next();
