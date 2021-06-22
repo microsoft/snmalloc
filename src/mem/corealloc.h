@@ -365,7 +365,7 @@ namespace snmalloc
           attached_cache->capacity--;
         else
           need_post = true;
-        remote_cache.template dealloc<SharedStateHandle>(
+        remote_cache.template dealloc<sizeof(CoreAlloc)>(
           entry.remote->trunc_id(), p.as_void());
       }
     }
@@ -413,9 +413,9 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH bool post()
     {
-      // stats().remote_post();
+      // stats().remote_post();  // TODO queue not in line!
       bool sent_something =
-        remote_cache.post(handle, public_state()->trunc_id());
+        remote_cache.post<sizeof(CoreAlloc)>(handle, public_state()->trunc_id());
       if (attached_cache != nullptr)
         attached_cache->capacity = REMOTE_CACHE;
       return sent_something;

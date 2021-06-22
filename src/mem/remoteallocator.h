@@ -145,10 +145,9 @@ namespace snmalloc
     /// Used to find the index into the array of queues for remote
     /// deallocation
     /// r is used for which round of sending this is.
-    template<typename Alloc>
+    template<size_t allocator_size>
     inline size_t get_slot(size_t id, size_t r)
     {
-      constexpr size_t allocator_size = sizeof(Alloc);
       constexpr size_t initial_shift =
         bits::next_pow2_bits_const(allocator_size);
       // static_assert(
@@ -158,19 +157,19 @@ namespace snmalloc
       return (id >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
     }
 
-    template<typename SharedStateHandle>
+    template<size_t allocator_size>
     SNMALLOC_FAST_PATH void
     dealloc(Remote::alloc_id_t target_id, CapPtr<void, CBAlloc> p)
     {
       auto r = p.template as_reinterpret<Remote>();
 
       // TODO fix SharedStateHandle to be size of allocator
-      RemoteList* l = &list[get_slot<SharedStateHandle>(target_id, 0)];
+      RemoteList* l = &list[get_slot<allocator_size>(target_id, 0)];
       l->last->non_atomic_next = r;
       l->last = r;
     }
 
-    template<typename SharedStateHandle>
+    template<size_t allocator_size, typename SharedStateHandle>
     bool post(SharedStateHandle handle, Remote::alloc_id_t id)
     {
       size_t post_round = 0;
@@ -179,7 +178,7 @@ namespace snmalloc
       while (true)
       {
         // TODO correct size for slot offset
-        auto my_slot = get_slot<SharedStateHandle>(id, post_round);
+        auto my_slot = get_slot<allocator_size>(id, post_round);
 
         for (size_t i = 0; i < REMOTE_SLOTS; i++)
         {
@@ -220,7 +219,7 @@ namespace snmalloc
             BackendAllocator::get_meta_data(handle, address_cast(r));
           auto id = entry.remote->trunc_id();
           // TODO correct size for slot offset
-          size_t slot = get_slot<SharedStateHandle>(id, post_round);
+          size_t slot = get_slot<allocator_size>(id, post_round);
           RemoteList* l = &list[slot];
           l->last->non_atomic_next = r;
           l->last = r;
