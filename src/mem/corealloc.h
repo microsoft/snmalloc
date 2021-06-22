@@ -460,12 +460,12 @@ namespace snmalloc
 
       // Look to see if we can grab a free list.
       auto& sl = alloc_classes[sizeclass];
+      Aal::prefetch(sl.get_next());
       if (likely(!(sl.is_empty())))
       {
         auto meta = sl.get_next();
         auto p = Metaslab::alloc((Metaslab*)meta, fast_free_list, entropy)
                    .unsafe_capptr;
-        Aal::prefetch(sl.get_next());
         if (zero_mem == YesZero)
         {
           SharedStateHandle::Pal::template zero<false>(p, rsize);
