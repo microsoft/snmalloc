@@ -3,7 +3,8 @@
 
 #ifndef SNMALLOC_PROVIDE_OWN_CONFIG
 // The default configuration for snmalloc is used if alternative not defined
-namespace snmalloc {
+namespace snmalloc
+{
   using Alloc = snmalloc::FastAllocator<snmalloc::Globals>;
 }
 #endif

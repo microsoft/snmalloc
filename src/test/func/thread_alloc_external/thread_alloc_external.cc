@@ -1,10 +1,10 @@
+#include <snmalloc_core.h>
 #include <test/setup.h>
 
-#include <snmalloc_core.h>
-
-// Specify using own 
+// Specify using own
 #define SNMALLOC_EXTERNAL_THREAD_ALLOC
-namespace snmalloc {
+namespace snmalloc
+{
   using Alloc = snmalloc::FastAllocator<snmalloc::Globals>;
 }
 

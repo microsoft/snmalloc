@@ -1,6 +1,7 @@
-#include <iostream>
 #include "mem/fixedglobalconfig.h"
 #include "mem/globalconfig.h"
+
+#include <iostream>
 #include <snmalloc.h>
 
 #ifdef assert
@@ -8,9 +9,7 @@
 #endif
 #define assert please_use_SNMALLOC_ASSERT
 
-
 using namespace snmalloc;
-
 
 using FixedAlloc = FastAllocator<FixedGlobals>;
 

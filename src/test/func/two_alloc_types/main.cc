@@ -39,7 +39,10 @@ int main()
   // 26 is large enough to produce a nested allocator.
   // many other sizes would work.
   size_t length = bits::one_at_bit(26);
-  auto oe_base = snmalloc::Globals::get_handle().get_object_address_space().reserve<false, false>(length).unsafe_capptr;
+  auto oe_base = snmalloc::Globals::get_handle()
+                   .get_object_address_space()
+                   .reserve<false, false>(length)
+                   .unsafe_capptr;
   auto oe_end = pointer_offset(oe_base, length);
   oe_allocator_init(oe_base, oe_end);
 

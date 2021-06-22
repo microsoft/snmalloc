@@ -33,7 +33,7 @@ namespace snmalloc
     constexpr CDLLNode()
     {
       this->set_next(nullptr);
-//      prev = Ptr<CDLLNode>(this);
+      //      prev = Ptr<CDLLNode>(this);
     }
 
     SNMALLOC_FAST_PATH bool is_empty()
@@ -54,24 +54,24 @@ namespace snmalloc
      */
     constexpr CDLLNode(bool) {}
 
-//     /**
-//      * Removes this element from the cyclic list is it part of.
-//      */
-//     SNMALLOC_FAST_PATH void remove()
-//     {
-//       SNMALLOC_ASSERT(!this->is_empty());
-//       debug_check();
-//       this->get_next()->prev = prev;
-//       prev->set_next(this->get_next());
-//       // As this is no longer in the list, check invariant for
-//       // neighbouring element.
-//       this->get_next()->debug_check();
+    //     /**
+    //      * Removes this element from the cyclic list is it part of.
+    //      */
+    //     SNMALLOC_FAST_PATH void remove()
+    //     {
+    //       SNMALLOC_ASSERT(!this->is_empty());
+    //       debug_check();
+    //       this->get_next()->prev = prev;
+    //       prev->set_next(this->get_next());
+    //       // As this is no longer in the list, check invariant for
+    //       // neighbouring element.
+    //       this->get_next()->debug_check();
 
-// #ifndef NDEBUG
-//       this->set_next(nullptr);
-//       prev = nullptr;
-// #endif
-//     }
+    // #ifndef NDEBUG
+    //       this->set_next(nullptr);
+    //       prev = nullptr;
+    // #endif
+    //     }
 
     SNMALLOC_FAST_PATH Ptr<CDLLNode> pop()
     {
@@ -102,7 +102,7 @@ namespace snmalloc
     {
       debug_check();
       item->set_next(this->get_next());
-//      this->get_next()->prev = item;
+      //      this->get_next()->prev = item;
       item->prev = this;
       set_next(item);
       debug_check();

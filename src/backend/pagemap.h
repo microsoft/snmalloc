@@ -46,10 +46,12 @@ namespace snmalloc
       if constexpr (has_bounds)
       {
 #ifdef SNMALLOC_TRACING
-      std::cout << "Pagemap.init " << (void*)b << " (" << s << ")" << std::endl;
-#endif        
+        std::cout << "Pagemap.init " << (void*)b << " (" << s << ")"
+                  << std::endl;
+#endif
         SNMALLOC_ASSERT(s != 0);
-        // Align the start and end.  We won't store for the very ends as they are not aligned to a chunk boundary.
+        // Align the start and end.  We won't store for the very ends as they
+        // are not aligned to a chunk boundary.
         base = bits::align_up(b, bits::one_at_bit(GRANULARITY_BITS));
         auto end = bits::align_down(b + s, bits::one_at_bit(GRANULARITY_BITS));
         size = end - base;

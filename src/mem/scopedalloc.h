@@ -70,8 +70,8 @@ namespace snmalloc
   };
 
   /**
-   * Returns a new scoped allocator.  When the `ScopedAllocator` goes out of scope,
-   * the underlying `Alloc` will be returned to the pool.
+   * Returns a new scoped allocator.  When the `ScopedAllocator` goes out of
+   * scope, the underlying `Alloc` will be returned to the pool.
    */
   inline ScopedAllocator get_scoped_allocator()
   {

@@ -3,8 +3,8 @@
 // Redefine the namespace, so we can have two versions.
 #define snmalloc snmalloc_enclave
 
-#include <snmalloc_core.h>
 #include <mem/fixedglobalconfig.h>
+#include <snmalloc_core.h>
 
 // Specify type of allocator
 #define SNMALLOC_PROVIDE_OWN_CONFIG
@@ -19,5 +19,6 @@ namespace snmalloc
 extern "C" void oe_allocator_init(void* base, void* end)
 {
   snmalloc::FixedGlobals fixed_handle;
-  fixed_handle.init(CapPtr<void, CBChunk>(base), address_cast(end) - address_cast(base));
+  fixed_handle.init(
+    CapPtr<void, CBChunk>(base), address_cast(end) - address_cast(base));
 }

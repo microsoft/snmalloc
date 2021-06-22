@@ -401,7 +401,8 @@ namespace snmalloc
      *
      * It is used with preserve_queue disabled by close.
      */
-    SNMALLOC_FAST_PATH void terminate(FreeListIter& fl, LocalEntropy& entropy, bool preserve_queue = true)
+    SNMALLOC_FAST_PATH void terminate(
+      FreeListIter& fl, LocalEntropy& entropy, bool preserve_queue = true)
     {
       if constexpr (RANDOM)
       {

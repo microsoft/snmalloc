@@ -12,7 +12,8 @@
 namespace snmalloc
 {
   /**
-   * TODO all comment in this file need revisiting. Core versus locking global version.
+   * TODO all comment in this file need revisiting. Core versus locking global
+   * version.
    *
    * Implements a power of two allocator, where all blocks are aligned to the
    * same power of two as their size. This is what snmalloc uses to get
@@ -149,7 +150,6 @@ namespace snmalloc
       return first;
     }
 
-
   public:
     /**
      * Add a range of memory to the address space.
@@ -206,7 +206,7 @@ namespace snmalloc
 
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= sizeof(void*));
-  
+
       return remove_block(bits::next_pow2_bits(size));
     }
 

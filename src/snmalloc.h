@@ -4,7 +4,8 @@
 #include "snmalloc_core.h"
 
 // The default configuration for snmalloc
-namespace snmalloc {
+namespace snmalloc
+{
   using Alloc = snmalloc::FastAllocator<snmalloc::Globals>;
 }
 

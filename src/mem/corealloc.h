@@ -271,7 +271,7 @@ namespace snmalloc
       }
 
       // Slab is no longer in use, return to global pool of slabs.
-      
+
       // TODO Increase unused count
 
       // TODO Check if unused above threshold
@@ -279,37 +279,39 @@ namespace snmalloc
       // TODO Filter unused back to global data structure.
       UNUSED(p);
       // TODO Disable returning for now.
-// #ifdef CHECK_CLIENT
-//       // Check free list is well-formed on platforms with
-//       // integers as pointers.
-//       FreeListIter fl;
-//       meta->free_queue.close(fl, entropy);
+      // #ifdef CHECK_CLIENT
+      //       // Check free list is well-formed on platforms with
+      //       // integers as pointers.
+      //       FreeListIter fl;
+      //       meta->free_queue.close(fl, entropy);
 
-//       size_t count = 0;
-//       while (!fl.empty())
-//       {
-//         fl.take(entropy);
-//         count++;
-//       }
-//       // Check the list contains all the elements
-//       SNMALLOC_ASSERT(
-//         count == snmalloc::sizeclass_to_slab_object_count(sizeclass));
-// #endif
+      //       size_t count = 0;
+      //       while (!fl.empty())
+      //       {
+      //         fl.take(entropy);
+      //         count++;
+      //       }
+      //       // Check the list contains all the elements
+      //       SNMALLOC_ASSERT(
+      //         count == snmalloc::sizeclass_to_slab_object_count(sizeclass));
+      // #endif
 
-//       meta->remove();
-//       SlabRecord* slab_record = reinterpret_cast<SlabRecord*>(meta);
-//       // TODO: This is a capability amplification as we are saying we have the
-//       // whole slab.
-//       auto start_of_slab = pointer_align_down<void>(
-//         p, snmalloc::sizeclass_to_slab_size(sizeclass));
-//       // TODO Add bounds correctly here
-//       slab_record->slab = CapPtr<void, CBChunk>(start_of_slab);
-//       SlabAllocator::dealloc(
-//         handle, slab_record, sizeclass_to_slab_sizeclass(sizeclass));
-// #ifdef SNMALLOC_TRACING
-//       std::cout << "Slab " << start_of_slab << " is unused, Object sizeclass "
-//                 << sizeclass << std::endl;
-// #endif
+      //       meta->remove();
+      //       SlabRecord* slab_record = reinterpret_cast<SlabRecord*>(meta);
+      //       // TODO: This is a capability amplification as we are saying we
+      //       have the
+      //       // whole slab.
+      //       auto start_of_slab = pointer_align_down<void>(
+      //         p, snmalloc::sizeclass_to_slab_size(sizeclass));
+      //       // TODO Add bounds correctly here
+      //       slab_record->slab = CapPtr<void, CBChunk>(start_of_slab);
+      //       SlabAllocator::dealloc(
+      //         handle, slab_record, sizeclass_to_slab_sizeclass(sizeclass));
+      // #ifdef SNMALLOC_TRACING
+      //       std::cout << "Slab " << start_of_slab << " is unused, Object
+      //       sizeclass "
+      //                 << sizeclass << std::endl;
+      // #endif
     }
 
     /**
@@ -421,8 +423,8 @@ namespace snmalloc
     SNMALLOC_FAST_PATH bool post()
     {
       // stats().remote_post();  // TODO queue not in line!
-      bool sent_something =
-        remote_cache.post<sizeof(CoreAlloc)>(handle, public_state()->trunc_id());
+      bool sent_something = remote_cache.post<sizeof(CoreAlloc)>(
+        handle, public_state()->trunc_id());
       if (attached_cache != nullptr)
         attached_cache->capacity = REMOTE_CACHE;
       return sent_something;
@@ -444,7 +446,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void dealloc_local_object(void* p)
     {
       auto entry = snmalloc::BackendAllocator::get_meta_data(
-                    handle, snmalloc::address_cast(p));
+        handle, snmalloc::address_cast(p));
       auto meta = entry.meta;
 
       SNMALLOC_ASSERT(!meta->is_unused());
