@@ -465,6 +465,7 @@ namespace snmalloc
         auto meta = sl.get_next();
         auto p = Metaslab::alloc((Metaslab*)meta, fast_free_list, entropy)
                    .unsafe_capptr;
+        Aal::prefetch(sl.get_next());
         if (zero_mem == YesZero)
         {
           SharedStateHandle::Pal::template zero<false>(p, rsize);
