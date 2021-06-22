@@ -68,8 +68,8 @@ namespace snmalloc
       auto next = address_cast(next_object);
       constexpr address_t MASK = bits::one_at_bit(PRESERVE_BOTTOM_BITS) - 1;
       // Mix in local_key
-      address_t p1 = entropy.get_constant_key() + local_key;
-      address_t p2 = entropy.get_constant_key() - (next & MASK);
+      address_t p1 = local_key + entropy.get_constant_key();
+      address_t p2 = (next & MASK) - entropy.get_constant_key();
       next ^= (p1 * p2) << PRESERVE_BOTTOM_BITS;
       return CapPtr<T, CBAlloc>(reinterpret_cast<T*>(next));
     }
