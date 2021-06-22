@@ -175,7 +175,13 @@ namespace snmalloc
                         FreeListIter* fl) SNMALLOC_FAST_PATH {
         if (likely(core_alloc != nullptr))
         {
-          return core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
+          return core_alloc->handle_message_queue(
+              [](CoreAlloc* core_alloc, 
+                sizeclass_t sizeclass, 
+                FreeListIter* fl)
+              { 
+                return core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
+              }, core_alloc, sizeclass, fl);
         }
         return lazy_init([&](CoreAlloc*, sizeclass_t sizeclass){ return small_alloc<zero_mem>(sizeclass_to_size(sizeclass)); }, sizeclass);
       };
