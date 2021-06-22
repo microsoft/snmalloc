@@ -219,6 +219,21 @@ namespace snmalloc
     {
       return this->ref().compare_exchange_strong(exp, des, mo);
     }
+
+    SNMALLOC_FAST_PATH T
+    exchange(T des, std::memory_order mo = std::memory_order_seq_cst) noexcept
+    {
+      return this->ref().exchange(des, mo);
+    }
+
+    template<typename Q>
+    SNMALLOC_FAST_PATH
+      typename std::enable_if<std::is_integral<Q>::value, Q>::type
+      fetch_add(
+        Q arg, std::memory_order mo = std::memory_order_seq_cst) noexcept
+    {
+      return this->ref().fetch_add(arg, mo);
+    }
   };
 
   static_assert(sizeof(TrivialInitAtomic<char>) == sizeof(char));
