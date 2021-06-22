@@ -70,7 +70,7 @@ namespace snmalloc
       // Mix in local_key
       address_t p1 = entropy.get_constant_key() + local_key;
       address_t p2 = entropy.get_constant_key() - (next & MASK);
-      next ^= (p1 * p2) & ~MASK;
+      next ^= (p1 * p2) << PRESERVE_BOTTOM_BITS;
       return CapPtr<T, CBAlloc>(reinterpret_cast<T*>(next));
     }
 #endif
