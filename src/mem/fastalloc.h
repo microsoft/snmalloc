@@ -176,7 +176,7 @@ namespace snmalloc
         return check_init(
           //  Note:  FreeListIter& for fl would be nice, but codegen gets
           //  upset in clang.
-          [&](CoreAlloc* core_alloc, sizeclass_t sizeclass, FreeListIter* fl) {
+          [](CoreAlloc* core_alloc, sizeclass_t sizeclass, FreeListIter* fl) {
             // Setting up the message queue can cause a free list to be
             // populated, so need to check that initialisation hasn't caused
             // that.  Aggressive inlining will remove this.
@@ -184,7 +184,7 @@ namespace snmalloc
               return core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
 
             auto r = capptr_reveal(
-              capptr_export(fl->take(small_cache.entropy).as_void()));
+              capptr_export(fl->take(core_alloc->entropy).as_void()));
 
             if (zero_mem == YesZero)
               SharedStateHandle::Pal::zero(r, sizeclass_to_size(sizeclass));
