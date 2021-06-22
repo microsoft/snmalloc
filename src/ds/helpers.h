@@ -4,6 +4,9 @@
 #include "flaglock.h"
 
 #include <type_traits>
+#ifndef CHECK_CLIENT
+#  include <array>
+#endif
 
 namespace snmalloc
 {
@@ -72,6 +75,7 @@ namespace snmalloc
     }
   };
 
+#ifdef CHECK_CLIENT
   template<size_t length, typename T>
   class ModArray
   {
@@ -97,6 +101,10 @@ namespace snmalloc
       return array[i & (rlength - 1)].v;
     }
   };
+#else
+  template<size_t length, typename T>
+  using ModArray = std::array<T, length>;
+#endif
 
   /**
    * Helper class to execute a specified function on destruction.
