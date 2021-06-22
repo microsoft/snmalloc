@@ -401,7 +401,7 @@ namespace snmalloc
      *
      * It is used with preserve_queue disabled by close.
      */
-    void terminate(FreeListIter& fl, LocalEntropy& entropy, bool preserve_queue = true)
+    SNMALLOC_FAST_PATH void terminate(FreeListIter& fl, LocalEntropy& entropy, bool preserve_queue = true)
     {
       if constexpr (RANDOM)
       {
@@ -464,7 +464,7 @@ namespace snmalloc
      * Close a free list, and set the iterator parameter
      * to iterate it.
      */
-    void close(FreeListIter& dst, LocalEntropy& entropy)
+    SNMALLOC_FAST_PATH void close(FreeListIter& dst, LocalEntropy& entropy)
     {
       terminate(dst, entropy, false);
       init();
