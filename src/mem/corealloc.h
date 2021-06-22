@@ -261,6 +261,8 @@ namespace snmalloc
         SNMALLOC_ASSERT(meta->needed() != 0);
 
         alloc_classes[sizeclass].insert_prev(meta);
+
+        // TODO increase list length
 #ifdef SNMALLOC_TRACING
         std::cout << "Slab is woken up" << std::endl;
 #endif
@@ -269,7 +271,12 @@ namespace snmalloc
       }
 
       // Slab is no longer in use, return to global pool of slabs.
+      
+      // TODO Increase unused count
 
+      // TODO Check if unused above threshold
+
+      // TODO Filter unused back to global data structure.
       UNUSED(p);
       // TODO Disable returning for now.
 // #ifdef CHECK_CLIENT
@@ -465,6 +472,7 @@ namespace snmalloc
       if (likely(!(sl.is_empty())))
       {
         auto meta = sl.pop();
+        // TODO: drop length, and empty count if it was empty.
         auto p = Metaslab::alloc((Metaslab*)meta, fast_free_list, entropy)
                    .unsafe_capptr;
         if (zero_mem == YesZero)
