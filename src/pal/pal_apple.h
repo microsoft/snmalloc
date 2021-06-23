@@ -30,6 +30,21 @@ namespace snmalloc
     static constexpr uint64_t pal_features =
       AlignedAllocation | LazyCommit | Entropy;
 
+    /*
+     * `page_size`
+     *
+     * On 64-bit ARM platforms, the page size (for user-space) is 16KiB.
+     * Otherwise (e.g. x86_64) it is 4KiB.
+     *
+     * macOS on Apple Silicon ARM does support 4KiB pages, but they are reserved
+     * for "exotic" processes (i.e. Rosetta 2) and kernel-space. Using 4KiB
+     * pages from user-space in "native" (non-translated) processes is incorrect
+     * and will cause bugs.
+     *
+     * However, Apple's 64-bit embedded ARM-based platforms (phones, pads, tvs)
+     * do not support 4KiB pages.
+     *
+     */
     static constexpr size_t page_size = Aal::aal_name == ARM ? 0x4000 : 0x1000;
 
     static constexpr size_t minimum_alloc_size = page_size;
@@ -81,6 +96,18 @@ namespace snmalloc
 
     /**
      * Notify platform that we will not be using these pages.
+     *
+     * We deviate from `PALBSD::notify_not_using` b/c `MADV_FREE` does not
+     * behave as expected on Apple platforms. The pages are never marked as
+     * "reusable" by the kernel and this can be observed through profiling. E.g.
+     * at least ~75% to ~90% less dirty memory is used by `func-malloc-16`
+     * (observed on x86_64).
+     *
+     * Apple's own malloc implementation as well as many ports for Apple
+     * Operating Systems use MADV_FREE_REUS{E, ABLE} instead of MADV_FREE. See:
+     *  https://opensource.apple.com/source/libmalloc/libmalloc-53.1.1/src/magazine_malloc.c.auto.html
+     *  https://bugs.chromium.org/p/chromium/issues/detail?id=713892
+     *
      */
     static void notify_not_using(void* p, size_t size) noexcept
     {
@@ -109,6 +136,26 @@ namespace snmalloc
 
     /**
      * Notify platform that we will be using these pages.
+     *
+     * We deviate from `PALPOSIX::notify_using` for three reasons:
+     * 1. `MADV_FREE_REUSABLE` must be paired with `MADV_FREE_REUSE`.
+     * 2. `MADV_FREE_REUSE` must only be applied to writable pages, otherwise it
+     * is an error.
+     * 3. `PALPOSIX::notify_using` will apply mprotect(PROT_READ|PROT_WRITE) to
+     * the pages, and then call `PALPOSIX::zero<true>` (overwrite pages with
+     * mmap, and if mmap fails call bzero on the pages). This is very wasteful;
+     * if mmap succeeds we do not need to change the permissions of the pages
+     * since it is done during mmap. Instead `PALApple::notify_using` will try
+     * to overwrite with mmap, and if mmap fails, apply
+     * mprotect(PROT_READ|PROT_WRITE), madvise(MADV_REUSE), and finally call
+     * `bzero` to clear the pages.
+     *
+     * Currently, `PALPOSIX::zero` will call `bzero` on the pages that `mmap`
+     * failed to overwrite. In the future, we should duplicate the behavior of
+     * `PALWindows` and abort the process if a `mmap` call fails. But for now we
+     * are going to be consistent with the behavior of the other POSIX PAL
+     * implementations.
+     *
      */
     template<ZeroMem zero_mem>
     static void notify_using(void* p, size_t size) noexcept
