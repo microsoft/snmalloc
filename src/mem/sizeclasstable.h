@@ -50,7 +50,7 @@ namespace snmalloc
         capacity[sizeclass] = (uint16_t)(slab_size[sizeclass] / rsize);
 
         waking[sizeclass] =
-          (uint16_t)bits::min((capacity[sizeclass] / 16) + 3, 32);
+          (uint16_t)bits::min((capacity[sizeclass] / 16) + 2, 32);
       }
 
       for (sizeclass_compress_t sizeclass = NUM_SIZECLASSES;
@@ -116,12 +116,12 @@ namespace snmalloc
    */
   inline uint16_t threshold_for_waking_slab(sizeclass_t sizeclass)
   {
-#ifdef CHECK_CLIENT
+// #ifdef CHECK_CLIENT
     return sizeclass_metadata.waking[sizeclass];
-#else
-    UNUSED(sizeclass);
-    return 1;
-#endif
+// #else
+//     UNUSED(sizeclass);
+//     return 1;
+// #endif
   }
 
   inline static size_t sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)

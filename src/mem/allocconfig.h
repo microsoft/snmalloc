@@ -126,7 +126,7 @@ namespace snmalloc
 #ifdef CHECK_CLIENT
   static constexpr size_t MIN_OBJECT_COUNT = 13;
 #else
-  static constexpr size_t MIN_OBJECT_COUNT = 4;
+  static constexpr size_t MIN_OBJECT_COUNT = 6;
 #endif
 
 
