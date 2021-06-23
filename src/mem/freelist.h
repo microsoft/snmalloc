@@ -15,7 +15,7 @@
 
 namespace snmalloc
 {
-  static constexpr std::size_t PRESERVE_BOTTOM_BITS = 32;
+  static constexpr std::size_t PRESERVE_BOTTOM_BITS = 30;
 
   static inline bool different_slab(address_t p1, address_t p2)
   {
@@ -70,7 +70,7 @@ namespace snmalloc
       // Mix in local_key
       address_t p1 = local_key + entropy.get_constant_key();
       address_t p2 = (next & MASK) - entropy.get_constant_key();
-      next ^= (p1 * p2) << PRESERVE_BOTTOM_BITS;
+      next ^= (p1 * p2) & ~MASK;
       return CapPtr<T, CBAlloc>(reinterpret_cast<T*>(next));
     }
 #endif
