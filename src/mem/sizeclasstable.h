@@ -50,7 +50,7 @@ namespace snmalloc
         capacity[sizeclass] = (uint16_t)(slab_size[sizeclass] / rsize);
 
         waking[sizeclass] =
-          (uint16_t)bits::min((capacity[sizeclass] / 16) + 2, 32);
+          (uint16_t)bits::min((capacity[sizeclass] / 4), 32);
       }
 
       for (sizeclass_compress_t sizeclass = NUM_SIZECLASSES;
