@@ -19,9 +19,6 @@ namespace snmalloc
     using Meta = MetaEntry;
     using Pal = DefaultPal;
 
-    SNMALLOC_REQUIRE_CONSTINIT
-    inline static Metaslab default_meta_slab;
-
     /**
      * Special remote that should never be used as a real remote.
      * This is used to initialise allocators that should always hit the
@@ -36,6 +33,11 @@ namespace snmalloc
      *
      * nullptr is considered a large allocations for this purpose to move
      * of the critical path.
+     *
+     * Bottom bits of the remote pointer are used for a sizeclass, we need
+     * size bits to represent the non-large sizeclasses, we can then get
+     * the large sizeclass by having the fake large_remote considerably
+     * more aligned.
      */
     SNMALLOC_REQUIRE_CONSTINIT
     inline static RemoteAllocator fake_large_remote_impl;
@@ -46,10 +48,11 @@ namespace snmalloc
 
     /**
      * We use fake_large_remote so that nullptr, will hit the large
-     * allocation path which is less performance sensitive.
+     * allocation path which is less performance sensitive. We don't
+     * store a metaslab, so it is considered not allocated by this
+     * allocator for external pointer.
      */
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static MetaEntry default_entry{&default_meta_slab,
-                                          fake_large_remote};
+    inline static MetaEntry default_entry{nullptr, fake_large_remote};
   };
 }

@@ -5,7 +5,7 @@
 #include "fastcache.h"
 #include "metaslab.h"
 #include "pooled.h"
-#include "remoteallocator.h"
+#include "remotecache.h"
 #include "sizeclasstable.h"
 
 namespace snmalloc
@@ -451,6 +451,8 @@ namespace snmalloc
 
       SNMALLOC_ASSERT(!meta->is_unused());
 
+      check_client(meta->is_start_of_object(address_cast(p)), "Not deallocating start of an object");
+
       auto cp = snmalloc::CapPtr<snmalloc::FreeObject, snmalloc::CBAlloc>(
         (snmalloc::FreeObject*)p);
 
@@ -500,7 +502,7 @@ namespace snmalloc
 #endif
 
       auto [slab, meta] = snmalloc::SlabAllocator::alloc(
-        handle, local_address_space, slab_sizeclass, slab_size, public_state());
+        handle, local_address_space, sizeclass, slab_sizeclass, slab_size, public_state());
 
       if (slab == nullptr)
       {

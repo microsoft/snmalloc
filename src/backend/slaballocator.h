@@ -2,7 +2,6 @@
 
 #include "../ds/mpmcstack.h"
 #include "../mem/metaslab.h"
-#include "../mem/remoteallocator.h"
 #include "../mem/sizeclass.h"
 #include "../mem/sizeclasstable.h"
 #include "backend.h"
@@ -65,6 +64,7 @@ namespace snmalloc
       SharedStateHandle h,
       AddressSpaceManagerCore<typename SharedStateHandle::Pal>&
         local_address_space,
+      sizeclass_t sizeclass,
       sizeclass_t slab_sizeclass, // TODO sizeclass_t
       size_t slab_size,
       RemoteAllocator* remote)
@@ -86,7 +86,7 @@ namespace snmalloc
                   << " memory in stacks " << state.memory_in_stacks
                   << std::endl;
 #endif
-        MetaEntry entry{meta, remote};
+        MetaEntry entry{meta, remote, sizeclass};
         BackendAllocator::set_meta_data(
           h, address_cast(slab), slab_size, entry);
         return {slab, meta};
@@ -96,7 +96,7 @@ namespace snmalloc
       // First create meta-data
       meta = reinterpret_cast<Metaslab*>(
         BackendAllocator::alloc_meta_data<MetaBlock>(h, &local_address_space));
-      MetaEntry entry{meta, remote};
+      MetaEntry entry{meta, remote, sizeclass};
       slab =
         BackendAllocator::alloc_slab(h, &local_address_space, slab_size, entry);
 #ifdef SNMALLOC_TRACING

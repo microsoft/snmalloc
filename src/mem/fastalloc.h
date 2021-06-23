@@ -11,7 +11,7 @@
 #include "fastcache.h"
 #include "freelist.h"
 #include "pool.h"
-#include "remoteallocator.h"
+#include "remotecache.h"
 #include "sizeclasstable.h"
 
 #ifdef SNMALLOC_TRACING
@@ -145,6 +145,7 @@ namespace snmalloc
         auto [slab, meta] = SlabAllocator::alloc(
           handle,
           core_alloc->local_address_space,
+          bits::next_pow2_bits(size), // TODO
           large_size_to_slab_sizeclass(size),
           large_size_to_slab_size(size),
           handle.fake_large_remote);
@@ -411,7 +412,8 @@ namespace snmalloc
         std::cout << "Large deallocation: " << size
                   << " slab sizeclass: " << slab_sizeclass << std::endl;
 #endif
-        SlabRecord* slab_record = reinterpret_cast<SlabRecord*>(entry.get_metaslab());
+        SlabRecord* slab_record =
+          reinterpret_cast<SlabRecord*>(entry.get_metaslab());
         slab_record->slab = CapPtr<void, CBChunk>(p);
         SlabAllocator::dealloc(handle, slab_record, slab_sizeclass);
         return;
@@ -454,11 +456,18 @@ namespace snmalloc
       // Other than nullptr, we know the system will be initialised as it must
       // be called with something we have already allocated.
       // To handle this case we require the uninitialised pagemap contain an
-      // entry for the first chunk of memory, that states all objects have zero
-      // size.
+      // entry for the first chunk of memory, that states it represents a large
+      // object, so we can pull the check for null off the fast path.
       MetaEntry entry =
         BackendAllocator::get_meta_data(handle, address_cast(p_raw));
-      return sizeclass_to_size(entry.get_sizeclass());
+
+      if (likely(entry.get_remote() != handle.fake_large_remote))
+        return sizeclass_to_size(entry.get_sizeclass());
+      
+      if (likely(p_raw != nullptr))
+        return bits::one_at_bit(entry.get_sizeclass());
+      
+      return 0;
     }
 
     /**
@@ -479,9 +488,9 @@ namespace snmalloc
         if (likely(entry.get_metaslab() != nullptr))
         {
           auto sizeclass = entry.get_sizeclass();
-          auto rsize = sizeclass_to_size(sizeclass);
-          if (likely(sizeclass < NUM_SIZECLASSES))
+          if (entry.get_remote() != handle.fake_large_remote)
           {
+            auto rsize = sizeclass_to_size(sizeclass);
             auto offset =
               address_cast(p_raw) & (sizeclass_to_slab_size(sizeclass) - 1);
             auto start_offset = round_by_sizeclass(sizeclass, offset);
@@ -493,21 +502,15 @@ namespace snmalloc
               return pointer_offset(p_raw, rsize + start_offset - offset);
           }
 
-          if (rsize != 0)
-          {
-            // This is a large allocation, find start by masking.
-            auto start = pointer_align_down(p_raw, rsize);
-            if constexpr (location == Start)
-              return start;
-            else if constexpr (location == End)
-              return pointer_offset(start, rsize);
-            else
-              return pointer_offset(start, rsize - 1);
-          }
+          // This is a large allocation, find start by masking.
+          auto rsize = bits::one_at_bit(sizeclass);
+          auto start = pointer_align_down(p_raw, rsize);
+          if constexpr (location == Start)
+            return start;
+          else if constexpr (location == End)
+            return pointer_offset(start, rsize);
           else
-          {
-            // This is the nullptr hack case
-          }
+            return pointer_offset(start, rsize - 1);
         }
         else
         {

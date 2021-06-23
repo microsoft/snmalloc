@@ -5,6 +5,7 @@
 #include "../ds/helpers.h"
 #include "freelist.h"
 #include "ptrhelpers.h"
+#include "../mem/remoteallocator.h"
 #include "sizeclasstable.h"
 
 namespace snmalloc
@@ -230,12 +231,20 @@ namespace snmalloc
   class MetaEntry
   {
     Metaslab* meta;
-    RemoteAllocator* remote;
+    RemoteAllocator* remote_and_sizeclass;
 
   public:
-    constexpr MetaEntry(Metaslab* meta, RemoteAllocator* remote)
-    : meta(meta), remote(remote)
+    constexpr MetaEntry(
+      Metaslab* meta, RemoteAllocator* remote)
+    : meta(meta), remote_and_sizeclass(remote)
     {}
+
+    MetaEntry(
+      Metaslab* meta, RemoteAllocator* remote, sizeclass_t sizeclass)
+    : meta(meta)
+    {
+      remote_and_sizeclass = pointer_offset<RemoteAllocator>(remote, sizeclass);
+    }
 
     Metaslab* get_metaslab()
     {
@@ -244,12 +253,12 @@ namespace snmalloc
 
     RemoteAllocator* get_remote()
     {
-      return remote;
+      return pointer_align_down<alignof(RemoteAllocator), RemoteAllocator>(remote_and_sizeclass);
     }
 
     sizeclass_t get_sizeclass()
     {
-      return meta->sizeclass();
+      return address_cast(remote_and_sizeclass) & (alignof(RemoteAllocator) - 1);
     }
   };
 
