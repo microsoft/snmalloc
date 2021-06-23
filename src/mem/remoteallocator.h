@@ -192,7 +192,7 @@ namespace snmalloc
           {
             MetaEntry entry =
               BackendAllocator::get_meta_data(handle, address_cast(first));
-            entry.remote->message_queue.enqueue(first, l->last);
+            entry.get_remote()->message_queue.enqueue(first, l->last);
             l->clear();
             sent_something = true;
           }
@@ -217,7 +217,7 @@ namespace snmalloc
           // slot.
           MetaEntry entry =
             BackendAllocator::get_meta_data(handle, address_cast(r));
-          auto id = entry.remote->trunc_id();
+          auto id = entry.get_remote()->trunc_id();
           // TODO correct size for slot offset
           size_t slot = get_slot<allocator_size>(id, post_round);
           RemoteList* l = &list[slot];

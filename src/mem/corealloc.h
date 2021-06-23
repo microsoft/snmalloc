@@ -366,16 +366,16 @@ namespace snmalloc
 
       auto entry = snmalloc::BackendAllocator::get_meta_data(
         handle, snmalloc::address_cast(p));
-      if (entry.remote == public_state())
+      if (entry.get_remote() == public_state())
         dealloc_local_object(p.unsafe_capptr);
       else
       {
         if ((!need_post) && (attached_cache->capacity > 0))
-          attached_cache->capacity--;
+          attached_cache->capacity -= sizeclass_to_size(entry.get_sizeclass());
         else
           need_post = true;
         remote_cache.template dealloc<sizeof(CoreAlloc)>(
-          entry.remote->trunc_id(), p.as_void());
+          entry.get_remote()->trunc_id(), p.as_void());
       }
     }
 
@@ -447,7 +447,7 @@ namespace snmalloc
     {
       auto entry = snmalloc::BackendAllocator::get_meta_data(
         handle, snmalloc::address_cast(p));
-      auto meta = entry.meta;
+      auto meta = entry.get_metaslab();
 
       SNMALLOC_ASSERT(!meta->is_unused());
 

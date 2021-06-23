@@ -227,14 +227,30 @@ namespace snmalloc
   /**
    * Entry stored in the pagemap.
    */
-  struct MetaEntry
+  class MetaEntry
   {
     Metaslab* meta;
     RemoteAllocator* remote;
 
+  public:
     constexpr MetaEntry(Metaslab* meta, RemoteAllocator* remote)
     : meta(meta), remote(remote)
     {}
+
+    Metaslab* get_metaslab()
+    {
+      return meta;
+    }
+
+    RemoteAllocator* get_remote()
+    {
+      return remote;
+    }
+
+    sizeclass_t get_sizeclass()
+    {
+      return meta->sizeclass();
+    }
   };
 
 } // namespace snmalloc

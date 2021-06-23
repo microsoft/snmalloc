@@ -224,7 +224,7 @@ namespace snmalloc
         MetaEntry entry =
           BackendAllocator::get_meta_data(handle, address_cast(p));
         core_alloc->remote_cache.template dealloc<sizeof(CoreAlloc)>(
-          entry.remote->trunc_id(), CapPtr<void, CBAlloc>(p));
+          entry.get_remote()->trunc_id(), CapPtr<void, CBAlloc>(p));
         post_remote_cache();
         return;
       }
@@ -375,20 +375,20 @@ namespace snmalloc
 
       MetaEntry entry =
         BackendAllocator::get_meta_data(handle, address_cast(p));
-      if (likely(remote_allocator == entry.remote))
+      if (likely(remote_allocator == entry.get_remote()))
       {
         core_alloc->dealloc_local_object(p);
         return;
       }
 
-      if (likely(entry.remote != handle.fake_large_remote))
+      if (likely(entry.get_remote() != handle.fake_large_remote))
       {
         // Check if we have space for the remote deallocation
         if (likely(small_cache.capacity > 0))
         {
-          small_cache.capacity--;
+          small_cache.capacity -= sizeclass_to_size(entry.get_sizeclass());
           core_alloc->remote_cache.template dealloc<sizeof(CoreAlloc)>(
-            entry.remote->trunc_id(), CapPtr<void, CBAlloc>(p));
+            entry.get_remote()->trunc_id(), CapPtr<void, CBAlloc>(p));
 #ifdef SNMALLOC_TRACING
           std::cout << "Remote dealloc fast" << p << " size " << alloc_size(p)
                     << std::endl;
@@ -405,13 +405,13 @@ namespace snmalloc
       {
         // TODO Doesn't require local init! unless stats are on.
         // TODO check for start of allocation.
-        size_t size = sizeclass_to_size(entry.meta->sizeclass());
+        size_t size = sizeclass_to_size(entry.get_sizeclass());
         size_t slab_sizeclass = large_size_to_slab_sizeclass(size);
 #ifdef SNMALLOC_TRACING
         std::cout << "Large deallocation: " << size
                   << " slab sizeclass: " << slab_sizeclass << std::endl;
 #endif
-        SlabRecord* slab_record = reinterpret_cast<SlabRecord*>(entry.meta);
+        SlabRecord* slab_record = reinterpret_cast<SlabRecord*>(entry.get_metaslab());
         slab_record->slab = CapPtr<void, CBChunk>(p);
         SlabAllocator::dealloc(handle, slab_record, slab_sizeclass);
         return;
@@ -458,7 +458,7 @@ namespace snmalloc
       // size.
       MetaEntry entry =
         BackendAllocator::get_meta_data(handle, address_cast(p_raw));
-      return sizeclass_to_size(entry.meta->sizeclass());
+      return sizeclass_to_size(entry.get_sizeclass());
     }
 
     /**
@@ -476,9 +476,9 @@ namespace snmalloc
       {
         MetaEntry entry =
           BackendAllocator::get_meta_data<true>(handle, address_cast(p_raw));
-        if (likely(entry.meta != nullptr))
+        if (likely(entry.get_metaslab() != nullptr))
         {
-          auto sizeclass = entry.meta->sizeclass();
+          auto sizeclass = entry.get_sizeclass();
           auto rsize = sizeclass_to_size(sizeclass);
           if (likely(sizeclass < NUM_SIZECLASSES))
           {
