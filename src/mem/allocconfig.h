@@ -123,7 +123,12 @@ namespace snmalloc
   static constexpr size_t MIN_CHUNK_SIZE = bits::one_at_bit(MIN_CHUNK_BITS);
 
   // Minimum number of objects on a slab
+#ifdef CHECK_CLIENT
   static constexpr size_t MIN_OBJECT_COUNT = 13;
+#else
+  static constexpr size_t MIN_OBJECT_COUNT = 4;
+#endif
+
 
   // Maximum size of an object that uses sizeclasses.
   static constexpr size_t MAX_SIZECLASS_BITS = 16;

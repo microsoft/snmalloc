@@ -61,7 +61,7 @@ namespace snmalloc
     DefaultPal;
 #endif
 
-  [[noreturn]] SNMALLOC_SLOW_PATH inline SNMALLOC_COLD void
+  [[noreturn]] SNMALLOC_SLOW_PATH inline  void
   error(const char* const str)
   {
     Pal::error(str);
