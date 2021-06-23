@@ -406,7 +406,7 @@ namespace snmalloc
       {
         // TODO Doesn't require local init! unless stats are on.
         // TODO check for start of allocation.
-        size_t size = sizeclass_to_size(entry.get_sizeclass());
+        size_t size = bits::one_at_bit(entry.get_sizeclass());
         size_t slab_sizeclass = large_size_to_slab_sizeclass(size);
 #ifdef SNMALLOC_TRACING
         std::cout << "Large deallocation: " << size
