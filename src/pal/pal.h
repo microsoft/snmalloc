@@ -117,13 +117,18 @@ namespace snmalloc
     "The smallest architectural page size must divide OS_PAGE_SIZE");
 
   // Some system headers (e.g. Linux' sys/user.h, FreeBSD's machine/param.h)
-  // define `PAGE_SIZE` as a macro.  We don't use `PAGE_SIZE` as our variable
-  // name, to avoid conflicts, but if we do see a macro definition then check
-  // that our value matches the platform's expected value.
+  // define `PAGE_SIZE` as a macro, while others (e.g. macOS 11's
+  // mach/machine/vm_param.h) define `PAGE_SIZE` as an extern. We don't use
+  // `PAGE_SIZE` as our variable name, to avoid conflicts, but if we do see a
+  // macro definition evaluates to a constant then check that our value matches
+  // the platform's expected value.
 #ifdef PAGE_SIZE
   static_assert(
-    PAGE_SIZE == OS_PAGE_SIZE,
+#  if __has_builtin(__builtin_constant_p)
+    !__builtin_constant_p(PAGE_SIZE) || (PAGE_SIZE == OS_PAGE_SIZE),
+#  else
+    true,
+#  endif
     "Page size from system header does not match snmalloc config page size.");
 #endif
-
 } // namespace snmalloc

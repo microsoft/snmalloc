@@ -65,7 +65,7 @@ namespace snmalloc
   /**
    * Default Tag ID for the Apple class
    */
-  static const int PALAnonDefaultID = 241;
+  static const uint8_t PALAnonDefaultID = 241;
 
   /**
    * This struct is used to represent callbacks for notification from the

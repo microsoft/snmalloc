@@ -1,92 +1,286 @@
 #pragma once
 
 #ifdef __APPLE__
+
 #  include "pal_bsd.h"
 
+#  include <CommonCrypto/CommonRandom.h>
 #  include <errno.h>
+#  include <mach/mach_init.h>
+#  include <mach/mach_vm.h>
 #  include <mach/vm_statistics.h>
-#  include <utility>
+#  include <mach/vm_types.h>
+#  include <stdio.h>
+#  include <stdlib.h>
+#  include <sys/mman.h>
+#  include <unistd.h>
 
 namespace snmalloc
 {
   /**
    * PAL implementation for Apple systems (macOS, iOS, watchOS, tvOS...).
    */
-  template<int PALAnonID = PALAnonDefaultID>
+  template<uint8_t PALAnonID = PALAnonDefaultID>
   class PALApple : public PALBSD<PALApple<>>
   {
   public:
     /**
      * The features exported by this PAL.
+     */
+    static constexpr uint64_t pal_features =
+      AlignedAllocation | LazyCommit | Entropy;
+
+    /*
+     * `page_size`
      *
-     * Currently, these are identical to the generic BSD PAL.  This field is
-     * declared explicitly to remind anyone who modifies this class that they
-     * should add any required features.
-     */
-    static constexpr uint64_t pal_features = PALBSD::pal_features;
-
-    /**
-     * Anonymous page tag ID.
+     * On 64-bit ARM platforms, the page size (for user-space) is 16KiB.
+     * Otherwise (e.g. x86_64) it is 4KiB.
      *
-     * Darwin platform allows to gives an ID to anonymous pages via
-     * the VM_MAKE_TAG's macro, from 240 up to 255 are guaranteed
-     * to be free of usage, however eventually a lower could be taken
-     * (e.g. LLVM sanitizers has 99) so we can monitor their states
-     * via vmmap for instance. This value is provided to `mmap` as the file
-     * descriptor for the mapping.
+     * macOS on Apple Silicon ARM does support 4KiB pages, but they are reserved
+     * for "exotic" processes (i.e. Rosetta 2) and kernel-space. Using 4KiB
+     * pages from user-space in "native" (non-translated) processes is incorrect
+     * and will cause bugs.
+     *
+     * However, Apple's 64-bit embedded ARM-based platforms (phones, pads, tvs)
+     * do not support 4KiB pages.
+     *
      */
-    static constexpr int anonymous_memory_fd = VM_MAKE_TAG(PALAnonID);
+    static constexpr size_t page_size = Aal::aal_name == ARM ? 0x4000 : 0x1000;
+
+    static constexpr size_t minimum_alloc_size = page_size;
+
+    /*
+     * Memory Tag
+     *
+     * A memory tag is an 8-bit value that denotes auxillary "type information"
+     * of a vm region. This tag can be used for marking memory for profiling and
+     * debugging, or instructing the kernel to perform tag-specific behavior.
+     * (E.g. VM_MEMORY_MALLOC{_*} is reused by default, unless it is no longer
+     * in its "original state". See `vm_map_entry_is_reusable` in
+     * `osfmk/vm/vm_map.c` for more details of this behavior.)
+     *
+     * Memory tags are encoded using `VM_MAKE_TAG(tag_value)`, and can be passed
+     * to the kernel by either `mmap` or `mach_vm_map`:
+     * 1. `fd` argument of `mmap`.
+     * 2. `flags` argument of `mach_vm_map`.
+     *
+     * There are currently 4 categories of memory tags:
+     *
+     * 1. Reserved: [0, 39]. Typically used for Apple libraries and services.
+     * Use may trigger undocumented kernel-based behavior.
+     *
+     * 2. Defined "placeholders": [39, 98]. Typically used for Apple libraries
+     * and services.
+     *
+     * 3. Undefined "placeholders": [99, 239]. Unallocated by Apple. Typically
+     * used for libraries. (E.g. LLVM sanitizers use 99.)
+     *
+     * 4. Application specific: [240, 255]
+     *
+     * See <mach/vm_statistics.h> for more details about memory tags and their
+     * uses.
+     *
+     * In the future, we may switch our default memory tag from "category 4" to
+     * "category 3", thereby affording us a "well-known" memory tag that can be
+     * easily identified in tools such as vmmap(1) or Instruments.
+     *
+     */
+
+    // Encoded memory tag passed to `mmap`.
+    static constexpr int anonymous_memory_fd =
+      int(VM_MAKE_TAG(uint32_t(PALAnonID)));
+
+    // Encoded memory tag passed to `mach_vm_map`.
+    static constexpr int default_mach_vm_map_flags =
+      int(VM_MAKE_TAG(uint32_t(PALAnonID)));
 
     /**
-     * Note: The root's implementation works fine on Intel
-     * however mprotect/PROT_NONE fails on ARM
-     * especially since the 11.2 release (seems known issue
-     * spotted in various projects; might be a temporary fix).
-     */
-    template<bool page_aligned = false>
-    static void zero(void* p, size_t size) noexcept
-    {
-      if constexpr (Aal::aal_name != ARM)
-        PALBSD::zero(p, size);
-      else
-        ::bzero(p, size);
-    }
-
-#  if defined(PLATFORM_IS_ARM)
-    /**
-     * Overriding here to mark the page as reusable
-     * rolling it as much as necessary.
-     * As above, the x86 h/w worked alright without this change
-     * however now large allocations work better and more reliably
-     * with on ARM, not to mention better RSS number accuracy
-     * for tools based on task_info API.
+     * Notify platform that we will not be using these pages.
+     *
+     * We deviate from `PALBSD::notify_not_using` b/c `MADV_FREE` does not
+     * behave as expected on Apple platforms. The pages are never marked as
+     * "reusable" by the kernel and this can be observed through profiling. E.g.
+     * at least ~75% to ~90% less dirty memory is used by `func-malloc-16`
+     * (observed on x86_64).
+     *
+     * Apple's own malloc implementation as well as many ports for Apple
+     * Operating Systems use MADV_FREE_REUS{E, ABLE} instead of MADV_FREE. See:
+     *  https://opensource.apple.com/source/libmalloc/libmalloc-53.1.1/src/magazine_malloc.c.auto.html
+     *  https://bugs.chromium.org/p/chromium/issues/detail?id=713892
+     *
      */
     static void notify_not_using(void* p, size_t size) noexcept
     {
-      SNMALLOC_ASSERT(is_aligned_block<PALBSD::page_size>(p, size));
-#    ifdef USE_POSIX_COMMIT_CHECKS
+      SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
+
+#  ifdef USE_POSIX_COMMIT_CHECKS
       memset(p, 0x5a, size);
-#    endif
+#  endif
+
+      // `MADV_FREE_REUSABLE` can only be applied to writable pages,
+      // otherwise it's an error.
+      //
+      // `mach_vm_behavior_set` is observably slower in benchmarks.
+      //
+      // macOS 11 Big Sur may behave in an undocumented manner.
       while (madvise(p, size, MADV_FREE_REUSABLE) == -1 && errno == EAGAIN)
         ;
+
+#  ifdef USE_POSIX_COMMIT_CHECKS
+      // This must occur after `MADV_FREE_REUSABLE`.
+      //
+      // `mach_vm_protect` is observably slower in benchmarks.
+      mprotect(p, size, PROT_NONE);
+#  endif
     }
 
     /**
-     * same remark as above but we need to mark the page as REUSE
-     * first
+     * Notify platform that we will be using these pages.
+     *
+     * We deviate from `PALPOSIX::notify_using` for three reasons:
+     * 1. `MADV_FREE_REUSABLE` must be paired with `MADV_FREE_REUSE`.
+     * 2. `MADV_FREE_REUSE` must only be applied to writable pages, otherwise it
+     * is an error.
+     * 3. `PALPOSIX::notify_using` will apply mprotect(PROT_READ|PROT_WRITE) to
+     * the pages, and then call `PALPOSIX::zero<true>` (overwrite pages with
+     * mmap, and if mmap fails call bzero on the pages). This is very wasteful;
+     * if mmap succeeds we do not need to change the permissions of the pages
+     * since it is done during mmap. Instead `PALApple::notify_using` will try
+     * to overwrite with mmap, and if mmap fails, apply
+     * mprotect(PROT_READ|PROT_WRITE), madvise(MADV_REUSE), and finally call
+     * `bzero` to clear the pages.
+     *
+     * Currently, `PALPOSIX::zero` will call `bzero` on the pages that `mmap`
+     * failed to overwrite. In the future, we should duplicate the behavior of
+     * `PALWindows` and abort the process if a `mmap` call fails. But for now we
+     * are going to be consistent with the behavior of the other POSIX PAL
+     * implementations.
+     *
      */
     template<ZeroMem zero_mem>
     static void notify_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(
-        is_aligned_block<PALBSD::page_size>(p, size) || (zero_mem == NoZero));
+        is_aligned_block<page_size>(p, size) || (zero_mem == NoZero));
+
+      if constexpr (zero_mem == YesZero)
+      {
+        void* r = mmap(
+          p,
+          size,
+          PROT_READ | PROT_WRITE,
+          MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED,
+          anonymous_memory_fd,
+          0);
+
+        if (likely(r != MAP_FAILED))
+        {
+          return;
+        }
+      }
+
+#  ifdef USE_POSIX_COMMIT_CHECKS
+      // Mark pages as writable for `madvise` below.
+      //
+      // `mach_vm_protect` is observably slower in benchmarks.
+      mprotect(p, size, PROT_READ | PROT_WRITE);
+#  endif
+
+      // `MADV_FREE_REUSE` can only be applied to writable pages,
+      // otherwise it's an error.
+      //
+      // `mach_vm_behavior_set` is observably slower in benchmarks.
+      //
+      // macOS 11 Big Sur may behave in an undocumented manner.
       while (madvise(p, size, MADV_FREE_REUSE) == -1 && errno == EAGAIN)
         ;
 
       if constexpr (zero_mem == YesZero)
-        zero<true>(p, size);
+      {
+        ::bzero(p, size);
+      }
     }
+
+    // Apple's `mmap` doesn't support user-specified alignment and only
+    // guarantees mappings are aligned to the system page size, so we use
+    // `mach_vm_map` instead.
+    template<bool committed>
+    static void* reserve_aligned(size_t size) noexcept
+    {
+      SNMALLOC_ASSERT(bits::is_pow2(size));
+      SNMALLOC_ASSERT(size >= minimum_alloc_size);
+
+      // mask has least-significant bits set
+      mach_vm_offset_t mask = size - 1;
+
+      int flags = VM_FLAGS_ANYWHERE | default_mach_vm_map_flags;
+
+      // must be initialized to 0 or addr is interepreted as a lower-bound.
+      mach_vm_address_t addr = 0;
+
+#  ifdef USE_POSIX_COMMIT_CHECKS
+      vm_prot_t prot = committed ? VM_PROT_READ | VM_PROT_WRITE : VM_PROT_NONE;
+#  else
+      vm_prot_t prot = VM_PROT_READ | VM_PROT_WRITE;
 #  endif
+
+      kern_return_t kr = mach_vm_map(
+        mach_task_self(),
+        &addr,
+        size,
+        mask,
+        flags,
+        MEMORY_OBJECT_NULL,
+        0,
+        TRUE,
+        prot,
+        VM_PROT_READ | VM_PROT_WRITE,
+        VM_INHERIT_COPY);
+
+      if (unlikely(kr != KERN_SUCCESS))
+      {
+        error("Failed to allocate memory\n");
+      }
+
+      return reinterpret_cast<void*>(addr);
+    }
+
+    /**
+     * Source of Entropy
+     *
+     * Apple platforms have a working `getentropy(2)` implementation.
+     * However, it is not allowed on the App Store and Apple actively
+     * discourages its use. The substitutes `arc4random_buf(3)`,
+     * `CCRandomGenerateBytes`, and `SecRandomCopyBytes` are recommended
+     * instead.
+     *
+     * `CCRandomGenerateBytes` was selected because:
+     *
+     * 1. The implementation of `arc4random_buf(3)` differs from its
+     * documentation. It is documented to never fail, yet its'
+     * implementation can fail silently: it calls the function
+     * `ccrng_generate`, but ignores the error case.
+     * `CCRandomGenerateBytes` is built on the same function, but can return an
+     * error code in case of failure. See:
+     *      https://opensource.apple.com/source/Libc/Libc-1439.40.11/gen/FreeBSD/arc4random.c.auto.html
+     *      https://opensource.apple.com/source/CommonCrypto/CommonCrypto-60061/include/CommonRandom.h.auto.html
+     *
+     * 2. `SecRandomCopyBytes` introduces a dependency on `Security.framework`.
+     * `CCRandomGenerateBytes` introduces no new dependencies.
+     *
+     */
+    static uint64_t get_entropy64()
+    {
+      uint64_t result;
+      if (
+        CCRandomGenerateBytes(
+          reinterpret_cast<void*>(&result), sizeof(result)) != kCCSuccess)
+      {
+        error("Failed to get system randomness");
+      }
+
+      return result;
+    }
   };
 } // namespace snmalloc
 #endif
