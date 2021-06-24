@@ -239,11 +239,10 @@ namespace snmalloc
      * so it can be reused by other threads.
      */
     SNMALLOC_SLOW_PATH void
-    dealloc_local_object_slow(snmalloc::Metaslab* meta, void* p)
+    dealloc_local_object_slow(snmalloc::Metaslab* meta, sizeclass_t sizeclass, void* p)
     {
       // TODO: Handle message queue on this path?
 
-      sizeclass_t sizeclass = meta->sizeclass();
       UNUSED(entropy);
       if (meta->is_full())
       {
@@ -252,7 +251,7 @@ namespace snmalloc
         //  Remove trigger threshold from how many we need before we have fully
         //  freed the slab.
         meta->needed() =
-          allocated - threshold_for_waking_slab(meta->sizeclass());
+          allocated - threshold_for_waking_slab(sizeclass);
 
         // Design ensures we can't move from full to empty.
         // There are always some more elements to free at this
@@ -451,7 +450,7 @@ namespace snmalloc
 
       SNMALLOC_ASSERT(!meta->is_unused());
 
-      check_client(meta->is_start_of_object(address_cast(p)), "Not deallocating start of an object");
+      check_client(Metaslab::is_start_of_object(entry.get_sizeclass(), address_cast(p)), "Not deallocating start of an object");
 
       auto cp = snmalloc::CapPtr<snmalloc::FreeObject, snmalloc::CBAlloc>(
         (snmalloc::FreeObject*)p);
@@ -462,7 +461,7 @@ namespace snmalloc
       if (likely(!meta->return_object()))
         return;
 
-      dealloc_local_object_slow(meta, p);
+      dealloc_local_object_slow(meta, entry.get_sizeclass(), p);
     }
 
     template<ZeroMem zero_mem>
@@ -477,7 +476,7 @@ namespace snmalloc
       {
         auto meta = sl.pop();
         // TODO: drop length, and empty count if it was empty.
-        auto p = Metaslab::alloc((Metaslab*)meta, fast_free_list, entropy)
+        auto p = Metaslab::alloc((Metaslab*)meta, fast_free_list, entropy, sizeclass)
                    .unsafe_capptr;
         if (zero_mem == YesZero)
         {

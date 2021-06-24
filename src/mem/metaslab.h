@@ -36,11 +36,6 @@ namespace snmalloc
      *  case with a single operation subtract and test.
      */
     uint16_t needed = 0;
-
-    // TODO something for the nullptr sizeclass
-    uint8_t sizeclass = 255;
-    // Initially zero to encode the superslabs relative list of slabs.
-    uint8_t next = 0;
   };
 
   inline static size_t large_size_to_slab_size(size_t size)
@@ -76,30 +71,19 @@ namespace snmalloc
       return free_queue.s.needed;
     }
 
-    uint8_t sizeclass()
-    {
-      return free_queue.s.sizeclass;
-    }
-
-    uint8_t& next()
-    {
-      return free_queue.s.next;
-    }
-
     void initialise(sizeclass_t sizeclass)
     {
       // TODO: Special version for large alloc?
       //    TODO: Assert this is a Large alloc
       //    TODO: other fields for other data?
 
-      free_queue.s.sizeclass = static_cast<uint8_t>(sizeclass);
       free_queue.init();
       // Set up meta data as if the entire slab has been turned into a free
       // list. This means we don't have to check for special cases where we have
       // returned all the elements, but this is a slab that is still being bump
       // allocated from. Hence, the bump allocator slab will never be returned
       // for use in another size class.
-      set_full();
+      set_full(sizeclass);
     }
 
     /**
@@ -124,7 +108,7 @@ namespace snmalloc
       return get_prev() == nullptr;
     }
 
-    SNMALLOC_FAST_PATH void set_full()
+    SNMALLOC_FAST_PATH void set_full(sizeclass_t sizeclass)
     {
       SNMALLOC_ASSERT(free_queue.empty());
 
@@ -133,15 +117,15 @@ namespace snmalloc
 
       // Set needed to at least one, possibly more so we only use
       // a slab when it has a reasonable amount of free elements
-      needed() = threshold_for_waking_slab(sizeclass());
+      needed() = threshold_for_waking_slab(sizeclass);
       null_prev();
     }
 
-    SNMALLOC_FAST_PATH bool is_start_of_object(address_t p)
+    static SNMALLOC_FAST_PATH bool is_start_of_object(sizeclass_t sizeclass, address_t p)
     {
       return is_multiple_of_sizeclass(
-        sizeclass(),
-        p - (bits::align_down(p, sizeclass_to_slab_size(sizeclass()))));
+        sizeclass,
+        p - (bits::align_down(p, sizeclass_to_slab_size(sizeclass))));
     }
 
     /**
@@ -150,7 +134,7 @@ namespace snmalloc
      * `fast_free_list` for further allocations.
      */
     static SNMALLOC_FAST_PATH CapPtr<void, CBAllocE>
-    alloc(Metaslab* meta, FreeListIter& fast_free_list, LocalEntropy& entropy)
+    alloc(Metaslab* meta, FreeListIter& fast_free_list, LocalEntropy& entropy, sizeclass_t sizeclass)
     {
       FreeListIter tmp_fl;
       meta->free_queue.close(tmp_fl, entropy);
@@ -163,9 +147,9 @@ namespace snmalloc
 
       // Treat stealing the free list as allocating it all.
       // meta->remove();
-      meta->set_full();
+      meta->set_full(sizeclass);
 
-      SNMALLOC_ASSERT(meta->is_start_of_object(address_cast(p)));
+      SNMALLOC_ASSERT(Metaslab::is_start_of_object(sizeclass, address_cast(p)));
 
       //    TODO?
       //      self->debug_slab_invariant(meta, entropy);
