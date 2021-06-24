@@ -195,7 +195,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
   else()
-    add_compile_options(-fno-exceptions -fno-rtti -g -fomit-frame-pointer)
+    add_compile_options(-fno-exceptions -fno-rtti -fomit-frame-pointer)
     # Static TLS model is unsupported on Haiku.
     # All symbols are always dynamic on haiku and -rdynamic is redundant (and unsupported).
     if (NOT CMAKE_SYSTEM_NAME MATCHES "Haiku")
@@ -262,6 +262,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     # Ensure that we do not link against C++ stdlib when compiling shims.
     if(NOT MSVC)
       set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
+      target_link_libraries(${name} -Wl,--as-needed)
     endif()
 
   endmacro()
