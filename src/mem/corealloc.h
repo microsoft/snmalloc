@@ -171,8 +171,6 @@ namespace snmalloc
       FreeListBuilder<false> b;
       SNMALLOC_ASSERT(b.empty());
 
-      b.open();
-
 #ifdef CHECK_CLIENT
       // Structure to represent the temporary list elements
       struct PreAllocObject

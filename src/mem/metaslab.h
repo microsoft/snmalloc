@@ -112,9 +112,6 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(free_queue.empty());
 
-      // Prepare for the next free queue to be built.
-      free_queue.open();
-
       // Set needed to at least one, possibly more so we only use
       // a slab when it has a reasonable amount of free elements
       needed() = threshold_for_waking_slab(sizeclass);

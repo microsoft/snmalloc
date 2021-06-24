@@ -299,21 +299,6 @@ namespace snmalloc
     }
 
     /**
-     * Start building a new free list.
-     */
-    void open()
-    {
-      SNMALLOC_ASSERT(empty());
-      for (size_t i = 0; i < LENGTH; i++)
-      {
-#ifdef CHECK_CLIENT
-        prev[i] = HEAD_KEY;
-#endif
-        end[i] = &head[i];
-      }
-    }
-
-    /**
      * Checks if the builder contains any elements.
      */
     bool empty()
