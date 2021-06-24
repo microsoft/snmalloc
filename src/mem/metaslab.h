@@ -138,7 +138,7 @@ namespace snmalloc
       // than the count for the slab
       SNMALLOC_ASSERT(meta->needed() != 0);
 
-      sleeping() = true;
+      sleeping() = false;
     }
 
     static SNMALLOC_FAST_PATH bool is_start_of_object(sizeclass_t sizeclass, address_t p)
