@@ -245,20 +245,12 @@ namespace snmalloc
       sizeclass_t sizeclass = entry.get_sizeclass();
 
       UNUSED(entropy);
-      if (meta->is_full())
+      if (meta->is_sleeping())
       {
         // Slab has been woken up add this to the list of slabs with free space.
-        auto allocated = sizeclass_to_slab_object_count(sizeclass);
-        //  Remove trigger threshold from how many we need before we have fully
-        //  freed the slab.
-        meta->needed() =
-          allocated - threshold_for_waking_slab(sizeclass);
 
-        // Design ensures we can't move from full to empty.
-        // There are always some more elements to free at this
-        // point. This is because the threshold is always less
-        // than the count for the slab
-        SNMALLOC_ASSERT(meta->needed() != 0);
+        //  Wake slab up.
+        meta->set_not_sleeping(sizeclass);
 
         alloc_classes[sizeclass].insert_prev(meta);
 

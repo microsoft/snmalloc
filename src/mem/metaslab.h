@@ -36,6 +36,8 @@ namespace snmalloc
      *  case with a single operation subtract and test.
      */
     uint16_t needed = 0;
+
+    bool sleeping = false;
   };
 
   inline static size_t large_size_to_slab_size(size_t size)
@@ -71,6 +73,11 @@ namespace snmalloc
       return free_queue.s.needed;
     }
 
+    bool& sleeping()
+    {
+      return free_queue.s.sleeping;
+    }
+
     void initialise(sizeclass_t sizeclass)
     {
       // TODO: Special version for large alloc?
@@ -83,7 +90,7 @@ namespace snmalloc
       // returned all the elements, but this is a slab that is still being bump
       // allocated from. Hence, the bump allocator slab will never be returned
       // for use in another size class.
-      set_full(sizeclass);
+      set_sleeping(sizeclass);
     }
 
     /**
@@ -103,19 +110,35 @@ namespace snmalloc
       return needed() == 0;
     }
 
-    bool is_full()
+    bool is_sleeping()
     {
-      return get_prev() == nullptr;
+      return sleeping();
     }
 
-    SNMALLOC_FAST_PATH void set_full(sizeclass_t sizeclass)
+    SNMALLOC_FAST_PATH void set_sleeping(sizeclass_t sizeclass)
     {
       SNMALLOC_ASSERT(free_queue.empty());
 
       // Set needed to at least one, possibly more so we only use
       // a slab when it has a reasonable amount of free elements
       needed() = threshold_for_waking_slab(sizeclass);
-      null_prev();
+      sleeping() = true;
+    }
+
+    SNMALLOC_FAST_PATH void set_not_sleeping(sizeclass_t sizeclass)
+    {
+      SNMALLOC_ASSERT(free_queue.empty());
+
+      auto allocated = sizeclass_to_slab_object_count(sizeclass);
+      needed() = allocated - threshold_for_waking_slab(sizeclass);
+
+      // Design ensures we can't move from full to empty.
+      // There are always some more elements to free at this
+      // point. This is because the threshold is always less
+      // than the count for the slab
+      SNMALLOC_ASSERT(meta->needed() != 0);
+
+      sleeping() = true;
     }
 
     static SNMALLOC_FAST_PATH bool is_start_of_object(sizeclass_t sizeclass, address_t p)
@@ -126,9 +149,7 @@ namespace snmalloc
     }
 
     /**
-     * Takes a free list out of a slabs meta data.
-     * Returns the link as the allocation, and places the free list into the
-     * `fast_free_list` for further allocations.
+     * TODO
      */
     static SNMALLOC_FAST_PATH CapPtr<void, CBAllocE>
     alloc(Metaslab* meta, FreeListIter& fast_free_list, LocalEntropy& entropy, sizeclass_t sizeclass)
@@ -143,8 +164,9 @@ namespace snmalloc
 #endif
 
       // Treat stealing the free list as allocating it all.
-      // meta->remove();
-      meta->set_full(sizeclass);
+      // This marks the slab as sleeping, and sets a wakeup
+      // when sufficient deallocations have occurred to this slab.
+      meta->set_sleeping(sizeclass);
 
       SNMALLOC_ASSERT(Metaslab::is_start_of_object(sizeclass, address_cast(p)));
 
@@ -163,7 +185,7 @@ namespace snmalloc
 #if false && !defined(NDEBUG) && !defined(SNMALLOC_CHEAP_CHECKS)
       bool is_short = Metaslab::is_short(slab);
 
-      if (is_full())
+      if (is_sleeping())
       {
         size_t count = free_queue.debug_length(entropy);
         SNMALLOC_ASSERT(count < threshold_for_waking_slab(sizeclass()));
@@ -193,7 +215,7 @@ namespace snmalloc
       // Account for to be bump allocated space
       accounted_for += SLAB_SIZE - bumpptr;
 
-      SNMALLOC_ASSERT(!is_full());
+      SNMALLOC_ASSERT(!is_sleeping());
 
       // All space accounted for
       SNMALLOC_ASSERT(SLAB_SIZE == accounted_for);

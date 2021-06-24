@@ -187,6 +187,7 @@ namespace snmalloc
     {
       static Singleton<pthread_key_t, &register_cleanup1> key;
       
+      // Need non-null field for destructor to be called.
       pthread_setspecific(key.get(), (void*)1);
 
       ThreadAllocCommon::register_cleanup();

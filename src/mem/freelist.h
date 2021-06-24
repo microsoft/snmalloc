@@ -232,6 +232,7 @@ namespace snmalloc
    *
    * Adds signing of pointers
    *
+   * TODO no longer true
    * On 64bit ptr architectures this data structure has
    *   44 bytes of data
    * and has an alignment of
