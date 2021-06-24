@@ -374,11 +374,13 @@ namespace snmalloc
       //  before init, that maps null to a remote_deallocator that will never be
       //  in thread local state.
 
-      MetaEntry entry =
+      const MetaEntry& entry =
         BackendAllocator::get_meta_data(handle, address_cast(p));
       if (likely(remote_allocator == entry.get_remote()))
       {
-        core_alloc->dealloc_local_object(p);
+        if (likely(CoreAlloc::dealloc_local_object_fast(entry, p, small_cache.entropy)))
+          return;
+        core_alloc->dealloc_local_object_slow(entry, p);
         return;
       }
 

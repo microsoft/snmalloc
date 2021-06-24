@@ -139,7 +139,7 @@ namespace snmalloc
      * to access a location that is not backed by a slab.
      */
     template<bool potentially_out_of_range = false, typename SharedStateHandle>
-    static typename SharedStateHandle::Meta
+    static const typename SharedStateHandle::Meta& 
     get_meta_data(SharedStateHandle h, address_t p)
     {
       return h.get_pagemap().template get<potentially_out_of_range>(p);

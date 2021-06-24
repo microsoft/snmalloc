@@ -230,17 +230,17 @@ namespace snmalloc
       remote_and_sizeclass = pointer_offset<RemoteAllocator>(remote, sizeclass);
     }
 
-    Metaslab* get_metaslab()
+    Metaslab* get_metaslab() const
     {
       return meta;
     }
 
-    RemoteAllocator* get_remote()
+    RemoteAllocator* get_remote() const
     {
       return pointer_align_down<alignof(RemoteAllocator), RemoteAllocator>(remote_and_sizeclass);
     }
 
-    sizeclass_t get_sizeclass()
+    sizeclass_t get_sizeclass() const
     {
       return address_cast(remote_and_sizeclass) & (alignof(RemoteAllocator) - 1);
     }

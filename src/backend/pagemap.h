@@ -86,7 +86,7 @@ namespace snmalloc
      * read/write.
      */
     template<bool potentially_out_of_range>
-    T get(address_t p)
+    const T& get(address_t p)
     {
       if constexpr (has_bounds)
       {

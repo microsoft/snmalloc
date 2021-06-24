@@ -239,7 +239,7 @@ namespace snmalloc
      * so it can be reused by other threads.
      */
     SNMALLOC_SLOW_PATH void
-    dealloc_local_object_slow(snmalloc::MetaEntry& entry, void* p)
+    dealloc_local_object_slow(const MetaEntry& entry, void* p)
     {
       // TODO: Handle message queue on this path?
 
@@ -250,7 +250,7 @@ namespace snmalloc
       if (meta->is_full())
       {
         // Slab has been woken up add this to the list of slabs with free space.
-        auto allocated = snmalloc::sizeclass_to_slab_object_count(sizeclass);
+        auto allocated = sizeclass_to_slab_object_count(sizeclass);
         //  Remove trigger threshold from how many we need before we have fully
         //  freed the slab.
         meta->needed() =
@@ -449,6 +449,14 @@ namespace snmalloc
     {
       auto entry = snmalloc::BackendAllocator::get_meta_data(
         handle, snmalloc::address_cast(p));
+      if (likely(dealloc_local_object_fast(entry, p, entropy)))
+        return;
+
+      dealloc_local_object_slow(entry, p);
+    }
+
+    SNMALLOC_FAST_PATH static bool dealloc_local_object_fast(const MetaEntry& entry, void* p, LocalEntropy& entropy)
+    {
       auto meta = entry.get_metaslab();
 
       SNMALLOC_ASSERT(!meta->is_unused());
@@ -461,10 +469,7 @@ namespace snmalloc
       // Update the head and the next pointer in the free list.
       meta->free_queue.add(cp, entropy);
 
-      if (likely(!meta->return_object()))
-        return;
-
-      dealloc_local_object_slow(entry, p);
+      return likely(!meta->return_object());
     }
 
     template<ZeroMem zero_mem>
