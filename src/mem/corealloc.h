@@ -239,9 +239,12 @@ namespace snmalloc
      * so it can be reused by other threads.
      */
     SNMALLOC_SLOW_PATH void
-    dealloc_local_object_slow(snmalloc::Metaslab* meta, sizeclass_t sizeclass, void* p)
+    dealloc_local_object_slow(snmalloc::MetaEntry& entry, void* p)
     {
       // TODO: Handle message queue on this path?
+
+      Metaslab* meta = entry.get_metaslab();
+      sizeclass_t sizeclass = entry.get_sizeclass();
 
       UNUSED(entropy);
       if (meta->is_full())
@@ -461,7 +464,7 @@ namespace snmalloc
       if (likely(!meta->return_object()))
         return;
 
-      dealloc_local_object_slow(meta, entry.get_sizeclass(), p);
+      dealloc_local_object_slow(entry, p);
     }
 
     template<ZeroMem zero_mem>
