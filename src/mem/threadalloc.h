@@ -172,11 +172,11 @@ namespace snmalloc
     friend class OnDestruct;
 
   public:
-    static bool register_cleanup1() noexcept
+    static pthread_key_t register_cleanup1() noexcept
     {
       pthread_key_t key;
       pthread_key_create(&key, &register_cleanup2);
-      return true;
+      return key;
     }
     static void register_cleanup2(void*)
     {
@@ -185,8 +185,10 @@ namespace snmalloc
 
     static void register_cleanup()
     {
-      static Singleton<bool, &register_cleanup1> single;
-      UNUSED(single);
+      static Singleton<pthread_key_t, &register_cleanup1> key;
+      
+      pthread_setspecific(key.get(), (void*)1);
+
       ThreadAllocCommon::register_cleanup();
     }
   };
