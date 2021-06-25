@@ -136,7 +136,7 @@ namespace snmalloc
     return bits::one_at_bit(MIN_CHUNK_BITS + sizeclass);
   }
 
-  inline static uint16_t sizeclass_to_slab_object_count(sizeclass_t sizeclass)
+  inline constexpr static uint16_t sizeclass_to_slab_object_count(sizeclass_t sizeclass)
   {
     return sizeclass_metadata.capacity[sizeclass];
   }

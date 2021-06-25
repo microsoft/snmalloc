@@ -172,23 +172,25 @@ namespace snmalloc
     friend class OnDestruct;
 
   public:
-    static pthread_key_t register_cleanup1() noexcept
-    {
-      pthread_key_t key;
-      pthread_key_create(&key, &register_cleanup2);
-      return key;
-    }
-    static void register_cleanup2(void*)
-    {
-      inner_release();
-    }
+    // static pthread_key_t register_cleanup1() noexcept
+    // {
+    //   pthread_key_t key;
+    //   pthread_key_create(&key, &register_cleanup2);
+    //   return key;
+    // }
+    // static void register_cleanup2(void*)
+    // {
+    //   inner_release();
+    // }
 
     static void register_cleanup()
     {
-      static Singleton<pthread_key_t, &register_cleanup1> key;
+      static thread_local OnDestruct<inner_release> dummy;
+      UNUSED(dummy);
+      // static Singleton<pthread_key_t, &register_cleanup1> key;
       
-      // Need non-null field for destructor to be called.
-      pthread_setspecific(key.get(), (void*)1);
+      // // Need non-null field for destructor to be called.
+      // pthread_setspecific(key.get(), (void*)1);
 
       ThreadAllocCommon::register_cleanup();
     }

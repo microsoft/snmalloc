@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../pal/pal.h"
 #include "../ds/bits.h"
 #include "../ds/helpers.h"
 #include "../ds/invalidptr.h"
@@ -37,6 +38,22 @@ namespace snmalloc
     address_t base{0};
     size_t size{0};
 
+
+  /**
+   * Commit entry
+   */
+  void commit_entry(void* base)
+  {
+    auto entry_size = sizeof(T);
+    static_assert(sizeof(T) < OS_PAGE_SIZE);
+    // Rounding required for sub-page allocations.
+    auto page_start = pointer_align_down<OS_PAGE_SIZE, char>(base);
+    auto page_end =
+      pointer_align_up<OS_PAGE_SIZE, char>(pointer_offset(base, entry_size));
+    size_t using_size = pointer_diff(page_start, page_end);
+    PAL::template notify_using<NoZero>(page_start, using_size);
+  }
+
   public:
     constexpr FlatPagemap() {}
 
@@ -69,8 +86,9 @@ namespace snmalloc
                           .template as_static<T>()
                           .unsafe_capptr;
 
-        // TODO Pal notify here
-        // Pal::notify_using<NoZero>(new_body, sizeof(T));
+        // Ensure bottom page is committed
+        commit_entry(&new_body[0]);
+
         // Set up zero page
         new_body[0] = body[0];
 
@@ -111,8 +129,7 @@ namespace snmalloc
       //  This means external pointer on Windows will be slow.
       if constexpr (potentially_out_of_range)
       {
-        // TODO: need to uncomment
-        // Pal::notify_using<NoZero>(&body[p >> SHIFT], sizeof(T));
+        commit_entry(&body[p >> SHIFT]);
       }
 
       return body[p >> SHIFT];
@@ -152,8 +169,7 @@ namespace snmalloc
       // This could be the first time this page is used
       // This will potentially be expensive on Windows,
       // and we should revisit the performance here.
-      // TODO: need to uncomment
-      //      Pal::notify_using<NoZero>(&body[p >> SHIFT], sizeof(T));
+      commit_entry(&body[p >> SHIFT]);
 
       body[p >> SHIFT] = t;
     }

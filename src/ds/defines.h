@@ -107,3 +107,26 @@ namespace snmalloc
       } while (0)
 #  endif
 #endif
+
+// // The CHECK_CLIENT macro is used to turn on minimal checking of the client
+// // calling the API correctly.
+// #if !defined(NDEBUG) && !defined(CHECK_CLIENT)
+// #  define CHECK_CLIENT
+// #endif
+
+  inline SNMALLOC_FAST_PATH void
+  check_client_impl(bool test, const char* const str)
+  {
+#ifdef CHECK_CLIENT
+    if (unlikely(!test))
+      snmalloc::error(str);
+#else
+    UNUSED(test);
+    UNUSED(str);
+#endif
+  }
+#ifdef CHECK_CLIENT
+#  define check_client(test, str) check_client_impl(test, str)
+#else
+#  define check_client(test, str)
+#endif

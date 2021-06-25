@@ -127,8 +127,6 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH void set_not_sleeping(sizeclass_t sizeclass)
     {
-      SNMALLOC_ASSERT(free_queue.empty());
-
       auto allocated = sizeclass_to_slab_object_count(sizeclass);
       needed() = allocated - threshold_for_waking_slab(sizeclass);
 
@@ -136,7 +134,7 @@ namespace snmalloc
       // There are always some more elements to free at this
       // point. This is because the threshold is always less
       // than the count for the slab
-      SNMALLOC_ASSERT(meta->needed() != 0);
+      SNMALLOC_ASSERT(needed() != 0);
 
       sleeping() = false;
     }
@@ -151,7 +149,7 @@ namespace snmalloc
     /**
      * TODO
      */
-    static SNMALLOC_FAST_PATH CapPtr<void, CBAllocE>
+    static SNMALLOC_FAST_PATH CapPtr<FreeObject, CBAlloc>
     alloc(Metaslab* meta, FreeListIter& fast_free_list, LocalEntropy& entropy, sizeclass_t sizeclass)
     {
       FreeListIter tmp_fl;
@@ -168,13 +166,11 @@ namespace snmalloc
       // when sufficient deallocations have occurred to this slab.
       meta->set_sleeping(sizeclass);
 
-      SNMALLOC_ASSERT(Metaslab::is_start_of_object(sizeclass, address_cast(p)));
-
       //    TODO?
       //      self->debug_slab_invariant(meta, entropy);
 
       // TODO: Should this be zeroing the FreeObject state?
-      return capptr_export(p.as_void());
+      return p;
     }
 
     template<capptr_bounds B>

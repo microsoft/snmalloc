@@ -155,7 +155,9 @@ namespace snmalloc
         std::cout << "size " << size << " sizeclass " << size_to_sizeclass(size)
                   << std::endl;
 #endif
-        meta->initialise(size_to_sizeclass(size));
+
+        // TODO Not currently using metadata for large allocs.
+//        meta->initialise(size_to_sizeclass(size));
 
         if (zero_mem == YesZero)
         {

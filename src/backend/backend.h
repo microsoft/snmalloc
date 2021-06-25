@@ -45,6 +45,8 @@ namespace snmalloc
           local_address_space->add_range(refill, refill_size);
           // This should succeed
           p = local_address_space->reserve_with_left_over(size);
+          if (p != nullptr)
+            local_address_space->commit_block(p, size);
         }
       }
       else

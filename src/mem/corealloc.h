@@ -1,5 +1,5 @@
 #pragma once
-
+#include "../ds/defines.h"
 #include "../backend/slaballocator.h"
 #include "allocconfig.h"
 #include "fastcache.h"
@@ -153,8 +153,7 @@ namespace snmalloc
       {
         // Fake statistics up.
         // stats().sizeclass_alloc(sizeclass);
-        dealloc_local_object(
-          capptr_reveal(capptr_export(temp.take(entropy).as_void())));
+        dealloc_local_object(finish_alloc_no_zero(temp.take(entropy), sizeclass));
       }
       return r;
     }
@@ -473,14 +472,10 @@ namespace snmalloc
       if (likely(!(sl.is_empty())))
       {
         auto meta = sl.pop();
-        // TODO: drop length, and empty count if it was empty.
-        auto p = Metaslab::alloc((Metaslab*)meta, fast_free_list, entropy, sizeclass)
-                   .unsafe_capptr;
-        if (zero_mem == YesZero)
-        {
-          SharedStateHandle::Pal::template zero<false>(p, rsize);
-        }
-        return p;
+        // TODO: drop length of sl, and empty count if it was empty.
+        auto p = Metaslab::alloc((Metaslab*)meta, fast_free_list, entropy, sizeclass);
+
+        return finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
       }
       return small_alloc_slow<zero_mem>(sizeclass, fast_free_list, rsize);
     }
@@ -513,14 +508,9 @@ namespace snmalloc
       meta->initialise(sizeclass);
 
       // take an allocation from the free list
-      auto p = fast_free_list.take(entropy).unsafe_capptr;
+      auto p = fast_free_list.take(entropy);
 
-      if (zero_mem == YesZero)
-      {
-        SharedStateHandle::Pal::template zero<false>(p, rsize);
-      }
-
-      return p;
+      return finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
     }
 
     /**

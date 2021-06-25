@@ -85,7 +85,7 @@ namespace snmalloc
 #endif
           return CapPtr<void, CBChunk>(block);
         }
-      }
+      } else {
 
       /*
        * For sufficiently large allocations with platforms that support aligned
@@ -191,6 +191,7 @@ namespace snmalloc
         core.commit_block(res, size);
 
       return res;
+      }
     }
 
     /**
