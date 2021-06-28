@@ -40,11 +40,9 @@ namespace snmalloc
      * more aligned.
      */
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static RemoteAllocator fake_large_remote_impl;
+    inline static constexpr RemoteAllocator* fake_large_remote{nullptr};
 
-    SNMALLOC_REQUIRE_CONSTINIT
-    inline static constexpr RemoteAllocator* fake_large_remote{
-      &fake_large_remote_impl};
+    static_assert(&unused_remote != fake_large_remote, "Compilation should ensure these are different");
 
     /**
      * We use fake_large_remote so that nullptr, will hit the large
@@ -53,6 +51,6 @@ namespace snmalloc
      * allocator for external pointer.
      */
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static MetaEntry default_entry{nullptr, fake_large_remote};
+    inline static MetaEntry default_entry{nullptr};
   };
 }

@@ -230,19 +230,19 @@ namespace snmalloc
   class MetaEntry
   {
     Metaslab* meta;
-    RemoteAllocator* remote_and_sizeclass;
+    uintptr_t remote_and_sizeclass;
 
   public:
     constexpr MetaEntry(
-      Metaslab* meta, RemoteAllocator* remote)
-    : meta(meta), remote_and_sizeclass(remote)
+      Metaslab* meta)
+    : meta(meta), remote_and_sizeclass(0)
     {}
 
     MetaEntry(
       Metaslab* meta, RemoteAllocator* remote, sizeclass_t sizeclass)
     : meta(meta)
     {
-      remote_and_sizeclass = pointer_offset<RemoteAllocator>(remote, sizeclass);
+      remote_and_sizeclass = address_cast(pointer_offset<char>(remote, sizeclass));
     }
 
     Metaslab* get_metaslab() const
@@ -252,12 +252,12 @@ namespace snmalloc
 
     RemoteAllocator* get_remote() const
     {
-      return pointer_align_down<alignof(RemoteAllocator), RemoteAllocator>(remote_and_sizeclass);
+      return reinterpret_cast<RemoteAllocator*>(bits::align_down(remote_and_sizeclass, alignof(RemoteAllocator)));
     }
 
     sizeclass_t get_sizeclass() const
     {
-      return address_cast(remote_and_sizeclass) & (alignof(RemoteAllocator) - 1);
+      return remote_and_sizeclass & (alignof(RemoteAllocator) - 1);
     }
   };
 
