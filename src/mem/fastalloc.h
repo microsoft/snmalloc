@@ -454,7 +454,7 @@ namespace snmalloc
       }
     }
 
-    SNMALLOC_SLOW_PATH size_t alloc_size(const void* p_raw)
+    SNMALLOC_FAST_PATH size_t alloc_size(const void* p_raw)
     {
       // Note that this should return 0 for nullptr.
       // Other than nullptr, we know the system will be initialised as it must
