@@ -468,7 +468,8 @@ namespace snmalloc
       if (likely(entry.get_remote() != handle.fake_large_remote))
         return sizeclass_to_size(entry.get_sizeclass());
       
-      if (likely(p_raw != nullptr))
+      // Sizeclass zero is for large is actually zero
+      if (likely(entry.get_sizeclass() != 0))
         return bits::one_at_bit(entry.get_sizeclass());
       
       return 0;
