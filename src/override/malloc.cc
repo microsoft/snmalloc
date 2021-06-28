@@ -125,11 +125,11 @@ extern "C"
     {
       sz = bits::min(size, sz);
       memcpy(p, ptr, sz);
-      SNMALLOC_NAME_MANGLE(free)(ptr);
+      a->dealloc(ptr);
     }
     else if (likely(size == 0))
     {
-      SNMALLOC_NAME_MANGLE(free)(ptr);
+      a->dealloc(ptr);
     }
     return p;
   }
