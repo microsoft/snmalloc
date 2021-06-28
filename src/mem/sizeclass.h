@@ -66,7 +66,7 @@ namespace snmalloc
     }
     if (size == 0)
     {
-      size = 1;
+      return 0;
     }
     return sizeclass_to_size(size_to_sizeclass(size));
   }

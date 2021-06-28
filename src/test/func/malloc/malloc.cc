@@ -25,7 +25,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
     return;
   }
 
-  if (p == nullptr)
+  if ((p == nullptr) && (size != 0))
   {
     printf("Unexpected null returned.\n");
     abort();

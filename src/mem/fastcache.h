@@ -15,7 +15,8 @@ namespace snmalloc
   void* finish_alloc_no_zero(snmalloc::CapPtr<snmalloc::FreeObject, snmalloc::CBAlloc> p, sizeclass_t sizeclass)
   {
     SNMALLOC_ASSERT(Metaslab::is_start_of_object(sizeclass, address_cast(p)));
-
+    UNUSED(sizeclass);
+    
     auto r = capptr_reveal(capptr_export(p.as_void()));
  
     return r;

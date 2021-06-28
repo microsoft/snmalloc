@@ -133,10 +133,10 @@ namespace snmalloc
     {
       if (size == 0)
       {
-        // Deal with alloc zero giving a small object.
-        // Alternative semantics of nullptr here is also allowed by the
+        // Deal with alloc zero giving nullptr.
+        // Alternative semantics of a small object here is also allowed by the
         // standard.
-        return small_alloc<zero_mem>(1);
+        return nullptr;
       }
 
       return check_init([&](CoreAlloc* core_alloc) {

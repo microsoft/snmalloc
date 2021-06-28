@@ -99,24 +99,8 @@ extern "C"
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(realloc)(void* ptr, size_t size)
   {
-    if (size == (size_t)-1)
-    {
-      errno = ENOMEM;
-      return nullptr;
-    }
-    if (ptr == nullptr)
-    {
-      return SNMALLOC_NAME_MANGLE(malloc)(size);
-    }
-    if (size == 0)
-    {
-      SNMALLOC_NAME_MANGLE(free)(ptr);
-      return nullptr;
-    }
-
-    SNMALLOC_NAME_MANGLE(check_start)(ptr);
-
-    size_t sz = ThreadAlloc::get_noncachable()->alloc_size(ptr);
+    auto a = ThreadAlloc::get_noncachable();
+    size_t sz = a->alloc_size(ptr);
     // Keep the current allocation if the given size is in the same sizeclass.
     if (sz == round_size(size))
     {
@@ -129,12 +113,22 @@ extern "C"
       return ptr;
 #endif
     }
-    void* p = SNMALLOC_NAME_MANGLE(malloc)(size);
-    if (p != nullptr)
+
+    if (size == (size_t)-1)
     {
-      SNMALLOC_NAME_MANGLE(check_start)(p);
+      errno = ENOMEM;
+      return nullptr;
+    }
+
+    void* p = a->alloc(size);
+    if (likely(p != nullptr))
+    {
       sz = bits::min(size, sz);
       memcpy(p, ptr, sz);
+      SNMALLOC_NAME_MANGLE(free)(ptr);
+    }
+    else if (likely(size == 0))
+    {
       SNMALLOC_NAME_MANGLE(free)(ptr);
     }
     return p;
@@ -170,8 +164,7 @@ extern "C"
       return nullptr;
     }
 
-    return SNMALLOC_NAME_MANGLE(malloc)(
-      size ? aligned_size(alignment, size) : alignment);
+    return SNMALLOC_NAME_MANGLE(malloc)(aligned_size(alignment, size));
   }
 
   SNMALLOC_EXPORT void*
@@ -185,16 +178,17 @@ extern "C"
     void** memptr, size_t alignment, size_t size)
   {
     if (
-      ((alignment % sizeof(uintptr_t)) != 0) ||
-      ((alignment & (alignment - 1)) != 0) || (alignment == 0))
+      (alignment < sizeof(uintptr_t) ||
+      ((alignment & (alignment - 1)) != 0)))
     {
       return EINVAL;
     }
 
     void* p = SNMALLOC_NAME_MANGLE(memalign)(alignment, size);
-    if (p == nullptr)
+    if (unlikely(p == nullptr))
     {
-      return ENOMEM;
+      if (size != 0)
+        return ENOMEM;
     }
     *memptr = p;
     return 0;
