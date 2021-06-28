@@ -29,10 +29,7 @@ namespace snmalloc
   /**
    * Used to ensure the per slab meta data is large enough for both use cases.
    */
-  using MetaBlock = std::conditional<
-    (sizeof(Metaslab) > sizeof(SlabRecord)),
-    Metaslab,
-    SlabRecord>;
+  static_assert(sizeof(Metaslab) >= sizeof(SlabRecord), "We conflat these two types.");
 
   /**
    * This is the global state required for the slab allocator.
@@ -95,7 +92,7 @@ namespace snmalloc
       // Allocate a fresh slab as there are no available ones.
       // First create meta-data
       meta = reinterpret_cast<Metaslab*>(
-        BackendAllocator::alloc_meta_data<MetaBlock>(h, &local_address_space));
+        BackendAllocator::alloc_meta_data<Metaslab>(h, &local_address_space));
       MetaEntry entry{meta, remote, sizeclass};
       slab =
         BackendAllocator::alloc_slab(h, &local_address_space, slab_size, entry);
