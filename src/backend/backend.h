@@ -26,8 +26,7 @@ namespace snmalloc
         local_address_space,
       Args&&... args)
     {
-      // DROP // Cache line align
-      size_t size = sizeof(U); // bits::align_up(sizeof(U), 64);
+      size_t size = sizeof(U);
       CapPtr<void, CBChunk> p;
       if (local_address_space != nullptr)
       {
