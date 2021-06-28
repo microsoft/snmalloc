@@ -229,6 +229,57 @@ namespace snmalloc
       b.close(fast_free_list, entropy);
     }
 
+    SlabRecord* clear_slab(Metaslab* meta, sizeclass_t sizeclass)
+    {
+      FreeListIter fl;
+      meta->free_queue.close(fl, entropy);
+      void* p = finish_alloc_no_zero(fl.take(entropy), sizeclass);
+
+#ifdef CHECK_CLIENT
+      // Check free list is well-formed on platforms with
+      // integers as pointers.
+      size_t count = 1; // Already taken one above.
+      while (!fl.empty())
+      {
+        fl.take(entropy);
+        count++;
+      }
+      // Check the list contains all the elements
+      SNMALLOC_ASSERT(
+        count == snmalloc::sizeclass_to_slab_object_count(sizeclass));
+#endif
+      SlabRecord* slab_record = reinterpret_cast<SlabRecord*>(meta);
+      // TODO: This is a capability amplification as we are saying we
+      // have the whole slab.
+      auto start_of_slab = pointer_align_down<void>(
+        p, snmalloc::sizeclass_to_slab_size(sizeclass));
+      // TODO Add bounds correctly here
+      slab_record->slab = CapPtr<void, CBChunk>(start_of_slab);
+
+#ifdef SNMALLOC_TRACING
+      std::cout << "Slab " << start_of_slab << " is unused, Object sizeclass "
+                << sizeclass << std::endl;
+#endif
+      return slab_record;
+    }
+
+    SNMALLOC_SLOW_PATH void dealloc_local_slabs(sizeclass_t sizeclass)
+    {
+      // Return unused slabs of sizeclass_t back to global allocator
+      auto curr = alloc_classes[sizeclass].get_next();
+      auto next = curr->get_next();
+      while (next != nullptr)
+      {
+
+      }
+
+
+
+      //       SlabAllocator::dealloc(
+      //         handle, slab_record, sizeclass_to_slab_sizeclass(sizeclass));
+
+    }
+
     /**
      * Slow path for deallocating an object locally.
      * This is either waking up a slab that was not actively being used
@@ -251,7 +302,7 @@ namespace snmalloc
         //  Wake slab up.
         meta->set_not_sleeping(sizeclass);
 
-        alloc_classes[sizeclass].insert_prev(meta);
+        alloc_classes[sizeclass].insert(meta);
 
         // TODO increase list length
 #ifdef SNMALLOC_TRACING
