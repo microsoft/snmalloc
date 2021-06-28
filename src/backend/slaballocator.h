@@ -30,8 +30,8 @@ namespace snmalloc
    * Used to ensure the per slab meta data is large enough for both use cases.
    */
   using MetaBlock = std::conditional<
-    (sizeof(MetaEntry) > sizeof(SlabRecord)),
-    MetaEntry,
+    (sizeof(Metaslab) > sizeof(SlabRecord)),
+    Metaslab,
     SlabRecord>;
 
   /**
