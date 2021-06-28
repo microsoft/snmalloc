@@ -408,9 +408,14 @@ namespace snmalloc
       // Large deallocation or null.
       if (likely(p != nullptr))
       {
-        // TODO Doesn't require local init! unless stats are on.
-        // TODO check for start of allocation.
+        // Check this is managed by this pagemap.
+        check_client(entry.get_sizeclass() != 0, "Not allocated by snmalloc.");
+
         size_t size = bits::one_at_bit(entry.get_sizeclass());
+        
+        // Check for start of allocation.
+        check_client(pointer_align_down(p,size) == p, "Not start of an allocation.");
+
         size_t slab_sizeclass = large_size_to_slab_sizeclass(size);
 #ifdef SNMALLOC_TRACING
         std::cout << "Large deallocation: " << size
@@ -490,23 +495,24 @@ namespace snmalloc
       {
         MetaEntry entry =
           BackendAllocator::get_meta_data<true>(handle, address_cast(p_raw));
-        if (likely(entry.get_metaslab() != nullptr))
+        auto sizeclass = entry.get_sizeclass();
+        if (likely(entry.get_remote() != handle.fake_large_remote))
         {
-          auto sizeclass = entry.get_sizeclass();
-          if (entry.get_remote() != handle.fake_large_remote)
-          {
-            auto rsize = sizeclass_to_size(sizeclass);
-            auto offset =
-              address_cast(p_raw) & (sizeclass_to_slab_size(sizeclass) - 1);
-            auto start_offset = round_by_sizeclass(sizeclass, offset);
-            if constexpr (location == Start)
-              return pointer_offset(p_raw, start_offset - offset);
-            else if constexpr (location == End)
-              return pointer_offset(p_raw, rsize + start_offset - offset - 1);
-            else
-              return pointer_offset(p_raw, rsize + start_offset - offset);
-          }
+          auto rsize = sizeclass_to_size(sizeclass);
+          auto offset =
+            address_cast(p_raw) & (sizeclass_to_slab_size(sizeclass) - 1);
+          auto start_offset = round_by_sizeclass(sizeclass, offset);
+          if constexpr (location == Start)
+            return pointer_offset(p_raw, start_offset - offset);
+          else if constexpr (location == End)
+            return pointer_offset(p_raw, rsize + start_offset - offset - 1);
+          else
+            return pointer_offset(p_raw, rsize + start_offset - offset);
+        }
 
+        // Sizeclass zero of a large allocation is used for not managed by us.
+        if (likely(sizeclass != 0))
+        {
           // This is a large allocation, find start by masking.
           auto rsize = bits::one_at_bit(sizeclass);
           auto start = pointer_align_down(p_raw, rsize);
@@ -516,10 +522,6 @@ namespace snmalloc
             return pointer_offset(start, rsize);
           else
             return pointer_offset(start, rsize - 1);
-        }
-        else
-        {
-          // No metadata so not our allocation
         }
       }
       else

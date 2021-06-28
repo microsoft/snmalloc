@@ -26,7 +26,8 @@ namespace snmalloc
 
     ModArray<NUM_SIZECLASSES, uint16_t> capacity;
     ModArray<NUM_SIZECLASSES, uint16_t> waking;
-    ModArray<NUM_SIZECLASSES, size_t> slab_size;
+    // We store the mask as it is used more on the fast path, and the size of the slab.
+    ModArray<NUM_SIZECLASSES, size_t> slab_mask;
 
     // Table of constants for reciprocal division for each sizeclass.
     ModArray<NUM_SIZECLASSES, size_t> div_mult;
@@ -34,7 +35,7 @@ namespace snmalloc
     ModArray<NUM_SIZECLASSES, size_t> mod_mult;
 
     constexpr SizeClassTable()
-    : size(), capacity(), waking(), slab_size(), div_mult(), mod_mult()
+    : size(), capacity(), waking(), slab_mask(), div_mult(), mod_mult()
     {
       for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
            sizeclass++)
@@ -45,9 +46,9 @@ namespace snmalloc
         size_t slab_bits = bits::max(
           bits::next_pow2_bits_const(MIN_OBJECT_COUNT * rsize), MIN_CHUNK_BITS);
 
-        slab_size[sizeclass] = bits::one_at_bit(slab_bits);
+        slab_mask[sizeclass] = bits::one_at_bit(slab_bits) - 1;
 
-        capacity[sizeclass] = (uint16_t)(slab_size[sizeclass] / rsize);
+        capacity[sizeclass] = (uint16_t)((slab_mask[sizeclass] + 1) / rsize);
 
         waking[sizeclass] =
           (uint16_t)bits::min((capacity[sizeclass] / 4), 32);
@@ -104,7 +105,7 @@ namespace snmalloc
 
   inline static size_t sizeclass_to_slab_size(sizeclass_t sizeclass)
   {
-    return sizeclass_metadata.slab_size[sizeclass];
+    return sizeclass_metadata.slab_mask[sizeclass] + 1;
   }
 
   /**
