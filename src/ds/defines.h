@@ -117,7 +117,8 @@ namespace snmalloc
   inline SNMALLOC_FAST_PATH void
   check_client_error(const char* const str)
   {
-    [[clang::musttail]] return snmalloc::error(str);
+    //[[clang::musttail]]
+    return snmalloc::error(str);
   }
 
   inline SNMALLOC_FAST_PATH void
