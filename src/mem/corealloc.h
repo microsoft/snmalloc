@@ -266,18 +266,26 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void dealloc_local_slabs(sizeclass_t sizeclass)
     {
       // Return unused slabs of sizeclass_t back to global allocator
-      auto curr = alloc_classes[sizeclass].get_next();
+      auto prev = &alloc_classes[sizeclass];
+      auto curr = prev->get_next();
       auto next = curr->get_next();
       while (next != nullptr)
       {
-
+        Metaslab* meta = (Metaslab*)curr;
+        if (meta->needed() == 0)
+        {
+          prev->pop();
+          auto slab_record = clear_slab(meta, sizeclass);
+          SlabAllocator::dealloc(
+            handle, slab_record, sizeclass_to_slab_sizeclass(sizeclass));
+        }
+        else
+        {
+          prev = curr;
+        }
+        curr = next;
+        next = curr->get_next();
       }
-
-
-
-      //       SlabAllocator::dealloc(
-      //         handle, slab_record, sizeclass_to_slab_sizeclass(sizeclass));
-
     }
 
     /**
@@ -313,7 +321,7 @@ namespace snmalloc
       }
 
       // Slab is no longer in use, return to global pool of slabs.
-
+      dealloc_local_slabs(sizeclass);
       // TODO Increase unused count
 
       // TODO Check if unused above threshold
