@@ -268,13 +268,15 @@ namespace snmalloc
       // Return unused slabs of sizeclass_t back to global allocator
       auto prev = &alloc_classes[sizeclass];
       auto curr = prev->get_next();
-      auto next = curr->get_next();
-      while (next != nullptr)
+      while (curr != nullptr)
       {
+        auto next = curr->get_next();
         Metaslab* meta = (Metaslab*)curr;
         if (meta->needed() == 0)
         {
           prev->pop();
+          // TODO delay the clear to the next user of the slab, or teardown so don't
+          // touch the cache lines at this point in check_client.
           auto slab_record = clear_slab(meta, sizeclass);
           SlabAllocator::dealloc(
             handle, slab_record, sizeclass_to_slab_sizeclass(sizeclass));
@@ -284,7 +286,6 @@ namespace snmalloc
           prev = curr;
         }
         curr = next;
-        next = curr->get_next();
       }
     }
 
@@ -627,8 +628,7 @@ namespace snmalloc
           if (result != nullptr)
             *result = false;
           else
-          //TODO, reenable:
-{}//            error("debug_is_empty: found non-empty allocator");
+            error("debug_is_empty: found non-empty allocator");
         }
       };
 
