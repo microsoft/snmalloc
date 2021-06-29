@@ -19,7 +19,7 @@ namespace snmalloc
     /**
      * Per size class list of active slabs for this allocator.
      */
-    SlabList alloc_classes[NUM_SIZECLASSES];
+    MetaslabCache alloc_classes[NUM_SIZECLASSES];
 
     /**
      * Remote deallocations for other threads
@@ -266,7 +266,7 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void dealloc_local_slabs(sizeclass_t sizeclass)
     {
       // Return unused slabs of sizeclass_t back to global allocator
-      auto prev = &alloc_classes[sizeclass];
+      SlabLink* prev = &alloc_classes[sizeclass];
       auto curr = prev->get_next();
       while (curr != nullptr)
       {
@@ -275,6 +275,9 @@ namespace snmalloc
         if (meta->needed() == 0)
         {
           prev->pop();
+          alloc_classes[sizeclass].length --;
+          alloc_classes[sizeclass].unused --;
+          
           // TODO delay the clear to the next user of the slab, or teardown so don't
           // touch the cache lines at this point in check_client.
           auto slab_record = clear_slab(meta, sizeclass);
@@ -296,7 +299,7 @@ namespace snmalloc
      * so it can be reused by other threads.
      */
     SNMALLOC_SLOW_PATH void
-    dealloc_local_object_slow(const MetaEntry& entry, void* p)
+    dealloc_local_object_slow(const MetaEntry& entry)
     {
       // TODO: Handle message queue on this path?
 
@@ -312,8 +315,8 @@ namespace snmalloc
         meta->set_not_sleeping(sizeclass);
 
         alloc_classes[sizeclass].insert(meta);
+        alloc_classes[sizeclass].length ++;
 
-        // TODO increase list length
 #ifdef SNMALLOC_TRACING
         std::cout << "Slab is woken up" << std::endl;
 #endif
@@ -321,48 +324,15 @@ namespace snmalloc
         return;
       }
 
-      // Slab is no longer in use, return to global pool of slabs.
-      dealloc_local_slabs(sizeclass);
-      // TODO Increase unused count
+      alloc_classes[sizeclass].unused ++;
 
-      // TODO Check if unused above threshold
-
-      // TODO Filter unused back to global data structure.
-      UNUSED(p);
-      // TODO Disable returning for now.
-      // #ifdef CHECK_CLIENT
-      //       // Check free list is well-formed on platforms with
-      //       // integers as pointers.
-      //       FreeListIter fl;
-      //       meta->free_queue.close(fl, entropy);
-
-      //       size_t count = 0;
-      //       while (!fl.empty())
-      //       {
-      //         fl.take(entropy);
-      //         count++;
-      //       }
-      //       // Check the list contains all the elements
-      //       SNMALLOC_ASSERT(
-      //         count == snmalloc::sizeclass_to_slab_object_count(sizeclass));
-      // #endif
-
-      //       meta->remove();
-      //       SlabRecord* slab_record = reinterpret_cast<SlabRecord*>(meta);
-      //       // TODO: This is a capability amplification as we are saying we
-      //       have the
-      //       // whole slab.
-      //       auto start_of_slab = pointer_align_down<void>(
-      //         p, snmalloc::sizeclass_to_slab_size(sizeclass));
-      //       // TODO Add bounds correctly here
-      //       slab_record->slab = CapPtr<void, CBChunk>(start_of_slab);
-      //       SlabAllocator::dealloc(
-      //         handle, slab_record, sizeclass_to_slab_sizeclass(sizeclass));
-      // #ifdef SNMALLOC_TRACING
-      //       std::cout << "Slab " << start_of_slab << " is unused, Object
-      //       sizeclass "
-      //                 << sizeclass << std::endl;
-      // #endif
+      // If we have several slabs, and it isn't too expensive as a proportion
+      // return to the global pool.
+      if ((alloc_classes[sizeclass].unused > 2)
+        && (alloc_classes[sizeclass].unused > (alloc_classes[sizeclass].length >> 2)))
+      {
+        dealloc_local_slabs(sizeclass);
+      }
     }
 
     /**
@@ -501,7 +471,7 @@ namespace snmalloc
       if (likely(dealloc_local_object_fast(entry, p, entropy)))
         return;
 
-      dealloc_local_object_slow(entry, p);
+      dealloc_local_object_slow(entry);
     }
 
     SNMALLOC_FAST_PATH static bool dealloc_local_object_fast(const MetaEntry& entry, void* p, LocalEntropy& entropy)
@@ -531,9 +501,13 @@ namespace snmalloc
       auto& sl = alloc_classes[sizeclass];
       if (likely(!(sl.is_empty())))
       {
-        auto meta = sl.pop();
-        // TODO: drop length of sl, and empty count if it was empty.
-        auto p = Metaslab::alloc((Metaslab*)meta, fast_free_list, entropy, sizeclass);
+        auto meta = (Metaslab*)sl.pop();
+        // Drop length of sl, and empty count if it was empty.
+        alloc_classes[sizeclass].length --;
+        if (meta->needed() == 0)
+          alloc_classes[sizeclass].unused --;
+
+        auto p = Metaslab::alloc(meta, fast_free_list, entropy, sizeclass);
 
         return finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
       }
@@ -604,6 +578,12 @@ namespace snmalloc
           handle_message_queue([]() {});
       }
 
+      // Flush any unused slabs back to global allocator
+      // for (auto& alloc_class : alloc_classes)
+      // {
+      //   ...
+      // }
+
       // Flush remote cache at this point too.
       // do this after handling messages as we
       // may be forwarding messages.
@@ -625,10 +605,18 @@ namespace snmalloc
       auto test = [&result](auto& queue) {
         if (!queue.is_empty())
         {
-          if (result != nullptr)
-            *result = false;
-          else
-            error("debug_is_empty: found non-empty allocator");
+          auto curr = (Metaslab*)queue.get_next();
+          while(curr != nullptr)
+          {
+            if (curr->needed()!=0)
+            {
+              if (result != nullptr)
+                *result = false;
+              else
+                error("debug_is_empty: found non-empty allocator");
+            }
+            curr = (Metaslab*)curr->get_next();
+          }
         }
       };
 

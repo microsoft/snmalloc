@@ -382,7 +382,7 @@ namespace snmalloc
       {
         if (likely(CoreAlloc::dealloc_local_object_fast(entry, p, small_cache.entropy)))
           return;
-        core_alloc->dealloc_local_object_slow(entry, p);
+        core_alloc->dealloc_local_object_slow(entry);
         return;
       }
 

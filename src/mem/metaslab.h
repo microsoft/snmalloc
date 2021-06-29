@@ -12,7 +12,6 @@ namespace snmalloc
 {
   class Slab;
 
-  using SlabList = CDLLNode<>;
   using SlabLink = CDLLNode<>;
 
   static_assert(
@@ -260,5 +259,12 @@ namespace snmalloc
       return remote_and_sizeclass & (alignof(RemoteAllocator) - 1);
     }
   };
+
+  struct MetaslabCache : public CDLLNode<>
+  {
+    uint16_t unused;
+    uint16_t length;
+  };
+
 
 } // namespace snmalloc
