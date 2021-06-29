@@ -52,7 +52,7 @@ extern "C"
 
   SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(cfree)(void* ptr)
   {
-    SNMALLOC_NAME_MANGLE(free)(ptr);
+    ThreadAlloc::get_noncachable()->dealloc(ptr);
   }
 
   /**

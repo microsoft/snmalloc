@@ -195,7 +195,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
   else()
-    add_compile_options(-fno-exceptions -fno-rtti -fomit-frame-pointer)
+    add_compile_options(-fno-exceptions -fno-rtti -fomit-frame-pointer -ffunction-sections)
     # Static TLS model is unsupported on Haiku.
     # All symbols are always dynamic on haiku and -rdynamic is redundant (and unsupported).
     if (NOT CMAKE_SYSTEM_NAME MATCHES "Haiku")
@@ -239,9 +239,9 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     add_library(${name} ${type} ${ARGN})
     target_link_libraries(${name} snmalloc_lib)
     if(NOT MSVC)
-#      target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
+      target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
     endif()
-#    set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+    set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
     if(EXPOSE_EXTERNAL_PAGEMAP)
       if(MSVC)
@@ -262,20 +262,20 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     # Ensure that we do not link against C++ stdlib when compiling shims.
     if(NOT MSVC)
       set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
+      # Only include the dependencies that actually are touched.
+      # Required so C++ library is not included with direct pthread access.
       target_link_libraries(${name} -Wl,--as-needed)
-    endif()
+      # Remove all the duplicate new/malloc and free/delete definitions
+      if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_link_libraries(${name} -Wl,--icf=all -fuse-ld=lld)
+      endif()
+     endif()
 
   endmacro()
 
   if (SNMALLOC_STATIC_LIBRARY)
     add_shim(snmallocshim-static STATIC src/override/malloc.cc)
-    add_shim(snmallocshim-1mib-static STATIC src/override/malloc.cc)
-    # add_shim(snmallocshim-16mib-static STATIC src/override/malloc.cc)
-    # target_compile_definitions(snmallocshim-16mib-static PRIVATE SNMALLOC_USE_LARGE_CHUNKS
-    #         SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
     target_compile_definitions(snmallocshim-static PRIVATE
-            SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
-    target_compile_definitions(snmallocshim-1mib-static PRIVATE
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
   endif ()
 
@@ -283,9 +283,6 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(SHARED_FILES src/override/new.cc)
     add_shim(snmallocshim SHARED ${SHARED_FILES})
     add_shim(snmallocshim-checks SHARED ${SHARED_FILES})
-    add_shim(snmallocshim-1mib SHARED ${SHARED_FILES})
-    # add_shim(snmallocshim-16mib SHARED ${SHARED_FILES})
-    # target_compile_definitions(snmallocshim-16mib PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
     target_compile_definitions(snmallocshim-checks PRIVATE CHECK_CLIENT)
     # Build a shim with some settings from oe.
     add_shim(snmallocshim-oe SHARED ${SHARED_FILES})

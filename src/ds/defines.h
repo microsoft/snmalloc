@@ -115,15 +115,16 @@ namespace snmalloc
 // #endif
 
   inline SNMALLOC_FAST_PATH void
+  check_client_error(const char* const str)
+  {
+    [[clang::musttail]] return snmalloc::error(str);
+  }
+
+  inline SNMALLOC_FAST_PATH void
   check_client_impl(bool test, const char* const str)
   {
-#ifdef CHECK_CLIENT
     if (unlikely(!test))
-      snmalloc::error(str);
-#else
-    UNUSED(test);
-    UNUSED(str);
-#endif
+      check_client_error(str);
   }
 #ifdef CHECK_CLIENT
 #  define check_client(test, str) check_client_impl(test, str)
