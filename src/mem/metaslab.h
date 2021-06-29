@@ -51,7 +51,7 @@ namespace snmalloc
 
   // The Metaslab represent the status of a single slab.
   // This can be either a short or a standard slab.
-  class Metaslab : public SlabLink
+  class alignas(CACHELINE_SIZE) Metaslab : public SlabLink
   {
   public:
     constexpr Metaslab() : SlabLink(true) {}
