@@ -26,7 +26,8 @@ namespace snmalloc
 
     ModArray<NUM_SIZECLASSES, uint16_t> capacity;
     ModArray<NUM_SIZECLASSES, uint16_t> waking;
-    // We store the mask as it is used more on the fast path, and the size of the slab.
+    // We store the mask as it is used more on the fast path, and the size of
+    // the slab.
     ModArray<NUM_SIZECLASSES, size_t> slab_mask;
 
     // Table of constants for reciprocal division for each sizeclass.
@@ -50,8 +51,7 @@ namespace snmalloc
 
         capacity[sizeclass] = (uint16_t)((slab_mask[sizeclass] + 1) / rsize);
 
-        waking[sizeclass] =
-          (uint16_t)bits::min((capacity[sizeclass] / 4), 32);
+        waking[sizeclass] = (uint16_t)bits::min((capacity[sizeclass] / 4), 32);
       }
 
       for (sizeclass_compress_t sizeclass = NUM_SIZECLASSES;
@@ -117,12 +117,12 @@ namespace snmalloc
    */
   inline uint16_t threshold_for_waking_slab(sizeclass_t sizeclass)
   {
-// #ifdef CHECK_CLIENT
+    // #ifdef CHECK_CLIENT
     return sizeclass_metadata.waking[sizeclass];
-// #else
-//     UNUSED(sizeclass);
-//     return 1;
-// #endif
+    // #else
+    //     UNUSED(sizeclass);
+    //     return 1;
+    // #endif
   }
 
   inline static size_t sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)
@@ -137,7 +137,8 @@ namespace snmalloc
     return bits::one_at_bit(MIN_CHUNK_BITS + sizeclass);
   }
 
-  inline constexpr static uint16_t sizeclass_to_slab_object_count(sizeclass_t sizeclass)
+  inline constexpr static uint16_t
+  sizeclass_to_slab_object_count(sizeclass_t sizeclass)
   {
     return sizeclass_metadata.capacity[sizeclass];
   }

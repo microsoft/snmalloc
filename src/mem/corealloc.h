@@ -1,6 +1,6 @@
 #pragma once
-#include "../ds/defines.h"
 #include "../backend/slaballocator.h"
+#include "../ds/defines.h"
 #include "allocconfig.h"
 #include "fastcache.h"
 #include "metaslab.h"
@@ -153,7 +153,8 @@ namespace snmalloc
       {
         // Fake statistics up.
         // stats().sizeclass_alloc(sizeclass);
-        dealloc_local_object(finish_alloc_no_zero(temp.take(entropy), sizeclass));
+        dealloc_local_object(
+          finish_alloc_no_zero(temp.take(entropy), sizeclass));
       }
       return r;
     }
@@ -275,11 +276,11 @@ namespace snmalloc
         if (meta->needed() == 0)
         {
           prev->pop();
-          alloc_classes[sizeclass].length --;
-          alloc_classes[sizeclass].unused --;
-          
-          // TODO delay the clear to the next user of the slab, or teardown so don't
-          // touch the cache lines at this point in check_client.
+          alloc_classes[sizeclass].length--;
+          alloc_classes[sizeclass].unused--;
+
+          // TODO delay the clear to the next user of the slab, or teardown so
+          // don't touch the cache lines at this point in check_client.
           auto slab_record = clear_slab(meta, sizeclass);
           SlabAllocator::dealloc(
             handle, slab_record, sizeclass_to_slab_sizeclass(sizeclass));
@@ -298,8 +299,7 @@ namespace snmalloc
      * by this thread, or handling the final deallocation onto a slab,
      * so it can be reused by other threads.
      */
-    SNMALLOC_SLOW_PATH void
-    dealloc_local_object_slow(const MetaEntry& entry)
+    SNMALLOC_SLOW_PATH void dealloc_local_object_slow(const MetaEntry& entry)
     {
       // TODO: Handle message queue on this path?
 
@@ -315,7 +315,7 @@ namespace snmalloc
         meta->set_not_sleeping(sizeclass);
 
         alloc_classes[sizeclass].insert(meta);
-        alloc_classes[sizeclass].length ++;
+        alloc_classes[sizeclass].length++;
 
 #ifdef SNMALLOC_TRACING
         std::cout << "Slab is woken up" << std::endl;
@@ -324,12 +324,14 @@ namespace snmalloc
         return;
       }
 
-      alloc_classes[sizeclass].unused ++;
+      alloc_classes[sizeclass].unused++;
 
       // If we have several slabs, and it isn't too expensive as a proportion
       // return to the global pool.
-      if ((alloc_classes[sizeclass].unused > 2)
-        && (alloc_classes[sizeclass].unused > (alloc_classes[sizeclass].length >> 2)))
+      if (
+        (alloc_classes[sizeclass].unused > 2) &&
+        (alloc_classes[sizeclass].unused >
+         (alloc_classes[sizeclass].length >> 2)))
       {
         dealloc_local_slabs(sizeclass);
       }
@@ -382,12 +384,12 @@ namespace snmalloc
      *
      * need_post will be set to true, if capacity is exceeded.
      */
-    void handle_dealloc_remote(const MetaEntry& entry, CapPtr<Remote, CBAlloc> p, bool& need_post)
+    void handle_dealloc_remote(
+      const MetaEntry& entry, CapPtr<Remote, CBAlloc> p, bool& need_post)
     {
       // TODO this needs to not double count stats
       // TODO this needs to not double revoke if using MTE
       // TODO thread capabilities?
-
 
       if (likely(entry.get_remote() == public_state()))
       {
@@ -481,13 +483,16 @@ namespace snmalloc
       dealloc_local_object_slow(entry);
     }
 
-    SNMALLOC_FAST_PATH static bool dealloc_local_object_fast(const MetaEntry& entry, void* p, LocalEntropy& entropy)
+    SNMALLOC_FAST_PATH static bool dealloc_local_object_fast(
+      const MetaEntry& entry, void* p, LocalEntropy& entropy)
     {
       auto meta = entry.get_metaslab();
 
       SNMALLOC_ASSERT(!meta->is_unused());
 
-      check_client(Metaslab::is_start_of_object(entry.get_sizeclass(), address_cast(p)), "Not deallocating start of an object");
+      check_client(
+        Metaslab::is_start_of_object(entry.get_sizeclass(), address_cast(p)),
+        "Not deallocating start of an object");
 
       auto cp = snmalloc::CapPtr<snmalloc::FreeObject, snmalloc::CBAlloc>(
         (snmalloc::FreeObject*)p);
@@ -510,9 +515,9 @@ namespace snmalloc
       {
         auto meta = (Metaslab*)sl.pop();
         // Drop length of sl, and empty count if it was empty.
-        alloc_classes[sizeclass].length --;
+        alloc_classes[sizeclass].length--;
         if (meta->needed() == 0)
-          alloc_classes[sizeclass].unused --;
+          alloc_classes[sizeclass].unused--;
 
         auto p = Metaslab::alloc(meta, fast_free_list, entropy, sizeclass);
 
@@ -535,7 +540,12 @@ namespace snmalloc
 #endif
 
       auto [slab, meta] = snmalloc::SlabAllocator::alloc(
-        handle, local_address_space, sizeclass, slab_sizeclass, slab_size, public_state());
+        handle,
+        local_address_space,
+        sizeclass,
+        slab_sizeclass,
+        slab_size,
+        public_state());
 
       if (slab == nullptr)
       {
@@ -615,9 +625,9 @@ namespace snmalloc
         if (!queue.is_empty())
         {
           auto curr = (Metaslab*)queue.get_next();
-          while(curr != nullptr)
+          while (curr != nullptr)
           {
-            if (curr->needed()!=0)
+            if (curr->needed() != 0)
             {
               if (result != nullptr)
                 *result = false;

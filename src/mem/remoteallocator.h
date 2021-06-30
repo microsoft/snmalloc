@@ -97,8 +97,8 @@ namespace snmalloc
 
   // Remotes need to be aligned enough that all the
   // small size classes can fit in the bottom bits.
-  static constexpr size_t REMOTE_MIN_ALIGN =
-    bits::min<size_t>(CACHELINE_SIZE, bits::next_pow2_const(NUM_SIZECLASSES + 1));
+  static constexpr size_t REMOTE_MIN_ALIGN = bits::min<size_t>(
+    CACHELINE_SIZE, bits::next_pow2_const(NUM_SIZECLASSES + 1));
 
   struct alignas(REMOTE_MIN_ALIGN) RemoteAllocator
   {

@@ -165,9 +165,7 @@ extern "C"
   SNMALLOC_EXPORT int SNMALLOC_NAME_MANGLE(posix_memalign)(
     void** memptr, size_t alignment, size_t size)
   {
-    if (
-      (alignment < sizeof(uintptr_t) ||
-      ((alignment & (alignment - 1)) != 0)))
+    if ((alignment < sizeof(uintptr_t) || ((alignment & (alignment - 1)) != 0)))
     {
       return EINVAL;
     }

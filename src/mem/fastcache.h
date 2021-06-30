@@ -11,20 +11,22 @@ namespace snmalloc
 {
   using Stats = AllocStats<NUM_SIZECLASSES, NUM_LARGE_CLASSES>;
 
-  inline static SNMALLOC_FAST_PATH 
-  void* finish_alloc_no_zero(snmalloc::CapPtr<snmalloc::FreeObject, snmalloc::CBAlloc> p, sizeclass_t sizeclass)
+  inline static SNMALLOC_FAST_PATH void* finish_alloc_no_zero(
+    snmalloc::CapPtr<snmalloc::FreeObject, snmalloc::CBAlloc> p,
+    sizeclass_t sizeclass)
   {
     SNMALLOC_ASSERT(Metaslab::is_start_of_object(sizeclass, address_cast(p)));
     UNUSED(sizeclass);
-    
+
     auto r = capptr_reveal(capptr_export(p.as_void()));
- 
+
     return r;
   }
 
   template<ZeroMem zero_mem, typename SharedStateHandle>
-  inline static SNMALLOC_FAST_PATH 
-  void* finish_alloc(snmalloc::CapPtr<snmalloc::FreeObject, snmalloc::CBAlloc> p, sizeclass_t sizeclass)
+  inline static SNMALLOC_FAST_PATH void* finish_alloc(
+    snmalloc::CapPtr<snmalloc::FreeObject, snmalloc::CBAlloc> p,
+    sizeclass_t sizeclass)
   {
     auto r = finish_alloc_no_zero(p, sizeclass);
 
@@ -33,7 +35,7 @@ namespace snmalloc
 
     return r;
   }
-  
+
   // This is defined on its own, so that it can be embedded in the
   // thread local fast allocator, but also referenced from the
   // thread local core allocator.

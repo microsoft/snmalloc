@@ -85,112 +85,116 @@ namespace snmalloc
 #endif
           return CapPtr<void, CBChunk>(block);
         }
-      } else {
-
-      /*
-       * For sufficiently large allocations with platforms that support aligned
-       * allocations and architectures that don't require StrictProvenance,
-       * try asking the platform first.
-       */
-      if constexpr (
-        pal_supports<AlignedAllocation, PAL> && !aal_supports<StrictProvenance>)
-      {
-        if (size >= PAL::minimum_alloc_size)
-          return CapPtr<void, CBChunk>(
-            PAL::template reserve_aligned<committed>(size));
       }
-
-      CapPtr<void, CBChunk> res;
+      else
       {
-        FlagLock lock(spin_lock);
-        res = core.reserve(size);
-        if (res == nullptr)
+        /*
+         * For sufficiently large allocations with platforms that support
+         * aligned allocations and architectures that don't require
+         * StrictProvenance, try asking the platform first.
+         */
+        if constexpr (
+          pal_supports<AlignedAllocation, PAL> &&
+          !aal_supports<StrictProvenance>)
         {
-          // Allocation failed ask OS for more memory
-          CapPtr<void, CBChunk> block = nullptr;
-          size_t block_size = 0;
-          if constexpr (pal_supports<AlignedAllocation, PAL>)
+          if (size >= PAL::minimum_alloc_size)
+            return CapPtr<void, CBChunk>(
+              PAL::template reserve_aligned<committed>(size));
+        }
+
+        CapPtr<void, CBChunk> res;
+        {
+          FlagLock lock(spin_lock);
+          res = core.reserve(size);
+          if (res == nullptr)
           {
-            /*
-             * aal_supports<StrictProvenance> ends up here, too, and we ensure
-             * that we always allocate whole ArenaMap granules.
-             */
-            // if constexpr (aal_supports<StrictProvenance>)
-            // {
-            //   // static_assert(
-            //   //   !aal_supports<StrictProvenance> ||
-            //   //     (ArenaMap::alloc_size >= PAL::minimum_alloc_size),
-            //   //   "Provenance root granule must be at least PAL's "
-            //   //   "minimum_alloc_size");
-            //   block_size = bits::align_up(size, ArenaMap::alloc_size);
-            // }
-            // else
+            // Allocation failed ask OS for more memory
+            CapPtr<void, CBChunk> block = nullptr;
+            size_t block_size = 0;
+            if constexpr (pal_supports<AlignedAllocation, PAL>)
             {
               /*
-               * We will have handled the case where size >= minimum_alloc_size
-               * above, so we are left to handle only small things here.
+               * aal_supports<StrictProvenance> ends up here, too, and we ensure
+               * that we always allocate whole ArenaMap granules.
                */
-              block_size = PAL::minimum_alloc_size;
+              // if constexpr (aal_supports<StrictProvenance>)
+              // {
+              //   // static_assert(
+              //   //   !aal_supports<StrictProvenance> ||
+              //   //     (ArenaMap::alloc_size >= PAL::minimum_alloc_size),
+              //   //   "Provenance root granule must be at least PAL's "
+              //   //   "minimum_alloc_size");
+              //   block_size = bits::align_up(size, ArenaMap::alloc_size);
+              // }
+              // else
+              {
+                /*
+                 * We will have handled the case where size >=
+                 * minimum_alloc_size above, so we are left to handle only small
+                 * things here.
+                 */
+                block_size = PAL::minimum_alloc_size;
+              }
+
+              void* block_raw =
+                PAL::template reserve_aligned<false>(block_size);
+
+              // It's a bit of a lie to convert without applying bounds, but the
+              // platform will have bounded block for us and it's better that
+              // the rest of our internals expect CBChunk bounds.
+              block = CapPtr<void, CBChunk>(block_raw);
+
+              //             if constexpr (aal_supports<StrictProvenance>)
+              //             {
+              //               auto root_block = CapPtr<void,
+              //               CBArena>(block_raw); auto root_size = block_size;
+              //               do
+              //               {
+              // //                arena_map.register_root(root_block);
+              //                 root_block = pointer_offset(root_block,
+              //                 ArenaMap::alloc_size); root_size -=
+              //                 ArenaMap::alloc_size;
+              //               } while (root_size > 0);
+              //             }
             }
-
-            void* block_raw = PAL::template reserve_aligned<false>(block_size);
-
-            // It's a bit of a lie to convert without applying bounds, but the
-            // platform will have bounded block for us and it's better that the
-            // rest of our internals expect CBChunk bounds.
-            block = CapPtr<void, CBChunk>(block_raw);
-
-            //             if constexpr (aal_supports<StrictProvenance>)
-            //             {
-            //               auto root_block = CapPtr<void, CBArena>(block_raw);
-            //               auto root_size = block_size;
-            //               do
-            //               {
-            // //                arena_map.register_root(root_block);
-            //                 root_block = pointer_offset(root_block,
-            //                 ArenaMap::alloc_size); root_size -=
-            //                 ArenaMap::alloc_size;
-            //               } while (root_size > 0);
-            //             }
-          }
-          else if constexpr (!pal_supports<NoAllocation, PAL>)
-          {
-            // Need at least 2 times the space to guarantee alignment.
-            // Hold lock here as a race could cause additional requests to
-            // the PAL, and this could lead to suprious OOM.  This is
-            // particularly bad if the PAL gives all the memory on first call.
-            auto block_and_size = PAL::reserve_at_least(size * 2);
-            block = CapPtr<void, CBChunk>(block_and_size.first);
-            block_size = block_and_size.second;
-
-            // Ensure block is pointer aligned.
-            if (
-              pointer_align_up(block, sizeof(void*)) != block ||
-              bits::align_up(block_size, sizeof(void*)) > block_size)
+            else if constexpr (!pal_supports<NoAllocation, PAL>)
             {
-              auto diff =
-                pointer_diff(block, pointer_align_up(block, sizeof(void*)));
-              block_size = block_size - diff;
-              block_size = bits::align_down(block_size, sizeof(void*));
+              // Need at least 2 times the space to guarantee alignment.
+              // Hold lock here as a race could cause additional requests to
+              // the PAL, and this could lead to suprious OOM.  This is
+              // particularly bad if the PAL gives all the memory on first call.
+              auto block_and_size = PAL::reserve_at_least(size * 2);
+              block = CapPtr<void, CBChunk>(block_and_size.first);
+              block_size = block_and_size.second;
+
+              // Ensure block is pointer aligned.
+              if (
+                pointer_align_up(block, sizeof(void*)) != block ||
+                bits::align_up(block_size, sizeof(void*)) > block_size)
+              {
+                auto diff =
+                  pointer_diff(block, pointer_align_up(block, sizeof(void*)));
+                block_size = block_size - diff;
+                block_size = bits::align_down(block_size, sizeof(void*));
+              }
             }
-          }
-          if (block == nullptr)
-          {
-            return nullptr;
-          }
+            if (block == nullptr)
+            {
+              return nullptr;
+            }
 
-          core.add_range(block, block_size);
+            core.add_range(block, block_size);
 
-          // still holding lock so guaranteed to succeed.
-          res = core.reserve(size);
+            // still holding lock so guaranteed to succeed.
+            res = core.reserve(size);
+          }
         }
-      }
 
-      // Don't need lock while committing pages.
-      if constexpr (committed)
-        core.commit_block(res, size);
+        // Don't need lock while committing pages.
+        if constexpr (committed)
+          core.commit_block(res, size);
 
-      return res;
+        return res;
       }
     }
 

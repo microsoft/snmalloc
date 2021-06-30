@@ -82,8 +82,8 @@ int main(int, char**)
   {
     // Separate printing for small and medium sizeclasses
     if (
-      sz < snmalloc::NUM_SIZECLASSES && slab_size !=
-      snmalloc::sizeclass_to_slab_size(sz))
+      sz < snmalloc::NUM_SIZECLASSES &&
+      slab_size != snmalloc::sizeclass_to_slab_size(sz))
     {
       slab_size = snmalloc::sizeclass_to_slab_size(sz);
       std::cout << std::endl;

@@ -106,7 +106,6 @@ namespace snmalloc
   static constexpr size_t MIN_OBJECT_COUNT = 4;
 #endif
 
-
   // Maximum size of an object that uses sizeclasses.
   static constexpr size_t MAX_SIZECLASS_BITS = 16;
   static constexpr size_t MAX_SIZECLASS_SIZE =

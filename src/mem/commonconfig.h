@@ -42,7 +42,9 @@ namespace snmalloc
     SNMALLOC_REQUIRE_CONSTINIT
     inline static constexpr RemoteAllocator* fake_large_remote{nullptr};
 
-    static_assert(&unused_remote != fake_large_remote, "Compilation should ensure these are different");
+    static_assert(
+      &unused_remote != fake_large_remote,
+      "Compilation should ensure these are different");
 
     /**
      * We use fake_large_remote so that nullptr, will hit the large

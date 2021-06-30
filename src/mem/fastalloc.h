@@ -157,7 +157,7 @@ namespace snmalloc
 #endif
 
         // TODO Not currently using metadata for large allocs.
-//        meta->initialise(size_to_sizeclass(size));
+        //        meta->initialise(size_to_sizeclass(size));
 
         if (zero_mem == YesZero)
         {
@@ -380,7 +380,8 @@ namespace snmalloc
         BackendAllocator::get_meta_data(handle, address_cast(p));
       if (likely(remote_allocator == entry.get_remote()))
       {
-        if (likely(CoreAlloc::dealloc_local_object_fast(entry, p, small_cache.entropy)))
+        if (likely(CoreAlloc::dealloc_local_object_fast(
+              entry, p, small_cache.entropy)))
           return;
         core_alloc->dealloc_local_object_slow(entry);
         return;
@@ -412,9 +413,10 @@ namespace snmalloc
         check_client(entry.get_sizeclass() != 0, "Not allocated by snmalloc.");
 
         size_t size = bits::one_at_bit(entry.get_sizeclass());
-        
+
         // Check for start of allocation.
-        check_client(pointer_align_down(p,size) == p, "Not start of an allocation.");
+        check_client(
+          pointer_align_down(p, size) == p, "Not start of an allocation.");
 
         size_t slab_sizeclass = large_size_to_slab_sizeclass(size);
 #ifdef SNMALLOC_TRACING
@@ -472,11 +474,11 @@ namespace snmalloc
 
       if (likely(entry.get_remote() != handle.fake_large_remote))
         return sizeclass_to_size(entry.get_sizeclass());
-      
+
       // Sizeclass zero is for large is actually zero
       if (likely(entry.get_sizeclass() != 0))
         return bits::one_at_bit(entry.get_sizeclass());
-      
+
       return 0;
     }
 

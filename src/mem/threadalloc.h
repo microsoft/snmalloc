@@ -188,7 +188,7 @@ namespace snmalloc
       static thread_local OnDestruct<inner_release> dummy;
       UNUSED(dummy);
       // static Singleton<pthread_key_t, &register_cleanup1> key;
-      
+
       // // Need non-null field for destructor to be called.
       // pthread_setspecific(key.get(), (void*)1);
 

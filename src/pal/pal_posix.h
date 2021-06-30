@@ -268,8 +268,7 @@ namespace snmalloc
           nullptr,
           size_request,
           PROT_READ | PROT_WRITE,
-          MAP_PRIVATE | MAP_ANONYMOUS |
-            DefaultMMAPFlags<OS>::flags,
+          MAP_PRIVATE | MAP_ANONYMOUS | DefaultMMAPFlags<OS>::flags,
           AnonFD<OS>::fd,
           0);
 

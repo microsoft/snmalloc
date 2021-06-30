@@ -3,9 +3,9 @@
 #include "../ds/cdllist.h"
 #include "../ds/dllist.h"
 #include "../ds/helpers.h"
+#include "../mem/remoteallocator.h"
 #include "freelist.h"
 #include "ptrhelpers.h"
-#include "../mem/remoteallocator.h"
 #include "sizeclasstable.h"
 
 namespace snmalloc
@@ -138,7 +138,8 @@ namespace snmalloc
       sleeping() = false;
     }
 
-    static SNMALLOC_FAST_PATH bool is_start_of_object(sizeclass_t sizeclass, address_t p)
+    static SNMALLOC_FAST_PATH bool
+    is_start_of_object(sizeclass_t sizeclass, address_t p)
     {
       return is_multiple_of_sizeclass(
         sizeclass,
@@ -148,8 +149,11 @@ namespace snmalloc
     /**
      * TODO
      */
-    static SNMALLOC_FAST_PATH CapPtr<FreeObject, CBAlloc>
-    alloc(Metaslab* meta, FreeListIter& fast_free_list, LocalEntropy& entropy, sizeclass_t sizeclass)
+    static SNMALLOC_FAST_PATH CapPtr<FreeObject, CBAlloc> alloc(
+      Metaslab* meta,
+      FreeListIter& fast_free_list,
+      LocalEntropy& entropy,
+      sizeclass_t sizeclass)
     {
       FreeListIter tmp_fl;
       meta->free_queue.close(tmp_fl, entropy);
@@ -232,16 +236,13 @@ namespace snmalloc
     uintptr_t remote_and_sizeclass;
 
   public:
-    constexpr MetaEntry(
-      Metaslab* meta)
-    : meta(meta), remote_and_sizeclass(0)
-    {}
+    constexpr MetaEntry(Metaslab* meta) : meta(meta), remote_and_sizeclass(0) {}
 
-    MetaEntry(
-      Metaslab* meta, RemoteAllocator* remote, sizeclass_t sizeclass)
+    MetaEntry(Metaslab* meta, RemoteAllocator* remote, sizeclass_t sizeclass)
     : meta(meta)
     {
-      remote_and_sizeclass = address_cast(pointer_offset<char>(remote, sizeclass));
+      remote_and_sizeclass =
+        address_cast(pointer_offset<char>(remote, sizeclass));
     }
 
     Metaslab* get_metaslab() const
@@ -251,7 +252,8 @@ namespace snmalloc
 
     RemoteAllocator* get_remote() const
     {
-      return reinterpret_cast<RemoteAllocator*>(bits::align_down(remote_and_sizeclass, alignof(RemoteAllocator)));
+      return reinterpret_cast<RemoteAllocator*>(
+        bits::align_down(remote_and_sizeclass, alignof(RemoteAllocator)));
     }
 
     sizeclass_t get_sizeclass() const
@@ -265,6 +267,5 @@ namespace snmalloc
     uint16_t unused;
     uint16_t length;
   };
-
 
 } // namespace snmalloc

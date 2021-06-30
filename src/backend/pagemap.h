@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../pal/pal.h"
 #include "../ds/bits.h"
 #include "../ds/helpers.h"
 #include "../ds/invalidptr.h"
+#include "../pal/pal.h"
 
 #include <atomic>
 #include <utility>
@@ -38,21 +38,20 @@ namespace snmalloc
     address_t base{0};
     size_t size{0};
 
-
-  /**
-   * Commit entry
-   */
-  void commit_entry(void* base)
-  {
-    auto entry_size = sizeof(T);
-    static_assert(sizeof(T) < OS_PAGE_SIZE);
-    // Rounding required for sub-page allocations.
-    auto page_start = pointer_align_down<OS_PAGE_SIZE, char>(base);
-    auto page_end =
-      pointer_align_up<OS_PAGE_SIZE, char>(pointer_offset(base, entry_size));
-    size_t using_size = pointer_diff(page_start, page_end);
-    PAL::template notify_using<NoZero>(page_start, using_size);
-  }
+    /**
+     * Commit entry
+     */
+    void commit_entry(void* base)
+    {
+      auto entry_size = sizeof(T);
+      static_assert(sizeof(T) < OS_PAGE_SIZE);
+      // Rounding required for sub-page allocations.
+      auto page_start = pointer_align_down<OS_PAGE_SIZE, char>(base);
+      auto page_end =
+        pointer_align_up<OS_PAGE_SIZE, char>(pointer_offset(base, entry_size));
+      size_t using_size = pointer_diff(page_start, page_end);
+      PAL::template notify_using<NoZero>(page_start, using_size);
+    }
 
   public:
     constexpr FlatPagemap() {}
