@@ -354,6 +354,10 @@ namespace snmalloc
       bool need_post = false;
       for (size_t i = 0; i < REMOTE_BATCH; i++)
       {
+        auto p = message_queue().peek();
+        auto& entry = snmalloc::BackendAllocator::get_meta_data(
+          handle, snmalloc::address_cast(p));
+
         auto r = message_queue().dequeue();
 
         if (unlikely(!r.second))
@@ -361,7 +365,7 @@ namespace snmalloc
 #ifdef SNMALLOC_TRACING
         std::cout << "Handling remote" << std::endl;
 #endif
-        handle_dealloc_remote(r.first, need_post);
+        handle_dealloc_remote(entry, p, need_post);
       }
 
       if (need_post)
@@ -378,17 +382,20 @@ namespace snmalloc
      *
      * need_post will be set to true, if capacity is exceeded.
      */
-    void handle_dealloc_remote(CapPtr<Remote, CBAlloc> p, bool& need_post)
+    void handle_dealloc_remote(const MetaEntry& entry, CapPtr<Remote, CBAlloc> p, bool& need_post)
     {
       // TODO this needs to not double count stats
       // TODO this needs to not double revoke if using MTE
-      // TODO batch post at the end of processing.
       // TODO thread capabilities?
 
-      auto entry = snmalloc::BackendAllocator::get_meta_data(
-        handle, snmalloc::address_cast(p));
-      if (entry.get_remote() == public_state())
-        dealloc_local_object(p.unsafe_capptr);
+
+      if (likely(entry.get_remote() == public_state()))
+      {
+        if (likely(dealloc_local_object_fast(entry, p.unsafe_capptr, entropy)))
+          return;
+
+        dealloc_local_object_slow(entry);
+      }
       else
       {
         if ((!need_post) && (attached_cache->capacity > 0))
@@ -566,7 +573,9 @@ namespace snmalloc
         {
           bool need_post = true; // Always going to post, so ignore.
           auto n = p->non_atomic_next;
-          handle_dealloc_remote(p, need_post);
+          auto& entry = snmalloc::BackendAllocator::get_meta_data(
+            handle, snmalloc::address_cast(p));
+          handle_dealloc_remote(entry, p, need_post);
           p = n;
         }
       }
