@@ -30,57 +30,7 @@ namespace snmalloc
       AtomicCapPtr<Remote, CBAlloc> next{nullptr};
     };
 
-#ifdef SNMALLOC_DONT_CACHE_ALLOCATOR_PTR
-    /**
-     * Cache the size class of the object to improve performance.
-     *
-     * This implementation does not cache the allocator id due to security
-     * concerns. Alternative implementations may store the allocator
-     * id, so that amplification costs can be mitigated on CHERI with MTE.
-     */
-    sizeclass_t sizeclasscache;
-#else
-    /* This implementation assumes that storing the allocator ID in a freed
-     * object is not a security concern.  Either we trust the code running on
-     * top of the allocator, or additional security measure are in place such
-     * as MTE + CHERI.
-     *
-     * We embed the size class in the bottom 8 bits of an allocator ID (i.e.,
-     * the address of an Alloc's remote_alloc's message_queue; in practice we
-     * only need 7 bits, but using 8 is conjectured to be faster).  The hashing
-     * algorithm of the Alloc's RemoteCache already ignores the bottom
-     * "initial_shift" bits, which is, in practice, well above 8.  There's a
-     * static_assert() over there that helps ensure this stays true.
-     *
-     * This does mean that we might have message_queues that always collide in
-     * the hash algorithm, if they're within "initial_shift" of each other. Such
-     * pairings will substantially decrease performance and so we prohibit them
-     * and use SNMALLOC_ASSERT to verify that they do not exist in debug builds.
-     */
-    alloc_id_t alloc_id_and_sizeclass;
-#endif
-
-    /**
-     * Set up a remote object.  Potentially cache sizeclass and allocator id.
-     */
-    void set_info(alloc_id_t id, sizeclass_t sc)
-    {
-#ifdef SNMALLOC_DONT_CACHE_ALLOCATOR_PTR
-      UNUSED(id);
-      sizeclasscache = sc;
-#else
-      alloc_id_and_sizeclass = (id & ~SIZECLASS_MASK) | sc;
-#endif
-    }
-
-    sizeclass_t sizeclass()
-    {
-#ifdef SNMALLOC_DONT_CACHE_ALLOCATOR_PTR
-      return sizeclasscache;
-#else
-      return alloc_id_and_sizeclass & SIZECLASS_MASK;
-#endif
-    }
+    constexpr Remote() {}
 
     /** Zero out a Remote tracking structure, return pointer to object base */
     template<capptr_bounds B>

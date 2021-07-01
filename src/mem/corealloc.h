@@ -118,7 +118,6 @@ namespace snmalloc
       {
         error("Critical error: Out-of-memory during initialisation.");
       }
-      dummy->set_info(get_trunc_id(), size_to_sizeclass_const(MIN_ALLOC_SIZE));
       message_queue().init(dummy);
     }
 
