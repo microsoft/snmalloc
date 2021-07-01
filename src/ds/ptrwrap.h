@@ -126,7 +126,7 @@ namespace snmalloc
 #  pragma warning(push)
 #  pragma warning(disable : 4702)
 #endif
-    explicit CapPtr(T* p) : unsafe_capptr(p) {}
+    constexpr explicit CapPtr(T* p) : unsafe_capptr(p) {}
 #ifdef _MSC_VER
 #  pragma warning(pop)
 #endif

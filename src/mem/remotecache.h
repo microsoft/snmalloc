@@ -13,36 +13,48 @@
 
 namespace snmalloc
 {
-  /*
-   * A singly-linked list of Remote objects, supporting append and
-   * take-all operations.  Intended only for the private use of this
-   * allocator; the Remote objects here will later be taken and pushed
-   * to the inter-thread message queues.
+  /**
+   * Stores the remote deallocation to batch them before sending
    */
-  struct RemoteList
-  {
-    /*
-     * A stub Remote object that will always be the head of this list;
-     * never taken for further processing.
-     */
-    Remote head{};
-
-    CapPtr<Remote, CBAlloc> last{&head};
-
-    void clear()
-    {
-      last = CapPtr<Remote, CBAlloc>(&head);
-    }
-
-    bool empty()
-    {
-      return address_cast(last) == address_cast(&head);
-    }
-  };
-
   struct RemoteCache
   {
+    /*
+    * A singly-linked list of Remote objects, supporting append and
+    * take-all operations.  Intended only for the private use of this
+    * allocator; the Remote objects here will later be taken and pushed
+    * to the inter-thread message queues.
+    */
+    struct RemoteList
+    {
+      /*
+      * A stub Remote object that will always be the head of this list;
+      * never taken for further processing.
+      */
+      Remote head{};
+
+      /**
+       * Initially is null ptr, and needs to be non-null before anything runs on this.
+       */
+      CapPtr<Remote, CBAlloc> last{nullptr};
+
+      void clear()
+      {
+        last = CapPtr<Remote, CBAlloc>(&head);
+      }
+
+      bool empty()
+      {
+        return address_cast(last) == address_cast(&head);
+      }
+
+      constexpr RemoteList() {}
+    };
+
     std::array<RemoteList, REMOTE_SLOTS> list{};
+
+#ifndef NDEBUG
+    bool initialised = false;
+#endif
 
     /// Used to find the index into the array of queues for remote
     /// deallocation
@@ -63,9 +75,9 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void
     dealloc(Remote::alloc_id_t target_id, CapPtr<void, CBAlloc> p)
     {
+      SNMALLOC_ASSERT(initialised);
       auto r = p.template as_reinterpret<Remote>();
 
-      // TODO fix SharedStateHandle to be size of allocator
       RemoteList* l = &list[get_slot<allocator_size>(target_id, 0)];
       l->last->non_atomic_next = r;
       l->last = r;
@@ -74,12 +86,12 @@ namespace snmalloc
     template<size_t allocator_size, typename SharedStateHandle>
     bool post(SharedStateHandle handle, Remote::alloc_id_t id)
     {
+      SNMALLOC_ASSERT(initialised);
       size_t post_round = 0;
       bool sent_something = false;
 
       while (true)
       {
-        // TODO correct size for slot offset
         auto my_slot = get_slot<allocator_size>(id, post_round);
 
         for (size_t i = 0; i < REMOTE_SLOTS; i++)
@@ -130,6 +142,26 @@ namespace snmalloc
         }
       }
       return sent_something;
+    }
+
+    /**
+     * Constructor design to allow constant init
+     */
+    constexpr RemoteCache() {}
+
+    /**
+     * Must be called before anything else to ensure actually initialised
+     * not just zero init.
+     */
+    void init ()
+    {
+#ifndef NDEBUG
+      initialised = true;
+#endif
+      for (auto& l : list)
+      {
+        l.clear();
+      }
     }
   };
 

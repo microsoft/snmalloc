@@ -277,6 +277,8 @@ namespace snmalloc
       // Grab an allocator for this thread.
       auto c = Pool<CoreAlloc>::acquire(handle, &(this->small_cache), handle);
 
+      c->remote_cache.init();
+
       // Attach to it.
       attach(c);
     }
