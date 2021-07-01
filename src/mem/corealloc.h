@@ -2,7 +2,7 @@
 #include "../backend/slaballocator.h"
 #include "../ds/defines.h"
 #include "allocconfig.h"
-#include "fastcache.h"
+#include "localcache.h"
 #include "metaslab.h"
 #include "pooled.h"
 #include "remotecache.h"
@@ -14,17 +14,12 @@ namespace snmalloc
   class CoreAlloc : public Pooled<CoreAlloc<SharedStateHandle>>
   {
     template<class SharedStateHandle2>
-    friend class FastAllocator;
+    friend class LocalAllocator;
 
     /**
      * Per size class list of active slabs for this allocator.
      */
     MetaslabCache alloc_classes[NUM_SIZECLASSES];
-
-    /**
-     * Remote deallocations for other threads
-     */
-    RemoteCache remote_cache;
 
     /**
      * Local entropy source and current version of keys for
@@ -53,7 +48,7 @@ namespace snmalloc
      * This is the thread local structure associated to this
      * allocator.
      */
-    FastCache* attached_cache;
+    LocalCache* attached_cache;
 
     /**
      * This contains the way to access all the global state and
@@ -399,17 +394,15 @@ namespace snmalloc
       }
       else
       {
-        if ((!need_post) && (attached_cache->capacity > 0))
-          attached_cache->capacity -= sizeclass_to_size(entry.get_sizeclass());
-        else
+        if (!need_post && !attached_cache->remote_dealloc_cache.reserve_space(entry))
           need_post = true;
-        remote_cache.template dealloc<sizeof(CoreAlloc)>(
+        attached_cache->remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
           entry.get_remote()->trunc_id(), p.as_void());
       }
     }
 
   public:
-    CoreAlloc(FastCache* cache, SharedStateHandle handle)
+    CoreAlloc(LocalCache* cache, SharedStateHandle handle)
     : attached_cache(cache), handle(handle)
     {
 #ifdef SNMALLOC_TRACING
@@ -452,10 +445,9 @@ namespace snmalloc
     SNMALLOC_FAST_PATH bool post()
     {
       // stats().remote_post();  // TODO queue not in line!
-      bool sent_something = remote_cache.post<sizeof(CoreAlloc)>(
+      bool sent_something = attached_cache->remote_dealloc_cache.post<sizeof(CoreAlloc)>(
         handle, public_state()->trunc_id());
-      if (attached_cache != nullptr)
-        attached_cache->capacity = REMOTE_CACHE;
+
       return sent_something;
     }
 
@@ -570,9 +562,7 @@ namespace snmalloc
      */
     bool flush(bool destroy_queue = false)
     {
-      // Drain the caches back to the originating allocator
-      if (attached_cache != nullptr)
-        attached_cache->flush([&](auto p) { dealloc_local_object(p); });
+      SNMALLOC_ASSERT(attached_cache != nullptr);
 
       if (destroy_queue)
       {
@@ -596,17 +586,35 @@ namespace snmalloc
           handle_message_queue([]() {});
       }
 
-      // Flush any unused slabs back to global allocator
+      // TODO: Flush any unused slabs back to global allocator
       // for (auto& alloc_class : alloc_classes)
       // {
       //   ...
       // }
 
+      // Drain the caches back to the originating allocator
       // Flush remote cache at this point too.
       // do this after handling messages as we
       // may be forwarding messages.
-      return post();
+      return attached_cache->flush<sizeof(CoreAlloc)>([&](auto p) { dealloc_local_object(p); }, handle);
     }
+
+    // This allows the caching layer to be attached to an underlying
+    // allocator instance.
+    void attach(LocalCache* c)
+    {
+      attached_cache = c;
+
+      // Set up secrets.
+      c->entropy = entropy;
+
+      // Set up remote allocator.
+      c->remote_allocator = public_state();
+
+      // Set up remote cache.
+      c->remote_dealloc_cache.init();
+    }
+
 
     /**
      * If result parameter is non-null, then false is assigned into the
@@ -638,8 +646,18 @@ namespace snmalloc
         }
       };
 
-      bool sent_something = flush(true);
+      bool clear_cache = false;
+      if (attached_cache == nullptr)
+      {
+        // We need a cache to perform some operations, so set one up
+        // temporarily
+        LocalCache temp(public_state());
+        attach(&temp);
+        clear_cache = true;
+      }
 
+      bool sent_something = flush(true);
+      
       for (auto& alloc_class : alloc_classes)
       {
         test(alloc_class);
@@ -647,6 +665,14 @@ namespace snmalloc
 
       // Place the static stub message on the queue.
       init_message_queue();
+
+      // Init will have created a single allocation, and the rest
+      // of the free list needs removing from the cache.
+      if (clear_cache)
+      {
+        flush();
+        attached_cache = nullptr;
+      }
 
       return sent_something;
     }

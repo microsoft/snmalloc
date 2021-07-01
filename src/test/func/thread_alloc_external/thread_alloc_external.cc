@@ -5,7 +5,7 @@
 #define SNMALLOC_EXTERNAL_THREAD_ALLOC
 namespace snmalloc
 {
-  using Alloc = snmalloc::FastAllocator<snmalloc::Globals>;
+  using Alloc = snmalloc::LocalAllocator<snmalloc::Globals>;
 }
 
 using namespace snmalloc;

@@ -74,7 +74,7 @@ namespace
       Allocator<NoOpMemoryProvider, SNMALLOC_DEFAULT_CHUNKMAP, false>;
 
     using ExternalAlloc =
-      FastAllocator<ExternalCoreAlloc, no_op_register_clean_up>;
+      LocalAllocator<ExternalCoreAlloc, no_op_register_clean_up>;
 
     /**
      * Proxy class that forwards requests for large allocations to the real
@@ -149,7 +149,7 @@ namespace
      */
     using InternalCoreAlloc = Allocator<MemoryProviderProxy>;
     using InternalAlloc =
-      FastAllocator<InternalCoreAlloc, no_op_register_clean_up>;
+      LocalAllocator<InternalCoreAlloc, no_op_register_clean_up>;
 
     /**
      * The start of the sandbox memory region.

@@ -3,6 +3,7 @@
 #include "../ds/ptrwrap.h"
 #include "allocstats.h"
 #include "freelist.h"
+#include "remotecache.h"
 #include "sizeclasstable.h"
 
 #include <string.h>
@@ -39,7 +40,7 @@ namespace snmalloc
   // This is defined on its own, so that it can be embedded in the
   // thread local fast allocator, but also referenced from the
   // thread local core allocator.
-  struct FastCache
+  struct LocalCache
   {
     // Free list per small size class.  These are used for
     // allocation on the fast path. This part of the code is inspired by
@@ -53,17 +54,19 @@ namespace snmalloc
     // This will be a zero-size structure if stats are not enabled.
     Stats stats;
 
-    /**
-     * The total amount of memory we are waiting for before we will dispatch
-     * to other allocators. Zero means we have not initialised the allocator
-     * yet. This is initialised to the 0 so that we always hit a slow path to
-     * start with, when we hit the slow path and need to dispatch everything, we
-     * can check if we are a real allocator and lazily provide a real allocator.
-     */
-    int64_t capacity{0};
+    // Pointer to the remote allocator message_queue, used to check
+    // if a deallocation is local.
+    RemoteAllocator* remote_allocator;
 
-    template<typename DeallocFun>
-    void flush(DeallocFun dealloc)
+    /**
+     * Remote deallocations for other threads
+     */
+    RemoteDeallocCache remote_dealloc_cache;
+
+    constexpr LocalCache(RemoteAllocator* remote_allocator) : remote_allocator(remote_allocator) {}
+
+    template<size_t allocator_size, typename DeallocFun, typename SharedStateHandle>
+    bool flush(DeallocFun dealloc, SharedStateHandle handle)
     {
       // Return all the free lists to the allocator.
       // Used during thread teardown
@@ -77,6 +80,8 @@ namespace snmalloc
           dealloc(finish_alloc_no_zero(p, i));
         }
       }
+
+      return remote_dealloc_cache.post<allocator_size>(handle, remote_allocator->trunc_id());
     }
 
     template<ZeroMem zero_mem, typename SharedStateHandle, typename Slowpath>

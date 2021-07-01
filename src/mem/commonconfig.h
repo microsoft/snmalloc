@@ -3,7 +3,7 @@
 #include "../backend/backend.h"
 #include "../backend/slaballocator.h"
 #include "../ds/defines.h"
-#include "fastalloc.h"
+#include "localalloc.h"
 #include "pool.h"
 
 #include <pal/pal_noalloc.h>

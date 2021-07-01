@@ -8,7 +8,7 @@
 
 #include "../ds/ptrwrap.h"
 #include "corealloc.h"
-#include "fastcache.h"
+#include "localcache.h"
 #include "freelist.h"
 #include "pool.h"
 #include "remotecache.h"
@@ -40,34 +40,31 @@ namespace snmalloc
 
   // This class contains the fastest path code for the allocator.
   template<class SharedStateHandle>
-  class FastAllocator
+  class LocalAllocator
   {
     using CoreAlloc = CoreAlloc<SharedStateHandle>;
 
   private:
+    /**
+     * Contains a way to access all the shared state for this allocator.
+     * This may have no dynamic state, and be purely static.
+     */
+    SharedStateHandle handle;
+
     // Free list per small size class.  These are used for
     // allocation on the fast path. This part of the code is inspired by
     // mimalloc.
-    FastCache small_cache;
+    // Also contains remote deallocation cache.
+    LocalCache local_cache;
 
     // Underlying allocator for most non-fast path operations.
     CoreAlloc* core_alloc{nullptr};
-
-    // Pointer to the remote allocator message_queue, used to check
-    // if a deallocation is local.
-    RemoteAllocator* remote_allocator;
 
     // As allocation and deallocation can occur during thread teardown
     // we need to record if we are already in that state as we will not
     // receive another teardown call, so each operation needs to release
     // the underlying data structures after the call.
     bool post_teardown{false};
-
-    /**
-     * Contains a way to access all the shared state for this allocator.
-     * This may have no dynamic state, and be purely static.
-     */
-    SharedStateHandle handle;
 
     /**
      * Checks if the core allocator has been initialised, and runs the
@@ -193,7 +190,7 @@ namespace snmalloc
           sizeclass);
       };
 
-      return small_cache.template alloc<zero_mem, SharedStateHandle>(
+      return local_cache.template alloc<zero_mem, SharedStateHandle>(
         size, slowpath);
     }
 
@@ -218,15 +215,13 @@ namespace snmalloc
     {
       if (core_alloc != nullptr)
       {
-        //        handle_message_queue();
-
 #ifdef SNMALLOC_TRACING
         std::cout << "Remote dealloc post" << p << " size " << alloc_size(p)
                   << std::endl;
 #endif
         MetaEntry entry =
           BackendAllocator::get_meta_data(handle, address_cast(p));
-        core_alloc->remote_cache.template dealloc<sizeof(CoreAlloc)>(
+        local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
           entry.get_remote()->trunc_id(), CapPtr<void, CBAlloc>(p));
         post_remote_cache();
         return;
@@ -248,22 +243,21 @@ namespace snmalloc
      */
     auto& message_queue()
     {
-      return remote_allocator->message_queue;
+      return local_cache.remote_allocator->message_queue;
     }
 
   public:
-    constexpr FastAllocator()
-    {
-      handle = SharedStateHandle::get_handle();
-      remote_allocator = &handle.unused_remote;
-    };
+    constexpr LocalAllocator() :
+      handle(SharedStateHandle::get_handle()),
+      local_cache(&handle.unused_remote)
+    {}
 
-    FastAllocator(SharedStateHandle handle) : handle(handle)
-    {
-      remote_allocator = &handle.unused_remote;
-    }
+    LocalAllocator(SharedStateHandle handle) : 
+      handle(handle),
+      local_cache(&handle.unused_remote)
+    {}
 
-    // This is effectively the constructor for the FastAllocator, but due to
+    // This is effectively the constructor for the LocalAllocator, but due to
     // not wanting initialisation checks on the fast path, it is initialised
     // lazily.
     void init()
@@ -275,32 +269,15 @@ namespace snmalloc
       SNMALLOC_ASSERT(core_alloc == nullptr);
 
       // Grab an allocator for this thread.
-      auto c = Pool<CoreAlloc>::acquire(handle, &(this->small_cache), handle);
-
-      c->remote_cache.init();
+      auto c = Pool<CoreAlloc>::acquire(handle, &(this->local_cache), handle);
 
       // Attach to it.
-      attach(c);
-    }
-
-    // This allows the caching layer to be attached to an underlying
-    // allocator instance.
-    void attach(CoreAlloc* c)
-    {
-      // Should only be called if the allocator has not been initialised.
-      SNMALLOC_ASSERT(core_alloc == nullptr);
-
-      // Link thread local state to allocator
+      c->attach(&local_cache);
       core_alloc = c;
-      core_alloc->attached_cache = &(this->small_cache);
 
-      // Set up secrets.
-      small_cache.entropy = core_alloc->entropy;
-      // small_cache.stats.start();
-
-      // Set up remote allocator.
-      remote_allocator = core_alloc->public_state();
+      // local_cache.stats.start();
     }
+
 
     // Return all state in the fast allocator and release the underlying
     // core allocator.  This is used during teardown to empty the thread
@@ -312,9 +289,9 @@ namespace snmalloc
       {
         core_alloc->flush();
 
-        // core_alloc->stats().add(small_cache.stats);
+        // core_alloc->stats().add(local_cache.stats);
         // // Reset stats, required to deal with repeated flushing.
-        // new (&small_cache.stats) Stats();
+        // new (&local_cache.stats) Stats();
 
         // Detach underlying allocator
         core_alloc->attached_cache = nullptr;
@@ -324,8 +301,8 @@ namespace snmalloc
         // Set up thread local allocator to look like
         // it is new to hit slow paths.
         core_alloc = nullptr;
-        remote_allocator = &handle.unused_remote;
-        small_cache.capacity = 0;
+        local_cache.remote_allocator = &handle.unused_remote;
+        local_cache.remote_dealloc_cache.capacity = 0;
       }
     }
 
@@ -380,10 +357,10 @@ namespace snmalloc
 
       const MetaEntry& entry =
         BackendAllocator::get_meta_data(handle, address_cast(p));
-      if (likely(remote_allocator == entry.get_remote()))
+      if (likely(local_cache.remote_allocator == entry.get_remote()))
       {
         if (likely(CoreAlloc::dealloc_local_object_fast(
-              entry, p, small_cache.entropy)))
+              entry, p, local_cache.entropy)))
           return;
         core_alloc->dealloc_local_object_slow(entry);
         return;
@@ -392,10 +369,9 @@ namespace snmalloc
       if (likely(entry.get_remote() != handle.fake_large_remote))
       {
         // Check if we have space for the remote deallocation
-        if (likely(small_cache.capacity > 0))
+        if (local_cache.remote_dealloc_cache.reserve_space(entry))
         {
-          small_cache.capacity -= sizeclass_to_size(entry.get_sizeclass());
-          core_alloc->remote_cache.template dealloc<sizeof(CoreAlloc)>(
+          local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
             entry.get_remote()->trunc_id(), CapPtr<void, CBAlloc>(p));
 #ifdef SNMALLOC_TRACING
           std::cout << "Remote dealloc fast" << p << " size " << alloc_size(p)

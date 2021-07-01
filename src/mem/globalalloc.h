@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../ds/helpers.h"
-#include "fastalloc.h"
+#include "localalloc.h"
 
 namespace snmalloc
 {

@@ -11,7 +11,7 @@
 
 using namespace snmalloc;
 
-using FixedAlloc = FastAllocator<FixedGlobals>;
+using FixedAlloc = LocalAllocator<FixedGlobals>;
 
 int main()
 {

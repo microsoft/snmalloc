@@ -6,7 +6,7 @@
 // The default configuration for snmalloc
 namespace snmalloc
 {
-  using Alloc = snmalloc::FastAllocator<snmalloc::Globals>;
+  using Alloc = snmalloc::LocalAllocator<snmalloc::Globals>;
 }
 
 // User facing API surface, needs to know what `Alloc` is.

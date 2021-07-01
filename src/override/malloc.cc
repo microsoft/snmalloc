@@ -5,7 +5,7 @@
 // The default configuration for snmalloc is used if alternative not defined
 namespace snmalloc
 {
-  using Alloc = snmalloc::FastAllocator<snmalloc::Globals>;
+  using Alloc = snmalloc::LocalAllocator<snmalloc::Globals>;
 }
 #endif
 

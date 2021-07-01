@@ -10,7 +10,7 @@
 #define SNMALLOC_PROVIDE_OWN_CONFIG
 namespace snmalloc
 {
-  using Alloc = FastAllocator<FixedGlobals>;
+  using Alloc = LocalAllocator<FixedGlobals>;
 }
 
 #define SNMALLOC_NAME_MANGLE(a) enclave_##a

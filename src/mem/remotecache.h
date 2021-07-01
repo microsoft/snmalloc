@@ -16,7 +16,7 @@ namespace snmalloc
   /**
    * Stores the remote deallocation to batch them before sending
    */
-  struct RemoteCache
+  struct RemoteDeallocCache
   {
     /*
     * A singly-linked list of Remote objects, supporting append and
@@ -52,6 +52,15 @@ namespace snmalloc
 
     std::array<RemoteList, REMOTE_SLOTS> list{};
 
+    /**
+     * The total amount of memory we are waiting for before we will dispatch
+     * to other allocators. Zero can mean we have not initialised the allocator
+     * yet. This is initialised to the 0 so that we always hit a slow path to
+     * start with, when we hit the slow path and need to dispatch everything, we
+     * can check if we are a real allocator and lazily provide a real allocator.
+     */
+    int64_t capacity{0};
+
 #ifndef NDEBUG
     bool initialised = false;
 #endif
@@ -69,6 +78,21 @@ namespace snmalloc
       //   "Can't embed sizeclass_t into allocator ID low bits");
       SNMALLOC_ASSERT((initial_shift + (r * REMOTE_SLOT_BITS)) < 64);
       return (id >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
+    }
+
+    /**
+     * Checks if the capacity has enough to cache an entry from this
+     * slab. Returns true, if this does not overflow the budget.
+     */
+    SNMALLOC_FAST_PATH bool reserve_space(const MetaEntry& entry)
+    {
+      SNMALLOC_ASSERT(initialised);
+      auto size = static_cast<int64_t>(sizeclass_to_size(entry.get_sizeclass()));
+
+      bool result = capacity > size;
+      if (result)
+        capacity -= size;
+      return result;
     }
 
     template<size_t allocator_size>
@@ -141,13 +165,17 @@ namespace snmalloc
           r = r->non_atomic_next;
         }
       }
+
+      // Reset capacity as we have empty everything
+      capacity = REMOTE_CACHE;
+
       return sent_something;
     }
 
     /**
      * Constructor design to allow constant init
      */
-    constexpr RemoteCache() {}
+    constexpr RemoteDeallocCache() {}
 
     /**
      * Must be called before anything else to ensure actually initialised
@@ -160,9 +188,10 @@ namespace snmalloc
 #endif
       for (auto& l : list)
       {
+        SNMALLOC_ASSERT(l.last == nullptr || l.empty());
         l.clear();
       }
+      capacity = REMOTE_CACHE;
     }
   };
-
 } // namespace snmalloc

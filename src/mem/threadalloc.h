@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../ds/helpers.h"
-#include "fastalloc.h"
+#include "localalloc.h"
 #include "globalconfig.h"
 
 #if defined(SNMALLOC_USE_THREAD_DESTRUCTOR) && \

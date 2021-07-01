@@ -79,6 +79,7 @@ namespace snmalloc
   inline SNMALLOC_FAST_PATH static size_t natural_alignment(size_t size)
   {
     auto rsize = round_size(size);
+    if (size == 0) return 1;
     return bits::one_at_bit(bits::ctz(rsize));
   }
 } // namespace snmalloc
