@@ -126,31 +126,11 @@ namespace snmalloc
     template<ZeroMem zero_mem = NoZero>
     void* small_alloc_one(size_t size)
     {
-      // Use attached cache, and fill it if it is empty.
-      if (attached_cache != nullptr)
-        return attached_cache->template alloc<zero_mem, SharedStateHandle>(
-          size, [&](sizeclass_t sizeclass, FreeListIter* fl) {
-            return small_alloc<zero_mem>(sizeclass, *fl);
-          });
-
-      auto sizeclass = size_to_sizeclass(size);
-      //   stats().alloc_request(size);
-      //   stats().sizeclass_alloc(sizeclass);
-
-      // This is a debug path.  When we reallocate a message queue in
-      // debug check empty, that might occur when the allocator is not attached
-      // to any thread.  Hence, the following unperformant code is acceptable.
-      // TODO: Potentially do something nicer.
-      FreeListIter temp;
-      auto r = small_alloc<zero_mem>(sizeclass, temp);
-      while (!temp.empty())
-      {
-        // Fake statistics up.
-        // stats().sizeclass_alloc(sizeclass);
-        dealloc_local_object(
-          finish_alloc_no_zero(temp.take(entropy), sizeclass));
-      }
-      return r;
+      SNMALLOC_ASSERT(attached_cache != nullptr);
+      return attached_cache->template alloc<zero_mem, SharedStateHandle>(
+        size, [&](sizeclass_t sizeclass, FreeListIter* fl) {
+          return small_alloc<zero_mem>(sizeclass, *fl);
+        });
     }
 
     static SNMALLOC_FAST_PATH void alloc_new_list(
