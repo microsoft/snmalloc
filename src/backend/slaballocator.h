@@ -60,8 +60,7 @@ namespace snmalloc
     template<typename SharedStateHandle>
     static std::pair<CapPtr<void, CBChunk>, Metaslab*> alloc_slab(
       SharedStateHandle h,
-      AddressSpaceManagerCore&
-        local_address_space,
+      BackendAllocator::LocalState& backend_state,
       sizeclass_t sizeclass,
       sizeclass_t slab_sizeclass, // TODO sizeclass_t
       size_t slab_size,
@@ -77,7 +76,7 @@ namespace snmalloc
       {
         slab = slab_record->slab;
         state.memory_in_stacks -= slab_size;
-        meta = reinterpret_cast<Metaslab*>(slab_record);
+      meta = reinterpret_cast<Metaslab*>(slab_record);
 #ifdef SNMALLOC_TRACING
         std::cout << "Reuse slab:" << slab.unsafe_capptr << " slab_sizeclass "
                   << slab_sizeclass << " size " << slab_size
@@ -93,10 +92,10 @@ namespace snmalloc
       // Allocate a fresh slab as there are no available ones.
       // First create meta-data
       meta = reinterpret_cast<Metaslab*>(
-        BackendAllocator::alloc_meta_data<Metaslab>(h, &local_address_space));
+        BackendAllocator::alloc_meta_data<Metaslab>(h, &backend_state));
       MetaEntry entry{meta, remote, sizeclass};
       slab =
-        BackendAllocator::alloc_slab(h, &local_address_space, slab_size, entry);
+        BackendAllocator::alloc_slab(h, &backend_state, slab_size, entry);
 #ifdef SNMALLOC_TRACING
       std::cout << "Create slab:" << slab.unsafe_capptr << " slab_sizeclass "
                 << slab_sizeclass << " size " << slab_size << std::endl;

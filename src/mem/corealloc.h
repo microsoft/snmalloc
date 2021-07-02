@@ -41,7 +41,7 @@ namespace snmalloc
      * A local area of address space managed by this allocator.
      * Used to reduce calls on the global address space.
      */
-    AddressSpaceManagerCore local_address_space;
+    BackendAllocator::LocalState backend_state;
 
     /**
      * This is the thread local structure associated to this
@@ -509,7 +509,7 @@ namespace snmalloc
 
       auto [slab, meta] = snmalloc::SlabAllocator::alloc_slab(
         handle,
-        local_address_space,
+        backend_state,
         sizeclass,
         slab_sizeclass,
         slab_size,

@@ -22,7 +22,7 @@ namespace snmalloc
     /**
      * Special remote that should never be used as a real remote.
      * This is used to initialise allocators that should always hit the
-     * remote path for deallocation. Hence moving a branch of the critical
+     * remote path for deallocation. Hence moving a branch off the critical
      * path.
      */
     SNMALLOC_REQUIRE_CONSTINIT

@@ -13,6 +13,70 @@ namespace snmalloc
   class BackendAllocator
   {
   public:
+    class LocalState
+    {
+      friend BackendAllocator;
+
+      // TODO Separate meta data and object
+      AddressSpaceManagerCore local_address_space;
+
+      
+    };
+
+    template<typename PAL, bool fixed_range>
+    class GlobalState
+    {
+      // TODO Separate meta data and object
+      AddressSpaceManager<PAL> address_space;
+
+      FlatPagemap<MIN_CHUNK_BITS, MetaEntry, PAL, fixed_range, &default_entry> pagemap;
+
+    public:
+      void init()
+      {
+        pagemap.init(&address_space);
+      }
+    };
+
+  private:
+    template<bool is_meta, typename SharedStateHandle>
+    CapPtr<void, CBChunk> reserve(SharedStateHandle h, LocalState* local_state, size_t size)
+    {
+      // TODO have two address spaces.
+      UNUSED(is_meta);
+
+      CapPtr<void, CBChunk> p;
+      if (local_state != nullptr)
+      {
+        p = local_state->local_address_space.reserve_with_left_over<typename SharedStateHandle::Pal>(size);
+        if (p != nullptr)
+          local_state->local_address_space.commit_block<typename SharedStateHandle::Pal>(p, size);
+        else
+        {
+          auto& a = h.get_backend_state().address_space;
+          auto refill_size = bits::max(
+            size, bits::one_at_bit(21)); // TODO min and max heuristics
+          auto refill = a.template reserve<false>(refill_size);
+          if (refill == nullptr)
+            return nullptr;
+          local_state->local_address_space.add_range<typename SharedStateHandle::Pal>(refill, refill_size);
+          // This should succeed
+          p = local_state->local_address_space.reserve_with_left_over<typename SharedStateHandle::Pal>(size);
+          if (p != nullptr)
+            local_state->local_address_space.commit_block<typename SharedStateHandle::Pal>(p, size);
+        }
+      }
+      else
+      {
+        auto& a = h.get_backend_state().address_space;
+        p = a.template reserve_with_left_over<true>(size);
+      }
+
+      h.get_backend_state().address_space.add_peak_memory_usage(size);
+      return p;
+    }
+
+  public:
     /**
      * Provide a block of meta-data with size and align.
      *
@@ -22,40 +86,13 @@ namespace snmalloc
     template<typename U, typename SharedStateHandle, typename... Args>
     static U* alloc_meta_data(
       SharedStateHandle h,
-      AddressSpaceManagerCore*
-        local_address_space,
+      LocalState* local_state,
       Args&&... args)
     {
       // Cache line align
       size_t size = bits::align_up(sizeof(U), 64);
-      CapPtr<void, CBChunk> p;
-      if (local_address_space != nullptr)
-      {
-        p = local_address_space->reserve_with_left_over<typename SharedStateHandle::Pal>(size);
-        if (p != nullptr)
-          local_address_space->commit_block<typename SharedStateHandle::Pal>(p, size);
-        else
-        {
-          auto& a = h.get_meta_address_space(); // TODO Which address space...
-          auto refill_size = bits::max(
-            size, bits::one_at_bit(21)); // TODO min and max heuristics
-          auto refill = a.template reserve<false>(refill_size);
-          if (refill == nullptr)
-            return nullptr;
-          local_address_space->add_range<typename SharedStateHandle::Pal>(refill, refill_size);
-          // This should succeed
-          p = local_address_space->reserve_with_left_over<typename SharedStateHandle::Pal>(size);
-          if (p != nullptr)
-            local_address_space->commit_block<typename SharedStateHandle::Pal>(p, size);
-        }
-      }
-      else
-      {
-        auto& a = h.get_meta_address_space();
-        p = a.template reserve_with_left_over<true>(size);
-      }
-
-      h.get_meta_address_space().add_peak_memory_usage(size);
+      
+      CapPtr<void, CBChunk> p = reserve<true>(h, local_state, size);
 
       if (p == nullptr)
         return nullptr;
@@ -69,43 +106,17 @@ namespace snmalloc
      * Set its metadata entry to t.
      */
     template<typename SharedStateHandle>
-    static CapPtr<void, CBChunk> alloc_slab(
+    static std::pair<CapPtr<void, CBChunk>, Metaslab*> alloc_slab(
       SharedStateHandle h,
-      AddressSpaceManagerCore*
-        local_address_space,
+      LocalState* local_state,
       size_t size,
-      typename SharedStateHandle::Meta t)
+      RemoteAllocator* remote,
+      sizeclass_t sizeclass)
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
-      CapPtr<void, CBChunk> p;
 
-      // TODO code duplication with above
-      // TODO two types of local address space
-      if (local_address_space != nullptr)
-      {
-        p = local_address_space->template reserve<typename SharedStateHandle::Pal>(size);
-        if (p != nullptr)
-          local_address_space->template commit_block<typename SharedStateHandle::Pal>(p, size);
-        else
-        {
-          auto& a = h.get_object_address_space();
-          auto refill_size = bits::max(
-            size, bits::one_at_bit(21)); // TODO min and max heuristics
-          auto refill = a.template reserve<false>(refill_size);
-          if (refill == nullptr)
-            return nullptr;
-          local_address_space->template add_range<typename SharedStateHandle::Pal>(refill, refill_size);
-          // This should succeed
-          p = local_address_space->template reserve_with_left_over<typename SharedStateHandle::Pal>(size);
-          if (p != nullptr)
-            local_address_space->template commit_block<typename SharedStateHandle::Pal>(p, size);
-        }
-      }
-      else
-      {
-        p = h.get_object_address_space().template reserve<true>(size);
-      }
+      CapPtr<void, CBChunk> p = reserve<false>(h, local_state, size);
 
 #ifdef SNMALLOC_TRACING
       std::cout << "Alloc slab: " << p.unsafe_capptr << " (" << size << ")"
@@ -119,8 +130,9 @@ namespace snmalloc
         return p;
       }
 
-      // Register slab and pagemap memory usage.
-      h.get_object_address_space().add_peak_memory_usage(size);
+      CapPtr<void, CBChunk> meta = reserve<true>(h, local_state, sizeof(Metaslab));
+
+
       // TODO handle bounded versus lazy pagemaps in stats
       h.get_meta_address_space().add_peak_memory_usage(
         (size / MIN_CHUNK_SIZE) * sizeof(typename SharedStateHandle::Meta));
@@ -129,7 +141,7 @@ namespace snmalloc
            a < address_cast(pointer_offset(p, size));
            a += MIN_CHUNK_SIZE)
       {
-        h.get_pagemap().add(a, t);
+        h.get_backend_state().pagemap.add(a, t);
       }
       return p;
     }
@@ -144,7 +156,7 @@ namespace snmalloc
     static const typename SharedStateHandle::Meta& 
     get_meta_data(SharedStateHandle h, address_t p)
     {
-      return h.get_pagemap().template get<potentially_out_of_range>(p);
+      return h.get_backend_state().pagemap.template get<potentially_out_of_range>(p);
     }
 
     /**
@@ -159,7 +171,7 @@ namespace snmalloc
     {
       for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
       {
-        h.get_pagemap().set(a, t);
+        h.get_backend_state().pagemap.set(a, t);
       }
     }
   };

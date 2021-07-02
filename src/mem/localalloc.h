@@ -141,7 +141,7 @@ namespace snmalloc
         // Set remote as large allocator remote.
         auto [slab, meta] = SlabAllocator::alloc_slab(
           handle,
-          core_alloc->local_address_space,
+          core_alloc->backend_state,
           bits::next_pow2_bits(size), // TODO
           large_size_to_slab_sizeclass(size),
           large_size_to_slab_size(size),

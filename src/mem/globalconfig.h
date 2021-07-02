@@ -10,11 +10,7 @@ namespace snmalloc
   class Globals : public CommonConfig
   {
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static AddressSpaceManager<Pal> address_space;
-
-    SNMALLOC_REQUIRE_CONSTINIT
-    inline static FlatPagemap<MIN_CHUNK_BITS, Meta, Pal, false, &default_entry>
-      pagemap;
+    inline static BackendAllocator::GlobalState<Pal, false> backend_state;
 
     SNMALLOC_REQUIRE_CONSTINIT
     inline static SlabAllocatorState slab_allocator_state;
@@ -29,19 +25,9 @@ namespace snmalloc
     inline static std::atomic_flag initialisation_lock{};
 
   public:
-    AddressSpaceManager<DefaultPal>& get_meta_address_space()
+    BackendAllocator::GlobalState<Pal, false>& get_backend_state()
     {
-      return address_space;
-    }
-
-    AddressSpaceManager<DefaultPal>& get_object_address_space()
-    {
-      return address_space;
-    }
-
-    FlatPagemap<MIN_CHUNK_BITS, Meta, Pal, false, &default_entry>& get_pagemap()
-    {
-      return pagemap;
+      return backend_state;
     }
 
     SlabAllocatorState& get_slab_allocator_state()
@@ -70,7 +56,7 @@ namespace snmalloc
         return;
 
       // Need to initialise pagemap.
-      pagemap.init(&get_meta_address_space());
+      backend_state.init();
 
       initialised = true;
     }
