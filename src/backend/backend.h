@@ -26,7 +26,8 @@ namespace snmalloc
         local_address_space,
       Args&&... args)
     {
-      size_t size = sizeof(U);
+      // Cache line align
+      size_t size = bits::align_up(sizeof(U), 64);
       CapPtr<void, CBChunk> p;
       if (local_address_space != nullptr)
       {
@@ -140,7 +141,7 @@ namespace snmalloc
      * to access a location that is not backed by a slab.
      */
     template<bool potentially_out_of_range = false, typename SharedStateHandle>
-    static const typename SharedStateHandle::Meta&
+    static const typename SharedStateHandle::Meta& 
     get_meta_data(SharedStateHandle h, address_t p)
     {
       return h.get_pagemap().template get<potentially_out_of_range>(p);

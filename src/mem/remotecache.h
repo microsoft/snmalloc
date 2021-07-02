@@ -83,10 +83,11 @@ namespace snmalloc
     /**
      * Checks if the capacity has enough to cache an entry from this
      * slab. Returns true, if this does not overflow the budget.
+     *
+     * This does not require initialisation to be safely called.
      */
     SNMALLOC_FAST_PATH bool reserve_space(const MetaEntry& entry)
     {
-      SNMALLOC_ASSERT(initialised);
       auto size = static_cast<int64_t>(sizeclass_to_size(entry.get_sizeclass()));
 
       bool result = capacity > size;

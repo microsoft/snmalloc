@@ -530,7 +530,7 @@ namespace snmalloc
       std::cout << "slab size " << slab_size << std::endl;
 #endif
 
-      auto [slab, meta] = snmalloc::SlabAllocator::alloc(
+      auto [slab, meta] = snmalloc::SlabAllocator::alloc_slab(
         handle,
         local_address_space,
         sizeclass,

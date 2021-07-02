@@ -27,6 +27,7 @@ namespace snmalloc
   struct MetaslabEnd
   {
     /**
+     * TODO rewrite
      *  How many entries are not in the free list of slab, i.e.
      *  how many entries are needed to fully free this slab.
      *

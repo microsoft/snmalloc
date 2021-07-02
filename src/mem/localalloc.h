@@ -139,7 +139,7 @@ namespace snmalloc
       return check_init([&](CoreAlloc* core_alloc) {
         // Grab slab of correct size
         // Set remote as large allocator remote.
-        auto [slab, meta] = SlabAllocator::alloc(
+        auto [slab, meta] = SlabAllocator::alloc_slab(
           handle,
           core_alloc->local_address_space,
           bits::next_pow2_bits(size), // TODO
