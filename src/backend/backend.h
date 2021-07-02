@@ -22,7 +22,7 @@ namespace snmalloc
     template<typename U, typename SharedStateHandle, typename... Args>
     static U* alloc_meta_data(
       SharedStateHandle h,
-      AddressSpaceManagerCore<typename SharedStateHandle::Pal>*
+      AddressSpaceManagerCore*
         local_address_space,
       Args&&... args)
     {
@@ -31,9 +31,9 @@ namespace snmalloc
       CapPtr<void, CBChunk> p;
       if (local_address_space != nullptr)
       {
-        p = local_address_space->reserve_with_left_over(size);
+        p = local_address_space->reserve_with_left_over<typename SharedStateHandle::Pal>(size);
         if (p != nullptr)
-          local_address_space->commit_block(p, size);
+          local_address_space->commit_block<typename SharedStateHandle::Pal>(p, size);
         else
         {
           auto& a = h.get_meta_address_space(); // TODO Which address space...
@@ -42,11 +42,11 @@ namespace snmalloc
           auto refill = a.template reserve<false>(refill_size);
           if (refill == nullptr)
             return nullptr;
-          local_address_space->add_range(refill, refill_size);
+          local_address_space->add_range<typename SharedStateHandle::Pal>(refill, refill_size);
           // This should succeed
-          p = local_address_space->reserve_with_left_over(size);
+          p = local_address_space->reserve_with_left_over<typename SharedStateHandle::Pal>(size);
           if (p != nullptr)
-            local_address_space->commit_block(p, size);
+            local_address_space->commit_block<typename SharedStateHandle::Pal>(p, size);
         }
       }
       else
@@ -71,7 +71,7 @@ namespace snmalloc
     template<typename SharedStateHandle>
     static CapPtr<void, CBChunk> alloc_slab(
       SharedStateHandle h,
-      AddressSpaceManagerCore<typename SharedStateHandle::Pal>*
+      AddressSpaceManagerCore*
         local_address_space,
       size_t size,
       typename SharedStateHandle::Meta t)
@@ -84,9 +84,9 @@ namespace snmalloc
       // TODO two types of local address space
       if (local_address_space != nullptr)
       {
-        p = local_address_space->reserve(size);
+        p = local_address_space->template reserve<typename SharedStateHandle::Pal>(size);
         if (p != nullptr)
-          local_address_space->commit_block(p, size);
+          local_address_space->template commit_block<typename SharedStateHandle::Pal>(p, size);
         else
         {
           auto& a = h.get_object_address_space();
@@ -95,11 +95,11 @@ namespace snmalloc
           auto refill = a.template reserve<false>(refill_size);
           if (refill == nullptr)
             return nullptr;
-          local_address_space->add_range(refill, refill_size);
+          local_address_space->template add_range<typename SharedStateHandle::Pal>(refill, refill_size);
           // This should succeed
-          p = local_address_space->reserve_with_left_over(size);
+          p = local_address_space->template reserve_with_left_over<typename SharedStateHandle::Pal>(size);
           if (p != nullptr)
-            local_address_space->commit_block(p, size);
+            local_address_space->template commit_block<typename SharedStateHandle::Pal>(p, size);
         }
       }
       else

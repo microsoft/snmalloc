@@ -60,7 +60,7 @@ namespace snmalloc
     template<typename SharedStateHandle>
     static std::pair<CapPtr<void, CBChunk>, Metaslab*> alloc_slab(
       SharedStateHandle h,
-      AddressSpaceManagerCore<typename SharedStateHandle::Pal>&
+      AddressSpaceManagerCore&
         local_address_space,
       sizeclass_t sizeclass,
       sizeclass_t slab_sizeclass, // TODO sizeclass_t

@@ -35,7 +35,7 @@ namespace snmalloc
      */
     //    ArenaMap arena_map = {};
 
-    AddressSpaceManagerCore<PAL> core;
+    AddressSpaceManagerCore core;
 
     /**
      * This is infrequently used code, a spin lock simplifies the code
@@ -104,7 +104,7 @@ namespace snmalloc
         CapPtr<void, CBChunk> res;
         {
           FlagLock lock(spin_lock);
-          res = core.reserve(size);
+          res = core.template reserve<PAL>(size);
           if (res == nullptr)
           {
             // Allocation failed ask OS for more memory
@@ -182,16 +182,16 @@ namespace snmalloc
               return nullptr;
             }
 
-            core.add_range(block, block_size);
+            core.template add_range<PAL>(block, block_size);
 
             // still holding lock so guaranteed to succeed.
-            res = core.reserve(size);
+            res = core.template reserve<PAL>(size);
           }
         }
 
         // Don't need lock while committing pages.
         if constexpr (committed)
-          core.commit_block(res, size);
+          core.template commit_block<PAL>(res, size);
 
         return res;
       }
@@ -220,11 +220,11 @@ namespace snmalloc
         if (rsize > size)
         {
           FlagLock lock(spin_lock);
-          core.add_range(pointer_offset(res, size), rsize - size);
+          core.template add_range<PAL>(pointer_offset(res, size), rsize - size);
         }
 
         if constexpr (committed)
-          core.commit_block(res, size);
+          core.commit_block<PAL>(res, size);
       }
       return res;
     }
@@ -243,7 +243,7 @@ namespace snmalloc
     void add_range(CapPtr<void, CBChunk> base, size_t length)
     {
       FlagLock lock(spin_lock);
-      core.add_range(base, length);
+      core.add_range<PAL>(base, length);
     }
 
     size_t peak_memory_usage()

@@ -41,8 +41,7 @@ namespace snmalloc
      * A local area of address space managed by this allocator.
      * Used to reduce calls on the global address space.
      */
-    AddressSpaceManagerCore<typename SharedStateHandle::Pal>
-      local_address_space;
+    AddressSpaceManagerCore local_address_space;
 
     /**
      * This is the thread local structure associated to this

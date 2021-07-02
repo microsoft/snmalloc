@@ -22,7 +22,6 @@ namespace snmalloc
    * It cannot unreserve memory, so this does not require the
    * usual complexity of a buddy allocator.
    */
-  template<SNMALLOC_CONCEPT(ConceptPAL) PAL /*, typename ArenaMap*/>
   class AddressSpaceManagerCore
   {
     /**
@@ -73,6 +72,7 @@ namespace snmalloc
     /**
      * Adds a block to `ranges`.
      */
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     void add_block(size_t align_bits, CapPtr<void, CBChunk> base)
     {
       check_block(base, align_bits);
@@ -90,7 +90,7 @@ namespace snmalloc
         std::cout << "Add range linking." << std::endl;
 #endif
         // Add to linked list.
-        commit_block(base, sizeof(void*));
+        commit_block<PAL>(base, sizeof(void*));
         *(base.template as_static<CapPtr<void, CBChunk>>().unsafe_capptr) =
           ranges[align_bits][1];
         check_block(ranges[align_bits][1], align_bits);
@@ -105,6 +105,7 @@ namespace snmalloc
      * Find a block of the correct size. May split larger blocks
      * to satisfy this request.
      */
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     CapPtr<void, CBChunk> remove_block(size_t align_bits)
     {
       CapPtr<void, CBChunk> first = ranges[align_bits][0];
@@ -117,7 +118,7 @@ namespace snmalloc
         }
 
         // Look for larger block and split up recursively
-        CapPtr<void, CBChunk> bigger = remove_block(align_bits + 1);
+        CapPtr<void, CBChunk> bigger = remove_block<PAL>(align_bits + 1);
         if (bigger != nullptr)
         {
           size_t left_over_size = bits::one_at_bit(align_bits);
@@ -133,7 +134,7 @@ namespace snmalloc
       CapPtr<void, CBChunk> second = ranges[align_bits][1];
       if (second != nullptr)
       {
-        commit_block(second, sizeof(void*));
+        commit_block<PAL>(second, sizeof(void*));
         auto psecond =
           second.template as_static<CapPtr<void, CBChunk>>().unsafe_capptr;
         auto next = *psecond;
@@ -155,6 +156,7 @@ namespace snmalloc
      * Add a range of memory to the address space.
      * Divides blocks into power of two sizes with natural alignment
      */
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     void add_range(CapPtr<void, CBChunk> base, size_t length)
     {
       // Find the minimum set of maximally aligned blocks in this range.
@@ -167,7 +169,7 @@ namespace snmalloc
         size_t align = bits::one_at_bit(align_bits);
 
         check_block(base, align_bits);
-        add_block(align_bits, base);
+        add_block<PAL>(align_bits, base);
 
         base = pointer_offset(base, align);
         length -= align;
@@ -177,6 +179,7 @@ namespace snmalloc
     /**
      * Commit a block of memory
      */
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     void commit_block(CapPtr<void, CBChunk> base, size_t size)
     {
       // Rounding required for sub-page allocations.
@@ -198,6 +201,7 @@ namespace snmalloc
      * part of satisfying the request will be registered with the provided
      * arena_map for use in subsequent amplification.
      */
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     CapPtr<void, CBChunk> reserve(size_t size)
     {
 #ifdef SNMALLOC_TRACING
@@ -207,7 +211,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
-      return remove_block(bits::next_pow2_bits(size));
+      return remove_block<PAL>(bits::next_pow2_bits(size));
     }
 
     /**
@@ -217,6 +221,7 @@ namespace snmalloc
      * This is useful for allowing the space required for alignment to be
      * used, by smaller objects.
      */
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     CapPtr<void, CBChunk> reserve_with_left_over(size_t size)
     {
       SNMALLOC_ASSERT(size >= sizeof(void*));
@@ -225,13 +230,13 @@ namespace snmalloc
 
       size_t rsize = bits::next_pow2(size);
 
-      auto res = reserve(rsize);
+      auto res = reserve<PAL>(rsize);
 
       if (res != nullptr)
       {
         if (rsize > size)
         {
-          add_range(pointer_offset(res, size), rsize - size);
+          add_range<PAL>(pointer_offset(res, size), rsize - size);
         }
       }
       return res;
