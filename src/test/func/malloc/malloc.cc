@@ -8,10 +8,11 @@ using namespace snmalloc;
 
 void check_result(size_t size, size_t align, void* p, int err, bool null)
 {
+  bool failed = false;
   if (errno != err)
   {
     printf("Expected error: %d but got %d\n", err, errno);
-    abort();
+    failed = true;
   }
 
   if (null)
@@ -19,7 +20,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
     if (p != nullptr)
     {
       printf("Expected null, and got non-null return!\n");
-      abort();
+      failed = true;
     }
     our_free(p);
     return;
@@ -28,7 +29,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
   if ((p == nullptr) && (size != 0))
   {
     printf("Unexpected null returned.\n");
-    abort();
+    failed = true;
   }
   const auto alloc_size = our_malloc_usable_size(p);
   const auto expected_size = round_size(size);
@@ -46,7 +47,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
       "Usable size is %zu, but required to be %zu.\n",
       alloc_size,
       expected_size);
-    abort();
+    failed = true;
   }
   if ((!exact_size) && (alloc_size < expected_size))
   {
@@ -54,7 +55,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
       "Usable size is %zu, but required to be at least %zu.\n",
       alloc_size,
       expected_size);
-    abort();
+    failed = true;
   }
   if (static_cast<size_t>(reinterpret_cast<uintptr_t>(p) % align) != 0)
   {
@@ -62,7 +63,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
       "Address is 0x%zx, but required to be aligned to 0x%zx.\n",
       reinterpret_cast<size_t>(p),
       align);
-    abort();
+    failed = true;
   }
   if (
     static_cast<size_t>(
@@ -72,9 +73,11 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
       "Address is 0x%zx, but should have natural alignment to 0x%zx.\n",
       reinterpret_cast<size_t>(p),
       natural_alignment(size));
-    abort();
+    failed = true;
   }
 
+  if (failed)
+    printf("check_result failed! %p", p);
   our_free(p);
 }
 
