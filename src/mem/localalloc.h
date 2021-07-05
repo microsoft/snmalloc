@@ -220,7 +220,7 @@ namespace snmalloc
                   << std::endl;
 #endif
         MetaEntry entry =
-          BackendAllocator::get_meta_data(handle, address_cast(p));
+          SharedStateHandle::Backend::get_meta_data(handle.get_backend_state(), address_cast(p));
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
           entry.get_remote()->trunc_id(), CapPtr<void, CBAlloc>(p));
         post_remote_cache();
@@ -356,7 +356,7 @@ namespace snmalloc
       //  in thread local state.
 
       const MetaEntry& entry =
-        BackendAllocator::get_meta_data(handle, address_cast(p));
+        SharedStateHandle::Backend::get_meta_data(handle.get_backend_state(), address_cast(p));
       if (likely(local_cache.remote_allocator == entry.get_remote()))
       {
         if (likely(CoreAlloc::dealloc_local_object_fast(
@@ -448,7 +448,7 @@ namespace snmalloc
       // entry for the first chunk of memory, that states it represents a large
       // object, so we can pull the check for null off the fast path.
       MetaEntry entry =
-        BackendAllocator::get_meta_data(handle, address_cast(p_raw));
+        SharedStateHandle::Backend::get_meta_data(handle.get_backend_state(), address_cast(p_raw));
 
       if (likely(entry.get_remote() != handle.fake_large_remote))
         return sizeclass_to_size(entry.get_sizeclass());
@@ -474,7 +474,7 @@ namespace snmalloc
       if (likely(handle.is_initialised()))
       {
         MetaEntry entry =
-          BackendAllocator::get_meta_data<true>(handle, address_cast(p_raw));
+          SharedStateHandle::Backend::template get_meta_data<true>(handle.get_backend_state(), address_cast(p_raw));
         auto sizeclass = entry.get_sizeclass();
         if (likely(entry.get_remote() != handle.fake_large_remote))
         {

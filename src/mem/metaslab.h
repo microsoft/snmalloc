@@ -237,7 +237,7 @@ namespace snmalloc
     uintptr_t remote_and_sizeclass;
 
   public:
-    constexpr MetaEntry(Metaslab* meta) : meta(meta), remote_and_sizeclass(0) {}
+    constexpr MetaEntry() : meta(nullptr), remote_and_sizeclass(0) {}
 
     MetaEntry(Metaslab* meta, RemoteAllocator* remote, sizeclass_t sizeclass)
     : meta(meta)

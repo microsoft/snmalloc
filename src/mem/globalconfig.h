@@ -9,8 +9,12 @@ namespace snmalloc
 
   class Globals : public CommonConfig
   {
+  public:
+    using Backend = BackendAllocator<Pal, false>;
+
+private:
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static BackendAllocator::GlobalState<Pal, false> backend_state;
+    inline static Backend::GlobalState backend_state;
 
     SNMALLOC_REQUIRE_CONSTINIT
     inline static SlabAllocatorState slab_allocator_state;
@@ -25,7 +29,7 @@ namespace snmalloc
     inline static std::atomic_flag initialisation_lock{};
 
   public:
-    BackendAllocator::GlobalState<Pal, false>& get_backend_state()
+    Backend::GlobalState& get_backend_state()
     {
       return backend_state;
     }

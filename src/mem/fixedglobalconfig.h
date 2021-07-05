@@ -9,40 +9,20 @@ namespace snmalloc
    */
   class FixedGlobals : public CommonConfig
   {
-    inline static AddressSpaceManager<PALNoAlloc<DefaultPal>> address_space;
+  public:
+    using Backend = BackendAllocator<PALNoAlloc<Pal>, true>;
 
-    inline static FlatPagemap<
-      MIN_CHUNK_BITS,
-      CommonConfig::Meta,
-      Pal,
-      true,
-      &CommonConfig::default_entry>
-      pagemap;
+  private:
+    inline static Backend::GlobalState backend_state;
 
     inline static SlabAllocatorState slab_allocator_state;
 
     inline static PoolState<CoreAlloc<FixedGlobals>> alloc_pool;
 
   public:
-    AddressSpaceManager<PALNoAlloc<DefaultPal>>& get_meta_address_space()
+    static Backend::GlobalState& get_backend_state()
     {
-      return address_space;
-    }
-
-    AddressSpaceManager<PALNoAlloc<DefaultPal>>& get_object_address_space()
-    {
-      return address_space;
-    }
-
-    FlatPagemap<
-      MIN_CHUNK_BITS,
-      CommonConfig::Meta,
-      Pal,
-      true,
-      &CommonConfig::default_entry>&
-    get_pagemap()
-    {
-      return pagemap;
+      return backend_state;
     }
 
     SlabAllocatorState& get_slab_allocator_state()
@@ -83,8 +63,7 @@ namespace snmalloc
 
     static void init(CapPtr<void, CBChunk> base, size_t length)
     {
-      address_space.add_range(base, length);
-      pagemap.init(&address_space, address_cast(base), length);
+      get_backend_state().init(base, length);
     }
 
     constexpr static FixedGlobals get_handle()

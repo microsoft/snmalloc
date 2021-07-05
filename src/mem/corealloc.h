@@ -41,7 +41,7 @@ namespace snmalloc
      * A local area of address space managed by this allocator.
      * Used to reduce calls on the global address space.
      */
-    BackendAllocator::LocalState backend_state;
+    typename SharedStateHandle::Backend::LocalState backend_state;
 
     /**
      * This is the thread local structure associated to this
@@ -118,16 +118,38 @@ namespace snmalloc
     /**
      * There are a few internal corner cases where we need to allocate
      * a small object.  These are not on the fast path,
+     *   - Allocating object of size zero
      *   - Allocating stub in the message queue
+     * TODO: This code should probably be improved, but not perf critical.
      */
     template<ZeroMem zero_mem = NoZero>
     void* small_alloc_one(size_t size)
     {
-      SNMALLOC_ASSERT(attached_cache != nullptr);
-      return attached_cache->template alloc<zero_mem, SharedStateHandle>(
-        size, [&](sizeclass_t sizeclass, FreeListIter* fl) {
-          return small_alloc<zero_mem>(sizeclass, *fl);
-        });
+      // Use attached cache, and fill it if it is empty.
+      if (attached_cache != nullptr)
+        return attached_cache->template alloc<zero_mem, SharedStateHandle>(
+          size, [&](sizeclass_t sizeclass, FreeListIter* fl) {
+            return small_alloc<zero_mem>(sizeclass, *fl);
+          });
+
+      auto sizeclass = size_to_sizeclass(size);
+      //   stats().alloc_request(size);
+      //   stats().sizeclass_alloc(sizeclass);
+
+      // This is a debug path.  When we reallocate a message queue in
+      // debug check empty, that might occur when the allocator is not attached
+      // to any thread.  Hence, the following unperformant code is acceptable.
+      // TODO: Potentially do something nicer.
+      FreeListIter temp;
+      auto r = small_alloc<zero_mem>(sizeclass, temp);
+      while (!temp.empty())
+      {
+        // Fake statistics up.
+        // stats().sizeclass_alloc(sizeclass);
+        dealloc_local_object(
+          finish_alloc_no_zero(temp.take(entropy), sizeclass));
+      }
+      return r;
     }
 
     static SNMALLOC_FAST_PATH void alloc_new_list(
@@ -328,8 +350,8 @@ namespace snmalloc
       for (size_t i = 0; i < REMOTE_BATCH; i++)
       {
         auto p = message_queue().peek();
-        auto& entry = snmalloc::BackendAllocator::get_meta_data(
-          handle, snmalloc::address_cast(p));
+        auto& entry = SharedStateHandle::Backend::get_meta_data(
+          handle.get_backend_state(), snmalloc::address_cast(p));
 
         auto r = message_queue().dequeue();
 
@@ -443,8 +465,8 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH void dealloc_local_object(void* p)
     {
-      auto entry = snmalloc::BackendAllocator::get_meta_data(
-        handle, snmalloc::address_cast(p));
+      auto entry = SharedStateHandle::Backend::get_meta_data(
+        handle.get_backend_state(), snmalloc::address_cast(p));
       if (likely(dealloc_local_object_fast(entry, p, entropy)))
         return;
 
@@ -549,8 +571,8 @@ namespace snmalloc
         {
           bool need_post = true; // Always going to post, so ignore.
           auto n = p->non_atomic_next;
-          auto& entry = snmalloc::BackendAllocator::get_meta_data(
-            handle, snmalloc::address_cast(p));
+          auto& entry = SharedStateHandle::Backend::get_meta_data(
+            handle.get_backend_state(), snmalloc::address_cast(p));
           handle_dealloc_remote(entry, p, need_post);
           p = n;
         }
@@ -563,19 +585,17 @@ namespace snmalloc
           handle_message_queue([]() {});
       }
 
+      // TODO: Flush any unused slabs back to global allocator
+      // for (auto& alloc_class : alloc_classes)
+      // {
+      //   ...
+      // }
+
       // Drain the caches back to the originating allocator
       // Flush remote cache at this point too.
       // do this after handling messages as we
       // may be forwarding messages.
-      auto posted = attached_cache->flush<sizeof(CoreAlloc)>([&](auto p) { dealloc_local_object(p); }, handle);
-
-      // We may now have unused slabs, return to the global allocator.
-      for (sizeclass_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass ++)
-      {
-        dealloc_local_slabs(sizeclass);
-      }
-
-      return posted;
+      return attached_cache->flush<sizeof(CoreAlloc)>([&](auto p) { dealloc_local_object(p); }, handle);
     }
 
     // This allows the caching layer to be attached to an underlying
@@ -594,11 +614,18 @@ namespace snmalloc
       c->remote_dealloc_cache.init();
     }
 
+
     /**
-     * Performs the work of checking if empty under the assumption that
-     * a local cache has been attached.
+     * If result parameter is non-null, then false is assigned into the
+     * the location pointed to by result if this allocator is non-empty.
+     *
+     * If result pointer is null, then this code raises a Pal::error on the
+     * particular check that fails, if any do fail.
+     *
+     * Do not run this while other thread could be deallocating as the
+     * message queue invariant is temporarily broken.
      */
-    bool debug_is_empty_impl(bool* result)
+    bool debug_is_empty(bool* result)
     {
       auto test = [&result](auto& queue) {
         if (!queue.is_empty())
@@ -618,6 +645,16 @@ namespace snmalloc
         }
       };
 
+      bool clear_cache = false;
+      if (attached_cache == nullptr)
+      {
+        // We need a cache to perform some operations, so set one up
+        // temporarily
+        LocalCache temp(public_state());
+        attach(&temp);
+        clear_cache = true;
+      }
+
       bool sent_something = flush(true);
       
       for (auto& alloc_class : alloc_classes)
@@ -628,39 +665,15 @@ namespace snmalloc
       // Place the static stub message on the queue.
       init_message_queue();
 
-      return sent_something;
-    }
-
-    /**
-     * If result parameter is non-null, then false is assigned into the
-     * the location pointed to by result if this allocator is non-empty.
-     *
-     * If result pointer is null, then this code raises a Pal::error on the
-     * particular check that fails, if any do fail.
-     *
-     * Do not run this while other thread could be deallocating as the
-     * message queue invariant is temporarily broken.
-     */
-    bool debug_is_empty(bool* result)
-    {
-      if (attached_cache == nullptr)
+      // Init will have created a single allocation, and the rest
+      // of the free list needs removing from the cache.
+      if (clear_cache)
       {
-        // We need a cache to perform some operations, so set one up
-        // temporarily
-        LocalCache temp(public_state());
-        attach(&temp);
-
-        auto sent_something = debug_is_empty_impl(result);
-
-        // Remove cache from the allocator
         flush();
         attached_cache = nullptr;
-        return sent_something;
       }
-      else
-      {
-        return debug_is_empty_impl(result);
-      }
+
+      return sent_something;
     }
   };
 }

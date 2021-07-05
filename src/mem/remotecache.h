@@ -130,7 +130,7 @@ namespace snmalloc
           if (!l->empty())
           {
             MetaEntry entry =
-              BackendAllocator::get_meta_data(handle, address_cast(first));
+              SharedStateHandle::Backend::get_meta_data(handle.get_backend_state(), address_cast(first));
             entry.get_remote()->message_queue.enqueue(first, l->last);
             l->clear();
             sent_something = true;
@@ -155,7 +155,7 @@ namespace snmalloc
           // Use the next N bits to spread out remote deallocs in our own
           // slot.
           MetaEntry entry =
-            BackendAllocator::get_meta_data(handle, address_cast(r));
+            SharedStateHandle::Backend::get_meta_data(handle.get_backend_state(), address_cast(r));
           auto id = entry.get_remote()->trunc_id();
           // TODO correct size for slot offset
           size_t slot = get_slot<allocator_size>(id, post_round);

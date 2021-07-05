@@ -13,16 +13,21 @@
 #include <test/setup.h>
 
 using namespace snmalloc;
-using T = size_t;
 static constexpr size_t GRANULARITY_BITS = 9;
-static T DEFAULT = 0xffff'ffff;
+struct T
+{
+  size_t v = 99;
+  T(size_t v) : v(v) {}
+  T() {}
+};
+
 
 AddressSpaceManager<DefaultPal> address_space;
 
-FlatPagemap<GRANULARITY_BITS, T, DefaultPal, false, &DEFAULT>
+FlatPagemap<GRANULARITY_BITS, T, DefaultPal, false>
   pagemap_test_unbound;
 
-FlatPagemap<GRANULARITY_BITS, T, DefaultPal, true, &DEFAULT> pagemap_test_bound;
+FlatPagemap<GRANULARITY_BITS, T, DefaultPal, true> pagemap_test_bound;
 
 size_t failure_count = 0;
 
@@ -35,10 +40,10 @@ void check_get(
   else
     value = pagemap_test_unbound.get<false>(address);
 
-  if (value != expected)
+  if (value.v != expected.v)
   {
-    std::cout << "Location: " << (void*)address << " Read: " << value
-              << " Expected: " << expected << " on " << file << ":" << lineno
+    std::cout << "Location: " << (void*)address << " Read: " << value.v
+              << " Expected: " << expected.v << " on " << file << ":" << lineno
               << std::endl;
     failure_count++;
   }
@@ -68,7 +73,7 @@ void test_pagemap(bool bounded)
   address_t high = bits::one_at_bit(36);
 
   // Nullptr needs to work before initialisation
-  CHECK_GET(true, 0, DEFAULT);
+  CHECK_GET(true, 0, T());
 
   // Initialise the pagemap
   if (bounded)
@@ -81,7 +86,7 @@ void test_pagemap(bool bounded)
   }
 
   // Nullptr should still work after init.
-  CHECK_GET(true, 0, DEFAULT);
+  CHECK_GET(true, 0, T());
 
   // Store a pattern into page map
   T value = 1;
@@ -89,8 +94,8 @@ void test_pagemap(bool bounded)
        ptr += bits::one_at_bit(GRANULARITY_BITS + 3))
   {
     add(false, ptr, value);
-    value++;
-    if (value == DEFAULT)
+    value.v++;
+    if (value.v == T().v)
       value = 0;
     if ((ptr % (1ULL << 32)) == 0)
       std::cout << "." << std::flush;
@@ -103,8 +108,8 @@ void test_pagemap(bool bounded)
        ptr += bits::one_at_bit(GRANULARITY_BITS + 3))
   {
     CHECK_GET(false, ptr, value);
-    value++;
-    if (value == DEFAULT)
+    value.v++;
+    if (value.v == T().v)
       value = 0;
 
     if ((ptr % (1ULL << 32)) == 0)

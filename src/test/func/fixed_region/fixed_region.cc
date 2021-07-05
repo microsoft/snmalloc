@@ -16,9 +16,11 @@ using FixedAlloc = LocalAllocator<FixedGlobals>;
 int main()
 {
 #ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
-  auto handle = snmalloc::Globals::get_handle();
 
-  auto& address_space = handle.get_object_address_space();
+  // Create a standard address space to get initial allocation
+  // this just bypasses having to understand the test platform.
+  AddressSpaceManager<DefaultPal> address_space;
+
   // 28 is large enough to produce a nested allocator.
   // It is also large enough for the example to run in.
   // For 1MiB superslabs, SUPERSLAB_BITS + 4 is not big enough for the example.

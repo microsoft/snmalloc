@@ -45,14 +45,5 @@ namespace snmalloc
     static_assert(
       &unused_remote != fake_large_remote,
       "Compilation should ensure these are different");
-
-    /**
-     * We use fake_large_remote so that nullptr, will hit the large
-     * allocation path which is less performance sensitive. We don't
-     * store a metaslab, so it is considered not allocated by this
-     * allocator for external pointer.
-     */
-    SNMALLOC_REQUIRE_CONSTINIT
-    inline static MetaEntry default_entry{nullptr};
   };
 }

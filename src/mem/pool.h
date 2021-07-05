@@ -49,7 +49,7 @@ namespace snmalloc
         return p;
       }
 
-      p = BackendAllocator::alloc_meta_data<T>(
+      p = SlabAllocator::alloc_meta_data<T>(
         h, nullptr, std::forward<Args>(args)...);
 
       FlagLock f(pool.lock);

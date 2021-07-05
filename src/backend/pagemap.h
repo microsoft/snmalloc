@@ -18,8 +18,7 @@ namespace snmalloc
     size_t GRANULARITY_BITS,
     typename T,
     typename PAL,
-    bool has_bounds,
-    T* default_value = nullptr>
+    bool has_bounds>
   class FlatPagemap
   {
   private:
@@ -33,7 +32,8 @@ namespace snmalloc
     //   malloc_usable_size(nullptr)
     // do not require an allocation to have ocurred before
     // they are called.
-    T* body{default_value};
+    inline static const T default_value{};
+    T* body{const_cast<T*>(&default_value)};
 
     address_t base{0};
     size_t size{0};
@@ -112,15 +112,15 @@ namespace snmalloc
         {
           if constexpr (potentially_out_of_range)
           {
-            return *default_value;
+            return default_value;
           }
           else
           {
             // Out of range null should
             // still return the default value.
             if (p == 0)
-              return *default_value;
-            PAL::error("Internal error.");
+              return default_value;
+            PAL::error("Internal error: Pagemap read access out of range.");
           }
         }
         p = p - base;
@@ -144,7 +144,7 @@ namespace snmalloc
       {
         if (p - base > size)
         {
-          PAL::error("Internal error.");
+          PAL::error("Internal error: Pagemap write access out of range.");
         }
         p = p - base;
       }
@@ -161,7 +161,7 @@ namespace snmalloc
       {
         if (p - base > size)
         {
-          PAL::error("Internal error.");
+          PAL::error("Internal error: Pagemap new write access out of range.");
         }
         p = p - base;
       }

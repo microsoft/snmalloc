@@ -3,6 +3,7 @@
 #include "../pal/pal.h"
 #include "address_space.h"
 #include "pagemap.h"
+#include "../mem/metaslab.h"
 
 namespace snmalloc
 {
@@ -10,6 +11,7 @@ namespace snmalloc
    * This class abstracts the platform to a consistent
    * way of handling memory for the front end.
    */
+  template<typename PAL, bool fixed_range>
   class BackendAllocator
   {
   public:
@@ -19,28 +21,34 @@ namespace snmalloc
 
       // TODO Separate meta data and object
       AddressSpaceManagerCore local_address_space;
-
-      
     };
 
-    template<typename PAL, bool fixed_range>
     class GlobalState
     {
+      friend BackendAllocator;
+
       // TODO Separate meta data and object
       AddressSpaceManager<PAL> address_space;
 
-      FlatPagemap<MIN_CHUNK_BITS, MetaEntry, PAL, fixed_range, &default_entry> pagemap;
+      FlatPagemap<MIN_CHUNK_BITS, MetaEntry, PAL, fixed_range> pagemap;
 
     public:
+      // TODO should check fixed range.
       void init()
       {
         pagemap.init(&address_space);
       }
+
+      void init(CapPtr<void, CBChunk> base, size_t length)
+      {
+        address_space.add_range(base, length);
+        pagemap.init(&address_space, address_cast(base), length);
+      }
     };
 
   private:
-    template<bool is_meta, typename SharedStateHandle>
-    CapPtr<void, CBChunk> reserve(SharedStateHandle h, LocalState* local_state, size_t size)
+    template<bool is_meta>
+    static CapPtr<void, CBChunk> reserve(GlobalState& h, LocalState* local_state, size_t size)
     {
       // TODO have two address spaces.
       UNUSED(is_meta);
@@ -48,31 +56,30 @@ namespace snmalloc
       CapPtr<void, CBChunk> p;
       if (local_state != nullptr)
       {
-        p = local_state->local_address_space.reserve_with_left_over<typename SharedStateHandle::Pal>(size);
+        p = local_state->local_address_space.template reserve_with_left_over<PAL>(size);
         if (p != nullptr)
-          local_state->local_address_space.commit_block<typename SharedStateHandle::Pal>(p, size);
+          local_state->local_address_space.template commit_block<PAL>(p, size);
         else
         {
-          auto& a = h.get_backend_state().address_space;
+          auto& a = h.address_space;
           auto refill_size = bits::max(
             size, bits::one_at_bit(21)); // TODO min and max heuristics
           auto refill = a.template reserve<false>(refill_size);
           if (refill == nullptr)
             return nullptr;
-          local_state->local_address_space.add_range<typename SharedStateHandle::Pal>(refill, refill_size);
+          local_state->local_address_space.template add_range<PAL>(refill, refill_size);
           // This should succeed
-          p = local_state->local_address_space.reserve_with_left_over<typename SharedStateHandle::Pal>(size);
+          p = local_state->local_address_space.template reserve_with_left_over<PAL>(size);
           if (p != nullptr)
-            local_state->local_address_space.commit_block<typename SharedStateHandle::Pal>(p, size);
+            local_state->local_address_space.template commit_block<PAL>(p, size);
         }
       }
       else
       {
-        auto& a = h.get_backend_state().address_space;
+        auto& a = h.address_space;
         p = a.template reserve_with_left_over<true>(size);
       }
 
-      h.get_backend_state().address_space.add_peak_memory_usage(size);
       return p;
     }
 
@@ -83,21 +90,12 @@ namespace snmalloc
      * Backend allocator may use guard pages and separate area of
      * address space to protect this from corruption.
      */
-    template<typename U, typename SharedStateHandle, typename... Args>
-    static U* alloc_meta_data(
-      SharedStateHandle h,
+    static CapPtr<void, CBChunk> alloc_meta_data(
+      GlobalState& h,
       LocalState* local_state,
-      Args&&... args)
+      size_t size)
     {
-      // Cache line align
-      size_t size = bits::align_up(sizeof(U), 64);
-      
-      CapPtr<void, CBChunk> p = reserve<true>(h, local_state, size);
-
-      if (p == nullptr)
-        return nullptr;
-
-      return new (p.unsafe_capptr) U(std::forward<Args>(args)...);
+      return reserve<true>(h, local_state, size);
     }
 
     /**
@@ -105,9 +103,8 @@ namespace snmalloc
      *
      * Set its metadata entry to t.
      */
-    template<typename SharedStateHandle>
     static std::pair<CapPtr<void, CBChunk>, Metaslab*> alloc_slab(
-      SharedStateHandle h,
+      GlobalState& h,
       LocalState* local_state,
       size_t size,
       RemoteAllocator* remote,
@@ -127,23 +124,20 @@ namespace snmalloc
 #ifdef SNMALLOC_TRACING
         std::cout << "Out of memory" << std::endl;
 #endif
-        return p;
+        return {p, nullptr};
       }
 
-      CapPtr<void, CBChunk> meta = reserve<true>(h, local_state, sizeof(Metaslab));
+      Metaslab* meta = reinterpret_cast<Metaslab*>(reserve<true>(h, local_state, sizeof(Metaslab)).unsafe_capptr);
 
-
-      // TODO handle bounded versus lazy pagemaps in stats
-      h.get_meta_address_space().add_peak_memory_usage(
-        (size / MIN_CHUNK_SIZE) * sizeof(typename SharedStateHandle::Meta));
+      MetaEntry t(meta, remote, sizeclass);
 
       for (address_t a = address_cast(p);
            a < address_cast(pointer_offset(p, size));
            a += MIN_CHUNK_SIZE)
       {
-        h.get_backend_state().pagemap.add(a, t);
+        h.pagemap.add(a, t);
       }
-      return p;
+      return {p, meta};
     }
 
     /**
@@ -152,26 +146,25 @@ namespace snmalloc
      * Set template parameter to true if it not an error
      * to access a location that is not backed by a slab.
      */
-    template<bool potentially_out_of_range = false, typename SharedStateHandle>
-    static const typename SharedStateHandle::Meta& 
-    get_meta_data(SharedStateHandle h, address_t p)
+    template<bool potentially_out_of_range = false>
+    static const MetaEntry& 
+    get_meta_data(GlobalState& h, address_t p)
     {
-      return h.get_backend_state().pagemap.template get<potentially_out_of_range>(p);
+      return h.pagemap.template get<potentially_out_of_range>(p);
     }
 
     /**
      * Set the metadata associated with a slab.
      */
-    template<typename SharedStateHandle>
     static void set_meta_data(
-      SharedStateHandle h,
+      GlobalState& h,
       address_t p,
       size_t size,
-      typename SharedStateHandle::Meta t)
+      MetaEntry t)
     {
       for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
       {
-        h.get_backend_state().pagemap.set(a, t);
+        h.pagemap.set(a, t);
       }
     }
   };
