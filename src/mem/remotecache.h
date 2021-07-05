@@ -19,21 +19,22 @@ namespace snmalloc
   struct RemoteDeallocCache
   {
     /*
-    * A singly-linked list of Remote objects, supporting append and
-    * take-all operations.  Intended only for the private use of this
-    * allocator; the Remote objects here will later be taken and pushed
-    * to the inter-thread message queues.
-    */
+     * A singly-linked list of Remote objects, supporting append and
+     * take-all operations.  Intended only for the private use of this
+     * allocator; the Remote objects here will later be taken and pushed
+     * to the inter-thread message queues.
+     */
     struct RemoteList
     {
       /*
-      * A stub Remote object that will always be the head of this list;
-      * never taken for further processing.
-      */
+       * A stub Remote object that will always be the head of this list;
+       * never taken for further processing.
+       */
       Remote head{};
 
       /**
-       * Initially is null ptr, and needs to be non-null before anything runs on this.
+       * Initially is null ptr, and needs to be non-null before anything runs on
+       * this.
        */
       CapPtr<Remote, CBAlloc> last{nullptr};
 
@@ -88,7 +89,8 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH bool reserve_space(const MetaEntry& entry)
     {
-      auto size = static_cast<int64_t>(sizeclass_to_size(entry.get_sizeclass()));
+      auto size =
+        static_cast<int64_t>(sizeclass_to_size(entry.get_sizeclass()));
 
       bool result = capacity > size;
       if (result)
@@ -129,8 +131,8 @@ namespace snmalloc
 
           if (!l->empty())
           {
-            MetaEntry entry =
-              SharedStateHandle::Backend::get_meta_data(handle.get_backend_state(), address_cast(first));
+            MetaEntry entry = SharedStateHandle::Backend::get_meta_data(
+              handle.get_backend_state(), address_cast(first));
             entry.get_remote()->message_queue.enqueue(first, l->last);
             l->clear();
             sent_something = true;
@@ -154,8 +156,8 @@ namespace snmalloc
         {
           // Use the next N bits to spread out remote deallocs in our own
           // slot.
-          MetaEntry entry =
-            SharedStateHandle::Backend::get_meta_data(handle.get_backend_state(), address_cast(r));
+          MetaEntry entry = SharedStateHandle::Backend::get_meta_data(
+            handle.get_backend_state(), address_cast(r));
           auto id = entry.get_remote()->trunc_id();
           // TODO correct size for slot offset
           size_t slot = get_slot<allocator_size>(id, post_round);
@@ -182,7 +184,7 @@ namespace snmalloc
      * Must be called before anything else to ensure actually initialised
      * not just zero init.
      */
-    void init ()
+    void init()
     {
 #ifndef NDEBUG
       initialised = true;

@@ -14,11 +14,7 @@ namespace snmalloc
    * Simple pagemap that for each GRANULARITY_BITS of the address range
    * stores a T.
    */
-  template<
-    size_t GRANULARITY_BITS,
-    typename T,
-    typename PAL,
-    bool has_bounds>
+  template<size_t GRANULARITY_BITS, typename T, typename PAL, bool has_bounds>
   class FlatPagemap
   {
   private:
@@ -71,7 +67,8 @@ namespace snmalloc
         base = bits::align_up(b, bits::one_at_bit(GRANULARITY_BITS));
         auto end = bits::align_down(b + s, bits::one_at_bit(GRANULARITY_BITS));
         size = end - base;
-        body = a->template reserve<false, false>(bits::next_pow2((size >> SHIFT) * sizeof(T)))
+        body = a->template reserve<false, false>(
+                  bits::next_pow2((size >> SHIFT) * sizeof(T)))
                  .template as_static<T>()
                  .unsafe_capptr;
         ;
@@ -92,7 +89,7 @@ namespace snmalloc
         new_body[0] = body[0];
 
         body = new_body;
-        //TODO this is pretty sparse, should we ignore huge pages for it?
+        // TODO this is pretty sparse, should we ignore huge pages for it?
         //     madvise(body, size, MADV_NOHUGEPAGE);
       }
     }

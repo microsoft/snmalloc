@@ -45,14 +45,12 @@ namespace snmalloc
      */
     ModArray<NUM_SLAB_SIZES, MPMCStack<SlabRecord, RequiresInit>> slab_stack;
 
-
     /**
      * All memory issued by this address space manager
      */
     std::atomic<size_t> peak_memory_usage_{0};
-    
-    std::atomic<size_t> memory_in_stacks{0};
 
+    std::atomic<size_t> memory_in_stacks{0};
 
   public:
     size_t unused_memory()
@@ -109,8 +107,8 @@ namespace snmalloc
 
       // Allocate a fresh slab as there are no available ones.
       // First create meta-data
-      auto [slab, meta] =
-        SharedStateHandle::Backend::alloc_slab(h.get_backend_state(), &backend_state, slab_size, remote, sizeclass);
+      auto [slab, meta] = SharedStateHandle::Backend::alloc_slab(
+        h.get_backend_state(), &backend_state, slab_size, remote, sizeclass);
 #ifdef SNMALLOC_TRACING
       std::cout << "Create slab:" << slab.unsafe_capptr << " slab_sizeclass "
                 << slab_sizeclass << " size " << slab_size << std::endl;
@@ -120,7 +118,8 @@ namespace snmalloc
       state.add_peak_memory_usage(sizeof(Metaslab));
       // TODO handle bounded versus lazy pagemaps in stats
       state.add_peak_memory_usage(
-        (slab_size / MIN_CHUNK_SIZE) * sizeof(typename SharedStateHandle::Meta));
+        (slab_size / MIN_CHUNK_SIZE) *
+        sizeof(typename SharedStateHandle::Meta));
 
       return {slab, meta};
     }
@@ -140,7 +139,7 @@ namespace snmalloc
       state.memory_in_stacks += slab_sizeclass_to_size(slab_sizeclass);
     }
 
-        /**
+    /**
      * Provide a block of meta-data with size and align.
      *
      * Backend allocator may use guard pages and separate area of
@@ -154,8 +153,9 @@ namespace snmalloc
     {
       // Cache line align
       size_t size = bits::align_up(sizeof(U), 64);
-      
-      CapPtr<void, CBChunk> p = SharedStateHandle::Backend::alloc_meta_data(h.get_backend_state(), local_state, size);
+
+      CapPtr<void, CBChunk> p = SharedStateHandle::Backend::alloc_meta_data(
+        h.get_backend_state(), local_state, size);
 
       if (p == nullptr)
         return nullptr;

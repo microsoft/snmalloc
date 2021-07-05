@@ -12,7 +12,7 @@ namespace snmalloc
   public:
     using Backend = BackendAllocator<Pal, false>;
 
-private:
+  private:
     SNMALLOC_REQUIRE_CONSTINIT
     inline static Backend::GlobalState backend_state;
 

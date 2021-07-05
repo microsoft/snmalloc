@@ -393,10 +393,13 @@ namespace snmalloc
       }
       else
       {
-        if (!need_post && !attached_cache->remote_dealloc_cache.reserve_space(entry))
+        if (
+          !need_post &&
+          !attached_cache->remote_dealloc_cache.reserve_space(entry))
           need_post = true;
-        attached_cache->remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-          entry.get_remote()->trunc_id(), p.as_void());
+        attached_cache->remote_dealloc_cache
+          .template dealloc<sizeof(CoreAlloc)>(
+            entry.get_remote()->trunc_id(), p.as_void());
       }
     }
 
@@ -444,8 +447,9 @@ namespace snmalloc
     SNMALLOC_FAST_PATH bool post()
     {
       // stats().remote_post();  // TODO queue not in line!
-      bool sent_something = attached_cache->remote_dealloc_cache.post<sizeof(CoreAlloc)>(
-        handle, public_state()->trunc_id());
+      bool sent_something =
+        attached_cache->remote_dealloc_cache.post<sizeof(CoreAlloc)>(
+          handle, public_state()->trunc_id());
 
       return sent_something;
     }
@@ -595,7 +599,8 @@ namespace snmalloc
       // Flush remote cache at this point too.
       // do this after handling messages as we
       // may be forwarding messages.
-      return attached_cache->flush<sizeof(CoreAlloc)>([&](auto p) { dealloc_local_object(p); }, handle);
+      return attached_cache->flush<sizeof(CoreAlloc)>(
+        [&](auto p) { dealloc_local_object(p); }, handle);
     }
 
     // This allows the caching layer to be attached to an underlying
@@ -613,7 +618,6 @@ namespace snmalloc
       // Set up remote cache.
       c->remote_dealloc_cache.init();
     }
-
 
     /**
      * If result parameter is non-null, then false is assigned into the
@@ -656,7 +660,7 @@ namespace snmalloc
       }
 
       bool sent_something = flush(true);
-      
+
       for (auto& alloc_class : alloc_classes)
       {
         test(alloc_class);

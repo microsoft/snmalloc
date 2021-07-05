@@ -1,9 +1,9 @@
 #pragma once
 #include "../mem/allocconfig.h"
+#include "../mem/metaslab.h"
 #include "../pal/pal.h"
 #include "address_space.h"
 #include "pagemap.h"
-#include "../mem/metaslab.h"
 
 namespace snmalloc
 {
@@ -48,7 +48,8 @@ namespace snmalloc
 
   private:
     template<bool is_meta>
-    static CapPtr<void, CBChunk> reserve(GlobalState& h, LocalState* local_state, size_t size)
+    static CapPtr<void, CBChunk>
+    reserve(GlobalState& h, LocalState* local_state, size_t size)
     {
       // TODO have two address spaces.
       UNUSED(is_meta);
@@ -56,7 +57,9 @@ namespace snmalloc
       CapPtr<void, CBChunk> p;
       if (local_state != nullptr)
       {
-        p = local_state->local_address_space.template reserve_with_left_over<PAL>(size);
+        p =
+          local_state->local_address_space.template reserve_with_left_over<PAL>(
+            size);
         if (p != nullptr)
           local_state->local_address_space.template commit_block<PAL>(p, size);
         else
@@ -67,11 +70,14 @@ namespace snmalloc
           auto refill = a.template reserve<false>(refill_size);
           if (refill == nullptr)
             return nullptr;
-          local_state->local_address_space.template add_range<PAL>(refill, refill_size);
+          local_state->local_address_space.template add_range<PAL>(
+            refill, refill_size);
           // This should succeed
-          p = local_state->local_address_space.template reserve_with_left_over<PAL>(size);
+          p = local_state->local_address_space
+                .template reserve_with_left_over<PAL>(size);
           if (p != nullptr)
-            local_state->local_address_space.template commit_block<PAL>(p, size);
+            local_state->local_address_space.template commit_block<PAL>(
+              p, size);
         }
       }
       else
@@ -90,10 +96,8 @@ namespace snmalloc
      * Backend allocator may use guard pages and separate area of
      * address space to protect this from corruption.
      */
-    static CapPtr<void, CBChunk> alloc_meta_data(
-      GlobalState& h,
-      LocalState* local_state,
-      size_t size)
+    static CapPtr<void, CBChunk>
+    alloc_meta_data(GlobalState& h, LocalState* local_state, size_t size)
     {
       return reserve<true>(h, local_state, size);
     }
@@ -127,7 +131,8 @@ namespace snmalloc
         return {p, nullptr};
       }
 
-      Metaslab* meta = reinterpret_cast<Metaslab*>(reserve<true>(h, local_state, sizeof(Metaslab)).unsafe_capptr);
+      Metaslab* meta = reinterpret_cast<Metaslab*>(
+        reserve<true>(h, local_state, sizeof(Metaslab)).unsafe_capptr);
 
       MetaEntry t(meta, remote, sizeclass);
 
@@ -147,8 +152,7 @@ namespace snmalloc
      * to access a location that is not backed by a slab.
      */
     template<bool potentially_out_of_range = false>
-    static const MetaEntry& 
-    get_meta_data(GlobalState& h, address_t p)
+    static const MetaEntry& get_meta_data(GlobalState& h, address_t p)
     {
       return h.pagemap.template get<potentially_out_of_range>(p);
     }
@@ -156,11 +160,8 @@ namespace snmalloc
     /**
      * Set the metadata associated with a slab.
      */
-    static void set_meta_data(
-      GlobalState& h,
-      address_t p,
-      size_t size,
-      MetaEntry t)
+    static void
+    set_meta_data(GlobalState& h, address_t p, size_t size, MetaEntry t)
     {
       for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
       {

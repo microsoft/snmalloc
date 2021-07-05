@@ -63,9 +63,14 @@ namespace snmalloc
      */
     RemoteDeallocCache remote_dealloc_cache;
 
-    constexpr LocalCache(RemoteAllocator* remote_allocator) : remote_allocator(remote_allocator) {}
+    constexpr LocalCache(RemoteAllocator* remote_allocator)
+    : remote_allocator(remote_allocator)
+    {}
 
-    template<size_t allocator_size, typename DeallocFun, typename SharedStateHandle>
+    template<
+      size_t allocator_size,
+      typename DeallocFun,
+      typename SharedStateHandle>
     bool flush(DeallocFun dealloc, SharedStateHandle handle)
     {
       // Return all the free lists to the allocator.
@@ -81,7 +86,8 @@ namespace snmalloc
         }
       }
 
-      return remote_dealloc_cache.post<allocator_size>(handle, remote_allocator->trunc_id());
+      return remote_dealloc_cache.post<allocator_size>(
+        handle, remote_allocator->trunc_id());
     }
 
     template<ZeroMem zero_mem, typename SharedStateHandle, typename Slowpath>

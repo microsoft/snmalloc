@@ -68,7 +68,7 @@ namespace snmalloc
       {
         if constexpr (pal_supports<AlignedAllocation, PAL>)
           return CapPtr<void, CBChunk>(
-          PAL::template reserve_aligned<committed>(size));
+            PAL::template reserve_aligned<committed>(size));
         else
         {
           auto [block, size2] = PAL::reserve_at_least(size);

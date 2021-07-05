@@ -8,8 +8,8 @@
 
 #include "../ds/ptrwrap.h"
 #include "corealloc.h"
-#include "localcache.h"
 #include "freelist.h"
+#include "localcache.h"
 #include "pool.h"
 #include "remotecache.h"
 #include "sizeclasstable.h"
@@ -219,8 +219,8 @@ namespace snmalloc
         std::cout << "Remote dealloc post" << p << " size " << alloc_size(p)
                   << std::endl;
 #endif
-        MetaEntry entry =
-          SharedStateHandle::Backend::get_meta_data(handle.get_backend_state(), address_cast(p));
+        MetaEntry entry = SharedStateHandle::Backend::get_meta_data(
+          handle.get_backend_state(), address_cast(p));
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
           entry.get_remote()->trunc_id(), CapPtr<void, CBAlloc>(p));
         post_remote_cache();
@@ -247,14 +247,13 @@ namespace snmalloc
     }
 
   public:
-    constexpr LocalAllocator() :
-      handle(SharedStateHandle::get_handle()),
+    constexpr LocalAllocator()
+    : handle(SharedStateHandle::get_handle()),
       local_cache(&handle.unused_remote)
     {}
 
-    LocalAllocator(SharedStateHandle handle) : 
-      handle(handle),
-      local_cache(&handle.unused_remote)
+    LocalAllocator(SharedStateHandle handle)
+    : handle(handle), local_cache(&handle.unused_remote)
     {}
 
     // This is effectively the constructor for the LocalAllocator, but due to
@@ -277,7 +276,6 @@ namespace snmalloc
 
       // local_cache.stats.start();
     }
-
 
     // Return all state in the fast allocator and release the underlying
     // core allocator.  This is used during teardown to empty the thread
@@ -355,8 +353,8 @@ namespace snmalloc
       //  before init, that maps null to a remote_deallocator that will never be
       //  in thread local state.
 
-      const MetaEntry& entry =
-        SharedStateHandle::Backend::get_meta_data(handle.get_backend_state(), address_cast(p));
+      const MetaEntry& entry = SharedStateHandle::Backend::get_meta_data(
+        handle.get_backend_state(), address_cast(p));
       if (likely(local_cache.remote_allocator == entry.get_remote()))
       {
         if (likely(CoreAlloc::dealloc_local_object_fast(
@@ -447,8 +445,8 @@ namespace snmalloc
       // To handle this case we require the uninitialised pagemap contain an
       // entry for the first chunk of memory, that states it represents a large
       // object, so we can pull the check for null off the fast path.
-      MetaEntry entry =
-        SharedStateHandle::Backend::get_meta_data(handle.get_backend_state(), address_cast(p_raw));
+      MetaEntry entry = SharedStateHandle::Backend::get_meta_data(
+        handle.get_backend_state(), address_cast(p_raw));
 
       if (likely(entry.get_remote() != handle.fake_large_remote))
         return sizeclass_to_size(entry.get_sizeclass());
@@ -474,7 +472,8 @@ namespace snmalloc
       if (likely(handle.is_initialised()))
       {
         MetaEntry entry =
-          SharedStateHandle::Backend::template get_meta_data<true>(handle.get_backend_state(), address_cast(p_raw));
+          SharedStateHandle::Backend::template get_meta_data<true>(
+            handle.get_backend_state(), address_cast(p_raw));
         auto sizeclass = entry.get_sizeclass();
         if (likely(entry.get_remote() != handle.fake_large_remote))
         {
