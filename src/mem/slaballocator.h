@@ -4,7 +4,6 @@
 #include "../mem/metaslab.h"
 #include "../mem/sizeclass.h"
 #include "../mem/sizeclasstable.h"
-#include "backend.h"
 
 #ifdef SNMALLOC_TRACING
 #  include <iostream>

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../backend/backend.h"
 #include "../ds/flaglock.h"
 #include "../ds/mpmcstack.h"
 #include "../pal/pal_concept.h"
