@@ -1,8 +1,7 @@
 #pragma once
 
-#include "commonconfig.h"
 #include "../backend/backend.h"
-
+#include "commonconfig.h"
 
 namespace snmalloc
 {

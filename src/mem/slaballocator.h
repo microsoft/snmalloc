@@ -117,8 +117,7 @@ namespace snmalloc
       state.add_peak_memory_usage(sizeof(Metaslab));
       // TODO handle bounded versus lazy pagemaps in stats
       state.add_peak_memory_usage(
-        (slab_size / MIN_CHUNK_SIZE) *
-        sizeof(typename SharedStateHandle::Meta));
+        (slab_size / MIN_CHUNK_SIZE) * sizeof(MetaEntry));
 
       return {slab, meta};
     }

@@ -14,7 +14,6 @@ namespace snmalloc
   class CommonConfig
   {
   public:
-    using Meta = MetaEntry;
     using Pal = DefaultPal;
 
     /**

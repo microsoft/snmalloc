@@ -1,5 +1,4 @@
 #pragma once
-#include "slaballocator.h"
 #include "../ds/defines.h"
 #include "allocconfig.h"
 #include "localcache.h"
@@ -7,6 +6,7 @@
 #include "pooled.h"
 #include "remotecache.h"
 #include "sizeclasstable.h"
+#include "slaballocator.h"
 
 namespace snmalloc
 {
