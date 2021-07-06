@@ -57,7 +57,7 @@ namespace snmalloc
 #endif
     {
       UNUSED(sz);
-      return CapPtr<T, capptr_bound_chunkd_bounds<B>()>(p.unsafe_capptr);
+      return CapPtr<T, capptr_bound_chunkd_bounds<B>()>(p.unsafe_ptr());
     }
   }
 
@@ -78,7 +78,7 @@ namespace snmalloc
 #ifndef NDEBUG
     // On debug builds, CBChunkD are already bounded as if CBChunk.
     UNUSED(sz);
-    return CapPtr<T, CBChunk>(p.unsafe_capptr);
+    return CapPtr<T, CBChunk>(p.unsafe_ptr());
 #else
     // On non-debug builds, apply bounds now, as they haven't been already.
     return Aal::capptr_bound<T, CBChunk>(p, sz);
@@ -93,6 +93,6 @@ namespace snmalloc
   SNMALLOC_FAST_PATH CapPtr<T, CBChunkD>
   capptr_debug_chunkd_from_chunk(CapPtr<T, CBChunk> p)
   {
-    return CapPtr<T, CBChunkD>(p.unsafe_capptr);
+    return CapPtr<T, CBChunkD>(p.unsafe_ptr());
   }
 } // namespace snmalloc

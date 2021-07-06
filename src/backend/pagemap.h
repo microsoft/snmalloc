@@ -69,7 +69,7 @@ namespace snmalloc
         body = a->template reserve<false, false>(
                   bits::next_pow2((size >> SHIFT) * sizeof(T)))
                  .template as_static<T>()
-                 .unsafe_capptr;
+                 .unsafe_ptr();
         ;
       }
       else
@@ -79,7 +79,7 @@ namespace snmalloc
         static constexpr size_t ENTRIES = bits::one_at_bit(COVERED_BITS);
         auto new_body = (a->template reserve<false, false>(ENTRIES * sizeof(T)))
                           .template as_static<T>()
-                          .unsafe_capptr;
+                          .unsafe_ptr();
 
         // Ensure bottom page is committed
         commit_entry(&new_body[0]);

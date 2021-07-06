@@ -92,7 +92,7 @@ namespace snmalloc
         state.memory_in_stacks -= slab_size;
         auto meta = reinterpret_cast<Metaslab*>(chunk_record);
 #ifdef SNMALLOC_TRACING
-        std::cout << "Reuse slab:" << slab.unsafe_capptr << " slab_sizeclass "
+        std::cout << "Reuse slab:" << slab.unsafe_ptr() << " slab_sizeclass "
                   << slab_sizeclass << " size " << slab_size
                   << " memory in stacks " << state.memory_in_stacks
                   << std::endl;
@@ -108,7 +108,7 @@ namespace snmalloc
       auto [slab, meta] = SharedStateHandle::Backend::alloc_chunk(
         h.get_backend_state(), &backend_state, slab_size, remote, sizeclass);
 #ifdef SNMALLOC_TRACING
-      std::cout << "Create slab:" << slab.unsafe_capptr << " slab_sizeclass "
+      std::cout << "Create slab:" << slab.unsafe_ptr() << " slab_sizeclass "
                 << slab_sizeclass << " size " << slab_size << std::endl;
 #endif
 
@@ -127,7 +127,7 @@ namespace snmalloc
     {
       auto& state = h.get_slab_allocator_state();
 #ifdef SNMALLOC_TRACING
-      std::cout << "Return slab:" << p->chunk.unsafe_capptr
+      std::cout << "Return slab:" << p->chunk.unsafe_ptr()
                 << " slab_sizeclass " << slab_sizeclass << " size "
                 << slab_sizeclass_to_size(slab_sizeclass)
                 << " memory in stacks " << state.memory_in_stacks << std::endl;
@@ -157,7 +157,7 @@ namespace snmalloc
       if (p == nullptr)
         return nullptr;
 
-      return new (p.unsafe_capptr) U(std::forward<Args>(args)...);
+      return new (p.unsafe_ptr()) U(std::forward<Args>(args)...);
     }
   };
 }

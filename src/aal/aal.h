@@ -142,7 +142,7 @@ namespace snmalloc
       static_assert(capptr_is_bounds_refinement<obounds, nbounds>());
 
       UNUSED(size);
-      return CapPtr<T, nbounds>(a.template as_static<T>().unsafe_capptr);
+      return CapPtr<T, nbounds>(a.template as_static<T>().unsafe_ptr());
     }
 
     /**
@@ -154,7 +154,7 @@ namespace snmalloc
     capptr_rebound(CapPtr<void, BOut> a, CapPtr<T, BIn> r) noexcept
     {
       UNUSED(a);
-      return CapPtr<T, BOut>(r.unsafe_capptr);
+      return CapPtr<T, BOut>(r.unsafe_ptr());
     }
   };
 } // namespace snmalloc

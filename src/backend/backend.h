@@ -152,7 +152,7 @@ namespace snmalloc
       CapPtr<void, CBChunk> p = reserve<false>(h, local_state, size);
 
 #ifdef SNMALLOC_TRACING
-      std::cout << "Alloc chunk: " << p.unsafe_capptr << " (" << size << ")"
+      std::cout << "Alloc chunk: " << p.unsafe_ptr() << " (" << size << ")"
                 << std::endl;
 #endif
       if (p == nullptr)
@@ -164,7 +164,7 @@ namespace snmalloc
       }
 
       auto meta = reinterpret_cast<Metaslab*>(
-        reserve<true>(h, local_state, sizeof(Metaslab)).unsafe_capptr);
+        reserve<true>(h, local_state, sizeof(Metaslab)).unsafe_ptr());
 
       MetaEntry t(meta, remote, sizeclass);
 

@@ -366,7 +366,7 @@ namespace snmalloc
 
       if (likely(entry.get_remote() == public_state()))
       {
-        if (likely(dealloc_local_object_fast(entry, p.unsafe_capptr, entropy)))
+        if (likely(dealloc_local_object_fast(entry, p.unsafe_ptr(), entropy)))
           return;
 
         dealloc_local_object_slow(entry);

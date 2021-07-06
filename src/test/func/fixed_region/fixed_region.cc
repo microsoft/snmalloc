@@ -26,9 +26,9 @@ int main()
   // For 1MiB superslabs, SUPERSLAB_BITS + 4 is not big enough for the example.
   size_t size = bits::one_at_bit(28);
   auto oe_base = address_space.reserve<true>(size);
-  auto oe_end = pointer_offset(oe_base, size).unsafe_capptr;
-  std::cout << "Allocated region " << oe_base.unsafe_capptr << " - "
-            << pointer_offset(oe_base, size).unsafe_capptr << std::endl;
+  auto oe_end = pointer_offset(oe_base, size).unsafe_ptr();
+  std::cout << "Allocated region " << oe_base.unsafe_ptr() << " - "
+            << pointer_offset(oe_base, size).unsafe_ptr() << std::endl;
 
   FixedGlobals fixed_handle;
   FixedGlobals::init(oe_base, size);
@@ -46,7 +46,7 @@ int main()
     if (r1 == nullptr)
       break;
 
-    if (oe_base.unsafe_capptr > r1)
+    if (oe_base.unsafe_ptr() > r1)
     {
       std::cout << "Allocated: " << r1 << std::endl;
       abort();

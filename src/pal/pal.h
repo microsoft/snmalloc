@@ -81,7 +81,7 @@ namespace snmalloc
     CapPtr<T, capptr_export_type<B>()>>
   capptr_export(CapPtr<T, B> p)
   {
-    return CapPtr<T, capptr_export_type<B>()>(p.unsafe_capptr);
+    return CapPtr<T, capptr_export_type<B>()>(p.unsafe_ptr());
   }
 
   template<typename PAL = Pal, typename AAL = Aal, typename T, capptr_bounds B>
@@ -106,7 +106,7 @@ namespace snmalloc
   {
     static_assert(
       !page_aligned || B == CBArena || B == CBChunkD || B == CBChunk);
-    PAL::template zero<page_aligned>(p.unsafe_capptr, sz);
+    PAL::template zero<page_aligned>(p.unsafe_ptr(), sz);
   }
 
   static_assert(

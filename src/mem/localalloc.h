@@ -159,10 +159,10 @@ namespace snmalloc
         if (zero_mem == YesZero)
         {
           SharedStateHandle::Pal::template zero<false>(
-            chunk.unsafe_capptr, size);
+            chunk.unsafe_ptr(), size);
         }
 
-        return chunk.unsafe_capptr;
+        return chunk.unsafe_ptr();
       });
     }
 
