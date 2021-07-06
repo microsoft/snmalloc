@@ -13,43 +13,43 @@
 
 void trigger_teardown()
 {
-  auto a = snmalloc::ThreadAlloc::get_noncachable();
+  auto& a = snmalloc::ThreadAlloc::get();
   // Trigger init
-  void* r = a->alloc(16);
-  a->dealloc(r);
+  void* r = a.alloc(16);
+  a.dealloc(r);
   // Force teardown
-  a->teardown();
+  a.teardown();
 }
 
 void alloc1(size_t size)
 {
   trigger_teardown();
-  void* r = snmalloc::ThreadAlloc::get_noncachable()->alloc(size);
-  snmalloc::ThreadAlloc::get_noncachable()->dealloc(r);
+  void* r = snmalloc::ThreadAlloc::get().alloc(size);
+  snmalloc::ThreadAlloc::get().dealloc(r);
 }
 
 void alloc2(size_t size)
 {
   trigger_teardown();
-  auto a = snmalloc::ThreadAlloc::get_noncachable();
-  void* r = a->alloc(size);
-  a->dealloc(r);
+  auto& a = snmalloc::ThreadAlloc::get();
+  void* r = a.alloc(size);
+  a.dealloc(r);
 }
 
 void alloc3(size_t size)
 {
   trigger_teardown();
-  auto a = snmalloc::ThreadAlloc::get_noncachable();
-  void* r = a->alloc(size);
-  a->dealloc(r, size);
+  auto& a = snmalloc::ThreadAlloc::get();
+  void* r = a.alloc(size);
+  a.dealloc(r, size);
 }
 
 void alloc4(size_t size)
 {
   trigger_teardown();
-  auto a = snmalloc::ThreadAlloc::get();
-  void* r = a->alloc(size);
-  a->dealloc(r);
+  auto& a = snmalloc::ThreadAlloc::get();
+  void* r = a.alloc(size);
+  a.dealloc(r);
 }
 
 void check_calloc(void* p, size_t size)
@@ -78,61 +78,61 @@ void calloc1(size_t size)
 {
   trigger_teardown();
   void* r =
-    snmalloc::ThreadAlloc::get_noncachable()->alloc<snmalloc::ZeroMem::YesZero>(
+    snmalloc::ThreadAlloc::get().alloc<snmalloc::ZeroMem::YesZero>(
       size);
   check_calloc(r, size);
-  snmalloc::ThreadAlloc::get_noncachable()->dealloc(r);
+  snmalloc::ThreadAlloc::get().dealloc(r);
 }
 
 void calloc2(size_t size)
 {
   trigger_teardown();
-  auto a = snmalloc::ThreadAlloc::get_noncachable();
-  void* r = a->alloc<snmalloc::ZeroMem::YesZero>(size);
+  auto& a = snmalloc::ThreadAlloc::get();
+  void* r = a.alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
-  a->dealloc(r);
+  a.dealloc(r);
 }
 
 void calloc3(size_t size)
 {
   trigger_teardown();
-  auto a = snmalloc::ThreadAlloc::get_noncachable();
-  void* r = a->alloc<snmalloc::ZeroMem::YesZero>(size);
+  auto& a = snmalloc::ThreadAlloc::get();
+  void* r = a.alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
-  a->dealloc(r, size);
+  a.dealloc(r, size);
 }
 
 void calloc4(size_t size)
 {
   trigger_teardown();
-  auto a = snmalloc::ThreadAlloc::get();
-  void* r = a->alloc<snmalloc::ZeroMem::YesZero>(size);
+  auto& a = snmalloc::ThreadAlloc::get();
+  void* r = a.alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
-  a->dealloc(r);
+  a.dealloc(r);
 }
 
 void dealloc1(void* p, size_t)
 {
   trigger_teardown();
-  snmalloc::ThreadAlloc::get_noncachable()->dealloc(p);
+  snmalloc::ThreadAlloc::get().dealloc(p);
 }
 
 void dealloc2(void* p, size_t size)
 {
   trigger_teardown();
-  snmalloc::ThreadAlloc::get_noncachable()->dealloc(p, size);
+  snmalloc::ThreadAlloc::get().dealloc(p, size);
 }
 
 void dealloc3(void* p, size_t)
 {
   trigger_teardown();
-  snmalloc::ThreadAlloc::get()->dealloc(p);
+  snmalloc::ThreadAlloc::get().dealloc(p);
 }
 
 void dealloc4(void* p, size_t size)
 {
   trigger_teardown();
-  snmalloc::ThreadAlloc::get()->dealloc(p, size);
+  snmalloc::ThreadAlloc::get().dealloc(p, size);
 }
 
 void f(size_t size)

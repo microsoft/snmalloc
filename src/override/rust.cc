@@ -11,20 +11,20 @@ using namespace snmalloc;
 
 extern "C" SNMALLOC_EXPORT void* rust_alloc(size_t alignment, size_t size)
 {
-  return ThreadAlloc::get_noncachable()->alloc(aligned_size(alignment, size));
+  return ThreadAlloc::get().alloc(aligned_size(alignment, size));
 }
 
 extern "C" SNMALLOC_EXPORT void*
 rust_alloc_zeroed(size_t alignment, size_t size)
 {
-  return ThreadAlloc::get_noncachable()->alloc<YesZero>(
+  return ThreadAlloc::get().alloc<YesZero>(
     aligned_size(alignment, size));
 }
 
 extern "C" SNMALLOC_EXPORT void
 rust_dealloc(void* ptr, size_t alignment, size_t size)
 {
-  ThreadAlloc::get_noncachable()->dealloc(ptr, aligned_size(alignment, size));
+  ThreadAlloc::get().dealloc(ptr, aligned_size(alignment, size));
 }
 
 extern "C" SNMALLOC_EXPORT void*
@@ -35,11 +35,11 @@ rust_realloc(void* ptr, size_t alignment, size_t old_size, size_t new_size)
   if (
     size_to_sizeclass(aligned_old_size) == size_to_sizeclass(aligned_new_size))
     return ptr;
-  void* p = ThreadAlloc::get_noncachable()->alloc(aligned_new_size);
+  void* p = ThreadAlloc::get().alloc(aligned_new_size);
   if (p)
   {
     std::memcpy(p, ptr, old_size < new_size ? old_size : new_size);
-    ThreadAlloc::get_noncachable()->dealloc(ptr, aligned_old_size);
+    ThreadAlloc::get().dealloc(ptr, aligned_old_size);
   }
   return p;
 }

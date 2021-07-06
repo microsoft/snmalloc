@@ -3,10 +3,10 @@
 int main()
 {
 #ifndef SNMALLOC_PASS_THROUGH // This test depends on snmalloc internals
-  snmalloc::Alloc* a = snmalloc::ThreadAlloc::get();
+  snmalloc::Alloc& a = snmalloc::ThreadAlloc::get();
   bool result;
 
-  auto r = a->alloc(16);
+  auto r = a.alloc(16);
 
   snmalloc::debug_check_empty(snmalloc::Globals::get_handle(), &result);
   if (result != false)
@@ -14,7 +14,7 @@ int main()
     abort();
   }
 
-  a->dealloc(r);
+  a.dealloc(r);
 
   snmalloc::debug_check_empty(snmalloc::Globals::get_handle(), &result);
   if (result != true)
@@ -22,7 +22,7 @@ int main()
     abort();
   }
 
-  r = a->alloc(16);
+  r = a.alloc(16);
 
   snmalloc::debug_check_empty(snmalloc::Globals::get_handle(), &result);
   if (result != false)
@@ -30,7 +30,7 @@ int main()
     abort();
   }
 
-  a->dealloc(r);
+  a.dealloc(r);
 
   snmalloc::debug_check_empty(snmalloc::Globals::get_handle(), &result);
   if (result != true)

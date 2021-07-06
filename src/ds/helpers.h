@@ -109,10 +109,13 @@ namespace snmalloc
   /**
    * Helper class to execute a specified function on destruction.
    */
-  template<void f()>
+  template<typename F>
   class OnDestruct
   {
+    F f;
   public:
+    OnDestruct(F f) : f(f) {}
+
     ~OnDestruct()
     {
       f();

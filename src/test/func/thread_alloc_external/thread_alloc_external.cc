@@ -10,20 +10,13 @@ namespace snmalloc
 
 using namespace snmalloc;
 
-class ThreadAllocUntyped
+class ThreadAllocExternal
 {
 public:
-  static void* get()
+  static Alloc& get()
   {
-    static thread_local bool inited = false;
     static thread_local Alloc alloc;
-    if (!inited)
-    {
-      alloc.init();
-      inited = true;
-    }
-
-    return &alloc;
+    return alloc;
   }
 };
 
@@ -32,13 +25,17 @@ public:
 int main()
 {
   setup();
+  ThreadAlloc::get().init();
 
-  auto a = ThreadAlloc::get();
+
+  auto& a = ThreadAlloc::get();
 
   for (size_t i = 0; i < 1000; i++)
   {
-    auto r1 = a->alloc(i);
+    auto r1 = a.alloc(i);
 
-    a->dealloc(r1);
+    a.dealloc(r1);
   }
+
+  ThreadAlloc::get().teardown();
 }

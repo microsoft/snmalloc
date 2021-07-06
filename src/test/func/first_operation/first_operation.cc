@@ -11,64 +11,31 @@
 #include <snmalloc.h>
 #include <thread>
 
-/**
- * This test is checking lazy init is correctly done with `get`.
- *
- * The test is written so platforms that do not do lazy init can satify the
- * test.
- */
-void get_test()
-{
-  // This should get the GlobalPlaceHolder if using lazy init
-  auto a1 = snmalloc::ThreadAlloc::get_noncachable();
-
-  // This should get a real allocator
-  auto a2 = snmalloc::ThreadAlloc::get();
-
-  // Trigger potential lazy_init if `get` didn't (shouldn't happen).
-  a2->dealloc(a2->alloc(5));
-
-  // Get an allocated allocator.
-  auto a3 = snmalloc::ThreadAlloc::get_noncachable();
-
-  if (a1 != a3)
-  {
-    printf("Lazy test!\n");
-    // If the allocators are different then lazy_init has occurred.
-    // This should have been caused by the call to `get` rather than
-    // the allocations.
-    if (a2 != a3)
-    {
-      abort();
-    }
-  }
-}
-
 void alloc1(size_t size)
 {
-  void* r = snmalloc::ThreadAlloc::get_noncachable()->alloc(size);
-  snmalloc::ThreadAlloc::get_noncachable()->dealloc(r);
+  void* r = snmalloc::ThreadAlloc::get().alloc(size);
+  snmalloc::ThreadAlloc::get().dealloc(r);
 }
 
 void alloc2(size_t size)
 {
-  auto a = snmalloc::ThreadAlloc::get_noncachable();
-  void* r = a->alloc(size);
-  a->dealloc(r);
+  auto& a = snmalloc::ThreadAlloc::get();
+  void* r = a.alloc(size);
+  a.dealloc(r);
 }
 
 void alloc3(size_t size)
 {
-  auto a = snmalloc::ThreadAlloc::get_noncachable();
-  void* r = a->alloc(size);
-  a->dealloc(r, size);
+  auto& a = snmalloc::ThreadAlloc::get();
+  void* r = a.alloc(size);
+  a.dealloc(r, size);
 }
 
 void alloc4(size_t size)
 {
-  auto a = snmalloc::ThreadAlloc::get();
-  void* r = a->alloc(size);
-  a->dealloc(r);
+  auto& a = snmalloc::ThreadAlloc::get();
+  void* r = a.alloc(size);
+  a.dealloc(r);
 }
 
 void check_calloc(void* p, size_t size)
@@ -96,54 +63,54 @@ void check_calloc(void* p, size_t size)
 void calloc1(size_t size)
 {
   void* r =
-    snmalloc::ThreadAlloc::get_noncachable()->alloc<snmalloc::ZeroMem::YesZero>(
+    snmalloc::ThreadAlloc::get().alloc<snmalloc::ZeroMem::YesZero>(
       size);
   check_calloc(r, size);
-  snmalloc::ThreadAlloc::get_noncachable()->dealloc(r);
+  snmalloc::ThreadAlloc::get().dealloc(r);
 }
 
 void calloc2(size_t size)
 {
-  auto a = snmalloc::ThreadAlloc::get_noncachable();
-  void* r = a->alloc<snmalloc::ZeroMem::YesZero>(size);
+  auto& a = snmalloc::ThreadAlloc::get();
+  void* r = a.alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
-  a->dealloc(r);
+  a.dealloc(r);
 }
 
 void calloc3(size_t size)
 {
-  auto a = snmalloc::ThreadAlloc::get_noncachable();
-  void* r = a->alloc<snmalloc::ZeroMem::YesZero>(size);
+  auto& a = snmalloc::ThreadAlloc::get();
+  void* r = a.alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
-  a->dealloc(r, size);
+  a.dealloc(r, size);
 }
 
 void calloc4(size_t size)
 {
-  auto a = snmalloc::ThreadAlloc::get();
-  void* r = a->alloc<snmalloc::ZeroMem::YesZero>(size);
+  auto& a = snmalloc::ThreadAlloc::get();
+  void* r = a.alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
-  a->dealloc(r);
+  a.dealloc(r);
 }
 
 void dealloc1(void* p, size_t)
 {
-  snmalloc::ThreadAlloc::get_noncachable()->dealloc(p);
+  snmalloc::ThreadAlloc::get().dealloc(p);
 }
 
 void dealloc2(void* p, size_t size)
 {
-  snmalloc::ThreadAlloc::get_noncachable()->dealloc(p, size);
+  snmalloc::ThreadAlloc::get().dealloc(p, size);
 }
 
 void dealloc3(void* p, size_t)
 {
-  snmalloc::ThreadAlloc::get()->dealloc(p);
+  snmalloc::ThreadAlloc::get().dealloc(p);
 }
 
 void dealloc4(void* p, size_t size)
 {
-  snmalloc::ThreadAlloc::get()->dealloc(p, size);
+  snmalloc::ThreadAlloc::get().dealloc(p, size);
 }
 
 void f(size_t size)
@@ -193,9 +160,6 @@ int main(int, char**)
   setup();
   printf(".");
   fflush(stdout);
-
-  std::thread t(get_test);
-  t.join();
 
   f(0);
   f(1);

@@ -8,7 +8,7 @@ using namespace snmalloc;
 template<ZeroMem zero_mem>
 void test_alloc_dealloc(size_t count, size_t size, bool write)
 {
-  auto* alloc = ThreadAlloc::get();
+  auto& alloc = ThreadAlloc::get();
 
   {
     MeasureTime m;
@@ -20,7 +20,7 @@ void test_alloc_dealloc(size_t count, size_t size, bool write)
     // alloc 1.5x objects
     for (size_t i = 0; i < ((count * 3) / 2); i++)
     {
-      void* p = alloc->alloc<zero_mem>(size);
+      void* p = alloc.alloc<zero_mem>(size);
       SNMALLOC_CHECK(set.find(p) == set.end());
 
       if (write)
@@ -34,7 +34,7 @@ void test_alloc_dealloc(size_t count, size_t size, bool write)
     {
       auto it = set.begin();
       void* p = *it;
-      alloc->dealloc(p, size);
+      alloc.dealloc(p, size);
       set.erase(it);
       SNMALLOC_CHECK(set.find(p) == set.end());
     }
@@ -42,7 +42,7 @@ void test_alloc_dealloc(size_t count, size_t size, bool write)
     // alloc 1x objects
     for (size_t i = 0; i < count; i++)
     {
-      void* p = alloc->alloc<zero_mem>(size);
+      void* p = alloc.alloc<zero_mem>(size);
       SNMALLOC_CHECK(set.find(p) == set.end());
 
       if (write)
@@ -55,7 +55,7 @@ void test_alloc_dealloc(size_t count, size_t size, bool write)
     while (!set.empty())
     {
       auto it = set.begin();
-      alloc->dealloc(*it, size);
+      alloc.dealloc(*it, size);
       set.erase(it);
     }
   }

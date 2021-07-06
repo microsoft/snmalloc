@@ -11,6 +11,16 @@ namespace snmalloc
   // Forward reference to thread local cleanup.
   void register_clean_up();
 
+#  ifdef USE_SNMALLOC_STATS
+    inline static void print_stats()
+      {
+        printf("No Stats yet!");
+        // Stats s;
+        // current_alloc_pool()->aggregate_stats(s);
+        // s.print<Alloc>(std::cout);
+      }
+#  endif
+
   class Globals : public CommonConfig
   {
   public:
@@ -65,6 +75,10 @@ namespace snmalloc
 
       // Need to initialise pagemap.
       backend_state.init();
+
+#  ifdef USE_SNMALLOC_STATS
+      atexit(snmalloc::print_stats);
+#  endif
 
       initialised = true;
     }

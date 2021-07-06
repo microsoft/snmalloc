@@ -37,22 +37,22 @@ extern "C"
 {
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(__malloc_end_pointer)(void* ptr)
   {
-    return ThreadAlloc::get_noncachable()->external_pointer<OnePastEnd>(ptr);
+    return ThreadAlloc::get().external_pointer<OnePastEnd>(ptr);
   }
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(malloc)(size_t size)
   {
-    return ThreadAlloc::get_noncachable()->alloc(size);
+    return ThreadAlloc::get().alloc(size);
   }
 
   SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(free)(void* ptr)
   {
-    ThreadAlloc::get_noncachable()->dealloc(ptr);
+    ThreadAlloc::get().dealloc(ptr);
   }
 
   SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(cfree)(void* ptr)
   {
-    ThreadAlloc::get_noncachable()->dealloc(ptr);
+    ThreadAlloc::get().dealloc(ptr);
   }
 
   /**
@@ -75,20 +75,20 @@ extern "C"
     {
       return SNMALLOC_NAME_MANGLE(snmalloc_set_error)();
     }
-    return ThreadAlloc::get_noncachable()->alloc<ZeroMem::YesZero>(sz);
+    return ThreadAlloc::get().alloc<ZeroMem::YesZero>(sz);
   }
 
   SNMALLOC_EXPORT
   size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(
     MALLOC_USABLE_SIZE_QUALIFIER void* ptr)
   {
-    return ThreadAlloc::get_noncachable()->alloc_size(ptr);
+    return ThreadAlloc::get().alloc_size(ptr);
   }
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(realloc)(void* ptr, size_t size)
   {
-    auto a = ThreadAlloc::get_noncachable();
-    size_t sz = a->alloc_size(ptr);
+    auto& a = ThreadAlloc::get();
+    size_t sz = a.alloc_size(ptr);
     // Keep the current allocation if the given size is in the same sizeclass.
     if (sz == round_size(size))
     {
@@ -108,16 +108,16 @@ extern "C"
       return nullptr;
     }
 
-    void* p = a->alloc(size);
+    void* p = a.alloc(size);
     if (likely(p != nullptr))
     {
       sz = bits::min(size, sz);
       memcpy(p, ptr, sz);
-      a->dealloc(ptr);
+      a.dealloc(ptr);
     }
     else if (likely(size == 0))
     {
-      a->dealloc(ptr);
+      a.dealloc(ptr);
     }
     return p;
   }
@@ -250,7 +250,7 @@ extern "C"
 
   void* __je_bootstrap_malloc(size_t size)
   {
-    return get_scoped_allocator()->alloc(size);
+    return get_scoped_allocator().alloc(size);
   }
 
   void* __je_bootstrap_calloc(size_t nmemb, size_t size)
@@ -264,12 +264,12 @@ extern "C"
     }
     // Include size 0 in the first sizeclass.
     sz = ((sz - 1) >> (bits::BITS - 1)) + sz;
-    return get_scoped_allocator()->alloc<ZeroMem::YesZero>(sz);
+    return get_scoped_allocator().alloc<ZeroMem::YesZero>(sz);
   }
 
   void __je_bootstrap_free(void* ptr)
   {
-    get_scoped_allocator()->dealloc(ptr);
+    get_scoped_allocator().dealloc(ptr);
   }
 #endif
 }

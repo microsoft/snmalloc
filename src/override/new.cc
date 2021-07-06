@@ -16,54 +16,54 @@ using namespace snmalloc;
 
 void* operator new(size_t size)
 {
-  return ThreadAlloc::get_noncachable()->alloc(size);
+  return ThreadAlloc::get().alloc(size);
 }
 
 void* operator new[](size_t size)
 {
-  return ThreadAlloc::get_noncachable()->alloc(size);
+  return ThreadAlloc::get().alloc(size);
 }
 
 void* operator new(size_t size, std::nothrow_t&)
 {
-  return ThreadAlloc::get_noncachable()->alloc(size);
+  return ThreadAlloc::get().alloc(size);
 }
 
 void* operator new[](size_t size, std::nothrow_t&)
 {
-  return ThreadAlloc::get_noncachable()->alloc(size);
+  return ThreadAlloc::get().alloc(size);
 }
 
 void operator delete(void* p)EXCEPTSPEC
 {
-  ThreadAlloc::get_noncachable()->dealloc(p);
+  ThreadAlloc::get().dealloc(p);
 }
 
 void operator delete(void* p, size_t size)EXCEPTSPEC
 {
   if (p == nullptr)
     return;
-  ThreadAlloc::get_noncachable()->dealloc(p, size);
+  ThreadAlloc::get().dealloc(p, size);
 }
 
 void operator delete(void* p, std::nothrow_t&)
 {
-  ThreadAlloc::get_noncachable()->dealloc(p);
+  ThreadAlloc::get().dealloc(p);
 }
 
 void operator delete[](void* p) EXCEPTSPEC
 {
-  ThreadAlloc::get_noncachable()->dealloc(p);
+  ThreadAlloc::get().dealloc(p);
 }
 
 void operator delete[](void* p, size_t size) EXCEPTSPEC
 {
   if (p == nullptr)
     return;
-  ThreadAlloc::get_noncachable()->dealloc(p, size);
+  ThreadAlloc::get().dealloc(p, size);
 }
 
 void operator delete[](void* p, std::nothrow_t&)
 {
-  ThreadAlloc::get_noncachable()->dealloc(p);
+  ThreadAlloc::get().dealloc(p);
 }
