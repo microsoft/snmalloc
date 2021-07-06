@@ -1,13 +1,12 @@
 #pragma once
 
 #include "../ds/bits.h"
-#include "../mem/sizeclass.h"
+#include "../mem/sizeclasstable.h"
 
 #include <cstdint>
 
 #ifdef USE_SNMALLOC_STATS
 #  include "../ds/csv.h"
-#  include "sizeclass.h"
 
 #  include <cstring>
 #  include <iostream>

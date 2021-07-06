@@ -223,7 +223,7 @@ namespace snmalloc
       b.close(fast_free_list, entropy);
     }
 
-    SlabRecord* clear_slab(Metaslab* meta, sizeclass_t sizeclass)
+    ChunkRecord* clear_slab(Metaslab* meta, sizeclass_t sizeclass)
     {
       FreeListIter fl;
       meta->free_queue.close(fl, entropy);
@@ -242,19 +242,19 @@ namespace snmalloc
       SNMALLOC_ASSERT(
         count == snmalloc::sizeclass_to_slab_object_count(sizeclass));
 #endif
-      SlabRecord* slab_record = reinterpret_cast<SlabRecord*>(meta);
+      ChunkRecord* chunk_record = reinterpret_cast<ChunkRecord*>(meta);
       // TODO: This is a capability amplification as we are saying we
-      // have the whole slab.
+      // have the whole chunk.
       auto start_of_slab = pointer_align_down<void>(
         p, snmalloc::sizeclass_to_slab_size(sizeclass));
       // TODO Add bounds correctly here
-      slab_record->slab = CapPtr<void, CBChunk>(start_of_slab);
+      chunk_record->chunk = CapPtr<void, CBChunk>(start_of_slab);
 
 #ifdef SNMALLOC_TRACING
       std::cout << "Slab " << start_of_slab << " is unused, Object sizeclass "
                 << sizeclass << std::endl;
 #endif
-      return slab_record;
+      return chunk_record;
     }
 
     SNMALLOC_SLOW_PATH void dealloc_local_slabs(sizeclass_t sizeclass)
@@ -274,9 +274,9 @@ namespace snmalloc
 
           // TODO delay the clear to the next user of the slab, or teardown so
           // don't touch the cache lines at this point in check_client.
-          auto slab_record = clear_slab(meta, sizeclass);
-          SlabAllocator::dealloc(
-            handle, slab_record, sizeclass_to_slab_sizeclass(sizeclass));
+          auto chunk_record = clear_slab(meta, sizeclass);
+          ChunkAllocator::dealloc(
+            handle, chunk_record, sizeclass_to_slab_sizeclass(sizeclass));
         }
         else
         {
@@ -533,7 +533,7 @@ namespace snmalloc
       std::cout << "slab size " << slab_size << std::endl;
 #endif
 
-      auto [slab, meta] = snmalloc::SlabAllocator::alloc_slab(
+      auto [slab, meta] = snmalloc::ChunkAllocator::alloc_chunk(
         handle,
         backend_state,
         sizeclass,

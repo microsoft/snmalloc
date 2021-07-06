@@ -5,9 +5,6 @@
  */
 
 #include "../ds/address.h"
-#include "../ds/cdllist.h"
-#include "../ds/dllist.h"
-#include "../ds/helpers.h"
 #include "allocconfig.h"
 #include "entropy.h"
 

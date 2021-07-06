@@ -2,7 +2,6 @@
 
 #include "../ds/mpmcstack.h"
 #include "../mem/metaslab.h"
-#include "../mem/sizeclass.h"
 #include "../mem/sizeclasstable.h"
 
 #ifdef SNMALLOC_TRACING
@@ -14,10 +13,10 @@ namespace snmalloc
   /**
    * Used to store slabs in the unused sizes.
    */
-  struct SlabRecord
+  struct ChunkRecord
   {
-    std::atomic<SlabRecord*> next;
-    CapPtr<void, CBChunk> slab;
+    std::atomic<ChunkRecord*> next;
+    CapPtr<void, CBChunk> chunk;
   };
 
   /**
@@ -29,20 +28,20 @@ namespace snmalloc
    * Used to ensure the per slab meta data is large enough for both use cases.
    */
   static_assert(
-    sizeof(Metaslab) >= sizeof(SlabRecord), "We conflat these two types.");
+    sizeof(Metaslab) >= sizeof(ChunkRecord), "We conflat these two types.");
 
   /**
-   * This is the global state required for the slab allocator.
+   * This is the global state required for the chunk allocator.
    * It must be provided as a part of the shared state handle
-   * to the slab allocator.
+   * to the chunk allocator.
    */
-  class SlabAllocatorState
+  class ChunkAllocatorState
   {
-    friend class SlabAllocator;
+    friend class ChunkAllocator;
     /**
      * Stack of slabs that have been returned for reuse.
      */
-    ModArray<NUM_SLAB_SIZES, MPMCStack<SlabRecord, RequiresInit>> slab_stack;
+    ModArray<NUM_SLAB_SIZES, MPMCStack<ChunkRecord, RequiresInit>> chunk_stack;
 
     /**
      * All memory issued by this address space manager
@@ -71,11 +70,11 @@ namespace snmalloc
     }
   };
 
-  class SlabAllocator
+  class ChunkAllocator
   {
   public:
     template<typename SharedStateHandle>
-    static std::pair<CapPtr<void, CBChunk>, Metaslab*> alloc_slab(
+    static std::pair<CapPtr<void, CBChunk>, Metaslab*> alloc_chunk(
       SharedStateHandle h,
       typename SharedStateHandle::Backend::LocalState& backend_state,
       sizeclass_t sizeclass,
@@ -83,15 +82,15 @@ namespace snmalloc
       size_t slab_size,
       RemoteAllocator* remote)
     {
-      SlabAllocatorState& state = h.get_slab_allocator_state();
+      ChunkAllocatorState& state = h.get_slab_allocator_state();
       // Pop a slab
-      auto slab_record = state.slab_stack[slab_sizeclass].pop();
+      auto chunk_record = state.chunk_stack[slab_sizeclass].pop();
 
-      if (slab_record != nullptr)
+      if (chunk_record != nullptr)
       {
-        auto slab = slab_record->slab;
+        auto slab = chunk_record->chunk;
         state.memory_in_stacks -= slab_size;
-        auto meta = reinterpret_cast<Metaslab*>(slab_record);
+        auto meta = reinterpret_cast<Metaslab*>(chunk_record);
 #ifdef SNMALLOC_TRACING
         std::cout << "Reuse slab:" << slab.unsafe_capptr << " slab_sizeclass "
                   << slab_sizeclass << " size " << slab_size
@@ -106,7 +105,7 @@ namespace snmalloc
 
       // Allocate a fresh slab as there are no available ones.
       // First create meta-data
-      auto [slab, meta] = SharedStateHandle::Backend::alloc_slab(
+      auto [slab, meta] = SharedStateHandle::Backend::alloc_chunk(
         h.get_backend_state(), &backend_state, slab_size, remote, sizeclass);
 #ifdef SNMALLOC_TRACING
       std::cout << "Create slab:" << slab.unsafe_capptr << " slab_sizeclass "
@@ -124,16 +123,16 @@ namespace snmalloc
 
     template<typename SharedStateHandle>
     SNMALLOC_SLOW_PATH static void
-    dealloc(SharedStateHandle h, SlabRecord* p, size_t slab_sizeclass)
+    dealloc(SharedStateHandle h, ChunkRecord* p, size_t slab_sizeclass)
     {
       auto& state = h.get_slab_allocator_state();
 #ifdef SNMALLOC_TRACING
-      std::cout << "Return slab:" << p->slab.unsafe_capptr << " slab_sizeclass "
-                << slab_sizeclass << " size "
+      std::cout << "Return slab:" << p->chunk.unsafe_capptr
+                << " slab_sizeclass " << slab_sizeclass << " size "
                 << slab_sizeclass_to_size(slab_sizeclass)
                 << " memory in stacks " << state.memory_in_stacks << std::endl;
 #endif
-      state.slab_stack[slab_sizeclass].push(p);
+      state.chunk_stack[slab_sizeclass].push(p);
       state.memory_in_stacks += slab_sizeclass_to_size(slab_sizeclass);
     }
 

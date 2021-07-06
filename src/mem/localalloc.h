@@ -139,12 +139,12 @@ namespace snmalloc
       return check_init([&](CoreAlloc* core_alloc) {
         // Grab slab of correct size
         // Set remote as large allocator remote.
-        auto [slab, meta] = SlabAllocator::alloc_slab(
+        auto [chunk, meta] = ChunkAllocator::alloc_chunk(
           handle,
           core_alloc->backend_state,
           bits::next_pow2_bits(size), // TODO
-          large_size_to_slab_sizeclass(size),
-          large_size_to_slab_size(size),
+          large_size_to_chunk_sizeclass(size),
+          large_size_to_chunk_size(size),
           handle.fake_large_remote);
         // set up meta data so sizeclass is correct, and hence alloc size, and
         // external pointer.
@@ -159,10 +159,10 @@ namespace snmalloc
         if (zero_mem == YesZero)
         {
           SharedStateHandle::Pal::template zero<false>(
-            slab.unsafe_capptr, size);
+            chunk.unsafe_capptr, size);
         }
 
-        return slab.unsafe_capptr;
+        return chunk.unsafe_capptr;
       });
     }
 
@@ -324,7 +324,7 @@ namespace snmalloc
       // slow path.
       if (likely((size - 1) <= (sizeclass_to_size(NUM_SIZECLASSES - 1) - 1)))
       {
-        // Allocations smaller than the slab size are more likely. Improve
+        // Small allocations are more likely. Improve
         // branch prediction by placing this case first.
         return small_alloc<zero_mem>(size);
       }
@@ -394,15 +394,15 @@ namespace snmalloc
         check_client(
           pointer_align_down(p, size) == p, "Not start of an allocation.");
 
-        size_t slab_sizeclass = large_size_to_slab_sizeclass(size);
+        size_t slab_sizeclass = large_size_to_chunk_sizeclass(size);
 #ifdef SNMALLOC_TRACING
         std::cout << "Large deallocation: " << size
-                  << " slab sizeclass: " << slab_sizeclass << std::endl;
+                  << " chunk sizeclass: " << slab_sizeclass << std::endl;
 #endif
-        SlabRecord* slab_record =
-          reinterpret_cast<SlabRecord*>(entry.get_metaslab());
-        slab_record->slab = CapPtr<void, CBChunk>(p);
-        SlabAllocator::dealloc(handle, slab_record, slab_sizeclass);
+        ChunkRecord* slab_record =
+          reinterpret_cast<ChunkRecord*>(entry.get_metaslab());
+        slab_record->chunk = CapPtr<void, CBChunk>(p);
+        ChunkAllocator::dealloc(handle, slab_record, slab_sizeclass);
         return;
       }
 

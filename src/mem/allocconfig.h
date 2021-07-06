@@ -34,26 +34,6 @@ namespace snmalloc
 #endif
     ;
 
-  // Specifies smaller slab and super slab sizes for address space
-  // constrained scenarios.
-  static constexpr size_t USE_LARGE_CHUNKS =
-#ifdef SNMALLOC_USE_LARGE_CHUNKS
-    // In 32 bit uses smaller superslab.
-    (bits::is64())
-#else
-    false
-#endif
-    ;
-
-  // Specifies even smaller slab and super slab sizes for open enclave.
-  static constexpr size_t USE_SMALL_CHUNKS =
-#ifdef SNMALLOC_USE_SMALL_CHUNKS
-    true
-#else
-    false
-#endif
-    ;
-
   enum DecommitStrategy
   {
     /**
@@ -112,7 +92,7 @@ namespace snmalloc
     bits::one_at_bit(MAX_SIZECLASS_BITS);
 
   // Number of slots for remote deallocation.
-  static constexpr size_t REMOTE_SLOT_BITS = 6;
+  static constexpr size_t REMOTE_SLOT_BITS = 8;
   static constexpr size_t REMOTE_SLOTS = 1 << REMOTE_SLOT_BITS;
   static constexpr size_t REMOTE_MASK = REMOTE_SLOTS - 1;
 

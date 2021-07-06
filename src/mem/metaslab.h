@@ -40,12 +40,12 @@ namespace snmalloc
     bool sleeping = false;
   };
 
-  inline static size_t large_size_to_slab_size(size_t size)
+  inline static size_t large_size_to_chunk_size(size_t size)
   {
     return bits::next_pow2(size);
   }
 
-  inline static size_t large_size_to_slab_sizeclass(size_t size)
+  inline static size_t large_size_to_chunk_sizeclass(size_t size)
   {
     return bits::next_pow2_bits(size) - MIN_CHUNK_BITS;
   }

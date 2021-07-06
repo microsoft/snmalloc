@@ -5,7 +5,7 @@
 #include "../mem/freelist.h"
 #include "../mem/metaslab.h"
 #include "../mem/remoteallocator.h"
-#include "../mem/sizeclass.h"
+#include "../mem/sizeclasstable.h"
 
 #include <array>
 #include <atomic>

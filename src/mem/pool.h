@@ -48,7 +48,7 @@ namespace snmalloc
         return p;
       }
 
-      p = SlabAllocator::alloc_meta_data<T>(
+      p = ChunkAllocator::alloc_meta_data<T>(
         h, nullptr, std::forward<Args>(args)...);
 
       FlagLock f(pool.lock);

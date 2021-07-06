@@ -1,10 +1,7 @@
 #pragma once
 
 #include "../ds/defines.h"
-#include "localalloc.h"
-#include "pool.h"
-
-#include <pal/pal_noalloc.h>
+#include "remoteallocator.h"
 
 namespace snmalloc
 {

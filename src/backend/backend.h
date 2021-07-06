@@ -8,13 +8,19 @@
 namespace snmalloc
 {
   /**
-   * This class abstracts the platform to a consistent
-   * way of handling memory for the front end.
+   * This class implements the standard backend for handling allocations.
+   * It abstracts page table management and address space management.
    */
   template<typename PAL, bool fixed_range>
   class BackendAllocator
   {
   public:
+    /**
+     * Local state for the backend allocator.
+     *
+     * This class contains thread local structures to make the implementation
+     * of the backend allocator more efficient.
+     */
     class LocalState
     {
       friend BackendAllocator;
@@ -23,6 +29,15 @@ namespace snmalloc
       AddressSpaceManagerCore local_address_space;
     };
 
+    /**
+     * Global state for the backend allocator
+     *
+     * This contains the various global datastructures required to store
+     * meta-data for each chunk of memory, and to provide well aligned chunks
+     * of memory.
+     *
+     * This type is required by snmalloc to exist as part of the Backend.
+     */
     class GlobalState
     {
       friend BackendAllocator;
@@ -33,20 +48,33 @@ namespace snmalloc
       FlatPagemap<MIN_CHUNK_BITS, MetaEntry, PAL, fixed_range> pagemap;
 
     public:
-      // TODO should check fixed range.
       void init()
       {
         pagemap.init(&address_space);
+
+        if constexpr (fixed_range)
+        {
+          abort();
+        }
       }
 
       void init(CapPtr<void, CBChunk> base, size_t length)
       {
         address_space.add_range(base, length);
         pagemap.init(&address_space, address_cast(base), length);
+
+        if constexpr (!fixed_range)
+        {
+          abort();
+        }
       }
     };
 
   private:
+    /**
+     * Internal method for acquiring state from the local and global address
+     * space managers.
+     */
     template<bool is_meta>
     static CapPtr<void, CBChunk>
     reserve(GlobalState& h, LocalState* local_state, size_t size)
@@ -65,8 +93,8 @@ namespace snmalloc
         else
         {
           auto& a = h.address_space;
-          auto refill_size = bits::max(
-            size, bits::one_at_bit(21)); // TODO min and max heuristics
+          // TODO Improve heuristics and params
+          auto refill_size = bits::max(size, bits::one_at_bit(21));
           auto refill = a.template reserve<false>(refill_size);
           if (refill == nullptr)
             return nullptr;
@@ -103,11 +131,15 @@ namespace snmalloc
     }
 
     /**
-     * Provide a power of 2 aligned and sized chunk of memory
+     * Returns a chunk of memory with alignment and size of `size`, and a
+     * metaslab block.
      *
-     * Set its metadata entry to t.
+     * It additionally set the meta-data for this chunk of memory to
+     * be
+     *   (remote, sizeclass, metaslab)
+     * where metaslab, is the second element of the pair return.
      */
-    static std::pair<CapPtr<void, CBChunk>, Metaslab*> alloc_slab(
+    static std::pair<CapPtr<void, CBChunk>, Metaslab*> alloc_chunk(
       GlobalState& h,
       LocalState* local_state,
       size_t size,
@@ -120,7 +152,7 @@ namespace snmalloc
       CapPtr<void, CBChunk> p = reserve<false>(h, local_state, size);
 
 #ifdef SNMALLOC_TRACING
-      std::cout << "Alloc slab: " << p.unsafe_capptr << " (" << size << ")"
+      std::cout << "Alloc chunk: " << p.unsafe_capptr << " (" << size << ")"
                 << std::endl;
 #endif
       if (p == nullptr)
@@ -131,7 +163,7 @@ namespace snmalloc
         return {p, nullptr};
       }
 
-      Metaslab* meta = reinterpret_cast<Metaslab*>(
+      auto meta = reinterpret_cast<Metaslab*>(
         reserve<true>(h, local_state, sizeof(Metaslab)).unsafe_capptr);
 
       MetaEntry t(meta, remote, sizeclass);
@@ -146,10 +178,10 @@ namespace snmalloc
     }
 
     /**
-     * Get the metadata associated with a slab.
+     * Get the metadata associated with a chunk.
      *
      * Set template parameter to true if it not an error
-     * to access a location that is not backed by a slab.
+     * to access a location that is not backed by a chunk.
      */
     template<bool potentially_out_of_range = false>
     static const MetaEntry& get_meta_data(GlobalState& h, address_t p)
@@ -158,7 +190,7 @@ namespace snmalloc
     }
 
     /**
-     * Set the metadata associated with a slab.
+     * Set the metadata associated with a chunk.
      */
     static void
     set_meta_data(GlobalState& h, address_t p, size_t size, MetaEntry t)

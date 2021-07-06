@@ -2,6 +2,9 @@
 
 #include "../backend/backend.h"
 #include "commonconfig.h"
+#include "../mem/slaballocator.h"
+#include "../mem/corealloc.h"
+#include "../mem/pool.h"
 
 namespace snmalloc
 {
@@ -18,7 +21,7 @@ namespace snmalloc
     inline static Backend::GlobalState backend_state;
 
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static SlabAllocatorState slab_allocator_state;
+    inline static ChunkAllocatorState slab_allocator_state;
 
     SNMALLOC_REQUIRE_CONSTINIT
     inline static PoolState<CoreAlloc<Globals>> alloc_pool;
@@ -35,7 +38,7 @@ namespace snmalloc
       return backend_state;
     }
 
-    SlabAllocatorState& get_slab_allocator_state()
+    ChunkAllocatorState& get_slab_allocator_state()
     {
       return slab_allocator_state;
     }
