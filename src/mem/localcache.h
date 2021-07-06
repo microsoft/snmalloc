@@ -37,7 +37,6 @@ namespace snmalloc
     // TODO: Should this be zeroing the FreeObject state, in the non-zeroing
     // case?
 
-
     return r;
   }
 

@@ -213,36 +213,6 @@ extern "C"
     return ENOENT;
   }
 
-#ifdef SNMALLOC_EXPOSE_PAGEMAP
-  /**
-   * Export the pagemap.  The return value is a pointer to the pagemap
-   * structure.  The argument is used to return a pointer to a `PagemapConfig`
-   * structure describing the type of the pagemap.  Static methods on the
-   * concrete pagemap templates can then be used to safely cast the return from
-   * this function to the correct type.  This allows us to preserve some
-   * semblance of ABI safety via a pure C API.
-   */
-  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(snmalloc_chunkmap_global_get)(
-    PagemapConfig const** config)
-  {
-    auto& pm = GlobalChunkmap::pagemap();
-    if (config)
-    {
-      *config = &ChunkmapPagemap::config;
-      SNMALLOC_ASSERT(ChunkmapPagemap::cast_to_pagemap(&pm, *config) == &pm);
-    }
-    return &pm;
-  }
-#endif
-
-#ifdef SNMALLOC_EXPOSE_RESERVE
-  SNMALLOC_EXPORT void*
-    SNMALLOC_NAME_MANGLE(snmalloc_reserve_shared)(size_t* size, size_t align)
-  {
-    return snmalloc::default_memory_provider().reserve<true>(size, align);
-  }
-#endif
-
 #if !defined(__PIC__) && defined(SNMALLOC_BOOTSTRAP_ALLOCATOR)
   // The following functions are required to work before TLS is set up, in
   // statically-linked programs.  These temporarily grab an allocator from the

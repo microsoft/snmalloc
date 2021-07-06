@@ -63,8 +63,7 @@ void check_calloc(void* p, size_t size)
 void calloc1(size_t size)
 {
   void* r =
-    snmalloc::ThreadAlloc::get().alloc<snmalloc::ZeroMem::YesZero>(
-      size);
+    snmalloc::ThreadAlloc::get().alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
   snmalloc::ThreadAlloc::get().dealloc(r);
 }

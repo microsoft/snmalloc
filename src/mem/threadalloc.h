@@ -4,15 +4,17 @@
 #include "globalconfig.h"
 #include "localalloc.h"
 
-#ifdef SNMALLOC_USE_PTHREAD_DESTRUCTOR
-#  include <pthread.h>
-#endif
-
-#if defined(SNMALLOC_USE_PTHREAD_DESTRUCTOR) && \
+#if defined(SNMALLOC_EXTERNAL_THREAD_ALLOC) && \
   defined(SNMALLOC_USE_THREAD_CLEANUP)
-#error At most one out of SNMALLOC_USE_THREAD_CLEANUP and SNMALLOC_USE_PTHREAD_DESTRUCTOR may be defined.
+#error At most one out of SNMALLOC_USE_THREAD_CLEANUP and SNMALLOC_EXTERNAL_THREAD_ALLOC may be defined.
 #endif
 
+#if !defined(SNMALLOC_EXTERNAL_THREAD_ALLOC) && \
+  !defined(SNMALLOC_USE_THREAD_CLEANUP)
+#  if __has_include(<pthread.h>)
+#    define SNMALLOC_USE_PTHREAD_DESTRUCTOR
+#  endif
+#endif
 extern "C" void _malloc_thread_cleanup();
 
 namespace snmalloc
@@ -59,9 +61,10 @@ namespace snmalloc
 #else
 
   /**
-   * Holds the thread local state for the allocator.  The state is constant initialised, and has no
-   * direct dectructor.  Instead snmalloc will call `register_clean_up` on the slow path for bringing
-   * up thread local state. This is responsible for calling `teardown`, which effectively destructs the
+   * Holds the thread local state for the allocator.  The state is constant
+   * initialised, and has no direct dectructor.  Instead snmalloc will call
+   * `register_clean_up` on the slow path for bringing up thread local state.
+   * This is responsible for calling `teardown`, which effectively destructs the
    * data structure, but in a way that allow it to still be used.
    */
   class ThreadAlloc
@@ -81,34 +84,47 @@ namespace snmalloc
     }
   };
 
-# ifdef SNMALLOC_USE_PTHREAD_DESTRUCTOR
+#  ifdef SNMALLOC_USE_PTHREAD_DESTRUCTOR
+  /**
+   * Used to give correct signature to teardown required by pthread_key.
+   */
   inline void pthread_cleanup(void*)
   {
     ThreadAlloc::get().teardown();
   }
+  /**
+   * Used to give correct signature to the pthread call for the Singleton class.
+   */
   inline pthread_key_t pthread_create() noexcept
   {
     pthread_key_t key;
     pthread_key_create(&key, &pthread_cleanup);
     return key;
   }
+  /**
+   * Performs thread local teardown for the allocator using the pthread library.
+   *
+   * This removes the dependence on the C++ runtime.
+   */
   inline SNMALLOC_FAST_PATH void register_clean_up()
-  { 
+  {
     Singleton<pthread_key_t, &pthread_create> p_key;
+    // We need to set a non-null value, so that the destructor is called.
     pthread_setspecific(p_key.get(), (void*)1);
   }
-#  else
+#  elif !defined(SNMALLOC_USE_THREAD_CLEANUP)
   /**
    * This function is called by each thread once it starts using the
    * thread local allocator.
    *
    * This implementation depends on nothing outside of a working C++
    * environment and so should be the simplest for initial bringup on an
-   * unsupported platform.  
+   * unsupported platform.
    */
   inline SNMALLOC_FAST_PATH void register_clean_up()
   {
-    static thread_local OnDestruct dummy([](){ ThreadAlloc::get().teardown();});
+    static thread_local OnDestruct dummy(
+      []() { ThreadAlloc::get().teardown(); });
     UNUSED(dummy);
   }
 #  endif

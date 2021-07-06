@@ -75,10 +75,6 @@ macro(warnings_high)
   endif()
 endmacro()
 
-macro(oe_simulate target)
-  target_compile_definitions(${target} PRIVATE SNMALLOC_USE_SMALL_CHUNKS)
-endmacro()
-
 macro(clangformat_targets)
   # The clang-format tool is installed under a variety of different names.  Try
   # to find a sensible one.  Only look for versions 9 explicitly - we don't
@@ -243,22 +239,6 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     endif()
     set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
-    if(EXPOSE_EXTERNAL_PAGEMAP)
-      if(MSVC)
-        target_compile_definitions(${name} PRIVATE /DSNMALLOC_EXPOSE_PAGEMAP)
-      else()
-        target_compile_definitions(${name} PRIVATE -DSNMALLOC_EXPOSE_PAGEMAP)
-      endif()
-    endif()
-
-    if(EXPOSE_EXTERNAL_RESERVE)
-      if(MSVC)
-        target_compile_definitions(${name} PRIVATE /DSNMALLOC_EXPOSE_RESERVE)
-      else()
-        target_compile_definitions(${name} PRIVATE -DSNMALLOC_EXPOSE_RESERVE)
-      endif()
-    endif()
-
     # Ensure that we do not link against C++ stdlib when compiling shims.
     if(NOT MSVC)
       set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
@@ -284,16 +264,12 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     add_shim(snmallocshim SHARED ${SHARED_FILES})
     add_shim(snmallocshim-checks SHARED ${SHARED_FILES})
     target_compile_definitions(snmallocshim-checks PRIVATE CHECK_CLIENT)
-    # Build a shim with some settings from oe.
-    add_shim(snmallocshim-oe SHARED ${SHARED_FILES})
-    oe_simulate(snmallocshim-oe)
   endif()
 
   if(SNMALLOC_RUST_SUPPORT)
     add_shim(snmallocshim-rust STATIC src/override/rust.cc)
-    add_shim(snmallocshim-1mib-rust STATIC src/override/rust.cc)
-    # add_shim(snmallocshim-16mib-rust STATIC src/override/rust.cc)
-    # target_compile_definitions(snmallocshim-16mib-rust PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
+    add_shim(snmallocshim-checks-rust STATIC src/override/rust.cc)
+    target_compile_definitions(snmallocshim-checks-rust PRIVATE CHECK_CLIENT)
   endif()
 
   enable_testing()
@@ -312,9 +288,9 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         # Windows does not support aligned allocation well enough
         # for pass through.
         # NetBSD, OpenBSD and DragonFlyBSD do not support malloc*size calls.
-        set(FLAVOURS 1;oe;check) #16 missing
+        set(FLAVOURS 1;check)
       else()
-        set(FLAVOURS 1;oe;check) #malloc;16 missing
+        set(FLAVOURS 1;check) #malloc - TODO-need to add pass through back
       endif()
       foreach(FLAVOUR ${FLAVOURS})
         unset(SRC)
@@ -328,9 +304,6 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
 
         if (${FLAVOUR} EQUAL 16)
           target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
-        endif()
-        if (${FLAVOUR} STREQUAL "oe")
-          oe_simulate(${TESTNAME})
         endif()
         if (${FLAVOUR} STREQUAL "malloc")
           target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_PASS_THROUGH)

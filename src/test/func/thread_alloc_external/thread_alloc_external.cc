@@ -27,7 +27,6 @@ int main()
   setup();
   ThreadAlloc::get().init();
 
-
   auto& a = ThreadAlloc::get();
 
   for (size_t i = 0; i < 1000; i++)

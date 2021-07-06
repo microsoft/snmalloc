@@ -78,8 +78,7 @@ void calloc1(size_t size)
 {
   trigger_teardown();
   void* r =
-    snmalloc::ThreadAlloc::get().alloc<snmalloc::ZeroMem::YesZero>(
-      size);
+    snmalloc::ThreadAlloc::get().alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
   snmalloc::ThreadAlloc::get().dealloc(r);
 }

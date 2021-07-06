@@ -34,7 +34,7 @@ namespace snmalloc
      *   useful to allocate from.  This could be as low as 1, or when we have
      *   a requirement for entropy then it could be much higher.
      *   - deallocations until the slab is completely unused.  This is needed
-     *   to be detected, so that the statistics can be kept up to date, and 
+     *   to be detected, so that the statistics can be kept up to date, and
      *   potentially return memory to the a global pool of slabs/chunks.
      */
     uint16_t needed = 0;

@@ -113,6 +113,7 @@ namespace snmalloc
   class OnDestruct
   {
     F f;
+
   public:
     OnDestruct(F f) : f(f) {}
 

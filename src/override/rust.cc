@@ -17,8 +17,7 @@ extern "C" SNMALLOC_EXPORT void* rust_alloc(size_t alignment, size_t size)
 extern "C" SNMALLOC_EXPORT void*
 rust_alloc_zeroed(size_t alignment, size_t size)
 {
-  return ThreadAlloc::get().alloc<YesZero>(
-    aligned_size(alignment, size));
+  return ThreadAlloc::get().alloc<YesZero>(aligned_size(alignment, size));
 }
 
 extern "C" SNMALLOC_EXPORT void
