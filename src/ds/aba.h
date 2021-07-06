@@ -13,7 +13,7 @@
  */
 namespace snmalloc
 {
-#ifndef NDEBUG
+#if !defined(NDEBUG) && !defined(SNMALLOC_DISABLE_ABA_VERIFY)
   // LL/SC typically can only perform one operation at a time
   // check this on other platforms using a thread_local.
   inline thread_local bool operation_in_flight = false;
@@ -67,7 +67,7 @@ namespace snmalloc
 
     Cmp read()
     {
-#  ifndef NDEBUG
+#  if !defined(NDEBUG) && !defined(SNMALLOC_DISABLE_ABA_VERIFY)
       if (operation_in_flight)
         error("Only one inflight ABA operation at a time is allowed.");
       operation_in_flight = true;
@@ -119,7 +119,7 @@ namespace snmalloc
 
       ~Cmp()
       {
-#  ifndef NDEBUG
+#  if !defined(NDEBUG) && !defined(SNMALLOC_DISABLE_ABA_VERIFY)
         operation_in_flight = false;
 #  endif
       }
@@ -158,7 +158,7 @@ namespace snmalloc
       while (lock.test_and_set(std::memory_order_acquire))
         Aal::pause();
 
-#  ifndef NDEBUG
+#  if !defined(NDEBUG) && !defined(SNMALLOC_DISABLE_ABA_VERIFY)
       if (operation_in_flight)
         error("Only one inflight ABA operation at a time is allowed.");
       operation_in_flight = true;
@@ -186,7 +186,7 @@ namespace snmalloc
       ~Cmp()
       {
         parent->lock.clear(std::memory_order_release);
-#  ifndef NDEBUG
+#  if !defined(NDEBUG) && !defined(SNMALLOC_DISABLE_ABA_VERIFY)
         operation_in_flight = false;
 #  endif
       }
