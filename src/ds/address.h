@@ -45,8 +45,7 @@ namespace snmalloc
   inline CapPtr<void, bounds>
   pointer_offset_signed(CapPtr<T, bounds> base, ptrdiff_t diff)
   {
-    return CapPtr<void, bounds>(
-      pointer_offset_signed(base.unsafe_ptr(), diff));
+    return CapPtr<void, bounds>(pointer_offset_signed(base.unsafe_ptr(), diff));
   }
 
   /**

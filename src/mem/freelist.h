@@ -136,7 +136,7 @@ namespace snmalloc
    */
   class FreeListIter
   {
-    CapPtr<FreeObject, CBAlloc> curr{nullptr};
+    CapPtr<FreeObject, CBAlloc> curr{1};
 #ifdef CHECK_CLIENT
     address_t prev{0};
 #endif
@@ -159,14 +159,8 @@ namespace snmalloc
     void update_cursor(CapPtr<FreeObject, CBAlloc> next)
     {
 #ifdef CHECK_CLIENT
-#  ifndef NDEBUG
-      if (next != nullptr)
-      {
-        check_client(
-          !different_slab(curr, next),
-          "Heap corruption - free list corrupted!");
-      }
-#  endif
+      check_client(
+        !different_slab(curr, next), "Heap corruption - free list corrupted!");
       prev = address_cast(curr);
 #endif
       curr = next;
@@ -192,7 +186,7 @@ namespace snmalloc
      */
     bool empty()
     {
-      return curr == nullptr;
+      return (address_cast(curr) & 1) == 1;
     }
 
     /**
@@ -369,6 +363,20 @@ namespace snmalloc
     }
 
     /**
+     * Makes a terminator to a free list.
+     *
+     * Termination uses the bottom bit, this allows the next pointer
+     * to always be to the same slab.
+     */
+    SNMALLOC_FAST_PATH void
+    terminate_list(uint32_t index, LocalEntropy& entropy)
+    {
+      auto term = CapPtr<FreeObject, CBAlloc>(
+        reinterpret_cast<uintptr_t>(end[index]) | 1);
+      end[index]->store(term, get_prev(index), entropy);
+    }
+
+    /**
      * Adds a terminator at the end of a free list,
      * but does not close the builder.  Thus new elements
      * can still be added.  It returns a new iterator to the
@@ -395,7 +403,7 @@ namespace snmalloc
         // If second list is non-empty, perform append.
         if (end[1] != &head[1])
         {
-          end[1]->store(nullptr, get_prev(1), entropy);
+          terminate_list(1, entropy);
 
           // Append 1 to 0
           auto mid = head[1].read(HEAD_KEY, entropy);
@@ -440,7 +448,7 @@ namespace snmalloc
         UNUSED(preserve_queue);
       }
 
-      end[0]->store(nullptr, get_prev(0), entropy);
+      terminate_list(0, entropy);
       fl = {head[0].read(HEAD_KEY, entropy), address_cast(&head[0])};
     }
 

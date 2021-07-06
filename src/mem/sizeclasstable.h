@@ -1,8 +1,8 @@
 #pragma once
 
 #include "../ds/bits.h"
-#include "../ds/helpers.h"
 #include "../ds/defines.h"
+#include "../ds/helpers.h"
 #include "allocconfig.h"
 
 namespace snmalloc
@@ -266,7 +266,6 @@ namespace snmalloc
       // everything fits into 32bits here.
       return static_cast<uint32_t>(offset % sizeclass_to_size(sc)) == 0;
   }
-
 
   inline SNMALLOC_FAST_PATH static size_t round_size(size_t size)
   {

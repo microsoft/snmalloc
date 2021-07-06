@@ -569,10 +569,11 @@ namespace snmalloc
           handle_message_queue([]() {});
       }
 
-      auto posted = attached_cache->flush<sizeof(CoreAlloc)>([&](auto p) { dealloc_local_object(p); }, handle);
+      auto posted = attached_cache->flush<sizeof(CoreAlloc)>(
+        [&](auto p) { dealloc_local_object(p); }, handle);
 
       // We may now have unused slabs, return to the global allocator.
-      for (sizeclass_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass ++)
+      for (sizeclass_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass++)
       {
         dealloc_local_slabs(sizeclass);
       }

@@ -127,8 +127,8 @@ namespace snmalloc
     {
       auto& state = h.get_slab_allocator_state();
 #ifdef SNMALLOC_TRACING
-      std::cout << "Return slab:" << p->chunk.unsafe_ptr()
-                << " slab_sizeclass " << slab_sizeclass << " size "
+      std::cout << "Return slab:" << p->chunk.unsafe_ptr() << " slab_sizeclass "
+                << slab_sizeclass << " size "
                 << slab_sizeclass_to_size(slab_sizeclass)
                 << " memory in stacks " << state.memory_in_stacks << std::endl;
 #endif

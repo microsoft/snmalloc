@@ -104,6 +104,7 @@ namespace snmalloc
   class CapPtr
   {
     uintptr_t unsafe_capptr;
+
   public:
     /**
      * nullptr is implicitly constructable at any bounds type
@@ -174,6 +175,11 @@ namespace snmalloc
     [[nodiscard]] SNMALLOC_FAST_PATH T* unsafe_ptr() const
     {
       return reinterpret_cast<T*>(this->unsafe_capptr);
+    }
+
+    [[nodiscard]] SNMALLOC_FAST_PATH uintptr_t unsafe_uintptr() const
+    {
+      return this->unsafe_capptr;
     }
 
     SNMALLOC_FAST_PATH T* operator->() const

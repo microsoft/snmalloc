@@ -1,10 +1,10 @@
 #pragma once
 
 #include "../backend/backend.h"
-#include "commonconfig.h"
-#include "../mem/slaballocator.h"
 #include "../mem/corealloc.h"
 #include "../mem/pool.h"
+#include "../mem/slaballocator.h"
+#include "commonconfig.h"
 
 namespace snmalloc
 {
