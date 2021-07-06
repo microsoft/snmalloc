@@ -34,6 +34,10 @@ namespace snmalloc
     if constexpr (zero_mem == YesZero)
       SharedStateHandle::Pal::zero(r, sizeclass_to_size(sizeclass));
 
+    // TODO: Should this be zeroing the FreeObject state, in the non-zeroing
+    // case?
+
+
     return r;
   }
 

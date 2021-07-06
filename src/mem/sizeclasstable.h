@@ -289,4 +289,14 @@ namespace snmalloc
       return 1;
     return bits::one_at_bit(bits::ctz(rsize));
   }
+
+  inline static size_t large_size_to_chunk_size(size_t size)
+  {
+    return bits::next_pow2(size);
+  }
+
+  inline static size_t large_size_to_chunk_sizeclass(size_t size)
+  {
+    return bits::next_pow2_bits(size) - MIN_CHUNK_BITS;
+  }
 } // namespace snmalloc

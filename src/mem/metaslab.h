@@ -27,28 +27,24 @@ namespace snmalloc
   struct MetaslabEnd
   {
     /**
-     * TODO rewrite
-     *  How many entries are not in the free list of slab, i.e.
-     *  how many entries are needed to fully free this slab.
-     *
-     *  In the case of a fully allocated slab, where prev==0 needed
-     *  will be 1. This enables 'return_object' to detect the slow path
-     *  case with a single operation subtract and test.
+     * The number of deallocation required until we hit a slow path. This
+     * counts down in two different ways that are handled the same on the
+     * fast path.  The first is
+     *   - deallocations until the slab has sufficient entries to be considered
+     *   useful to allocate from.  This could be as low as 1, or when we have
+     *   a requirement for entropy then it could be much higher.
+     *   - deallocations until the slab is completely unused.  This is needed
+     *   to be detected, so that the statistics can be kept up to date, and 
+     *   potentially return memory to the a global pool of slabs/chunks.
      */
     uint16_t needed = 0;
 
+    /**
+     * Flag that is used to indicate that the slab is currently not active.
+     * I.e. it is not in a CoreAlloc cache for the appropriate sizeclass.
+     */
     bool sleeping = false;
   };
-
-  inline static size_t large_size_to_chunk_size(size_t size)
-  {
-    return bits::next_pow2(size);
-  }
-
-  inline static size_t large_size_to_chunk_sizeclass(size_t size)
-  {
-    return bits::next_pow2_bits(size) - MIN_CHUNK_BITS;
-  }
 
   // The Metaslab represent the status of a single slab.
   // This can be either a short or a standard slab.
@@ -78,12 +74,11 @@ namespace snmalloc
       return free_queue.s.sleeping;
     }
 
+    /**
+     * Initialise Metaslab for a slab.
+     */
     void initialise(sizeclass_t sizeclass)
     {
-      // TODO: Special version for large alloc?
-      //    TODO: Assert this is a Large alloc
-      //    TODO: other fields for other data?
-
       free_queue.init();
       // Set up meta data as if the entire slab has been turned into a free
       // list. This means we don't have to check for special cases where we have
@@ -170,59 +165,7 @@ namespace snmalloc
       // when sufficient deallocations have occurred to this slab.
       meta->set_sleeping(sizeclass);
 
-      //    TODO?
-      //      self->debug_slab_invariant(meta, entropy);
-
-      // TODO: Should this be zeroing the FreeObject state?
       return p;
-    }
-
-    template<capptr_bounds B>
-    void debug_slab_invariant(CapPtr<Slab, B> slab, LocalEntropy& entropy)
-    {
-      static_assert(B == CBChunkD || B == CBChunk);
-
-#if false && !defined(NDEBUG) && !defined(SNMALLOC_CHEAP_CHECKS)
-      bool is_short = Metaslab::is_short(slab);
-
-      if (is_sleeping())
-      {
-        size_t count = free_queue.debug_length(entropy);
-        SNMALLOC_ASSERT(count < threshold_for_waking_slab(sizeclass()));
-        return;
-      }
-
-      if (is_unused())
-        return;
-
-      size_t size = sizeclass_to_size(sizeclass());
-      size_t offset = get_initial_offset(sizeclass(), is_short);
-      size_t accounted_for = needed() * size + offset;
-
-      // Block is not full
-      SNMALLOC_ASSERT(SLAB_SIZE > accounted_for);
-
-      // Account for list size
-      size_t count = free_queue.debug_length(entropy);
-      accounted_for += count * size;
-
-      SNMALLOC_ASSERT(count <= get_slab_capacity(sizeclass(), is_short));
-
-      auto bumpptr = (get_slab_capacity(sizeclass(), is_short) * size) + offset;
-      // Check we haven't allocated more than fits in a slab
-      SNMALLOC_ASSERT(bumpptr <= SLAB_SIZE);
-
-      // Account for to be bump allocated space
-      accounted_for += SLAB_SIZE - bumpptr;
-
-      SNMALLOC_ASSERT(!is_sleeping());
-
-      // All space accounted for
-      SNMALLOC_ASSERT(SLAB_SIZE == accounted_for);
-#else
-      UNUSED(slab);
-      UNUSED(entropy);
-#endif
     }
   };
 

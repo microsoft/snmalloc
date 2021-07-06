@@ -121,14 +121,13 @@ namespace snmalloc
      *   - Allocating stub in the message queue
      * Note this is not performance critical as very infrequently called.
      */
-    template<ZeroMem zero_mem = NoZero>
     void* small_alloc_one(size_t size)
     {
       SNMALLOC_ASSERT(attached_cache != nullptr);
       // Use attached cache, and fill it if it is empty.
-      return attached_cache->template alloc<zero_mem, SharedStateHandle>(
+      return attached_cache->template alloc<NoZero, SharedStateHandle>(
         size, [&](sizeclass_t sizeclass, FreeListIter* fl) {
-          return small_alloc<zero_mem>(sizeclass, *fl);
+          return small_alloc<NoZero>(sizeclass, *fl);
         });
     }
 

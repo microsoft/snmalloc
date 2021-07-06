@@ -103,7 +103,9 @@ namespace snmalloc
       // implemented with allocation, so need to ensure we have a valid
       // allocator at this point.
       if (!post_teardown)
-        // TODO: Should this be a singleton, so we only call it once?
+        // Must be called at least once per thread.
+        // A pthread implementation only calls the thread destruction handle
+        // if the key has been set.
         handle.register_clean_up();
 
       // Perform underlying operation
@@ -153,7 +155,7 @@ namespace snmalloc
                   << std::endl;
 #endif
 
-        // TODO Not currently using metadata for large allocs.
+        // Note that meta data is not currently used for large allocs.
         //        meta->initialise(size_to_sizeclass(size));
 
         if (zero_mem == YesZero)
