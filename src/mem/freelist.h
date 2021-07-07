@@ -150,22 +150,6 @@ namespace snmalloc
 #endif
     }
 
-    /**
-     * Updates the cursor to the new value,
-     * importantly this updates the key being used.
-     * Currently this is just the value of current before this call.
-     * Other schemes could be used.
-     */
-    void update_cursor(CapPtr<FreeObject, CBAlloc> next)
-    {
-#ifdef CHECK_CLIENT
-      check_client(
-        !different_slab(curr, next), "Heap corruption - free list corrupted!");
-      prev = address_cast(curr);
-#endif
-      curr = next;
-    }
-
   public:
     constexpr FreeListIter(
       CapPtr<FreeObject, CBAlloc> head, address_t prev_value)
@@ -202,17 +186,16 @@ namespace snmalloc
      */
     CapPtr<FreeObject, CBAlloc> take(LocalEntropy& entropy)
     {
-      // Disabled as want to remove curr from builder.
-      // Need to move to curr=next check.
-      // This requires bottom bit terminator!
-      // #ifdef CHECK_CLIENT
-      //       check_client(
-      //         !different_slab(prev, curr), "Heap corruption - free list
-      //         corrupted!");
-      // #endif
       auto c = curr;
       auto next = curr->read_next(get_prev(), entropy);
-      update_cursor(next);
+
+#ifdef CHECK_CLIENT
+      check_client(
+        !different_slab(curr, next), "Heap corruption - free list corrupted!");
+      prev = address_cast(curr);
+#endif
+      curr = next;
+
       Aal::prefetch(next.unsafe_ptr());
       return c;
     }
