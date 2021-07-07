@@ -204,21 +204,18 @@ namespace snmalloc
   /**
    * Used to build a free list in object space.
    *
-   * Adds signing of pointers
+   * Adds signing of pointers in the CHECK_CLIENT mode
    *
-   * TODO no longer true
-   * On 64bit ptr architectures this data structure has
-   *   44 bytes of data
-   * and has an alignment of
-   *   8 bytes
-   * This unfortunately means its sizeof is 48bytes. We
-   * use the template parameter, so that an enclosing
-   * class can make use of the remaining four bytes.
+   * We use the template parameter, so that an enclosing
+   * class can make use of the remaining bytes, which may not
+   * be aligned.  On 64bit ptr architectures, this structure
+   * is a multiple of 8 bytes in the checked and random more.
+   * But on 128bit ptr architectures this may be a benefit.
    *
-   * The builder uses two queues, and "randomly" decides to
-   * add to one of the two queues.  This means that we will
-   * maintain a randomisation of the order between
-   * allocations.
+   * If RANDOM is enabled, the builder uses two queues, and 
+   * "randomly" decides to add to one of the two queues.  This 
+   * means that we will maintain a randomisation of the order
+   * between allocations.
    *
    * The fields are paired up to give better codegen as then they are offset
    * by a power of 2, and the bit extract from the interleaving seed can
