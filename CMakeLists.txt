@@ -288,9 +288,9 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         # Windows does not support aligned allocation well enough
         # for pass through.
         # NetBSD, OpenBSD and DragonFlyBSD do not support malloc*size calls.
-        set(FLAVOURS 1;check)
+        set(FLAVOURS fast;check)
       else()
-        set(FLAVOURS 1;check) #malloc - TODO-need to add pass through back
+        set(FLAVOURS fast;check) #malloc - TODO-need to add pass through back
       endif()
       foreach(FLAVOUR ${FLAVOURS})
         unset(SRC)
@@ -302,17 +302,11 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         # For all tests enable commit checking.
         target_compile_definitions(${TESTNAME} PRIVATE -DUSE_POSIX_COMMIT_CHECKS)
 
-        if (${FLAVOUR} EQUAL 16)
-          target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
-        endif()
         if (${FLAVOUR} STREQUAL "malloc")
           target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_PASS_THROUGH)
         endif()
         if (${FLAVOUR} STREQUAL "check")
           target_compile_definitions(${TESTNAME} PRIVATE CHECK_CLIENT)
-        endif()
-        if(CONST_QUALIFIED_MALLOC_USABLE_SIZE)
-          target_compile_definitions(${TESTNAME} PRIVATE -DMALLOC_USABLE_SIZE_QUALIFIER=const)
         endif()
         target_link_libraries(${TESTNAME} snmalloc_lib)
         if (${TEST} MATCHES "release-.*")

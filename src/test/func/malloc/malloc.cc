@@ -203,7 +203,7 @@ int main(int argc, char** argv)
     }
   }
 
-  //  test_realloc(our_malloc(64), 4194304, SUCCESS, false);
+  test_realloc(our_malloc(64), 4194304, SUCCESS, false);
 
   test_posix_memalign(0, 0, EINVAL, true);
   test_posix_memalign((size_t)-1, 0, EINVAL, true);
