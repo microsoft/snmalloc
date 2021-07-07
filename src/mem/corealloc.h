@@ -190,10 +190,12 @@ namespace snmalloc
         curr_ptr = curr_ptr->next;
       } while (curr_ptr != start_ptr);
 #else
-      for (auto p = bumpptr; p < slab_end; p = pointer_offset(p, rsize))
+      auto p = bumpptr;
+      do
       {
         b.add(Aal::capptr_bound<FreeObject, CBAlloc>(p, rsize), entropy);
-      }
+        p = pointer_offset(p, rsize);
+      } while (p < slab_end);
 #endif
       // This code consumes everything up to slab_end.
       bumpptr = slab_end;
