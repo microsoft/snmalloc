@@ -484,7 +484,10 @@ namespace snmalloc
             address_cast(p_raw) & (sizeclass_to_slab_size(sizeclass) - 1);
           auto start_offset = round_by_sizeclass(sizeclass, offset);
           if constexpr (location == Start)
+          {
+            UNUSED(rsize);
             return pointer_offset(p_raw, start_offset - offset);
+          }
           else if constexpr (location == End)
             return pointer_offset(p_raw, rsize + start_offset - offset - 1);
           else
