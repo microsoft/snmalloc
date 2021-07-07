@@ -3,6 +3,7 @@ trigger:
 
 pr:
 - master
+- snmalloc2
 
 jobs:
 - job:
