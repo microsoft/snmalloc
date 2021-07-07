@@ -95,10 +95,10 @@ namespace snmalloc
             if constexpr (pal_supports<AlignedAllocation, PAL>)
             {
               /*
-              * We will have handled the case where size >=
-              * minimum_alloc_size above, so we are left to handle only small
-              * things here.
-              */
+               * We will have handled the case where size >=
+               * minimum_alloc_size above, so we are left to handle only small
+               * things here.
+               */
               block_size = PAL::minimum_alloc_size;
 
               void* block_raw =

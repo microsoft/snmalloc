@@ -212,8 +212,8 @@ namespace snmalloc
    * is a multiple of 8 bytes in the checked and random more.
    * But on 128bit ptr architectures this may be a benefit.
    *
-   * If RANDOM is enabled, the builder uses two queues, and 
-   * "randomly" decides to add to one of the two queues.  This 
+   * If RANDOM is enabled, the builder uses two queues, and
+   * "randomly" decides to add to one of the two queues.  This
    * means that we will maintain a randomisation of the order
    * between allocations.
    *

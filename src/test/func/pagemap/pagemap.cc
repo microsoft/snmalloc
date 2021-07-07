@@ -76,7 +76,7 @@ void test_pagemap(bool bounded)
   // Initialise the pagemap
   if (bounded)
   {
-    pagemap_test_unbound.init(&address_space);
+    pagemap_test_bound.init(&address_space);
   }
   else
   {
