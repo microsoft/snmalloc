@@ -66,6 +66,7 @@ macro(warnings_high)
     else()
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
     endif()
+    # /Wv18 is required for the annotation to force inline a lambda.
     add_compile_options(/WX /wd4127 /wd4324 /wd4201 /Wv:18)
   else()
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -247,9 +248,12 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
       target_link_libraries(${name} -Wl,--as-needed)
       # Remove all the duplicate new/malloc and free/delete definitions
       if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        target_link_libraries(${name} -Wl,--icf=all -fuse-ld=lld)
+        check_cxx_compiler_flag(-fuse-ld=lld LLD_WORKS)
+        if (LLD_WORKS)
+          target_link_libraries(${name} -Wl,--icf=all -fuse-ld=lld)
+        endif()
       endif()
-     endif()
+    endif()
 
   endmacro()
 

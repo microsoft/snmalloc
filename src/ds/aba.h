@@ -146,7 +146,7 @@ namespace snmalloc
 
   public:
     // This method is used in Verona
-    void init(Ptr<T> x)
+    void init(T* x)
     {
       ptr.store(x, std::memory_order_relaxed);
     }

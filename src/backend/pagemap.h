@@ -74,6 +74,12 @@ namespace snmalloc
       }
       else
       {
+        // The parameters should not be set without has_bounds.
+        UNUSED(s);
+        UNUSED(b);
+        SNMALLOC_ASSERT(s == 0);
+        SNMALLOC_ASSERT(b == 0);
+
         static constexpr size_t COVERED_BITS =
           bits::ADDRESS_BITS - GRANULARITY_BITS;
         static constexpr size_t ENTRIES = bits::one_at_bit(COVERED_BITS);
