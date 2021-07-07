@@ -3,7 +3,6 @@
 #include "../ds/flaglock.h"
 #include "../pal/pal.h"
 #include "address_space_core.h"
-//#include "arenamap.h"
 
 #include <array>
 #ifdef SNMALLOC_TRACING
@@ -20,21 +19,9 @@ namespace snmalloc
    * It cannot unreserve memory, so this does not require the
    * usual complexity of a buddy allocator.
    */
-  template<SNMALLOC_CONCEPT(ConceptPAL) PAL /*, typename ArenaMap*/>
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
   class AddressSpaceManager
   {
-    /**
-     * Instantiate the ArenaMap here.
-     *
-     * In most cases, this will be a purely static object (a DefaultArenaMap
-     * using a GlobalPagemapTemplate or ExternalGlobalPagemapTemplate).  For
-     * sandboxes, this may have per-instance state (e.g., the sandbox root);
-     * presently, that's handled by the AddressSpaceManager constructor
-     * that takes a pointer to address space it owns.  There is some
-     * non-orthogonality of concerns here.
-     */
-    //    ArenaMap arena_map = {};
-
     AddressSpaceManagerCore core;
 
     /**
@@ -108,27 +95,11 @@ namespace snmalloc
             if constexpr (pal_supports<AlignedAllocation, PAL>)
             {
               /*
-               * aal_supports<StrictProvenance> ends up here, too, and we ensure
-               * that we always allocate whole ArenaMap granules.
-               */
-              // if constexpr (aal_supports<StrictProvenance>)
-              // {
-              //   // static_assert(
-              //   //   !aal_supports<StrictProvenance> ||
-              //   //     (ArenaMap::alloc_size >= PAL::minimum_alloc_size),
-              //   //   "Provenance root granule must be at least PAL's "
-              //   //   "minimum_alloc_size");
-              //   block_size = bits::align_up(size, ArenaMap::alloc_size);
-              // }
-              // else
-              {
-                /*
-                 * We will have handled the case where size >=
-                 * minimum_alloc_size above, so we are left to handle only small
-                 * things here.
-                 */
-                block_size = PAL::minimum_alloc_size;
-              }
+              * We will have handled the case where size >=
+              * minimum_alloc_size above, so we are left to handle only small
+              * things here.
+              */
+              block_size = PAL::minimum_alloc_size;
 
               void* block_raw =
                 PAL::template reserve_aligned<false>(block_size);
@@ -137,19 +108,6 @@ namespace snmalloc
               // platform will have bounded block for us and it's better that
               // the rest of our internals expect CBChunk bounds.
               block = CapPtr<void, CBChunk>(block_raw);
-
-              //             if constexpr (aal_supports<StrictProvenance>)
-              //             {
-              //               auto root_block = CapPtr<void,
-              //               CBArena>(block_raw); auto root_size = block_size;
-              //               do
-              //               {
-              // //                arena_map.register_root(root_block);
-              //                 root_block = pointer_offset(root_block,
-              //                 ArenaMap::alloc_size); root_size -=
-              //                 ArenaMap::alloc_size;
-              //               } while (root_size > 0);
-              //             }
             }
             else if constexpr (!pal_supports<NoAllocation, PAL>)
             {
@@ -240,10 +198,5 @@ namespace snmalloc
       FlagLock lock(spin_lock);
       core.add_range<PAL>(base, length);
     }
-
-    // ArenaMap& arenamap()
-    // {
-    //   return arena_map;
-    // }
   };
 } // namespace snmalloc

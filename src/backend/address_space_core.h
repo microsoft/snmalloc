@@ -2,7 +2,6 @@
 #include "../ds/address.h"
 #include "../ds/flaglock.h"
 #include "../pal/pal.h"
-//#include "arenamap.h"
 
 #include <array>
 #ifdef SNMALLOC_TRACING
@@ -24,18 +23,6 @@ namespace snmalloc
    */
   class AddressSpaceManagerCore
   {
-    /**
-     * Instantiate the ArenaMap here.
-     *
-     * In most cases, this will be a purely static object (a DefaultArenaMap
-     * using a GlobalPagemapTemplate or ExternalGlobalPagemapTemplate).  For
-     * sandboxes, this may have per-instance state (e.g., the sandbox root);
-     * presently, that's handled by the AddressSpaceManager constructor
-     * that takes a pointer to address space it owns.  There is some
-     * non-orthogonality of concerns here.
-     */
-    //    ArenaMap arena_map = {};
-
     /**
      * Stores the blocks of address space
      *
