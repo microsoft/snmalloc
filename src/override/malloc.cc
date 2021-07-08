@@ -87,13 +87,8 @@ extern "C"
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(realloc)(void* ptr, size_t size)
   {
-    if (ptr == nullptr)
-        printf("realloc null\n");
-
     auto& a = ThreadAlloc::get();
     size_t sz = a.alloc_size(ptr);
-    if (ptr == nullptr)
-        printf("realloc size: %zu\n", sz);
     // Keep the current allocation if the given size is in the same sizeclass.
     if (sz == round_size(size))
     {
@@ -117,6 +112,8 @@ extern "C"
     if (likely(p != nullptr))
     {
       sz = bits::min(size, sz);
+      // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
+      // otherwise.
       if (sz != 0)
         memcpy(p, ptr, sz);
       a.dealloc(ptr);
