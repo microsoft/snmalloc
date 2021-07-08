@@ -42,7 +42,7 @@ namespace snmalloc
   template<class SharedStateHandle>
   class LocalAllocator
   {
-    using CoreAlloc = CoreAlloc<SharedStateHandle>;
+    using CoreAlloc = CoreAllocator<SharedStateHandle>;
 
   private:
     /**

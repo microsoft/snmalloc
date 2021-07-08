@@ -8,7 +8,7 @@ namespace snmalloc
   template<class SharedStateHandle>
   inline static void aggregate_stats(SharedStateHandle handle, Stats& stats)
   {
-    auto* alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle);
+    auto* alloc = Pool<CoreAllocator<SharedStateHandle>>::iterate(handle);
 
     while (alloc != nullptr)
     {
@@ -16,7 +16,7 @@ namespace snmalloc
       if (a != nullptr)
         stats.add(*a);
       stats.add(alloc->stats());
-      alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle, alloc);
+      alloc = Pool<CoreAllocator<SharedStateHandle>>::iterate(handle, alloc);
     }
   }
 
@@ -25,14 +25,14 @@ namespace snmalloc
   inline static void print_all_stats(
     SharedStateHandle handle, std::ostream& o, uint64_t dumpid = 0)
   {
-    auto alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle);
+    auto alloc = Pool<CoreAllocator<SharedStateHandle>>::iterate(handle);
 
     while (alloc != nullptr)
     {
       auto stats = alloc->stats();
       if (stats != nullptr)
         stats->template print<Alloc>(o, dumpid, alloc->id());
-      alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle, alloc);
+      alloc = Pool<CoreAllocator<SharedStateHandle>>::iterate(handle, alloc);
     }
   }
 #else
@@ -54,7 +54,7 @@ namespace snmalloc
     // allocators that are not currently in use by any thread.
     // One atomic operation to extract the stack, another to restore it.
     // Handling the message queue for each stack is non-atomic.
-    auto* first = Pool<CoreAlloc<SharedStateHandle>>::extract(handle);
+    auto* first = Pool<CoreAllocator<SharedStateHandle>>::extract(handle);
     auto* alloc = first;
     decltype(alloc) last;
 
@@ -64,10 +64,10 @@ namespace snmalloc
       {
         alloc->flush();
         last = alloc;
-        alloc = Pool<CoreAlloc<SharedStateHandle>>::extract(handle, alloc);
+        alloc = Pool<CoreAllocator<SharedStateHandle>>::extract(handle, alloc);
       }
 
-      Pool<CoreAlloc<SharedStateHandle>>::restore(handle, first, last);
+      Pool<CoreAllocator<SharedStateHandle>>::restore(handle, first, last);
     }
 #endif
   }
@@ -84,7 +84,7 @@ namespace snmalloc
 #ifndef SNMALLOC_PASS_THROUGH
     // This is a debugging function. It checks that all memory from all
     // allocators has been freed.
-    auto* alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle);
+    auto* alloc = Pool<CoreAllocator<SharedStateHandle>>::iterate(handle);
 
     bool done = false;
     bool okay = true;
@@ -92,7 +92,7 @@ namespace snmalloc
     while (!done)
     {
       done = true;
-      alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle);
+      alloc = Pool<CoreAllocator<SharedStateHandle>>::iterate(handle);
       okay = true;
 
       while (alloc != nullptr)
@@ -104,7 +104,7 @@ namespace snmalloc
           done = false;
         }
 
-        alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle, alloc);
+        alloc = Pool<CoreAllocator<SharedStateHandle>>::iterate(handle, alloc);
       }
     }
 
@@ -116,11 +116,11 @@ namespace snmalloc
 
     if (!okay)
     {
-      alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle);
+      alloc = Pool<CoreAllocator<SharedStateHandle>>::iterate(handle);
       while (alloc != nullptr)
       {
         alloc->debug_is_empty(nullptr);
-        alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle, alloc);
+        alloc = Pool<CoreAllocator<SharedStateHandle>>::iterate(handle, alloc);
       }
     }
 #else
@@ -131,7 +131,7 @@ namespace snmalloc
   template<class SharedStateHandle>
   inline static void debug_in_use(SharedStateHandle handle, size_t count)
   {
-    auto alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle);
+    auto alloc = Pool<CoreAllocator<SharedStateHandle>>::iterate(handle);
     while (alloc != nullptr)
     {
       if (alloc->debug_is_in_use())
@@ -142,7 +142,7 @@ namespace snmalloc
         }
         count--;
       }
-      alloc = Pool<CoreAlloc<SharedStateHandle>>::iterate(handle, alloc);
+      alloc = Pool<CoreAllocator<SharedStateHandle>>::iterate(handle, alloc);
 
       if (count != 0)
       {

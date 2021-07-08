@@ -21,7 +21,7 @@ namespace snmalloc
 
     inline static ChunkAllocatorState slab_allocator_state;
 
-    inline static PoolState<CoreAlloc<FixedGlobals>> alloc_pool;
+    inline static PoolState<CoreAllocator<FixedGlobals>> alloc_pool;
 
   public:
     static Backend::GlobalState& get_backend_state()
@@ -34,7 +34,7 @@ namespace snmalloc
       return slab_allocator_state;
     }
 
-    PoolState<CoreAlloc<FixedGlobals>>& pool()
+    PoolState<CoreAllocator<FixedGlobals>>& pool()
     {
       return alloc_pool;
     }

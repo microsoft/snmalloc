@@ -41,7 +41,7 @@ namespace snmalloc
 
     /**
      * Flag that is used to indicate that the slab is currently not active.
-     * I.e. it is not in a CoreAlloc cache for the appropriate sizeclass.
+     * I.e. it is not in a CoreAllocator cache for the appropriate sizeclass.
      */
     bool sleeping = false;
   };

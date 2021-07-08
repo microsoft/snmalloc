@@ -11,7 +11,7 @@
 namespace snmalloc
 {
   template<typename SharedStateHandle>
-  class CoreAlloc : public Pooled<CoreAlloc<SharedStateHandle>>
+  class CoreAllocator : public Pooled<CoreAllocator<SharedStateHandle>>
   {
     template<class SharedStateHandle2>
     friend class LocalAllocator;
@@ -379,13 +379,13 @@ namespace snmalloc
           !attached_cache->remote_dealloc_cache.reserve_space(entry))
           need_post = true;
         attached_cache->remote_dealloc_cache
-          .template dealloc<sizeof(CoreAlloc)>(
+          .template dealloc<sizeof(CoreAllocator)>(
             entry.get_remote()->trunc_id(), p.as_void());
       }
     }
 
   public:
-    CoreAlloc(LocalCache* cache, SharedStateHandle handle)
+    CoreAllocator(LocalCache* cache, SharedStateHandle handle)
     : attached_cache(cache), handle(handle)
     {
 #ifdef SNMALLOC_TRACING
@@ -429,7 +429,7 @@ namespace snmalloc
     {
       // stats().remote_post();  // TODO queue not in line!
       bool sent_something =
-        attached_cache->remote_dealloc_cache.post<sizeof(CoreAlloc)>(
+        attached_cache->remote_dealloc_cache.post<sizeof(CoreAllocator)>(
           handle, public_state()->trunc_id());
 
       return sent_something;
@@ -570,7 +570,7 @@ namespace snmalloc
           handle_message_queue([]() {});
       }
 
-      auto posted = attached_cache->flush<sizeof(CoreAlloc)>(
+      auto posted = attached_cache->flush<sizeof(CoreAllocator)>(
         [&](auto p) { dealloc_local_object(p); }, handle);
 
       // We may now have unused slabs, return to the global allocator.

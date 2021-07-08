@@ -34,7 +34,7 @@ namespace snmalloc
     inline static ChunkAllocatorState slab_allocator_state;
 
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static PoolState<CoreAlloc<Globals>> alloc_pool;
+    inline static PoolState<CoreAllocator<Globals>> alloc_pool;
 
     SNMALLOC_REQUIRE_CONSTINIT
     inline static std::atomic<bool> initialised{false};
@@ -53,7 +53,7 @@ namespace snmalloc
       return slab_allocator_state;
     }
 
-    PoolState<CoreAlloc<Globals>>& pool()
+    PoolState<CoreAllocator<Globals>>& pool()
     {
       return alloc_pool;
     }
