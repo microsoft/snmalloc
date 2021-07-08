@@ -51,7 +51,7 @@ namespace snmalloc
 #    pragma warning(push)
 #    pragma warning(disable : 4702)
 #  endif
-  SNMALLOC_FAST_PATH void register_clean_up()
+  inline void register_clean_up()
   {
     error("Critical Error: This should never be called.");
   }
