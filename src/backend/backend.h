@@ -201,4 +201,4 @@ namespace snmalloc
       }
     }
   };
-}// namespace snmalloc
+} // namespace snmalloc

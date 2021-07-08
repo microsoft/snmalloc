@@ -3,8 +3,8 @@
 #include "bits.h"
 #include "flaglock.h"
 
-#include <type_traits>
 #include <array>
+#include <type_traits>
 
 namespace snmalloc
 {

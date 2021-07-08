@@ -469,8 +469,7 @@ namespace snmalloc
         Metaslab::is_start_of_object(entry.get_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
-      auto cp = CapPtr<FreeObject, CBAlloc>(
-        reinterpret_cast<FreeObject*>(p));
+      auto cp = CapPtr<FreeObject, CBAlloc>(reinterpret_cast<FreeObject*>(p));
 
       // Update the head and the next pointer in the free list.
       meta->free_queue.add(cp, entropy);

@@ -96,9 +96,11 @@ namespace snmalloc
 
         slab_mask[sizeclass] = bits::one_at_bit(slab_bits) - 1;
 
-        capacity[sizeclass] = static_cast<uint16_t>((slab_mask[sizeclass] + 1) / rsize);
+        capacity[sizeclass] =
+          static_cast<uint16_t>((slab_mask[sizeclass] + 1) / rsize);
 
-        waking[sizeclass] = static_cast<uint16_t>(bits::min((capacity[sizeclass] / 4), 32));
+        waking[sizeclass] =
+          static_cast<uint16_t>(bits::min((capacity[sizeclass] / 4), 32));
       }
 
       for (sizeclass_compress_t sizeclass = NUM_SIZECLASSES;
