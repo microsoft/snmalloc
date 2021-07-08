@@ -57,7 +57,9 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
       expected_size);
     failed = true;
   }
-  if ((static_cast<size_t>(reinterpret_cast<uintptr_t>(p) % align) != 0) && (size != 0))
+  if (
+    (static_cast<size_t>(reinterpret_cast<uintptr_t>(p) % align) != 0) &&
+    (size != 0))
   {
     printf(
       "Address is 0x%zx, but required to be aligned to 0x%zx.\n",
