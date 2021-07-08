@@ -67,8 +67,8 @@ void set(bool bounded, address_t address, T new_value)
 
 void test_pagemap(bool bounded)
 {
-  address_t low = bits::one_at_bit(32);
-  address_t high = bits::one_at_bit(36);
+  address_t low = bits::one_at_bit(24);
+  address_t high = bits::one_at_bit(31);
 
   // Nullptr needs to work before initialisation
   CHECK_GET(true, 0, T());
@@ -95,7 +95,7 @@ void test_pagemap(bool bounded)
     value.v++;
     if (value.v == T().v)
       value = 0;
-    if ((ptr % (1ULL << 32)) == 0)
+    if ((ptr % (1ULL << 28)) == 0)
       std::cout << "." << std::flush;
   }
 
@@ -110,7 +110,7 @@ void test_pagemap(bool bounded)
     if (value.v == T().v)
       value = 0;
 
-    if ((ptr % (1ULL << 32)) == 0)
+    if ((ptr % (1ULL << 28)) == 0)
       std::cout << "." << std::flush;
   }
   std::cout << std::endl;

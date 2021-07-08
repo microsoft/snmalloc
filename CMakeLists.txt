@@ -191,6 +191,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   if(MSVC)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
+    target_compile_definitions(snmalloc_lib INTERFACE -D_HAS_EXCEPTIONS=0)
   else()
     add_compile_options(-fno-exceptions -fno-rtti -fomit-frame-pointer -ffunction-sections)
     # Static TLS model is unsupported on Haiku.

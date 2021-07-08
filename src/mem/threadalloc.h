@@ -106,7 +106,7 @@ namespace snmalloc
    *
    * This removes the dependence on the C++ runtime.
    */
-  inline SNMALLOC_FAST_PATH void register_clean_up()
+  inline void register_clean_up()
   {
     Singleton<pthread_key_t, &pthread_create> p_key;
     // We need to set a non-null value, so that the destructor is called.
@@ -121,7 +121,7 @@ namespace snmalloc
    * environment and so should be the simplest for initial bringup on an
    * unsupported platform.
    */
-  inline SNMALLOC_FAST_PATH void register_clean_up()
+  inline void register_clean_up()
   {
     static thread_local OnDestruct dummy(
       []() { ThreadAlloc::get().teardown(); });
