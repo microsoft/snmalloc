@@ -1,5 +1,5 @@
 // Core implementation of snmalloc independent of the configuration mode
-#include "snmalloc_core.h"
+#include "../snmalloc_core.h"
 
 #ifndef SNMALLOC_PROVIDE_OWN_CONFIG
 // The default configuration for snmalloc is used if alternative not defined
@@ -10,7 +10,7 @@ namespace snmalloc
 #endif
 
 // User facing API surface, needs to know what `Alloc` is.
-#include "snmalloc_front.h"
+#include "../snmalloc_front.h"
 
 #include <errno.h>
 #include <string.h>

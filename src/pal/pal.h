@@ -76,7 +76,7 @@ namespace snmalloc
    * disruption to PALs for platforms that do not support StrictProvenance AALs.
    */
   template<typename PAL = Pal, typename AAL = Aal, typename T, capptr_bounds B>
-  static SNMALLOC_FAST_PATH typename std::enable_if_t<
+  static inline typename std::enable_if_t<
     !aal_supports<StrictProvenance, AAL>,
     CapPtr<T, capptr_export_type<B>()>>
   capptr_export(CapPtr<T, B> p)
@@ -85,7 +85,7 @@ namespace snmalloc
   }
 
   template<typename PAL = Pal, typename AAL = Aal, typename T, capptr_bounds B>
-  static SNMALLOC_FAST_PATH typename std::enable_if_t<
+  static inline typename std::enable_if_t<
     aal_supports<StrictProvenance, AAL>,
     CapPtr<T, capptr_export_type<B>()>>
   capptr_export(CapPtr<T, B> p)

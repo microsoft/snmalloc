@@ -61,7 +61,7 @@ namespace snmalloc
   }
 
   constexpr static size_t NUM_SIZECLASSES_EXTENDED =
-    size_to_sizeclass_const(bits::one_at_bit(bits::ADDRESS_BITS));
+    size_to_sizeclass_const(bits::one_at_bit(bits::ADDRESS_BITS - 1));
 
   constexpr static size_t sizeclass_lookup_size =
     sizeclass_lookup_index(MAX_SIZECLASS_SIZE);
