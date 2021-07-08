@@ -104,4 +104,4 @@ namespace snmalloc
       return {};
     }
   };
-}
+} // namespace snmalloc

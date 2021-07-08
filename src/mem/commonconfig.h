@@ -40,4 +40,4 @@ namespace snmalloc
       &unused_remote != fake_large_remote,
       "Compilation should ensure these are different");
   };
-}
+} // namespace snmalloc

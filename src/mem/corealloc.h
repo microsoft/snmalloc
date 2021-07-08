@@ -246,7 +246,7 @@ namespace snmalloc
       while (curr != nullptr)
       {
         auto next = curr->get_next();
-        Metaslab* meta = (Metaslab*)curr;
+        auto meta = reinterpret_cast<Metaslab*>(curr);
         if (meta->needed() == 0)
         {
           prev->pop();
@@ -469,8 +469,8 @@ namespace snmalloc
         Metaslab::is_start_of_object(entry.get_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
-      auto cp = snmalloc::CapPtr<snmalloc::FreeObject, snmalloc::CBAlloc>(
-        (snmalloc::FreeObject*)p);
+      auto cp = CapPtr<FreeObject, CBAlloc>(
+        reinterpret_cast<FreeObject*>(p));
 
       // Update the head and the next pointer in the free list.
       meta->free_queue.add(cp, entropy);
@@ -607,7 +607,7 @@ namespace snmalloc
       auto test = [&result](auto& queue) {
         if (!queue.is_empty())
         {
-          auto curr = (Metaslab*)queue.get_next();
+          auto curr = reinterpret_cast<Metaslab*>(queue.get_next());
           while (curr != nullptr)
           {
             if (curr->needed() != 0)
@@ -617,7 +617,7 @@ namespace snmalloc
               else
                 error("debug_is_empty: found non-empty allocator");
             }
-            curr = (Metaslab*)curr->get_next();
+            curr = reinterpret_cast<Metaslab*>(curr->get_next());
           }
         }
       };
@@ -661,10 +661,8 @@ namespace snmalloc
         attached_cache = nullptr;
         return sent_something;
       }
-      else
-      {
-        return debug_is_empty_impl(result);
-      }
+
+      return debug_is_empty_impl(result);
     }
   };
-}
+} // namespace snmalloc

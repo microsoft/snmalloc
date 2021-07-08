@@ -88,7 +88,7 @@ namespace snmalloc
     };
 
     static constexpr size_t rlength = bits::next_pow2_const(length);
-    TWrap array[rlength];
+    std::array<TWrap, rlength> array;
 
   public:
     constexpr const T& operator[](const size_t i) const
