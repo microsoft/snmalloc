@@ -233,6 +233,9 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(${result} ${dirlist})
   endmacro()
 
+  set(CMAKE_REQUIRED_LINK_OPTIONS -fuse-ld=lld)
+  check_cxx_source_compiles("int main() { return x; }" LLD_WORKS)
+
   macro(add_shim name type)
     add_library(${name} ${type} ${ARGN})
     target_link_libraries(${name} snmalloc_lib)
@@ -244,21 +247,15 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     # Ensure that we do not link against C++ stdlib when compiling shims.
     if(NOT MSVC)
       set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
-      if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        # Only tested this options on LLD.
-        set(CMAKE_REQUIRED_LINK_OPTIONS -fuse-ld=lld)
-        check_cxx_source_compiles("int main() { return 0; }" LLD_WORKS)
+      if (LLD_WORKS)
+        message("Using LLD.")
 
-        if (LLD_WORKS)
-          message("Using LLD.")
+        # Only include the dependencies that actually are touched.
+        # Required so C++ library is not included with direct pthread access.
+        target_link_libraries(${name} -Wl,--as-needed)
 
-          # Only include the dependencies that actually are touched.
-          # Required so C++ library is not included with direct pthread access.
-          target_link_libraries(${name} -Wl,--as-needed)
-
-          # Remove all the duplicate new/malloc and free/delete definitions
-          target_link_libraries(${name} -Wl,--icf=all -fuse-ld=lld)
-        endif()
+        # Remove all the duplicate new/malloc and free/delete definitions
+        target_link_libraries(${name} -Wl,--icf=all -fuse-ld=lld)
       endif()
     endif()
 
