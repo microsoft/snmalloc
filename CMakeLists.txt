@@ -103,6 +103,13 @@ macro(clangformat_targets)
   endif()
 endmacro()
 
+# Have to set this globally, as can't be set on an interface target.
+if(SNMALLOC_USE_CXX17)
+  set(CMAKE_CXX_STANDARD 17)
+else()
+  set(CMAKE_CXX_STANDARD 20)
+endif()
+
 # The main target for snmalloc
 add_library(snmalloc_lib INTERFACE)
 target_include_directories(snmalloc_lib INTERFACE src/)
@@ -149,13 +156,6 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
    target_compile_options(snmalloc_lib INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-mcx16>)
   endif()
 endif ()
-
-# Have to set this globally, as can't be set on an interface target.
-if(SNMALLOC_USE_CXX17)
-  set(CMAKE_CXX_STANDARD 17)
-else()
-  set(CMAKE_CXX_STANDARD 20)
-endif()
 
 if(USE_SNMALLOC_STATS)
   target_compile_definitions(snmalloc_lib INTERFACE -DUSE_SNMALLOC_STATS)

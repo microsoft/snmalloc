@@ -157,6 +157,7 @@ namespace snmalloc
 
         // Note that meta data is not currently used for large allocs.
         //        meta->initialise(size_to_sizeclass(size));
+        UNUSED(meta);
 
         if (zero_mem == YesZero)
         {

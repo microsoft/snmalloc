@@ -60,6 +60,7 @@ namespace snmalloc
         {
           auto [block, size2] = PAL::reserve_at_least(size);
           // TODO wasting size here.
+          UNUSED(size2);
 #ifdef SNMALLOC_TRACING
           std::cout << "Unaligned alloc here:" << block << " (" << size2 << ")"
                     << std::endl;

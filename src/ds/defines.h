@@ -10,7 +10,7 @@
 #  if _MSC_VER >= 1927
 #    define SNMALLOC_FAST_PATH_LAMBDA [[msvc::forceinline]]
 #  else
-#    define SNMALLOC_FAST_PATH_LAMBDA 
+#    define SNMALLOC_FAST_PATH_LAMBDA
 #  endif
 #  define SNMALLOC_PURE
 #  define SNMALLOC_COLD

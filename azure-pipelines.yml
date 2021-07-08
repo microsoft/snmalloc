@@ -141,7 +141,7 @@ jobs:
         CXX: clang++-9
         BuildType: Debug
         SelfHost: false
-        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On'
+        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On -DSNMALLOC_USE_CXX17=On'
         Image: snmallocciteam/build_linux_arm64:latest
 
       64-bit Clang-9 Release:
@@ -149,7 +149,7 @@ jobs:
         CXX: clang++-9
         BuildType: Release
         SelfHost: false
-        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On'
+        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On -DSNMALLOC_USE_CXX17=On'
         Image: snmallocciteam/build_linux_arm64:latest
 
       32-bit Clang-9 Debug:
@@ -157,7 +157,7 @@ jobs:
         CXX: clang++-9
         BuildType: Debug
         SelfHost: false
-        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On'
+        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On -DSNMALLOC_USE_CXX17=On'
         Image: snmallocciteam/build_linux_armhf:latest
 
       32-bit Clang-9 Release:
@@ -165,7 +165,7 @@ jobs:
         CXX: clang++-9
         BuildType: Release
         SelfHost: false
-        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On'
+        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On -DSNMALLOC_USE_CXX17=On'
         Image: snmallocciteam/build_linux_armhf:latest
   
   steps:
