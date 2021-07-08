@@ -194,7 +194,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     target_compile_definitions(snmalloc_lib INTERFACE -D_HAS_EXCEPTIONS=0)
     add_compile_options(/std:c++latest)
   else()
-    add_compile_options(-fno-exceptions -fno-rtti -fomit-frame-pointer -ffunction-sections)
+    add_compile_options(-fno-exceptions -fno-rtti -fomit-frame-pointer -ffunction-sections -g)
     # Static TLS model is unsupported on Haiku.
     # All symbols are always dynamic on haiku and -rdynamic is redundant (and unsupported).
     if (NOT CMAKE_SYSTEM_NAME MATCHES "Haiku")
