@@ -6,7 +6,12 @@
 #  define likely(x) !!(x)
 #  define unlikely(x) !!(x)
 #  define SNMALLOC_SLOW_PATH NOINLINE
-#  define SNMALLOC_FAST_PATH [[msvc::forceinline]]
+#  define SNMALLOC_FAST_PATH ALWAYSINLINE
+#  if _MSC_VER >= 1927
+#    define SNMALLOC_FAST_PATH_LAMBDA [[msvc::forceinline]]
+#  else
+#    define SNMALLOC_FAST_PATH_LAMBDA 
+#  endif
 #  define SNMALLOC_PURE
 #  define SNMALLOC_COLD
 #  define SNMALLOC_REQUIRE_CONSTINIT
@@ -17,6 +22,7 @@
 #  define NOINLINE __attribute__((noinline))
 #  define SNMALLOC_SLOW_PATH NOINLINE
 #  define SNMALLOC_FAST_PATH ALWAYSINLINE
+#  define SNMALLOC_FAST_PATH_LAMBDA SNMALLOC_FAST_PATH
 #  define SNMALLOC_PURE __attribute__((const))
 #  define SNMALLOC_COLD __attribute__((cold))
 #  ifdef __clang__

@@ -18,7 +18,7 @@ option(SNMALLOC_STATIC_LIBRARY   "Build static libraries" ON)
 option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory on Linux" Off)
 option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off)
 set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
-option(SNMALLOC_USE_CXX20 "Build as C++20, not C++17; experimental as yet" OFF)
+option(SNMALLOC_USE_CXX17 "Build as C++17 for legacy support." OFF)
 
 # malloc.h will error if you include it on FreeBSD, so this test must not
 # unconditionally include it.
@@ -67,7 +67,7 @@ macro(warnings_high)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
     endif()
     # /Wv18 is required for the annotation to force inline a lambda.
-    add_compile_options(/WX /wd4127 /wd4324 /wd4201 /Wv:18)
+    add_compile_options(/WX /wd4127 /wd4324 /wd4201)
   else()
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
       add_compile_options(-Wsign-conversion -Wconversion)
@@ -151,10 +151,10 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif ()
 
 # Have to set this globally, as can't be set on an interface target.
-if(SNMALLOC_USE_CXX20)
-  set(CMAKE_CXX_STANDARD 20)
-else()
+if(SNMALLOC_USE_CXX17)
   set(CMAKE_CXX_STANDARD 17)
+else()
+  set(CMAKE_CXX_STANDARD 20)
 endif()
 
 if(USE_SNMALLOC_STATS)
@@ -192,6 +192,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
     target_compile_definitions(snmalloc_lib INTERFACE -D_HAS_EXCEPTIONS=0)
+    add_compile_options(/std:c++latest)
   else()
     add_compile_options(-fno-exceptions -fno-rtti -fomit-frame-pointer -ffunction-sections)
     # Static TLS model is unsupported on Haiku.

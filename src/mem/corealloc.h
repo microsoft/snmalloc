@@ -245,7 +245,7 @@ namespace snmalloc
       auto curr = prev->get_next();
       while (curr != nullptr)
       {
-        auto next = curr->get_next();
+        auto nxt = curr->get_next();
         auto meta = reinterpret_cast<Metaslab*>(curr);
         if (meta->needed() == 0)
         {
@@ -263,7 +263,7 @@ namespace snmalloc
         {
           prev = curr;
         }
-        curr = next;
+        curr = nxt;
       }
     }
 

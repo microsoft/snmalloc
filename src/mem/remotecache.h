@@ -69,7 +69,7 @@ namespace snmalloc
     /// deallocation
     /// r is used for which round of sending this is.
     template<size_t allocator_size>
-    inline size_t get_slot(size_t id, size_t r)
+    inline size_t get_slot(size_t i, size_t r)
     {
       constexpr size_t initial_shift =
         bits::next_pow2_bits_const(allocator_size);
@@ -77,7 +77,7 @@ namespace snmalloc
       //   initial_shift >= 8,
       //   "Can't embed sizeclass_t into allocator ID low bits");
       SNMALLOC_ASSERT((initial_shift + (r * REMOTE_SLOT_BITS)) < 64);
-      return (id >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
+      return (i >> (initial_shift + (r * REMOTE_SLOT_BITS))) & REMOTE_MASK;
     }
 
     /**
@@ -157,9 +157,9 @@ namespace snmalloc
           // slot.
           MetaEntry entry = SharedStateHandle::Backend::get_meta_data(
             handle.get_backend_state(), address_cast(r));
-          auto id = entry.get_remote()->trunc_id();
+          auto i = entry.get_remote()->trunc_id();
           // TODO correct size for slot offset
-          size_t slot = get_slot<allocator_size>(id, post_round);
+          size_t slot = get_slot<allocator_size>(i, post_round);
           RemoteList* l = &list[slot];
           l->last->non_atomic_next = r;
           l->last = r;

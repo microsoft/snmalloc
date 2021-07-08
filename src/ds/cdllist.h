@@ -58,8 +58,7 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(!this->is_empty());
       auto result = get_next();
-      auto next = result->get_next();
-      set_next(next);
+      set_next(result->get_next());
       return result;
     }
 

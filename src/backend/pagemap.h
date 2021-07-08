@@ -36,14 +36,14 @@ namespace snmalloc
     /**
      * Commit entry
      */
-    void commit_entry(void* base)
+    void commit_entry(void* p)
     {
       auto entry_size = sizeof(T);
       static_assert(sizeof(T) < OS_PAGE_SIZE);
       // Rounding required for sub-page allocations.
-      auto page_start = pointer_align_down<OS_PAGE_SIZE, char>(base);
+      auto page_start = pointer_align_down<OS_PAGE_SIZE, char>(p);
       auto page_end =
-        pointer_align_up<OS_PAGE_SIZE, char>(pointer_offset(base, entry_size));
+        pointer_align_up<OS_PAGE_SIZE, char>(pointer_offset(p, entry_size));
       size_t using_size = pointer_diff(page_start, page_end);
       PAL::template notify_using<NoZero>(page_start, using_size);
     }
