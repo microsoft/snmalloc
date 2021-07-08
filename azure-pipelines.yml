@@ -98,7 +98,7 @@ jobs:
         CXX: clang++-9
         BuildType: Debug
         SelfHost: false
-        CMakeArgs: ''
+        CMakeArgs: '-DSNMALLOC_USE_CXX17=On'
         Image: snmallocciteam/build_linux_x86:latest
 
       32-bit Clang-9 Release:
@@ -106,7 +106,7 @@ jobs:
         CXX: clang++-9
         BuildType: Release
         SelfHost: false
-        CMakeArgs: ''
+        CMakeArgs: '-DSNMALLOC_USE_CXX17=On'
         Image: snmallocciteam/build_linux_x86:latest
 
   container: $[ variables['Image'] ]
@@ -178,7 +178,7 @@ jobs:
       -e CC=$(CC) \
       -e CXX=$(CXX) \
       -e BUILD_TYPE=$(BuildType) \
-      -e CMAKE_ARGS=$(CMakeArgs) \
+      -e CMAKE_ARGS="$(CMakeArgs)" \
       $(Image) \
       ci/scripts/build.sh
     displayName: 'Build'
