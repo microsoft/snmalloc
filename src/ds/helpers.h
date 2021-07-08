@@ -4,9 +4,7 @@
 #include "flaglock.h"
 
 #include <type_traits>
-#ifndef CHECK_CLIENT
-#  include <array>
-#endif
+#include <array>
 
 namespace snmalloc
 {
