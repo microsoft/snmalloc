@@ -31,7 +31,7 @@ namespace snmalloc
     uint64_t count{0};
 
   public:
-    constexpr LocalEntropy() {}
+    constexpr LocalEntropy() = default;
 
     template<typename PAL>
     void init()

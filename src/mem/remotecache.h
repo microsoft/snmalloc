@@ -47,7 +47,7 @@ namespace snmalloc
         return address_cast(last) == address_cast(&head);
       }
 
-      constexpr RemoteList() {}
+      constexpr RemoteList() = default;
     };
 
     std::array<RemoteList, REMOTE_SLOTS> list{};
@@ -177,7 +177,7 @@ namespace snmalloc
     /**
      * Constructor design to allow constant init
      */
-    constexpr RemoteDeallocCache() {}
+    constexpr RemoteDeallocCache() = default;
 
     /**
      * Must be called before anything else to ensure actually initialised

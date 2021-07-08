@@ -14,7 +14,7 @@ namespace snmalloc
     ABAT stack;
 
   public:
-    constexpr MPMCStack() {}
+    constexpr MPMCStack() = default;
 
     void push(T* item)
     {

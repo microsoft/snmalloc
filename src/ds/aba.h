@@ -55,7 +55,7 @@ namespace snmalloc
     };
 
   public:
-    constexpr ABA() {}
+    constexpr ABA() : independent() {}
 
     void init(T* x)
     {

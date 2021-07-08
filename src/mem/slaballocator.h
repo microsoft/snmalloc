@@ -160,4 +160,4 @@ namespace snmalloc
       return new (p.unsafe_ptr()) U(std::forward<Args>(args)...);
     }
   };
-}
+} // namespace snmalloc

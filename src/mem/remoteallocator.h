@@ -29,7 +29,7 @@ namespace snmalloc
       AtomicCapPtr<Remote, CBAlloc> next{nullptr};
     };
 
-    constexpr Remote() {}
+    constexpr Remote() : next(nullptr) {}
 
     /** Zero out a Remote tracking structure, return pointer to object base */
     template<capptr_bounds B>

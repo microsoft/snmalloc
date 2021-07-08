@@ -488,7 +488,7 @@ namespace snmalloc
       auto& sl = alloc_classes[sizeclass];
       if (likely(!(sl.is_empty())))
       {
-        auto meta = (Metaslab*)sl.pop();
+        auto meta = reinterpret_cast<Metaslab*>(sl.pop());
         // Drop length of sl, and empty count if it was empty.
         alloc_classes[sizeclass].length--;
         if (meta->needed() == 0)

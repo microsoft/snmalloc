@@ -29,7 +29,7 @@ namespace snmalloc
     T* list{nullptr};
 
   public:
-    constexpr PoolState() {}
+    constexpr PoolState() = default;
   };
 
   template<typename T>

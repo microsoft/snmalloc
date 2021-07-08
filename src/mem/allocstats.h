@@ -17,7 +17,7 @@ namespace snmalloc
   template<size_t N, size_t LARGE_N>
   struct AllocStats
   {
-    constexpr AllocStats() {}
+    constexpr AllocStats() = default;
 
     struct CurrentMaxPair
     {
@@ -67,7 +67,7 @@ namespace snmalloc
 
     struct Stats
     {
-      constexpr Stats() {}
+      constexpr Stats() = default;
 
       CurrentMaxPair count;
       CurrentMaxPair slab_count;

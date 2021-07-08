@@ -109,8 +109,9 @@ namespace snmalloc
   inline void register_clean_up()
   {
     Singleton<pthread_key_t, &pthread_create> p_key;
-    // We need to set a non-null value, so that the destructor is called.
-    pthread_setspecific(p_key.get(), (void*)1);
+    // We need to set a non-null value, so that the destructor is called,
+    // we never look at the value.
+    pthread_setspecific(p_key.get(), reinterpret_cast<void*>(1));
   }
 #  elif !defined(SNMALLOC_USE_THREAD_CLEANUP)
   /**

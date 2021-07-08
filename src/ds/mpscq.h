@@ -21,7 +21,7 @@ namespace snmalloc
     Ptr<T> front{nullptr};
 
   public:
-    constexpr MPSCQ(){};
+    constexpr MPSCQ() = default;
 
     void invariant()
     {

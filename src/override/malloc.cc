@@ -6,7 +6,7 @@
 namespace snmalloc
 {
   using Alloc = snmalloc::LocalAllocator<snmalloc::Globals>;
-}
+} // namespace snmalloc
 #endif
 
 // User facing API surface, needs to know what `Alloc` is.

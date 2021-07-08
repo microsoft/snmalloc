@@ -49,7 +49,7 @@ namespace snmalloc
     }
 
   public:
-    constexpr FlatPagemap() {}
+    constexpr FlatPagemap() = default;
 
     template<typename ASM>
     void init(ASM* a, address_t b = 0, size_t s = 0)
