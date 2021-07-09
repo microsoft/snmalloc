@@ -235,7 +235,11 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(${result} ${dirlist})
   endmacro()
 
-  set(CMAKE_REQUIRED_LINK_OPTIONS -fuse-ld=lld)
+  if(CMAKE_VERSION VERSION_LESS 3.14)
+    set(CMAKE_REQUIRED_LIBRARIES -fuse-ld=lld)
+  else()
+    set(CMAKE_REQUIRED_LINK_OPTIONS -fuse-ld=lld)
+  endif()
   check_cxx_source_compiles("int main() { return 1; }" LLD_WORKS)
 
   macro(add_shim name type)
