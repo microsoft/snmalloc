@@ -54,8 +54,12 @@ namespace snmalloc
       if constexpr ((align == false) && !pal_supports<NoAllocation, PAL>)
       {
         if constexpr (pal_supports<AlignedAllocation, PAL>)
+        {
+          // TODO wasting size here.
+          size = bits::max(size, PAL::minimum_alloc_size);
           return CapPtr<void, CBChunk>(
             PAL::template reserve_aligned<committed>(size));
+        }
         else
         {
           auto [block, size2] = PAL::reserve_at_least(size);

@@ -68,7 +68,7 @@ void set(bool bounded, address_t address, T new_value)
 void test_pagemap(bool bounded)
 {
   address_t low = bits::one_at_bit(23);
-  address_t high = bits::one_at_bit(29);
+  address_t high = bits::one_at_bit(30);
 
   // Nullptr needs to work before initialisation
   CHECK_GET(true, 0, T());
