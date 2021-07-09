@@ -4,16 +4,28 @@
 #include "globalconfig.h"
 #include "localalloc.h"
 
-#if defined(SNMALLOC_EXTERNAL_THREAD_ALLOC) && \
-  defined(SNMALLOC_USE_THREAD_CLEANUP)
-#error At most one out of SNMALLOC_USE_THREAD_CLEANUP and SNMALLOC_EXTERNAL_THREAD_ALLOC may be defined.
+#if defined(SNMALLOC_EXTERNAL_THREAD_ALLOC)
+#  define SNMALLOC_THREAD_TEARDOWN_DEFINED
 #endif
 
-#if !defined(SNMALLOC_EXTERNAL_THREAD_ALLOC) && \
-  !defined(SNMALLOC_USE_THREAD_CLEANUP)
-#  if __has_include(<pthread.h>)
-#    define SNMALLOC_USE_PTHREAD_DESTRUCTOR
+#if defined(SNMALLOC_USE_THREAD_CLEANUP)
+#  if defined(SNMALLOC_THREAD_TEARDOWN_DEFINED)
+#    error At most one out of method of thread teardown can be specified.
+#  else
+#    define SNMALLOC_THREAD_TEARDOWN_DEFINED
 #  endif
+#endif
+
+#if defined(SNMALLOC_USE_PTHREAD_DESTRUCTORS)
+#  if defined(SNMALLOC_THREAD_TEARDOWN_DEFINED)
+#    error At most one out of method of thread teardown can be specified.
+#  else
+#    define SNMALLOC_THREAD_TEARDOWN_DEFINED
+#  endif
+#endif
+
+#if !defined(SNMALLOC_THREAD_TEARDOWN_DEFINED)
+#  define SNMALLOC_USE_CXX_THREAD_DESTRUCTORS
 #endif
 extern "C" void _malloc_thread_cleanup();
 
@@ -112,8 +124,11 @@ namespace snmalloc
     // We need to set a non-null value, so that the destructor is called,
     // we never look at the value.
     pthread_setspecific(p_key.get(), reinterpret_cast<void*>(1));
+#    ifdef SNMALLOC_TRACING
+    std::cout << "Using pthread clean up" << std::endl;
+#    endif
   }
-#  elif !defined(SNMALLOC_USE_THREAD_CLEANUP)
+#  elif defined(SNMALLOC_USE_CXX_THREAD_DESTRUCTORS)
   /**
    * This function is called by each thread once it starts using the
    * thread local allocator.
@@ -127,6 +142,9 @@ namespace snmalloc
     static thread_local OnDestruct dummy(
       []() { ThreadAlloc::get().teardown(); });
     UNUSED(dummy);
+#    ifdef SNMALLOC_TRACING
+    std::cout << "Using C++ destructor clean up" << std::endl;
+#    endif
   }
 #  endif
 #endif

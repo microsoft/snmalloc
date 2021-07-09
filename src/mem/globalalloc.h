@@ -86,24 +86,40 @@ namespace snmalloc
     // allocators has been freed.
     auto* alloc = Pool<CoreAllocator<SharedStateHandle>>::iterate(handle);
 
+#  ifdef SNMALLOC_TRACING
+    std::cout << "debug check empty: first " << alloc << std::endl;
+#  endif
     bool done = false;
     bool okay = true;
 
     while (!done)
     {
+#  ifdef SNMALLOC_TRACING
+      std::cout << "debug_check_empty: Check all allocators!" << std::endl;
+#  endif
       done = true;
       alloc = Pool<CoreAllocator<SharedStateHandle>>::iterate(handle);
       okay = true;
 
       while (alloc != nullptr)
       {
+#  ifdef SNMALLOC_TRACING
+        std::cout << "debug check empty: " << alloc << std::endl;
+#  endif
         // Check that the allocator has freed all memory.
         // repeat the loop if empty caused message sends.
         if (alloc->debug_is_empty(&okay))
         {
           done = false;
+#  ifdef SNMALLOC_TRACING
+          std::cout << "debug check empty: sent messages " << alloc
+                    << std::endl;
+#  endif
         }
 
+#  ifdef SNMALLOC_TRACING
+        std::cout << "debug check empty: okay = " << okay << std::endl;
+#  endif
         alloc = Pool<CoreAllocator<SharedStateHandle>>::iterate(handle, alloc);
       }
     }
@@ -114,6 +130,7 @@ namespace snmalloc
       return;
     }
 
+    // Redo check so abort is on allocator with allocation left.
     if (!okay)
     {
       alloc = Pool<CoreAllocator<SharedStateHandle>>::iterate(handle);

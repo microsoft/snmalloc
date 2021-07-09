@@ -1,4 +1,5 @@
 #pragma once
+
 #include "../ds/defines.h"
 #include "allocconfig.h"
 #include "localcache.h"
@@ -7,6 +8,8 @@
 #include "remotecache.h"
 #include "sizeclasstable.h"
 #include "slaballocator.h"
+
+#include <iostream>
 
 namespace snmalloc
 {
@@ -585,6 +588,9 @@ namespace snmalloc
     // allocator instance.
     void attach(LocalCache* c)
     {
+#ifdef SNMALLOC_TRACING
+      std::cout << "Attach cache to " << this << std::endl;
+#endif
       attached_cache = c;
 
       // Set up secrets.
@@ -631,6 +637,9 @@ namespace snmalloc
       // Place the static stub message on the queue.
       init_message_queue();
 
+#ifdef SNMALLOC_TRACING
+      std::cout << "debug_is_empty - done" << std::endl;
+#endif
       return sent_something;
     }
 
@@ -646,13 +655,18 @@ namespace snmalloc
      */
     bool debug_is_empty(bool* result)
     {
+#ifdef SNMALLOC_TRACING
+      std::cout << "debug_is_empty" << std::endl;
+#endif
       if (attached_cache == nullptr)
       {
         // We need a cache to perform some operations, so set one up
         // temporarily
         LocalCache temp(public_state());
         attach(&temp);
-
+#ifdef SNMALLOC_TRACING
+        std::cout << "debug_is_empty - attach a cache" << std::endl;
+#endif
         auto sent_something = debug_is_empty_impl(result);
 
         // Remove cache from the allocator

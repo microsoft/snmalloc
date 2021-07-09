@@ -115,6 +115,9 @@ namespace snmalloc
       // having begun, we must flush any state we just acquired.
       if (post_teardown)
       {
+#ifdef SNMALLOC_TRACING
+        std::cout << "post_teardown flush()" << std::endl;
+#endif
         // We didn't have an allocator because the thread is being torndown.
         // We need to return any local state, so we don't leak it.
         flush();
@@ -276,8 +279,11 @@ namespace snmalloc
       // Attach to it.
       c->attach(&local_cache);
       core_alloc = c;
-
-      // local_cache.stats.start();
+#ifdef SNMALLOC_TRACING
+      std::cout << "init(): core_alloc=" << core_alloc << "@" << &local_cache
+                << std::endl;
+#endif
+      // local_cache.stats.sta rt();
     }
 
     // Return all state in the fast allocator and release the underlying
@@ -302,6 +308,9 @@ namespace snmalloc
         // Set up thread local allocator to look like
         // it is new to hit slow paths.
         core_alloc = nullptr;
+#ifdef SNMALLOC_TRACING
+        std::cout << "flush(): core_alloc=" << core_alloc << std::endl;
+#endif
         local_cache.remote_allocator = &handle.unused_remote;
         local_cache.remote_dealloc_cache.capacity = 0;
       }
@@ -431,7 +440,8 @@ namespace snmalloc
     void teardown()
     {
 #ifdef SNMALLOC_TRACING
-      std::cout << "Teardown" << std::endl;
+      std::cout << "Teardown: core_alloc=" << core_alloc << "@" << &local_cache
+                << std::endl;
 #endif
       post_teardown = true;
       if (core_alloc != nullptr)
