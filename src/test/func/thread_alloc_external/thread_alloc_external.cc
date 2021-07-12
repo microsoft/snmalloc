@@ -37,4 +37,15 @@ int main()
   }
 
   ThreadAlloc::get().teardown();
+
+  // This checks that the scoped allocator does not call
+  // register clean up, as this configuration will fault
+  // if that occurs.
+  auto a2 = ScopedAllocator();
+  for (size_t i = 0; i < 1000; i++)
+  {
+    auto r1 = a2->alloc(i);
+
+    a2->dealloc(r1);
+  }
 }
