@@ -1,37 +1,40 @@
+#include <snmalloc_core.h>
 #include <test/setup.h>
 
+// Specify using own
 #define SNMALLOC_EXTERNAL_THREAD_ALLOC
-#include <mem/globalalloc.h>
+namespace snmalloc
+{
+  using Alloc = snmalloc::LocalAllocator<snmalloc::Globals>;
+}
+
 using namespace snmalloc;
 
-class ThreadAllocUntyped
+class ThreadAllocExternal
 {
 public:
-  static void* get()
+  static Alloc& get()
   {
-    static thread_local void* alloc = nullptr;
-    if (alloc != nullptr)
-    {
-      return alloc;
-    }
-
-    alloc = current_alloc_pool()->acquire();
+    static thread_local Alloc alloc;
     return alloc;
   }
 };
 
-#include <snmalloc.h>
+#include <snmalloc_front.h>
 
 int main()
 {
   setup();
+  ThreadAlloc::get().init();
 
-  auto a = ThreadAlloc::get();
+  auto& a = ThreadAlloc::get();
 
   for (size_t i = 0; i < 1000; i++)
   {
-    auto r1 = a->alloc(i);
+    auto r1 = a.alloc(i);
 
-    a->dealloc(r1);
+    a.dealloc(r1);
   }
+
+  ThreadAlloc::get().teardown();
 }

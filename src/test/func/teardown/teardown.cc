@@ -1,8 +1,8 @@
 /**
- * The first operation a thread performs takes a different path to every
- * subsequent operation as it must lazily initialise the thread local allocator.
- * This tests performs all sizes of allocation, and deallocation as the first
- * operation.
+ * After a thread has started teardown a different path is taken for
+ * allocation and deallocation. This tests causes the state to be torn
+ * down early, and then use the teardown path for multiple allocations
+ * and deallocation.
  */
 
 #include "test/setup.h"
@@ -11,14 +11,26 @@
 #include <snmalloc.h>
 #include <thread>
 
+void trigger_teardown()
+{
+  auto& a = snmalloc::ThreadAlloc::get();
+  // Trigger init
+  void* r = a.alloc(16);
+  a.dealloc(r);
+  // Force teardown
+  a.teardown();
+}
+
 void alloc1(size_t size)
 {
+  trigger_teardown();
   void* r = snmalloc::ThreadAlloc::get().alloc(size);
   snmalloc::ThreadAlloc::get().dealloc(r);
 }
 
 void alloc2(size_t size)
 {
+  trigger_teardown();
   auto& a = snmalloc::ThreadAlloc::get();
   void* r = a.alloc(size);
   a.dealloc(r);
@@ -26,6 +38,7 @@ void alloc2(size_t size)
 
 void alloc3(size_t size)
 {
+  trigger_teardown();
   auto& a = snmalloc::ThreadAlloc::get();
   void* r = a.alloc(size);
   a.dealloc(r, size);
@@ -33,6 +46,7 @@ void alloc3(size_t size)
 
 void alloc4(size_t size)
 {
+  trigger_teardown();
   auto& a = snmalloc::ThreadAlloc::get();
   void* r = a.alloc(size);
   a.dealloc(r);
@@ -62,6 +76,7 @@ void check_calloc(void* p, size_t size)
 
 void calloc1(size_t size)
 {
+  trigger_teardown();
   void* r =
     snmalloc::ThreadAlloc::get().alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
@@ -70,6 +85,7 @@ void calloc1(size_t size)
 
 void calloc2(size_t size)
 {
+  trigger_teardown();
   auto& a = snmalloc::ThreadAlloc::get();
   void* r = a.alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
@@ -78,6 +94,7 @@ void calloc2(size_t size)
 
 void calloc3(size_t size)
 {
+  trigger_teardown();
   auto& a = snmalloc::ThreadAlloc::get();
   void* r = a.alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
@@ -86,6 +103,7 @@ void calloc3(size_t size)
 
 void calloc4(size_t size)
 {
+  trigger_teardown();
   auto& a = snmalloc::ThreadAlloc::get();
   void* r = a.alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
@@ -94,21 +112,25 @@ void calloc4(size_t size)
 
 void dealloc1(void* p, size_t)
 {
+  trigger_teardown();
   snmalloc::ThreadAlloc::get().dealloc(p);
 }
 
 void dealloc2(void* p, size_t size)
 {
+  trigger_teardown();
   snmalloc::ThreadAlloc::get().dealloc(p, size);
 }
 
 void dealloc3(void* p, size_t)
 {
+  trigger_teardown();
   snmalloc::ThreadAlloc::get().dealloc(p);
 }
 
 void dealloc4(void* p, size_t size)
 {
+  trigger_teardown();
   snmalloc::ThreadAlloc::get().dealloc(p, size);
 }
 

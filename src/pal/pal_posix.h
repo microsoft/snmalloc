@@ -1,5 +1,8 @@
 #pragma once
 
+#ifdef SNMALLOC_TRACING
+#  include <iostream>
+#endif
 #include "../ds/address.h"
 #if defined(BACKTRACE_HEADER)
 #  include BACKTRACE_HEADER
@@ -255,7 +258,7 @@ namespace snmalloc
       // Magic number for over-allocating chosen by the Pal
       // These should be further refined based on experiments.
       constexpr size_t min_size =
-        bits::is64() ? bits::one_at_bit(32) : bits::one_at_bit(28);
+        bits::is64() ? bits::one_at_bit(31) : bits::one_at_bit(27);
 
       for (size_t size_request = bits::max(size, min_size);
            size_request >= size;
@@ -270,7 +273,13 @@ namespace snmalloc
           0);
 
         if (p != MAP_FAILED)
+        {
+#ifdef SNMALLOC_TRACING
+          std::cout << "Pal_posix reserved: " << p << " (" << size_request
+                    << ")" << std::endl;
+#endif
           return {p, size_request};
+        }
       }
 
       OS::error("Out of memory");

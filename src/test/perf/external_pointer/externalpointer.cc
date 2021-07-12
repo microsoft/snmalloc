@@ -13,7 +13,7 @@ namespace test
   // Pre allocate all the objects
   size_t* objects[count];
 
-  NOINLINE void setup(xoroshiro::p128r64& r, Alloc* alloc)
+  NOINLINE void setup(xoroshiro::p128r64& r, Alloc& alloc)
   {
     for (size_t i = 0; i < count; i++)
     {
@@ -31,26 +31,26 @@ namespace test
       if (size < 16)
         size = 16;
       // store object
-      objects[i] = (size_t*)alloc->alloc(size);
+      objects[i] = (size_t*)alloc.alloc(size);
       // Store allocators size for this object
-      *objects[i] = alloc->alloc_size(objects[i]);
+      *objects[i] = alloc.alloc_size(objects[i]);
     }
   }
 
-  NOINLINE void teardown(Alloc* alloc)
+  NOINLINE void teardown(Alloc& alloc)
   {
     // Deallocate everything
     for (size_t i = 0; i < count; i++)
     {
-      alloc->dealloc(objects[i]);
+      alloc.dealloc(objects[i]);
     }
 
-    current_alloc_pool()->debug_check_empty();
+    snmalloc::debug_check_empty(Globals::get_handle());
   }
 
   void test_external_pointer(xoroshiro::p128r64& r)
   {
-    auto alloc = ThreadAlloc::get();
+    auto& alloc = ThreadAlloc::get();
 #ifdef NDEBUG
     static constexpr size_t iterations = 10000000;
 #else
@@ -75,7 +75,7 @@ namespace test
         size_t size = *external_ptr;
         size_t offset = (size >> 4) * (rand & 15);
         void* interior_ptr = pointer_offset(external_ptr, offset);
-        void* calced_external = alloc->external_pointer(interior_ptr);
+        void* calced_external = alloc.external_pointer(interior_ptr);
         if (calced_external != external_ptr)
           abort();
       }

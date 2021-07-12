@@ -61,8 +61,7 @@ namespace snmalloc
     DefaultPal;
 #endif
 
-  [[noreturn]] SNMALLOC_SLOW_PATH inline SNMALLOC_COLD void
-  error(const char* const str)
+  [[noreturn]] SNMALLOC_SLOW_PATH inline void error(const char* const str)
   {
     Pal::error(str);
   }
@@ -77,16 +76,16 @@ namespace snmalloc
    * disruption to PALs for platforms that do not support StrictProvenance AALs.
    */
   template<typename PAL = Pal, typename AAL = Aal, typename T, capptr_bounds B>
-  static SNMALLOC_FAST_PATH typename std::enable_if_t<
+  static inline typename std::enable_if_t<
     !aal_supports<StrictProvenance, AAL>,
     CapPtr<T, capptr_export_type<B>()>>
   capptr_export(CapPtr<T, B> p)
   {
-    return CapPtr<T, capptr_export_type<B>()>(p.unsafe_capptr);
+    return CapPtr<T, capptr_export_type<B>()>(p.unsafe_ptr());
   }
 
   template<typename PAL = Pal, typename AAL = Aal, typename T, capptr_bounds B>
-  static SNMALLOC_FAST_PATH typename std::enable_if_t<
+  static inline typename std::enable_if_t<
     aal_supports<StrictProvenance, AAL>,
     CapPtr<T, capptr_export_type<B>()>>
   capptr_export(CapPtr<T, B> p)
@@ -107,7 +106,7 @@ namespace snmalloc
   {
     static_assert(
       !page_aligned || B == CBArena || B == CBChunkD || B == CBChunk);
-    PAL::template zero<page_aligned>(p.unsafe_capptr, sz);
+    PAL::template zero<page_aligned>(p.unsafe_ptr(), sz);
   }
 
   static_assert(

@@ -8,18 +8,29 @@ using namespace snmalloc;
 
 void check_result(size_t size, size_t align, void* p, int err, bool null)
 {
+  bool failed = false;
   if (errno != err)
-    abort();
+  {
+    printf("Expected error: %d but got %d\n", err, errno);
+    failed = true;
+  }
 
   if (null)
   {
     if (p != nullptr)
-      abort();
-
+    {
+      printf("Expected null, and got non-null return!\n");
+      failed = true;
+    }
     our_free(p);
     return;
   }
 
+  if ((p == nullptr) && (size != 0))
+  {
+    printf("Unexpected null returned.\n");
+    failed = true;
+  }
   const auto alloc_size = our_malloc_usable_size(p);
   const auto expected_size = round_size(size);
 #ifdef SNMALLOC_PASS_THROUGH
@@ -36,7 +47,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
       "Usable size is %zu, but required to be %zu.\n",
       alloc_size,
       expected_size);
-    abort();
+    failed = true;
   }
   if ((!exact_size) && (alloc_size < expected_size))
   {
@@ -44,15 +55,17 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
       "Usable size is %zu, but required to be at least %zu.\n",
       alloc_size,
       expected_size);
-    abort();
+    failed = true;
   }
-  if (static_cast<size_t>(reinterpret_cast<uintptr_t>(p) % align) != 0)
+  if (
+    (static_cast<size_t>(reinterpret_cast<uintptr_t>(p) % align) != 0) &&
+    (size != 0))
   {
     printf(
       "Address is 0x%zx, but required to be aligned to 0x%zx.\n",
       reinterpret_cast<size_t>(p),
       align);
-    abort();
+    failed = true;
   }
   if (
     static_cast<size_t>(
@@ -62,15 +75,17 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
       "Address is 0x%zx, but should have natural alignment to 0x%zx.\n",
       reinterpret_cast<size_t>(p),
       natural_alignment(size));
-    abort();
+    failed = true;
   }
 
+  if (failed)
+    printf("check_result failed! %p", p);
   our_free(p);
 }
 
 void test_calloc(size_t nmemb, size_t size, int err, bool null)
 {
-  fprintf(stderr, "calloc(%zu, %zu)\n", nmemb, size);
+  printf("calloc(%zu, %zu)  combined size %zu\n", nmemb, size, nmemb * size);
   errno = 0;
   void* p = our_calloc(nmemb, size);
 
@@ -79,7 +94,10 @@ void test_calloc(size_t nmemb, size_t size, int err, bool null)
     for (size_t i = 0; i < (size * nmemb); i++)
     {
       if (((uint8_t*)p)[i] != 0)
+      {
+        printf("non-zero at @%zu\n", i);
         abort();
+      }
     }
   }
   check_result(nmemb * size, 1, p, err, null);
@@ -91,7 +109,7 @@ void test_realloc(void* p, size_t size, int err, bool null)
   if (p != nullptr)
     old_size = our_malloc_usable_size(p);
 
-  fprintf(stderr, "realloc(%p(%zu), %zu)\n", p, old_size, size);
+  printf("realloc(%p(%zu), %zu)\n", p, old_size, size);
   errno = 0;
   auto new_p = our_realloc(p, size);
   // Realloc failure case, deallocate original block
@@ -102,7 +120,7 @@ void test_realloc(void* p, size_t size, int err, bool null)
 
 void test_posix_memalign(size_t size, size_t align, int err, bool null)
 {
-  fprintf(stderr, "posix_memalign(&p, %zu, %zu)\n", align, size);
+  printf("posix_memalign(&p, %zu, %zu)\n", align, size);
   void* p = nullptr;
   errno = our_posix_memalign(&p, align, size);
   check_result(size, align, p, err, null);
@@ -110,7 +128,7 @@ void test_posix_memalign(size_t size, size_t align, int err, bool null)
 
 void test_memalign(size_t size, size_t align, int err, bool null)
 {
-  fprintf(stderr, "memalign(%zu, %zu)\n", align, size);
+  printf("memalign(%zu, %zu)\n", align, size);
   errno = 0;
   void* p = our_memalign(align, size);
   check_result(size, align, p, err, null);
@@ -123,11 +141,11 @@ int main(int argc, char** argv)
 
   setup();
 
+  our_free(nullptr);
+
   constexpr int SUCCESS = 0;
 
-  test_realloc(our_malloc(64), 4194304, SUCCESS, false);
-
-  for (sizeclass_t sc = 0; sc < (SUPERSLAB_BITS + 4); sc++)
+  for (sizeclass_t sc = 0; sc < (MAX_SIZECLASS_BITS + 4); sc++)
   {
     const size_t size = bits::one_at_bit(sc);
     printf("malloc: %zu\n", size);
@@ -137,12 +155,15 @@ int main(int argc, char** argv)
 
   test_calloc(0, 0, SUCCESS, false);
 
+  our_free(nullptr);
+
   for (sizeclass_t sc = 0; sc < NUM_SIZECLASSES; sc++)
   {
     const size_t size = sizeclass_to_size(sc);
 
     bool overflow = false;
-    for (size_t n = 1; bits::umul(size, n, overflow) <= SUPERSLAB_SIZE; n *= 5)
+    for (size_t n = 1; bits::umul(size, n, overflow) <= MAX_SIZECLASS_SIZE;
+         n *= 5)
     {
       if (overflow)
         break;
@@ -168,14 +189,14 @@ int main(int argc, char** argv)
     }
   }
 
-  for (sizeclass_t sc = 0; sc < (SUPERSLAB_BITS + 4); sc++)
+  for (sizeclass_t sc = 0; sc < (MAX_SIZECLASS_BITS + 4); sc++)
   {
     const size_t size = bits::one_at_bit(sc);
     test_realloc(our_malloc(size), size, SUCCESS, false);
     test_realloc(our_malloc(size), 0, SUCCESS, true);
     test_realloc(nullptr, size, SUCCESS, false);
     test_realloc(our_malloc(size), (size_t)-1, ENOMEM, true);
-    for (sizeclass_t sc2 = 0; sc2 < (SUPERSLAB_BITS + 4); sc2++)
+    for (sizeclass_t sc2 = 0; sc2 < (MAX_SIZECLASS_BITS + 4); sc2++)
     {
       const size_t size2 = bits::one_at_bit(sc2);
       printf("size1: %zu, size2:%zu\n", size, size2);
@@ -184,14 +205,16 @@ int main(int argc, char** argv)
     }
   }
 
+  test_realloc(our_malloc(64), 4194304, SUCCESS, false);
+
   test_posix_memalign(0, 0, EINVAL, true);
   test_posix_memalign((size_t)-1, 0, EINVAL, true);
   test_posix_memalign(OS_PAGE_SIZE, sizeof(uintptr_t) / 2, EINVAL, true);
 
-  for (size_t align = sizeof(uintptr_t); align <= SUPERSLAB_SIZE * 8;
+  for (size_t align = sizeof(uintptr_t); align < MAX_SIZECLASS_SIZE * 8;
        align <<= 1)
   {
-    for (sizeclass_t sc = 0; sc < NUM_SIZECLASSES; sc++)
+    for (sizeclass_t sc = 0; sc < NUM_SIZECLASSES - 6; sc++)
     {
       const size_t size = sizeclass_to_size(sc);
       test_posix_memalign(size, align, SUCCESS, false);
@@ -203,6 +226,12 @@ int main(int argc, char** argv)
     test_posix_memalign(0, align + 1, EINVAL, true);
   }
 
-  current_alloc_pool()->debug_check_empty();
+  if (our_malloc_usable_size(nullptr) != 0)
+  {
+    printf("malloc_usable_size(nullptr) should be zero");
+    abort();
+  }
+
+  snmalloc::debug_check_empty(Globals::get_handle());
   return 0;
 }

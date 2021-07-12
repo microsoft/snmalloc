@@ -1,6 +1,6 @@
+#include <iostream>
 #include <snmalloc.h>
 #include <test/setup.h>
-
 using namespace snmalloc;
 
 // Check for all sizeclass that we correctly round every offset within
@@ -18,8 +18,7 @@ int main(int argc, char** argv)
   for (size_t size_class = 0; size_class < NUM_SIZECLASSES; size_class++)
   {
     size_t rsize = sizeclass_to_size((uint8_t)size_class);
-    size_t max_offset =
-      size_class < NUM_SMALL_CLASSES ? SLAB_SIZE : SUPERSLAB_SIZE;
+    size_t max_offset = sizeclass_to_slab_size(size_class);
     for (size_t offset = 0; offset < max_offset; offset++)
     {
       size_t rounded = (offset / rsize) * rsize;

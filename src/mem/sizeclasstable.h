@@ -1,58 +1,121 @@
 #pragma once
 
+#include "../ds/bits.h"
+#include "../ds/defines.h"
 #include "../ds/helpers.h"
-#include "superslab.h"
+#include "allocconfig.h"
 
 namespace snmalloc
 {
-  constexpr size_t PTR_BITS = bits::next_pow2_bits_const(sizeof(void*));
+  // Both usings should compile
+  // We use size_t as it generates better code.
+  using sizeclass_t = size_t;
+  //  using sizeclass_t = uint8_t;
+  using sizeclass_compress_t = uint8_t;
+
+  constexpr static uintptr_t SIZECLASS_MASK = 0xFF;
+
+  constexpr static inline sizeclass_t size_to_sizeclass_const(size_t size)
+  {
+    // Don't use sizeclasses that are not a multiple of the alignment.
+    // For example, 24 byte allocations can be
+    // problematic for some data due to alignment issues.
+    auto sc = static_cast<sizeclass_t>(
+      bits::to_exp_mant_const<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(size));
+
+    SNMALLOC_ASSERT(sc == static_cast<uint8_t>(sc));
+
+    return sc;
+  }
+
+  static inline size_t large_sizeclass_to_size(uint8_t large_class)
+  {
+    UNUSED(large_class);
+    abort();
+    //    return bits::one_at_bit(large_class + SUPERSLAB_BITS);
+  }
+
+  static constexpr size_t NUM_SIZECLASSES =
+    size_to_sizeclass_const(MAX_SIZECLASS_SIZE);
+
+  // Large classes range from [SUPERSLAB, ADDRESS_SPACE).// TODO
+  static constexpr size_t NUM_LARGE_CLASSES =
+    bits::ADDRESS_BITS - MAX_SIZECLASS_BITS;
+
+  inline SNMALLOC_FAST_PATH static size_t
+  aligned_size(size_t alignment, size_t size)
+  {
+    // Client responsible for checking alignment is not zero
+    SNMALLOC_ASSERT(alignment != 0);
+    // Client responsible for checking alignment is a power of two
+    SNMALLOC_ASSERT(bits::is_pow2(alignment));
+
+    return ((alignment - 1) | (size - 1)) + 1;
+  }
 
   constexpr static SNMALLOC_PURE size_t sizeclass_lookup_index(const size_t s)
   {
-    // We subtract and shirt to reduce the size of the table, i.e. we don't have
-    // to store a value for every size class.
-    // We could shift by MIN_ALLOC_BITS, as this would give us the most
-    // compressed table, but by shifting by PTR_BITS the code-gen is better
-    // as the most important path using this subsequently shifts left by
-    // PTR_BITS, hence they can be fused into a single mask.
-    return (s - 1) >> PTR_BITS;
+    // We subtract and shift to reduce the size of the table, i.e. we don't have
+    // to store a value for every size.
+    return (s - 1) >> MIN_ALLOC_BITS;
   }
 
+  constexpr static size_t NUM_SIZECLASSES_EXTENDED =
+    size_to_sizeclass_const(bits::one_at_bit(bits::ADDRESS_BITS - 1));
+
   constexpr static size_t sizeclass_lookup_size =
-    sizeclass_lookup_index(SLAB_SIZE + 1);
+    sizeclass_lookup_index(MAX_SIZECLASS_SIZE);
 
   struct SizeClassTable
   {
-    sizeclass_t sizeclass_lookup[sizeclass_lookup_size] = {{}};
-    ModArray<NUM_SIZECLASSES, size_t> size;
-    ModArray<NUM_SMALL_CLASSES, uint16_t> initial_offset_ptr;
-    ModArray<NUM_SMALL_CLASSES, uint16_t> short_initial_offset_ptr;
-    ModArray<NUM_SMALL_CLASSES, uint16_t> capacity;
-    ModArray<NUM_SMALL_CLASSES, uint16_t> short_capacity;
-    ModArray<NUM_MEDIUM_CLASSES, uint16_t> medium_slab_slots;
+    sizeclass_compress_t sizeclass_lookup[sizeclass_lookup_size] = {{}};
+    ModArray<NUM_SIZECLASSES_EXTENDED, size_t> size;
+
+    ModArray<NUM_SIZECLASSES, uint16_t> capacity;
+    ModArray<NUM_SIZECLASSES, uint16_t> waking;
+    // We store the mask as it is used more on the fast path, and the size of
+    // the slab.
+    ModArray<NUM_SIZECLASSES, size_t> slab_mask;
+
     // Table of constants for reciprocal division for each sizeclass.
     ModArray<NUM_SIZECLASSES, size_t> div_mult;
     // Table of constants for reciprocal modulus for each sizeclass.
     ModArray<NUM_SIZECLASSES, size_t> mod_mult;
 
     constexpr SizeClassTable()
-    : size(),
-      initial_offset_ptr(),
-      short_initial_offset_ptr(),
-      capacity(),
-      short_capacity(),
-      medium_slab_slots(),
-      div_mult(),
-      mod_mult()
+    : size(), capacity(), waking(), slab_mask(), div_mult(), mod_mult()
     {
-      size_t curr = 1;
-      for (sizeclass_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass++)
+      for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
+           sizeclass++)
       {
-        size[sizeclass] =
+        size_t rsize =
           bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
+        size[sizeclass] = rsize;
+        size_t slab_bits = bits::max(
+          bits::next_pow2_bits_const(MIN_OBJECT_COUNT * rsize), MIN_CHUNK_BITS);
 
-        div_mult[sizeclass] =
-          (bits::one_at_bit(bits::BITS - SUPERSLAB_BITS) /
+        slab_mask[sizeclass] = bits::one_at_bit(slab_bits) - 1;
+
+        capacity[sizeclass] =
+          static_cast<uint16_t>((slab_mask[sizeclass] + 1) / rsize);
+
+        waking[sizeclass] =
+          static_cast<uint16_t>(bits::min((capacity[sizeclass] / 4), 32));
+      }
+
+      for (sizeclass_compress_t sizeclass = NUM_SIZECLASSES;
+           sizeclass < NUM_SIZECLASSES_EXTENDED;
+           sizeclass++)
+      {
+        size[sizeclass] = bits::prev_pow2_const(
+          bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass));
+      }
+
+      for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
+           sizeclass++)
+      {
+        div_mult[sizeclass] = // TODO is MAX_SIZECLASS_BITS right?
+          (bits::one_at_bit(bits::BITS - 24) /
            (size[sizeclass] / MIN_ALLOC_SIZE));
         if (!bits::is_pow2(size[sizeclass]))
           div_mult[sizeclass]++;
@@ -65,97 +128,94 @@ namespace snmalloc
         // overflows, and thus the top SUPERSLAB_BITS will be zero if the mod is
         // zero.
         mod_mult[sizeclass] *= 2;
+      }
 
-        if (sizeclass < NUM_SMALL_CLASSES)
+      size_t curr = 1;
+      for (sizeclass_compress_t sizeclass = 0; sizeclass <= NUM_SIZECLASSES;
+           sizeclass++)
+      {
+        for (; curr <= size[sizeclass]; curr += 1 << MIN_ALLOC_BITS)
         {
-          for (; curr <= size[sizeclass]; curr += 1 << PTR_BITS)
-          {
-            sizeclass_lookup[sizeclass_lookup_index(curr)] = sizeclass;
-          }
+          auto i = sizeclass_lookup_index(curr);
+          if (i == sizeclass_lookup_size)
+            break;
+          sizeclass_lookup[i] = sizeclass;
         }
-      }
-
-      size_t header_size = sizeof(Superslab);
-      size_t short_slab_size = SLAB_SIZE - header_size;
-
-      for (sizeclass_t i = 0; i < NUM_SMALL_CLASSES; i++)
-      {
-        // We align to the end of the block to remove special cases for the
-        // short block. Calculate remainders
-        size_t short_correction = short_slab_size % size[i];
-        size_t correction = SLAB_SIZE % size[i];
-
-        // First element in the block is the link
-        initial_offset_ptr[i] = static_cast<uint16_t>(correction);
-        short_initial_offset_ptr[i] =
-          static_cast<uint16_t>(header_size + short_correction);
-
-        capacity[i] = static_cast<uint16_t>(
-          (SLAB_SIZE - initial_offset_ptr[i]) / (size[i]));
-        short_capacity[i] = static_cast<uint16_t>(
-          (SLAB_SIZE - short_initial_offset_ptr[i]) / (size[i]));
-      }
-
-      for (sizeclass_t i = NUM_SMALL_CLASSES; i < NUM_SIZECLASSES; i++)
-      {
-        medium_slab_slots[i - NUM_SMALL_CLASSES] = static_cast<uint16_t>(
-          (SUPERSLAB_SIZE - Mediumslab::header_size()) / size[i]);
       }
     }
   };
 
-  static constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
-
-  static inline constexpr uint16_t
-  get_initial_offset(sizeclass_t sc, bool is_short)
-  {
-    if (is_short)
-      return sizeclass_metadata.short_initial_offset_ptr[sc];
-
-    return sizeclass_metadata.initial_offset_ptr[sc];
-  }
-
-  static inline constexpr uint16_t
-  get_slab_capacity(sizeclass_t sc, bool is_short)
-  {
-    if (is_short)
-      return sizeclass_metadata.short_capacity[sc];
-
-    return sizeclass_metadata.capacity[sc];
-  }
+  static inline constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
 
   constexpr static inline size_t sizeclass_to_size(sizeclass_t sizeclass)
   {
     return sizeclass_metadata.size[sizeclass];
   }
 
+  inline static size_t sizeclass_to_slab_size(sizeclass_t sizeclass)
+  {
+    return sizeclass_metadata.slab_mask[sizeclass] + 1;
+  }
+
+  /**
+   * Only wake slab if we have this many free allocations
+   *
+   * This helps remove bouncing around empty to non-empty cases.
+   *
+   * It also increases entropy, when we have randomisation.
+   */
+  inline uint16_t threshold_for_waking_slab(sizeclass_t sizeclass)
+  {
+    // #ifdef CHECK_CLIENT
+    return sizeclass_metadata.waking[sizeclass];
+    // #else
+    //     UNUSED(sizeclass);
+    //     return 1;
+    // #endif
+  }
+
+  inline static size_t sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)
+  {
+    size_t ssize = sizeclass_to_slab_size(sizeclass);
+
+    return bits::next_pow2_bits(ssize) - MIN_CHUNK_BITS;
+  }
+
+  inline static size_t slab_sizeclass_to_size(sizeclass_t sizeclass)
+  {
+    return bits::one_at_bit(MIN_CHUNK_BITS + sizeclass);
+  }
+
+  inline constexpr static uint16_t
+  sizeclass_to_slab_object_count(sizeclass_t sizeclass)
+  {
+    return sizeclass_metadata.capacity[sizeclass];
+  }
+
   static inline sizeclass_t size_to_sizeclass(size_t size)
   {
-    if ((size - 1) <= (SLAB_SIZE - 1))
+    auto index = sizeclass_lookup_index(size);
+    if (index < sizeclass_lookup_size)
     {
-      auto index = sizeclass_lookup_index(size);
-      SNMALLOC_ASSUME(index <= sizeclass_lookup_index(SLAB_SIZE));
       return sizeclass_metadata.sizeclass_lookup[index];
     }
 
     // Don't use sizeclasses that are not a multiple of the alignment.
     // For example, 24 byte allocations can be
     // problematic for some data due to alignment issues.
+
+    // TODO hack to power of 2 for large sizes
+    size = bits::next_pow2(size);
+
     return static_cast<sizeclass_t>(
       bits::to_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(size));
-  }
-
-  constexpr static inline uint16_t medium_slab_free(sizeclass_t sizeclass)
-  {
-    return sizeclass_metadata
-      .medium_slab_slots[(sizeclass - NUM_SMALL_CLASSES)];
   }
 
   inline static size_t round_by_sizeclass(sizeclass_t sc, size_t offset)
   {
     // Only works up to certain offsets, exhaustively tested upto
     // SUPERSLAB_SIZE.
-    SNMALLOC_ASSERT(offset <= SUPERSLAB_SIZE);
+    //    SNMALLOC_ASSERT(offset <= SUPERSLAB_SIZE);
 
     auto rsize = sizeclass_to_size(sc);
 
@@ -168,11 +228,12 @@ namespace snmalloc
       // sufficient bits to do this completely efficiently as 24 * 3 is larger
       // than 64 bits.  But we can pre-round by MIN_ALLOC_SIZE which gets us an
       // extra 4 * 3 bits, and thus achievable in 64bit multiplication.
-      static_assert(
-        SUPERSLAB_BITS <= 24, "The following code assumes max of 24 bits");
+      // static_assert(
+      //   SUPERSLAB_BITS <= 24, "The following code assumes max of 24 bits");
 
+      // TODO 24 hack
       return (((offset >> MIN_ALLOC_BITS) * sizeclass_metadata.div_mult[sc]) >>
-              (bits::BITS - SUPERSLAB_BITS)) *
+              (bits::BITS - 24)) *
         rsize;
     }
     else
@@ -185,7 +246,7 @@ namespace snmalloc
   {
     // Only works up to certain offsets, exhaustively tested upto
     // SUPERSLAB_SIZE.
-    SNMALLOC_ASSERT(offset <= SUPERSLAB_SIZE);
+    //    SNMALLOC_ASSERT(offset <= SUPERSLAB_SIZE);
 
     if constexpr (bits::is64())
     {
@@ -195,10 +256,10 @@ namespace snmalloc
       // get larger then we should review this code.  The modulus code
       // has fewer restrictions than division, as it only requires the
       // square of the offset to be representable.
-      static_assert(
-        SUPERSLAB_BITS <= 24, "The following code assumes max of 24 bits");
+      // TODO 24 hack. Redo the maths given the multiple
+      // slab sizes
       static constexpr size_t MASK =
-        ~(bits::one_at_bit(bits::BITS - 1 - SUPERSLAB_BITS) - 1);
+        ~(bits::one_at_bit(bits::BITS - 1 - 24) - 1);
 
       return ((offset * sizeclass_metadata.mod_mult[sc]) & MASK) == 0;
     }
@@ -208,4 +269,36 @@ namespace snmalloc
       return static_cast<uint32_t>(offset % sizeclass_to_size(sc)) == 0;
   }
 
+  inline SNMALLOC_FAST_PATH static size_t round_size(size_t size)
+  {
+    if (size > sizeclass_to_size(NUM_SIZECLASSES - 1))
+    {
+      return bits::next_pow2(size);
+    }
+    if (size == 0)
+    {
+      return 0;
+    }
+    return sizeclass_to_size(size_to_sizeclass(size));
+  }
+
+  /// Returns the alignment that this size naturally has, that is
+  /// all allocations of size `size` will be aligned to the returned value.
+  inline SNMALLOC_FAST_PATH static size_t natural_alignment(size_t size)
+  {
+    auto rsize = round_size(size);
+    if (size == 0)
+      return 1;
+    return bits::one_at_bit(bits::ctz(rsize));
+  }
+
+  inline static size_t large_size_to_chunk_size(size_t size)
+  {
+    return bits::next_pow2(size);
+  }
+
+  inline static size_t large_size_to_chunk_sizeclass(size_t size)
+  {
+    return bits::next_pow2_bits(size) - MIN_CHUNK_BITS;
+  }
 } // namespace snmalloc

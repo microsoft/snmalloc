@@ -18,9 +18,11 @@ namespace snmalloc
       "T->next must be an AtomicPtr<T>");
 
     AtomicPtr<T> back{nullptr};
-    Ptr<T> front = nullptr;
+    Ptr<T> front{nullptr};
 
   public:
+    constexpr MPSCQ() = default;
+
     void invariant()
     {
       SNMALLOC_ASSERT(back != nullptr);
@@ -61,6 +63,11 @@ namespace snmalloc
       prev->next.store(first, std::memory_order_relaxed);
     }
 
+    Ptr<T> peek()
+    {
+      return front;
+    }
+
     std::pair<Ptr<T>, bool> dequeue()
     {
       // Returns the front message, or null if not possible to return a message.
@@ -68,10 +75,10 @@ namespace snmalloc
       Ptr<T> first = front;
       Ptr<T> next = first->next.load(std::memory_order_relaxed);
 
+      Aal::prefetch(&(next->next));
       if (next != nullptr)
       {
         front = next;
-        Aal::prefetch(&(next->next));
         SNMALLOC_ASSERT(front != nullptr);
         std::atomic_thread_fence(std::memory_order_acquire);
         invariant();

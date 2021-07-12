@@ -110,8 +110,6 @@ target_link_libraries([lib_name] PRIVATE snmalloc_lib)
 You will also need to compile the relevant parts of snmalloc itself. Create a new file with the following contents and compile it with the rest of your application.
 
 ```c++
-#define NO_BOOTSTRAP_ALLOCATOR
-
 #include "snmalloc/src/override/malloc.cc"
 #include "snmalloc/src/override/new.cc"
 ```

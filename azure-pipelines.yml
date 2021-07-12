@@ -3,6 +3,7 @@ trigger:
 
 pr:
 - master
+- snmalloc2
 
 jobs:
 - job:
@@ -52,12 +53,12 @@ jobs:
         CMakeArgs: ''
         Image: snmallocciteam/build_linux_x64:latest
 
-      64-bit Clang-10 Debug C++20:
+      64-bit Clang-10 Debug C++17:
         CC: clang-10
         CXX: clang++-10
         BuildType: Debug
         SelfHost: false
-        CMakeArgs: '-DSNMALLOC_USE_CXX20=On'
+        CMakeArgs: '-DSNMALLOC_USE_CXX17=On'
         Image: snmallocciteam/build_linux_x64:latest
 
       64-bit Clang-9 Release:
@@ -97,7 +98,7 @@ jobs:
         CXX: clang++-9
         BuildType: Debug
         SelfHost: false
-        CMakeArgs: ''
+        CMakeArgs: '-DSNMALLOC_USE_CXX17=On'
         Image: snmallocciteam/build_linux_x86:latest
 
       32-bit Clang-9 Release:
@@ -105,7 +106,7 @@ jobs:
         CXX: clang++-9
         BuildType: Release
         SelfHost: false
-        CMakeArgs: ''
+        CMakeArgs: '-DSNMALLOC_USE_CXX17=On'
         Image: snmallocciteam/build_linux_x86:latest
 
   container: $[ variables['Image'] ]
@@ -140,7 +141,7 @@ jobs:
         CXX: clang++-9
         BuildType: Debug
         SelfHost: false
-        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On'
+        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On -DSNMALLOC_USE_CXX17=On'
         Image: snmallocciteam/build_linux_arm64:latest
 
       64-bit Clang-9 Release:
@@ -148,7 +149,7 @@ jobs:
         CXX: clang++-9
         BuildType: Release
         SelfHost: false
-        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On'
+        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On -DSNMALLOC_USE_CXX17=On'
         Image: snmallocciteam/build_linux_arm64:latest
 
       32-bit Clang-9 Debug:
@@ -156,7 +157,7 @@ jobs:
         CXX: clang++-9
         BuildType: Debug
         SelfHost: false
-        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On'
+        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On -DSNMALLOC_USE_CXX17=On'
         Image: snmallocciteam/build_linux_armhf:latest
 
       32-bit Clang-9 Release:
@@ -164,7 +165,7 @@ jobs:
         CXX: clang++-9
         BuildType: Release
         SelfHost: false
-        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On'
+        CMakeArgs: '-DSNMALLOC_QEMU_WORKAROUND=On -DSNMALLOC_USE_CXX17=On'
         Image: snmallocciteam/build_linux_armhf:latest
   
   steps:
@@ -177,7 +178,7 @@ jobs:
       -e CC=$(CC) \
       -e CXX=$(CXX) \
       -e BUILD_TYPE=$(BuildType) \
-      -e CMAKE_ARGS=$(CMakeArgs) \
+      -e CMAKE_ARGS="$(CMakeArgs)" \
       $(Image) \
       ci/scripts/build.sh
     displayName: 'Build'

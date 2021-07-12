@@ -75,13 +75,13 @@ size_t swapcount;
 
 void test_tasks_f(size_t id)
 {
-  Alloc* a = ThreadAlloc::get();
+  auto& a = ThreadAlloc::get();
   xoroshiro::p128r32 r(id + 5000);
 
   for (size_t n = 0; n < swapcount; n++)
   {
     size_t size = 16 + (r.next() % 1024);
-    size_t* res = (size_t*)(use_malloc ? malloc(size) : a->alloc(size));
+    size_t* res = (size_t*)(use_malloc ? malloc(size) : a.alloc(size));
 
     *res = size;
     size_t* out =
@@ -93,14 +93,14 @@ void test_tasks_f(size_t id)
       if (use_malloc)
         free(out);
       else
-        a->dealloc(out, size);
+        a.dealloc(out, size);
     }
   }
 };
 
 void test_tasks(size_t num_tasks, size_t count, size_t size)
 {
-  Alloc* a = ThreadAlloc::get();
+  auto& a = ThreadAlloc::get();
 
   contention = new std::atomic<size_t*>[size];
   xoroshiro::p128r32 r;
@@ -109,7 +109,7 @@ void test_tasks(size_t num_tasks, size_t count, size_t size)
   {
     size_t alloc_size = 16 + (r.next() % 1024);
     size_t* res =
-      (size_t*)(use_malloc ? malloc(alloc_size) : a->alloc(alloc_size));
+      (size_t*)(use_malloc ? malloc(alloc_size) : a.alloc(alloc_size));
     *res = alloc_size;
     contention[n] = res;
   }
@@ -134,7 +134,7 @@ void test_tasks(size_t num_tasks, size_t count, size_t size)
         if (use_malloc)
           free(contention[n]);
         else
-          a->dealloc(contention[n], *contention[n]);
+          a.dealloc(contention[n], *contention[n]);
       }
     }
 
@@ -142,7 +142,7 @@ void test_tasks(size_t num_tasks, size_t count, size_t size)
   }
 
 #ifndef NDEBUG
-  current_alloc_pool()->debug_check_empty();
+  snmalloc::debug_check_empty(Globals::get_handle());
 #endif
 };
 

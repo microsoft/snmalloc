@@ -18,7 +18,7 @@ option(SNMALLOC_STATIC_LIBRARY   "Build static libraries" ON)
 option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory on Linux" Off)
 option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off)
 set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
-option(SNMALLOC_USE_CXX20 "Build as C++20, not C++17; experimental as yet" OFF)
+option(SNMALLOC_USE_CXX17 "Build as C++17 for legacy support." OFF)
 
 # malloc.h will error if you include it on FreeBSD, so this test must not
 # unconditionally include it.
@@ -66,6 +66,7 @@ macro(warnings_high)
     else()
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
     endif()
+    # /Wv18 is required for the annotation to force inline a lambda.
     add_compile_options(/WX /wd4127 /wd4324 /wd4201)
   else()
     if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -73,10 +74,6 @@ macro(warnings_high)
     endif ()
     add_compile_options(-Wall -Wextra -Werror -Wundef)
   endif()
-endmacro()
-
-macro(oe_simulate target)
-  target_compile_definitions(${target} PRIVATE SNMALLOC_USE_SMALL_CHUNKS)
 endmacro()
 
 macro(clangformat_targets)
@@ -94,7 +91,7 @@ macro(clangformat_targets)
     message(WARNING "Not generating clangformat target, no clang-format tool found")
   else ()
     message(STATUS "Generating clangformat target using ${CLANG_FORMAT}")
-    file(GLOB_RECURSE ALL_SOURCE_FILES src/*.cc src/*.h src/*.hh)
+    file(GLOB_RECURSE ALL_SOURCE_FILES CONFIGURE_DEPENDS src/*.cc src/*.h src/*.hh)
     # clangformat does not yet understand concepts well; for the moment, don't
     # ask it to format them.  See https://reviews.llvm.org/D79773
     list(FILTER ALL_SOURCE_FILES EXCLUDE REGEX "src/[^/]*/[^/]*_concept\.h$")
@@ -105,6 +102,13 @@ macro(clangformat_targets)
       ${ALL_SOURCE_FILES})
   endif()
 endmacro()
+
+# Have to set this globally, as can't be set on an interface target.
+if(SNMALLOC_USE_CXX17)
+  set(CMAKE_CXX_STANDARD 17)
+else()
+  set(CMAKE_CXX_STANDARD 20)
+endif()
 
 # The main target for snmalloc
 add_library(snmalloc_lib INTERFACE)
@@ -153,13 +157,6 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   endif()
 endif ()
 
-# Have to set this globally, as can't be set on an interface target.
-if(SNMALLOC_USE_CXX20)
-  set(CMAKE_CXX_STANDARD 20)
-else()
-  set(CMAKE_CXX_STANDARD 17)
-endif()
-
 if(USE_SNMALLOC_STATS)
   target_compile_definitions(snmalloc_lib INTERFACE -DUSE_SNMALLOC_STATS)
 endif()
@@ -194,15 +191,18 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   if(MSVC)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
+    target_compile_definitions(snmalloc_lib INTERFACE -D_HAS_EXCEPTIONS=0)
+    add_compile_options(/std:c++latest)
   else()
-    add_compile_options(-fno-exceptions -fno-rtti -g -fomit-frame-pointer)
+    add_compile_options(-fno-exceptions -fno-rtti -fomit-frame-pointer -ffunction-sections)
     # Static TLS model is unsupported on Haiku.
     # All symbols are always dynamic on haiku and -rdynamic is redundant (and unsupported).
     if (NOT CMAKE_SYSTEM_NAME MATCHES "Haiku")
 	    add_compile_options(-ftls-model=initial-exec)
     	    if(SNMALLOC_CI_BUILD OR (${CMAKE_BUILD_TYPE} MATCHES "Debug"))
-      		# Get better stack traces in CI and Debug.
-      		target_link_libraries(snmalloc_lib INTERFACE "-rdynamic")
+      		  # Get better stack traces in CI and Debug.
+      		  target_link_libraries(snmalloc_lib INTERFACE "-rdynamic")
+            add_compile_options(-g)
     	    endif()
     endif()
 
@@ -225,7 +225,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   endif()
 
   macro(subdirlist result curdir)
-    file(GLOB children LIST_DIRECTORIES true RELATIVE ${curdir} ${curdir}/*)
+    file(GLOB children CONFIGURE_DEPENDS LIST_DIRECTORIES true RELATIVE ${curdir} ${curdir}/* )
     set(dirlist "")
     foreach(child ${children})
       if(IS_DIRECTORY ${curdir}/${child})
@@ -235,6 +235,13 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(${result} ${dirlist})
   endmacro()
 
+  if(CMAKE_VERSION VERSION_LESS 3.14)
+    set(CMAKE_REQUIRED_LIBRARIES -fuse-ld=lld)
+  else()
+    set(CMAKE_REQUIRED_LINK_OPTIONS -fuse-ld=lld)
+  endif()
+  check_cxx_source_compiles("int main() { return 1; }" LLD_WORKS)
+
   macro(add_shim name type)
     add_library(${name} ${type} ${ARGN})
     target_link_libraries(${name} snmalloc_lib)
@@ -243,59 +250,40 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     endif()
     set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
-    if(EXPOSE_EXTERNAL_PAGEMAP)
-      if(MSVC)
-        target_compile_definitions(${name} PRIVATE /DSNMALLOC_EXPOSE_PAGEMAP)
-      else()
-        target_compile_definitions(${name} PRIVATE -DSNMALLOC_EXPOSE_PAGEMAP)
-      endif()
-    endif()
-
-    if(EXPOSE_EXTERNAL_RESERVE)
-      if(MSVC)
-        target_compile_definitions(${name} PRIVATE /DSNMALLOC_EXPOSE_RESERVE)
-      else()
-        target_compile_definitions(${name} PRIVATE -DSNMALLOC_EXPOSE_RESERVE)
-      endif()
-    endif()
-
     # Ensure that we do not link against C++ stdlib when compiling shims.
     if(NOT MSVC)
       set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
+      if (LLD_WORKS)
+        message("Using LLD.")
+
+        # Only include the dependencies that actually are touched.
+        # Required so C++ library is not included with direct pthread access.
+        target_link_libraries(${name} -Wl,--as-needed)
+
+        # Remove all the duplicate new/malloc and free/delete definitions
+        target_link_libraries(${name} -Wl,--icf=all -fuse-ld=lld)
+      endif()
     endif()
 
   endmacro()
 
   if (SNMALLOC_STATIC_LIBRARY)
     add_shim(snmallocshim-static STATIC src/override/malloc.cc)
-    add_shim(snmallocshim-1mib-static STATIC src/override/malloc.cc)
-    add_shim(snmallocshim-16mib-static STATIC src/override/malloc.cc)
-    target_compile_definitions(snmallocshim-16mib-static PRIVATE SNMALLOC_USE_LARGE_CHUNKS
-            SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
     target_compile_definitions(snmallocshim-static PRIVATE
-            SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
-    target_compile_definitions(snmallocshim-1mib-static PRIVATE
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
   endif ()
 
   if(NOT WIN32)
-    set(SHARED_FILES src/override/new.cc src/override/malloc.cc)
+    set(SHARED_FILES src/override/new.cc)
     add_shim(snmallocshim SHARED ${SHARED_FILES})
     add_shim(snmallocshim-checks SHARED ${SHARED_FILES})
-    add_shim(snmallocshim-1mib SHARED ${SHARED_FILES})
-    add_shim(snmallocshim-16mib SHARED ${SHARED_FILES})
-    target_compile_definitions(snmallocshim-16mib PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
     target_compile_definitions(snmallocshim-checks PRIVATE CHECK_CLIENT)
-    # Build a shim with some settings from oe.
-    add_shim(snmallocshim-oe SHARED ${SHARED_FILES})
-    oe_simulate(snmallocshim-oe)
   endif()
 
   if(SNMALLOC_RUST_SUPPORT)
     add_shim(snmallocshim-rust STATIC src/override/rust.cc)
-    add_shim(snmallocshim-1mib-rust STATIC src/override/rust.cc)
-    add_shim(snmallocshim-16mib-rust STATIC src/override/rust.cc)
-    target_compile_definitions(snmallocshim-16mib-rust PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
+    add_shim(snmallocshim-checks-rust STATIC src/override/rust.cc)
+    target_compile_definitions(snmallocshim-checks-rust PRIVATE CHECK_CLIENT)
   endif()
 
   enable_testing()
@@ -314,9 +302,9 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         # Windows does not support aligned allocation well enough
         # for pass through.
         # NetBSD, OpenBSD and DragonFlyBSD do not support malloc*size calls.
-        set(FLAVOURS 1;16;oe;check)
+        set(FLAVOURS fast;check)
       else()
-        set(FLAVOURS 1;16;oe;malloc;check)
+        set(FLAVOURS fast;check) #malloc - TODO-need to add pass through back
       endif()
       foreach(FLAVOUR ${FLAVOURS})
         unset(SRC)
@@ -328,20 +316,11 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         # For all tests enable commit checking.
         target_compile_definitions(${TESTNAME} PRIVATE -DUSE_POSIX_COMMIT_CHECKS)
 
-        if (${FLAVOUR} EQUAL 16)
-          target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_USE_LARGE_CHUNKS)
-        endif()
-        if (${FLAVOUR} STREQUAL "oe")
-          oe_simulate(${TESTNAME})
-        endif()
         if (${FLAVOUR} STREQUAL "malloc")
           target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_PASS_THROUGH)
         endif()
         if (${FLAVOUR} STREQUAL "check")
           target_compile_definitions(${TESTNAME} PRIVATE CHECK_CLIENT)
-        endif()
-        if(CONST_QUALIFIED_MALLOC_USABLE_SIZE)
-          target_compile_definitions(${TESTNAME} PRIVATE -DMALLOC_USABLE_SIZE_QUALIFIER=const)
         endif()
         target_link_libraries(${TESTNAME} snmalloc_lib)
         if (${TEST} MATCHES "release-.*")
@@ -371,9 +350,9 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
             set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
           endif()
         endif()
-        if (${TEST_CATEGORY} MATCHES "func")
-          target_compile_definitions(${TESTNAME} PRIVATE -DUSE_SNMALLOC_STATS)
-        endif ()
+        # if (${TEST_CATEGORY} MATCHES "func")
+        #   target_compile_definitions(${TESTNAME} PRIVATE -DUSE_SNMALLOC_STATS)
+        # endif ()
       endforeach()
     endforeach()
   endforeach()

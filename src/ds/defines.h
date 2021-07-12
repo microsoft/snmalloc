@@ -7,17 +7,30 @@
 #  define unlikely(x) !!(x)
 #  define SNMALLOC_SLOW_PATH NOINLINE
 #  define SNMALLOC_FAST_PATH ALWAYSINLINE
+#  if _MSC_VER >= 1927
+#    define SNMALLOC_FAST_PATH_LAMBDA [[msvc::forceinline]]
+#  else
+#    define SNMALLOC_FAST_PATH_LAMBDA
+#  endif
 #  define SNMALLOC_PURE
 #  define SNMALLOC_COLD
+#  define SNMALLOC_REQUIRE_CONSTINIT
 #else
 #  define likely(x) __builtin_expect(!!(x), 1)
 #  define unlikely(x) __builtin_expect(!!(x), 0)
 #  define ALWAYSINLINE __attribute__((always_inline))
 #  define NOINLINE __attribute__((noinline))
 #  define SNMALLOC_SLOW_PATH NOINLINE
-#  define SNMALLOC_FAST_PATH inline ALWAYSINLINE
+#  define SNMALLOC_FAST_PATH ALWAYSINLINE
+#  define SNMALLOC_FAST_PATH_LAMBDA SNMALLOC_FAST_PATH
 #  define SNMALLOC_PURE __attribute__((const))
 #  define SNMALLOC_COLD __attribute__((cold))
+#  ifdef __clang__
+#    define SNMALLOC_REQUIRE_CONSTINIT \
+      [[clang::require_constant_initialization]]
+#  else
+#    define SNMALLOC_REQUIRE_CONSTINIT
+#  endif
 #endif
 
 #if defined(__cpp_constinit) && __cpp_constinit >= 201907
@@ -99,4 +112,28 @@ namespace snmalloc
       { \
       } while (0)
 #  endif
+#endif
+
+// // The CHECK_CLIENT macro is used to turn on minimal checking of the client
+// // calling the API correctly.
+// #if !defined(NDEBUG) && !defined(CHECK_CLIENT)
+// #  define CHECK_CLIENT
+// #endif
+
+inline SNMALLOC_FAST_PATH void check_client_error(const char* const str)
+{
+  //[[clang::musttail]]
+  return snmalloc::error(str);
+}
+
+inline SNMALLOC_FAST_PATH void
+check_client_impl(bool test, const char* const str)
+{
+  if (unlikely(!test))
+    check_client_error(str);
+}
+#ifdef CHECK_CLIENT
+#  define check_client(test, str) check_client_impl(test, str)
+#else
+#  define check_client(test, str)
 #endif

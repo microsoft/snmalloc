@@ -13,7 +13,7 @@
  */
 namespace snmalloc
 {
-#ifndef NDEBUG
+#if !defined(NDEBUG) && !defined(SNMALLOC_DISABLE_ABA_VERIFY)
   // LL/SC typically can only perform one operation at a time
   // check this on other platforms using a thread_local.
   inline thread_local bool operation_in_flight = false;
@@ -24,24 +24,20 @@ namespace snmalloc
   // fall back to locked implementation.
 #if defined(PLATFORM_IS_X86) && \
   !(defined(GCC_NOT_CLANG) && defined(OPEN_ENCLAVE))
-  template<
-    typename T,
-    Construction c = RequiresInit,
-    template<typename> typename Ptr = Pointer,
-    template<typename> typename AtomicPtr = AtomicPointer>
+  template<typename T, Construction c = RequiresInit>
   class ABA
   {
   public:
     struct alignas(2 * sizeof(std::size_t)) Linked
     {
-      Ptr<T> ptr;
-      uintptr_t aba;
+      T* ptr{nullptr};
+      uintptr_t aba{0};
     };
 
     struct Independent
     {
-      AtomicPtr<T> ptr;
-      std::atomic<uintptr_t> aba;
+      std::atomic<T*> ptr{nullptr};
+      std::atomic<uintptr_t> aba{0};
     };
 
     static_assert(
@@ -59,13 +55,9 @@ namespace snmalloc
     };
 
   public:
-    ABA()
-    {
-      if constexpr (c == RequiresInit)
-        init(nullptr);
-    }
+    constexpr ABA() : independent() {}
 
-    void init(Ptr<T> x)
+    void init(T* x)
     {
       independent.ptr.store(x, std::memory_order_relaxed);
       independent.aba.store(0, std::memory_order_relaxed);
@@ -75,7 +67,7 @@ namespace snmalloc
 
     Cmp read()
     {
-#  ifndef NDEBUG
+#  if !defined(NDEBUG) && !defined(SNMALLOC_DISABLE_ABA_VERIFY)
       if (operation_in_flight)
         error("Only one inflight ABA operation at a time is allowed.");
       operation_in_flight = true;
@@ -97,12 +89,12 @@ namespace snmalloc
        */
       Cmp(Linked old, ABA* parent) : old(old), parent(parent) {}
 
-      Ptr<T> ptr()
+      T* ptr()
       {
         return old.ptr;
       }
 
-      bool store_conditional(Ptr<T> value)
+      bool store_conditional(T* value)
       {
 #  if defined(_MSC_VER) && defined(SNMALLOC_VA_BITS_64)
         auto result = _InterlockedCompareExchange128(
@@ -127,7 +119,7 @@ namespace snmalloc
 
       ~Cmp()
       {
-#  ifndef NDEBUG
+#  if !defined(NDEBUG) && !defined(SNMALLOC_DISABLE_ABA_VERIFY)
         operation_in_flight = false;
 #  endif
       }
@@ -137,7 +129,7 @@ namespace snmalloc
     };
 
     // This method is used in Verona
-    Ptr<T> peek()
+    T* peek()
     {
       return independent.ptr.load(std::memory_order_relaxed);
     }
@@ -146,19 +138,15 @@ namespace snmalloc
   /**
    * Naive implementation of ABA protection using a spin lock.
    */
-  template<
-    typename T,
-    Construction c = RequiresInit,
-    template<typename> typename Ptr = Pointer,
-    template<typename> typename AtomicPtr = AtomicPointer>
+  template<typename T, Construction c = RequiresInit>
   class ABA
   {
-    AtomicPtr<T> ptr = nullptr;
+    std::atomic<T*> ptr = nullptr;
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
 
   public:
     // This method is used in Verona
-    void init(Ptr<T> x)
+    void init(T* x)
     {
       ptr.store(x, std::memory_order_relaxed);
     }
@@ -170,7 +158,7 @@ namespace snmalloc
       while (lock.test_and_set(std::memory_order_acquire))
         Aal::pause();
 
-#  ifndef NDEBUG
+#  if !defined(NDEBUG) && !defined(SNMALLOC_DISABLE_ABA_VERIFY)
       if (operation_in_flight)
         error("Only one inflight ABA operation at a time is allowed.");
       operation_in_flight = true;
@@ -184,12 +172,12 @@ namespace snmalloc
       ABA* parent;
 
     public:
-      Ptr<T> ptr()
+      T* ptr()
       {
         return parent->ptr;
       }
 
-      bool store_conditional(Ptr<T> t)
+      bool store_conditional(T* t)
       {
         parent->ptr = t;
         return true;
@@ -198,14 +186,14 @@ namespace snmalloc
       ~Cmp()
       {
         parent->lock.clear(std::memory_order_release);
-#  ifndef NDEBUG
+#  if !defined(NDEBUG) && !defined(SNMALLOC_DISABLE_ABA_VERIFY)
         operation_in_flight = false;
 #  endif
       }
     };
 
     // This method is used in Verona
-    Ptr<T> peek()
+    T* peek()
     {
       return ptr.load(std::memory_order_relaxed);
     }

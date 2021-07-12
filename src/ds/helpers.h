@@ -3,6 +3,7 @@
 #include "bits.h"
 #include "flaglock.h"
 
+#include <array>
 #include <type_traits>
 
 namespace snmalloc
@@ -72,6 +73,7 @@ namespace snmalloc
     }
   };
 
+#ifdef CHECK_CLIENT
   template<size_t length, typename T>
   class ModArray
   {
@@ -84,7 +86,7 @@ namespace snmalloc
     };
 
     static constexpr size_t rlength = bits::next_pow2_const(length);
-    TWrap array[rlength];
+    std::array<TWrap, rlength> array;
 
   public:
     constexpr const T& operator[](const size_t i) const
@@ -97,14 +99,22 @@ namespace snmalloc
       return array[i & (rlength - 1)].v;
     }
   };
+#else
+  template<size_t length, typename T>
+  using ModArray = std::array<T, length>;
+#endif
 
   /**
    * Helper class to execute a specified function on destruction.
    */
-  template<void f()>
+  template<typename F>
   class OnDestruct
   {
+    F f;
+
   public:
+    OnDestruct(F f) : f(f) {}
+
     ~OnDestruct()
     {
       f();

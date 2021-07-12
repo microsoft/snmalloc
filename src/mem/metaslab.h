@@ -3,16 +3,16 @@
 #include "../ds/cdllist.h"
 #include "../ds/dllist.h"
 #include "../ds/helpers.h"
+#include "../mem/remoteallocator.h"
 #include "freelist.h"
 #include "ptrhelpers.h"
-#include "sizeclass.h"
+#include "sizeclasstable.h"
 
 namespace snmalloc
 {
   class Slab;
 
-  using SlabList = CDLLNode<CapPtrCBChunk>;
-  using SlabLink = CDLLNode<CapPtrCBChunk>;
+  using SlabLink = CDLLNode<>;
 
   static_assert(
     sizeof(SlabLink) <= MIN_ALLOC_SIZE,
@@ -27,25 +27,32 @@ namespace snmalloc
   struct MetaslabEnd
   {
     /**
-     *  How many entries are not in the free list of slab, i.e.
-     *  how many entries are needed to fully free this slab.
-     *
-     *  In the case of a fully allocated slab, where prev==0 needed
-     *  will be 1. This enables 'return_object' to detect the slow path
-     *  case with a single operation subtract and test.
+     * The number of deallocation required until we hit a slow path. This
+     * counts down in two different ways that are handled the same on the
+     * fast path.  The first is
+     *   - deallocations until the slab has sufficient entries to be considered
+     *   useful to allocate from.  This could be as low as 1, or when we have
+     *   a requirement for entropy then it could be much higher.
+     *   - deallocations until the slab is completely unused.  This is needed
+     *   to be detected, so that the statistics can be kept up to date, and
+     *   potentially return memory to the a global pool of slabs/chunks.
      */
     uint16_t needed = 0;
 
-    uint8_t sizeclass;
-    // Initially zero to encode the superslabs relative list of slabs.
-    uint8_t next = 0;
+    /**
+     * Flag that is used to indicate that the slab is currently not active.
+     * I.e. it is not in a CoreAllocator cache for the appropriate sizeclass.
+     */
+    bool sleeping = false;
   };
 
   // The Metaslab represent the status of a single slab.
   // This can be either a short or a standard slab.
-  class Metaslab : public SlabLink
+  class alignas(CACHELINE_SIZE) Metaslab : public SlabLink
   {
   public:
+    constexpr Metaslab() : SlabLink(true) {}
+
     /**
      *  Data-structure for building the free list for this slab.
      *
@@ -62,26 +69,23 @@ namespace snmalloc
       return free_queue.s.needed;
     }
 
-    uint8_t sizeclass()
+    bool& sleeping()
     {
-      return free_queue.s.sizeclass;
+      return free_queue.s.sleeping;
     }
 
-    uint8_t& next()
+    /**
+     * Initialise Metaslab for a slab.
+     */
+    void initialise(sizeclass_t sizeclass)
     {
-      return free_queue.s.next;
-    }
-
-    void initialise(sizeclass_t sizeclass, CapPtr<Slab, CBChunk> slab)
-    {
-      free_queue.s.sizeclass = static_cast<uint8_t>(sizeclass);
       free_queue.init();
       // Set up meta data as if the entire slab has been turned into a free
       // list. This means we don't have to check for special cases where we have
       // returned all the elements, but this is a slab that is still being bump
       // allocated from. Hence, the bump allocator slab will never be returned
       // for use in another size class.
-      set_full(slab);
+      set_sleeping(sizeclass);
     }
 
     /**
@@ -101,155 +105,111 @@ namespace snmalloc
       return needed() == 0;
     }
 
-    bool is_full()
+    bool is_sleeping()
     {
-      return get_prev() == nullptr;
+      return sleeping();
     }
 
-    /**
-     * Only wake slab if we have this many free allocations
-     *
-     * This helps remove bouncing around empty to non-empty cases.
-     *
-     * It also increases entropy, when we have randomisation.
-     */
-    uint16_t threshold_for_waking_slab(bool is_short_slab)
+    SNMALLOC_FAST_PATH void set_sleeping(sizeclass_t sizeclass)
     {
-      auto capacity = get_slab_capacity(sizeclass(), is_short_slab);
-      uint16_t threshold = (capacity / 8) | 1;
-      uint16_t max = 32;
-      return bits::min(threshold, max);
-    }
-
-    template<capptr_bounds B>
-    SNMALLOC_FAST_PATH void set_full(CapPtr<Slab, B> slab)
-    {
-      static_assert(B == CBChunkD || B == CBChunk);
       SNMALLOC_ASSERT(free_queue.empty());
-
-      // Prepare for the next free queue to be built.
-      free_queue.open(slab.as_void());
 
       // Set needed to at least one, possibly more so we only use
       // a slab when it has a reasonable amount of free elements
-      needed() = threshold_for_waking_slab(Metaslab::is_short(slab));
-      null_prev();
+      needed() = threshold_for_waking_slab(sizeclass);
+      sleeping() = true;
     }
 
-    template<typename T, capptr_bounds B>
-    static SNMALLOC_FAST_PATH CapPtr<Slab, capptr_bound_chunkd_bounds<B>()>
-    get_slab(CapPtr<T, B> p)
+    SNMALLOC_FAST_PATH void set_not_sleeping(sizeclass_t sizeclass)
     {
-      static_assert(B == CBArena || B == CBChunkD || B == CBChunk);
+      auto allocated = sizeclass_to_slab_object_count(sizeclass);
+      needed() = allocated - threshold_for_waking_slab(sizeclass);
 
-      return capptr_bound_chunkd(
-        pointer_align_down<SLAB_SIZE, Slab>(p.as_void()), SLAB_SIZE);
+      // Design ensures we can't move from full to empty.
+      // There are always some more elements to free at this
+      // point. This is because the threshold is always less
+      // than the count for the slab
+      SNMALLOC_ASSERT(needed() != 0);
+
+      sleeping() = false;
     }
 
-    template<capptr_bounds B>
-    static bool is_short(CapPtr<Slab, B> p)
-    {
-      return pointer_align_down<SUPERSLAB_SIZE, Slab>(p.as_void()) == p;
-    }
-
-    SNMALLOC_FAST_PATH bool is_start_of_object(address_t p)
+    static SNMALLOC_FAST_PATH bool
+    is_start_of_object(sizeclass_t sizeclass, address_t p)
     {
       return is_multiple_of_sizeclass(
-        sizeclass(), SLAB_SIZE - (p - address_align_down<SLAB_SIZE>(p)));
+        sizeclass,
+        p - (bits::align_down(p, sizeclass_to_slab_size(sizeclass))));
     }
 
     /**
-     * Takes a free list out of a slabs meta data.
-     * Returns the link as the allocation, and places the free list into the
-     * `fast_free_list` for further allocations.
+     * TODO
      */
-    template<ZeroMem zero_mem, SNMALLOC_CONCEPT(ConceptPAL) PAL>
-    static SNMALLOC_FAST_PATH CapPtr<void, CBAllocE> alloc(
-      CapPtr<Metaslab, CBChunk> self,
+    static SNMALLOC_FAST_PATH CapPtr<FreeObject, CBAlloc> alloc(
+      Metaslab* meta,
       FreeListIter& fast_free_list,
-      size_t rsize,
-      LocalEntropy& entropy)
+      LocalEntropy& entropy,
+      sizeclass_t sizeclass)
     {
-      SNMALLOC_ASSERT(rsize == sizeclass_to_size(self->sizeclass()));
-      SNMALLOC_ASSERT(!self->is_full());
+      FreeListIter tmp_fl;
+      meta->free_queue.close(tmp_fl, entropy);
+      auto p = tmp_fl.take(entropy);
+      fast_free_list = tmp_fl;
 
-      self->free_queue.close(fast_free_list, entropy);
-      auto p = fast_free_list.take(entropy);
-      auto slab = Aal::capptr_rebound(self.as_void(), p);
-      auto meta = Metaslab::get_slab(slab);
-
+#ifdef CHECK_CLIENT
       entropy.refresh_bits();
+#endif
 
       // Treat stealing the free list as allocating it all.
-      self->remove();
-      self->set_full(meta);
+      // This marks the slab as sleeping, and sets a wakeup
+      // when sufficient deallocations have occurred to this slab.
+      meta->set_sleeping(sizeclass);
 
-      SNMALLOC_ASSERT(self->is_start_of_object(address_cast(p)));
-
-      self->debug_slab_invariant(meta, entropy);
-
-      if constexpr (zero_mem == YesZero)
-      {
-        if (rsize < PAGE_ALIGNED_SIZE)
-          pal_zero<PAL>(p, rsize);
-        else
-          pal_zero<PAL, true>(Aal::capptr_rebound(self.as_void(), p), rsize);
-      }
-      else
-      {
-        UNUSED(rsize);
-      }
-
-      // TODO: Should this be zeroing the FreeObject state?
-      return capptr_export(p.as_void());
-    }
-
-    template<capptr_bounds B>
-    void debug_slab_invariant(CapPtr<Slab, B> slab, LocalEntropy& entropy)
-    {
-      static_assert(B == CBChunkD || B == CBChunk);
-
-#if !defined(NDEBUG) && !defined(SNMALLOC_CHEAP_CHECKS)
-      bool is_short = Metaslab::is_short(slab);
-
-      if (is_full())
-      {
-        size_t count = free_queue.debug_length(entropy);
-        SNMALLOC_ASSERT(count < threshold_for_waking_slab(is_short));
-        return;
-      }
-
-      if (is_unused())
-        return;
-
-      size_t size = sizeclass_to_size(sizeclass());
-      size_t offset = get_initial_offset(sizeclass(), is_short);
-      size_t accounted_for = needed() * size + offset;
-
-      // Block is not full
-      SNMALLOC_ASSERT(SLAB_SIZE > accounted_for);
-
-      // Account for list size
-      size_t count = free_queue.debug_length(entropy);
-      accounted_for += count * size;
-
-      SNMALLOC_ASSERT(count <= get_slab_capacity(sizeclass(), is_short));
-
-      auto bumpptr = (get_slab_capacity(sizeclass(), is_short) * size) + offset;
-      // Check we haven't allocated more than fits in a slab
-      SNMALLOC_ASSERT(bumpptr <= SLAB_SIZE);
-
-      // Account for to be bump allocated space
-      accounted_for += SLAB_SIZE - bumpptr;
-
-      SNMALLOC_ASSERT(!is_full());
-
-      // All space accounted for
-      SNMALLOC_ASSERT(SLAB_SIZE == accounted_for);
-#else
-      UNUSED(slab);
-      UNUSED(entropy);
-#endif
+      return p;
     }
   };
+
+  struct RemoteAllocator;
+
+  /**
+   * Entry stored in the pagemap.
+   */
+  class MetaEntry
+  {
+    Metaslab* meta{nullptr};
+    uintptr_t remote_and_sizeclass{0};
+
+  public:
+    constexpr MetaEntry() = default;
+
+    MetaEntry(Metaslab* meta, RemoteAllocator* remote, sizeclass_t sizeclass)
+    : meta(meta)
+    {
+      remote_and_sizeclass =
+        address_cast(pointer_offset<char>(remote, sizeclass));
+    }
+
+    [[nodiscard]] Metaslab* get_metaslab() const
+    {
+      return meta;
+    }
+
+    [[nodiscard]] RemoteAllocator* get_remote() const
+    {
+      return reinterpret_cast<RemoteAllocator*>(
+        bits::align_down(remote_and_sizeclass, alignof(RemoteAllocator)));
+    }
+
+    [[nodiscard]] sizeclass_t get_sizeclass() const
+    {
+      return remote_and_sizeclass & (alignof(RemoteAllocator) - 1);
+    }
+  };
+
+  struct MetaslabCache : public CDLLNode<>
+  {
+    uint16_t unused;
+    uint16_t length;
+  };
+
 } // namespace snmalloc

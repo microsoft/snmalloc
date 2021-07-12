@@ -1,5 +1,7 @@
 #pragma once
 
+#include "defines.h"
+
 #include <atomic>
 
 namespace snmalloc
@@ -99,16 +101,17 @@ namespace snmalloc
    * summary of its StrictProvenance metadata.
    */
   template<typename T, capptr_bounds bounds>
-  struct CapPtr
+  class CapPtr
   {
-    T* unsafe_capptr;
+    uintptr_t unsafe_capptr;
 
+  public:
     /**
      * nullptr is implicitly constructable at any bounds type
      */
-    CapPtr(const std::nullptr_t n) : unsafe_capptr(n) {}
+    constexpr CapPtr(const std::nullptr_t) : unsafe_capptr(0) {}
 
-    CapPtr() : CapPtr(nullptr) {}
+    constexpr CapPtr() : CapPtr(nullptr){};
 
     /**
      * all other constructions must be explicit
@@ -124,10 +127,12 @@ namespace snmalloc
 #  pragma warning(push)
 #  pragma warning(disable : 4702)
 #endif
-    explicit CapPtr(T* p) : unsafe_capptr(p) {}
+    constexpr explicit CapPtr(uintptr_t p) : unsafe_capptr(p) {}
 #ifdef _MSC_VER
 #  pragma warning(pop)
 #endif
+
+    explicit CapPtr(T* p) : unsafe_capptr(reinterpret_cast<uintptr_t>(p)) {}
 
     /**
      * Allow static_cast<>-s that preserve bounds but vary the target type.
@@ -135,7 +140,7 @@ namespace snmalloc
     template<typename U>
     SNMALLOC_FAST_PATH CapPtr<U, bounds> as_static()
     {
-      return CapPtr<U, bounds>(static_cast<U*>(this->unsafe_capptr));
+      return CapPtr<U, bounds>(this->unsafe_capptr);
     }
 
     SNMALLOC_FAST_PATH CapPtr<void, bounds> as_void()
@@ -149,7 +154,7 @@ namespace snmalloc
     template<typename U>
     SNMALLOC_FAST_PATH CapPtr<U, bounds> as_reinterpret()
     {
-      return CapPtr<U, bounds>(reinterpret_cast<U*>(this->unsafe_capptr));
+      return CapPtr<U, bounds>(this->unsafe_capptr);
     }
 
     SNMALLOC_FAST_PATH bool operator==(const CapPtr& rhs) const
@@ -167,6 +172,16 @@ namespace snmalloc
       return this->unsafe_capptr < rhs.unsafe_capptr;
     }
 
+    [[nodiscard]] SNMALLOC_FAST_PATH T* unsafe_ptr() const
+    {
+      return reinterpret_cast<T*>(this->unsafe_capptr);
+    }
+
+    [[nodiscard]] SNMALLOC_FAST_PATH uintptr_t unsafe_uintptr() const
+    {
+      return this->unsafe_capptr;
+    }
+
     SNMALLOC_FAST_PATH T* operator->() const
     {
       /*
@@ -174,7 +189,7 @@ namespace snmalloc
        * client; we should be doing nothing with them.
        */
       static_assert(bounds != CBAllocE);
-      return this->unsafe_capptr;
+      return unsafe_ptr();
     }
   };
 
@@ -198,7 +213,7 @@ namespace snmalloc
    * several chunks) to be the allocation.
    */
   template<typename T>
-  SNMALLOC_FAST_PATH CapPtr<T, CBAllocE>
+  inline SNMALLOC_FAST_PATH CapPtr<T, CBAllocE>
   capptr_chunk_is_alloc(CapPtr<T, CBChunkE> p)
   {
     return CapPtr<T, CBAlloc>(p.unsafe_capptr);
@@ -208,9 +223,9 @@ namespace snmalloc
    * With all the bounds and constraints in place, it's safe to extract a void
    * pointer (to reveal to the client).
    */
-  SNMALLOC_FAST_PATH void* capptr_reveal(CapPtr<void, CBAllocE> p)
+  inline SNMALLOC_FAST_PATH void* capptr_reveal(CapPtr<void, CBAllocE> p)
   {
-    return p.unsafe_capptr;
+    return p.unsafe_ptr();
   }
 
   /**
@@ -230,12 +245,12 @@ namespace snmalloc
     /**
      * nullptr is constructable at any bounds type
      */
-    AtomicCapPtr(const std::nullptr_t n) : unsafe_capptr(n) {}
+    constexpr AtomicCapPtr(const std::nullptr_t n) : unsafe_capptr(n) {}
 
     /**
      * Interconversion with CapPtr
      */
-    AtomicCapPtr(CapPtr<T, bounds> p) : unsafe_capptr(p.unsafe_capptr) {}
+    AtomicCapPtr(CapPtr<T, bounds> p) : unsafe_capptr(p.unsafe_ptr()) {}
 
     operator CapPtr<T, bounds>() const noexcept
     {
@@ -261,7 +276,7 @@ namespace snmalloc
       CapPtr<T, bounds> desired,
       std::memory_order order = std::memory_order_seq_cst) noexcept
     {
-      this->unsafe_capptr.store(desired.unsafe_capptr, order);
+      this->unsafe_capptr.store(desired.unsafe_ptr(), order);
     }
 
     SNMALLOC_FAST_PATH CapPtr<T, bounds> exchange(
@@ -269,7 +284,7 @@ namespace snmalloc
       std::memory_order order = std::memory_order_seq_cst) noexcept
     {
       return CapPtr<T, bounds>(
-        this->unsafe_capptr.exchange(desired.unsafe_capptr, order));
+        this->unsafe_capptr.exchange(desired.unsafe_ptr(), order));
     }
 
     SNMALLOC_FAST_PATH bool operator==(const AtomicCapPtr& rhs) const

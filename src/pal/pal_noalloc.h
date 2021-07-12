@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include "../aal/aal.h"
+#include "pal_consts.h"
+
 #include <cstring>
 
 namespace snmalloc

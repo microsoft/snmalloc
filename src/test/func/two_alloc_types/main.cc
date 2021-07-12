@@ -31,35 +31,20 @@ extern "C" void host_free(void*);
 extern "C" void* enclave_malloc(size_t);
 extern "C" void enclave_free(void*);
 
-extern "C" void*
-enclave_snmalloc_chunkmap_global_get(snmalloc::PagemapConfig const**);
-extern "C" void*
-host_snmalloc_chunkmap_global_get(snmalloc::PagemapConfig const**);
-
 using namespace snmalloc;
 int main()
 {
   setup();
 
-  MemoryProviderStateMixin<
-    DefaultPal,
-    DefaultArenaMap<DefaultPal, DefaultPrimAlloc>>
-    mp;
-
   // 26 is large enough to produce a nested allocator.
-  // It is also large enough for the example to run in.
-  // For 1MiB superslabs, SUPERSLAB_BITS + 2 is not big enough for the example.
-  size_t large_class = 26 - SUPERSLAB_BITS;
-  size_t size = bits::one_at_bit(SUPERSLAB_BITS + large_class);
-  void* oe_base = mp.reserve<true>(large_class).unsafe_capptr;
-  void* oe_end = (uint8_t*)oe_base + size;
-  oe_allocator_init(oe_base, oe_end);
-  std::cout << "Allocated region " << oe_base << " - " << oe_end << std::endl;
+  // many other sizes would work.
+  size_t length = bits::one_at_bit(26);
+  auto oe_base = host_malloc(length);
 
-  // Call these functions to trigger asserts if the cast-to-self doesn't work.
-  const PagemapConfig* c;
-  enclave_snmalloc_chunkmap_global_get(&c);
-  host_snmalloc_chunkmap_global_get(&c);
+  auto oe_end = pointer_offset(oe_base, length);
+  oe_allocator_init(oe_base, oe_end);
+
+  std::cout << "Allocated region " << oe_base << " - " << oe_end << std::endl;
 
   auto a = host_malloc(128);
   auto b = enclave_malloc(128);
@@ -68,5 +53,7 @@ int main()
   std::cout << "Enclave alloc " << b << std::endl;
 
   host_free(a);
+  std::cout << "Host freed!" << std::endl;
   enclave_free(b);
+  std::cout << "Enclace freed!" << std::endl;
 }

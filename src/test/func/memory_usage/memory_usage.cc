@@ -2,7 +2,6 @@
  * Memory usage test
  * Query memory usage repeatedly
  */
-
 #include <iostream>
 #include <test/setup.h>
 #include <vector>
@@ -35,7 +34,7 @@ bool print_memory_usage()
   return false;
 }
 
-std::vector<void*> allocs;
+std::vector<void*> allocs{};
 
 /**
  * Add allocs until the statistics have changed n times.
@@ -44,7 +43,8 @@ void add_n_allocs(size_t n)
 {
   while (true)
   {
-    allocs.push_back(our_malloc(1024));
+    auto p = our_malloc(1024);
+    allocs.push_back(p);
     if (print_memory_usage())
     {
       n--;
@@ -61,7 +61,10 @@ void remove_n_allocs(size_t n)
 {
   while (true)
   {
-    our_free(allocs.back());
+    if (allocs.empty())
+      return;
+    auto p = allocs.back();
+    our_free(p);
     allocs.pop_back();
     if (print_memory_usage())
     {

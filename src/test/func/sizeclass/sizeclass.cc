@@ -38,7 +38,8 @@ void test_align_size()
       failed |= true;
     }
 
-    for (size_t alignment_bits = 0; alignment_bits < snmalloc::SUPERSLAB_BITS;
+    for (size_t alignment_bits = 0;
+         alignment_bits < snmalloc::MAX_SIZECLASS_BITS;
          alignment_bits++)
     {
       auto alignment = (size_t)1 << alignment_bits;
@@ -76,11 +77,17 @@ int main(int, char**)
 
   std::cout << "sizeclass |-> [size_low, size_high] " << std::endl;
 
-  for (snmalloc::sizeclass_t sz = 0; sz < snmalloc::NUM_SIZECLASSES; sz++)
+  size_t slab_size = 0;
+  for (snmalloc::sizeclass_t sz = 0; sz < snmalloc::NUM_SIZECLASSES + 20; sz++)
   {
     // Separate printing for small and medium sizeclasses
-    if (sz == snmalloc::NUM_SMALL_CLASSES)
+    if (
+      sz < snmalloc::NUM_SIZECLASSES &&
+      slab_size != snmalloc::sizeclass_to_slab_size(sz))
+    {
+      slab_size = snmalloc::sizeclass_to_slab_size(sz);
       std::cout << std::endl;
+    }
 
     size_t size = snmalloc::sizeclass_to_size(sz);
     std::cout << (size_t)sz << " |-> "

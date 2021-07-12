@@ -1,5 +1,7 @@
 #pragma once
 
+#include "address.h"
+
 namespace snmalloc
 {
   /**
