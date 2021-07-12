@@ -25,7 +25,10 @@ namespace snmalloc
     /**
      * Constructor.  Claims an allocator from the global pool
      */
-    ScopedAllocator() = default;
+    ScopedAllocator()
+    {
+      alloc.init();
+    };
 
     /**
      * Copying is not supported, it could easily lead to accidental sharing of
