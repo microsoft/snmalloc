@@ -11,8 +11,6 @@ namespace snmalloc
   class CommonConfig
   {
   public:
-    using Pal = DefaultPal;
-
     /**
      * Special remote that should never be used as a real remote.
      * This is used to initialise allocators that should always hit the

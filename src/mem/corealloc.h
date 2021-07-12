@@ -397,7 +397,7 @@ namespace snmalloc
       // Entropy must be first, so that all data-structures can use the key
       // it generates.
       // This must occur before any freelists are constructed.
-      entropy.init<typename SharedStateHandle::Pal>();
+      entropy.init<typename SharedStateHandle::Backend::Pal>();
 
       // Ignoring stats for now.
       //      stats().start();

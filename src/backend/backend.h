@@ -15,6 +15,8 @@ namespace snmalloc
   class BackendAllocator
   {
   public:
+    using Pal = PAL;
+
     /**
      * Local state for the backend allocator.
      *

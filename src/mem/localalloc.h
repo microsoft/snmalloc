@@ -164,7 +164,7 @@ namespace snmalloc
 
         if (zero_mem == YesZero)
         {
-          SharedStateHandle::Pal::template zero<false>(
+          SharedStateHandle::Backend::Pal::template zero<false>(
             chunk.unsafe_ptr(), size);
         }
 

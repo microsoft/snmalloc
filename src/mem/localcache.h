@@ -32,7 +32,7 @@ namespace snmalloc
     auto r = finish_alloc_no_zero(p, sizeclass);
 
     if constexpr (zero_mem == YesZero)
-      SharedStateHandle::Pal::zero(r, sizeclass_to_size(sizeclass));
+      SharedStateHandle::Backend::Pal::zero(r, sizeclass_to_size(sizeclass));
 
     // TODO: Should this be zeroing the FreeObject state, in the non-zeroing
     // case?
