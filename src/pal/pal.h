@@ -56,7 +56,7 @@ namespace snmalloc
 #if defined(SNMALLOC_MEMORY_PROVIDER)
     PALPlainMixin<SNMALLOC_MEMORY_PROVIDER>;
 #elif defined(OPEN_ENCLAVE)
-    PALPlainMixin<PALOpenEnclave>;
+    PALOpenEnclave;
 #else
     DefaultPal;
 #endif

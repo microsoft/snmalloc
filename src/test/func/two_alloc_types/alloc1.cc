@@ -10,7 +10,8 @@
 #define SNMALLOC_PROVIDE_OWN_CONFIG
 namespace snmalloc
 {
-  using Alloc = LocalAllocator<FixedGlobals>;
+  using CustomGlobals = FixedGlobals<PALNoAlloc<DefaultPal>>;
+  using Alloc = LocalAllocator<CustomGlobals>;
 }
 
 #define SNMALLOC_NAME_MANGLE(a) enclave_##a
@@ -18,7 +19,7 @@ namespace snmalloc
 
 extern "C" void oe_allocator_init(void* base, void* end)
 {
-  snmalloc::FixedGlobals fixed_handle;
+  snmalloc::CustomGlobals fixed_handle;
   fixed_handle.init(
     CapPtr<void, CBChunk>(base), address_cast(end) - address_cast(base));
 }

@@ -11,7 +11,8 @@
 
 using namespace snmalloc;
 
-using FixedAlloc = LocalAllocator<FixedGlobals>;
+using CustomGlobals = FixedGlobals<PALNoAlloc<DefaultPal>>;
+using FixedAlloc = LocalAllocator<CustomGlobals>;
 
 int main()
 {
@@ -30,8 +31,8 @@ int main()
   std::cout << "Allocated region " << oe_base.unsafe_ptr() << " - "
             << pointer_offset(oe_base, size).unsafe_ptr() << std::endl;
 
-  FixedGlobals fixed_handle;
-  FixedGlobals::init(oe_base, size);
+  CustomGlobals fixed_handle;
+  CustomGlobals::init(oe_base, size);
   FixedAlloc a(fixed_handle);
 
   size_t object_size = 128;
