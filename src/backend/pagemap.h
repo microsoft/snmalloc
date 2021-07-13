@@ -129,7 +129,7 @@ namespace snmalloc
       }
 
       //  This means external pointer on Windows will be slow.
-      if constexpr (potentially_out_of_range)
+      if constexpr (potentially_out_of_range && !pal_supports<LazyCommit, PAL>)
       {
         commit_entry(&body[p >> SHIFT]);
       }
