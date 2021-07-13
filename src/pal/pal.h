@@ -16,11 +16,11 @@
 #  include "pal_haiku.h"
 #  include "pal_linux.h"
 #  include "pal_netbsd.h"
-#  include "pal_noalloc.h"
 #  include "pal_openbsd.h"
 #  include "pal_solaris.h"
 #  include "pal_windows.h"
 #endif
+#include "pal_noalloc.h"
 #include "pal_plain.h"
 
 namespace snmalloc

@@ -17,17 +17,18 @@ namespace snmalloc
    * address-space manager is initialised with all of the memory that it will
    * ever use.
    *
-   * It takes an error handler delegate as a template argument. This is
+   * It takes an underlying PAL delegate as a template argument. This is
    * expected to forward to the default PAL in most cases.
    */
-  template<typename ErrorHandler>
+  template<SNMALLOC_CONCEPT(ConceptPAL) UnderlyingPAL>
   struct PALNoAlloc
   {
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
      */
-    static constexpr uint64_t pal_features = NoAllocation;
+    static constexpr uint64_t pal_features = NoAllocation |
+      ((UnderlyingPAL::pal_features & Entropy) != 0 ? Entropy : 0);
 
     static constexpr size_t page_size = Aal::smallest_page_size;
 
@@ -36,7 +37,7 @@ namespace snmalloc
      */
     static void print_stack_trace()
     {
-      ErrorHandler::print_stack_trace();
+      UnderlyingPAL::print_stack_trace();
     }
 
     /**
@@ -44,7 +45,7 @@ namespace snmalloc
      */
     [[noreturn]] static void error(const char* const str) noexcept
     {
-      ErrorHandler::error(str);
+      UnderlyingPAL::error(str);
     }
 
     /**
@@ -82,7 +83,13 @@ namespace snmalloc
     template<bool page_aligned = false>
     static void zero(void* p, size_t size) noexcept
     {
-      memset(p, 0, size);
+      UnderlyingPAL::zero(p, size);
+    }
+
+    static std::enable_if_t<(pal_features & Entropy) != 0, uint64_t>
+    get_entropy64()
+    {
+      return UnderlyingPAL::get_entropy64();
     }
   };
 } // namespace snmalloc
