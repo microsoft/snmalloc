@@ -1,7 +1,36 @@
 #pragma once
 /**
  * This file encapsulates the in disused object free lists
- * that are used per slab of small objects.
+ * that are used per slab of small objects. The implementation
+ * can be configured to introduce randomness to the reallocation,
+ * and also provide signing to detect free list corruption.
+ *
+ * # Corruption
+ *
+ * The corruption detection works as follows
+ *
+ *   FreeObject
+ *   -----------------------------
+ *   | next | prev_encoded | ... |
+ *   -----------------------------
+ * A free object contains a pointer to next object in the free list, and
+ * a prev pointer, but the prev pointer is really a signature with the
+ * following property
+ *
+ *  If n = c->next && n != 0, then n->prev_encoded = f(c,n).
+ *
+ * If f just returns the first parameter, then this degenerates to a doubly
+ * linked list.  (Note that doing the degenerate case can be useful for
+ * debugging snmalloc bugs.) By making it a function of both objects, it
+ * makes it harder for an adversary to mutate prev_encoded to a valid value.
+ *
+ * This provides protection against the free-list being corrupted by memory
+ * safety issues.
+ *
+ * # Randomness
+ *
+ * The randomness is introduced by building two free lists simulatenously,
+ * and randomly deciding which list to add an element to.
  */
 
 #include "../ds/address.h"
@@ -12,100 +41,43 @@
 
 namespace snmalloc
 {
-  static constexpr std::size_t PRESERVE_BOTTOM_BITS = 30;
-
-  static inline bool different_slab(address_t p1, address_t p2)
-  {
-    return (p1 ^ p2) >= bits::one_at_bit(PRESERVE_BOTTOM_BITS);
-  }
-
-  template<typename T>
-  static inline bool different_slab(address_t p1, CapPtr<T, CBAlloc> p2)
-  {
-    return different_slab(p1, address_cast(p2));
-  }
-
-  template<typename T, typename U>
-  static inline bool
-  different_slab(CapPtr<T, CBAlloc> p1, CapPtr<U, CBAlloc> p2)
-  {
-    return different_slab(address_cast(p1), address_cast(p2));
-  }
-
-  class FreeObject;
-
-  class EncodeFreeObjectReference
-  {
-    CapPtr<FreeObject, CBAlloc> reference;
-
-    /**
-     * On architectures which use IntegerPointers, we can obfuscate our free
-     * lists and use this to drive some probabilistic checks for integrity.
-     *
-     * There are two definitions of encode() below, which use std::enable_if_t
-     * to gate on do_encode.
-     */
-#ifndef CHECK_CLIENT
-    static constexpr bool do_encode = false;
-#else
-    static constexpr bool do_encode = aal_supports<IntegerPointers, Aal>;
-#endif
-
-  public:
-#ifdef CHECK_CLIENT
-    template<typename T = FreeObject>
-    static std::enable_if_t<do_encode, CapPtr<T, CBAlloc>> encode(
-      uint32_t local_key, CapPtr<T, CBAlloc> next_object, LocalEntropy& entropy)
-    {
-      // Simple involutional encoding.  The bottom half of each word is
-      // multiplied by a function of both global and local keys (the latter,
-      // in practice, being the address of the previous list entry) and the
-      // resulting word's top part is XORed into the pointer value before it
-      // is stored.
-      auto next = address_cast(next_object);
-      constexpr address_t MASK = bits::one_at_bit(PRESERVE_BOTTOM_BITS) - 1;
-      // Mix in local_key
-      address_t p1 = local_key + entropy.get_constant_key();
-      address_t p2 = (next & MASK) - entropy.get_constant_key();
-      next ^= (p1 * p2) & ~MASK;
-      return CapPtr<T, CBAlloc>(reinterpret_cast<T*>(next));
-    }
-#endif
-
-    template<typename T = FreeObject>
-    static std::enable_if_t<!do_encode, CapPtr<T, CBAlloc>> encode(
-      uint32_t local_key, CapPtr<T, CBAlloc> next_object, LocalEntropy& entropy)
-    {
-      UNUSED(local_key);
-      UNUSED(entropy);
-      return next_object;
-    }
-
-    void store(
-      CapPtr<FreeObject, CBAlloc> value,
-      uint32_t local_key,
-      LocalEntropy& entropy)
-    {
-      reference = encode(local_key, value, entropy);
-    }
-
-    CapPtr<FreeObject, CBAlloc> read(uint32_t local_key, LocalEntropy& entropy)
-    {
-      return encode(local_key, reference, entropy);
-    }
-  };
-
   struct Remote;
+
+  /**
+   * This function is used to sign back pointers in the free list.
+   *
+   * TODO - Needs review.  Should we shift low bits out as they help
+   * guess the key.
+   *
+   * TODO - We now have space in the FreeListBuilder for a fresh key for each
+   * list.
+   */
+  inline static uintptr_t
+  signed_prev(address_t curr, address_t next, LocalEntropy& entropy)
+  {
+    auto c = curr;
+    auto n = next;
+    auto k = entropy.get_constant_key();
+    return (c + k) * (n - k);
+  }
+
   /**
    * Free objects within each slab point directly to the next.
-   * The next_object pointer can be encoded to detect
-   * corruption caused by writes in a UAF or a double free.
+   * There is an optional second field that is effectively a
+   * back pointer in a doubly linked list, however, it is encoded
+   * to prevent corruption.
    */
   class FreeObject
   {
-  public:
-    EncodeFreeObjectReference next_object;
+    CapPtr<FreeObject, CBAlloc> next_object;
+#ifdef CHECK_CLIENT
+    // Encoded representation of a back pointer.
+    // Hard to fake, and provides consistency on
+    // the next pointers.
+    address_t prev_encoded;
+#endif
 
+  public:
     static CapPtr<FreeObject, CBAlloc> make(CapPtr<void, CBAlloc> p)
     {
       return p.template as_static<FreeObject>();
@@ -121,11 +93,42 @@ namespace snmalloc
     }
 
     /**
-     * Read the next pointer handling any required decoding of the pointer
+     * Static so that it can be used on reference to a FreeObject.
+     *
+     * Returns the next_object field of the next parameter, so can be used to
+     * iterate the construction.
      */
-    CapPtr<FreeObject, CBAlloc> read_next(uint32_t key, LocalEntropy& entropy)
+    static CapPtr<FreeObject, CBAlloc>* store(
+      CapPtr<FreeObject, CBAlloc>* curr,
+      CapPtr<FreeObject, CBAlloc> next,
+      LocalEntropy& entropy)
     {
-      return next_object.read(key, entropy);
+      *curr = next;
+#ifdef CHECK_CLIENT
+      next->prev_encoded =
+        signed_prev(address_cast(curr), address_cast(next), entropy);
+#else
+      UNUSED(entropy);
+#endif
+      return &(next->next_object);
+    }
+
+    /**
+     * Check the signature of this FreeObject
+     */
+    void check_prev(address_t signed_prev)
+    {
+      UNUSED(signed_prev);
+      check_client(
+        signed_prev == prev_encoded, "Heap corruption - free list corrupted!");
+    }
+
+    /**
+     * Read the next pointer
+     */
+    CapPtr<FreeObject, CBAlloc> read_next()
+    {
+      return next_object;
     }
   };
 
@@ -136,30 +139,19 @@ namespace snmalloc
    */
   class FreeListIter
   {
-    CapPtr<FreeObject, CBAlloc> curr{1};
+    CapPtr<FreeObject, CBAlloc> curr{nullptr};
 #ifdef CHECK_CLIENT
     address_t prev{0};
 #endif
-
-    uint32_t get_prev()
-    {
-#ifdef CHECK_CLIENT
-      return prev & 0xffff'ffff;
-#else
-      return 0;
-#endif
-    }
 
   public:
     constexpr FreeListIter(
       CapPtr<FreeObject, CBAlloc> head, address_t prev_value)
     : curr(head)
-#ifdef CHECK_CLIENT
-      ,
-      prev(prev_value)
-#endif
     {
-      //      SNMALLOC_ASSERT(head != nullptr);
+#ifdef CHECK_CLIENT
+      prev = prev_value;
+#endif
       UNUSED(prev_value);
     }
 
@@ -170,7 +162,7 @@ namespace snmalloc
      */
     bool empty()
     {
-      return (address_cast(curr) & 1) == 1;
+      return curr == nullptr;
     }
 
     /**
@@ -187,16 +179,17 @@ namespace snmalloc
     CapPtr<FreeObject, CBAlloc> take(LocalEntropy& entropy)
     {
       auto c = curr;
-      auto next = curr->read_next(get_prev(), entropy);
-
-#ifdef CHECK_CLIENT
-      check_client(
-        !different_slab(curr, next), "Heap corruption - free list corrupted!");
-      prev = address_cast(curr);
-#endif
-      curr = next;
+      auto next = curr->read_next();
 
       Aal::prefetch(next.unsafe_ptr());
+      curr = next;
+#ifdef CHECK_CLIENT
+      c->check_prev(prev);
+      prev = signed_prev(address_cast(c), address_cast(next), entropy);
+#else
+      UNUSED(entropy);
+#endif
+
       return c;
     }
   };
@@ -224,45 +217,20 @@ namespace snmalloc
    * If RANDOM is set to false, then the code does not perform any
    * randomisation.
    */
-  template<bool RANDOM = true, typename S = uint32_t>
+  template<bool RANDOM, typename S = uint32_t>
   class FreeListBuilder
   {
     static constexpr size_t LENGTH = RANDOM ? 2 : 1;
 
     // Pointer to the first element.
-    EncodeFreeObjectReference head[LENGTH];
+    CapPtr<FreeObject, CBAlloc> head[LENGTH];
     // Pointer to the reference to the last element.
     // In the empty case end[i] == &head[i]
     // This enables branch free enqueuing.
-    EncodeFreeObjectReference* end[LENGTH];
-#ifdef CHECK_CLIENT
-    // The bottom 32 bits of the previous pointer
-    uint32_t prev[LENGTH];
-#endif
+    CapPtr<FreeObject, CBAlloc>* end[LENGTH];
+
   public:
     S s;
-
-    uint32_t get_prev(uint32_t index)
-    {
-#ifdef CHECK_CLIENT
-      return prev[index];
-#else
-      UNUSED(index);
-      return 0;
-#endif
-    }
-
-    uint32_t get_curr(uint32_t index)
-    {
-#ifdef CHECK_CLIENT
-      return address_cast(end[index]) & 0xffff'ffff;
-#else
-      UNUSED(index);
-      return 0;
-#endif
-    }
-
-    static constexpr uint32_t HEAD_KEY = 1;
 
   public:
     constexpr FreeListBuilder()
@@ -283,63 +251,18 @@ namespace snmalloc
       return true;
     }
 
-    bool debug_different_slab(CapPtr<FreeObject, CBAlloc> n)
-    {
-      for (size_t i = 0; i < LENGTH; i++)
-      {
-        if (!different_slab(address_cast(end[i]), n))
-          return false;
-      }
-      return true;
-    }
-
     /**
      * Adds an element to the builder
      */
     void add(CapPtr<FreeObject, CBAlloc> n, LocalEntropy& entropy)
     {
-      SNMALLOC_ASSERT(!debug_different_slab(n) || empty());
-
       uint32_t index;
       if constexpr (RANDOM)
         index = entropy.next_bit();
       else
         index = 0;
 
-      end[index]->store(n, get_prev(index), entropy);
-#ifdef CHECK_CLIENT
-      prev[index] = get_curr(index);
-#endif
-      end[index] = &(n->next_object);
-    }
-
-    /**
-     *  Calculates the length of the queue.
-     *  This is O(n) as it walks the queue.
-     *  If this is needed in a non-debug setting then
-     *  we should look at redesigning the queue.
-     */
-    size_t debug_length(LocalEntropy& entropy)
-    {
-      size_t count = 0;
-      for (size_t i = 0; i < LENGTH; i++)
-      {
-        uint32_t local_prev = HEAD_KEY;
-        EncodeFreeObjectReference* iter = &head[i];
-        CapPtr<FreeObject, CBAlloc> prev_obj = iter->read(local_prev, entropy);
-        UNUSED(prev_obj);
-        uint32_t local_curr = address_cast(&head[i]) & 0xffff'ffff;
-        while (end[i] != iter)
-        {
-          CapPtr<FreeObject, CBAlloc> next = iter->read(local_prev, entropy);
-          check_client(!different_slab(next, prev_obj), "Heap corruption");
-          local_prev = local_curr;
-          local_curr = address_cast(next) & 0xffff'ffff;
-          count++;
-          iter = &next->next_object;
-        }
-      }
-      return count;
+      end[index] = FreeObject::store(end[index], n, entropy);
     }
 
     /**
@@ -351,29 +274,21 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void
     terminate_list(uint32_t index, LocalEntropy& entropy)
     {
-      auto term = CapPtr<FreeObject, CBAlloc>(
-        reinterpret_cast<uintptr_t>(end[index]) | 1);
-      end[index]->store(term, get_prev(index), entropy);
+      UNUSED(entropy);
+      *end[index] = nullptr;
+    }
+
+    address_t get_fake_signed_prev(uint32_t index, LocalEntropy& entropy)
+    {
+      return signed_prev(
+        address_cast(&head[index]), address_cast(head[index]), entropy);
     }
 
     /**
-     * Adds a terminator at the end of a free list,
-     * but does not close the builder.  Thus new elements
-     * can still be added.  It returns a new iterator to the
-     * list.
-     *
-     * This also collapses the two queues into one, so that it can
-     * be iterated easily.
-     *
-     * This is used to iterate an list that is being constructed.
-     *
-     * It is used with preserve_queue enabled to check
-     * invariants in Debug builds.
-     *
-     * It is used with preserve_queue disabled by close.
+     * Close a free list, and set the iterator parameter
+     * to iterate it.
      */
-    SNMALLOC_FAST_PATH void terminate(
-      FreeListIter& fl, LocalEntropy& entropy, bool preserve_queue = true)
+    SNMALLOC_FAST_PATH void close(FreeListIter& fl, LocalEntropy& entropy)
     {
       if constexpr (RANDOM)
       {
@@ -383,62 +298,29 @@ namespace snmalloc
         // If second list is non-empty, perform append.
         if (end[1] != &head[1])
         {
+          // The start token has been corrupted.
+          // TOUTOC issue, but small window here.
+          head[1]->check_prev(get_fake_signed_prev(1, entropy));
+
           terminate_list(1, entropy);
 
           // Append 1 to 0
-          auto mid = head[1].read(HEAD_KEY, entropy);
-          end[0]->store(mid, get_prev(0), entropy);
-          // Re-code first link in second list (if there is one).
-          // The first link in the second list will be encoded with initial key
-          // of the head, But that needs to be changed to the curr of the first
-          // list.
-          if (mid != nullptr)
-          {
-            auto mid_next =
-              mid->read_next(address_cast(&head[1]) & 0xffff'ffff, entropy);
-            mid->next_object.store(mid_next, get_curr(0), entropy);
-          }
-
-          auto h = head[0].read(HEAD_KEY, entropy);
-
-          // If we need to continue adding to the builder
-          // Set up the second list as empty,
-          // and extend the first list to cover all of the second.
-          if (preserve_queue && h != nullptr)
-          {
-#ifdef CHECK_CLIENT
-            prev[0] = prev[1];
-#endif
-            end[0] = end[1];
-#ifdef CHECK_CLIENT
-            prev[1] = HEAD_KEY;
-#endif
-            end[1] = &(head[1]);
-          }
+          FreeObject::store(end[0], head[1], entropy);
 
           SNMALLOC_ASSERT(end[1] != &head[0]);
           SNMALLOC_ASSERT(end[0] != &head[1]);
-
-          fl = {h, address_cast(&head[0])};
-          return;
+        }
+        else
+        {
+          terminate_list(0, entropy);
         }
       }
       else
       {
-        UNUSED(preserve_queue);
+        terminate_list(0, entropy);
       }
 
-      terminate_list(0, entropy);
-      fl = {head[0].read(HEAD_KEY, entropy), address_cast(&head[0])};
-    }
-
-    /**
-     * Close a free list, and set the iterator parameter
-     * to iterate it.
-     */
-    SNMALLOC_FAST_PATH void close(FreeListIter& dst, LocalEntropy& entropy)
-    {
-      terminate(dst, entropy, false);
+      fl = {head[0], get_fake_signed_prev(0, entropy)};
       init();
     }
 
@@ -450,9 +332,6 @@ namespace snmalloc
       for (size_t i = 0; i < LENGTH; i++)
       {
         end[i] = &head[i];
-#ifdef CHECK_CLIENT
-        prev[i] = HEAD_KEY;
-#endif
       }
     }
   };
