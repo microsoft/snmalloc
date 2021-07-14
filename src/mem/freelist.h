@@ -41,7 +41,18 @@
 
 namespace snmalloc
 {
-  struct Remote;
+  struct FreeListKey
+  {
+    address_t key;
+
+    FreeListKey(uint64_t key_)
+    {
+      if constexpr (bits::BITS == 64)
+        key = static_cast<address_t>(key_);
+      else
+        key = key_ & 0xffff'ffff;
+    }
+  };
 
   /**
    * This function is used to sign back pointers in the free list.
@@ -53,11 +64,11 @@ namespace snmalloc
    * list.
    */
   inline static uintptr_t
-  signed_prev(address_t curr, address_t next, LocalEntropy& entropy)
+  signed_prev(address_t curr, address_t next, FreeListKey& key)
   {
     auto c = curr;
     auto n = next;
-    auto k = entropy.get_constant_key();
+    auto k = key.key;
     return (c + k) * (n - k);
   }
 
@@ -66,10 +77,19 @@ namespace snmalloc
    * There is an optional second field that is effectively a
    * back pointer in a doubly linked list, however, it is encoded
    * to prevent corruption.
+   *
+   * TODO: Consider put prev_encoded at the end of the object, would
+   * require size to be threaded through, but would provide more OOB
+   * detection.
    */
   class FreeObject
   {
-    CapPtr<FreeObject, CBAlloc> next_object;
+    union
+    {
+      CapPtr<FreeObject, CBAlloc> next_object;
+      // TODO: Should really use C++20 atomic_ref rather than a union.
+      AtomicCapPtr<FreeObject, CBAlloc> atomic_next_object;
+    };
 #ifdef CHECK_CLIENT
     // Encoded representation of a back pointer.
     // Hard to fake, and provides consistency on
@@ -84,36 +104,63 @@ namespace snmalloc
     }
 
     /**
-     * Construct a FreeObject for local slabs from a Remote message.
-     */
-    static CapPtr<FreeObject, CBAlloc> make(CapPtr<Remote, CBAlloc> p)
-    {
-      // TODO: Zero the difference between a FreeObject and a Remote
-      return p.template as_reinterpret<FreeObject>();
-    }
-
-    /**
      * Assign next_object and update its prev_encoded if CHECK_CLIENT.
-     *
      * Static so that it can be used on reference to a FreeObject.
      *
      * Returns a pointer to the next_object field of the next parameter as an
      * optimization for repeated snoc operations (in which
      * next->next_object is nullptr).
      */
-    static CapPtr<FreeObject, CBAlloc>* store(
+    static CapPtr<FreeObject, CBAlloc>* store_next(
       CapPtr<FreeObject, CBAlloc>* curr,
       CapPtr<FreeObject, CBAlloc> next,
-      LocalEntropy& entropy)
+      FreeListKey& key)
     {
-      *curr = next;
 #ifdef CHECK_CLIENT
       next->prev_encoded =
-        signed_prev(address_cast(curr), address_cast(next), entropy);
+        signed_prev(address_cast(curr), address_cast(next), key);
 #else
-      UNUSED(entropy);
+      UNUSED(key);
 #endif
+      *curr = next;
       return &(next->next_object);
+    }
+
+    /**
+     * Assign next_object and update its prev_encoded if CHECK_CLIENT
+     *
+     * Uses the atomic view of next, so can be used in the message queues.
+     */
+    void atomic_store_next(CapPtr<FreeObject, CBAlloc> next, FreeListKey& key)
+    {
+#ifdef CHECK_CLIENT
+      next->prev_encoded =
+        signed_prev(address_cast(this), address_cast(next), key);
+#else
+      UNUSED(key);
+#endif
+      // Signature needs to be visible before item is linked in
+      // so requires release semantics.
+      atomic_next_object.store(next, std::memory_order_release);
+    }
+
+    void atomic_store_null()
+    {
+      atomic_next_object.store(nullptr, std::memory_order_relaxed);
+    }
+
+    CapPtr<FreeObject, CBAlloc> atomic_read_next(FreeListKey& key)
+    {
+      auto n = atomic_next_object.load(std::memory_order_acquire);
+#ifdef CHECK_CLIENT
+      if (n != nullptr)
+      {
+        n->check_prev(signed_prev(address_cast(this), address_cast(n), key));
+      }
+#else
+      UNUSED(key);
+#endif
+      return n;
     }
 
     /**
@@ -134,6 +181,10 @@ namespace snmalloc
       return next_object;
     }
   };
+
+  static_assert(
+    sizeof(FreeObject) <= MIN_ALLOC_SIZE,
+    "Needs to be able to fit in smallest allocation.");
 
   /**
    * Used to iterate a free list in object space.
@@ -179,7 +230,7 @@ namespace snmalloc
     /**
      * Moves the iterator on, and returns the current value.
      */
-    CapPtr<FreeObject, CBAlloc> take(LocalEntropy& entropy)
+    CapPtr<FreeObject, CBAlloc> take(FreeListKey& key)
     {
       auto c = curr;
       auto next = curr->read_next();
@@ -188,9 +239,9 @@ namespace snmalloc
       curr = next;
 #ifdef CHECK_CLIENT
       c->check_prev(prev);
-      prev = signed_prev(address_cast(c), address_cast(next), entropy);
+      prev = signed_prev(address_cast(c), address_cast(next), key);
 #else
-      UNUSED(entropy);
+      UNUSED(key);
 #endif
 
       return c;
@@ -220,25 +271,23 @@ namespace snmalloc
    * If RANDOM is set to false, then the code does not perform any
    * randomisation.
    */
-  template<bool RANDOM, typename S = uint32_t>
+  template<bool RANDOM, bool INIT = true>
   class FreeListBuilder
   {
     static constexpr size_t LENGTH = RANDOM ? 2 : 1;
 
     // Pointer to the first element.
-    CapPtr<FreeObject, CBAlloc> head[LENGTH];
+    std::array<CapPtr<FreeObject, CBAlloc>, LENGTH> head;
     // Pointer to the reference to the last element.
     // In the empty case end[i] == &head[i]
     // This enables branch free enqueuing.
-    CapPtr<FreeObject, CBAlloc>* end[LENGTH];
-
-  public:
-    S s;
+    std::array<CapPtr<FreeObject, CBAlloc>*, LENGTH> end{nullptr};
 
   public:
     constexpr FreeListBuilder()
     {
-      init();
+      if (INIT)
+        init();
     }
 
     /**
@@ -257,7 +306,8 @@ namespace snmalloc
     /**
      * Adds an element to the builder
      */
-    void add(CapPtr<FreeObject, CBAlloc> n, LocalEntropy& entropy)
+    void
+    add(CapPtr<FreeObject, CBAlloc> n, FreeListKey& key, LocalEntropy& entropy)
     {
       uint32_t index;
       if constexpr (RANDOM)
@@ -265,33 +315,45 @@ namespace snmalloc
       else
         index = 0;
 
-      end[index] = FreeObject::store(end[index], n, entropy);
+      end[index] = FreeObject::store_next(end[index], n, key);
+    }
+
+    /**
+     * Adds an element to the builder, if we are guaranteed that
+     * RANDOM is false.  This is useful in certain construction
+     * cases that do not need to introduce randomness, such as
+     * during the initialation construction of a free list, which
+     * uses its own algorithm, or during building remote deallocation
+     * lists, which will be randomised at the other end.
+     */
+    template<bool RANDOM_ = RANDOM>
+    std::enable_if_t<!RANDOM_>
+    add(CapPtr<FreeObject, CBAlloc> n, FreeListKey& key)
+    {
+      static_assert(RANDOM_ == RANDOM, "Don't set template parameter");
+      end[0] = FreeObject::store_next(end[0], n, key);
     }
 
     /**
      * Makes a terminator to a free list.
-     *
-     * Termination uses the bottom bit, this allows the next pointer
-     * to always be to the same slab.
      */
-    SNMALLOC_FAST_PATH void
-    terminate_list(uint32_t index, LocalEntropy& entropy)
+    SNMALLOC_FAST_PATH void terminate_list(uint32_t index, FreeListKey& key)
     {
-      UNUSED(entropy);
+      UNUSED(key);
       *end[index] = nullptr;
     }
 
-    address_t get_fake_signed_prev(uint32_t index, LocalEntropy& entropy)
+    address_t get_fake_signed_prev(uint32_t index, FreeListKey& key)
     {
       return signed_prev(
-        address_cast(&head[index]), address_cast(head[index]), entropy);
+        address_cast(&head[index]), address_cast(head[index]), key);
     }
 
     /**
      * Close a free list, and set the iterator parameter
      * to iterate it.
      */
-    SNMALLOC_FAST_PATH void close(FreeListIter& fl, LocalEntropy& entropy)
+    SNMALLOC_FAST_PATH void close(FreeListIter& fl, FreeListKey& key)
     {
       if constexpr (RANDOM)
       {
@@ -303,27 +365,27 @@ namespace snmalloc
         {
           // The start token has been corrupted.
           // TOCTTOU issue, but small window here.
-          head[1]->check_prev(get_fake_signed_prev(1, entropy));
+          head[1]->check_prev(get_fake_signed_prev(1, key));
 
-          terminate_list(1, entropy);
+          terminate_list(1, key);
 
           // Append 1 to 0
-          FreeObject::store(end[0], head[1], entropy);
+          FreeObject::store_next(end[0], head[1], key);
 
           SNMALLOC_ASSERT(end[1] != &head[0]);
           SNMALLOC_ASSERT(end[0] != &head[1]);
         }
         else
         {
-          terminate_list(0, entropy);
+          terminate_list(0, key);
         }
       }
       else
       {
-        terminate_list(0, entropy);
+        terminate_list(0, key);
       }
 
-      fl = {head[0], get_fake_signed_prev(0, entropy)};
+      fl = {head[0], get_fake_signed_prev(0, key)};
       init();
     }
 
@@ -336,6 +398,23 @@ namespace snmalloc
       {
         end[i] = &head[i];
       }
+    }
+
+    std::pair<CapPtr<FreeObject, CBAlloc>, CapPtr<FreeObject, CBAlloc>>
+    extract_segment()
+    {
+      SNMALLOC_ASSERT(!empty());
+      SNMALLOC_ASSERT(!RANDOM); // TODO: Turn this into a static failure.
+
+      auto first = head[0];
+      // end[0] is pointing to the first field in the object,
+      // this is doing a CONTAINING_RECORD like cast to get back
+      // to the actual object.  This isn't true if the builder is
+      // empty, but you are not allowed to call this in the empty case.
+      auto last =
+        CapPtr<FreeObject, CBAlloc>(reinterpret_cast<FreeObject*>(end[0]));
+      init();
+      return {first, last};
     }
   };
 } // namespace snmalloc

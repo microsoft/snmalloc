@@ -73,6 +73,9 @@ namespace snmalloc
       if (initialised)
         return;
 
+      // Initialise key for remote deallocation lists
+      key_global = FreeListKey(get_entropy64<Backend::Pal>());
+
       // Need to initialise pagemap.
       backend_state.init();
 

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../ds/mpscq.h"
 #include "../mem/allocconfig.h"
 #include "../mem/freelist.h"
 #include "../mem/metaslab.h"
@@ -17,40 +16,7 @@ namespace snmalloc
    */
   struct RemoteDeallocCache
   {
-    /*
-     * A singly-linked list of Remote objects, supporting append and
-     * take-all operations.  Intended only for the private use of this
-     * allocator; the Remote objects here will later be taken and pushed
-     * to the inter-thread message queues.
-     */
-    struct RemoteList
-    {
-      /*
-       * A stub Remote object that will always be the head of this list;
-       * never taken for further processing.
-       */
-      Remote head{};
-
-      /**
-       * Initially is null ptr, and needs to be non-null before anything runs on
-       * this.
-       */
-      CapPtr<Remote, CBAlloc> last{nullptr};
-
-      void clear()
-      {
-        last = CapPtr<Remote, CBAlloc>(&head);
-      }
-
-      bool empty()
-      {
-        return address_cast(last) == address_cast(&head);
-      }
-
-      constexpr RemoteList() = default;
-    };
-
-    std::array<RemoteList, REMOTE_SLOTS> list{};
+    std::array<FreeListBuilder<false, false>, REMOTE_SLOTS> list;
 
     /**
      * The total amount of memory we are waiting for before we will dispatch
@@ -98,19 +64,22 @@ namespace snmalloc
     }
 
     template<size_t allocator_size>
-    SNMALLOC_FAST_PATH void
-    dealloc(Remote::alloc_id_t target_id, CapPtr<void, CBAlloc> p)
+    SNMALLOC_FAST_PATH void dealloc(
+      RemoteAllocator::alloc_id_t target_id,
+      CapPtr<void, CBAlloc> p,
+      FreeListKey& key)
     {
       SNMALLOC_ASSERT(initialised);
-      auto r = p.template as_reinterpret<Remote>();
+      auto r = p.template as_reinterpret<FreeObject>();
 
-      RemoteList* l = &list[get_slot<allocator_size>(target_id, 0)];
-      l->last->non_atomic_next = r;
-      l->last = r;
+      list[get_slot<allocator_size>(target_id, 0)].add(r, key);
     }
 
     template<size_t allocator_size, typename SharedStateHandle>
-    bool post(SharedStateHandle handle, Remote::alloc_id_t id)
+    bool post(
+      SharedStateHandle handle,
+      RemoteAllocator::alloc_id_t id,
+      FreeListKey& key)
     {
       SNMALLOC_ASSERT(initialised);
       size_t post_round = 0;
@@ -125,46 +94,37 @@ namespace snmalloc
           if (i == my_slot)
             continue;
 
-          RemoteList* l = &list[i];
-          CapPtr<Remote, CBAlloc> first = l->head.non_atomic_next;
-
-          if (!l->empty())
+          if (!list[i].empty())
           {
+            auto [first, last] = list[i].extract_segment();
             MetaEntry entry = SharedStateHandle::Backend::get_meta_data(
               handle.get_backend_state(), address_cast(first));
-            entry.get_remote()->message_queue.enqueue(first, l->last);
-            l->clear();
+            entry.get_remote()->enqueue(first, last, key);
             sent_something = true;
           }
         }
 
-        RemoteList* resend = &list[my_slot];
-        if (resend->empty())
+        if (list[my_slot].empty())
           break;
 
         // Entries could map back onto the "resend" list,
         // so take copy of the head, mark the last element,
         // and clear the original list.
-        CapPtr<Remote, CBAlloc> r = resend->head.non_atomic_next;
-        resend->last->non_atomic_next = nullptr;
-        resend->clear();
+        FreeListIter resend;
+        list[my_slot].close(resend, key);
 
         post_round++;
 
-        while (r != nullptr)
+        while (!resend.empty())
         {
           // Use the next N bits to spread out remote deallocs in our own
           // slot.
+          auto r = resend.take(key);
           MetaEntry entry = SharedStateHandle::Backend::get_meta_data(
             handle.get_backend_state(), address_cast(r));
           auto i = entry.get_remote()->trunc_id();
-          // TODO correct size for slot offset
           size_t slot = get_slot<allocator_size>(i, post_round);
-          RemoteList* l = &list[slot];
-          l->last->non_atomic_next = r;
-          l->last = r;
-
-          r = r->non_atomic_next;
+          list[slot].add(r, key);
         }
       }
 
@@ -190,8 +150,7 @@ namespace snmalloc
 #endif
       for (auto& l : list)
       {
-        SNMALLOC_ASSERT(l.last == nullptr || l.empty());
-        l.clear();
+        l.init();
       }
       capacity = REMOTE_CACHE;
     }
