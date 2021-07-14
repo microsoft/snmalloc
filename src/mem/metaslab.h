@@ -18,34 +18,6 @@ namespace snmalloc
     sizeof(SlabLink) <= MIN_ALLOC_SIZE,
     "Need to be able to pack a SlabLink into any free small alloc");
 
-  /**
-   * This struct is used inside FreeListBuilder to account for the
-   * alignment space that is wasted in sizeof.
-   *
-   * This is part of Metaslab abstraction.
-   */
-  struct MetaslabEnd
-  {
-    /**
-     * The number of deallocation required until we hit a slow path. This
-     * counts down in two different ways that are handled the same on the
-     * fast path.  The first is
-     *   - deallocations until the slab has sufficient entries to be considered
-     *   useful to allocate from.  This could be as low as 1, or when we have
-     *   a requirement for entropy then it could be much higher.
-     *   - deallocations until the slab is completely unused.  This is needed
-     *   to be detected, so that the statistics can be kept up to date, and
-     *   potentially return memory to the a global pool of slabs/chunks.
-     */
-    uint16_t needed = 0;
-
-    /**
-     * Flag that is used to indicate that the slab is currently not active.
-     * I.e. it is not in a CoreAllocator cache for the appropriate sizeclass.
-     */
-    bool sleeping = false;
-  };
-
   // The Metaslab represent the status of a single slab.
   // This can be either a short or a standard slab.
   class alignas(CACHELINE_SIZE) Metaslab : public SlabLink
@@ -59,19 +31,38 @@ namespace snmalloc
      *  Spare 32bits are used for the fields in MetaslabEnd.
      */
 #ifdef CHECK_CLIENT
-    FreeListBuilder<true, MetaslabEnd> free_queue;
+    FreeListBuilder<true> free_queue;
 #else
-    FreeListBuilder<false, MetaslabEnd> free_queue;
+    FreeListBuilder<false> free_queue;
 #endif
+
+    /**
+     * The number of deallocation required until we hit a slow path. This
+     * counts down in two different ways that are handled the same on the
+     * fast path.  The first is
+     *   - deallocations until the slab has sufficient entries to be considered
+     *   useful to allocate from.  This could be as low as 1, or when we have
+     *   a requirement for entropy then it could be much higher.
+     *   - deallocations until the slab is completely unused.  This is needed
+     *   to be detected, so that the statistics can be kept up to date, and
+     *   potentially return memory to the a global pool of slabs/chunks.
+     */
+    uint16_t needed_ = 0;
+
+    /**
+     * Flag that is used to indicate that the slab is currently not active.
+     * I.e. it is not in a CoreAllocator cache for the appropriate sizeclass.
+     */
+    bool sleeping_ = false;
 
     uint16_t& needed()
     {
-      return free_queue.s.needed;
+      return needed_;
     }
 
     bool& sleeping()
     {
-      return free_queue.s.sleeping;
+      return sleeping_;
     }
 
     /**
@@ -151,13 +142,17 @@ namespace snmalloc
       LocalEntropy& entropy,
       sizeclass_t sizeclass)
     {
+      FreeListKey key(entropy.get_constant_key());
+
       FreeListIter tmp_fl;
-      meta->free_queue.close(tmp_fl, entropy);
-      auto p = tmp_fl.take(entropy);
+      meta->free_queue.close(tmp_fl, key);
+      auto p = tmp_fl.take(key);
       fast_free_list = tmp_fl;
 
 #ifdef CHECK_CLIENT
       entropy.refresh_bits();
+#else
+      UNUSED(entropy);
 #endif
 
       // Treat stealing the free list as allocating it all.

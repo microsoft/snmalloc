@@ -76,6 +76,8 @@ namespace snmalloc
       typename SharedStateHandle>
     bool flush(DeallocFun dealloc, SharedStateHandle handle)
     {
+      FreeListKey key(entropy.get_constant_key());
+
       // Return all the free lists to the allocator.
       // Used during thread teardown
       for (size_t i = 0; i < NUM_SIZECLASSES; i++)
@@ -84,25 +86,27 @@ namespace snmalloc
         // call.
         while (!small_fast_free_lists[i].empty())
         {
-          auto p = small_fast_free_lists[i].take(entropy);
+          auto p = small_fast_free_lists[i].take(key);
           dealloc(finish_alloc_no_zero(p, i));
         }
       }
 
       return remote_dealloc_cache.post<allocator_size>(
-        handle, remote_allocator->trunc_id());
+        handle, remote_allocator->trunc_id(), key_global);
     }
 
     template<ZeroMem zero_mem, typename SharedStateHandle, typename Slowpath>
     SNMALLOC_FAST_PATH void* alloc(size_t size, Slowpath slowpath)
     {
+      FreeListKey key(entropy.get_constant_key());
+
       sizeclass_t sizeclass = size_to_sizeclass(size);
       stats.alloc_request(size);
       stats.sizeclass_alloc(sizeclass);
       auto& fl = small_fast_free_lists[sizeclass];
       if (likely(!fl.empty()))
       {
-        auto p = fl.take(entropy);
+        auto p = fl.take(key);
         return finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
       }
       return slowpath(sizeclass, &fl);

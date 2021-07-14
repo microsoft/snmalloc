@@ -228,7 +228,7 @@ namespace snmalloc
         MetaEntry entry = SharedStateHandle::Backend::get_meta_data(
           handle.get_backend_state(), address_cast(p));
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-          entry.get_remote()->trunc_id(), CapPtr<void, CBAlloc>(p));
+          entry.get_remote()->trunc_id(), CapPtr<void, CBAlloc>(p), key_global);
         post_remote_cache();
         return;
       }
@@ -249,7 +249,7 @@ namespace snmalloc
      */
     auto& message_queue()
     {
-      return local_cache.remote_allocator->message_queue;
+      return local_cache.remote_allocator;
     }
 
   public:
@@ -382,7 +382,9 @@ namespace snmalloc
         if (local_cache.remote_dealloc_cache.reserve_space(entry))
         {
           local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-            entry.get_remote()->trunc_id(), CapPtr<void, CBAlloc>(p));
+            entry.get_remote()->trunc_id(),
+            CapPtr<void, CBAlloc>(p),
+            key_global);
 #ifdef SNMALLOC_TRACING
           std::cout << "Remote dealloc fast" << p << " size " << alloc_size(p)
                     << std::endl;

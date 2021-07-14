@@ -95,7 +95,7 @@ namespace snmalloc
      */
     auto& message_queue()
     {
-      return public_state()->message_queue;
+      return *public_state();
     }
 
     /**
@@ -108,7 +108,7 @@ namespace snmalloc
       // Using an actual allocation removes a conditional from a critical path.
       auto dummy =
         CapPtr<void, CBAlloc>(small_alloc_one(sizeof(MIN_ALLOC_SIZE)))
-          .template as_static<Remote>();
+          .template as_static<FreeObject>();
       if (dummy == nullptr)
       {
         error("Critical error: Out-of-memory during initialisation.");
@@ -140,6 +140,8 @@ namespace snmalloc
       LocalEntropy& entropy)
     {
       auto slab_end = pointer_offset(bumpptr, slab_size + 1 - rsize);
+
+      FreeListKey key(entropy.get_constant_key());
 
       FreeListBuilder<false> b;
       SNMALLOC_ASSERT(b.empty());
@@ -187,14 +189,14 @@ namespace snmalloc
       auto curr_ptr = start_ptr;
       do
       {
-        b.add(FreeObject::make(curr_ptr.as_void()), entropy);
+        b.add(FreeObject::make(curr_ptr.as_void()), key);
         curr_ptr = curr_ptr->next;
       } while (curr_ptr != start_ptr);
 #else
       auto p = bumpptr;
       do
       {
-        b.add(Aal::capptr_bound<FreeObject, CBAlloc>(p, rsize), entropy);
+        b.add(Aal::capptr_bound<FreeObject, CBAlloc>(p, rsize), key);
         p = pointer_offset(p, rsize);
       } while (p < slab_end);
 #endif
@@ -202,14 +204,15 @@ namespace snmalloc
       bumpptr = slab_end;
 
       SNMALLOC_ASSERT(!b.empty());
-      b.close(fast_free_list, entropy);
+      b.close(fast_free_list, key);
     }
 
     ChunkRecord* clear_slab(Metaslab* meta, sizeclass_t sizeclass)
     {
+      FreeListKey key(entropy.get_constant_key());
       FreeListIter fl;
-      meta->free_queue.close(fl, entropy);
-      void* p = finish_alloc_no_zero(fl.take(entropy), sizeclass);
+      meta->free_queue.close(fl, key);
+      void* p = finish_alloc_no_zero(fl.take(key), sizeclass);
 
 #ifdef CHECK_CLIENT
       // Check free list is well-formed on platforms with
@@ -217,7 +220,7 @@ namespace snmalloc
       size_t count = 1; // Already taken one above.
       while (!fl.empty())
       {
-        fl.take(entropy);
+        fl.take(key);
         count++;
       }
       // Check the list contains all the elements
@@ -335,7 +338,7 @@ namespace snmalloc
         auto& entry = SharedStateHandle::Backend::get_meta_data(
           handle.get_backend_state(), snmalloc::address_cast(p));
 
-        auto r = message_queue().dequeue();
+        auto r = message_queue().dequeue(key_global);
 
         if (unlikely(!r.second))
           break;
@@ -360,7 +363,7 @@ namespace snmalloc
      * need_post will be set to true, if capacity is exceeded.
      */
     void handle_dealloc_remote(
-      const MetaEntry& entry, CapPtr<Remote, CBAlloc> p, bool& need_post)
+      const MetaEntry& entry, CapPtr<FreeObject, CBAlloc> p, bool& need_post)
     {
       // TODO this needs to not double count stats
       // TODO this needs to not double revoke if using MTE
@@ -381,7 +384,7 @@ namespace snmalloc
           need_post = true;
         attached_cache->remote_dealloc_cache
           .template dealloc<sizeof(CoreAllocator)>(
-            entry.get_remote()->trunc_id(), p.as_void());
+            entry.get_remote()->trunc_id(), p.as_void(), key_global);
       }
     }
 
@@ -431,7 +434,7 @@ namespace snmalloc
       // stats().remote_post();  // TODO queue not in line!
       bool sent_something =
         attached_cache->remote_dealloc_cache.post<sizeof(CoreAllocator)>(
-          handle, public_state()->trunc_id());
+          handle, public_state()->trunc_id(), key_global);
 
       return sent_something;
     }
@@ -472,8 +475,10 @@ namespace snmalloc
 
       auto cp = CapPtr<FreeObject, CBAlloc>(reinterpret_cast<FreeObject*>(p));
 
+      FreeListKey key(entropy.get_constant_key());
+
       // Update the head and the next pointer in the free list.
-      meta->free_queue.add(cp, entropy);
+      meta->free_queue.add(cp, key, entropy);
 
       return likely(!meta->return_object());
     }
@@ -533,8 +538,10 @@ namespace snmalloc
       // Set meta slab to empty.
       meta->initialise(sizeclass);
 
+      FreeListKey key(entropy.get_constant_key());
+
       // take an allocation from the free list
-      auto p = fast_free_list.take(entropy);
+      auto p = fast_free_list.take(key);
 
       return finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
     }
@@ -550,12 +557,12 @@ namespace snmalloc
 
       if (destroy_queue)
       {
-        CapPtr<Remote, CBAlloc> p = message_queue().destroy();
+        auto p = message_queue().destroy();
 
         while (p != nullptr)
         {
           bool need_post = true; // Always going to post, so ignore.
-          auto n = p->non_atomic_next;
+          auto n = p->atomic_read_next(key_global);
           auto& entry = SharedStateHandle::Backend::get_meta_data(
             handle.get_backend_state(), snmalloc::address_cast(p));
           handle_dealloc_remote(entry, p, need_post);
