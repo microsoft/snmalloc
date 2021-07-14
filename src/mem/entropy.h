@@ -56,7 +56,7 @@ namespace snmalloc
     {
       uint64_t bottom_bit = bit_source & 1;
       bit_source = (bottom_bit << 63) | (bit_source >> 1);
-      return bottom_bit & 1;
+      return bit_source & 1;
     }
 
     /**
