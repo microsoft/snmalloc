@@ -9,8 +9,6 @@
 #include "sizeclasstable.h"
 #include "slaballocator.h"
 
-#include <iostream>
-
 namespace snmalloc
 {
   template<typename SharedStateHandle>
