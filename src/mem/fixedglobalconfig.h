@@ -11,20 +11,21 @@ namespace snmalloc
   /**
    * A single fixed address range allocator configuration
    */
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
   class FixedGlobals : public CommonConfig
   {
   public:
-    using Backend = BackendAllocator<PALNoAlloc<Pal>, true>;
+    using Backend = BackendAllocator<PAL, true>;
 
   private:
-    inline static Backend::GlobalState backend_state;
+    inline static typename Backend::GlobalState backend_state;
 
     inline static ChunkAllocatorState slab_allocator_state;
 
     inline static PoolState<CoreAllocator<FixedGlobals>> alloc_pool;
 
   public:
-    static Backend::GlobalState& get_backend_state()
+    static typename Backend::GlobalState& get_backend_state()
     {
       return backend_state;
     }
