@@ -21,7 +21,7 @@
  *
  * If f just returns the first parameter, then this degenerates to a doubly
  * linked list.  (Note that doing the degenerate case can be useful for
- * debugging snmalloc bugs.) By making it a function of both objects, it
+ * debugging snmalloc bugs.) By making it a function of both pointers, it
  * makes it harder for an adversary to mutate prev_encoded to a valid value.
  *
  * This provides protection against the free-list being corrupted by memory
@@ -93,10 +93,13 @@ namespace snmalloc
     }
 
     /**
+     * Assign next_object and update its prev_encoded if CHECK_CLIENT.
+     *
      * Static so that it can be used on reference to a FreeObject.
      *
-     * Returns the next_object field of the next parameter, so can be used to
-     * iterate the construction.
+     * Returns a pointer to the next_object field of the next parameter as an
+     * optimization for repeated snoc operations (in which
+     * next->next_object is nullptr).
      */
     static CapPtr<FreeObject, CBAlloc>* store(
       CapPtr<FreeObject, CBAlloc>* curr,
@@ -299,7 +302,7 @@ namespace snmalloc
         if (end[1] != &head[1])
         {
           // The start token has been corrupted.
-          // TOUTOC issue, but small window here.
+          // TOCTTOU issue, but small window here.
           head[1]->check_prev(get_fake_signed_prev(1, entropy));
 
           terminate_list(1, entropy);
