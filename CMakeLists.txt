@@ -50,13 +50,6 @@ int main() {
 }
 " SNMALLOC_PLATFORM_HAS_GETENTROPY)
 
-if (NOT SNMALLOC_CI_BUILD)
-  option(USE_POSIX_COMMIT_CHECKS "Instrument Posix PAL to check for access to unused blocks of memory." Off)
-else ()
-  # This is enabled in every bit of CI to detect errors.
-  option(USE_POSIX_COMMIT_CHECKS "Instrument Posix PAL to check for access to unused blocks of memory." On)
-endif ()
-
 # Provide as macro so other projects can reuse
 macro(warnings_high)
   if(MSVC)
@@ -169,10 +162,6 @@ if(SNMALLOC_CI_BUILD)
   target_compile_definitions(snmalloc_lib INTERFACE -DSNMALLOC_CI_BUILD)
 endif()
 
-if(USE_POSIX_COMMIT_CHECKS)
-  target_compile_definitions(snmalloc_lib INTERFACE -DUSE_POSIX_COMMIT_CHECKS)
-endif()
-
 if(SNMALLOC_PLATFORM_HAS_GETENTROPY)
   target_compile_definitions(snmalloc_lib INTERFACE -DSNMALLOC_PLATFORM_HAS_GETENTROPY)
 endif()
@@ -277,13 +266,13 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
     set(SHARED_FILES src/override/new.cc)
     add_shim(snmallocshim SHARED ${SHARED_FILES})
     add_shim(snmallocshim-checks SHARED ${SHARED_FILES})
-    target_compile_definitions(snmallocshim-checks PRIVATE CHECK_CLIENT)
+    target_compile_definitions(snmallocshim-checks PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 
   if(SNMALLOC_RUST_SUPPORT)
     add_shim(snmallocshim-rust STATIC src/override/rust.cc)
     add_shim(snmallocshim-checks-rust STATIC src/override/rust.cc)
-    target_compile_definitions(snmallocshim-checks-rust PRIVATE CHECK_CLIENT)
+    target_compile_definitions(snmallocshim-checks-rust PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 
   enable_testing()
@@ -313,14 +302,11 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
 
         add_executable(${TESTNAME} ${SRC})
 
-        # For all tests enable commit checking.
-        target_compile_definitions(${TESTNAME} PRIVATE -DUSE_POSIX_COMMIT_CHECKS)
-
         if (${FLAVOUR} STREQUAL "malloc")
           target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_PASS_THROUGH)
         endif()
         if (${FLAVOUR} STREQUAL "check")
-          target_compile_definitions(${TESTNAME} PRIVATE CHECK_CLIENT)
+          target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_CHECK_CLIENT)
         endif()
         target_link_libraries(${TESTNAME} snmalloc_lib)
         if (${TEST} MATCHES "release-.*")

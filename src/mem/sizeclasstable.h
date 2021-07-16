@@ -166,7 +166,7 @@ namespace snmalloc
    */
   inline uint16_t threshold_for_waking_slab(sizeclass_t sizeclass)
   {
-    // #ifdef CHECK_CLIENT
+    // #ifdef SNMALLOC_CHECK_CLIENT
     return sizeclass_metadata.waking[sizeclass];
     // #else
     //     UNUSED(sizeclass);

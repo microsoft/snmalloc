@@ -73,7 +73,7 @@ namespace snmalloc
     }
   };
 
-#ifdef CHECK_CLIENT
+#ifdef SNMALLOC_CHECK_CLIENT
   template<size_t length, typename T>
   class ModArray
   {

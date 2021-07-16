@@ -165,10 +165,12 @@ namespace snmalloc
     static void notify_not_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
-#ifdef USE_POSIX_COMMIT_CHECKS
+#ifdef SNMALLOC_CHECK_CLIENT
       // Fill memory so that when we switch the pages back on we don't make
       // assumptions on the content.
+#  if !defined(NDEBUG)
       memset(p, 0x5a, size);
+#  endif
       mprotect(p, size, PROT_NONE);
 #else
       UNUSED(p);
@@ -189,7 +191,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(
         is_aligned_block<OS::page_size>(p, size) || (zero_mem == NoZero));
 
-#ifdef USE_POSIX_COMMIT_CHECKS
+#ifdef SNMALLOC_CHECK_CLIENT
       mprotect(p, size, PROT_READ | PROT_WRITE);
 #else
       UNUSED(p);
@@ -260,6 +262,12 @@ namespace snmalloc
       constexpr size_t min_size =
         bits::is64() ? bits::one_at_bit(31) : bits::one_at_bit(27);
 
+#ifdef SNMALLOC_CHECK_CLIENT
+      auto prot = PROT_NONE;
+#else
+      auto prot = PROT_READ | PROT_WRITE;
+#endif
+
       for (size_t size_request = bits::max(size, min_size);
            size_request >= size;
            size_request = size_request / 2)
@@ -267,7 +275,7 @@ namespace snmalloc
         void* p = mmap(
           nullptr,
           size_request,
-          PROT_READ | PROT_WRITE,
+          prot,
           MAP_PRIVATE | MAP_ANONYMOUS | DefaultMMAPFlags<OS>::flags,
           AnonFD<OS>::fd,
           0);
