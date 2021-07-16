@@ -47,14 +47,6 @@ void check_get(
   }
 }
 
-void add(bool bounded, address_t address, T new_value)
-{
-  if (bounded)
-    pagemap_test_bound.add(address, new_value);
-  else
-    pagemap_test_unbound.add(address, new_value);
-}
-
 void set(bool bounded, address_t address, T new_value)
 {
   if (bounded)
@@ -71,38 +63,36 @@ void test_pagemap(bool bounded)
   address_t high = bits::one_at_bit(30);
 
   // Nullptr needs to work before initialisation
-  CHECK_GET(true, 0, T());
+  CHECK_GET(bounded, 0, T());
 
   // Initialise the pagemap
   if (bounded)
   {
-    auto size = bits::one_at_bit(30);
-    auto base = address_space.reserve<true>(size);
-    std::cout << "Fixed base: " << base.unsafe_ptr() << " (" << size << ") "
-              << " end: " << pointer_offset(base, size).unsafe_ptr()
-              << std::endl;
+    auto [base, size] = Pal::reserve_at_least(bits::one_at_bit(30));
+    Pal::notify_using<NoZero>(base, size);
+    std::cout << "Fixed base: " << base << " (" << size << ") "
+              << " end: " << pointer_offset(base, size) << std::endl;
     auto [heap_base, heap_size] = pagemap_test_bound.init(base, size);
-    std::cout << "Heap base:  " << heap_base.unsafe_ptr() << " (" << heap_size
-              << ") "
-              << " end: " << pointer_offset(heap_base, heap_size).unsafe_ptr()
-              << std::endl;
+    std::cout << "Heap base:  " << heap_base << " (" << heap_size << ") "
+              << " end: " << pointer_offset(heap_base, heap_size) << std::endl;
     low = address_cast(heap_base);
     high = low + heap_size;
   }
   else
   {
     pagemap_test_unbound.init();
+    pagemap_test_unbound.register_range(low, high - low);
   }
 
   // Nullptr should still work after init.
-  CHECK_GET(true, 0, T());
+  CHECK_GET(bounded, 0, T());
 
   // Store a pattern into page map
   T value = 1;
   for (uintptr_t ptr = low; ptr < high;
        ptr += bits::one_at_bit(GRANULARITY_BITS + 3))
   {
-    add(false, ptr, value);
+    set(bounded, ptr, value);
     value.v++;
     if (value.v == T().v)
       value = 0;
@@ -116,7 +106,7 @@ void test_pagemap(bool bounded)
   for (uintptr_t ptr = low; ptr < high;
        ptr += bits::one_at_bit(GRANULARITY_BITS + 3))
   {
-    CHECK_GET(false, ptr, value);
+    CHECK_GET(bounded, ptr, value);
     value.v++;
     if (value.v == T().v)
       value = 0;

@@ -42,8 +42,8 @@ namespace snmalloc
      * part of satisfying the request will be registered with the provided
      * arena_map for use in subsequent amplification.
      */
-    template<bool committed, bool align = true>
-    CapPtr<void, CBChunk> reserve(size_t size)
+    template<bool committed, typename Pagemap>
+    CapPtr<void, CBChunk> reserve(size_t size, Pagemap& pagemap)
     {
 #ifdef SNMALLOC_TRACING
       std::cout << "ASM reserve request:" << size << std::endl;
@@ -51,108 +51,88 @@ namespace snmalloc
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
-      if constexpr ((align == false) && !pal_supports<NoAllocation, PAL>)
+      /*
+       * For sufficiently large allocations with platforms that support
+       * aligned allocations and architectures that don't require
+       * StrictProvenance, try asking the platform first.
+       */
+      if constexpr (
+        pal_supports<AlignedAllocation, PAL> && !aal_supports<StrictProvenance>)
       {
-        if constexpr (pal_supports<AlignedAllocation, PAL>)
+        if (size >= PAL::minimum_alloc_size)
         {
-          // TODO wasting size here.
-          size = bits::max(size, PAL::minimum_alloc_size);
-          return CapPtr<void, CBChunk>(
+          auto base = CapPtr<void, CBChunk>(
             PAL::template reserve_aligned<committed>(size));
-        }
-        else
-        {
-          auto [block, size2] = PAL::reserve_at_least(size);
-          // TODO wasting size here.
-          UNUSED(size2);
-#ifdef SNMALLOC_TRACING
-          std::cout << "Unaligned alloc here:" << block << " (" << size2 << ")"
-                    << std::endl;
-#endif
-          return CapPtr<void, CBChunk>(block);
+          pagemap.register_range(address_cast(base), size);
+          return base;
         }
       }
-      else
+
+      CapPtr<void, CBChunk> res;
       {
-        /*
-         * For sufficiently large allocations with platforms that support
-         * aligned allocations and architectures that don't require
-         * StrictProvenance, try asking the platform first.
-         */
-        if constexpr (
-          pal_supports<AlignedAllocation, PAL> &&
-          !aal_supports<StrictProvenance>)
+        FlagLock lock(spin_lock);
+        res = core.template reserve<PAL>(size);
+        if (res == nullptr)
         {
-          if (size >= PAL::minimum_alloc_size)
-            return CapPtr<void, CBChunk>(
-              PAL::template reserve_aligned<committed>(size));
-        }
-
-        CapPtr<void, CBChunk> res;
-        {
-          FlagLock lock(spin_lock);
-          res = core.template reserve<PAL>(size);
-          if (res == nullptr)
+          // Allocation failed ask OS for more memory
+          CapPtr<void, CBChunk> block = nullptr;
+          size_t block_size = 0;
+          if constexpr (pal_supports<AlignedAllocation, PAL>)
           {
-            // Allocation failed ask OS for more memory
-            CapPtr<void, CBChunk> block = nullptr;
-            size_t block_size = 0;
-            if constexpr (pal_supports<AlignedAllocation, PAL>)
-            {
-              /*
-               * We will have handled the case where size >=
-               * minimum_alloc_size above, so we are left to handle only small
-               * things here.
-               */
-              block_size = PAL::minimum_alloc_size;
+            /*
+             * We will have handled the case where size >=
+             * minimum_alloc_size above, so we are left to handle only small
+             * things here.
+             */
+            block_size = PAL::minimum_alloc_size;
 
-              void* block_raw =
-                PAL::template reserve_aligned<false>(block_size);
+            void* block_raw = PAL::template reserve_aligned<false>(block_size);
 
-              // It's a bit of a lie to convert without applying bounds, but the
-              // platform will have bounded block for us and it's better that
-              // the rest of our internals expect CBChunk bounds.
-              block = CapPtr<void, CBChunk>(block_raw);
-            }
-            else if constexpr (!pal_supports<NoAllocation, PAL>)
-            {
-              // Need at least 2 times the space to guarantee alignment.
-              // Hold lock here as a race could cause additional requests to
-              // the PAL, and this could lead to suprious OOM.  This is
-              // particularly bad if the PAL gives all the memory on first call.
-              auto block_and_size = PAL::reserve_at_least(size * 2);
-              block = CapPtr<void, CBChunk>(block_and_size.first);
-              block_size = block_and_size.second;
-
-              // Ensure block is pointer aligned.
-              if (
-                pointer_align_up(block, sizeof(void*)) != block ||
-                bits::align_up(block_size, sizeof(void*)) > block_size)
-              {
-                auto diff =
-                  pointer_diff(block, pointer_align_up(block, sizeof(void*)));
-                block_size = block_size - diff;
-                block_size = bits::align_down(block_size, sizeof(void*));
-              }
-            }
-            if (block == nullptr)
-            {
-              return nullptr;
-            }
-
-            core.template add_range<PAL>(block, block_size);
-
-            // still holding lock so guaranteed to succeed.
-            res = core.template reserve<PAL>(size);
+            // It's a bit of a lie to convert without applying bounds, but the
+            // platform will have bounded block for us and it's better that
+            // the rest of our internals expect CBChunk bounds.
+            block = CapPtr<void, CBChunk>(block_raw);
           }
+          else if constexpr (!pal_supports<NoAllocation, PAL>)
+          {
+            // Need at least 2 times the space to guarantee alignment.
+            // Hold lock here as a race could cause additional requests to
+            // the PAL, and this could lead to suprious OOM.  This is
+            // particularly bad if the PAL gives all the memory on first call.
+            auto block_and_size = PAL::reserve_at_least(size * 2);
+            block = CapPtr<void, CBChunk>(block_and_size.first);
+            block_size = block_and_size.second;
+
+            // Ensure block is pointer aligned.
+            if (
+              pointer_align_up(block, sizeof(void*)) != block ||
+              bits::align_up(block_size, sizeof(void*)) > block_size)
+            {
+              auto diff =
+                pointer_diff(block, pointer_align_up(block, sizeof(void*)));
+              block_size = block_size - diff;
+              block_size = bits::align_down(block_size, sizeof(void*));
+            }
+          }
+          if (block == nullptr)
+          {
+            return nullptr;
+          }
+
+          pagemap.register_range(address_cast(block), block_size);
+
+          core.template add_range<PAL>(block, block_size);
+
+          // still holding lock so guaranteed to succeed.
+          res = core.template reserve<PAL>(size);
         }
-
-        // Don't need lock while committing pages.
-        if constexpr (committed)
-          core.template commit_block<PAL>(res, size);
-
-        return res;
       }
+
+      // Don't need lock while committing pages.
+      if constexpr (committed)
+        core.template commit_block<PAL>(res, size);
+
+      return res;
     }
 
     /**
@@ -162,8 +142,8 @@ namespace snmalloc
      * This is useful for allowing the space required for alignment to be
      * used, by smaller objects.
      */
-    template<bool committed>
-    CapPtr<void, CBChunk> reserve_with_left_over(size_t size)
+    template<bool committed, typename Pagemap>
+    CapPtr<void, CBChunk> reserve_with_left_over(size_t size, Pagemap& pagemap)
     {
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
@@ -171,7 +151,7 @@ namespace snmalloc
 
       size_t rsize = bits::next_pow2(size);
 
-      auto res = reserve<false>(rsize);
+      auto res = reserve<false>(rsize, pagemap);
 
       if (res != nullptr)
       {

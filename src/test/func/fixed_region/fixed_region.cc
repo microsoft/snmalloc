@@ -18,18 +18,14 @@ int main()
 {
 #ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
 
-  // Create a standard address space to get initial allocation
-  // this just bypasses having to understand the test platform.
-  AddressSpaceManager<DefaultPal> address_space;
-
   // 28 is large enough to produce a nested allocator.
   // It is also large enough for the example to run in.
   // For 1MiB superslabs, SUPERSLAB_BITS + 4 is not big enough for the example.
-  size_t size = bits::one_at_bit(28);
-  auto oe_base = address_space.reserve<true>(size);
-  auto oe_end = pointer_offset(oe_base, size).unsafe_ptr();
-  std::cout << "Allocated region " << oe_base.unsafe_ptr() << " - "
-            << pointer_offset(oe_base, size).unsafe_ptr() << std::endl;
+  auto [oe_base, size] = Pal::reserve_at_least(bits::one_at_bit(28));
+  Pal::notify_using<NoZero>(oe_base, size);
+  auto oe_end = pointer_offset(oe_base, size);
+  std::cout << "Allocated region " << oe_base << " - "
+            << pointer_offset(oe_base, size) << std::endl;
 
   CustomGlobals fixed_handle;
   CustomGlobals::init(oe_base, size);
@@ -47,7 +43,7 @@ int main()
     if (r1 == nullptr)
       break;
 
-    if (oe_base.unsafe_ptr() > r1)
+    if (oe_base > r1)
     {
       std::cout << "Allocated: " << r1 << std::endl;
       abort();

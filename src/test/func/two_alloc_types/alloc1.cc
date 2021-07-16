@@ -20,6 +20,5 @@ namespace snmalloc
 extern "C" void oe_allocator_init(void* base, void* end)
 {
   snmalloc::CustomGlobals fixed_handle;
-  fixed_handle.init(
-    CapPtr<void, CBChunk>(base), address_cast(end) - address_cast(base));
+  fixed_handle.init(base, address_cast(end) - address_cast(base));
 }
