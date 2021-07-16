@@ -35,11 +35,11 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
       // Call this Pal to simulate the Windows decommit in CI.
-#ifdef USE_POSIX_COMMIT_CHECKS
+#if defined(SNMALLOC_CHECK_CLIENT) && !defined(NDEBUG)
       memset(p, 0x5a, size);
 #endif
       madvise(p, size, MADV_FREE);
-#ifdef USE_POSIX_COMMIT_CHECKS
+#ifdef SNMALLOC_CHECK_CLIENT
       mprotect(p, size, PROT_NONE);
 #endif
     }

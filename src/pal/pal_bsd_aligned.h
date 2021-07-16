@@ -37,10 +37,16 @@ namespace snmalloc
 
       int log2align = static_cast<int>(bits::next_pow2_bits(size));
 
+#ifdef SNMALLOC_CHECK_CLIENT
+      auto prot = committed ? PROT_READ | PROT_WRITE : PROT_NONE;
+#else
+      auto prot = PROT_READ | PROT_WRITE;
+#endif
+
       void* p = mmap(
         nullptr,
         size,
-        PROT_READ | PROT_WRITE,
+        prot,
         MAP_PRIVATE | MAP_ANONYMOUS | MAP_ALIGNED(log2align),
         -1,
         0);
