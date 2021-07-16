@@ -46,22 +46,23 @@ namespace snmalloc
     address_t base{0};
     size_t size{0};
 
+  public:
     /**
-     * Commit entry
+     * Ensure this range of pagemap is accessible
      */
-    void commit_entry(void* p)
+    void register_range(address_t p, size_t length)
     {
-      auto entry_size = sizeof(T);
-      static_assert(sizeof(T) < OS_PAGE_SIZE);
-      // Rounding required for sub-page allocations.
-      auto page_start = pointer_align_down<OS_PAGE_SIZE, char>(p);
-      auto page_end =
-        pointer_align_up<OS_PAGE_SIZE, char>(pointer_offset(p, entry_size));
+      // Calculate range in pagemap that is associated to this space.
+      auto first = &body[p >> SHIFT];
+      auto last = &body[(p + length + bits::one_at_bit(SHIFT) - 1) >> SHIFT];
+
+      // Commit OS pages associated to the range.
+      auto page_start = pointer_align_down<OS_PAGE_SIZE, char>(first);
+      auto page_end = pointer_align_up<OS_PAGE_SIZE, char>(last);
       size_t using_size = pointer_diff(page_start, page_end);
       PAL::template notify_using<NoZero>(page_start, using_size);
     }
 
-  public:
     constexpr FlatPagemap() = default;
 
     /**
@@ -70,14 +71,13 @@ namespace snmalloc
      * Returns usable range after pagemap has been allocated
      */
     template<bool has_bounds_ = has_bounds>
-    std::enable_if_t<has_bounds_, std::pair<CapPtr<void, CBChunk>, size_t>>
-    init(CapPtr<void, CBChunk> b, size_t s)
+    std::enable_if_t<has_bounds_, std::pair<void*, size_t>>
+    init(void* b, size_t s)
     {
       static_assert(
         has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
 #ifdef SNMALLOC_TRACING
-      std::cout << "Pagemap.init " << b.unsafe_ptr() << " (" << s << ")"
-                << std::endl;
+      std::cout << "Pagemap.init " << b << " (" << s << ")" << std::endl;
 #endif
       SNMALLOC_ASSERT(s != 0);
       // TODO take account of pagemap size in the calculation of how big it
@@ -92,7 +92,7 @@ namespace snmalloc
 
       // Put pagemap at start of range.
       // TODO CHERI capability bound here!
-      body = b.as_reinterpret<T>().unsafe_ptr();
+      body = reinterpret_cast<T*>(b);
 
       // Advance by size of pagemap.
       // TODO CHERI capability bound here!
@@ -126,7 +126,8 @@ namespace snmalloc
       auto new_body = reinterpret_cast<T*>(new_body_untyped);
 
       // Ensure bottom page is committed
-      commit_entry(&new_body[0]);
+      // ASSUME: new memory is zeroed.
+      Pal::notify_using<NoZero>(new_body, OS_PAGE_SIZE);
 
       // Set up zero page
       new_body[0] = body[0];
@@ -166,7 +167,7 @@ namespace snmalloc
       //  This means external pointer on Windows will be slow.
       if constexpr (potentially_out_of_range && !pal_supports<LazyCommit, PAL>)
       {
-        commit_entry(&body[p >> SHIFT]);
+        register_range(p, 1);
       }
 
       return body[p >> SHIFT];
@@ -185,28 +186,6 @@ namespace snmalloc
         }
         p = p - base;
       }
-
-      body[p >> SHIFT] = t;
-    }
-
-    void add(address_t p, T t)
-    {
-#ifdef SNMALLOC_TRACING
-      std::cout << "Pagemap.Add " << (void*)p << std::endl;
-#endif
-      if constexpr (has_bounds)
-      {
-        if (p - base > size)
-        {
-          PAL::error("Internal error: Pagemap new write access out of range.");
-        }
-        p = p - base;
-      }
-
-      // This could be the first time this page is used
-      // This will potentially be expensive on Windows,
-      // and we should revisit the performance here.
-      commit_entry(&body[p >> SHIFT]);
 
       body[p >> SHIFT] = t;
     }

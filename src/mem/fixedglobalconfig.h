@@ -66,7 +66,7 @@ namespace snmalloc
       snmalloc::register_clean_up();
     }
 
-    static void init(CapPtr<void, CBChunk> base, size_t length)
+    static void init(void* base, size_t length)
     {
       get_backend_state().init(base, length);
     }

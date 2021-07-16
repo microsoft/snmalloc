@@ -65,14 +65,13 @@ namespace snmalloc
       }
 
       template<bool fixed_range_ = fixed_range>
-      std::enable_if_t<fixed_range_>
-      init(CapPtr<void, CBChunk> base, size_t length)
+      std::enable_if_t<fixed_range_> init(void* base, size_t length)
       {
         static_assert(
           fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
 
         auto [heap_base, heap_length] = pagemap.init(base, length);
-        address_space.add_range(heap_base, heap_length);
+        address_space.add_range(CapPtr<void, CBChunk>(heap_base), heap_length);
 
         if constexpr (!fixed_range)
         {
@@ -106,7 +105,7 @@ namespace snmalloc
           auto& a = h.address_space;
           // TODO Improve heuristics and params
           auto refill_size = bits::max(size, bits::one_at_bit(21));
-          auto refill = a.template reserve<false>(refill_size);
+          auto refill = a.template reserve<false>(refill_size, h.pagemap);
           if (refill == nullptr)
             return nullptr;
           local_state->local_address_space.template add_range<PAL>(
@@ -122,7 +121,7 @@ namespace snmalloc
       else
       {
         auto& a = h.address_space;
-        p = a.template reserve_with_left_over<true>(size);
+        p = a.template reserve_with_left_over<true>(size, h.pagemap);
       }
 
       return p;
@@ -183,7 +182,7 @@ namespace snmalloc
            a < address_cast(pointer_offset(p, size));
            a += MIN_CHUNK_SIZE)
       {
-        h.pagemap.add(a, t);
+        h.pagemap.set(a, t);
       }
       return {p, meta};
     }
