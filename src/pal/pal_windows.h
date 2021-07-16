@@ -152,38 +152,7 @@ namespace snmalloc
         ::memset(p, 0, size);
     }
 
-#  ifdef USE_SYSTEMATIC_TESTING
-    static size_t& systematic_bump_ptr()
-    {
-      static size_t bump_ptr = (size_t)0x4000'0000'0000;
-      return bump_ptr;
-    }
-
-    static std::pair<void*, size_t> reserve_at_least(size_t size) noexcept
-    {
-      // Magic number for over-allocating chosen by the Pal
-      // These should be further refined based on experiments.
-      constexpr size_t min_size =
-        bits::is64() ? bits::one_at_bit(32) : bits::one_at_bit(28);
-      auto size_request = bits::max(size, min_size);
-
-      DWORD flags = MEM_RESERVE;
-
-      size_t retries = 1000;
-      void* p;
-
-      do
-      {
-        p = VirtualAlloc(
-          (void*)systematic_bump_ptr(), size_request, flags, PAGE_READWRITE);
-
-        systematic_bump_ptr() += size_request;
-        retries--;
-      } while (p == nullptr && retries > 0);
-
-      return {p, size_request};
-    }
-#  elif defined(PLATFORM_HAS_VIRTUALALLOC2)
+#  ifdef PLATFORM_HAS_VIRTUALALLOC2
     template<bool committed>
     static void* reserve_aligned(size_t size) noexcept
     {
@@ -214,7 +183,8 @@ namespace snmalloc
       }
       return ret;
     }
-#  else
+#  endif
+
     static std::pair<void*, size_t> reserve_at_least(size_t size) noexcept
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
@@ -236,7 +206,6 @@ namespace snmalloc
       }
       error("Failed to allocate memory\n");
     }
-#  endif
 
     /**
      * Source of Entropy

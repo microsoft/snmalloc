@@ -49,9 +49,10 @@ template<bool committed>
 static void* reserve_aligned(size_t size) noexcept;
 static std::pair<void*, size_t> reserve_at_least(size_t size) noexcept;
 ```
-Only one of these needs to be implemented, depending on whether the underlying
-system can provide strongly aligned memory regions.
-If the system guarantees only page alignment, implement the second. The Pal is 
+All platforms should provide `reserve_at_least` and can optionally provide
+`reserve_aligned` if the underlying system can provide strongly aligned 
+memory regions.
+If the system guarantees only page alignment, implement only the second. The Pal is 
 free to overallocate based on the platform's desire and snmalloc
 will find suitably aligned blocks inside the region.  `reserve_at_least` should 
 not commit memory as snmalloc will commit the range of memory it requires of what 
