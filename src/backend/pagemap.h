@@ -51,52 +51,47 @@ namespace snmalloc
   public:
     constexpr FlatPagemap() = default;
 
-    template<typename ASM>
-    void init(ASM* a, address_t b = 0, size_t s = 0)
+    template<typename ASM, bool has_bounds_ = has_bounds>
+    std::enable_if_t<has_bounds_> init(ASM* a, address_t b, size_t s)
     {
-      if constexpr (has_bounds)
-      {
+      static_assert(
+        has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
 #ifdef SNMALLOC_TRACING
-        std::cout << "Pagemap.init " << (void*)b << " (" << s << ")"
-                  << std::endl;
+      std::cout << "Pagemap.init " << (void*)b << " (" << s << ")" << std::endl;
 #endif
-        SNMALLOC_ASSERT(s != 0);
-        // Align the start and end.  We won't store for the very ends as they
-        // are not aligned to a chunk boundary.
-        base = bits::align_up(b, bits::one_at_bit(GRANULARITY_BITS));
-        auto end = bits::align_down(b + s, bits::one_at_bit(GRANULARITY_BITS));
-        size = end - base;
-        body = a->template reserve<false, false>(
-                  bits::next_pow2((size >> SHIFT) * sizeof(T)))
-                 .template as_static<T>()
-                 .unsafe_ptr();
-        ;
-      }
-      else
-      {
-        // The parameters should not be set without has_bounds.
-        UNUSED(s);
-        UNUSED(b);
-        SNMALLOC_ASSERT(s == 0);
-        SNMALLOC_ASSERT(b == 0);
+      SNMALLOC_ASSERT(s != 0);
+      // Align the start and end.  We won't store for the very ends as they
+      // are not aligned to a chunk boundary.
+      base = bits::align_up(b, bits::one_at_bit(GRANULARITY_BITS));
+      auto end = bits::align_down(b + s, bits::one_at_bit(GRANULARITY_BITS));
+      size = end - base;
+      body = a->template reserve<false, false>(
+                bits::next_pow2((size >> SHIFT) * sizeof(T)))
+               .template as_static<T>()
+               .unsafe_ptr();
+    }
 
-        static constexpr size_t COVERED_BITS =
-          bits::ADDRESS_BITS - GRANULARITY_BITS;
-        static constexpr size_t ENTRIES = bits::one_at_bit(COVERED_BITS);
-        auto new_body = (a->template reserve<false, false>(ENTRIES * sizeof(T)))
-                          .template as_static<T>()
-                          .unsafe_ptr();
+    template<typename ASM, bool has_bounds_ = has_bounds>
+    std::enable_if_t<!has_bounds_> init(ASM* a)
+    {
+      static_assert(
+        has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
+      static constexpr size_t COVERED_BITS =
+        bits::ADDRESS_BITS - GRANULARITY_BITS;
+      static constexpr size_t ENTRIES = bits::one_at_bit(COVERED_BITS);
+      auto new_body = (a->template reserve<false, false>(ENTRIES * sizeof(T)))
+                        .template as_static<T>()
+                        .unsafe_ptr();
 
-        // Ensure bottom page is committed
-        commit_entry(&new_body[0]);
+      // Ensure bottom page is committed
+      commit_entry(&new_body[0]);
 
-        // Set up zero page
-        new_body[0] = body[0];
+      // Set up zero page
+      new_body[0] = body[0];
 
-        body = new_body;
-        // TODO this is pretty sparse, should we ignore huge pages for it?
-        //     madvise(body, size, MADV_NOHUGEPAGE);
-      }
+      body = new_body;
+      // TODO this is pretty sparse, should we ignore huge pages for it?
+      //     madvise(body, size, MADV_NOHUGEPAGE);
     }
 
     /**
