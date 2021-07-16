@@ -50,9 +50,13 @@ namespace snmalloc
       FlatPagemap<MIN_CHUNK_BITS, MetaEntry, PAL, fixed_range> pagemap;
 
     public:
-      void init()
+      template<bool fixed_range_ = fixed_range>
+      std::enable_if_t<!fixed_range_> init()
       {
-        pagemap.init(&address_space);
+        static_assert(
+          fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
+
+        pagemap.init();
 
         if constexpr (fixed_range)
         {
@@ -60,10 +64,15 @@ namespace snmalloc
         }
       }
 
-      void init(CapPtr<void, CBChunk> base, size_t length)
+      template<bool fixed_range_ = fixed_range>
+      std::enable_if_t<fixed_range_>
+      init(CapPtr<void, CBChunk> base, size_t length)
       {
-        address_space.add_range(base, length);
-        pagemap.init(&address_space, address_cast(base), length);
+        static_assert(
+          fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
+
+        auto [heap_base, heap_length] = pagemap.init(base, length);
+        address_space.add_range(heap_base, heap_length);
 
         if constexpr (!fixed_range)
         {

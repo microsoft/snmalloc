@@ -76,11 +76,22 @@ void test_pagemap(bool bounded)
   // Initialise the pagemap
   if (bounded)
   {
-    pagemap_test_bound.init(&address_space, low, high);
+    auto size = bits::one_at_bit(30);
+    auto base = address_space.reserve<true>(size);
+    std::cout << "Fixed base: " << base.unsafe_ptr() << " (" << size << ") "
+              << " end: " << pointer_offset(base, size).unsafe_ptr()
+              << std::endl;
+    auto [heap_base, heap_size] = pagemap_test_bound.init(base, size);
+    std::cout << "Heap base:  " << heap_base.unsafe_ptr() << " (" << heap_size
+              << ") "
+              << " end: " << pointer_offset(heap_base, heap_size).unsafe_ptr()
+              << std::endl;
+    low = address_cast(heap_base);
+    high = low + heap_size;
   }
   else
   {
-    pagemap_test_unbound.init(&address_space);
+    pagemap_test_unbound.init();
   }
 
   // Nullptr should still work after init.
@@ -95,7 +106,7 @@ void test_pagemap(bool bounded)
     value.v++;
     if (value.v == T().v)
       value = 0;
-    if ((ptr % (1ULL << 26)) == 0)
+    if (((ptr - low) % (1ULL << 26)) == 0)
       std::cout << "." << std::flush;
   }
 
@@ -110,7 +121,7 @@ void test_pagemap(bool bounded)
     if (value.v == T().v)
       value = 0;
 
-    if ((ptr % (1ULL << 26)) == 0)
+    if (((ptr - low) % (1ULL << 26)) == 0)
       std::cout << "." << std::flush;
   }
   std::cout << std::endl;

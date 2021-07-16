@@ -194,6 +194,13 @@ namespace snmalloc
 #endif
   }
 
+  template<typename T = void, enum capptr_bounds bounds>
+  inline CapPtr<T, bounds>
+  pointer_align_down(CapPtr<void, bounds> p, size_t alignment)
+  {
+    return CapPtr<T, bounds>(pointer_align_down<T>(p.unsafe_ptr(), alignment));
+  }
+
   /**
    * Align a pointer up to a dynamically specified granularity, which must
    * be a power of two.
