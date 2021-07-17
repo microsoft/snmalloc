@@ -2,8 +2,10 @@
 #include "../pal/pal.h"
 
 #include <cstdint>
-#include <random>
 #include <type_traits>
+#ifndef SNMALLOC_PLATFORM_HAS_GETENTROPY
+#  include <random>
+#endif
 
 namespace snmalloc
 {
@@ -16,9 +18,13 @@ namespace snmalloc
   template<typename PAL>
   std::enable_if_t<!pal_supports<Entropy, PAL>, uint64_t> get_entropy64()
   {
+#ifdef SNMALLOC_PLATFORM_HAS_GETENTROPY
+    return DefaultPal::get_entropy64();
+#else
     std::random_device rd;
     uint64_t a = rd();
     return (a << 32) ^ rd();
+#endif
   }
 
   class LocalEntropy
