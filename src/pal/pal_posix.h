@@ -253,44 +253,32 @@ namespace snmalloc
      * POSIX does not define a portable interface for specifying alignment
      * greater than a page.
      */
-    static std::pair<void*, size_t> reserve_at_least(size_t size) noexcept
+    static void* reserve(size_t size) noexcept
     {
-      SNMALLOC_ASSERT(bits::is_pow2(size));
-
-      // Magic number for over-allocating chosen by the Pal
-      // These should be further refined based on experiments.
-      constexpr size_t min_size =
-        bits::is64() ? bits::one_at_bit(31) : bits::one_at_bit(27);
-
 #ifdef SNMALLOC_CHECK_CLIENT
       auto prot = PROT_NONE;
 #else
       auto prot = PROT_READ | PROT_WRITE;
 #endif
 
-      for (size_t size_request = bits::max(size, min_size);
-           size_request >= size;
-           size_request = size_request / 2)
-      {
-        void* p = mmap(
-          nullptr,
-          size_request,
-          prot,
-          MAP_PRIVATE | MAP_ANONYMOUS | DefaultMMAPFlags<OS>::flags,
-          AnonFD<OS>::fd,
-          0);
+      void* p = mmap(
+        nullptr,
+        size,
+        prot,
+        MAP_PRIVATE | MAP_ANONYMOUS | DefaultMMAPFlags<OS>::flags,
+        AnonFD<OS>::fd,
+        0);
 
-        if (p != MAP_FAILED)
-        {
+      if (p != MAP_FAILED)
+      {
 #ifdef SNMALLOC_TRACING
-          std::cout << "Pal_posix reserved: " << p << " (" << size_request
-                    << ")" << std::endl;
+        std::cout << "Pal_posix reserved: " << p << " (" << size << ")"
+                  << std::endl;
 #endif
-          return {p, size_request};
-        }
+        return p;
       }
 
-      OS::error("Out of memory");
+      return nullptr;
     }
 
     /**

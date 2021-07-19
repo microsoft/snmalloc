@@ -52,11 +52,10 @@ namespace snmalloc
    * Absent any feature flags, the PAL must support a crude primitive allocator
    */
   template<typename PAL>
-  concept ConceptPAL_reserve_at_least =
-    requires(PAL p, void* vp, std::size_t sz)
+  concept ConceptPAL_reserve =
+    requires(PAL p, std::size_t sz)
   {
-    { PAL::reserve_at_least(sz) } noexcept
-      -> ConceptSame<std::pair<void*, std::size_t>>;
+    { PAL::reserve(sz) } noexcept -> ConceptSame<void*>;
   };
 
   /**
@@ -102,10 +101,11 @@ namespace snmalloc
     (!pal_supports<LowMemoryNotification, PAL> ||
       ConceptPAL_mem_low_notify<PAL>) &&
     (pal_supports<NoAllocation, PAL> ||
-     (pal_supports<AlignedAllocation, PAL> &&
-        ConceptPAL_reserve_aligned<PAL>) ||
-     (!pal_supports<AlignedAllocation, PAL> &&
-          ConceptPAL_reserve_at_least<PAL>));
+     (
+       (!pal_supports<AlignedAllocation, PAL> ||
+         ConceptPAL_reserve_aligned<PAL>) &&
+      ConceptPAL_reserve<PAL>)
+    );
 
 } // namespace snmalloc
 #endif

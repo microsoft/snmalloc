@@ -96,12 +96,21 @@ namespace snmalloc
           else if constexpr (!pal_supports<NoAllocation, PAL>)
           {
             // Need at least 2 times the space to guarantee alignment.
-            // Hold lock here as a race could cause additional requests to
-            // the PAL, and this could lead to suprious OOM.  This is
-            // particularly bad if the PAL gives all the memory on first call.
-            auto block_and_size = PAL::reserve_at_least(size * 2);
-            block = CapPtr<void, CBChunk>(block_and_size.first);
-            block_size = block_and_size.second;
+            size_t needed_size = size * 2;
+            // Magic number (27) for over-allocating a block of memory
+            // These should be further refined based on experiments.
+            constexpr size_t min_size = bits::one_at_bit(27);
+            for (size_t size_request = bits::max(needed_size, min_size);
+                 size_request >= needed_size;
+                 size_request = size_request / 2)
+            {
+              block = CapPtr<void, CBChunk>(PAL::reserve(size_request));
+              if (block != nullptr)
+              {
+                block_size = size_request;
+                break;
+              }
+            }
 
             // Ensure block is pointer aligned.
             if (
