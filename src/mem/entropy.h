@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../ds/address.h"
 #include "../pal/pal.h"
 

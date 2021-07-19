@@ -2,6 +2,7 @@
 
 #include "../ds/bits.h"
 #include "../ds/helpers.h"
+#include "../mem/entropy.h"
 #include "../pal/pal.h"
 
 #include <atomic>
@@ -95,6 +96,8 @@ namespace snmalloc
       body = reinterpret_cast<T*>(b);
 
       // Advance by size of pagemap.
+      // Note that base needs to be aligned to GRANULARITY for the rest of the
+      // code to work
       // TODO CHERI capability bound here!
       heap_base = pointer_align_up(
         pointer_offset(b, (size >> SHIFT) * sizeof(T)),
@@ -102,6 +105,7 @@ namespace snmalloc
       base = address_cast(heap_base);
       SNMALLOC_ASSERT(
         base == bits::align_up(base, bits::one_at_bit(GRANULARITY_BITS)));
+
       return {heap_base, pointer_diff(heap_base, end)};
     }
 
@@ -117,15 +121,32 @@ namespace snmalloc
         bits::ADDRESS_BITS - GRANULARITY_BITS;
       static constexpr size_t ENTRIES = bits::one_at_bit(COVERED_BITS);
 
-      // TODO request additional space, and move to random offset.
+      static constexpr size_t REQUIRED_SIZE = ENTRIES * sizeof(T);
 
-      auto new_body_untyped = Pal::reserve(ENTRIES * sizeof(T));
+#ifdef SNMALLOC_CHECK_CLIENT
+      // Allocate a power of two extra to allow the placement of the
+      // pagemap be difficult to guess.
+      size_t additional_size = bits::next_pow2(REQUIRED_SIZE) * 2;
+      size_t request_size = REQUIRED_SIZE + additional_size;
+#else
+      size_t request_size = REQUIRED_SIZE;
+#endif
 
+      auto new_body_untyped = PAL::reserve(request_size);
+
+#ifdef SNMALLOC_CHECK_CLIENT
+      // Begin pagemap at random offset within the additionally allocated space.
+      static_assert(bits::is_pow2(sizeof(T)), "Next line assumes this.");
+      size_t offset = get_entropy64<PAL>() & (additional_size - sizeof(T));
+      auto new_body =
+        reinterpret_cast<T*>(pointer_offset(new_body_untyped, offset));
+#else
       auto new_body = reinterpret_cast<T*>(new_body_untyped);
-
+#endif
       // Ensure bottom page is committed
       // ASSUME: new memory is zeroed.
-      Pal::notify_using<NoZero>(new_body, OS_PAGE_SIZE);
+      PAL::template notify_using<NoZero>(
+        pointer_align_down<OS_PAGE_SIZE>(new_body), OS_PAGE_SIZE);
 
       // Set up zero page
       new_body[0] = body[0];
