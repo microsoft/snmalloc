@@ -39,7 +39,7 @@ namespace snmalloc
      * Backend allocator may use guard pages and separate area of
      * address space to protect this from corruption.
      */
-    static CapPtr<void, CBChunk> alloc_meta_data(
+    static capptr::Chunk<void> alloc_meta_data(
       AddressSpaceManager<PAL>& global, LocalState* local_state, size_t size)
     {
       return reserve<true>(global, local_state, size);
@@ -54,7 +54,7 @@ namespace snmalloc
      *   (remote, sizeclass, metaslab)
      * where metaslab, is the second element of the pair return.
      */
-    static std::pair<CapPtr<void, CBChunk>, Metaslab*> alloc_chunk(
+    static std::pair<capptr::Chunk<void>, Metaslab*> alloc_chunk(
       AddressSpaceManager<PAL>& global,
       LocalState* local_state,
       size_t size,
@@ -70,7 +70,7 @@ namespace snmalloc
       if (meta == nullptr)
         return {nullptr, nullptr};
 
-      CapPtr<void, CBChunk> p = reserve<false>(global, local_state, size);
+      capptr::Chunk<void> p = reserve<false>(global, local_state, size);
 
 #ifdef SNMALLOC_TRACING
       std::cout << "Alloc chunk: " << p.unsafe_ptr() << " (" << size << ")"
@@ -98,7 +98,7 @@ namespace snmalloc
      * space managers.
      */
     template<bool is_meta>
-    static CapPtr<void, CBChunk> reserve(
+    static capptr::Chunk<void> reserve(
       AddressSpaceManager<PAL>& global, LocalState* local_state, size_t size)
     {
 #ifdef SNMALLOC_CHECK_CLIENT
@@ -108,7 +108,7 @@ namespace snmalloc
       constexpr auto MAX_CACHED_SIZE = LOCAL_CACHE_BLOCK;
 #endif
 
-      CapPtr<void, CBChunk> p;
+      capptr::Chunk<void> p;
       if ((local_state != nullptr) && (size <= MAX_CACHED_SIZE))
       {
 #ifdef SNMALLOC_CHECK_CLIENT
@@ -182,8 +182,8 @@ namespace snmalloc
      * the range [base, base+full_size]. The first and last slot are not used
      * so that the edges can be used for guard pages.
      */
-    static CapPtr<void, CBChunk>
-    sub_range(CapPtr<void, CBChunk> base, size_t full_size, size_t sub_size)
+    static capptr::Chunk<void>
+    sub_range(capptr::Chunk<void> base, size_t full_size, size_t sub_size)
     {
       SNMALLOC_ASSERT(bits::is_pow2(full_size));
       SNMALLOC_ASSERT(bits::is_pow2(sub_size));
@@ -318,7 +318,7 @@ namespace snmalloc
       auto [heap_base, heap_length] =
         Pagemap::concretePagemap.init(base, length);
       address_space.template add_range<Pagemap>(
-        local_state, CapPtr<void, CBChunk>(heap_base), heap_length);
+        local_state, capptr::Chunk<void>(heap_base), heap_length);
     }
 
     /**
@@ -332,7 +332,7 @@ namespace snmalloc
      * places or with different policies.
      */
     template<typename T>
-    static CapPtr<void, CBChunk>
+    static capptr::Chunk<void>
     alloc_meta_data(LocalState* local_state, size_t size)
     {
       return AddressSpaceAllocator::alloc_meta_data(
@@ -348,7 +348,7 @@ namespace snmalloc
      *   (remote, sizeclass, metaslab)
      * where metaslab, is the second element of the pair return.
      */
-    static std::pair<CapPtr<void, CBChunk>, Metaslab*> alloc_chunk(
+    static std::pair<capptr::Chunk<void>, Metaslab*> alloc_chunk(
       LocalState* local_state,
       size_t size,
       RemoteAllocator* remote,

@@ -263,7 +263,9 @@ namespace snmalloc
         MetaEntry entry = SharedStateHandle::Pagemap::get_metaentry(
           core_alloc->backend_state_ptr(), address_cast(p));
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-          entry.get_remote()->trunc_id(), CapPtr<void, CBAlloc>(p), key_global);
+          entry.get_remote()->trunc_id(),
+          capptr::AllocFull<void>(p),
+          key_global);
         post_remote_cache();
         return;
       }
@@ -469,7 +471,7 @@ namespace snmalloc
         {
           local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
             entry.get_remote()->trunc_id(),
-            CapPtr<void, CBAlloc>(p),
+            capptr::AllocFull<void>(p),
             key_global);
 #  ifdef SNMALLOC_TRACING
           std::cout << "Remote dealloc fast" << p << " size " << alloc_size(p)
@@ -501,7 +503,7 @@ namespace snmalloc
 #  endif
         ChunkRecord* slab_record =
           reinterpret_cast<ChunkRecord*>(entry.get_metaslab());
-        slab_record->chunk = CapPtr<void, CBChunk>(p);
+        slab_record->chunk = capptr::Chunk<void>(p);
         check_init(
           [](
             CoreAlloc* core_alloc,

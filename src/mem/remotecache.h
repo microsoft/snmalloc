@@ -66,7 +66,7 @@ namespace snmalloc
     template<size_t allocator_size>
     SNMALLOC_FAST_PATH void dealloc(
       RemoteAllocator::alloc_id_t target_id,
-      CapPtr<void, CBAlloc> p,
+      capptr::AllocFull<void> p,
       const FreeListKey& key)
     {
       SNMALLOC_ASSERT(initialised);
