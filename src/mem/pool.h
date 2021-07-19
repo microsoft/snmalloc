@@ -51,6 +51,12 @@ namespace snmalloc
       p = ChunkAllocator::alloc_meta_data<T>(
         h, nullptr, std::forward<Args>(args)...);
 
+      if (p == nullptr)
+      {
+        SharedStateHandle::Backend::Pal::error(
+          "Failed to initialisation thread local allocator.");
+      }
+
       FlagLock f(pool.lock);
       p->list_next = pool.list;
       pool.list = p;
