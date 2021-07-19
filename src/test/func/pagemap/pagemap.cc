@@ -90,7 +90,7 @@ void test_pagemap(bool bounded)
 
   // Store a pattern into page map
   T value = 1;
-  for (uintptr_t ptr = low; ptr < high;
+  for (address_t ptr = low; ptr < high;
        ptr += bits::one_at_bit(GRANULARITY_BITS + 3))
   {
     set(bounded, ptr, value);
@@ -104,7 +104,7 @@ void test_pagemap(bool bounded)
   // Check pattern is correctly stored
   std::cout << std::endl;
   value = 1;
-  for (uintptr_t ptr = low; ptr < high;
+  for (address_t ptr = low; ptr < high;
        ptr += bits::one_at_bit(GRANULARITY_BITS + 3))
   {
     CHECK_GET(bounded, ptr, value);
