@@ -5,7 +5,6 @@
 #include "../ds/helpers.h"
 #include "../mem/remoteallocator.h"
 #include "freelist.h"
-#include "ptrhelpers.h"
 #include "sizeclasstable.h"
 
 namespace snmalloc

@@ -105,7 +105,8 @@ namespace snmalloc
 
       if constexpr (CHECK_CLIENT && !aal_supports<StrictProvenance>)
       {
-        return CapPtr<FreeObject, CBAlloc>(address_cast(next) ^ key.key_next);
+        return CapPtr<FreeObject, CBAlloc>(reinterpret_cast<FreeObject*>(
+          reinterpret_cast<uintptr_t>(next.unsafe_ptr()) ^ key.key_next));
       }
       else
       {
