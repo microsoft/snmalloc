@@ -226,9 +226,17 @@ namespace snmalloc
 #  include "aal_riscv.h"
 #endif
 
+#if defined(__CHERI_PURE_CAPABILITY__)
+#  include "aal_cheri.h"
+#endif
+
 namespace snmalloc
 {
+#if defined(__CHERI_PURE_CAPABILITY__)
+  using Aal = AAL_Generic<AAL_CHERI<AAL_Arch>>;
+#else
   using Aal = AAL_Generic<AAL_NoStrictProvenance<AAL_Arch>>;
+#endif
 
   template<AalFeatures F, SNMALLOC_CONCEPT(ConceptAAL) AAL = Aal>
   constexpr static bool aal_supports = (AAL::aal_features & F) == F;
