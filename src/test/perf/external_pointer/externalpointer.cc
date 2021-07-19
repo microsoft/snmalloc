@@ -32,6 +32,8 @@ namespace test
         size = 16;
       // store object
       objects[i] = (size_t*)alloc.alloc(size);
+      if (objects[i] == nullptr)
+        abort();
       // Store allocators size for this object
       *objects[i] = alloc.alloc_size(objects[i]);
     }

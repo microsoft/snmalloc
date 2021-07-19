@@ -11,7 +11,7 @@ namespace snmalloc
    * This class implements the standard backend for handling allocations.
    * It abstracts page table management and address space management.
    */
-  template<typename PAL, bool fixed_range>
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL, bool fixed_range>
   class BackendAllocator
   {
   public:

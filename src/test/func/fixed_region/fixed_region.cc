@@ -21,7 +21,8 @@ int main()
   // 28 is large enough to produce a nested allocator.
   // It is also large enough for the example to run in.
   // For 1MiB superslabs, SUPERSLAB_BITS + 4 is not big enough for the example.
-  auto [oe_base, size] = Pal::reserve_at_least(bits::one_at_bit(28));
+  auto size = bits::one_at_bit(28);
+  auto oe_base = Pal::reserve(size);
   Pal::notify_using<NoZero>(oe_base, size);
   auto oe_end = pointer_offset(oe_base, size);
   std::cout << "Allocated region " << oe_base << " - "

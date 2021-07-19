@@ -119,9 +119,7 @@ namespace snmalloc
 
       // TODO request additional space, and move to random offset.
 
-      // TODO wasting space if size2 bigger than needed.
-      auto [new_body_untyped, size2] =
-        Pal::reserve_at_least(ENTRIES * sizeof(T));
+      auto new_body_untyped = Pal::reserve(ENTRIES * sizeof(T));
 
       auto new_body = reinterpret_cast<T*>(new_body_untyped);
 

@@ -47,14 +47,14 @@ pages, rather than zeroing them synchronously in this call
 ```c++
 template<bool committed>
 static void* reserve_aligned(size_t size) noexcept;
-static std::pair<void*, size_t> reserve_at_least(size_t size) noexcept;
+static void* reserve(size_t size) noexcept;
 ```
-All platforms should provide `reserve_at_least` and can optionally provide
+All platforms should provide `reserve` and can optionally provide
 `reserve_aligned` if the underlying system can provide strongly aligned 
 memory regions.
 If the system guarantees only page alignment, implement only the second. The Pal is 
 free to overallocate based on the platform's desire and snmalloc
-will find suitably aligned blocks inside the region.  `reserve_at_least` should 
+will find suitably aligned blocks inside the region.  `reserve` should 
 not commit memory as snmalloc will commit the range of memory it requires of what 
 is returned.
 
