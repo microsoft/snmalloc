@@ -134,6 +134,11 @@ namespace snmalloc
 
       auto new_body_untyped = PAL::reserve(request_size);
 
+      if (new_body_untyped == nullptr)
+      {
+        PAL::error("Failed to initialisation snmalloc.");
+      }
+
 #ifdef SNMALLOC_CHECK_CLIENT
       // Begin pagemap at random offset within the additionally allocated space.
       static_assert(bits::is_pow2(sizeof(T)), "Next line assumes this.");
