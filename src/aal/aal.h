@@ -32,6 +32,10 @@
 #  define PLATFORM_IS_SPARC
 #endif
 
+#if defined(__riscv)
+#  define PLATFORM_IS_RISCV
+#endif
+
 namespace snmalloc
 {
   /**
@@ -218,6 +222,8 @@ namespace snmalloc
 #  include "aal_powerpc.h"
 #elif defined(PLATFORM_IS_SPARC)
 #  include "aal_sparc.h"
+#elif defined(PLATFORM_IS_RISCV)
+#  include "aal_riscv.h"
 #endif
 
 namespace snmalloc
