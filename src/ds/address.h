@@ -8,11 +8,8 @@
 namespace snmalloc
 {
   /**
-   * The type used for an address.  Currently, all addresses are assumed to be
-   * provenance-carrying values and so it is possible to cast back from the
-   * result of arithmetic on an address_t.  Eventually, this will want to be
-   * separated into two types, one for raw addresses and one for addresses that
-   * can be cast back to pointers.
+   * The type used for an address.  On CHERI, this is not a provenance-carrying
+   * value and so cannot be converted back to a pointer.
    */
   using address_t = Aal::address_t;
 

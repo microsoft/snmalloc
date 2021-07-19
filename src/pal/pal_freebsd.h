@@ -3,6 +3,13 @@
 #if defined(__FreeBSD__) && !defined(_KERNEL)
 #  include "pal_bsd_aligned.h"
 
+// On CHERI platforms, we need to know the value of CHERI_PERM_CHERIABI_VMMAP.
+// This pollutes the global namespace a little, sadly, but I think only with
+// symbols that begin with CHERI_, which is as close to namespaces as C offers.
+#  if defined(__CHERI_PURE_CAPABILITY__)
+#    include <cheri/cherireg.h>
+#  endif
+
 namespace snmalloc
 {
   /**
@@ -35,6 +42,27 @@ namespace snmalloc
       Aal::address_bits :
       (Aal::aal_name == RISCV ? 38 : Aal::address_bits);
     // TODO, if we ever backport to MIPS, this should yield 39 there.
+
+#  if defined(__CHERI_PURE_CAPABILITY__)
+    static_assert(
+      aal_supports<StrictProvenance>,
+      "CHERI purecap support requires StrictProvenance AAL");
+
+    /**
+     * On CheriBSD, exporting a pointer means stripping it of the authority to
+     * manage the address space it references by clearing the CHERIABI_VMMAP
+     * permission bit.
+     */
+    template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    static SNMALLOC_FAST_PATH CapPtr<T, capptr::user_address_control_type<B>>
+    capptr_to_user_address_control(CapPtr<T, B> p)
+    {
+      return CapPtr<T, capptr::user_address_control_type<B>>(
+        __builtin_cheri_perms_and(
+          p.unsafe_ptr(),
+          ~static_cast<unsigned int>(CHERI_PERM_CHERIABI_VMMAP)));
+    }
+#  endif
   };
 } // namespace snmalloc
 #endif
