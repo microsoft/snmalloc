@@ -161,7 +161,7 @@ namespace snmalloc
     {
       // Manufacture an allocation to prime the queue
       // Using an actual allocation removes a conditional from a critical path.
-      auto dummy = CapPtr<void, CBAlloc>(small_alloc_one(MIN_ALLOC_SIZE))
+      auto dummy = capptr::AllocFull<void>(small_alloc_one(MIN_ALLOC_SIZE))
                      .template as_static<FreeObject>();
       if (dummy == nullptr)
       {
@@ -187,7 +187,7 @@ namespace snmalloc
     }
 
     static SNMALLOC_FAST_PATH void alloc_new_list(
-      CapPtr<void, CBChunk>& bumpptr,
+      capptr::Chunk<void>& bumpptr,
       Metaslab* meta,
       size_t rsize,
       size_t slab_size,
@@ -203,7 +203,7 @@ namespace snmalloc
       // Structure to represent the temporary list elements
       struct PreAllocObject
       {
-        CapPtr<PreAllocObject, CBAlloc> next;
+        capptr::AllocFull<PreAllocObject> next;
       };
       // The following code implements Sattolo's algorithm for generating
       // random cyclic permutations.  This implementation is in the opposite
@@ -213,9 +213,10 @@ namespace snmalloc
 
       // Note the wide bounds on curr relative to each of the ->next fields;
       // curr is not persisted once the list is built.
-      CapPtr<PreAllocObject, CBChunk> curr =
+      capptr::Chunk<PreAllocObject> curr =
         pointer_offset(bumpptr, 0).template as_static<PreAllocObject>();
-      curr->next = Aal::capptr_bound<PreAllocObject, CBAlloc>(curr, rsize);
+      curr->next = Aal::capptr_bound<PreAllocObject, capptr::bounds::AllocFull>(
+        curr, rsize);
 
       uint16_t count = 1;
       for (curr =
@@ -229,12 +230,13 @@ namespace snmalloc
           pointer_offset(bumpptr, insert_index * rsize)
             .template as_static<PreAllocObject>()
             ->next,
-          Aal::capptr_bound<PreAllocObject, CBAlloc>(curr, rsize));
+          Aal::capptr_bound<PreAllocObject, capptr::bounds::AllocFull>(
+            curr, rsize));
         count++;
       }
 
       // Pick entry into space, and then build linked list by traversing cycle
-      // to the start.  Use ->next to jump from CBArena to CBAlloc.
+      // to the start.  Use ->next to jump from Chunk to Alloc.
       auto start_index = entropy.sample(count);
       auto start_ptr = pointer_offset(bumpptr, start_index * rsize)
                          .template as_static<PreAllocObject>()
@@ -249,7 +251,9 @@ namespace snmalloc
       auto p = bumpptr;
       do
       {
-        b.add(Aal::capptr_bound<FreeObject, CBAlloc>(p, rsize), key);
+        b.add(
+          Aal::capptr_bound<FreeObject, capptr::bounds::AllocFull>(p, rsize),
+          key);
         p = pointer_offset(p, rsize);
       } while (p < slab_end);
 #endif
@@ -299,7 +303,7 @@ namespace snmalloc
       auto start_of_slab = pointer_align_down<void>(
         p, snmalloc::sizeclass_to_slab_size(sizeclass));
       // TODO Add bounds correctly here
-      chunk_record->chunk = CapPtr<void, CBChunk>(start_of_slab);
+      chunk_record->chunk = capptr::Chunk<void>(start_of_slab);
 
 #ifdef SNMALLOC_TRACING
       std::cout << "Slab " << start_of_slab << " is unused, Object sizeclass "
@@ -422,7 +426,7 @@ namespace snmalloc
      * need_post will be set to true, if capacity is exceeded.
      */
     void handle_dealloc_remote(
-      const MetaEntry& entry, CapPtr<FreeObject, CBAlloc> p, bool& need_post)
+      const MetaEntry& entry, capptr::AllocFull<FreeObject> p, bool& need_post)
     {
       // TODO this needs to not double count stats
       // TODO this needs to not double revoke if using MTE
@@ -576,7 +580,7 @@ namespace snmalloc
         Metaslab::is_start_of_object(entry.get_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
-      auto cp = CapPtr<FreeObject, CBAlloc>(reinterpret_cast<FreeObject*>(p));
+      auto cp = capptr::AllocFull<FreeObject>(reinterpret_cast<FreeObject*>(p));
 
       auto& key = entropy.get_free_list_key();
 

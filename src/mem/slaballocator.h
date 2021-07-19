@@ -18,7 +18,7 @@ namespace snmalloc
   struct ChunkRecord
   {
     std::atomic<ChunkRecord*> next;
-    CapPtr<void, CBChunk> chunk;
+    capptr::Chunk<void> chunk;
   };
 
   /**
@@ -76,7 +76,7 @@ namespace snmalloc
   {
   public:
     template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
-    static std::pair<CapPtr<void, CBChunk>, Metaslab*> alloc_chunk(
+    static std::pair<capptr::Chunk<void>, Metaslab*> alloc_chunk(
       typename SharedStateHandle::LocalState& local_state,
       sizeclass_t sizeclass,
       sizeclass_t slab_sizeclass, // TODO sizeclass_t
@@ -163,7 +163,7 @@ namespace snmalloc
       // Cache line align
       size_t size = bits::align_up(sizeof(U), 64);
 
-      CapPtr<void, CBChunk> p =
+      capptr::Chunk<void> p =
         SharedStateHandle::template alloc_meta_data<U>(local_state, size);
 
       if (p == nullptr)

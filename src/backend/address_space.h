@@ -43,7 +43,7 @@ namespace snmalloc
      * arena_map for use in subsequent amplification.
      */
     template<bool committed, SNMALLOC_CONCEPT(ConceptBackendMetaRange) Pagemap>
-    CapPtr<void, CBChunk>
+    capptr::Chunk<void>
     reserve(typename Pagemap::LocalState* local_state, size_t size)
     {
 #ifdef SNMALLOC_TRACING
@@ -62,21 +62,21 @@ namespace snmalloc
       {
         if (size >= PAL::minimum_alloc_size)
         {
-          auto base = CapPtr<void, CBChunk>(
-            PAL::template reserve_aligned<committed>(size));
+          auto base =
+            capptr::Chunk<void>(PAL::template reserve_aligned<committed>(size));
           Pagemap::register_range(local_state, address_cast(base), size);
           return base;
         }
       }
 
-      CapPtr<void, CBChunk> res;
+      capptr::Chunk<void> res;
       {
         FlagLock lock(spin_lock);
         res = core.template reserve<PAL, Pagemap>(local_state, size);
         if (res == nullptr)
         {
           // Allocation failed ask OS for more memory
-          CapPtr<void, CBChunk> block = nullptr;
+          capptr::Chunk<void> block = nullptr;
           size_t block_size = 0;
           if constexpr (pal_supports<AlignedAllocation, PAL>)
           {
@@ -92,7 +92,7 @@ namespace snmalloc
             // It's a bit of a lie to convert without applying bounds, but the
             // platform will have bounded block for us and it's better that
             // the rest of our internals expect CBChunk bounds.
-            block = CapPtr<void, CBChunk>(block_raw);
+            block = capptr::Chunk<void>(block_raw);
           }
           else if constexpr (!pal_supports<NoAllocation, PAL>)
           {
@@ -110,7 +110,7 @@ namespace snmalloc
                  size_request >= needed_size;
                  size_request = size_request / 2)
             {
-              block = CapPtr<void, CBChunk>(PAL::reserve(size_request));
+              block = capptr::Chunk<void>(PAL::reserve(size_request));
               if (block != nullptr)
               {
                 block_size = size_request;
@@ -158,7 +158,7 @@ namespace snmalloc
      * used, by smaller objects.
      */
     template<bool committed, SNMALLOC_CONCEPT(ConceptBackendMetaRange) Pagemap>
-    CapPtr<void, CBChunk> reserve_with_left_over(
+    capptr::Chunk<void> reserve_with_left_over(
       typename Pagemap::LocalState* local_state, size_t size)
     {
       SNMALLOC_ASSERT(size >= sizeof(void*));
@@ -198,7 +198,7 @@ namespace snmalloc
     template<SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
     void add_range(
       typename Pagemap::LocalState* local_state,
-      CapPtr<void, CBChunk> base,
+      capptr::Chunk<void> base,
       size_t length)
     {
       FlagLock lock(spin_lock);

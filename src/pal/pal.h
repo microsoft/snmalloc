@@ -70,27 +70,45 @@ namespace snmalloc
   static constexpr size_t OS_PAGE_SIZE = Pal::page_size;
 
   /**
+   * Compute the AddressSpaceControl::User variant of a capptr::bound
+   * annotation.  This is used by the PAL's capptr_export function to compute
+   * its return value's annotation.
+   */
+  template<SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+  using capptr_user_address_control_type =
+    typename B::template with_address_space_control<
+      capptr::dimension::AddressSpaceControl::User>;
+
+  /**
    * Perform platform-specific adjustment of return pointers.
    *
    * This is here, rather than in every PAL proper, merely to minimize
    * disruption to PALs for platforms that do not support StrictProvenance AALs.
    */
-  template<typename PAL = Pal, typename AAL = Aal, typename T, capptr_bounds B>
+  template<
+    typename PAL = Pal,
+    typename AAL = Aal,
+    typename T,
+    SNMALLOC_CONCEPT(capptr::ConceptBound) B>
   static inline typename std::enable_if_t<
     !aal_supports<StrictProvenance, AAL>,
-    CapPtr<T, capptr_export_type<B>()>>
-  capptr_export(CapPtr<T, B> p)
+    CapPtr<T, capptr_user_address_control_type<B>>>
+  capptr_to_user_address_control(CapPtr<T, B> p)
   {
-    return CapPtr<T, capptr_export_type<B>()>(p.unsafe_ptr());
+    return CapPtr<T, capptr_user_address_control_type<B>>(p.unsafe_capptr);
   }
 
-  template<typename PAL = Pal, typename AAL = Aal, typename T, capptr_bounds B>
-  static inline typename std::enable_if_t<
+  template<
+    typename PAL = Pal,
+    typename AAL = Aal,
+    typename T,
+    SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+  static SNMALLOC_FAST_PATH typename std::enable_if_t<
     aal_supports<StrictProvenance, AAL>,
-    CapPtr<T, capptr_export_type<B>()>>
-  capptr_export(CapPtr<T, B> p)
+    CapPtr<T, capptr_user_address_control_type<B>>>
+  capptr_to_user_address_control(CapPtr<T, B> p)
   {
-    return PAL::capptr_export(p);
+    return PAL::capptr_to_user_address_control(p);
   }
 
   /**
@@ -101,12 +119,16 @@ namespace snmalloc
    * disruption and avoid code bloat.  This wrapper ought to compile down to
    * nothing if SROA is doing its job.
    */
-  template<typename PAL, bool page_aligned = false, typename T, capptr_bounds B>
+  template<
+    typename PAL,
+    bool page_aligned = false,
+    typename T,
+    SNMALLOC_CONCEPT(capptr::ConceptBound) B>
   static SNMALLOC_FAST_PATH void pal_zero(CapPtr<T, B> p, size_t sz)
   {
     static_assert(
-      !page_aligned || B == CBArena || B == CBChunkD || B == CBChunk);
-    PAL::template zero<page_aligned>(p.unsafe_ptr(), sz);
+      !page_aligned || B::spatial >= capptr::dimension::Spatial::Chunk);
+    PAL::template zero<page_aligned>(p.unsafe_capptr, sz);
   }
 
   static_assert(

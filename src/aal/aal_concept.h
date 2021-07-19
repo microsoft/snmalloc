@@ -43,21 +43,22 @@ namespace snmalloc
 
   template<typename AAL>
   concept ConceptAAL_capptr_methods =
-  requires(CapPtr<void, CBArena> auth, CapPtr<void, CBAlloc> ret, size_t sz)
+  requires(capptr::Chunk<void> auth, capptr::AllocFull<void> ret, size_t sz)
   {
     /**
      * Produce a pointer with reduced authority from a more privilged pointer.
      * The resulting pointer will have base at auth's address and length of
      * exactly sz.  auth+sz must not exceed auth's limit.
      */
-    { AAL::template capptr_bound<void, CBChunk>(auth, sz) } noexcept
-      -> ConceptSame<CapPtr<void, CBChunk>>;
+    { AAL::template capptr_bound<void, capptr::bounds::Chunk>(auth, sz) }
+      noexcept
+      -> ConceptSame<capptr::Chunk<void>>;
 
     /**
      * Construct a copy of auth with its target set to that of ret.
      */
     { AAL::capptr_rebound(auth, ret) } noexcept
-      -> ConceptSame<CapPtr<void, CBArena>>;
+      -> ConceptSame<capptr::Chunk<void>>;
   };
 
   template<typename AAL>

@@ -5,7 +5,6 @@
 #include "../ds/seqqueue.h"
 #include "../mem/remoteallocator.h"
 #include "freelist.h"
-#include "ptrhelpers.h"
 #include "sizeclasstable.h"
 
 namespace snmalloc
@@ -153,7 +152,7 @@ namespace snmalloc
      * component, but with randomisation, it may only return part of the
      * available objects for this metaslab.
      */
-    static SNMALLOC_FAST_PATH std::pair<CapPtr<FreeObject, CBAlloc>, bool>
+    static SNMALLOC_FAST_PATH std::pair<capptr::AllocFull<FreeObject>, bool>
     alloc_free_list(
       Metaslab* meta,
       FreeListIter& fast_free_list,

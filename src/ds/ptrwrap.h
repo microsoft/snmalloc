@@ -1,6 +1,7 @@
 #pragma once
 
-#include "defines.h"
+#include "../ds/concept.h"
+#include "../ds/defines.h"
 
 #include <atomic>
 
@@ -21,78 +22,150 @@ namespace snmalloc
   /**
    * Summaries of StrictProvenance metadata.  We abstract away the particular
    * size and any offset into the bounds.
-   *
-   * CBArena is as powerful as our pointers get: they're results from mmap(),
-   * and so confer as much authority as the kernel has given us.
-   *
-   * CBChunk is restricted to either a single chunk (SUPERSLAB_SIZE) or perhaps
-   * to several if we've requesed a large allocation (see capptr_chunk_is_alloc
-   * and its uses).
-   *
-   * CBChunkD is curious: we often use CBArena-bounded pointers to derive
-   * pointers to Allocslab metadata, and on most fast paths these pointers end
-   * up being ephemeral.  As such, on NDEBUG builds, we elide the capptr_bounds
-   * that would bound these to chunks and instead just unsafely inherit the
-   * CBArena bounds.  The use of CBChunkD thus helps to ensure that we
-   * eventually do invoke capptr_bounds when these pointers end up being longer
-   * lived!
-   *
-   * *E forms are "exported" and have had platform constraints applied.  That
-   * means, for example, on CheriBSD, that they have had their VMMAP permission
-   * stripped.
-   *
-   * Yes, I wish the start-of-comment characters were aligned below as well.
-   * I blame clang format.
    */
-  enum capptr_bounds
+
+  namespace capptr
   {
-    /*                Spatial  Notes                                      */
-    CBArena, /*        Arena                                              */
-    CBChunkD, /*       Arena   Chunk-bounded in debug; internal use only! */
-    CBChunk, /*        Chunk                                              */
-    CBChunkE, /*       Chunk   (+ platform constraints)                   */
-    CBAlloc, /*        Alloc                                              */
-    CBAllocE /*        Alloc   (+ platform constraints)                   */
-  };
+    namespace dimension
+    {
+      /*
+       * Describe the spatial extent (intended to be) authorized by a pointer.
+       *
+       * Bounds dimensions are sorted so that < reflects authority.
+       */
+      enum class Spatial
+      {
+        /**
+         * Bounded to a particular allocation (which might be Large!)
+         */
+        Alloc,
+        /**
+         * Bounded to one or more particular chunk granules
+         */
+        Chunk,
+      };
+
+      /**
+       * On some platforms (e.g., CHERI), pointers can be checked to see whether
+       * they authorize control of the address space.  See the PAL's
+       * capptr_export().
+       */
+      enum class AddressSpaceControl
+      {
+        /**
+         * All intended control constraints have been applied.  For example, on
+         * CheriBSD, the VMMAP permission has been stripped and so this CapPtr<>
+         * cannot authorize manipulation of the address space itself, though it
+         * continues to authorize loads and stores.
+         */
+        User,
+        /**
+         * No control constraints have been applied.  On CheriBSD, specifically,
+         * this grants control of the address space (via mmap and friends) and
+         * in Cornucopia exempts the pointer from revocation (as long as the
+         * mapping remains in place, but snmalloc does not presently tear down
+         * its own mappings.)
+         */
+        Full
+      };
+
+    } // namespace dimension
+
+    /**
+     * The aggregate type of a bound: a Cartesian product of the individual
+     * dimensions, above.
+     */
+    template<dimension::Spatial S, dimension::AddressSpaceControl AS>
+    struct bound
+    {
+      static constexpr enum dimension::Spatial spatial = S;
+      static constexpr enum dimension::AddressSpaceControl
+        address_space_control = AS;
+
+      /**
+       * Set just the spatial component of the bounds
+       */
+      template<enum dimension::Spatial SO>
+      using with_spatial = bound<SO, AS>;
+
+      /**
+       * Set just the address space control component of the bounds
+       */
+      template<enum dimension::AddressSpaceControl ASO>
+      using with_address_space_control = bound<S, ASO>;
+    };
+
+    // clang-format off
+#ifdef __cpp_concepts
+    /*
+     * This is spelled a little differently from our other concepts because GCC
+     * treats "{ T::spatial }" as generating a reference and then complains that
+     * it isn't "ConceptSame<const Spatial>", though clang is perfectly happy
+     * with that spelling.  Both seem happy with this formulation.
+     */
+    template<typename T>
+    concept ConceptBound =
+      ConceptSame<decltype(T::spatial), const capptr::dimension::Spatial> &&
+      ConceptSame<decltype(T::address_space_control),
+        const capptr::dimension::AddressSpaceControl>;
+#endif
+    // clang-format on
+
+    /*
+     * Several combinations are used often enough that we give convenient
+     * aliases for them.
+     */
+    namespace bounds
+    {
+      /**
+       * Internal access to a Chunk of memory.  These flow between the ASM and
+       * the slab allocators, for example.
+       */
+      using Chunk =
+        bound<dimension::Spatial::Chunk, dimension::AddressSpaceControl::Full>;
+
+      /**
+       * User access to an entire Chunk.  Used as an ephemeral state when
+       * returning a large allocation.  See capptr_chunk_is_alloc.
+       */
+      using ChunkUser =
+        Chunk::with_address_space_control<dimension::AddressSpaceControl::User>;
+
+      /**
+       * Internal access to just one allocation (usually, within a slab).
+       */
+      using AllocFull = Chunk::with_spatial<dimension::Spatial::Alloc>;
+
+      /**
+       * User access to just one allocation (usually, within a slab).
+       */
+      using Alloc = AllocFull::with_address_space_control<
+        dimension::AddressSpaceControl::User>;
+    } // namespace bounds
+  } // namespace capptr
 
   /**
-   * Compute the "exported" variant of a capptr_bounds annotation.  This is
-   * used by the PAL's capptr_export function to compute its return value's
-   * annotation.
+   * Determine whether BI is a spatial refinement of BO.
+   * Chunk and ChunkD are considered eqivalent here.
    */
-  template<capptr_bounds B>
-  SNMALLOC_CONSTEVAL capptr_bounds capptr_export_type()
+  template<
+    SNMALLOC_CONCEPT(capptr::ConceptBound) BI,
+    SNMALLOC_CONCEPT(capptr::ConceptBound) BO>
+  SNMALLOC_CONSTEVAL bool capptr_is_spatial_refinement()
   {
-    static_assert(
-      (B == CBChunk) || (B == CBAlloc), "capptr_export_type of bad type");
-
-    switch (B)
+    if (BI::address_space_control != BO::address_space_control)
     {
-      case CBChunk:
-        return CBChunkE;
-      case CBAlloc:
-        return CBAllocE;
+      return false;
     }
-  }
 
-  template<capptr_bounds BI, capptr_bounds BO>
-  SNMALLOC_CONSTEVAL bool capptr_is_bounds_refinement()
-  {
-    switch (BI)
+    switch (BI::spatial)
     {
-      case CBAllocE:
-        return BO == CBAllocE;
-      case CBAlloc:
-        return BO == CBAlloc;
-      case CBChunkE:
-        return BO == CBAllocE || BO == CBChunkE;
-      case CBChunk:
-        return BO == CBAlloc || BO == CBChunk || BO == CBChunkD;
-      case CBChunkD:
-        return BO == CBAlloc || BO == CBChunk || BO == CBChunkD;
-      case CBArena:
-        return BO == CBAlloc || BO == CBChunk || BO == CBChunkD ||
-          BO == CBArena;
+      using namespace capptr::dimension;
+      case Spatial::Chunk:
+        return true;
+
+      case Spatial::Alloc:
+        return BO::spatial == Spatial::Alloc;
     }
   }
 
@@ -100,18 +173,19 @@ namespace snmalloc
    * A pointer annotated with a "phantom type parameter" carrying a static
    * summary of its StrictProvenance metadata.
    */
-  template<typename T, capptr_bounds bounds>
-  class CapPtr
+  template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
+  struct CapPtr
   {
-    uintptr_t unsafe_capptr;
+    T* unsafe_capptr;
 
-  public:
     /**
      * nullptr is implicitly constructable at any bounds type
      */
-    constexpr CapPtr(const std::nullptr_t) : unsafe_capptr(0) {}
+    constexpr SNMALLOC_FAST_PATH CapPtr(const std::nullptr_t n)
+    : unsafe_capptr(n)
+    {}
 
-    constexpr CapPtr() : CapPtr(nullptr){};
+    constexpr SNMALLOC_FAST_PATH CapPtr() : CapPtr(nullptr) {}
 
     /**
      * all other constructions must be explicit
@@ -127,23 +201,21 @@ namespace snmalloc
 #  pragma warning(push)
 #  pragma warning(disable : 4702)
 #endif
-    constexpr explicit CapPtr(uintptr_t p) : unsafe_capptr(p) {}
+    constexpr explicit SNMALLOC_FAST_PATH CapPtr(T* p) : unsafe_capptr(p) {}
 #ifdef _MSC_VER
 #  pragma warning(pop)
 #endif
-
-    explicit CapPtr(T* p) : unsafe_capptr(reinterpret_cast<uintptr_t>(p)) {}
 
     /**
      * Allow static_cast<>-s that preserve bounds but vary the target type.
      */
     template<typename U>
-    SNMALLOC_FAST_PATH CapPtr<U, bounds> as_static()
+    [[nodiscard]] SNMALLOC_FAST_PATH CapPtr<U, bounds> as_static() const
     {
-      return CapPtr<U, bounds>(this->unsafe_capptr);
+      return CapPtr<U, bounds>(static_cast<U*>(this->unsafe_capptr));
     }
 
-    SNMALLOC_FAST_PATH CapPtr<void, bounds> as_void()
+    [[nodiscard]] SNMALLOC_FAST_PATH CapPtr<void, bounds> as_void() const
     {
       return this->as_static<void>();
     }
@@ -152,9 +224,9 @@ namespace snmalloc
      * A more aggressive bounds-preserving cast, using reinterpret_cast
      */
     template<typename U>
-    SNMALLOC_FAST_PATH CapPtr<U, bounds> as_reinterpret()
+    [[nodiscard]] SNMALLOC_FAST_PATH CapPtr<U, bounds> as_reinterpret() const
     {
-      return CapPtr<U, bounds>(this->unsafe_capptr);
+      return CapPtr<U, bounds>(reinterpret_cast<U*>(this->unsafe_capptr));
     }
 
     SNMALLOC_FAST_PATH bool operator==(const CapPtr& rhs) const
@@ -172,60 +244,82 @@ namespace snmalloc
       return this->unsafe_capptr < rhs.unsafe_capptr;
     }
 
-    [[nodiscard]] SNMALLOC_FAST_PATH T* unsafe_ptr() const
+    SNMALLOC_FAST_PATH T* operator->() const
     {
-      return reinterpret_cast<T*>(this->unsafe_capptr);
+      /*
+       * Alloc-bounded, platform-constrained pointers are associated with
+       * objects coming from or going to the client; we should be doing nothing
+       * with them.
+       */
+      static_assert(
+        (bounds::spatial != capptr::dimension::Spatial::Alloc) ||
+        (bounds::address_space_control !=
+         capptr::dimension::AddressSpaceControl::User));
+      return this->unsafe_capptr;
     }
 
-    [[nodiscard]] SNMALLOC_FAST_PATH uintptr_t unsafe_uintptr() const
+    [[nodiscard]] SNMALLOC_FAST_PATH T* unsafe_ptr() const
     {
       return this->unsafe_capptr;
     }
 
-    SNMALLOC_FAST_PATH T* operator->() const
+    [[nodiscard]] SNMALLOC_FAST_PATH uintptr_t unsafe_uintptr() const
     {
-      /*
-       * CBAllocE bounds are associated with objects coming from or going to the
-       * client; we should be doing nothing with them.
-       */
-      static_assert(bounds != CBAllocE);
-      return unsafe_ptr();
+      return reinterpret_cast<uintptr_t>(this->unsafe_capptr);
     }
   };
 
-  static_assert(sizeof(CapPtr<void, CBArena>) == sizeof(void*));
-  static_assert(alignof(CapPtr<void, CBArena>) == alignof(void*));
+  namespace capptr
+  {
+    /*
+     * Aliases for CapPtr<> types with particular bounds.
+     */
 
-  template<typename T>
-  using CapPtrCBArena = CapPtr<T, CBArena>;
+    template<typename T>
+    using Chunk = CapPtr<T, bounds::Chunk>;
 
-  template<typename T>
-  using CapPtrCBChunk = CapPtr<T, CBChunk>;
+    template<typename T>
+    using ChunkUser = CapPtr<T, bounds::ChunkUser>;
 
-  template<typename T>
-  using CapPtrCBChunkE = CapPtr<T, CBChunkE>;
+    template<typename T>
+    using AllocFull = CapPtr<T, bounds::AllocFull>;
 
-  template<typename T>
-  using CapPtrCBAlloc = CapPtr<T, CBAlloc>;
+    template<typename T>
+    using Alloc = CapPtr<T, bounds::Alloc>;
+
+  } // namespace capptr
+
+  static_assert(sizeof(capptr::Chunk<void>) == sizeof(void*));
+  static_assert(alignof(capptr::Chunk<void>) == alignof(void*));
 
   /**
    * Sometimes (with large allocations) we really mean the entire chunk (or even
    * several chunks) to be the allocation.
    */
   template<typename T>
-  inline SNMALLOC_FAST_PATH CapPtr<T, CBAllocE>
-  capptr_chunk_is_alloc(CapPtr<T, CBChunkE> p)
+  inline SNMALLOC_FAST_PATH capptr::Alloc<T>
+  capptr_chunk_is_alloc(capptr::ChunkUser<T> p)
   {
-    return CapPtr<T, CBAlloc>(p.unsafe_capptr);
+    return capptr::Alloc<T>(p.unsafe_capptr);
   }
 
   /**
    * With all the bounds and constraints in place, it's safe to extract a void
-   * pointer (to reveal to the client).
+   * pointer (to reveal to the client).  Roughly dual to capptr_from_client().
    */
-  inline SNMALLOC_FAST_PATH void* capptr_reveal(CapPtr<void, CBAllocE> p)
+  inline SNMALLOC_FAST_PATH void* capptr_reveal(capptr::Alloc<void> p)
   {
-    return p.unsafe_ptr();
+    return p.unsafe_capptr;
+  }
+
+  /**
+   * Given a void* from the client, it's fine to call it Alloc.  Roughly
+   * dual to capptr_reveal().
+   */
+  static inline SNMALLOC_FAST_PATH capptr::Alloc<void>
+  capptr_from_client(void* p)
+  {
+    return capptr::Alloc<void>(p);
   }
 
   /**
@@ -237,7 +331,7 @@ namespace snmalloc
    * annotations around an un-annotated std::atomic<T*>, to appease C++, yet
    * will expose or consume only CapPtr<T> with the same bounds annotation.
    */
-  template<typename T, capptr_bounds bounds>
+  template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
   struct AtomicCapPtr
   {
     std::atomic<T*> unsafe_capptr;
@@ -245,12 +339,16 @@ namespace snmalloc
     /**
      * nullptr is constructable at any bounds type
      */
-    constexpr AtomicCapPtr(const std::nullptr_t n) : unsafe_capptr(n) {}
+    constexpr SNMALLOC_FAST_PATH AtomicCapPtr(const std::nullptr_t n)
+    : unsafe_capptr(n)
+    {}
 
     /**
      * Interconversion with CapPtr
      */
-    AtomicCapPtr(CapPtr<T, bounds> p) : unsafe_capptr(p.unsafe_ptr()) {}
+    constexpr SNMALLOC_FAST_PATH AtomicCapPtr(CapPtr<T, bounds> p)
+    : unsafe_capptr(p.unsafe_capptr)
+    {}
 
     operator CapPtr<T, bounds>() const noexcept
     {
@@ -260,7 +358,7 @@ namespace snmalloc
     // Our copy-assignment operator follows std::atomic and returns a copy of
     // the RHS.  Clang finds this surprising; we suppress the warning.
     // NOLINTNEXTLINE(misc-unconventional-assign-operator)
-    CapPtr<T, bounds> operator=(CapPtr<T, bounds> p) noexcept
+    SNMALLOC_FAST_PATH CapPtr<T, bounds> operator=(CapPtr<T, bounds> p) noexcept
     {
       this->store(p);
       return p;
@@ -276,7 +374,7 @@ namespace snmalloc
       CapPtr<T, bounds> desired,
       std::memory_order order = std::memory_order_seq_cst) noexcept
     {
-      this->unsafe_capptr.store(desired.unsafe_ptr(), order);
+      this->unsafe_capptr.store(desired.unsafe_capptr, order);
     }
 
     SNMALLOC_FAST_PATH CapPtr<T, bounds> exchange(
@@ -284,7 +382,7 @@ namespace snmalloc
       std::memory_order order = std::memory_order_seq_cst) noexcept
     {
       return CapPtr<T, bounds>(
-        this->unsafe_capptr.exchange(desired.unsafe_ptr(), order));
+        this->unsafe_capptr.exchange(desired.unsafe_capptr, order));
     }
 
     SNMALLOC_FAST_PATH bool operator==(const AtomicCapPtr& rhs) const
@@ -303,13 +401,24 @@ namespace snmalloc
     }
   };
 
-  template<typename T>
-  using AtomicCapPtrCBArena = AtomicCapPtr<T, CBArena>;
+  namespace capptr
+  {
+    /*
+     * Aliases for AtomicCapPtr<> types with particular bounds.
+     */
 
-  template<typename T>
-  using AtomicCapPtrCBChunk = AtomicCapPtr<T, CBChunk>;
+    template<typename T>
+    using AtomicChunk = AtomicCapPtr<T, bounds::Chunk>;
 
-  template<typename T>
-  using AtomicCapPtrCBAlloc = AtomicCapPtr<T, CBAlloc>;
+    template<typename T>
+    using AtomicChunkUser = AtomicCapPtr<T, bounds::ChunkUser>;
+
+    template<typename T>
+    using AtomicAllocFull = AtomicCapPtr<T, bounds::AllocFull>;
+
+    template<typename T>
+    using AtomicAlloc = AtomicCapPtr<T, bounds::Alloc>;
+
+  } // namespace capptr
 
 } // namespace snmalloc
