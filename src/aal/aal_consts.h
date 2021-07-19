@@ -33,5 +33,6 @@ namespace snmalloc
     X86,
     X86_SGX,
     Sparc,
+    RISCV
   };
 } // namespace snmalloc
