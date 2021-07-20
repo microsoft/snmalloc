@@ -132,14 +132,10 @@ if (WIN32)
 endif()
 
 # detect support for cmpxchg16b; werror is needed to make sure mcx16 must be used by targets
-set(SNMALLOC_CMAKE_CXX_FLAGS_CACHE ${CMAKE_CXX_FLAGS})
-set(CMAKE_CXX_FLAGS "-Werror -Wextra -Wall")
-check_cxx_compiler_flag(-mcx16 SNMALLOC_COMPILER_SUPPORT_MCX16)
+check_cxx_compiler_flag("-Werror -Wextra -Wall -mcx16" SNMALLOC_COMPILER_SUPPORT_MCX16)
 if(SNMALLOC_COMPILER_SUPPORT_MCX16)
   target_compile_options(snmalloc_lib INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-mcx16>)
 endif()
-set(CMAKE_CXX_FLAGS ${SNMALLOC_CMAKE_CXX_FLAGS_CACHE})
-unset(SNMALLOC_CMAKE_CXX_FLAGS_CACHE)
 
 # Have to set this globally, as can't be set on an interface target.
 if(SNMALLOC_USE_CXX20)
