@@ -17,11 +17,20 @@ namespace snmalloc
   using address_t = Aal::address_t;
 
   /**
+   * Perform arithmetic on a uintptr_t.
+   */
+  inline uintptr_t pointer_offset(uintptr_t base, size_t diff)
+  {
+    return base + diff;
+  }
+
+  /**
    * Perform pointer arithmetic and return the adjusted pointer.
    */
   template<typename U = void, typename T>
   inline U* pointer_offset(T* base, size_t diff)
   {
+    SNMALLOC_ASSERT(base != nullptr); /* Avoid UB */
     return reinterpret_cast<U*>(reinterpret_cast<char*>(base) + diff);
   }
 
@@ -38,6 +47,7 @@ namespace snmalloc
   template<typename U = void, typename T>
   inline U* pointer_offset_signed(T* base, ptrdiff_t diff)
   {
+    SNMALLOC_ASSERT(base != nullptr); /* Avoid UB */
     return reinterpret_cast<U*>(reinterpret_cast<char*>(base) + diff);
   }
 
@@ -90,25 +100,35 @@ namespace snmalloc
   }
 
   /**
+   * Align a uintptr_t down to a statically specified granularity, which must be
+   * a power of two.
+   */
+  template<size_t alignment>
+  inline uintptr_t pointer_align_down(uintptr_t p)
+  {
+    static_assert(alignment > 0);
+    static_assert(bits::is_pow2(alignment));
+    if constexpr (alignment == 1)
+      return p;
+    else
+    {
+#if __has_builtin(__builtin_align_down)
+      return __builtin_align_down(p, alignment);
+#else
+      return bits::align_down(p, alignment);
+#endif
+    }
+  }
+
+  /**
    * Align a pointer down to a statically specified granularity, which must be a
    * power of two.
    */
   template<size_t alignment, typename T = void>
   inline T* pointer_align_down(void* p)
   {
-    static_assert(alignment > 0);
-    static_assert(bits::is_pow2(alignment));
-    if constexpr (alignment == 1)
-      return static_cast<T*>(p);
-    else
-    {
-#if __has_builtin(__builtin_align_down)
-      return static_cast<T*>(__builtin_align_down(p, alignment));
-#else
-      return reinterpret_cast<T*>(
-        bits::align_down(reinterpret_cast<uintptr_t>(p), alignment));
-#endif
-    }
+    return reinterpret_cast<T*>(
+      pointer_align_down<alignment>(reinterpret_cast<uintptr_t>(p)));
   }
 
   template<size_t alignment, typename T, capptr_bounds bounds>
