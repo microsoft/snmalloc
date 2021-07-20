@@ -255,7 +255,7 @@ void test_external_pointer()
       if ((size_t)p4 != (size_t)p1 + size - 1)
       {
         std::cout << "size: " << size << " end(p4): " << p4 << " p1: " << p1
-                  << "  p1+size-1: " << (void*)((size_t)p1 + size - 1)
+                  << "  p1+size-1: " << pointer_offset(p1, size - 1)
                   << std::endl;
       }
       SNMALLOC_CHECK((size_t)p4 == (size_t)p1 + size - 1);
