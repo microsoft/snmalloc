@@ -40,7 +40,7 @@ void check_get(
 
   if (value.v != expected.v)
   {
-    std::cout << "Location: " << (void*)address << " Read: " << value.v
+    std::cout << "Location: " << std::hex << address << " Read: " << value.v
               << " Expected: " << expected.v << " on " << file << ":" << lineno
               << std::endl;
     failure_count++;
