@@ -180,8 +180,9 @@ namespace snmalloc
     MetaEntry(Metaslab* meta, RemoteAllocator* remote, sizeclass_t sizeclass)
     : meta(meta)
     {
+      /* remote might be nullptr; cast to uintptr_t before offsetting */
       remote_and_sizeclass =
-        address_cast(pointer_offset<char>(remote, sizeclass));
+        pointer_offset(reinterpret_cast<uintptr_t>(remote), sizeclass);
     }
 
     [[nodiscard]] Metaslab* get_metaslab() const
@@ -192,7 +193,7 @@ namespace snmalloc
     [[nodiscard]] RemoteAllocator* get_remote() const
     {
       return reinterpret_cast<RemoteAllocator*>(
-        bits::align_down(remote_and_sizeclass, alignof(RemoteAllocator)));
+        pointer_align_down<alignof(RemoteAllocator)>(remote_and_sizeclass));
     }
 
     [[nodiscard]] sizeclass_t get_sizeclass() const
