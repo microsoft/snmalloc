@@ -26,11 +26,12 @@ namespace snmalloc
   };
 
   /**
-   * PALs must advertise their page size
+   * PALs must advertise the size of the address space and their page size
    */
   template<typename PAL>
   concept ConceptPAL_static_sizes = requires()
   {
+    typename std::integral_constant<std::size_t, PAL::address_bits>;
     typename std::integral_constant<std::size_t, PAL::page_size>;
   };
 

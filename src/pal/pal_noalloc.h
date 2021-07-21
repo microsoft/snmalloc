@@ -37,6 +37,8 @@ namespace snmalloc
 
     static constexpr size_t page_size = BasePAL::page_size;
 
+    static constexpr size_t address_bits = Aal::address_bits;
+
     /**
      * Print a stack trace.
      */
