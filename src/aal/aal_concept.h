@@ -12,13 +12,15 @@ namespace snmalloc
 {
   /**
    * AALs must advertise the bit vector of supported features, their name,
-   * 
+   * machine word size, and an upper bound on the address space size
    */
   template<typename AAL>
   concept ConceptAAL_static_members = requires()
   {
     typename std::integral_constant<uint64_t, AAL::aal_features>;
     typename std::integral_constant<int, AAL::aal_name>;
+    typename std::integral_constant<std::size_t, AAL::bits>;
+    typename std::integral_constant<std::size_t, AAL::address_bits>;
   };
 
   /**
