@@ -41,7 +41,7 @@ namespace snmalloc
 
   // Large classes range from [SUPERSLAB, ADDRESS_SPACE).// TODO
   static constexpr size_t NUM_LARGE_CLASSES =
-    bits::ADDRESS_BITS - MAX_SIZECLASS_BITS;
+    Pal::address_bits - MAX_SIZECLASS_BITS;
 
   inline SNMALLOC_FAST_PATH static size_t
   aligned_size(size_t alignment, size_t size)
@@ -179,7 +179,7 @@ namespace snmalloc
 
     auto rsize = sizeclass_to_size(sc);
 
-    if constexpr (bits::is64())
+    if constexpr (sizeof(offset) >= 8)
     {
       // Only works for 64 bit multiplication, as the following will overflow in
       // 32bit.
@@ -192,6 +192,10 @@ namespace snmalloc
       //   SUPERSLAB_BITS <= 24, "The following code assumes max of 24 bits");
 
       // TODO 24 hack
+      static_assert(bits::BITS >= 24, "About to attempt a negative shift");
+      static_assert(
+        (8 * sizeof(offset)) >= (bits::BITS - 24),
+        "About to shift further than the type");
       return (((offset >> MIN_ALLOC_BITS) *
                sizeclass_metadata.fast[sc].div_mult) >>
               (bits::BITS - 24)) *
@@ -209,7 +213,7 @@ namespace snmalloc
     // SUPERSLAB_SIZE.
     //    SNMALLOC_ASSERT(offset <= SUPERSLAB_SIZE);
 
-    if constexpr (bits::is64())
+    if constexpr (sizeof(offset) >= 8)
     {
       // Only works for 64 bit multiplication, as the following will overflow in
       // 32bit.
@@ -219,6 +223,7 @@ namespace snmalloc
       // square of the offset to be representable.
       // TODO 24 hack. Redo the maths given the multiple
       // slab sizes
+      static_assert(bits::BITS >= 25);
       static constexpr size_t MASK =
         ~(bits::one_at_bit(bits::BITS - 1 - 24) - 1);
 

@@ -83,7 +83,7 @@ namespace snmalloc
     {
       static_assert(
         has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
-      constexpr size_t COVERED_BITS = bits::ADDRESS_BITS - GRANULARITY_BITS;
+      constexpr size_t COVERED_BITS = PAL::address_bits - GRANULARITY_BITS;
       constexpr size_t ENTRIES = bits::one_at_bit(COVERED_BITS);
       return ENTRIES * sizeof(T);
     }
@@ -204,7 +204,7 @@ namespace snmalloc
       }
       else
       {
-        return bits::one_at_bit(bits::ADDRESS_BITS - GRANULARITY_BITS);
+        return bits::one_at_bit(PAL::address_bits - GRANULARITY_BITS);
       }
     }
 

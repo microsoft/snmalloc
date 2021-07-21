@@ -30,12 +30,7 @@ namespace snmalloc
 
   namespace bits
   {
-    static constexpr size_t BITS = sizeof(size_t) * 8;
-
-    static constexpr bool is64()
-    {
-      return BITS == 64;
-    }
+    static constexpr size_t BITS = Aal::bits;
 
     /**
      * Returns a value of type T that has a single bit set,
@@ -51,8 +46,6 @@ namespace snmalloc
       SNMALLOC_ASSERT(sizeof(T) * 8 > static_cast<size_t>(shift));
       return (static_cast<T>(1)) << shift;
     }
-
-    static constexpr size_t ADDRESS_BITS = is64() ? 48 : 32;
 
     inline SNMALLOC_FAST_PATH size_t clz(size_t x)
     {
