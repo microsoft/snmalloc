@@ -54,7 +54,7 @@ namespace snmalloc
       if (p == nullptr)
       {
         SharedStateHandle::Backend::Pal::error(
-          "Failed to initialisation thread local allocator.");
+          "Failed to initialise thread local allocator.");
       }
 
       FlagLock f(pool.lock);
