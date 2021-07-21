@@ -132,6 +132,18 @@ namespace snmalloc
 
     static constexpr size_t page_size = Aal::smallest_page_size;
 
+    /**
+     * Address bits are potentially mediated by some POSIX OSes, but generally
+     * default to the architecture's.
+     *
+     * Unlike the AALs, which are composited by explicitly delegating to their
+     * template parameters and so play a SFINAE-based game to achieve similar
+     * ends, for the PALPOSIX<> classes we instead use more traditional
+     * inheritance (e.g., PALLinux is subtype of PALPOSIX<PALLinux>) and so we
+     * can just use that mechanism here, too.
+     */
+    static constexpr size_t address_bits = Aal::address_bits;
+
     static void print_stack_trace()
     {
 #ifdef SNMALLOC_BACKTRACE_HEADER

@@ -63,6 +63,11 @@ namespace snmalloc
     static constexpr size_t page_size = 0x1000;
 
     /**
+     * Windows always inherits its underlying architecture's full address range.
+     */
+    static constexpr size_t address_bits = Aal::address_bits;
+
+    /**
      * Check whether the low memory state is still in effect.  This is an
      * expensive operation and should not be on any fast paths.
      */
