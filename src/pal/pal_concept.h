@@ -8,17 +8,29 @@
 
 namespace snmalloc
 {
+
+  /*
+   * These concepts enforce that these are indeed constants that fit in the
+   * desired types.  (This is subtly different from saying that they are the
+   * required types; C++ may handle constants without much regard for their
+   * claimed type.)
+   */
+
   /**
-   * PALs must advertize the bit vector of their supported features and the
-   * platform's page size.  This concept enforces that these are indeed
-   * constants that fit in the desired types.  (This is subtly different from
-   * saying that they are the required types; C++ may handle constants without
-   * much regard for their claimed type.)
+   * PALs must advertize the bit vector of their supported features.
    */
   template<typename PAL>
-  concept ConceptPAL_static_members = requires()
+  concept ConceptPAL_static_features = requires()
   {
     typename std::integral_constant<uint64_t, PAL::pal_features>;
+  };
+
+  /**
+   * PALs must advertise their page size
+   */
+  template<typename PAL>
+  concept ConceptPAL_static_sizes = requires()
+  {
     typename std::integral_constant<std::size_t, PAL::page_size>;
   };
 
@@ -93,7 +105,8 @@ namespace snmalloc
    */
   template<typename PAL>
   concept ConceptPAL =
-    ConceptPAL_static_members<PAL> &&
+    ConceptPAL_static_features<PAL> &&
+    ConceptPAL_static_sizes<PAL> &&
     ConceptPAL_error<PAL> &&
     ConceptPAL_memops<PAL> &&
     (!pal_supports<Entropy, PAL> ||
