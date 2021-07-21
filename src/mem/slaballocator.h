@@ -24,7 +24,7 @@ namespace snmalloc
   /**
    * How many slab sizes that can be provided.
    */
-  constexpr size_t NUM_SLAB_SIZES = bits::ADDRESS_BITS - MIN_CHUNK_BITS;
+  constexpr size_t NUM_SLAB_SIZES = Pal::address_bits - MIN_CHUNK_BITS;
 
   /**
    * Used to ensure the per slab meta data is large enough for both use cases.
