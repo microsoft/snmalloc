@@ -67,6 +67,66 @@ namespace snmalloc
       default_address_t,
       Arch>::address_t;
 
+  private:
+    /**
+     * SFINAE template and default case.  T will be Arch and the second template
+     * argument defaults at the call site (below).
+     */
+    template<typename T, typename = int>
+    struct default_bits_t
+    {
+      static constexpr size_t value = sizeof(size_t) * 8;
+    };
+
+    /**
+     * SFINAE override case.  T will be Arch, and the computation in the second
+     * position yields the type int iff T::bits exists and is a substituion
+     * failure otherwise.  That is, if T::bits exists, this specialization
+     * shadows the default; otherwise, this specialization has no effect.
+     */
+    template<typename T>
+    struct default_bits_t<T, decltype(((void)T::bits, 0))>
+    {
+      static constexpr size_t value = T::bits;
+    };
+
+  public:
+    /**
+     * Architectural word width as overridden by the underlying Arch-itecture or
+     * defaulted as per above.
+     */
+    static constexpr size_t bits = default_bits_t<Arch>::value;
+
+  private:
+    /**
+     * Architectures have a default opinion of their address space size, but
+     * this is mediated by the platform (e.g., the kernel may cleave the address
+     * space in twain or my use only some of the radix points available to
+     * hardware paging mechanisms).
+     *
+     * This is more SFINAE-based type-level trickery; see default_bits_t, above,
+     * for more details.
+     */
+    template<typename T, typename = int>
+    struct default_address_bits_t
+    {
+      static constexpr size_t value = (bits == 64) ? 48 : 32;
+    };
+
+    /**
+     * Yet more SFINAE; see default_bits_t for more discussion.  Here, the
+     * computation in the second parameter yields the type int iff
+     * T::address_bits exists.
+     */
+    template<typename T>
+    struct default_address_bits_t<T, decltype(((void)T::address_bits, 0))>
+    {
+      static constexpr size_t value = T::address_bits;
+    };
+
+  public:
+    static constexpr size_t address_bits = default_address_bits_t<Arch>::value;
+
     /**
      * Prefetch a specific address.
      *
