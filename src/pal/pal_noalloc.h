@@ -4,23 +4,29 @@
 #pragma once
 
 #include "../aal/aal.h"
+#include "pal_concept.h"
 #include "pal_consts.h"
 
 #include <cstring>
 
 namespace snmalloc
 {
+#ifdef __cpp_concepts
+  /**
+   * The minimal subset of a PAL that we need for delegation
+   */
+  template<typename PAL>
+  concept PALNoAllocBase = ConceptPAL_static_sizes<PAL>&& ConceptPAL_error<PAL>;
+#endif
+
   /**
    * Platform abstraction layer that does not allow allocation.
    *
    * This is a minimal PAL for pre-reserved memory regions, where the
    * address-space manager is initialised with all of the memory that it will
    * ever use.
-   *
-   * It takes an error handler delegate as a template argument. This is
-   * expected to forward to the default PAL in most cases.
    */
-  template<typename ErrorHandler>
+  template<SNMALLOC_CONCEPT(PALNoAllocBase) BasePAL>
   struct PALNoAlloc
   {
     /**
@@ -29,14 +35,14 @@ namespace snmalloc
      */
     static constexpr uint64_t pal_features = NoAllocation;
 
-    static constexpr size_t page_size = Aal::smallest_page_size;
+    static constexpr size_t page_size = BasePAL::page_size;
 
     /**
      * Print a stack trace.
      */
     static void print_stack_trace()
     {
-      ErrorHandler::print_stack_trace();
+      BasePAL::print_stack_trace();
     }
 
     /**
@@ -44,7 +50,7 @@ namespace snmalloc
      */
     [[noreturn]] static void error(const char* const str) noexcept
     {
-      ErrorHandler::error(str);
+      BasePAL::error(str);
     }
 
     /**
