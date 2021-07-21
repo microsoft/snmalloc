@@ -14,6 +14,19 @@ namespace snmalloc
   template<SNMALLOC_CONCEPT(ConceptPAL) PAL, bool fixed_range>
   class BackendAllocator
   {
+    // Size of local address space requests.  Currently aimed at 2MiB large
+    // pages but should make this configurable (i.e. for OE, so we don't need as
+    // much space).
+    constexpr static size_t LOCAL_CACHE_BLOCK = bits::one_at_bit(21);
+
+#ifdef SNMALLOC_CHECK_CLIENT
+    // When protecting the meta-data, we use a smaller block for the meta-data
+    // that is randomised inside a larger block.  This needs to be at least a
+    // page so that we can use guard pages.
+    constexpr static size_t LOCAL_CACHE_META_BLOCK =
+      bits::max(MIN_CHUNK_SIZE * 2, OS_PAGE_SIZE);
+#endif
+
   public:
     using Pal = PAL;
 
@@ -27,8 +40,15 @@ namespace snmalloc
     {
       friend BackendAllocator;
 
-      // TODO Separate meta data and object
       AddressSpaceManagerCore local_address_space;
+
+#ifdef SNMALLOC_CHECK_CLIENT
+      /**
+       * Secondary local address space, so we can apply some randomisation
+       * and guard pages to protect the meta-data.
+       */
+      AddressSpaceManagerCore local_meta_address_space;
+#endif
     };
 
     /**
@@ -44,7 +64,6 @@ namespace snmalloc
     {
       friend BackendAllocator;
 
-      // TODO Separate meta data and object
       AddressSpaceManager<PAL> address_space;
 
       FlatPagemap<MIN_CHUNK_BITS, MetaEntry, PAL, fixed_range> pagemap;
@@ -81,6 +100,34 @@ namespace snmalloc
     };
 
   private:
+#ifdef SNMALLOC_CHECK_CLIENT
+    /**
+     * Returns a sub-range of [return, return+sub_size] that is contained in
+     * the range [base, base+full_size]. The first and last slot are not used
+     * so that the edges can be used for guard pages.
+     */
+    static CapPtr<void, CBChunk>
+    sub_range(CapPtr<void, CBChunk> base, size_t full_size, size_t sub_size)
+    {
+      SNMALLOC_ASSERT(bits::is_pow2(full_size));
+      SNMALLOC_ASSERT(bits::is_pow2(sub_size));
+      SNMALLOC_ASSERT(full_size % sub_size == 0);
+      SNMALLOC_ASSERT(full_size / sub_size >= 4);
+
+      size_t offset_mask = full_size - sub_size;
+
+      // Don't use first or last block in the larger reservation
+      // Loop required to get uniform distribution.
+      size_t offset;
+      do
+      {
+        offset = get_entropy64<PAL>() & offset_mask;
+      } while ((offset == 0) || (offset == offset_mask));
+
+      return pointer_offset(base, offset);
+    }
+#endif
+
     /**
      * Internal method for acquiring state from the local and global address
      * space managers.
@@ -89,41 +136,75 @@ namespace snmalloc
     static CapPtr<void, CBChunk>
     reserve(GlobalState& h, LocalState* local_state, size_t size)
     {
-      // TODO have two address spaces.
-      UNUSED(is_meta);
+#ifdef SNMALLOC_CHECK_CLIENT
+      constexpr auto MAX_CACHED_SIZE =
+        is_meta ? LOCAL_CACHE_META_BLOCK : LOCAL_CACHE_BLOCK;
+#else
+      constexpr auto MAX_CACHED_SIZE = LOCAL_CACHE_BLOCK;
+#endif
+
+      auto& global = h.address_space;
 
       CapPtr<void, CBChunk> p;
-      if (local_state != nullptr)
+      if ((local_state != nullptr) && (size <= MAX_CACHED_SIZE))
       {
-        p =
-          local_state->local_address_space.template reserve_with_left_over<PAL>(
-            size);
+#ifdef SNMALLOC_CHECK_CLIENT
+        auto& local = is_meta ? local_state->local_meta_address_space :
+                                local_state->local_address_space;
+#else
+        auto& local = local_state->local_address_space;
+#endif
+
+        p = local.template reserve_with_left_over<PAL>(size);
         if (p != nullptr)
-          local_state->local_address_space.template commit_block<PAL>(p, size);
-        else
         {
-          auto& a = h.address_space;
-          // TODO Improve heuristics and params
-          auto refill_size = bits::max(size, bits::one_at_bit(21));
-          auto refill = a.template reserve<false>(refill_size, h.pagemap);
-          if (refill == nullptr)
-            return nullptr;
-          local_state->local_address_space.template add_range<PAL>(
-            refill, refill_size);
-          // This should succeed
-          p = local_state->local_address_space
-                .template reserve_with_left_over<PAL>(size);
-          if (p != nullptr)
-            local_state->local_address_space.template commit_block<PAL>(
-              p, size);
+          return p;
         }
-      }
-      else
-      {
-        auto& a = h.address_space;
-        p = a.template reserve_with_left_over<true>(size, h.pagemap);
+
+        auto refill_size = LOCAL_CACHE_BLOCK;
+        auto refill = global.template reserve<false>(refill_size, h.pagemap);
+        if (refill == nullptr)
+          return nullptr;
+
+#ifdef SNMALLOC_CHECK_CLIENT
+        if (is_meta)
+        {
+          refill = sub_range(refill, LOCAL_CACHE_BLOCK, LOCAL_CACHE_META_BLOCK);
+          refill_size = LOCAL_CACHE_META_BLOCK;
+        }
+#endif
+        PAL::template notify_using<NoZero>(refill.unsafe_ptr(), refill_size);
+        local.template add_range<PAL>(refill, refill_size);
+
+        // This should succeed
+        return local.template reserve_with_left_over<PAL>(size);
       }
 
+#ifdef SNMALLOC_CHECK_CLIENT
+      // During start up we need meta-data before we have a local allocator
+      // This code protects that meta-data with randomisation, and guard pages.
+      if (local_state == nullptr && is_meta)
+      {
+        size_t rsize = bits::max(OS_PAGE_SIZE, bits::next_pow2(size));
+        size_t size_request = rsize * 64;
+
+        p = global.template reserve<false>(size_request, h.pagemap);
+        if (p == nullptr)
+          return nullptr;
+
+        p = sub_range(p, size_request, rsize);
+
+        PAL::template notify_using<NoZero>(p.unsafe_ptr(), rsize);
+        return p;
+      }
+
+      // This path does not apply any guard pages to very large
+      // meta data requests.  There are currently no meta data-requests
+      // this large.  This assert checks for this assumption breaking.
+      SNMALLOC_ASSERT(!is_meta);
+#endif
+
+      p = global.template reserve_with_left_over<true>(size, h.pagemap);
       return p;
     }
 
@@ -159,6 +240,12 @@ namespace snmalloc
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
 
+      auto meta = reinterpret_cast<Metaslab*>(
+        reserve<true>(h, local_state, sizeof(Metaslab)).unsafe_ptr());
+
+      if (meta == nullptr)
+        return {nullptr, nullptr};
+
       CapPtr<void, CBChunk> p = reserve<false>(h, local_state, size);
 
 #ifdef SNMALLOC_TRACING
@@ -167,14 +254,14 @@ namespace snmalloc
 #endif
       if (p == nullptr)
       {
+        // TODO: This is leaking `meta`. Currently there is no facility for
+        // meta-data reuse, so will leave until we develop more expressive
+        // meta-data management.
 #ifdef SNMALLOC_TRACING
         std::cout << "Out of memory" << std::endl;
 #endif
         return {p, nullptr};
       }
-
-      auto meta = reinterpret_cast<Metaslab*>(
-        reserve<true>(h, local_state, sizeof(Metaslab)).unsafe_ptr());
 
       MetaEntry t(meta, remote, sizeclass);
 
