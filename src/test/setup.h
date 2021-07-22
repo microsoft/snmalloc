@@ -1,12 +1,13 @@
-#if defined(WIN32) && defined(SNMALLOC_CI_BUILD)
-#  include <ds/bits.h>
-#  include <iostream>
-#  include <pal/pal.h>
-#  include <signal.h>
-#  include <stdlib.h>
+#if defined(SNMALLOC_CI_BUILD)
+#  if defined(WIN32)
+#    include <ds/bits.h>
+#    include <iostream>
+#    include <pal/pal.h>
+#    include <signal.h>
+#    include <stdlib.h>
 // Has to come after the PAL.
-#  include <DbgHelp.h>
-#  pragma comment(lib, "dbghelp.lib")
+#    include <DbgHelp.h>
+#    pragma comment(lib, "dbghelp.lib")
 
 void print_stack_trace()
 {
@@ -94,6 +95,20 @@ void setup()
   // Disable OS level dialog boxes during CI.
   SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 }
+#  else
+#    include <pal/pal.h>
+#    include <signal.h>
+void error_handle(int signal)
+{
+  UNUSED(signal);
+  snmalloc::error("Seg Fault");
+  _exit(1);
+}
+void setup()
+{
+  signal(SIGSEGV, error_handle);
+}
+#  endif
 #else
 void setup() {}
 #endif
