@@ -1,5 +1,4 @@
 #include "mem/fixedglobalconfig.h"
-#include "mem/globalconfig.h"
 #include "test/setup.h"
 
 #include <iostream>

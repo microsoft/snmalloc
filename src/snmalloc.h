@@ -3,6 +3,9 @@
 // Core implementation of snmalloc independent of the configuration mode
 #include "snmalloc_core.h"
 
+// Default implementation of global state
+#include "mem/globalconfig.h"
+
 // The default configuration for snmalloc
 namespace snmalloc
 {
