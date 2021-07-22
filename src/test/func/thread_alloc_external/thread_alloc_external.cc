@@ -3,6 +3,9 @@
 
 // Specify using own
 #define SNMALLOC_EXTERNAL_THREAD_ALLOC
+
+#include "mem/globalconfig.h"
+
 namespace snmalloc
 {
   using Alloc = snmalloc::LocalAllocator<snmalloc::Globals>;

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../ds/helpers.h"
-#include "globalconfig.h"
 #include "localalloc.h"
 
 #if defined(SNMALLOC_EXTERNAL_THREAD_ALLOC)
