@@ -1,5 +1,6 @@
 #include "mem/fixedglobalconfig.h"
 #include "mem/globalconfig.h"
+#include "test/setup.h"
 
 #include <iostream>
 #include <snmalloc.h>
@@ -17,6 +18,7 @@ using FixedAlloc = LocalAllocator<CustomGlobals>;
 int main()
 {
 #ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
+  setup();
 
   // 28 is large enough to produce a nested allocator.
   // It is also large enough for the example to run in.
@@ -34,11 +36,18 @@ int main()
 
   size_t object_size = 128;
   size_t count = 0;
+  size_t i = 0;
   while (true)
   {
     auto r1 = a.alloc(object_size);
     count += object_size;
+    i++;
 
+    if (i == 1024)
+    {
+      i = 0;
+      std::cout << ".";
+    }
     // Run until we exhaust the fixed region.
     // This should return null.
     if (r1 == nullptr)
