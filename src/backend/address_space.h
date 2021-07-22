@@ -71,7 +71,7 @@ namespace snmalloc
       CapPtr<void, CBChunk> res;
       {
         FlagLock lock(spin_lock);
-        res = core.template reserve<PAL>(size);
+        res = core.template reserve<PAL>(size, pagemap);
         if (res == nullptr)
         {
           // Allocation failed ask OS for more memory
@@ -130,10 +130,10 @@ namespace snmalloc
 
           pagemap.register_range(address_cast(block), block_size);
 
-          core.template add_range<PAL>(block, block_size);
+          core.template add_range<PAL>(block, block_size, pagemap);
 
           // still holding lock so guaranteed to succeed.
-          res = core.template reserve<PAL>(size);
+          res = core.template reserve<PAL>(size, pagemap);
         }
       }
 
@@ -167,7 +167,8 @@ namespace snmalloc
         if (rsize > size)
         {
           FlagLock lock(spin_lock);
-          core.template add_range<PAL>(pointer_offset(res, size), rsize - size);
+          core.template add_range<PAL>(
+            pointer_offset(res, size), rsize - size, pagemap);
         }
 
         if constexpr (committed)
@@ -187,10 +188,11 @@ namespace snmalloc
      * Add a range of memory to the address space.
      * Divides blocks into power of two sizes with natural alignment
      */
-    void add_range(CapPtr<void, CBChunk> base, size_t length)
+    template<typename Pagemap>
+    void add_range(CapPtr<void, CBChunk> base, size_t length, Pagemap& pagemap)
     {
       FlagLock lock(spin_lock);
-      core.add_range<PAL>(base, length);
+      core.add_range<PAL>(base, length, pagemap);
     }
   };
 } // namespace snmalloc

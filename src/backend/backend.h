@@ -90,7 +90,8 @@ namespace snmalloc
           fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
 
         auto [heap_base, heap_length] = pagemap.init(base, length);
-        address_space.add_range(CapPtr<void, CBChunk>(heap_base), heap_length);
+        address_space.add_range(
+          CapPtr<void, CBChunk>(heap_base), heap_length, pagemap);
 
         if constexpr (!fixed_range)
         {
@@ -155,7 +156,7 @@ namespace snmalloc
         auto& local = local_state->local_address_space;
 #endif
 
-        p = local.template reserve_with_left_over<PAL>(size);
+        p = local.template reserve_with_left_over<PAL>(size, h.pagemap);
         if (p != nullptr)
         {
           return p;
@@ -174,10 +175,10 @@ namespace snmalloc
         }
 #endif
         PAL::template notify_using<NoZero>(refill.unsafe_ptr(), refill_size);
-        local.template add_range<PAL>(refill, refill_size);
+        local.template add_range<PAL>(refill, refill_size, h.pagemap);
 
         // This should succeed
-        return local.template reserve_with_left_over<PAL>(size);
+        return local.template reserve_with_left_over<PAL>(size, h.pagemap);
       }
 
 #ifdef SNMALLOC_CHECK_CLIENT
