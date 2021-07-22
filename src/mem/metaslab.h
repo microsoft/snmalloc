@@ -204,8 +204,8 @@ namespace snmalloc
 
   struct MetaslabCache : public CDLLNode<>
   {
-    uint16_t unused;
-    uint16_t length;
+    uint16_t unused = 0;
+    uint16_t length = 0;
   };
 
 } // namespace snmalloc
