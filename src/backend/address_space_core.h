@@ -30,7 +30,7 @@ namespace snmalloc
      *
      * The array indexes based on power of two size.
      *
-     * The entries for each size form a linked list.  For sizes below,
+     * The entries for each size form a linked list.  For sizes below
      * MIN_CHUNK_SIZE they are linked through the first location in the
      * block of memory.  For sizes of, and above, MIN_CHUNK_SIZE they are
      * linked using the pagemap. We only use the smaller than MIN_CHUNK_SIZE
@@ -75,6 +75,10 @@ namespace snmalloc
       {
         // The pagemap stores MetaEntrys, abuse the metaslab field to be the
         // next block in the stack of blocks.
+        //
+        // The pagemap entries here have nullptr (i.e., fake_large_remote) as
+        // their remote, and so other accesses to the pagemap (by external_pointer,
+        // for example) will not attempt to follow this "Metaslab" pointer.
         MetaEntry t(reinterpret_cast<Metaslab*>(next.unsafe_ptr()), nullptr, 0);
         pagemap.set(address_cast(base), t);
         return;
