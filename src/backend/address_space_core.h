@@ -78,8 +78,9 @@ namespace snmalloc
         // next block in the stack of blocks.
         //
         // The pagemap entries here have nullptr (i.e., fake_large_remote) as
-        // their remote, and so other accesses to the pagemap (by external_pointer,
-        // for example) will not attempt to follow this "Metaslab" pointer.
+        // their remote, and so other accesses to the pagemap (by
+        // external_pointer, for example) will not attempt to follow this
+        // "Metaslab" pointer.
         MetaEntry t(reinterpret_cast<Metaslab*>(next.unsafe_ptr()), nullptr, 0);
         pagemap.set(address_cast(base), t);
         return;
