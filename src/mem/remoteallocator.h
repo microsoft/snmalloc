@@ -10,10 +10,19 @@
 
 namespace snmalloc
 {
-  // Remotes need to be aligned enough that all the
-  // small size classes can fit in the bottom bits.
-  static constexpr size_t REMOTE_MIN_ALIGN = bits::min<size_t>(
-    CACHELINE_SIZE, bits::next_pow2_const(NUM_SIZECLASSES + 1));
+  // Remotes need to be aligned enough that the bottom bits have enough room for
+  // all the size classes, both large and small.
+  //
+  // Including large classes in this calculation might seem remarkably strange,
+  // since large allocations don't have associated Remotes, that is, their
+  // remote is taken to be 0.  However, if there are very few small size
+  // classes and many large classes, the attempt to align that 0 down by the
+  // alignment of a Remote might result in a nonzero value.
+  static constexpr size_t REMOTE_MIN_ALIGN = bits::max<size_t>(
+    CACHELINE_SIZE,
+    bits::max<size_t>(
+      bits::next_pow2_const(NUM_SIZECLASSES + 1),
+      bits::next_pow2_const(NUM_LARGE_CLASSES + 1)));
 
   /**
    * Global key for all remote lists.
