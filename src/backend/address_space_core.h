@@ -20,6 +20,11 @@ namespace snmalloc
    */
   class AddressSpaceManagerCore
   {
+    struct FreeChunk
+    {
+      CapPtr<FreeChunk, CBChunk> next;
+    };
+
     /**
      * Stores the blocks of address space
      *
@@ -35,12 +40,12 @@ namespace snmalloc
      * bits::BITS is used for simplicity, we do not use below the pointer size,
      * and large entries will be unlikely to be supported by the platform.
      */
-    std::array<CapPtr<void, CBChunk>, bits::BITS> ranges = {};
+    std::array<CapPtr<FreeChunk, CBChunk>, bits::BITS> ranges = {};
 
     /**
      * Checks a block satisfies its invariant.
      */
-    inline void check_block(CapPtr<void, CBChunk> base, size_t align_bits)
+    inline void check_block(CapPtr<FreeChunk, CBChunk> base, size_t align_bits)
     {
       SNMALLOC_ASSERT(
         base == pointer_align_up(base, bits::one_at_bit(align_bits)));
@@ -62,8 +67,8 @@ namespace snmalloc
     template<typename Pagemap>
     void set_next(
       size_t align_bits,
-      CapPtr<void, CBChunk> base,
-      CapPtr<void, CBChunk> next,
+      CapPtr<FreeChunk, CBChunk> base,
+      CapPtr<FreeChunk, CBChunk> next,
       Pagemap& pagemap)
     {
       if (align_bits >= MIN_CHUNK_BITS)
@@ -75,7 +80,7 @@ namespace snmalloc
         return;
       }
 
-      *(reinterpret_cast<CapPtr<void, CBChunk>*>(base.unsafe_ptr())) = next;
+      base->next = next;
     }
 
     /**
@@ -88,30 +93,31 @@ namespace snmalloc
      * particular size.
      */
     template<typename Pagemap>
-    CapPtr<void, CBChunk>
-    get_next(size_t align_bits, CapPtr<void, CBChunk> base, Pagemap& pagemap)
+    CapPtr<FreeChunk, CBChunk> get_next(
+      size_t align_bits, CapPtr<FreeChunk, CBChunk> base, Pagemap& pagemap)
     {
       if (align_bits >= MIN_CHUNK_BITS)
       {
         const MetaEntry& t = pagemap.template get<false>(address_cast(base));
-        return CapPtr<void, CBChunk>(t.get_metaslab());
+        return CapPtr<FreeChunk, CBChunk>(
+          reinterpret_cast<FreeChunk*>(t.get_metaslab()));
       }
 
-      return *(reinterpret_cast<CapPtr<void, CBChunk>*>(base.unsafe_ptr()));
+      return base->next;
     }
 
     /**
      * Adds a block to `ranges`.
      */
     template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename Pagemap>
-    void
-    add_block(size_t align_bits, CapPtr<void, CBChunk> base, Pagemap& pagemap)
+    void add_block(
+      size_t align_bits, CapPtr<FreeChunk, CBChunk> base, Pagemap& pagemap)
     {
       check_block(base, align_bits);
       SNMALLOC_ASSERT(align_bits < 64);
 
       set_next(align_bits, base, ranges[align_bits], pagemap);
-      ranges[align_bits] = base;
+      ranges[align_bits] = base.as_static<FreeChunk>();
     }
 
     /**
@@ -121,7 +127,7 @@ namespace snmalloc
     template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename Pagemap>
     CapPtr<void, CBChunk> remove_block(size_t align_bits, Pagemap& pagemap)
     {
-      CapPtr<void, CBChunk> first = ranges[align_bits];
+      CapPtr<FreeChunk, CBChunk> first = ranges[align_bits];
       if (first == nullptr)
       {
         if (align_bits == (bits::BITS - 1))
@@ -148,17 +154,17 @@ namespace snmalloc
 
           add_block<PAL>(
             align_bits,
-            Aal::capptr_bound<void, CBChunk>(left_over, left_over_size),
+            Aal::capptr_bound<FreeChunk, CBChunk>(left_over, left_over_size),
             pagemap);
-          check_block(left_over, align_bits);
+          check_block(left_over.as_static<FreeChunk>(), align_bits);
         }
-        check_block(bigger, align_bits + 1);
+        check_block(bigger.as_static<FreeChunk>(), align_bits + 1);
         return bigger;
       }
 
       check_block(first, align_bits);
       ranges[align_bits] = get_next(align_bits, first, pagemap);
-      return first;
+      return first.as_void();
     }
 
   public:
@@ -189,9 +195,10 @@ namespace snmalloc
         size_t length_align_bits = (bits::BITS - 1) - bits::clz(length);
         size_t align_bits = bits::min(base_align_bits, length_align_bits);
         size_t align = bits::one_at_bit(align_bits);
+        auto b = base.as_static<FreeChunk>();
 
-        check_block(base, align_bits);
-        add_block<PAL>(align_bits, base, pagemap);
+        check_block(b, align_bits);
+        add_block<PAL>(align_bits, b, pagemap);
 
         base = pointer_offset(base, align);
         length -= align;
