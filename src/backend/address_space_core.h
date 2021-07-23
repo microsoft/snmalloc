@@ -48,7 +48,8 @@ namespace snmalloc
     inline void check_block(CapPtr<FreeChunk, CBChunk> base, size_t align_bits)
     {
       SNMALLOC_ASSERT(
-        base == pointer_align_up(base, bits::one_at_bit(align_bits)));
+        address_cast(base) ==
+        bits::align_up(address_cast(base), bits::one_at_bit(align_bits)));
       // All blocks need to be bigger than a pointer.
       SNMALLOC_ASSERT(bits::one_at_bit(align_bits) >= sizeof(void*));
       UNUSED(base);
