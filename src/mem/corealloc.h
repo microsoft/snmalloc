@@ -11,10 +11,45 @@
 
 namespace snmalloc
 {
+  /**
+   * Empty class used as the superclass for `CoreAllocator` when it does not
+   * opt into pool allocation.  This class exists because `std::conditional`
+   * (or other equivalent features in C++) can choose between options for
+   * superclasses but they cannot choose whether a class has a superclass.
+   * Setting the superclass to an empty class is equivalent to no superclass.
+   */
+  class NotPoolAllocated
+  {};
+
+  /**
+   * The core, stateful, part of a memory allocator.  Each `LocalAllocator`
+   * owns one `CoreAllocator` once it is initialised.
+   *
+   * The template parameter provides all of the global configuration for this
+   * instantiation of snmalloc.  This includes three options that apply to this
+   * class:
+   *
+   * - `CoreAllocIsPoolAllocated` defines whether this `CoreAlloc`
+   *   configuration should support pool allocation.  This defaults to true but
+   *   a configuration that allocates allocators eagerly may opt out.
+   * - `CoreAllocOwnsLocalState` defines whether the `CoreAllocator` owns the
+   *   associated `LocalState` object.  If this is true (the default) then
+   *   `CoreAllocator` embeds the LocalState object.  If this is set to false
+   *   then a `LocalState` object must be provided to the constructor.  This
+   *   allows external code to provide explicit configuration of the address
+   *   range managed by this object.
+   * - `IsQueueInline` (defaults to true) defines whether the message queue
+   *   (`RemoteAllocator`) for this class is inline or provided externally.  If
+   *   provided externally, then it must be set explicitly with
+   *   `init_message_queue`.
+   */
   template<typename SharedStateHandle>
-  class CoreAllocator : public Pooled<CoreAllocator<SharedStateHandle>>
+  class CoreAllocator : public std::conditional_t<
+                          SharedStateHandle::Options.CoreAllocIsPoolAllocated,
+                          Pooled<CoreAllocator<SharedStateHandle>>,
+                          NotPoolAllocated>
   {
-    template<class SharedStateHandle2>
+    template<typename SharedStateHandle2>
     friend class LocalAllocator;
 
     /**
@@ -33,28 +68,33 @@ namespace snmalloc
      * allocator
      */
     std::conditional_t<
-      SharedStateHandle::IsQueueInline,
+      SharedStateHandle::Options.IsQueueInline,
       RemoteAllocator,
       RemoteAllocator*>
       remote_alloc;
 
     /**
-     * A local area of address space managed by this allocator.
-     * Used to reduce calls on the global address space.
+     * The type used local state.  This is defined by the back end.
      */
-    typename SharedStateHandle::Backend::LocalState backend_state;
+    using LocalState = typename SharedStateHandle::LocalState;
+
+    /**
+     * A local area of address space managed by this allocator.
+     * Used to reduce calls on the global address space.  This is inline if the
+     * core allocator owns the local state or indirect if it is owned
+     * externally.
+     */
+    std::conditional_t<
+      SharedStateHandle::Options.CoreAllocOwnsLocalState,
+      LocalState,
+      LocalState*>
+      backend_state;
 
     /**
      * This is the thread local structure associated to this
      * allocator.
      */
     LocalCache* attached_cache;
-
-    /**
-     * This contains the way to access all the global state and
-     * configuration for the system setup.
-     */
-    SharedStateHandle handle;
 
     /**
      * The message queue needs to be accessible from other threads
@@ -64,7 +104,7 @@ namespace snmalloc
      */
     auto* public_state()
     {
-      if constexpr (SharedStateHandle::IsQueueInline)
+      if constexpr (SharedStateHandle::Options.IsQueueInline)
       {
         return &remote_alloc;
       }
@@ -260,8 +300,10 @@ namespace snmalloc
           // TODO delay the clear to the next user of the slab, or teardown so
           // don't touch the cache lines at this point in check_client.
           auto chunk_record = clear_slab(meta, sizeclass);
-          ChunkAllocator::dealloc(
-            handle, chunk_record, sizeclass_to_slab_sizeclass(sizeclass));
+          ChunkAllocator::dealloc<SharedStateHandle>(
+            get_backend_local_state(),
+            chunk_record,
+            sizeclass_to_slab_sizeclass(sizeclass));
         }
         else
         {
@@ -335,8 +377,8 @@ namespace snmalloc
       for (size_t i = 0; i < REMOTE_BATCH; i++)
       {
         auto p = message_queue().peek();
-        auto& entry = SharedStateHandle::Backend::get_meta_data(
-          handle.get_backend_state(), snmalloc::address_cast(p));
+        auto& entry =
+          SharedStateHandle::get_meta_data(snmalloc::address_cast(p));
 
         auto r = message_queue().dequeue(key_global);
 
@@ -388,9 +430,11 @@ namespace snmalloc
       }
     }
 
-  public:
-    CoreAllocator(LocalCache* cache, SharedStateHandle handle)
-    : attached_cache(cache), handle(handle)
+    /**
+     * Initialiser, shared code between the constructors for different
+     * configurations.
+     */
+    void init()
     {
 #ifdef SNMALLOC_TRACING
       std::cout << "Making an allocator." << std::endl;
@@ -398,13 +442,16 @@ namespace snmalloc
       // Entropy must be first, so that all data-structures can use the key
       // it generates.
       // This must occur before any freelists are constructed.
-      entropy.init<typename SharedStateHandle::Backend::Pal>();
+      entropy.init<typename SharedStateHandle::Pal>();
 
       // Ignoring stats for now.
       //      stats().start();
 
-      init_message_queue();
-      message_queue().invariant();
+      if constexpr (SharedStateHandle::Options.IsQueueInline)
+      {
+        init_message_queue();
+        message_queue().invariant();
+      }
 
 #ifndef NDEBUG
       for (sizeclass_t i = 0; i < NUM_SIZECLASSES; i++)
@@ -423,6 +470,44 @@ namespace snmalloc
 #endif
     }
 
+  public:
+    /**
+     * Constructor for the case that the core allocator owns the local state.
+     * SFINAE disabled if the allocator does not own the local state.
+     */
+    template<
+      typename Config = SharedStateHandle,
+      typename = std::enable_if_t<Config::Options.CoreAllocOwnsLocalState>>
+    CoreAllocator(LocalCache* cache) : attached_cache(cache)
+    {
+      init();
+    }
+
+    /**
+     * Constructor for the case that the core allocator does not owns the local
+     * state. SFINAE disabled if the allocator does own the local state.
+     */
+    template<
+      typename Config = SharedStateHandle,
+      typename = std::enable_if_t<!Config::Options.CoreAllocOwnsLocalState>>
+    CoreAllocator(LocalCache* cache, LocalState* backend = nullptr)
+    : backend_state(backend), attached_cache(cache)
+    {
+      init();
+    }
+
+    /**
+     * If the message queue is not inline, provide it.  This will then
+     * configure the message queue for use.
+     */
+    template<bool InlineQueue = SharedStateHandle::Options.IsQueueInline>
+    std::enable_if_t<!InlineQueue> init_message_queue(RemoteAllocator* q)
+    {
+      remote_alloc = q;
+      init_message_queue();
+      message_queue().invariant();
+    }
+
     /**
      * Post deallocations onto other threads.
      *
@@ -432,9 +517,9 @@ namespace snmalloc
     SNMALLOC_FAST_PATH bool post()
     {
       // stats().remote_post();  // TODO queue not in line!
-      bool sent_something =
-        attached_cache->remote_dealloc_cache.post<sizeof(CoreAllocator)>(
-          handle, public_state()->trunc_id(), key_global);
+      bool sent_something = attached_cache->remote_dealloc_cache
+                              .post<sizeof(CoreAllocator), SharedStateHandle>(
+                                public_state()->trunc_id(), key_global);
 
       return sent_something;
     }
@@ -454,8 +539,7 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH void dealloc_local_object(void* p)
     {
-      auto entry = SharedStateHandle::Backend::get_meta_data(
-        handle.get_backend_state(), snmalloc::address_cast(p));
+      auto entry = SharedStateHandle::get_meta_data(snmalloc::address_cast(p));
       if (likely(dealloc_local_object_fast(entry, p, entropy)))
         return;
 
@@ -506,6 +590,24 @@ namespace snmalloc
       return small_alloc_slow<zero_mem>(sizeclass, fast_free_list, rsize);
     }
 
+    /**
+     * Accessor for the local state.  This hides whether the local state is
+     * stored inline or provided externally from the rest of the code.
+     */
+    SNMALLOC_FAST_PATH
+    LocalState& get_backend_local_state()
+    {
+      if constexpr (SharedStateHandle::Options.CoreAllocOwnsLocalState)
+      {
+        return backend_state;
+      }
+      else
+      {
+        SNMALLOC_ASSERT(backend_state);
+        return *backend_state;
+      }
+    }
+
     template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH void* small_alloc_slow(
       sizeclass_t sizeclass, FreeListIter& fast_free_list, size_t rsize)
@@ -519,13 +621,13 @@ namespace snmalloc
       std::cout << "slab size " << slab_size << std::endl;
 #endif
 
-      auto [slab, meta] = snmalloc::ChunkAllocator::alloc_chunk(
-        handle,
-        backend_state,
-        sizeclass,
-        slab_sizeclass,
-        slab_size,
-        public_state());
+      auto [slab, meta] =
+        snmalloc::ChunkAllocator::alloc_chunk<SharedStateHandle>(
+          get_backend_local_state(),
+          sizeclass,
+          slab_sizeclass,
+          slab_size,
+          public_state());
 
       if (slab == nullptr)
       {
@@ -563,8 +665,8 @@ namespace snmalloc
         {
           bool need_post = true; // Always going to post, so ignore.
           auto n = p->atomic_read_next(key_global);
-          auto& entry = SharedStateHandle::Backend::get_meta_data(
-            handle.get_backend_state(), snmalloc::address_cast(p));
+          auto& entry =
+            SharedStateHandle::get_meta_data(snmalloc::address_cast(p));
           handle_dealloc_remote(entry, p, need_post);
           p = n;
         }
@@ -577,8 +679,9 @@ namespace snmalloc
           handle_message_queue([]() {});
       }
 
-      auto posted = attached_cache->flush<sizeof(CoreAllocator)>(
-        [&](auto p) { dealloc_local_object(p); }, handle);
+      auto posted =
+        attached_cache->flush<sizeof(CoreAllocator), SharedStateHandle>(
+          [&](auto p) { dealloc_local_object(p); });
 
       // We may now have unused slabs, return to the global allocator.
       for (sizeclass_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass++)

@@ -4,7 +4,7 @@
 // Specify using own
 #define SNMALLOC_EXTERNAL_THREAD_ALLOC
 
-#include "mem/globalconfig.h"
+#include "backend/globalconfig.h"
 
 namespace snmalloc
 {

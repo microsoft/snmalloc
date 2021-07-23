@@ -1,4 +1,4 @@
-#include "mem/fixedglobalconfig.h"
+#include "backend/fixedglobalconfig.h"
 #include "test/setup.h"
 
 #include <iostream>
@@ -29,9 +29,8 @@ int main()
   std::cout << "Allocated region " << oe_base << " - "
             << pointer_offset(oe_base, size) << std::endl;
 
-  CustomGlobals fixed_handle;
   CustomGlobals::init(oe_base, size);
-  FixedAlloc a(fixed_handle);
+  FixedAlloc a;
 
   size_t object_size = 128;
   size_t count = 0;

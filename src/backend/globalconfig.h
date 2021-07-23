@@ -23,15 +23,15 @@ namespace snmalloc
   }
 #endif
 
-  class Globals : public CommonConfig
+  /**
+   * The default configuration for a global snmalloc.  This allocates memory
+   * from the operating system and expects to manage memory anywhere in the
+   * address space.
+   */
+  class Globals final : public BackendAllocator<Pal, false>
   {
-  public:
-    using Backend = BackendAllocator<Pal, false>;
-
   private:
-    SNMALLOC_REQUIRE_CONSTINIT
-    inline static Backend::GlobalState backend_state;
-
+    using Backend = BackendAllocator<Pal, false>;
     SNMALLOC_REQUIRE_CONSTINIT
     inline static ChunkAllocatorState slab_allocator_state;
 
@@ -45,27 +45,23 @@ namespace snmalloc
     inline static std::atomic_flag initialisation_lock{};
 
   public:
-    Backend::GlobalState& get_backend_state()
-    {
-      return backend_state;
-    }
-
-    ChunkAllocatorState& get_slab_allocator_state()
+    static ChunkAllocatorState&
+    get_slab_allocator_state(Backend::LocalState* = nullptr)
     {
       return slab_allocator_state;
     }
 
-    PoolState<CoreAllocator<Globals>>& pool()
+    static PoolState<CoreAllocator<Globals>>& pool()
     {
       return alloc_pool;
     }
 
-    static constexpr bool IsQueueInline = true;
+    static constexpr Flags Options{};
 
     // Performs initialisation for this configuration
     // of allocators.  Needs to be idempotent,
     // and concurrency safe.
-    void ensure_init()
+    static void ensure_init()
     {
       FlagLock lock{initialisation_lock};
 #ifdef SNMALLOC_TRACING
@@ -81,7 +77,7 @@ namespace snmalloc
       key_global = FreeListKey(entropy.get_free_list_key());
 
       // Need to initialise pagemap.
-      backend_state.init();
+      Backend::init();
 
 #ifdef USE_SNMALLOC_STATS
       atexit(snmalloc::print_stats);
@@ -90,7 +86,7 @@ namespace snmalloc
       initialised = true;
     }
 
-    bool is_initialised()
+    static bool is_initialised()
     {
       return initialised;
     }
@@ -99,16 +95,9 @@ namespace snmalloc
     // thread local state will need to know about this.
     // This may allocate, so should only be called once
     // a thread local allocator is available.
-    void register_clean_up()
+    static void register_clean_up()
     {
       snmalloc::register_clean_up();
-    }
-
-    // This is an empty structure as all the state is global
-    // for this allocator configuration.
-    static constexpr Globals get_handle()
-    {
-      return {};
     }
   };
 } // namespace snmalloc

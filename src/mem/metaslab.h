@@ -177,6 +177,16 @@ namespace snmalloc
   public:
     constexpr MetaEntry() = default;
 
+    /**
+     * Constructor, provides the remote and sizeclass embedded in a single
+     * pointer-sized word.  This format is not guaranteed to be stable and so
+     * the second argument of this must always be the return value from
+     * `get_remote_and_sizeclass`.
+     */
+    MetaEntry(Metaslab* meta, uintptr_t remote_and_sizeclass)
+    : meta(meta), remote_and_sizeclass(remote_and_sizeclass)
+    {}
+
     MetaEntry(Metaslab* meta, RemoteAllocator* remote, sizeclass_t sizeclass)
     : meta(meta)
     {
@@ -188,6 +198,17 @@ namespace snmalloc
     [[nodiscard]] Metaslab* get_metaslab() const
     {
       return meta;
+    }
+
+    /**
+     * Return the remote and sizeclass in an implementation-defined encoding.
+     * This is not guaranteed to be stable across snmalloc releases and so the
+     * only safe use for this is to pass it to the two-argument constructor of
+     * this class.
+     */
+    uintptr_t get_remote_and_sizeclass()
+    {
+      return remote_and_sizeclass;
     }
 
     [[nodiscard]] RemoteAllocator* get_remote() const

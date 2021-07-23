@@ -60,7 +60,7 @@ void test_alloc_dealloc(size_t count, size_t size, bool write)
     }
   }
 
-  snmalloc::debug_check_empty(Globals::get_handle());
+  snmalloc::debug_check_empty<Globals>();
 }
 
 int main(int, char**)
