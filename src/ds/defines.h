@@ -131,3 +131,12 @@ check_client_impl(bool test, const char* const str)
 #else
 #  define check_client(test, str)
 #endif
+
+namespace snmalloc
+{
+#ifdef SNMALLOC_CHECK_CLIENT
+  static constexpr bool CHECK_CLIENT = true;
+#else
+  static constexpr bool CHECK_CLIENT = false;
+#endif
+} // namespace snmalloc

@@ -29,14 +29,25 @@ namespace snmalloc
 #endif
   }
 
+  struct FreeListKey
+  {
+    address_t key;
+    address_t key_next;
+
+    constexpr FreeListKey(uint64_t key, uint64_t key_next)
+    : key(static_cast<address_t>(key)),
+      key_next(static_cast<address_t>(key_next))
+    {}
+  };
+
   class LocalEntropy
   {
     uint64_t bit_source{0};
     uint64_t local_key{0};
     uint64_t local_counter{0};
-    address_t constant_key{0};
     uint64_t fresh_bits{0};
     uint64_t count{0};
+    FreeListKey key{0, 0};
 
   public:
     constexpr LocalEntropy() = default;
@@ -47,9 +58,15 @@ namespace snmalloc
       local_key = get_entropy64<PAL>();
       local_counter = get_entropy64<PAL>();
       if constexpr (bits::BITS == 64)
-        constant_key = get_next();
+      {
+        key.key = get_next();
+        key.key_next = get_next();
+      }
       else
-        constant_key = get_next() & 0xffff'ffff;
+      {
+        key.key = get_next() & 0xffff'ffff;
+        key.key_next = get_next() & 0xffff'ffff;
+      }
       bit_source = get_next();
     }
 
@@ -68,13 +85,11 @@ namespace snmalloc
     }
 
     /**
-     * A key that is not changed or used to create other keys
-     *
-     * This is for use when there is no storage for the key.
+     * A key for the free lists for this thread.
      */
-    address_t get_constant_key()
+    const FreeListKey& get_free_list_key()
     {
-      return constant_key;
+      return key;
     }
 
     /**

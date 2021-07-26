@@ -67,7 +67,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void dealloc(
       RemoteAllocator::alloc_id_t target_id,
       CapPtr<void, CBAlloc> p,
-      FreeListKey& key)
+      const FreeListKey& key)
     {
       SNMALLOC_ASSERT(initialised);
       auto r = p.template as_reinterpret<FreeObject>();
@@ -79,7 +79,7 @@ namespace snmalloc
     bool post(
       SharedStateHandle handle,
       RemoteAllocator::alloc_id_t id,
-      FreeListKey& key)
+      const FreeListKey& key)
     {
       SNMALLOC_ASSERT(initialised);
       size_t post_round = 0;
@@ -96,7 +96,7 @@ namespace snmalloc
 
           if (!list[i].empty())
           {
-            auto [first, last] = list[i].extract_segment();
+            auto [first, last] = list[i].extract_segment(key);
             MetaEntry entry = SharedStateHandle::Backend::get_meta_data(
               handle.get_backend_state(), address_cast(first));
             entry.get_remote()->enqueue(first, last, key);
