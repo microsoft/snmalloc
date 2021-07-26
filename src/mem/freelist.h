@@ -41,19 +41,6 @@
 
 namespace snmalloc
 {
-  struct FreeListKey
-  {
-    address_t key;
-
-    FreeListKey(uint64_t key_)
-    {
-      if constexpr (bits::BITS == 64)
-        key = static_cast<address_t>(key_);
-      else
-        key = key_ & 0xffff'ffff;
-    }
-  };
-
   /**
    * This function is used to sign back pointers in the free list.
    *
@@ -64,7 +51,7 @@ namespace snmalloc
    * list.
    */
   inline static uintptr_t
-  signed_prev(address_t curr, address_t next, FreeListKey& key)
+  signed_prev(address_t curr, address_t next, const FreeListKey& key)
   {
     auto c = curr;
     auto n = next;
@@ -104,6 +91,30 @@ namespace snmalloc
     }
 
     /**
+     * Encode next
+     */
+    inline static CapPtr<FreeObject, CBAlloc> encode_next(
+      address_t curr, CapPtr<FreeObject, CBAlloc> next, const FreeListKey& key)
+    {
+      // Note we can consider other encoding schemes here.
+      //   * XORing curr and next.  This doesn't require any key material
+      //   * XORing (curr * key). This makes it harder to guess the underlying
+      //     key, as each location effectively has its own key.
+      // Curr is not used in the current encoding scheme.
+      UNUSED(curr);
+
+      if constexpr (CHECK_CLIENT && !aal_supports<StrictProvenance>)
+      {
+        return CapPtr<FreeObject, CBAlloc>(address_cast(next) ^ key.key_next);
+      }
+      else
+      {
+        UNUSED(key);
+        return next;
+      }
+    }
+
+    /**
      * Assign next_object and update its prev_encoded if SNMALLOC_CHECK_CLIENT.
      * Static so that it can be used on reference to a FreeObject.
      *
@@ -114,7 +125,7 @@ namespace snmalloc
     static CapPtr<FreeObject, CBAlloc>* store_next(
       CapPtr<FreeObject, CBAlloc>* curr,
       CapPtr<FreeObject, CBAlloc> next,
-      FreeListKey& key)
+      const FreeListKey& key)
     {
 #ifdef SNMALLOC_CHECK_CLIENT
       next->prev_encoded =
@@ -122,8 +133,14 @@ namespace snmalloc
 #else
       UNUSED(key);
 #endif
-      *curr = next;
+      *curr = encode_next(address_cast(curr), next, key);
       return &(next->next_object);
+    }
+
+    static void
+    store_null(CapPtr<FreeObject, CBAlloc>* curr, const FreeListKey& key)
+    {
+      *curr = encode_next(address_cast(curr), nullptr, key);
     }
 
     /**
@@ -131,7 +148,8 @@ namespace snmalloc
      *
      * Uses the atomic view of next, so can be used in the message queues.
      */
-    void atomic_store_next(CapPtr<FreeObject, CBAlloc> next, FreeListKey& key)
+    void
+    atomic_store_next(CapPtr<FreeObject, CBAlloc> next, const FreeListKey& key)
     {
 #ifdef SNMALLOC_CHECK_CLIENT
       next->prev_encoded =
@@ -141,17 +159,24 @@ namespace snmalloc
 #endif
       // Signature needs to be visible before item is linked in
       // so requires release semantics.
-      atomic_next_object.store(next, std::memory_order_release);
+      atomic_next_object.store(
+        encode_next(address_cast(&next_object), next, key),
+        std::memory_order_release);
     }
 
-    void atomic_store_null()
+    void atomic_store_null(const FreeListKey& key)
     {
-      atomic_next_object.store(nullptr, std::memory_order_relaxed);
+      atomic_next_object.store(
+        encode_next(address_cast(&next_object), nullptr, key),
+        std::memory_order_relaxed);
     }
 
-    CapPtr<FreeObject, CBAlloc> atomic_read_next(FreeListKey& key)
+    CapPtr<FreeObject, CBAlloc> atomic_read_next(const FreeListKey& key)
     {
-      auto n = atomic_next_object.load(std::memory_order_acquire);
+      auto n = encode_next(
+        address_cast(&next_object),
+        atomic_next_object.load(std::memory_order_acquire),
+        key);
 #ifdef SNMALLOC_CHECK_CLIENT
       if (n != nullptr)
       {
@@ -176,9 +201,9 @@ namespace snmalloc
     /**
      * Read the next pointer
      */
-    CapPtr<FreeObject, CBAlloc> read_next()
+    CapPtr<FreeObject, CBAlloc> read_next(const FreeListKey& key)
     {
-      return next_object;
+      return encode_next(address_cast(&next_object), next_object, key);
     }
   };
 
@@ -230,10 +255,10 @@ namespace snmalloc
     /**
      * Moves the iterator on, and returns the current value.
      */
-    CapPtr<FreeObject, CBAlloc> take(FreeListKey& key)
+    CapPtr<FreeObject, CBAlloc> take(const FreeListKey& key)
     {
       auto c = curr;
-      auto next = curr->read_next();
+      auto next = curr->read_next(key);
 
       Aal::prefetch(next.unsafe_ptr());
       curr = next;
@@ -306,8 +331,10 @@ namespace snmalloc
     /**
      * Adds an element to the builder
      */
-    void
-    add(CapPtr<FreeObject, CBAlloc> n, FreeListKey& key, LocalEntropy& entropy)
+    void add(
+      CapPtr<FreeObject, CBAlloc> n,
+      const FreeListKey& key,
+      LocalEntropy& entropy)
     {
       uint32_t index;
       if constexpr (RANDOM)
@@ -328,7 +355,7 @@ namespace snmalloc
      */
     template<bool RANDOM_ = RANDOM>
     std::enable_if_t<!RANDOM_>
-    add(CapPtr<FreeObject, CBAlloc> n, FreeListKey& key)
+    add(CapPtr<FreeObject, CBAlloc> n, const FreeListKey& key)
     {
       static_assert(RANDOM_ == RANDOM, "Don't set template parameter");
       end[0] = FreeObject::store_next(end[0], n, key);
@@ -337,23 +364,39 @@ namespace snmalloc
     /**
      * Makes a terminator to a free list.
      */
-    SNMALLOC_FAST_PATH void terminate_list(uint32_t index, FreeListKey& key)
+    SNMALLOC_FAST_PATH void
+    terminate_list(uint32_t index, const FreeListKey& key)
     {
-      UNUSED(key);
-      *end[index] = nullptr;
+      FreeObject::store_null(end[index], key);
     }
 
-    address_t get_fake_signed_prev(uint32_t index, FreeListKey& key)
+    /**
+     * Read head removing potential encoding
+     *
+     * Although, head does not require meta-data protection
+     * as it is not stored in an object allocation. For uniformity
+     * it is treated like the next_object field in a FreeObject
+     * and is thus subject to encoding if the next_object pointers
+     * encoded.
+     */
+    CapPtr<FreeObject, CBAlloc>
+    read_head(uint32_t index, const FreeListKey& key)
+    {
+      return FreeObject::encode_next(
+        address_cast(&head[index]), head[index], key);
+    }
+
+    address_t get_fake_signed_prev(uint32_t index, const FreeListKey& key)
     {
       return signed_prev(
-        address_cast(&head[index]), address_cast(head[index]), key);
+        address_cast(&head[index]), address_cast(read_head(index, key)), key);
     }
 
     /**
      * Close a free list, and set the iterator parameter
      * to iterate it.
      */
-    SNMALLOC_FAST_PATH void close(FreeListIter& fl, FreeListKey& key)
+    SNMALLOC_FAST_PATH void close(FreeListIter& fl, const FreeListKey& key)
     {
       if constexpr (RANDOM)
       {
@@ -365,12 +408,12 @@ namespace snmalloc
         {
           // The start token has been corrupted.
           // TOCTTOU issue, but small window here.
-          head[1]->check_prev(get_fake_signed_prev(1, key));
+          read_head(1, key)->check_prev(get_fake_signed_prev(1, key));
 
           terminate_list(1, key);
 
           // Append 1 to 0
-          FreeObject::store_next(end[0], head[1], key);
+          FreeObject::store_next(end[0], read_head(1, key), key);
 
           SNMALLOC_ASSERT(end[1] != &head[0]);
           SNMALLOC_ASSERT(end[0] != &head[1]);
@@ -385,7 +428,7 @@ namespace snmalloc
         terminate_list(0, key);
       }
 
-      fl = {head[0], get_fake_signed_prev(0, key)};
+      fl = {read_head(0, key), get_fake_signed_prev(0, key)};
       init();
     }
 
@@ -401,12 +444,12 @@ namespace snmalloc
     }
 
     std::pair<CapPtr<FreeObject, CBAlloc>, CapPtr<FreeObject, CBAlloc>>
-    extract_segment()
+    extract_segment(const FreeListKey& key)
     {
       SNMALLOC_ASSERT(!empty());
       SNMALLOC_ASSERT(!RANDOM); // TODO: Turn this into a static failure.
 
-      auto first = head[0];
+      auto first = read_head(0, key);
       // end[0] is pointing to the first field in the object,
       // this is doing a CONTAINING_RECORD like cast to get back
       // to the actual object.  This isn't true if the builder is

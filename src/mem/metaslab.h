@@ -142,7 +142,7 @@ namespace snmalloc
       LocalEntropy& entropy,
       sizeclass_t sizeclass)
     {
-      FreeListKey key(entropy.get_constant_key());
+      auto& key = entropy.get_free_list_key();
 
       FreeListIter tmp_fl;
       meta->free_queue.close(tmp_fl, key);

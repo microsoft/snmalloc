@@ -6,6 +6,8 @@
 #include "../mem/slaballocator.h"
 #include "commonconfig.h"
 
+#include <iostream>
+
 namespace snmalloc
 {
   // Forward reference to thread local cleanup.
@@ -73,8 +75,10 @@ namespace snmalloc
       if (initialised)
         return;
 
+      LocalEntropy entropy;
+      entropy.init<Pal>();
       // Initialise key for remote deallocation lists
-      key_global = FreeListKey(get_entropy64<Backend::Pal>());
+      key_global = FreeListKey(entropy.get_free_list_key());
 
       // Need to initialise pagemap.
       backend_state.init();

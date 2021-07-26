@@ -141,7 +141,7 @@ namespace snmalloc
     {
       auto slab_end = pointer_offset(bumpptr, slab_size + 1 - rsize);
 
-      FreeListKey key(entropy.get_constant_key());
+      auto& key = entropy.get_free_list_key();
 
       FreeListBuilder<false> b;
       SNMALLOC_ASSERT(b.empty());
@@ -209,7 +209,7 @@ namespace snmalloc
 
     ChunkRecord* clear_slab(Metaslab* meta, sizeclass_t sizeclass)
     {
-      FreeListKey key(entropy.get_constant_key());
+      auto& key = entropy.get_free_list_key();
       FreeListIter fl;
       meta->free_queue.close(fl, key);
       void* p = finish_alloc_no_zero(fl.take(key), sizeclass);
@@ -475,7 +475,7 @@ namespace snmalloc
 
       auto cp = CapPtr<FreeObject, CBAlloc>(reinterpret_cast<FreeObject*>(p));
 
-      FreeListKey key(entropy.get_constant_key());
+      auto& key = entropy.get_free_list_key();
 
       // Update the head and the next pointer in the free list.
       meta->free_queue.add(cp, key, entropy);
@@ -538,7 +538,7 @@ namespace snmalloc
       // Set meta slab to empty.
       meta->initialise(sizeclass);
 
-      FreeListKey key(entropy.get_constant_key());
+      auto& key = entropy.get_free_list_key();
 
       // take an allocation from the free list
       auto p = fast_free_list.take(key);

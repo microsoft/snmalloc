@@ -27,7 +27,7 @@ namespace snmalloc
   /**
    * Global key for all remote lists.
    */
-  inline static FreeListKey key_global(0xdeadbeef);
+  inline static FreeListKey key_global(0xdeadbeef, 0xdeadbeef);
 
   struct alignas(REMOTE_MIN_ALIGN) RemoteAllocator
   {
@@ -50,7 +50,7 @@ namespace snmalloc
 
     void init(CapPtr<FreeObject, CBAlloc> stub)
     {
-      stub->atomic_store_null();
+      stub->atomic_store_null(key_global);
       front = stub;
       back.store(stub, std::memory_order_relaxed);
       invariant();
@@ -74,12 +74,12 @@ namespace snmalloc
     void enqueue(
       CapPtr<FreeObject, CBAlloc> first,
       CapPtr<FreeObject, CBAlloc> last,
-      FreeListKey& key)
+      const FreeListKey& key)
     {
       // Pushes a list of messages to the queue. Each message from first to
       // last should be linked together through their next pointers.
       invariant();
-      last->atomic_store_null();
+      last->atomic_store_null(key);
 
       // exchange needs to be a release, so nullptr in next is visible.
       CapPtr<FreeObject, CBAlloc> prev =
@@ -93,7 +93,7 @@ namespace snmalloc
       return front;
     }
 
-    std::pair<CapPtr<FreeObject, CBAlloc>, bool> dequeue(FreeListKey& key)
+    std::pair<CapPtr<FreeObject, CBAlloc>, bool> dequeue(const FreeListKey& key)
     {
       // Returns the front message, or null if not possible to return a message.
       invariant();
