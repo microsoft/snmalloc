@@ -72,6 +72,9 @@ jobs:
         arch: [ Win32, x64 ]
         toolchain: [ "", "-T ClangCL" ]
         extra-cmake-flags: [ "" ]
+        exclude:
+          - os: windows-2016
+            toolchain: "-T ClangCL"
         include:
           - os: windows-2016
             build-type: Release
