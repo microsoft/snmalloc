@@ -17,6 +17,7 @@ jobs:
       matrix:
         os: [ "ubuntu-latest", "ubuntu-18.04", "macos-11", "macos-10.15", "freebsd-12.2", "freebsd-13.0" ]
         build-type: [ Release, Debug ]
+        extra-cmake-flags: []
         include:
           - os: "ubuntu-18.04"
             dependencies: "sudo apt install ninja-build"
@@ -26,20 +27,25 @@ jobs:
             dependencies: "brew update && brew install cmake ninja"
           - os: "macos-10.15"
             dependencies: "brew update && brew install cmake ninja"
+          - os: "freebsd-13.0"
+            variant: Clang 12
+            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++12"
+            build-only: yes
       fail-fast: false
     runs-on: ${{ matrix.os }}
-    name: ${{ matrix.os }} ${{ matrix.build-type }}
+    name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.variant }}
     steps:
     - uses: actions/checkout@v2
     - name: Install build dependencies
       run: ${{ matrix.dependencies }}
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.extra-cmake-flags }}
     - name: Build
       working-directory: ${{github.workspace}}/build
       # Build your program with the given configuration
       run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
     - name: Test
+      if: ${{ matrix.build-only != 'yes' }}
       working-directory: ${{github.workspace}}/build
       # Build your program with the given configuration
       run: ctest --output-on-failure -j 4
