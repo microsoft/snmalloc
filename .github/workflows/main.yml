@@ -63,13 +63,53 @@ jobs:
       working-directory: ${{github.workspace}}/build
       run: ctest --output-on-failure -j 4
 
+  windows:
+    strategy:
+      matrix:
+        # Build each combination of OS and release/debug variants
+        os: [ windows-2016, windows-2019 ]
+        build-type: [ Release, Debug ]
+        arch: [ x86, x64 ]
+        toolchain: [ "", "-T ClangCL" ]
+        extra-cmake-flags: [ "" ]
+        include:
+          - os: windows-2016
+            build-type: Release
+            arch: x64
+            toolchain: ""
+            extra-cmake-flags: -DWIN8COMPAT=TRUE
+            variant: Windows 8 compatible
+        fast-fail: false
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.toolchain }} ${{ matrix.variant }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Configure CMake
+      run: >
+        cmake -B ${{github.workspace}}/build -G"Visual Studio 15 2017"
+        -A ${{ matrix.arch }}
+        ${{ matrix.toolchain }}
+        ${{ matrix.extra-cmake-flags }}
+        -DSNMALLOC_CI_BUILD=On
+        -DSNMALLOC_RUST_SUPPORT=On
+      # Build with a nice ninja status line
+    - name: Build
+      working-directory: ${{ github.workspace }}/build
+      run: msbuild snmalloc.sln /m /p:Configuration=${{ matrix.build-type }}
+      # If the tests are enabled for this job, run them
+    - name: Test
+      working-directory: ${{ github.workspace }}/build
+      run: ctest -j 2 --interactive-debug-mode 0 --output-on-failure -C ${{ matrix.build-type }}
+
+
   # Job to run clang-format and report errors
   format:
     runs-on: ubuntu-18.04
     # We don't need to do the build for this job, but we need to configure it to get the clang-format target
     steps:
+    - uses: actions/checkout@v2
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} ${{ matrix.extra-cmake-flags }}
+      run: cmake -B ${{github.workspace}}/build 
     # Run the clang-format check and error if it generates a diff
     - name: Run clang-format
       working-directory: ${{github.workspace}}/build
