@@ -1,0 +1,45 @@
+name: snmalloc CI
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the master branch
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  ci:
+    strategy:
+      matrix:
+        os: [ "ubuntu-latest", "ubuntu-18.04", "macos-11", "macos-10.15", "freebsd-12.2", "freebsd-13.0" ]
+        build-type: [ Release, Debug ]
+        include:
+          - os: "ubuntu-18.04"
+            dependencies: "sudo apt install ninja-build"
+          - os: "ubuntu-latest"
+            dependencies: "sudo apt install ninja-build"
+          - os: "macos-11"
+            dependencies: "brew update && brew install cmake ninja"
+          - os: "macos-10.15"
+            dependencies: "brew update && brew install cmake ninja"
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }} ${{ matrix.build-type }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install build dependencies
+      run: ${{ matrix.dependencies }}
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja
+    - name: Build
+      working-directory: ${{github.workspace}}/build
+      # Build your program with the given configuration
+      run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+    - name: Test
+      working-directory: ${{github.workspace}}/build
+      # Build your program with the given configuration
+      run: ctest --output-on-failure -j 4
