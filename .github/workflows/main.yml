@@ -100,7 +100,6 @@ jobs:
       run: msbuild snmalloc.sln /m /p:Configuration=${{ matrix.build-type }}
       # If the tests are enabled for this job, run them
     - name: Test
-      if: ${{ matrix.build-only != 'yes' }}
       working-directory: ${{ github.workspace }}/build
       run: ctest -j 2 --interactive-debug-mode 0 --output-on-failure -C ${{ matrix.build-type }}
 
@@ -108,8 +107,7 @@ jobs:
   # Job to run clang-format and report errors
   format:
     runs-on: ubuntu-18.04
-    # We don't need to do the build for this job, but we need to configure it
-    # to get the clang-format target
+    # We don't need to do the build for this job, but we need to configure it to get the clang-format target
     steps:
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} ${{ matrix.extra-cmake-flags }}
