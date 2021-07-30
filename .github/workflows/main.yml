@@ -6,7 +6,7 @@ on:
   push:
     branches: [ master ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, snmalloc2 ]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -15,10 +15,13 @@ jobs:
   ci:
     strategy:
       matrix:
+        # Build each combination of OS and release/debug variants
         os: [ "ubuntu-latest", "ubuntu-18.04", "macos-11", "macos-10.15", "freebsd-12.2", "freebsd-13.0" ]
         build-type: [ Release, Debug ]
         extra-cmake-flags: [ " " ]
+        # Modify the complete matrix
         include:
+          # Provide the dependency installation for each platform
           - os: "ubuntu-18.04"
             dependencies: "sudo apt install ninja-build"
           - os: "ubuntu-latest"
@@ -27,10 +30,13 @@ jobs:
             dependencies: "brew update && brew install cmake ninja"
           - os: "macos-10.15"
             dependencies: "brew update && brew install cmake ninja"
+          # Add an extra element to the matrix that does a build with clang 12
+          # but doesn't run tests.
           - os: "freebsd-13.0"
-            variant: Clang 12
+            variant: Clang 12 (Build only)
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++12"
             build-only: yes
+      # Don't abort runners if a single one fails
       fail-fast: false
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.variant }}
@@ -40,12 +46,12 @@ jobs:
       run: ${{ matrix.dependencies }}
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.extra-cmake-flags }}
+      # Build with a nice ninja status line
     - name: Build
       working-directory: ${{github.workspace}}/build
-      # Build your program with the given configuration
       run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+      # If the tests are enabled for this job, run them
     - name: Test
       if: ${{ matrix.build-only != 'yes' }}
       working-directory: ${{github.workspace}}/build
-      # Build your program with the given configuration
       run: ctest --output-on-failure -j 4
