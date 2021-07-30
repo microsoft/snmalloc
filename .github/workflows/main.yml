@@ -79,7 +79,8 @@ jobs:
             toolchain: ""
             extra-cmake-flags: -DWIN8COMPAT=TRUE
             variant: Windows 8 compatible
-        fast-fail: false
+      # Don't abort runners if a single one fails
+      fail-fast: false
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.toolchain }} ${{ matrix.variant }}
     steps:
