@@ -73,6 +73,10 @@ jobs:
         toolchain: [ "", "-T ClangCL" ]
         extra-cmake-flags: [ "" ]
         include:
+          - os: windows-2019
+            generator: Visual Studio 16 2019
+          - os: windows-2016
+            generator: Visual Studio 15 2017
           - os: windows-2016
             build-type: Release
             arch: x64
@@ -87,7 +91,7 @@ jobs:
     - uses: actions/checkout@v2
     - name: Configure CMake
       run: >
-        cmake -B ${{github.workspace}}/build -G"Visual Studio 15 2017"
+        cmake -B ${{github.workspace}}/build -G \"${{ matrix.generator }}\"
         -A ${{ matrix.arch }}
         ${{ matrix.toolchain }}
         ${{ matrix.extra-cmake-flags }}
@@ -120,8 +124,8 @@ jobs:
         git diff --exit-code
     - name: Run clang-tidy
       run: |
-        clang-tidy-9  src/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16 -DSNMALLOC_PLATFORM_HAS_GETENTROPY=0
-        if [ -n tidy.fail ] ; then
+        #clang-tidy-9  src/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16 -DSNMALLOC_PLATFORM_HAS_GETENTROPY=0
+        if [ -f tidy.fail ] ; then
           cat tidy.fail
           exit 1
         fi
