@@ -17,7 +17,7 @@ jobs:
       matrix:
         os: [ "ubuntu-latest", "ubuntu-18.04", "macos-11", "macos-10.15", "freebsd-12.2", "freebsd-13.0" ]
         build-type: [ Release, Debug ]
-        extra-cmake-flags: []
+        extra-cmake-flags: [ " " ]
         include:
           - os: "ubuntu-18.04"
             dependencies: "sudo apt install ninja-build"
