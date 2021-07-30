@@ -104,25 +104,3 @@ jobs:
       run: ctest -j 2 --interactive-debug-mode 0 --output-on-failure -C ${{ matrix.build-type }}
 
 
-  # Job to run clang-format and report errors
-  format:
-    runs-on: ubuntu-18.04
-    # We don't need to do the build for this job, but we need to configure it to get the clang-format target
-    steps:
-    - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} ${{ matrix.extra-cmake-flags }}
-    # Run the clang-format check and error if it generates a diff
-    - name: Run clang-format
-      working-directory: ${{github.workspace}}/build
-      run: |
-        set -eo pipefail
-        make clangformat
-        git diff --exit-code
-    - name: Run clang-tidy
-      run: |
-        clang-tidy-9  src/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16 -DSNMALLOC_PLATFORM_HAS_GETENTROPY=0
-        if [ -n tidy.fail ] ; then
-          cat tidy.fail
-          exit 1
-        fi
-
