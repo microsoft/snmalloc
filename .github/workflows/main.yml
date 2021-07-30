@@ -95,8 +95,7 @@ jobs:
         -DSNMALLOC_RUST_SUPPORT=On
       # Build with a nice ninja status line
     - name: Build
-      working-directory: ${{ github.workspace }}/build
-      run: msbuild snmalloc.sln /m /p:Configuration=${{ matrix.build-type }}
+      run: cmake --build ${{github.workspace}}/build -- /m /p:Configuration=${{ matrix.build-type }}
       # If the tests are enabled for this job, run them
     - name: Test
       working-directory: ${{ github.workspace }}/build
