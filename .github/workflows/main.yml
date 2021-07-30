@@ -30,6 +30,13 @@ jobs:
             dependencies: "brew update && brew install cmake ninja"
           - os: "macos-10.15"
             dependencies: "brew update && brew install cmake ninja"
+          # Skip the tests for the FreeBSD release builds
+          - os: "freebsd-13.0"
+            build-type: Release
+            build-only: yes
+          - os: "freebsd-12.2"
+            build-type: Release
+            build-only: yes
           # Add an extra element to the matrix that does a build with clang 12
           # but doesn't run tests.
           - os: "freebsd-13.0"
