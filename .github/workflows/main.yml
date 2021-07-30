@@ -108,8 +108,7 @@ jobs:
   # Job to run clang-format and report errors
   format:
     runs-on: ubuntu-18.04
-    # We don't need to do the build for this job, but we need to configure it
-    # to get the clang-format target
+    # We don't need to do the build for this job, but we need to configure it to get the clang-format target
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} ${{ matrix.extra-cmake-flags }}
     # Run the clang-format check and error if it generates a diff
