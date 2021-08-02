@@ -87,7 +87,7 @@ jobs:
     strategy:
       matrix:
         build-type: [ Release, Debug ]
-        container: [ snmallocciteam/build_linux_arm64:latest, snmallocciteam/build_linux_armhf:latest ]
+        container: [ 'snmallocciteam/build_linux_arm64:latest', 'snmallocciteam/build_linux_armhf:latest' ]
       # Don't abort runners if a single one fails
       fail-fast: false
     runs-on: ubuntu-latest
