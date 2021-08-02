@@ -106,7 +106,7 @@ jobs:
         ci/scripts/build.sh
     - name: Test
       run: >
-        sudo docker run -v $PWD:/src \
+        sudo docker run -v $PWD:/src
         -e BUILD_TYPE=${{ matrix.build-type }}
         ${{ matrix.container }}
         ci/scripts/test.sh
