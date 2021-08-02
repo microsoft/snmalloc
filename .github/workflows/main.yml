@@ -98,8 +98,8 @@ jobs:
     - name: Build
       run: >
         sudo docker run -v $PWD:/src
-        -e CC=$(CC)
-        -e CXX=$(CXX)
+        -e CC=clang-9
+        -e CXX=clang++-9
         -e BUILD_TYPE=${{ matrix.build-type }}
         -e CMAKE_ARGS='-DSNMALLOC_QEMU_WORKAROUND=On'
         ${{ matrix.container }}
