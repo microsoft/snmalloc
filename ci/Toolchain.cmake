@@ -1,0 +1,12 @@
+set(CMAKE_SYSTEM_NAME Linux)
+set(CMAKE_SYSTEM_PROCESSOR $ENV{ARCH})
+
+set(triple $ENV{TRIPLE})
+
+set(CMAKE_C_COMPILER clang)
+set(CMAKE_C_COMPILER_TARGET ${triple})
+set(CMAKE_CXX_COMPILER clang++)
+set(CMAKE_CXX_COMPILER_TARGET ${triple})
+set(CMAKE_EXE_LINKER_FLAGS -fuse-ld=lld)
+set(CMAKE_SHARED_LINKER_FLAGS -fuse-ld=lld)
+set(CMAKE_MODULE_LINKER_FLAGS -fuse-ld=lld)

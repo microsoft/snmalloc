@@ -87,32 +87,33 @@ jobs:
     strategy:
       matrix:
         build-type: [ Release, Debug ]
-        container: [ 'snmallocciteam/build_linux_arm64:latest', 'snmallocciteam/build_linux_armhf:latest' ]
+        arch: [ arm64, armhf ]
+      include:
+        - arch: armhf
+          system-processor: arm
+        triple: arm-linux-gnueabihf
+        - arch: arm64
+          system-processor: aarch64
+        triple: aarch64-linux-gnu
       # Don't abort runners if a single one fails
       fail-fast: false
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - name: Enable QEMU
-      run:   sudo docker run --rm --privileged multiarch/qemu-user-static:register --reset
+      run: |
+        sudo apt install libstdc++-9-dev-${{ matrix.arch }}-cross qemu-user ninja-build
+        sudo ln -s /usr/${{ matrix.triple }}/lib/ld-linux-* /lib/
     - name: Build
-      run: >
-        sudo docker run -v $PWD:/src
-        -e CC=clang-9
-        -e CXX=clang++-9
-        -e BUILD_TYPE=${{ matrix.build-type }}
-        -e CMAKE_ARGS='-DSNMALLOC_QEMU_WORKAROUND=On'
-        ${{ matrix.container }}
-        ci/scripts/build.sh
+      run: AARCH=${{ matrix.arch }} TRIPLE=${{ matrix.triple}} cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja -DSNMALLOC_CI_BUILD=ON -DSNMALLOC_QEMU_WORKAROUND=ON -DSNMALLOC_STATIC_LIBRARY=OFF -DCMAKE_TOOLCHAIN_FILE=ci/Toolchain.cmake
+    - name: Build
+      working-directory: ${{github.workspace}}/build
+      run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+      # If the tests are enabled for this job, run them
     - name: Test
-      run: >
-        sudo docker run -v $PWD:/src
-        -e BUILD_TYPE=${{ matrix.build-type }}
-        ${{ matrix.container }}
-        ci/scripts/test.sh
-
-
-
+      if: ${{ matrix.build-only != 'yes' }}
+      working-directory: ${{github.workspace}}/build
+      run: LD_LIBRARY_PATH=/usr/${{ matrix.triple }}/lib ctest --output-on-failure -j 4
 
   windows:
     strategy:
