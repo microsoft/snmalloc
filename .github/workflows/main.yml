@@ -37,11 +37,19 @@ jobs:
           - os: "freebsd-12.2"
             build-type: Release
             build-only: yes
+          # Add the self-host build
+          - os: ubuntu-latest
+            build-type: Debug
+            self-host: true
           # Add an extra element to the matrix that does a build with clang 12
           # but doesn't run tests.
           - os: "freebsd-13.0"
             variant: Clang 12 (Build only)
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++12"
+            build-only: yes
+          - os: ubuntu-latest
+            variant: Clang 10 libstdc++ (Build only)
+            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
             build-only: yes
       # Don't abort runners if a single one fails
       fail-fast: false
@@ -62,6 +70,18 @@ jobs:
       if: ${{ matrix.build-only != 'yes' }}
       working-directory: ${{github.workspace}}/build
       run: ctest --output-on-failure -j 4
+    - name: Selfhost
+      if: ${{ matrix.self-host }}
+      working-directory: ${{github.workspace}}/build
+      run: |
+        sudo cp libsnmallocshim.so libsnmallocshim-16mib.so libsnmallocshim-oe.so /usr/local/lib/
+        ninja clean
+        LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
+        ninja clean
+        LD_PRELOAD=/usr/local/lib/libsnmallocshim-16mib.so ninja
+        ninja clean
+        LD_PRELOAD=/usr/local/lib/libsnmallocshim-oe.so ninja
+
 
   windows:
     strategy:
@@ -72,9 +92,12 @@ jobs:
         arch: [ Win32, x64 ]
         toolchain: [ "", "-T ClangCL" ]
         extra-cmake-flags: [ "" ]
+        # The ClangCL toolchain was added in Visual Studio 2019, the Windows
+        # 2016 runners have only VS 2017, so skip them for this configuration
         exclude:
           - os: windows-2016
             toolchain: "-T ClangCL"
+        # Add an extra check for the Windows 8 compatible PAL
         include:
           - os: windows-2016
             build-type: Release
@@ -91,10 +114,10 @@ jobs:
     - name: Configure CMake
       run: |
         cmake -B ${{github.workspace}}/build -A ${{ matrix.arch }} ${{ matrix.toolchain }} ${{ matrix.extra-cmake-flags }} -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On
-      # Build with a nice ninja status line
+      # Build with whatever version of msbuild was configured, for a single build configuration.
     - name: Build
       run: cmake --build ${{github.workspace}}/build -- /m /p:Configuration=${{ matrix.build-type }}
-      # If the tests are enabled for this job, run them
+      # Run the tests.
     - name: Test
       working-directory: ${{ github.workspace }}/build
       run: ctest -j 2 --interactive-debug-mode 0 --output-on-failure -C ${{ matrix.build-type }}
