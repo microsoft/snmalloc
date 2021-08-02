@@ -100,11 +100,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Enable QEMU
+    - name: Install cross-compile toolchain and QEMU
+      # Install the dependencies and clang 13.  Earlier versions of clang don't
+      # find the multilib things for this week's Ubuntu filesystem layout.
       run: |
-        sudo apt install libstdc++-9-dev-${{ matrix.arch }}-cross qemu-user ninja-build
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
+        sudo apt install libstdc++-9-dev-${{ matrix.arch }}-cross qemu-user ninja-build lld-13 clang-13
         sudo ln -s /usr/${{ matrix.triple }}/lib/ld-linux-* /lib/
-    - name: Build
+
+    - name: Configure
       run: AARCH=${{ matrix.arch }} TRIPLE=${{ matrix.triple}} cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja -DSNMALLOC_CI_BUILD=ON -DSNMALLOC_QEMU_WORKAROUND=ON -DSNMALLOC_STATIC_LIBRARY=OFF -DCMAKE_TOOLCHAIN_FILE=ci/Toolchain.cmake
     - name: Build
       working-directory: ${{github.workspace}}/build
