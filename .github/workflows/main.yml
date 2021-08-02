@@ -91,10 +91,10 @@ jobs:
         include:
           - arch: armhf
             system-processor: arm
-          triple: arm-linux-gnueabihf
+            triple: arm-linux-gnueabihf
           - arch: arm64
             system-processor: aarch64
-          triple: aarch64-linux-gnu
+            triple: aarch64-linux-gnu
       # Don't abort runners if a single one fails
       fail-fast: false
     runs-on: ubuntu-latest
