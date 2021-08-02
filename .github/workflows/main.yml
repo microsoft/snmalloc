@@ -35,7 +35,7 @@ jobs:
             build-type: Release
             build-only: yes
           - os: "freebsd-12.2"
-            build-type: Release
+            build-type: Debug
             build-only: yes
           # Add the self-host build
           - os: ubuntu-latest
@@ -82,6 +82,36 @@ jobs:
         LD_PRELOAD=/usr/local/lib/libsnmallocshim-16mib.so ninja
         ninja clean
         LD_PRELOAD=/usr/local/lib/libsnmallocshim-oe.so ninja
+
+  qemu-crossbuild:
+    strategy:
+      matrix:
+        build-type: [ Release, Debug ]
+        container: [ snmallocciteam/build_linux_arm64:latest, snmallocciteam/build_linux_armhf:latest ]
+      # Don't abort runners if a single one fails
+      fail-fast: false
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Enable QEMU
+      run:   sudo docker run --rm --privileged multiarch/qemu-user-static:register --reset
+    - name: Build
+      run: >
+        sudo docker run -v $PWD:/src
+        -e CC=$(CC)
+        -e CXX=$(CXX)
+        -e BUILD_TYPE=${{ matrix.build-type }}
+        -e CMAKE_ARGS='-DSNMALLOC_QEMU_WORKAROUND=On'
+        ${{ matrix.container }}
+        ci/scripts/build.sh
+    - name: Test
+      run: >
+        sudo docker run -v $PWD:/src \
+        -e BUILD_TYPE=${{ matrix.build-type }}
+        ${{ matrix.container }}
+        ci/scripts/test.sh
+
+
 
 
   windows:
@@ -131,7 +161,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build 
+      run: cmake -B ${{github.workspace}}/build
     # Run the clang-format check and error if it generates a diff
     - name: Run clang-format
       working-directory: ${{github.workspace}}/build
