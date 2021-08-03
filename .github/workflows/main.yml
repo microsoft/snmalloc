@@ -201,3 +201,7 @@ jobs:
 
   all-checks:
     needs: [unixlike, qemu-crossbuild, windows, format]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Dummy step
+      run: true
