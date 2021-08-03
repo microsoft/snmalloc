@@ -127,13 +127,11 @@ jobs:
       working-directory: ${{github.workspace}}/build
       run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
       # If the tests are enabled for this job, run them
-    - name: Debugging
-      working-directory: ${{github.workspace}}/build
-      run: file func-malloc-1
     - name: Test
       if: ${{ matrix.build-only != 'yes' }}
       working-directory: ${{github.workspace}}/build
-      run: ctest --output-on-failure -j 4 -VV
+      run: ctest --output-on-failure -j 4 -VV -E perf
+      timeout-minutes: 30
 
   windows:
     strategy:
