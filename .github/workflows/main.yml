@@ -199,3 +199,5 @@ jobs:
           exit 1
         fi
 
+  all-checks:
+    needs: [unixlike, qemu-crossbuild, windows, format]
