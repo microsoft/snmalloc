@@ -168,6 +168,8 @@ jobs:
     - uses: actions/checkout@v2
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build
+    - name: Install clang-tidy
+      run: sudo apt install clang-tidy-9
     # Run the clang-format check and error if it generates a diff
     - name: Run clang-format
       working-directory: ${{github.workspace}}/build
@@ -177,7 +179,7 @@ jobs:
         git diff --exit-code
     - name: Run clang-tidy
       run: |
-        #clang-tidy-9  src/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16 -DSNMALLOC_PLATFORM_HAS_GETENTROPY=0
+        clang-tidy-9  src/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16 -DSNMALLOC_PLATFORM_HAS_GETENTROPY=0
         if [ -f tidy.fail ] ; then
           cat tidy.fail
           exit 1
