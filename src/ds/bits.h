@@ -5,10 +5,6 @@
 
 // #define USE_LZCNT
 
-#ifdef __unix__
-#error Does the all-checks job fail?
-#endif
-
 #include "../aal/aal.h"
 #include "../pal/pal_consts.h"
 #include "defines.h"
