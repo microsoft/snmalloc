@@ -112,7 +112,7 @@ jobs:
         sudo apt install libstdc++-9-dev-${{ matrix.arch }}-cross qemu-user ninja-build lld-13 clang-13
     - name: Configure
       run: >
-        RTLD=${{ matrix.rtld }}
+        RTLD_NAME=${{ matrix.rtld }}
         AARCH=${{ matrix.arch }}
         TRIPLE=${{ matrix.triple}}
         cmake
