@@ -92,9 +92,11 @@ jobs:
           - arch: armhf
             system-processor: arm
             triple: arm-linux-gnueabihf
+            rtld: ld-linux-armhf.so.3
           - arch: arm64
             system-processor: aarch64
             triple: aarch64-linux-gnu
+            rtld: ld-linux-aarch64.so.1
       # Don't abort runners if a single one fails
       fail-fast: false
     runs-on: ubuntu-latest
@@ -108,9 +110,19 @@ jobs:
         chmod +x llvm.sh
         sudo ./llvm.sh 13
         sudo apt install libstdc++-9-dev-${{ matrix.arch }}-cross qemu-user ninja-build lld-13 clang-13
-        sudo ln -s /usr/${{ matrix.triple }}/lib/ld-linux-* /lib/
     - name: Configure
-      run: AARCH=${{ matrix.arch }} TRIPLE=${{ matrix.triple}} cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja -DSNMALLOC_CI_BUILD=ON -DSNMALLOC_QEMU_WORKAROUND=ON -DSNMALLOC_STATIC_LIBRARY=OFF -DCMAKE_TOOLCHAIN_FILE=ci/Toolchain.cmake
+      run: >
+        RTLD=${{ matrix.rtld }}
+        AARCH=${{ matrix.arch }}
+        TRIPLE=${{ matrix.triple}}
+        cmake
+        -B ${{github.workspace}}/build
+        -DCMAKE_BUILD_TYPE=${{matrix.build-type}}
+        -G Ninja
+        -DSNMALLOC_CI_BUILD=ON
+        -DSNMALLOC_QEMU_WORKAROUND=ON
+        -DSNMALLOC_STATIC_LIBRARY=OFF
+        -DCMAKE_TOOLCHAIN_FILE=ci/Toolchain.cmake
     - name: Build
       working-directory: ${{github.workspace}}/build
       run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
@@ -118,7 +130,7 @@ jobs:
     - name: Test
       if: ${{ matrix.build-only != 'yes' }}
       working-directory: ${{github.workspace}}/build
-      run: LD_LIBRARY_PATH=/usr/${{ matrix.triple }}/lib ctest --output-on-failure -j 4
+      run: ctest --output-on-failure -j 4
 
   windows:
     strategy:
