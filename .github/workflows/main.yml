@@ -126,11 +126,12 @@ jobs:
     - name: Build
       working-directory: ${{github.workspace}}/build
       run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-      # If the tests are enabled for this job, run them
+    # Run the tests, skipping the -malloc and perf- tests (perf doesn't make
+    # sense in an emulator and the pass-through malloc is slightly flaky in
+    # QEMU)
     - name: Test
-      if: ${{ matrix.build-only != 'yes' }}
       working-directory: ${{github.workspace}}/build
-      run: ctest --output-on-failure -j 4 -VV -E perf
+      run: ctest --output-on-failure -j 4 -VV -E '(perf-.*)|(.*-malloc$)'
       timeout-minutes: 30
 
   windows:
