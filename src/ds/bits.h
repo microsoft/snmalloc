@@ -48,7 +48,7 @@ namespace snmalloc
     constexpr T one_at_bit(S shift)
     {
       static_assert(std::is_integral_v<T>, "Type must be integral");
-      SNMALLOC_ASSERT(sizeof(T) * CHAR_BIT > static_cast<size_t>(shift));
+      SNMALLOC_ASSERT(sizeof(T) * 8 > static_cast<size_t>(shift));
       return (static_cast<T>(1)) << shift;
     }
 
