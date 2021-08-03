@@ -34,7 +34,7 @@ Comprehensive details about snmalloc's design can be found in the
 current implementation are [described here](difference.md).
 Since writing the paper, the performance of snmalloc has improved considerably.
 
-[![Build Status](https://dev.azure.com/snmalloc/snmalloc/_apis/build/status/Microsoft.snmalloc?branchName=master)](https://dev.azure.com/snmalloc/snmalloc/_build/latest?definitionId=1?branchName=master)
+[![snmalloc CI](https://github.com/microsoft/snmalloc/actions/workflows/main.yml/badge.svg)](https://github.com/microsoft/snmalloc/actions/workflows/main.yml)
 
 # Further documentation
 
