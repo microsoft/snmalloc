@@ -24,8 +24,9 @@ int main(int argc, char** argv)
 
   setup();
 
+  constexpr int bits_to_test = bits::is64() ? 36 : 31;
   T value = 0;
-  for (uintptr_t ptr = 0; ptr < bits::one_at_bit(36);
+  for (uintptr_t ptr = 0; ptr < bits::one_at_bit(bits_to_test);
        ptr += bits::one_at_bit(GRANULARITY_BITS + 3))
   {
     pagemap_test.set(ptr, value);
@@ -38,7 +39,7 @@ int main(int argc, char** argv)
 
   std::cout << std::endl;
   value = 0;
-  for (uintptr_t ptr = 0; ptr < bits::one_at_bit(36);
+  for (uintptr_t ptr = 0; ptr < bits::one_at_bit(bits_to_test);
        ptr += bits::one_at_bit(GRANULARITY_BITS + 3))
   {
     T result = pagemap_test.get(ptr);
