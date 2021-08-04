@@ -109,7 +109,7 @@ jobs:
         wget https://apt.llvm.org/llvm.sh
         chmod +x llvm.sh
         sudo ./llvm.sh 13
-        sudo apt install libstdc++-9-dev-${{ matrix.arch }}-cross qemu-user ninja-build lld-13 clang-13
+        sudo apt install libstdc++-9-dev-${{ matrix.arch }}-cross qemu-user ninja-build
     - name: Configure
       run: >
         RTLD_NAME=${{ matrix.rtld }}
