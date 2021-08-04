@@ -106,10 +106,10 @@ jobs:
       # Install the dependencies and clang 13.  Earlier versions of clang don't
       # find the multilib things for this week's Ubuntu filesystem layout.
       run: |
-        wget https://apt.llvm.org/llvm.sh
-        chmod +x llvm.sh
-        sudo ./llvm.sh 13
-        sudo apt install libstdc++-9-dev-${{ matrix.arch }}-cross qemu-user ninja-build lld-13 clang-13
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        sudo add-apt-repository "deb http://apt.llvm.org/focal/     llvm-toolchain-focal-13  main"
+        sudo apt update
+        sudo apt install libstdc++-9-dev-${{ matrix.arch }}-cross qemu-user ninja-build clang-13 lld-13
     - name: Configure
       run: >
         RTLD_NAME=${{ matrix.rtld }}
