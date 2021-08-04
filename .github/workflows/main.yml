@@ -87,7 +87,7 @@ jobs:
     strategy:
       matrix:
         build-type: [ Release, Debug ]
-        arch: [ arm64, armhf ]
+        arch: [ arm64, armhf, ppc64el ]
         include:
           - arch: armhf
             system-processor: arm
@@ -97,6 +97,10 @@ jobs:
             system-processor: aarch64
             triple: aarch64-linux-gnu
             rtld: ld-linux-aarch64.so.1
+          - arch: ppc64el
+            system-processor: powerpc64le
+            triple: powerpc64le-linux-gnu
+            rtld: ld64.so.2
       # Don't abort runners if a single one fails
       fail-fast: false
     runs-on: ubuntu-latest
