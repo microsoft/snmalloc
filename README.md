@@ -34,7 +34,7 @@ Comprehensive details about snmalloc's design can be found in the
 current implementation are [described here](difference.md).
 Since writing the paper, the performance of snmalloc has improved considerably.
 
-[![snmalloc CI](https://github.com/microsoft/snmalloc/actions/workflows/main.yml/badge.svg?branch=master&event=status)](https://github.com/microsoft/snmalloc/actions/workflows/main.yml)
+[![snmalloc CI](https://github.com/microsoft/snmalloc/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/microsoft/snmalloc/actions/workflows/main.yml)
 
 # Further documentation
 
