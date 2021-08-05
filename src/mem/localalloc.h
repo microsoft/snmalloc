@@ -65,7 +65,7 @@ namespace snmalloc
     // allocation on the fast path. This part of the code is inspired by
     // mimalloc.
     // Also contains remote deallocation cache.
-    LocalCache local_cache;
+    LocalCache local_cache{&SharedStateHandle::unused_remote};
 
     // Underlying allocator for most non-fast path operations.
     CoreAlloc* core_alloc{nullptr};
@@ -340,8 +340,7 @@ namespace snmalloc
     }
 
   public:
-    constexpr LocalAllocator() : local_cache(&SharedStateHandle::unused_remote)
-    {}
+    constexpr LocalAllocator() = default;
 
     /**
      * Initialise the allocator.  For allocators that support local
