@@ -90,23 +90,23 @@ jobs:
     strategy:
       matrix:
         build-type: [ Release, Debug ]
-        arch: [ arm64, armhf, ppc64el ]
-        include:
-          - arch: armhf
+        arch:
+          - name: armhf
             system-processor: arm
             triple: arm-linux-gnueabihf
             rtld: ld-linux-armhf.so.3
-          - arch: arm64
+          - name: arm64
             system-processor: aarch64
             triple: aarch64-linux-gnu
             rtld: ld-linux-aarch64.so.1
-          - arch: ppc64el
+          - name: ppc64el
             system-processor: powerpc64le
             triple: powerpc64le-linux-gnu
             rtld: ld64.so.2
       # Don't abort runners if a single one fails
       fail-fast: false
     runs-on: ubuntu-latest
+    name: Cross-build for ${{ matrix.arch.triple }}
     steps:
     - uses: actions/checkout@v2
     - name: Install cross-compile toolchain and QEMU
@@ -116,12 +116,12 @@ jobs:
         wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
         sudo add-apt-repository "deb http://apt.llvm.org/focal/     llvm-toolchain-focal-13  main"
         sudo apt update
-        sudo apt install libstdc++-9-dev-${{ matrix.arch }}-cross qemu-user ninja-build clang-13 lld-13
+        sudo apt install libstdc++-9-dev-${{ matrix.arch.name }}-cross qemu-user ninja-build clang-13 lld-13
     - name: Configure
       run: >
-        RTLD_NAME=${{ matrix.rtld }}
-        AARCH=${{ matrix.arch }}
-        TRIPLE=${{ matrix.triple}}
+        RTLD_NAME=${{ matrix.arch.rtld }}
+        ARCH=${{ matrix.arch.system-processor }}
+        TRIPLE=${{ matrix.arch.triple}}
         cmake
         -B ${{github.workspace}}/build
         -DCMAKE_BUILD_TYPE=${{matrix.build-type}}
