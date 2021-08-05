@@ -31,7 +31,8 @@ namespace snmalloc
   inline U* pointer_offset(T* base, size_t diff)
   {
     SNMALLOC_ASSERT(base != nullptr); /* Avoid UB */
-    return reinterpret_cast<U*>(reinterpret_cast<char*>(base) + diff);
+    return reinterpret_cast<U*>(
+      reinterpret_cast<uintptr_t>(base) + static_cast<uintptr_t>(diff));
   }
 
   template<enum capptr_bounds bounds, typename T>

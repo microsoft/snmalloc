@@ -52,7 +52,7 @@ namespace snmalloc
         0);
 
       if (p == MAP_FAILED)
-        PALBSD<OS>::error("Out of memory");
+        return nullptr;
 
       return p;
     }

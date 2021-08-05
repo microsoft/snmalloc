@@ -96,7 +96,12 @@ namespace snmalloc
           else if constexpr (!pal_supports<NoAllocation, PAL>)
           {
             // Need at least 2 times the space to guarantee alignment.
-            size_t needed_size = size * 2;
+            bool overflow;
+            size_t needed_size = bits::umul(size, 2, overflow);
+            if (overflow)
+            {
+              return nullptr;
+            }
             // Magic number (27) for over-allocating a block of memory
             // These should be further refined based on experiments.
             constexpr size_t min_size = bits::one_at_bit(27);

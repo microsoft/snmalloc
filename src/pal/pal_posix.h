@@ -99,12 +99,13 @@ namespace snmalloc
       static const int fd = T::anonymous_memory_fd;
     };
 
+  protected:
     /**
      * A RAII class to capture and restore errno
      */
     class KeepErrno
     {
-      decltype(errno) cached_errno;
+      int cached_errno;
 
     public:
       KeepErrno() : cached_errno(errno) {}

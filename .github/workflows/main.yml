@@ -50,7 +50,7 @@ jobs:
           - os: ubuntu-latest
             variant: Clang 10 libstdc++ (Build only)
             dependencies: "sudo apt install ninja-build"
-            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
+            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10 -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
             build-only: yes
       # Don't abort runners if a single one fails
       fail-fast: false
@@ -78,13 +78,11 @@ jobs:
       if: ${{ matrix.self-host }}
       working-directory: ${{github.workspace}}/build
       run: |
-        sudo cp libsnmallocshim.so libsnmallocshim-16mib.so libsnmallocshim-oe.so /usr/local/lib/
+        sudo cp libsnmallocshim.so libsnmallocshim-checks.so /usr/local/lib/
         ninja clean
         LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
         ninja clean
-        LD_PRELOAD=/usr/local/lib/libsnmallocshim-16mib.so ninja
-        ninja clean
-        LD_PRELOAD=/usr/local/lib/libsnmallocshim-oe.so ninja
+        LD_PRELOAD=/usr/local/lib/libsnmallocshim-checks.so ninja
 
   qemu-crossbuild:
     strategy:
@@ -117,6 +115,13 @@ jobs:
         sudo add-apt-repository "deb http://apt.llvm.org/focal/     llvm-toolchain-focal-13  main"
         sudo apt update
         sudo apt install libstdc++-9-dev-${{ matrix.arch.name }}-cross qemu-user ninja-build clang-13 lld-13
+        # The default PowerPC qemu configuration uses the wrong page size.
+        # Wrap it in a script that fixes this.
+        sudo update-binfmts --disable qemu-ppc64le
+        sudo sh -c 'echo ":qemu-ppc64le:M:0:\x7f\x45\x4c\x46\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x15\x00:\xff\xff\xff\xff\xff\xff\xff\xfc\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\x00:`pwd`/ppc64.sh:" > /proc/sys/fs/binfmt_misc/register'
+        echo '#!/bin/sh' > ppc64.sh
+        echo '/usr/bin/qemu-ppc64le -p 65536 $@' >> ppc64.sh
+        chmod +x ppc64.sh
     - name: Configure
       run: >
         RTLD_NAME=${{ matrix.arch.rtld }}
@@ -179,6 +184,7 @@ jobs:
     - name: Test
       working-directory: ${{ github.workspace }}/build
       run: ctest -j 2 --interactive-debug-mode 0 --output-on-failure -C ${{ matrix.build-type }}
+      timeout-minutes: 20
 
 
   # Job to run clang-format and report errors

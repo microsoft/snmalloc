@@ -160,6 +160,7 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     static void notify_using(void* p, size_t size) noexcept
     {
+      KeepErrno e;
       SNMALLOC_ASSERT(
         is_aligned_block<page_size>(p, size) || (zero_mem == NoZero));
 
@@ -239,7 +240,7 @@ namespace snmalloc
 
       if (unlikely(kr != KERN_SUCCESS))
       {
-        error("Failed to allocate memory\n");
+        return nullptr;
       }
 
       return reinterpret_cast<void*>(addr);

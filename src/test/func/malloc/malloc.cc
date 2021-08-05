@@ -41,7 +41,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
 #else
   const auto exact_size = align == 1;
 #endif
-  if (exact_size && (alloc_size != expected_size))
+  if (exact_size && (alloc_size != expected_size) && (size != 0))
   {
     printf(
       "Usable size is %zu, but required to be %zu.\n",
@@ -79,7 +79,10 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
   }
 
   if (failed)
+  {
     printf("check_result failed! %p", p);
+    abort();
+  }
   our_free(p);
 }
 
@@ -149,7 +152,9 @@ int main(int argc, char** argv)
   {
     const size_t size = bits::one_at_bit(sc);
     printf("malloc: %zu\n", size);
+    errno = 0;
     check_result(size, 1, our_malloc(size), SUCCESS, false);
+    errno = 0;
     check_result(size + 1, 1, our_malloc(size + 1), SUCCESS, false);
   }
 
@@ -180,7 +185,7 @@ int main(int argc, char** argv)
     test_realloc(our_malloc(size), size, SUCCESS, false);
     test_realloc(our_malloc(size), 0, SUCCESS, true);
     test_realloc(nullptr, size, SUCCESS, false);
-    test_realloc(our_malloc(size), (size_t)-1, ENOMEM, true);
+    test_realloc(our_malloc(size), ((size_t)-1) / 2, ENOMEM, true);
     for (sizeclass_t sc2 = 0; sc2 < NUM_SIZECLASSES; sc2++)
     {
       const size_t size2 = sizeclass_to_size(sc2);
@@ -195,7 +200,7 @@ int main(int argc, char** argv)
     test_realloc(our_malloc(size), size, SUCCESS, false);
     test_realloc(our_malloc(size), 0, SUCCESS, true);
     test_realloc(nullptr, size, SUCCESS, false);
-    test_realloc(our_malloc(size), (size_t)-1, ENOMEM, true);
+    test_realloc(our_malloc(size), ((size_t)-1) / 2, ENOMEM, true);
     for (sizeclass_t sc2 = 0; sc2 < (MAX_SIZECLASS_BITS + 4); sc2++)
     {
       const size_t size2 = bits::one_at_bit(sc2);
@@ -208,7 +213,7 @@ int main(int argc, char** argv)
   test_realloc(our_malloc(64), 4194304, SUCCESS, false);
 
   test_posix_memalign(0, 0, EINVAL, true);
-  test_posix_memalign((size_t)-1, 0, EINVAL, true);
+  test_posix_memalign(((size_t)-1) / 2, 0, EINVAL, true);
   test_posix_memalign(OS_PAGE_SIZE, sizeof(uintptr_t) / 2, EINVAL, true);
 
   for (size_t align = sizeof(uintptr_t); align < MAX_SIZECLASS_SIZE * 8;
@@ -222,7 +227,7 @@ int main(int argc, char** argv)
       test_memalign(size, align, SUCCESS, false);
     }
     test_posix_memalign(0, align, SUCCESS, false);
-    test_posix_memalign((size_t)-1, align, ENOMEM, true);
+    test_posix_memalign(((size_t)-1) / 2, align, ENOMEM, true);
     test_posix_memalign(0, align + 1, EINVAL, true);
   }
 

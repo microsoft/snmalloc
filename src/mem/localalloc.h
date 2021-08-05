@@ -512,8 +512,11 @@ namespace snmalloc
         ChunkRecord* slab_record =
           reinterpret_cast<ChunkRecord*>(entry.get_metaslab());
         slab_record->chunk = CapPtr<void, CBChunk>(p);
-        ChunkAllocator::dealloc<SharedStateHandle>(
-          core_alloc->get_backend_local_state(), slab_record, slab_sizeclass);
+        check_init([&](CoreAlloc* core_alloc) {
+          ChunkAllocator::dealloc<SharedStateHandle>(
+            core_alloc->get_backend_local_state(), slab_record, slab_sizeclass);
+          return nullptr;
+        });
         return;
       }
 

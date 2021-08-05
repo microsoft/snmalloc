@@ -177,10 +177,6 @@ namespace snmalloc
 
       void* ret = VirtualAlloc2FromApp(
         nullptr, nullptr, size, flags, PAGE_READWRITE, &param, 1);
-      if (ret == nullptr)
-      {
-        error("Failed to allocate memory\n");
-      }
       return ret;
     }
 #  endif

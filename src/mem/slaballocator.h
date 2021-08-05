@@ -83,6 +83,13 @@ namespace snmalloc
     {
       ChunkAllocatorState& state =
         SharedStateHandle::get_slab_allocator_state(&local_state);
+
+      if (slab_sizeclass >= NUM_SLAB_SIZES)
+      {
+        // Your address space is not big enough for this allocation!
+        return {nullptr, nullptr};
+      }
+
       // Pop a slab
       auto chunk_record = state.chunk_stack[slab_sizeclass].pop();
 

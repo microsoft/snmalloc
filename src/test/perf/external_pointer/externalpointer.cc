@@ -53,7 +53,9 @@ namespace test
   void test_external_pointer(xoroshiro::p128r64& r)
   {
     auto& alloc = ThreadAlloc::get();
-#ifdef NDEBUG
+    // This is very slow on Windows at the moment.  Until this is fixed, help
+    // CI terminate.
+#if defined(NDEBUG) && !defined(_MSC_VER)
     static constexpr size_t iterations = 10000000;
 #else
 #  ifdef _MSC_VER
