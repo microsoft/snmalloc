@@ -160,6 +160,21 @@ namespace snmalloc
     }
 
     /**
+     * Get the number of entries.
+     */
+    constexpr size_t num_entries() const
+    {
+      if constexpr (has_bounds)
+      {
+        return size >> GRANULARITY_BITS;
+      }
+      else
+      {
+        return bits::one_at_bit(bits::ADDRESS_BITS - GRANULARITY_BITS);
+      }
+    }
+
+    /**
      * If the location has not been used before, then
      * `potentially_out_of_range` should be set to true.
      * This will ensure there is a location for the
@@ -195,6 +210,22 @@ namespace snmalloc
       }
 
       return body[p >> SHIFT];
+    }
+
+    /**
+     * Return the starting address corresponding to a given entry within the
+     * Pagemap. Also checks that the reference actually points to a valid entry.
+     */
+    address_t get_address(const T& t) const
+    {
+      address_t entry_offset = address_cast(&t) - address_cast(body);
+      if (
+        (entry_offset % sizeof(T) != 0) ||
+        (entry_offset >= (num_entries() * sizeof(T))))
+      {
+        PAL::error("Internal error: Invalid Pagemap entry for reverse lookup.");
+      }
+      return base + ((entry_offset / sizeof(T)) * MIN_CHUNK_SIZE);
     }
 
     void set(address_t p, T t)
