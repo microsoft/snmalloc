@@ -68,7 +68,7 @@ jobs:
       run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
     - name: Test file size of binaries is sane
       working-directory: ${{github.workspace}}/build
-      run: 'ls -l func-first_operation-1 ; [ $(ls -l func-first_operation-1 | cut -f 5 -w -) -lt 10000000 ]'
+      run: "ls -l func-first_operation-1 ; [ $(ls -l func-first_operation-1 | awk '{ print $5}') -lt 10000000 ]"
       # If the tests are enabled for this job, run them
     - name: Test
       if: ${{ matrix.build-only != 'yes' }}
