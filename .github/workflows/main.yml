@@ -1,0 +1,214 @@
+name: snmalloc CI
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the master branch
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master, snmalloc2 ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  unixlike:
+    strategy:
+      matrix:
+        # Build each combination of OS and release/debug variants
+        os: [ "ubuntu-latest", "ubuntu-18.04", "macos-11", "macos-10.15", "freebsd-12.2", "freebsd-13.0" ]
+        build-type: [ Release, Debug ]
+        extra-cmake-flags: [ " " ]
+        # Modify the complete matrix
+        include:
+          # Provide the dependency installation for each platform
+          - os: "ubuntu-18.04"
+            dependencies: "sudo apt install ninja-build"
+          - os: "ubuntu-latest"
+            dependencies: "sudo apt install ninja-build"
+          - os: "macos-11"
+            dependencies: "brew update && brew install ninja"
+          - os: "macos-10.15"
+            dependencies: "brew update && brew install ninja"
+          # Skip the tests for the FreeBSD release builds
+          - os: "freebsd-13.0"
+            build-type: Release
+            build-only: yes
+          - os: "freebsd-12.2"
+            build-type: Debug
+            build-only: yes
+          # Add the self-host build
+          - os: ubuntu-latest
+            build-type: Debug
+            self-host: true
+          # Add an extra element to the matrix that does a build with clang 12
+          # but doesn't run tests.
+          - os: "freebsd-13.0"
+            variant: Clang 12 (Build only)
+            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++12"
+            build-only: yes
+          - os: ubuntu-latest
+            variant: Clang 10 libstdc++ (Build only)
+            dependencies: "sudo apt install ninja-build"
+            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
+            build-only: yes
+      # Don't abort runners if a single one fails
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.variant }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install build dependencies
+      run: ${{ matrix.dependencies }}
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.extra-cmake-flags }}
+      # Build with a nice ninja status line
+    - name: Build
+      working-directory: ${{github.workspace}}/build
+      run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+    - name: Test file size of binaries is sane
+      working-directory: ${{github.workspace}}/build
+      run: "ls -l func-first_operation-fast ; [ $(ls -l func-first_operation-fast | awk '{ print $5}') -lt 10000000 ]"
+      # If the tests are enabled for this job, run them
+    - name: Test
+      if: ${{ matrix.build-only != 'yes' }}
+      working-directory: ${{github.workspace}}/build
+      run: ctest --output-on-failure -j 4
+    - name: Selfhost
+      if: ${{ matrix.self-host }}
+      working-directory: ${{github.workspace}}/build
+      run: |
+        sudo cp libsnmallocshim.so libsnmallocshim-16mib.so libsnmallocshim-oe.so /usr/local/lib/
+        ninja clean
+        LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
+        ninja clean
+        LD_PRELOAD=/usr/local/lib/libsnmallocshim-16mib.so ninja
+        ninja clean
+        LD_PRELOAD=/usr/local/lib/libsnmallocshim-oe.so ninja
+
+  qemu-crossbuild:
+    strategy:
+      matrix:
+        build-type: [ Release, Debug ]
+        arch:
+          - name: armhf
+            system-processor: arm
+            triple: arm-linux-gnueabihf
+            rtld: ld-linux-armhf.so.3
+          - name: arm64
+            system-processor: aarch64
+            triple: aarch64-linux-gnu
+            rtld: ld-linux-aarch64.so.1
+          - name: ppc64el
+            system-processor: powerpc64le
+            triple: powerpc64le-linux-gnu
+            rtld: ld64.so.2
+      # Don't abort runners if a single one fails
+      fail-fast: false
+    runs-on: ubuntu-latest
+    name: Cross-build for ${{ matrix.arch.triple }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install cross-compile toolchain and QEMU
+      # Install the dependencies and clang 13.  Earlier versions of clang don't
+      # find the multilib things for this week's Ubuntu filesystem layout.
+      run: |
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        sudo add-apt-repository "deb http://apt.llvm.org/focal/     llvm-toolchain-focal-13  main"
+        sudo apt update
+        sudo apt install libstdc++-9-dev-${{ matrix.arch.name }}-cross qemu-user ninja-build clang-13 lld-13
+    - name: Configure
+      run: >
+        RTLD_NAME=${{ matrix.arch.rtld }}
+        ARCH=${{ matrix.arch.system-processor }}
+        TRIPLE=${{ matrix.arch.triple}}
+        cmake
+        -B ${{github.workspace}}/build
+        -DCMAKE_BUILD_TYPE=${{matrix.build-type}}
+        -G Ninja
+        -DSNMALLOC_CI_BUILD=ON
+        -DSNMALLOC_QEMU_WORKAROUND=ON
+        -DSNMALLOC_STATIC_LIBRARY=OFF
+        -DCMAKE_TOOLCHAIN_FILE=ci/Toolchain.cmake
+    - name: Build
+      working-directory: ${{github.workspace}}/build
+      run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+    # Run the tests, skipping the -malloc and perf- tests (perf doesn't make
+    # sense in an emulator and the pass-through malloc is slightly flaky in
+    # QEMU)
+    - name: Test
+      working-directory: ${{github.workspace}}/build
+      run: ctest --output-on-failure -E '(perf-.*)|(.*-malloc$)'
+      timeout-minutes: 30
+
+  windows:
+    strategy:
+      matrix:
+        # Build each combination of OS and release/debug variants
+        os: [ windows-2016, windows-2019 ]
+        build-type: [ Release, Debug ]
+        arch: [ Win32, x64 ]
+        toolchain: [ "", "-T ClangCL" ]
+        extra-cmake-flags: [ "" ]
+        # The ClangCL toolchain was added in Visual Studio 2019, the Windows
+        # 2016 runners have only VS 2017, so skip them for this configuration
+        exclude:
+          - os: windows-2016
+            toolchain: "-T ClangCL"
+        # Add an extra check for the Windows 8 compatible PAL
+        include:
+          - os: windows-2016
+            build-type: Release
+            arch: x64
+            toolchain: ""
+            extra-cmake-flags: -DWIN8COMPAT=TRUE
+            variant: Windows 8 compatible
+      # Don't abort runners if a single one fails
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }} ${{ matrix.arch }} ${{ matrix.build-type }} ${{ matrix.toolchain }} ${{ matrix.variant }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Configure CMake
+      run: |
+        cmake -B ${{github.workspace}}/build -A ${{ matrix.arch }} ${{ matrix.toolchain }} ${{ matrix.extra-cmake-flags }} -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On
+      # Build with whatever version of msbuild was configured, for a single build configuration.
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build -- /m /p:Configuration=${{ matrix.build-type }}
+      # Run the tests.
+    - name: Test
+      working-directory: ${{ github.workspace }}/build
+      run: ctest -j 2 --interactive-debug-mode 0 --output-on-failure -C ${{ matrix.build-type }}
+
+
+  # Job to run clang-format and report errors
+  format:
+    runs-on: ubuntu-18.04
+    # We don't need to do the build for this job, but we need to configure it to get the clang-format target
+    steps:
+    - uses: actions/checkout@v2
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build
+    - name: Install clang-tidy
+      run: sudo apt install clang-tidy-9
+    # Run the clang-format check and error if it generates a diff
+    - name: Run clang-format
+      working-directory: ${{github.workspace}}/build
+      run: |
+        set -eo pipefail
+        make clangformat
+        git diff --exit-code
+    - name: Run clang-tidy
+      run: |
+        clang-tidy-9  src/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16 -DSNMALLOC_PLATFORM_HAS_GETENTROPY=0
+        if [ -f tidy.fail ] ; then
+          cat tidy.fail
+          exit 1
+        fi
+
+  all-checks:
+    needs: [unixlike, qemu-crossbuild, windows, format]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Dummy step
+      run: true

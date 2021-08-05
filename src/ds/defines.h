@@ -57,6 +57,14 @@
 #  endif
 #endif
 
+#ifdef __APPLE__
+#  define SNMALLOC_FORCE_BSS __attribute__((section("__DATA,__bss")))
+#elif defined(__ELF__)
+#  define SNMALLOC_FORCE_BSS __attribute__((section(".bss")))
+#else
+#  define SNMALLOC_FORCE_BSS
+#endif
+
 #ifndef __has_builtin
 #  define __has_builtin(x) 0
 #endif
