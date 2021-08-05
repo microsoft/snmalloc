@@ -464,6 +464,7 @@ namespace snmalloc
      * The global pagemap variable.  The name of this symbol will include the
      * type of `T` and `U`.
      */
+    SNMALLOC_FORCE_BSS
     inline static T global_pagemap;
 
   public:

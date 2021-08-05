@@ -71,6 +71,9 @@ jobs:
       if: ${{ matrix.build-only != 'yes' }}
       working-directory: ${{github.workspace}}/build
       run: ctest --output-on-failure -j 4
+    - name: Test file size of binaries is sane
+      working-directory: ${{github.workspace}}/build
+      run: [ $(ls -l func-first_operation-1 | cut -f 5 -w -) -lt 10000000 ]
     - name: Selfhost
       if: ${{ matrix.self-host }}
       working-directory: ${{github.workspace}}/build
