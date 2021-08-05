@@ -156,6 +156,6 @@ namespace snmalloc
  */
 void _malloc_thread_cleanup()
 {
-  ThreadAlloc::get().teardown();
+  snmalloc::ThreadAlloc::get().teardown();
 }
 #endif

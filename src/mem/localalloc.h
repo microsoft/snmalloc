@@ -38,24 +38,34 @@ namespace snmalloc
     OnePastEnd
   };
 
-  // This class contains the fastest path code for the allocator.
+  /**
+   * A local allocator contains the fast-path allocation routines and
+   * encapsulates all of the behaviour of an allocator that is local to some
+   * context, typically a thread.  This delegates to a `CoreAllocator` for all
+   * slow-path operations, including anything that requires claiming new chunks
+   * of address space.
+   *
+   * The template parameter defines the configuration of this allocator and is
+   * passed through to the associated `CoreAllocator`.  The `Options` structure
+   * of this defines one property that directly affects the behaviour of the
+   * local allocator: `LocalAllocSupportsLazyInit`, which defaults to true,
+   * defines whether the local allocator supports lazy initialisation.  If this
+   * is true then the local allocator will construct a core allocator the first
+   * time it needs to perform a slow-path operation.  If this is false then the
+   * core allocator must be provided externally by invoking the `init` method
+   * on this class *before* any allocation-related methods are called.
+   */
   template<class SharedStateHandle>
   class LocalAllocator
   {
     using CoreAlloc = CoreAllocator<SharedStateHandle>;
 
   private:
-    /**
-     * Contains a way to access all the shared state for this allocator.
-     * This may have no dynamic state, and be purely static.
-     */
-    SharedStateHandle handle;
-
     // Free list per small size class.  These are used for
     // allocation on the fast path. This part of the code is inspired by
     // mimalloc.
     // Also contains remote deallocation cache.
-    LocalCache local_cache;
+    LocalCache local_cache{&SharedStateHandle::unused_remote};
 
     // Underlying allocator for most non-fast path operations.
     CoreAlloc* core_alloc{nullptr};
@@ -90,40 +100,59 @@ namespace snmalloc
     /**
      * This initialises the fast allocator by acquiring a core allocator, and
      * setting up its local copy of data structures.
+     *
+     * If the allocator does not support lazy initialisation then this assumes
+     * that initialisation has already taken place and invokes the action
+     * immediately.
      */
     template<typename Action, typename... Args>
     SNMALLOC_SLOW_PATH decltype(auto) lazy_init(Action action, Args... args)
     {
       SNMALLOC_ASSERT(core_alloc == nullptr);
-
-      // Initialise the thread local allocator
-      init();
-
-      // register_clean_up must be called after init.  register clean up may be
-      // implemented with allocation, so need to ensure we have a valid
-      // allocator at this point.
-      if (!post_teardown)
-        // Must be called at least once per thread.
-        // A pthread implementation only calls the thread destruction handle
-        // if the key has been set.
-        handle.register_clean_up();
-
-      // Perform underlying operation
-      auto r = action(core_alloc, args...);
-
-      // After performing underlying operation, in the case of teardown already
-      // having begun, we must flush any state we just acquired.
-      if (post_teardown)
+      if constexpr (!SharedStateHandle::Options.LocalAllocSupportsLazyInit)
       {
-#ifdef SNMALLOC_TRACING
-        std::cout << "post_teardown flush()" << std::endl;
-#endif
-        // We didn't have an allocator because the thread is being torndown.
-        // We need to return any local state, so we don't leak it.
-        flush();
+        SNMALLOC_CHECK(
+          false &&
+          "lazy_init called on an allocator that doesn't support lazy "
+          "initialisation");
+        // Unreachable, but needed to keep the type checker happy in deducing
+        // the return type of this function.
+        return static_cast<void*>(nullptr);
       }
+      else
+      {
+        // Initialise the thread local allocator
+        if constexpr (SharedStateHandle::Options.CoreAllocOwnsLocalState)
+        {
+          init();
+        }
 
-      return r;
+        // register_clean_up must be called after init.  register clean up may
+        // be implemented with allocation, so need to ensure we have a valid
+        // allocator at this point.
+        if (!post_teardown)
+          // Must be called at least once per thread.
+          // A pthread implementation only calls the thread destruction handle
+          // if the key has been set.
+          SharedStateHandle::register_clean_up();
+
+        // Perform underlying operation
+        auto r = action(core_alloc, args...);
+
+        // After performing underlying operation, in the case of teardown
+        // already having begun, we must flush any state we just acquired.
+        if (post_teardown)
+        {
+#ifdef SNMALLOC_TRACING
+          std::cout << "post_teardown flush()" << std::endl;
+#endif
+          // We didn't have an allocator because the thread is being torndown.
+          // We need to return any local state, so we don't leak it.
+          flush();
+        }
+
+        return r;
+      }
     }
 
     /**
@@ -144,13 +173,12 @@ namespace snmalloc
       return check_init([&](CoreAlloc* core_alloc) {
         // Grab slab of correct size
         // Set remote as large allocator remote.
-        auto [chunk, meta] = ChunkAllocator::alloc_chunk(
-          handle,
-          core_alloc->backend_state,
+        auto [chunk, meta] = ChunkAllocator::alloc_chunk<SharedStateHandle>(
+          core_alloc->get_backend_local_state(),
           bits::next_pow2_bits(size), // TODO
           large_size_to_chunk_sizeclass(size),
           large_size_to_chunk_size(size),
-          handle.fake_large_remote);
+          SharedStateHandle::fake_large_remote);
         // set up meta data so sizeclass is correct, and hence alloc size, and
         // external pointer.
 #ifdef SNMALLOC_TRACING
@@ -164,7 +192,7 @@ namespace snmalloc
 
         if (zero_mem == YesZero)
         {
-          SharedStateHandle::Backend::Pal::template zero<false>(
+          SharedStateHandle::Pal::template zero<false>(
             chunk.unsafe_ptr(), size);
         }
 
@@ -225,8 +253,7 @@ namespace snmalloc
         std::cout << "Remote dealloc post" << p << " size " << alloc_size(p)
                   << std::endl;
 #endif
-        MetaEntry entry = SharedStateHandle::Backend::get_meta_data(
-          handle.get_backend_state(), address_cast(p));
+        MetaEntry entry = SharedStateHandle::get_meta_data(address_cast(p));
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
           entry.get_remote()->trunc_id(), CapPtr<void, CBAlloc>(p), key_global);
         post_remote_cache();
@@ -252,29 +279,83 @@ namespace snmalloc
       return local_cache.remote_allocator;
     }
 
+    /**
+     * SFINAE helper.  Matched only if `T` implements `is_initialised`.  Calls
+     * it if it exists.
+     */
+    template<typename T>
+    SNMALLOC_FAST_PATH auto call_is_initialised(T*, int)
+      -> decltype(T::is_initialised())
+    {
+      return T::is_initialised();
+    }
+
+    /**
+     * SFINAE helper.  Matched only if `T` does not implement `is_initialised`.
+     * Unconditionally returns true if invoked.
+     */
+    template<typename T>
+    SNMALLOC_FAST_PATH auto call_is_initialised(T*, long)
+    {
+      return true;
+    }
+
+    /**
+     * Call `SharedStateHandle::is_initialised()` if it is implemented,
+     * unconditionally returns true otherwise.
+     */
+    SNMALLOC_FAST_PATH
+    bool is_initialised()
+    {
+      return call_is_initialised<SharedStateHandle>(nullptr, 0);
+    }
+
+    /**
+     * SFINAE helper.  Matched only if `T` implements `ensure_init`.  Calls it
+     * if it exists.
+     */
+    template<typename T>
+    SNMALLOC_FAST_PATH auto call_ensure_init(T*, int)
+      -> decltype(T::ensure_init())
+    {
+      T::ensure_init();
+    }
+
+    /**
+     * SFINAE helper.  Matched only if `T` does not implement `ensure_init`.
+     * Does nothing if called.
+     */
+    template<typename T>
+    SNMALLOC_FAST_PATH auto call_ensure_init(T*, long)
+    {}
+
+    /**
+     * Call `SharedStateHandle::ensure_init()` if it is implemented, do nothing
+     * otherwise.
+     */
+    SNMALLOC_FAST_PATH
+    void ensure_init()
+    {
+      call_ensure_init<SharedStateHandle>(nullptr, 0);
+    }
+
   public:
-    constexpr LocalAllocator()
-    : handle(SharedStateHandle::get_handle()),
-      local_cache(&handle.unused_remote)
-    {}
+    constexpr LocalAllocator() = default;
 
-    LocalAllocator(SharedStateHandle handle)
-    : handle(handle), local_cache(&handle.unused_remote)
-    {}
-
-    // This is effectively the constructor for the LocalAllocator, but due to
-    // not wanting initialisation checks on the fast path, it is initialised
-    // lazily.
-    void init()
+    /**
+     * Initialise the allocator.  For allocators that support local
+     * initialisation, this is called with a core allocator that this class
+     * allocates (from a pool allocator) the first time it encounters a slow
+     * path.  If this class is configured without lazy initialisation support
+     * then this must be called externally
+     */
+    void init(CoreAlloc* c)
     {
       // Initialise the global allocator structures
-      handle.ensure_init();
+      ensure_init();
 
       // Should only be called if the allocator has not been initialised.
       SNMALLOC_ASSERT(core_alloc == nullptr);
-
-      // Grab an allocator for this thread.
-      auto c = Pool<CoreAlloc>::acquire(handle, &(this->local_cache), handle);
 
       // Attach to it.
       c->attach(&local_cache);
@@ -284,6 +365,18 @@ namespace snmalloc
                 << std::endl;
 #endif
       // local_cache.stats.sta rt();
+    }
+
+    // This is effectively the constructor for the LocalAllocator, but due to
+    // not wanting initialisation checks on the fast path, it is initialised
+    // lazily.
+    void init()
+    {
+      // Initialise the global allocator structures
+      ensure_init();
+      // Grab an allocator for this thread.
+      init(Pool<CoreAlloc>::template acquire<SharedStateHandle>(
+        &(this->local_cache)));
     }
 
     // Return all state in the fast allocator and release the underlying
@@ -303,7 +396,10 @@ namespace snmalloc
         // Detach underlying allocator
         core_alloc->attached_cache = nullptr;
         // Return underlying allocator to the system.
-        Pool<CoreAlloc>::release(handle, core_alloc);
+        if constexpr (SharedStateHandle::Options.CoreAllocOwnsLocalState)
+        {
+          Pool<CoreAlloc>::template release<SharedStateHandle>(core_alloc);
+        }
 
         // Set up thread local allocator to look like
         // it is new to hit slow paths.
@@ -311,7 +407,7 @@ namespace snmalloc
 #ifdef SNMALLOC_TRACING
         std::cout << "flush(): core_alloc=" << core_alloc << std::endl;
 #endif
-        local_cache.remote_allocator = &handle.unused_remote;
+        local_cache.remote_allocator = &SharedStateHandle::unused_remote;
         local_cache.remote_dealloc_cache.capacity = 0;
       }
     }
@@ -365,8 +461,8 @@ namespace snmalloc
       //  before init, that maps null to a remote_deallocator that will never be
       //  in thread local state.
 
-      const MetaEntry& entry = SharedStateHandle::Backend::get_meta_data(
-        handle.get_backend_state(), address_cast(p));
+      const MetaEntry& entry =
+        SharedStateHandle::get_meta_data(address_cast(p));
       if (likely(local_cache.remote_allocator == entry.get_remote()))
       {
         if (likely(CoreAlloc::dealloc_local_object_fast(
@@ -376,7 +472,7 @@ namespace snmalloc
         return;
       }
 
-      if (likely(entry.get_remote() != handle.fake_large_remote))
+      if (likely(entry.get_remote() != SharedStateHandle::fake_large_remote))
       {
         // Check if we have space for the remote deallocation
         if (local_cache.remote_dealloc_cache.reserve_space(entry))
@@ -416,7 +512,8 @@ namespace snmalloc
         ChunkRecord* slab_record =
           reinterpret_cast<ChunkRecord*>(entry.get_metaslab());
         slab_record->chunk = CapPtr<void, CBChunk>(p);
-        ChunkAllocator::dealloc(handle, slab_record, slab_sizeclass);
+        ChunkAllocator::dealloc<SharedStateHandle>(
+          core_alloc->get_backend_local_state(), slab_record, slab_sizeclass);
         return;
       }
 
@@ -460,10 +557,9 @@ namespace snmalloc
       // To handle this case we require the uninitialised pagemap contain an
       // entry for the first chunk of memory, that states it represents a large
       // object, so we can pull the check for null off the fast path.
-      MetaEntry entry = SharedStateHandle::Backend::get_meta_data(
-        handle.get_backend_state(), address_cast(p_raw));
+      MetaEntry entry = SharedStateHandle::get_meta_data(address_cast(p_raw));
 
-      if (likely(entry.get_remote() != handle.fake_large_remote))
+      if (likely(entry.get_remote() != SharedStateHandle::fake_large_remote))
         return sizeclass_to_size(entry.get_sizeclass());
 
       // Sizeclass zero is for large is actually zero
@@ -484,13 +580,12 @@ namespace snmalloc
     void* external_pointer(void* p_raw)
     {
       // TODO bring back the CHERI bits. Wes to review if required.
-      if (likely(handle.is_initialised()))
+      if (likely(is_initialised()))
       {
         MetaEntry entry =
-          SharedStateHandle::Backend::template get_meta_data<true>(
-            handle.get_backend_state(), address_cast(p_raw));
+          SharedStateHandle::template get_meta_data<true>(address_cast(p_raw));
         auto sizeclass = entry.get_sizeclass();
-        if (likely(entry.get_remote() != handle.fake_large_remote))
+        if (likely(entry.get_remote() != SharedStateHandle::fake_large_remote))
         {
           auto rsize = sizeclass_to_size(sizeclass);
           auto offset =
@@ -532,6 +627,16 @@ namespace snmalloc
       else
         // We don't know the Start, so return MIN_PTR
         return nullptr;
+    }
+
+    /**
+     * Accessor, returns the local cache.  If embedding code is allocating the
+     * core allocator for use by this local allocator then it needs to access
+     * this field.
+     */
+    LocalCache& get_local_cache()
+    {
+      return local_cache;
     }
   };
 } // namespace snmalloc

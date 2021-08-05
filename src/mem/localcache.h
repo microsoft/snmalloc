@@ -32,7 +32,7 @@ namespace snmalloc
     auto r = finish_alloc_no_zero(p, sizeclass);
 
     if constexpr (zero_mem == YesZero)
-      SharedStateHandle::Backend::Pal::zero(r, sizeclass_to_size(sizeclass));
+      SharedStateHandle::Pal::zero(r, sizeclass_to_size(sizeclass));
 
     // TODO: Should this be zeroing the FreeObject state, in the non-zeroing
     // case?
@@ -72,9 +72,9 @@ namespace snmalloc
 
     template<
       size_t allocator_size,
-      typename DeallocFun,
-      typename SharedStateHandle>
-    bool flush(DeallocFun dealloc, SharedStateHandle handle)
+      typename SharedStateHandle,
+      typename DeallocFun>
+    bool flush(DeallocFun dealloc)
     {
       auto& key = entropy.get_free_list_key();
 
@@ -91,8 +91,8 @@ namespace snmalloc
         }
       }
 
-      return remote_dealloc_cache.post<allocator_size>(
-        handle, remote_allocator->trunc_id(), key_global);
+      return remote_dealloc_cache.post<allocator_size, SharedStateHandle>(
+        remote_allocator->trunc_id(), key_global);
     }
 
     template<ZeroMem zero_mem, typename SharedStateHandle, typename Slowpath>

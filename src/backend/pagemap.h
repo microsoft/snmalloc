@@ -67,6 +67,36 @@ namespace snmalloc
     constexpr FlatPagemap() = default;
 
     /**
+     * For pagemaps that cover an entire fixed address space, return the size
+     * that they must be.  This allows the caller to allocate the correct
+     * amount of memory to be passed to `init`.  This is not available for
+     * fixed-range pagemaps, whose size depends on dynamic configuration.
+     */
+    template<bool has_bounds_ = has_bounds>
+    static constexpr std::enable_if_t<!has_bounds_, size_t> required_size()
+    {
+      static_assert(
+        has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
+      constexpr size_t COVERED_BITS = bits::ADDRESS_BITS - GRANULARITY_BITS;
+      constexpr size_t ENTRIES = bits::one_at_bit(COVERED_BITS);
+      return ENTRIES * sizeof(T);
+    }
+
+    /**
+     * Initialise with pre-allocated memory.
+     *
+     * This is currently disabled for bounded pagemaps but may be reenabled if
+     * `required_size` is enabled for the has-bounds case.
+     */
+    template<bool has_bounds_ = has_bounds>
+    std::enable_if_t<!has_bounds_> init(T* address)
+    {
+      static_assert(
+        has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
+      body = address;
+    }
+
+    /**
      * Initialise the pagemap with bounds.
      *
      * Returns usable range after pagemap has been allocated
@@ -117,11 +147,7 @@ namespace snmalloc
     {
       static_assert(
         has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
-      static constexpr size_t COVERED_BITS =
-        bits::ADDRESS_BITS - GRANULARITY_BITS;
-      static constexpr size_t ENTRIES = bits::one_at_bit(COVERED_BITS);
-
-      static constexpr size_t REQUIRED_SIZE = ENTRIES * sizeof(T);
+      static constexpr size_t REQUIRED_SIZE = required_size();
 
 #ifdef SNMALLOC_CHECK_CLIENT
       // Allocate a power of two extra to allow the placement of the

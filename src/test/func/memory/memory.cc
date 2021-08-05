@@ -183,7 +183,7 @@ void test_calloc()
     alloc.dealloc(p, size);
   }
 
-  snmalloc::debug_check_empty(Globals::get_handle());
+  snmalloc::debug_check_empty<Globals>();
 }
 
 void test_double_alloc()
@@ -228,7 +228,7 @@ void test_double_alloc()
       }
     }
   }
-  snmalloc::debug_check_empty(Globals::get_handle());
+  snmalloc::debug_check_empty<Globals>();
 }
 
 void test_external_pointer()
@@ -264,7 +264,7 @@ void test_external_pointer()
     alloc.dealloc(p1, size);
   }
 
-  snmalloc::debug_check_empty(Globals::get_handle());
+  snmalloc::debug_check_empty<Globals>();
 };
 
 void check_offset(void* base, void* interior)

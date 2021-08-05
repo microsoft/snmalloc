@@ -232,6 +232,6 @@ int main(int argc, char** argv)
     abort();
   }
 
-  snmalloc::debug_check_empty(Globals::get_handle());
+  snmalloc::debug_check_empty<snmalloc::Globals>();
   return 0;
 }

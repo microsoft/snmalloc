@@ -37,9 +37,9 @@ namespace snmalloc
   {
   public:
     template<typename SharedStateHandle, typename... Args>
-    static T* acquire(SharedStateHandle h, Args&&... args)
+    static T* acquire(Args&&... args)
     {
-      PoolState<T>& pool = h.pool();
+      PoolState<T>& pool = SharedStateHandle::pool();
       T* p = pool.stack.pop();
 
       if (p != nullptr)
@@ -48,12 +48,12 @@ namespace snmalloc
         return p;
       }
 
-      p = ChunkAllocator::alloc_meta_data<T>(
-        h, nullptr, std::forward<Args>(args)...);
+      p = ChunkAllocator::alloc_meta_data<T, SharedStateHandle>(
+        nullptr, std::forward<Args>(args)...);
 
       if (p == nullptr)
       {
-        SharedStateHandle::Backend::Pal::error(
+        SharedStateHandle::Pal::error(
           "Failed to initialise thread local allocator.");
       }
 
@@ -71,21 +71,21 @@ namespace snmalloc
      * Do not return objects from `extract`.
      */
     template<typename SharedStateHandle>
-    static void release(SharedStateHandle h, T* p)
+    static void release(T* p)
     {
       // The object's destructor is not run. If the object is "reallocated", it
       // is returned without the constructor being run, so the object is reused
       // without re-initialisation.
       p->reset_in_use();
-      h.pool().stack.push(p);
+      SharedStateHandle::pool().stack.push(p);
     }
 
     template<typename SharedStateHandle>
-    static T* extract(SharedStateHandle h, T* p = nullptr)
+    static T* extract(T* p = nullptr)
     {
       // Returns a linked list of all objects in the stack, emptying the stack.
       if (p == nullptr)
-        return h.pool().stack.pop_all();
+        return SharedStateHandle::pool().stack.pop_all();
 
       return p->next;
     }
@@ -96,18 +96,18 @@ namespace snmalloc
      * Do not return objects from `acquire`.
      */
     template<typename SharedStateHandle>
-    static void restore(SharedStateHandle h, T* first, T* last)
+    static void restore(T* first, T* last)
     {
       // Pushes a linked list of objects onto the stack. Use to put a linked
       // list returned by extract back onto the stack.
-      h.pool().stack.push(first, last);
+      SharedStateHandle::pool().stack.push(first, last);
     }
 
     template<typename SharedStateHandle>
-    static T* iterate(SharedStateHandle h, T* p = nullptr)
+    static T* iterate(T* p = nullptr)
     {
       if (p == nullptr)
-        return h.pool().list;
+        return SharedStateHandle::pool().list;
 
       return p->list_next;
     }

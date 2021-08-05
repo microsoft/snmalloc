@@ -2,7 +2,7 @@
 #include "../snmalloc_core.h"
 
 #ifndef SNMALLOC_PROVIDE_OWN_CONFIG
-#  include "../mem/globalconfig.h"
+#  include "../backend/globalconfig.h"
 // The default configuration for snmalloc is used if alternative not defined
 namespace snmalloc
 {

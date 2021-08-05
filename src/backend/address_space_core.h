@@ -1,6 +1,8 @@
 #pragma once
 #include "../ds/address.h"
 #include "../ds/flaglock.h"
+#include "../mem/allocconfig.h"
+#include "../mem/metaslab.h"
 #include "../pal/pal.h"
 
 #include <array>

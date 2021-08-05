@@ -75,14 +75,14 @@ namespace snmalloc
   public:
     template<typename SharedStateHandle>
     static std::pair<CapPtr<void, CBChunk>, Metaslab*> alloc_chunk(
-      SharedStateHandle h,
-      typename SharedStateHandle::Backend::LocalState& backend_state,
+      typename SharedStateHandle::LocalState& local_state,
       sizeclass_t sizeclass,
       sizeclass_t slab_sizeclass, // TODO sizeclass_t
       size_t slab_size,
       RemoteAllocator* remote)
     {
-      ChunkAllocatorState& state = h.get_slab_allocator_state();
+      ChunkAllocatorState& state =
+        SharedStateHandle::get_slab_allocator_state(&local_state);
       // Pop a slab
       auto chunk_record = state.chunk_stack[slab_sizeclass].pop();
 
@@ -98,15 +98,14 @@ namespace snmalloc
                   << std::endl;
 #endif
         MetaEntry entry{meta, remote, sizeclass};
-        SharedStateHandle::Backend::set_meta_data(
-          h.get_backend_state(), address_cast(slab), slab_size, entry);
+        SharedStateHandle::set_meta_data(address_cast(slab), slab_size, entry);
         return {slab, meta};
       }
 
       // Allocate a fresh slab as there are no available ones.
       // First create meta-data
-      auto [slab, meta] = SharedStateHandle::Backend::alloc_chunk(
-        h.get_backend_state(), &backend_state, slab_size, remote, sizeclass);
+      auto [slab, meta] = SharedStateHandle::alloc_chunk(
+        &local_state, slab_size, remote, sizeclass);
 #ifdef SNMALLOC_TRACING
       std::cout << "Create slab:" << slab.unsafe_ptr() << " slab_sizeclass "
                 << slab_sizeclass << " size " << slab_size << std::endl;
@@ -122,10 +121,12 @@ namespace snmalloc
     }
 
     template<typename SharedStateHandle>
-    SNMALLOC_SLOW_PATH static void
-    dealloc(SharedStateHandle h, ChunkRecord* p, size_t slab_sizeclass)
+    SNMALLOC_SLOW_PATH static void dealloc(
+      typename SharedStateHandle::LocalState& local_state,
+      ChunkRecord* p,
+      size_t slab_sizeclass)
     {
-      auto& state = h.get_slab_allocator_state();
+      auto& state = SharedStateHandle::get_slab_allocator_state(&local_state);
 #ifdef SNMALLOC_TRACING
       std::cout << "Return slab:" << p->chunk.unsafe_ptr() << " slab_sizeclass "
                 << slab_sizeclass << " size "
@@ -144,15 +145,13 @@ namespace snmalloc
      */
     template<typename U, typename SharedStateHandle, typename... Args>
     static U* alloc_meta_data(
-      SharedStateHandle h,
-      typename SharedStateHandle::Backend::LocalState* local_state,
-      Args&&... args)
+      typename SharedStateHandle::LocalState* local_state, Args&&... args)
     {
       // Cache line align
       size_t size = bits::align_up(sizeof(U), 64);
 
-      CapPtr<void, CBChunk> p = SharedStateHandle::Backend::alloc_meta_data(
-        h.get_backend_state(), local_state, size);
+      CapPtr<void, CBChunk> p =
+        SharedStateHandle::template alloc_meta_data<U>(local_state, size);
 
       if (p == nullptr)
         return nullptr;
