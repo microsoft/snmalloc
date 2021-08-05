@@ -11,7 +11,10 @@ namespace snmalloc
    * This class implements the standard backend for handling allocations.
    * It abstracts page table management and address space management.
    */
-  template<SNMALLOC_CONCEPT(ConceptPAL) PAL, bool fixed_range>
+  template<
+    SNMALLOC_CONCEPT(ConceptPAL) PAL,
+    bool fixed_range,
+    typename PageMapEntry = MetaEntry>
   class BackendAllocator
   {
     // Size of local address space requests.  Currently aimed at 2MiB large
@@ -64,9 +67,10 @@ namespace snmalloc
     {
       friend BackendAllocator;
 
+    protected:
       AddressSpaceManager<PAL> address_space;
 
-      FlatPagemap<MIN_CHUNK_BITS, MetaEntry, PAL, fixed_range> pagemap;
+      FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, PAL, fixed_range> pagemap;
 
     public:
       template<bool fixed_range_ = fixed_range>
