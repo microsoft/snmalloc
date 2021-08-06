@@ -35,7 +35,13 @@ namespace snmalloc
     static void notify_not_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
-      posix_madvise(p, size, POSIX_MADV_DONTNEED);
+#  ifdef USE_POSIX_COMMIT_CHECKS
+      memset(p, 0x5a, size);
+#  endif
+      madvise(p, size, MADV_FREE);
+#  ifdef USE_POSIX_COMMIT_CHECKS
+      mprotect(p, size, PROT_NONE);
+#  endif
     }
   };
 } // namespace snmalloc
