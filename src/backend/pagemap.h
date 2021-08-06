@@ -188,7 +188,7 @@ namespace snmalloc
     /**
      * Get the number of entries.
      */
-    constexpr size_t num_entries() const
+    [[nodiscard]] constexpr size_t num_entries() const
     {
       if constexpr (has_bounds)
       {
@@ -242,7 +242,7 @@ namespace snmalloc
      * Return the starting address corresponding to a given entry within the
      * Pagemap. Also checks that the reference actually points to a valid entry.
      */
-    address_t get_address(const T& t) const
+    [[nodiscard]] address_t get_address(const T& t) const
     {
       address_t entry_offset = address_cast(&t) - address_cast(body);
       address_t entry_index = entry_offset / sizeof(T);
