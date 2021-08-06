@@ -246,10 +246,8 @@ namespace snmalloc
     {
       address_t entry_offset = address_cast(&t) - address_cast(body);
       address_t entry_index = entry_offset / sizeof(T);
-      if (entry_offset % sizeof(T) != 0 || entry_index >= num_entries())
-      {
-        PAL::error("Internal error: Invalid Pagemap entry for reverse lookup.");
-      }
+      SNMALLOC_ASSERT(
+        entry_offset % sizeof(T) == 0 && entry_index < num_entries());
       return base + (entry_index << GRANULARITY_BITS);
     }
 
