@@ -6,6 +6,8 @@
 
 #  include <sys/mman.h>
 
+extern uint64_t secure_get_random();
+
 namespace snmalloc
 {
   /**
@@ -42,6 +44,11 @@ namespace snmalloc
 #  ifdef USE_POSIX_COMMIT_CHECKS
       mprotect(p, size, PROT_NONE);
 #  endif
+    }
+
+    static uint64_t get_entropy64()
+    {
+      return secure_get_random();
     }
   };
 } // namespace snmalloc
