@@ -165,6 +165,7 @@ namespace snmalloc
   };
 
   struct RemoteAllocator;
+  struct ChunkRecord;
 
   /**
    * Entry stored in the pagemap.
@@ -172,7 +173,7 @@ namespace snmalloc
   class MetaEntry
   {
     Metaslab* meta{nullptr};
-    uintptr_t remote_and_sizeclass{0};
+    TrivialInitAtomic<uintptr_t> remote_and_sizeclass;
 
   public:
     constexpr MetaEntry() = default;
@@ -183,16 +184,17 @@ namespace snmalloc
      * the second argument of this must always be the return value from
      * `get_remote_and_sizeclass`.
      */
-    MetaEntry(Metaslab* meta, uintptr_t remote_and_sizeclass)
-    : meta(meta), remote_and_sizeclass(remote_and_sizeclass)
-    {}
+    MetaEntry(Metaslab* meta, uintptr_t remote_and_sizeclass) : meta(meta)
+    {
+      this->remote_and_sizeclass.store(remote_and_sizeclass);
+    }
 
     MetaEntry(Metaslab* meta, RemoteAllocator* remote, sizeclass_t sizeclass)
     : meta(meta)
     {
       /* remote might be nullptr; cast to uintptr_t before offsetting */
-      remote_and_sizeclass =
-        pointer_offset(reinterpret_cast<uintptr_t>(remote), sizeclass);
+      remote_and_sizeclass.store(
+        pointer_offset(reinterpret_cast<uintptr_t>(remote), sizeclass));
     }
 
     [[nodiscard]] Metaslab* get_metaslab() const
@@ -208,18 +210,34 @@ namespace snmalloc
      */
     uintptr_t get_remote_and_sizeclass()
     {
-      return remote_and_sizeclass;
+      return remote_and_sizeclass.load();
     }
 
     [[nodiscard]] RemoteAllocator* get_remote() const
     {
       return reinterpret_cast<RemoteAllocator*>(
-        pointer_align_down<alignof(RemoteAllocator)>(remote_and_sizeclass));
+        pointer_align_down<alignof(RemoteAllocator)>(
+          remote_and_sizeclass.load()));
     }
 
     [[nodiscard]] sizeclass_t get_sizeclass() const
     {
-      return remote_and_sizeclass & (alignof(RemoteAllocator) - 1);
+      return static_cast<sizeclass_t>(remote_and_sizeclass.load()) &
+        (alignof(RemoteAllocator) - 1);
+    }
+
+    /**
+     * Attempts to atomically take ownership of a chunk that is being
+     * deallocted.  May fail if multiple threads attempt at once, but spurious
+     * failures are not permitted; one thread must win in the event of a race.
+     */
+    [[nodiscard]] ChunkRecord* claim_for_large_dealloc(sizeclass_t sizeclass)
+    {
+      if (remote_and_sizeclass.compare_exchange_strong(sizeclass, 0))
+      {
+        return reinterpret_cast<ChunkRecord*>(meta);
+      }
+      return nullptr;
     }
   };
 

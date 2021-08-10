@@ -495,10 +495,12 @@ namespace snmalloc
       // Large deallocation or null.
       if (likely(p != nullptr))
       {
-        // Check this is managed by this pagemap.
-        check_client(entry.get_sizeclass() != 0, "Not allocated by snmalloc.");
+        sizeclass_t sizeclass = entry.get_sizeclass();
 
-        size_t size = bits::one_at_bit(entry.get_sizeclass());
+        // Check this is managed by this pagemap.
+        check_client(sizeclass != 0, "Not allocated by snmalloc.");
+
+        size_t size = bits::one_at_bit(sizeclass);
 
         // Check for start of allocation.
         check_client(
@@ -509,9 +511,20 @@ namespace snmalloc
         std::cout << "Large deallocation: " << size
                   << " chunk sizeclass: " << slab_sizeclass << std::endl;
 #endif
-        ChunkRecord* slab_record =
-          reinterpret_cast<ChunkRecord*>(entry.get_metaslab());
-        slab_record->chunk = CapPtr<void, CBChunk>(p);
+
+        /*
+         * TODO: There's nothing to say that this dealloc() is paired with the
+         * most recent allocation of this object, but we can at least check that
+         * it hasn't become freed, resized, or used as slab in the interim.
+         */
+        MetaEntry& entry_mut =
+          SharedStateHandle::get_meta_data_mut(address_cast(p));
+        ChunkRecord* slab_record = entry_mut.claim_for_large_dealloc(sizeclass);
+        if (unlikely(slab_record == nullptr))
+        {
+          return;
+        }
+        slab_record->chunk = CapPtr<void, CBChunk>(p); // XXX CHERI
         check_init([&](CoreAlloc* core_alloc) {
           ChunkAllocator::dealloc<SharedStateHandle>(
             core_alloc->get_backend_local_state(), slab_record, slab_sizeclass);
