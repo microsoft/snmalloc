@@ -288,27 +288,6 @@ namespace snmalloc
     }
 
     /**
-     * SFINAE helper.  Matched only if `T` implements `is_initialised`.  Calls
-     * it if it exists.
-     */
-    template<typename T>
-    SNMALLOC_FAST_PATH auto call_is_initialised(T*, int)
-      -> decltype(T::is_initialised())
-    {
-      return T::is_initialised();
-    }
-
-    /**
-     * SFINAE helper.  Matched only if `T` does not implement `is_initialised`.
-     * Unconditionally returns true if invoked.
-     */
-    template<typename T>
-    SNMALLOC_FAST_PATH auto call_is_initialised(T*, long)
-    {
-      return true;
-    }
-
-    /**
      * Call `SharedStateHandle::is_initialised()` if it is implemented,
      * unconditionally returns true otherwise.
      */
@@ -639,9 +618,9 @@ namespace snmalloc
         if constexpr (location == Start)
           return start;
         else if constexpr (location == End)
-          return pointer_offset(start, rsize);
-        else
           return pointer_offset(start, rsize - 1);
+        else
+          return pointer_offset(start, rsize);
       }
 #else
       UNUSED(p_raw);
@@ -649,7 +628,7 @@ namespace snmalloc
 
       if constexpr ((location == End) || (location == OnePastEnd))
         // We don't know the End, so return MAX_PTR
-        return pointer_offset<void, void>(nullptr, UINTPTR_MAX);
+        return reinterpret_cast<void*>(UINTPTR_MAX);
       else
         // We don't know the Start, so return MIN_PTR
         return nullptr;

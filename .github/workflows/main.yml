@@ -18,6 +18,13 @@ jobs:
         # Build each combination of OS and release/debug variants
         os: [ "ubuntu-latest", "ubuntu-18.04", "macos-11", "macos-10.15", "freebsd-12.2", "freebsd-13.0" ]
         build-type: [ Release, Debug ]
+        # Extra cmake flags.  GitHub Actions matrix overloads `include` to mean
+        # 'add extra things to a job' and 'add jobs'.  You can add extra things
+        # to a job by specifying things that exist in a job created from the
+        # matrix definition and adding things.  You can specify extra jobs by
+        # specifying properties that don't match existing jobs.  We use
+        # `cmake-flags` to add cmake flags to all jobs matching a pattern and
+        # `extra-cmake-flags` to specify a new job with custom CMake flags.
         extra-cmake-flags: [ "" ]
         # Modify the complete matrix
         include:
@@ -36,16 +43,23 @@ jobs:
           - os: "macos-10.15"
             dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
           # Skip the tests for the FreeBSD release builds
+          # Also build-test the checked memcpy implementation while doing these.
+          # It is run-tested on Linux and should be the same everywhere.
           - os: "freebsd-13.0"
             build-type: Release
             build-only: yes
+            cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
           - os: "freebsd-12.2"
             build-type: Debug
             build-only: yes
-          # Add the self-host build
+            cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
+          # Add the self-host build, using the bounds-checked memcpy in
+          # maximally paranoid mode (checking loads and stores)
           - os: "ubuntu-latest"
             build-type: Debug
             self-host: true
+            extra-cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
+            dependencies: "sudo apt install ninja-build"
           # Extra build to check using pthread library for destructing local state.
           - os: "ubuntu-latest"
             variant: "Ubuntu (with pthread destructors)."

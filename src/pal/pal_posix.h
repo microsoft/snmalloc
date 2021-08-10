@@ -134,7 +134,7 @@ namespace snmalloc
 
     static void print_stack_trace()
     {
-#ifdef BACKTRACE_HEADER
+#ifdef SNMALLOC_BACKTRACE_HEADER
       constexpr int SIZE = 1024;
       void* buffer[SIZE];
       auto nptrs = backtrace(buffer, SIZE);

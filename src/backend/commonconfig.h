@@ -115,4 +115,26 @@ namespace snmalloc
       &unused_remote != fake_large_remote,
       "Compilation should ensure these are different");
   };
+
+  /**
+   * SFINAE helper.  Matched only if `T` implements `is_initialised`.  Calls
+   * it if it exists.
+   */
+  template<typename T>
+  SNMALLOC_FAST_PATH auto call_is_initialised(T*, int)
+    -> decltype(T::is_initialised())
+  {
+    return T::is_initialised();
+  }
+
+  /**
+   * SFINAE helper.  Matched only if `T` does not implement `is_initialised`.
+   * Unconditionally returns true if invoked.
+   */
+  template<typename T>
+  SNMALLOC_FAST_PATH auto call_is_initialised(T*, long)
+  {
+    return true;
+  }
+
 } // namespace snmalloc

@@ -15,6 +15,7 @@
 #  define SNMALLOC_PURE
 #  define SNMALLOC_COLD
 #  define SNMALLOC_REQUIRE_CONSTINIT
+#  define SNMALLOC_UNUSED_FUNCTION
 #else
 #  define likely(x) __builtin_expect(!!(x), 1)
 #  define unlikely(x) __builtin_expect(!!(x), 0)
@@ -25,6 +26,7 @@
 #  define SNMALLOC_FAST_PATH_LAMBDA SNMALLOC_FAST_PATH
 #  define SNMALLOC_PURE __attribute__((const))
 #  define SNMALLOC_COLD __attribute__((cold))
+#  define SNMALLOC_UNUSED_FUNCTION __attribute((unused))
 #  ifdef __clang__
 #    define SNMALLOC_REQUIRE_CONSTINIT \
       [[clang::require_constant_initialization]]
