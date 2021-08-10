@@ -231,11 +231,11 @@ namespace snmalloc
    * expected to point to the base of some (sub)allocation into which cursor
    * points; would-be negative answers trip an assertion in debug builds.
    */
-  inline size_t pointer_diff(void* base, void* cursor)
+  inline size_t pointer_diff(const void* base, const void* cursor)
   {
     SNMALLOC_ASSERT(cursor >= base);
     return static_cast<size_t>(
-      static_cast<char*>(cursor) - static_cast<char*>(base));
+      static_cast<const char*>(cursor) - static_cast<const char*>(base));
   }
 
   template<

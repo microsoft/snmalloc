@@ -19,6 +19,8 @@ option(SNMALLOC_USE_CXX17 "Build as C++17 for legacy support." OFF)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_STATIC_LIBRARY "Build static libraries" ON "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
+cmake_dependent_option(SNMALLOC_MEMCPY_BOUNDS "Perform bounds checks on memcpy with heap objects" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
+cmake_dependent_option(SNMALLOC_CHECK_LOADS "Perform bounds checks on the source argument to memcpy with heap objects" OFF "SNMALLOC_MEMCPY_BOUNDS" OFF)
 cmake_dependent_option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 if (NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   # Pick a sensible default for the thread cleanup mechanism
@@ -291,20 +293,27 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       target_link_options(${name} PRIVATE $<$<BOOL:${LLD_WORKS}>:-Wl,--icf=all -fuse-ld=lld>)
     endif()
 
+    target_compile_definitions(${name} PRIVATE
+      SNMALLOC_CHECK_LOADS=$<IF:$<BOOL:${SNMALLOC_CHECK_LOADS}>,true,false>)
+
     install(TARGETS ${name} EXPORT snmallocConfig)
 
   endfunction()
 
+  set(SHIM_FILES src/override/new.cc)
+  if (SNMALLOC_MEMCPY_BOUNDS)
+    list(APPEND SHIM_FILES src/override/memcpy.cc)
+  endif ()
+
   if (SNMALLOC_STATIC_LIBRARY)
-    add_shim(snmallocshim-static STATIC src/override/new.cc)
+    add_shim(snmallocshim-static STATIC ${SHIM_FILES})
     target_compile_definitions(snmallocshim-static PRIVATE
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
   endif ()
 
   if(NOT WIN32)
-    set(SHARED_FILES src/override/new.cc)
-    add_shim(snmallocshim SHARED ${SHARED_FILES})
-    add_shim(snmallocshim-checks SHARED ${SHARED_FILES})
+    add_shim(snmallocshim SHARED ${SHIM_FILES})
+    add_shim(snmallocshim-checks SHARED ${SHIM_FILES})
     target_compile_definitions(snmallocshim-checks PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 

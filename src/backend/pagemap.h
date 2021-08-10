@@ -244,7 +244,14 @@ namespace snmalloc
       }
 
       //  This means external pointer on Windows will be slow.
-      if constexpr (potentially_out_of_range && !pal_supports<LazyCommit, PAL>)
+      // TODO: With SNMALLOC_CHECK_CLIENT we should map that region read-only,
+      // not no-access, but this requires a PAL change.
+      if constexpr (
+        potentially_out_of_range
+#ifndef SNMALLOC_CHECK_CLIENT
+        && !pal_supports<LazyCommit, PAL>
+#endif
+      )
       {
         register_range(p, 1);
       }
