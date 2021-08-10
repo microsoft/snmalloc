@@ -198,11 +198,6 @@ namespace snmalloc
 #endif
     Val v;
 
-  public:
-    /**
-     * Construct a reference to this value; use .load and .store to manipulate
-     * the value.
-     */
     SNMALLOC_FAST_PATH Ref ref()
     {
 #ifdef __cpp_lib_atomic_ref
@@ -212,10 +207,16 @@ namespace snmalloc
 #endif
     }
 
+  public:
     SNMALLOC_FAST_PATH T
-    load(std::memory_order mo = std::memory_order_seq_cst) noexcept
+    load(std::memory_order mo = std::memory_order_seq_cst) const noexcept
     {
-      return this->ref().load(mo);
+      /* Unfortunately, we can't use ref() here, since we desire const-ness. */
+#ifdef __cpp_lib_atomic_ref
+      return std::atomic_ref<const T>(this->v).load(mo);
+#else
+      return this->v.load(mo);
+#endif
     }
 
     SNMALLOC_FAST_PATH void
