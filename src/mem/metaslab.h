@@ -14,10 +14,6 @@ namespace snmalloc
 
   using SlabLink = CDLLNode<>;
 
-  static_assert(
-    sizeof(SlabLink) <= MIN_ALLOC_SIZE,
-    "Need to be able to pack a SlabLink into any free small alloc");
-
   // The Metaslab represent the status of a single slab.
   // This can be either a short or a standard slab.
   class alignas(CACHELINE_SIZE) Metaslab : public SlabLink
