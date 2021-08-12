@@ -19,6 +19,7 @@ option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory
 option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off)
 set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
 option(SNMALLOC_USE_CXX17 "Build as C++17 for legacy support." OFF)
+set(SNMALLOC_USE_LD "lld" CACHE STRING "Linker to use (lld/bfd)")
 
 # malloc.h will error if you include it on FreeBSD, so this test must not
 # unconditionally include it.
@@ -209,9 +210,9 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
   endmacro()
 
   if(CMAKE_VERSION VERSION_LESS 3.14)
-    set(CMAKE_REQUIRED_LIBRARIES -fuse-ld=lld)
+    set(CMAKE_REQUIRED_LIBRARIES -fuse-ld=${SNMALLOC_USE_LD})
   else()
-    set(CMAKE_REQUIRED_LINK_OPTIONS -fuse-ld=lld)
+    set(CMAKE_REQUIRED_LINK_OPTIONS -fuse-ld=${SNMALLOC_USE_LD})
   endif()
   check_cxx_source_compiles("int main() { return 1; }" LLD_WORKS)
 
@@ -234,7 +235,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         target_link_libraries(${name} -Wl,--as-needed)
 
         # Remove all the duplicate new/malloc and free/delete definitions
-        target_link_libraries(${name} -Wl,--icf=all -fuse-ld=lld)
+        target_link_libraries(${name} -Wl,--icf=all -fuse-ld=${SNMALLOC_USE_LD})
       endif()
     endif()
 
