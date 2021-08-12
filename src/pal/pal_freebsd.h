@@ -24,6 +24,17 @@ namespace snmalloc
      * add new features that they should add any required feature flags.
      */
     static constexpr uint64_t pal_features = PALBSD_Aligned::pal_features;
+
+    /**
+     * FreeBSD uses atypically small address spaces on its 64 bit RISC machines.
+     * Problematically, these are so small that if we used the default
+     * address_bits (48), we'd try to allocate the whole AS (or larger!) for the
+     * Pagemap itself!
+     */
+    static constexpr size_t address_bits = (Aal::bits == 32) ?
+      Aal::address_bits :
+      (Aal::aal_name == RISCV ? 38 : Aal::address_bits);
+    // TODO, if we ever backport to MIPS, this should yield 39 there.
   };
 } // namespace snmalloc
 #endif
