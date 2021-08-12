@@ -135,6 +135,7 @@ jobs:
         -DSNMALLOC_QEMU_WORKAROUND=ON
         -DSNMALLOC_STATIC_LIBRARY=OFF
         -DCMAKE_TOOLCHAIN_FILE=ci/Toolchain.cmake
+        ${{matrix.arch.extra-cmake-flags}}
     - name: Build
       working-directory: ${{github.workspace}}/build
       run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
