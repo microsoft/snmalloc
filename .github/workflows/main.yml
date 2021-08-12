@@ -101,6 +101,12 @@ jobs:
             system-processor: powerpc64le
             triple: powerpc64le-linux-gnu
             rtld: ld64.so.2
+          - name: riscv64
+            system-processor: riscv64
+            triple: riscv64-linux-gnu
+            rtld: ld-linux-riscv64-lp64d.so.1
+            extra-cmake-flags:
+              -DSNMALLOC_USE_LD=bfd
       # Don't abort runners if a single one fails
       fail-fast: false
     runs-on: ubuntu-latest
