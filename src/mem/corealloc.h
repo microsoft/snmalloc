@@ -146,9 +146,8 @@ namespace snmalloc
     {
       // Manufacture an allocation to prime the queue
       // Using an actual allocation removes a conditional from a critical path.
-      auto dummy =
-        CapPtr<void, CBAlloc>(small_alloc_one(sizeof(MIN_ALLOC_SIZE)))
-          .template as_static<FreeObject>();
+      auto dummy = CapPtr<void, CBAlloc>(small_alloc_one(MIN_ALLOC_SIZE))
+                     .template as_static<FreeObject>();
       if (dummy == nullptr)
       {
         error("Critical error: Out-of-memory during initialisation.");
