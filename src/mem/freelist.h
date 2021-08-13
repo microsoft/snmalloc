@@ -43,20 +43,13 @@ namespace snmalloc
 {
   /**
    * This function is used to sign back pointers in the free list.
-   *
-   * TODO - Needs review.  Should we shift low bits out as they help
-   * guess the key.
-   *
-   * TODO - We now have space in the FreeListBuilder for a fresh key for each
-   * list.
    */
   inline static uintptr_t
   signed_prev(address_t curr, address_t next, const FreeListKey& key)
   {
     auto c = curr;
     auto n = next;
-    auto k = key.key;
-    return (c + k) * (n - k);
+    return (c + key.key1) * (n + key.key2);
   }
 
   /**
@@ -65,7 +58,7 @@ namespace snmalloc
    * back pointer in a doubly linked list, however, it is encoded
    * to prevent corruption.
    *
-   * TODO: Consider put prev_encoded at the end of the object, would
+   * TODO: Consider putting prev_encoded at the end of the object, would
    * require size to be threaded through, but would provide more OOB
    * detection.
    */
@@ -443,11 +436,14 @@ namespace snmalloc
       }
     }
 
-    std::pair<CapPtr<FreeObject, CBAlloc>, CapPtr<FreeObject, CBAlloc>>
+    template<bool RANDOM_ = RANDOM>
+    std::enable_if_t<
+      !RANDOM_,
+      std::pair<CapPtr<FreeObject, CBAlloc>, CapPtr<FreeObject, CBAlloc>>>
     extract_segment(const FreeListKey& key)
     {
+      static_assert(RANDOM_ == RANDOM, "Don't set SFINAE parameter!");
       SNMALLOC_ASSERT(!empty());
-      SNMALLOC_ASSERT(!RANDOM); // TODO: Turn this into a static failure.
 
       auto first = read_head(0, key);
       // end[0] is pointing to the first field in the object,

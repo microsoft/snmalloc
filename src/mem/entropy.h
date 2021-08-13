@@ -31,11 +31,13 @@ namespace snmalloc
 
   struct FreeListKey
   {
-    address_t key;
+    address_t key1;
+    address_t key2;
     address_t key_next;
 
-    constexpr FreeListKey(uint64_t key, uint64_t key_next)
-    : key(static_cast<address_t>(key)),
+    constexpr FreeListKey(uint64_t key1, uint64_t key2, uint64_t key_next)
+    : key1(static_cast<address_t>(key1)),
+      key2(static_cast<address_t>(key2)),
       key_next(static_cast<address_t>(key_next))
     {}
   };
@@ -47,7 +49,7 @@ namespace snmalloc
     uint64_t local_counter{0};
     uint64_t fresh_bits{0};
     uint64_t count{0};
-    FreeListKey key{0, 0};
+    FreeListKey key{0, 0, 0};
 
   public:
     constexpr LocalEntropy() = default;
@@ -59,12 +61,14 @@ namespace snmalloc
       local_counter = get_entropy64<PAL>();
       if constexpr (bits::BITS == 64)
       {
-        key.key = get_next();
+        key.key1 = get_next();
+        key.key2 = get_next();
         key.key_next = get_next();
       }
       else
       {
-        key.key = get_next() & 0xffff'ffff;
+        key.key1 = get_next() & 0xffff'ffff;
+        key.key2 = get_next() & 0xffff'ffff;
         key.key_next = get_next() & 0xffff'ffff;
       }
       bit_source = get_next();
