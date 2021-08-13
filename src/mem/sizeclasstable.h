@@ -100,7 +100,11 @@ namespace snmalloc
           static_cast<uint16_t>((slab_mask[sizeclass] + 1) / rsize);
 
         waking[sizeclass] =
+#ifdef SNMALLOC_CHECK_CLIENT
+          static_cast<uint16_t>(capacity[sizeclass] / 4);
+#else
           static_cast<uint16_t>(bits::min((capacity[sizeclass] / 4), 32));
+#endif
       }
 
       for (sizeclass_compress_t sizeclass = NUM_SIZECLASSES;
