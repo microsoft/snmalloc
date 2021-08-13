@@ -27,7 +27,7 @@ namespace snmalloc
   /**
    * Global key for all remote lists.
    */
-  inline static FreeListKey key_global(0xdeadbeef, 0xdeadbeef);
+  inline static FreeListKey key_global(0xdeadbeef, 0xbeefdead, 0xdeadbeef);
 
   struct alignas(REMOTE_MIN_ALIGN) RemoteAllocator
   {
