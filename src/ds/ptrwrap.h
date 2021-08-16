@@ -69,30 +69,67 @@ namespace snmalloc
         Full
       };
 
+      /**
+       * Distinguish pointers proximate provenance: pointers given to us by
+       * clients can be arbitrarily malformed while pointers from the kernel or
+       * internally can be presumed well-formed.  See the Backend's
+       * capptr_domesticate().
+       */
+      enum class Wildness
+      {
+        /**
+         * The purported "pointer" here may just be a pile of bits.  On CHERI
+         * architectures, for example, it may not have a set tag or may be out
+         * of bounds.
+         */
+        Wild,
+        /**
+         * Either this pointer has provenance from the kernel or it has been
+         * checked by capptr_dewild.
+         */
+        Tame
+      };
     } // namespace dimension
 
     /**
      * The aggregate type of a bound: a Cartesian product of the individual
      * dimensions, above.
      */
-    template<dimension::Spatial S, dimension::AddressSpaceControl AS>
+    template<
+      dimension::Spatial S,
+      dimension::AddressSpaceControl AS,
+      dimension::Wildness W>
     struct bound
     {
       static constexpr enum dimension::Spatial spatial = S;
       static constexpr enum dimension::AddressSpaceControl
         address_space_control = AS;
+      static constexpr enum dimension::Wildness wildness = W;
 
       /**
        * Set just the spatial component of the bounds
        */
       template<enum dimension::Spatial SO>
-      using with_spatial = bound<SO, AS>;
+      using with_spatial = bound<SO, AS, W>;
 
       /**
        * Set just the address space control component of the bounds
        */
       template<enum dimension::AddressSpaceControl ASO>
-      using with_address_space_control = bound<S, ASO>;
+      using with_address_space_control = bound<S, ASO, W>;
+
+      /**
+       * Set just the wild component of the bounds
+       */
+      template<enum dimension::Wildness WO>
+      using with_wildness = bound<S, AS, WO>;
+
+      /* The dimensions here are not used completely orthogonally */
+      static_assert(
+        !(W == dimension::Wildness::Wild) ||
+          (S == dimension::Spatial::Alloc &&
+           AS == dimension::AddressSpaceControl::User),
+        "Wild pointers must be annotated as tightly bounded");
     };
 
     // clang-format off
@@ -105,9 +142,10 @@ namespace snmalloc
      */
     template<typename T>
     concept ConceptBound =
-      ConceptSame<decltype(T::spatial), const capptr::dimension::Spatial> &&
+      ConceptSame<decltype(T::spatial), const dimension::Spatial> &&
       ConceptSame<decltype(T::address_space_control),
-        const capptr::dimension::AddressSpaceControl>;
+        const dimension::AddressSpaceControl> &&
+      ConceptSame<decltype(T::wildness), const dimension::Wildness>;
 #endif
     // clang-format on
 
@@ -121,8 +159,10 @@ namespace snmalloc
        * Internal access to a Chunk of memory.  These flow between the ASM and
        * the slab allocators, for example.
        */
-      using Chunk =
-        bound<dimension::Spatial::Chunk, dimension::AddressSpaceControl::Full>;
+      using Chunk = bound<
+        dimension::Spatial::Chunk,
+        dimension::AddressSpaceControl::Full,
+        dimension::Wildness::Tame>;
 
       /**
        * User access to an entire Chunk.  Used as an ephemeral state when
@@ -141,6 +181,12 @@ namespace snmalloc
        */
       using Alloc = AllocFull::with_address_space_control<
         dimension::AddressSpaceControl::User>;
+
+      /**
+       * A wild (i.e., putative) CBAllocExport pointer handed back by the
+       * client. See capptr_from_client() and capptr_domesticate().
+       */
+      using AllocWild = Alloc::with_wildness<dimension::Wildness::Wild>;
     } // namespace bounds
   } // namespace capptr
 
@@ -154,6 +200,11 @@ namespace snmalloc
   SNMALLOC_CONSTEVAL bool capptr_is_spatial_refinement()
   {
     if (BI::address_space_control != BO::address_space_control)
+    {
+      return false;
+    }
+
+    if (BI::wildness != BO::wildness)
     {
       return false;
     }
@@ -246,6 +297,9 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH T* operator->() const
     {
+      static_assert(
+        bounds::wildness != capptr::dimension::Wildness::Wild,
+        "Trying to dereference a Wild pointer");
       return this->unsafe_capptr;
     }
 
@@ -278,6 +332,9 @@ namespace snmalloc
     template<typename T>
     using Alloc = CapPtr<T, bounds::Alloc>;
 
+    template<typename T>
+    using AllocWild = CapPtr<T, bounds::AllocWild>;
+
   } // namespace capptr
 
   static_assert(sizeof(capptr::Chunk<void>) == sizeof(void*));
@@ -296,7 +353,8 @@ namespace snmalloc
 
   /**
    * With all the bounds and constraints in place, it's safe to extract a void
-   * pointer (to reveal to the client).  Roughly dual to capptr_from_client().
+   * pointer (to reveal to the client).  Roughly dual to capptr_from_client(),
+   * but we stop oursevles from revealing anything not known to be domesticated.
    */
   inline SNMALLOC_FAST_PATH void* capptr_reveal(capptr::Alloc<void> p)
   {
@@ -311,6 +369,21 @@ namespace snmalloc
   capptr_from_client(void* p)
   {
     return capptr::Alloc<void>(p);
+  }
+
+  /**
+   * It's safe to mark any CapPtr as Wild.
+   */
+  template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+  static inline SNMALLOC_FAST_PATH CapPtr<
+    T,
+    typename B::template with_wildness<capptr::dimension::Wildness::Wild>>
+  capptr_rewild(CapPtr<T, B> p)
+  {
+    return CapPtr<
+      T,
+      typename B::template with_wildness<capptr::dimension::Wildness::Wild>>(
+      p.unsafe_capptr);
   }
 
   /**
