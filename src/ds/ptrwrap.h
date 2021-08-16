@@ -209,14 +209,6 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH T* operator->() const
     {
-      /*
-       * Alloc-bounded, platform-constrained pointers are associated with
-       * objects coming from or going to the client; we should be doing nothing
-       * with them.
-       */
-      static_assert(
-        (bounds::spatial != capptr_bounds::spatial::Alloc) ||
-        (bounds::platform != capptr_bounds::platform::Exported));
       return this->unsafe_capptr;
     }
 
