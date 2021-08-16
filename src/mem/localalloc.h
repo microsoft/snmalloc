@@ -569,6 +569,11 @@ namespace snmalloc
 #ifdef SNMALLOC_PASS_THROUGH
       return external_alloc::malloc_usable_size(const_cast<void*>(p_raw));
 #else
+      // TODO What's the domestication policy here?  At the moment we just probe
+      // the pagemap with the raw address, without checks.  There could be
+      // implicit domestication through the `SharedStateHandle::Pagemap` or we
+      // could just leave well enough alone.
+
       // Note that this should return 0 for nullptr.
       // Other than nullptr, we know the system will be initialised as it must
       // be called with something we have already allocated.
@@ -600,6 +605,11 @@ namespace snmalloc
     void* external_pointer(void* p_raw)
     {
 #ifndef SNMALLOC_PASS_THROUGH
+      // TODO What's the domestication policy here?  At the moment we just probe
+      // the pagemap with the raw address, without checks.  There could be
+      // implicit domestication through the `SharedStateHandle::Pagemap` or we
+      // could just leave well enough alone.
+
       // TODO bring back the CHERI bits. Wes to review if required.
       MetaEntry entry =
         SharedStateHandle::Pagemap::template get_metaentry<true>(
