@@ -458,13 +458,29 @@ namespace snmalloc
       //  before init, that maps null to a remote_deallocator that will never be
       //  in thread local state.
 
-      auto p = capptr_from_client(p_raw);
+      capptr::AllocWild<void> p_wild = capptr_from_client(p_raw);
+
+      /*
+       * p_tame may be nullptr, even if p_raw/p_wild are not, in the case where
+       * domestication fails.  We exclusively use p_tame below so that such
+       * failures become no ops; in the nullptr path, which should be well off
+       * the fast path, we could be slightly more aggressive and test that p_raw
+       * is also nullptr and Pal::error() if not. (TODO)
+       *
+       * We do not rely on the bounds-checking ability of domestication here,
+       * and just check the address (and, on other architectures, perhaps
+       * well-formedness) of this pointer.  The remainder of the logic will
+       * deal with the object's extent.
+       */
+      capptr::Alloc<void> p_tame = capptr_domesticate<SharedStateHandle>(
+        core_alloc->backend_state_ptr(), p_wild);
+
       const MetaEntry& entry = SharedStateHandle::Pagemap::get_metaentry(
-        core_alloc->backend_state_ptr(), address_cast(p));
+        core_alloc->backend_state_ptr(), address_cast(p_tame));
       if (likely(local_cache.remote_allocator == entry.get_remote()))
       {
         if (likely(CoreAlloc::dealloc_local_object_fast(
-              entry, p, local_cache.entropy)))
+              entry, p_tame, local_cache.entropy)))
           return;
         core_alloc->dealloc_local_object_slow(entry);
         return;
@@ -476,7 +492,7 @@ namespace snmalloc
         if (local_cache.remote_dealloc_cache.reserve_space(entry))
         {
           local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-            entry.get_remote()->trunc_id(), p, key_global);
+            entry.get_remote()->trunc_id(), p_tame, key_global);
 #  ifdef SNMALLOC_TRACING
           std::cout << "Remote dealloc fast" << p_raw << " size "
                     << alloc_size(p_raw) << std::endl;
@@ -484,12 +500,12 @@ namespace snmalloc
           return;
         }
 
-        dealloc_remote_slow(p);
+        dealloc_remote_slow(p_tame);
         return;
       }
 
       // Large deallocation or null.
-      if (likely(p.unsafe_ptr() != nullptr))
+      if (likely(p_tame != nullptr))
       {
         // Check this is managed by this pagemap.
         check_client(entry.get_sizeclass() != 0, "Not allocated by snmalloc.");
@@ -498,7 +514,8 @@ namespace snmalloc
 
         // Check for start of allocation.
         check_client(
-          pointer_align_down(p, size) == p, "Not start of an allocation.");
+          pointer_align_down(p_tame, size) == p_tame,
+          "Not start of an allocation.");
 
         size_t slab_sizeclass = large_size_to_chunk_sizeclass(size);
 #  ifdef SNMALLOC_TRACING
@@ -508,13 +525,13 @@ namespace snmalloc
         ChunkRecord* slab_record =
           reinterpret_cast<ChunkRecord*>(entry.get_metaslab());
         /*
-         * StrictProvenance TODO: this is a subversive amplification.  p is
-         * AllocWild-bounded, but we're coercing it to Chunk-bounded.  We
+         * StrictProvenance TODO: this is a subversive amplification.  p_tame is
+         * tame but Alloc-bounded, but we're coercing it to Chunk-bounded.  We
          * should, instead, not be storing ->chunk here, but should be keeping
          * a CapPtr<void, Chunk> to this region internally even while it's
          * allocated.
          */
-        slab_record->chunk = capptr::Chunk<void>(p.unsafe_ptr());
+        slab_record->chunk = capptr::Chunk<void>(p_tame.unsafe_ptr());
         check_init(
           [](
             CoreAlloc* core_alloc,

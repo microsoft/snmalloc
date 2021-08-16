@@ -362,13 +362,13 @@ namespace snmalloc
   }
 
   /**
-   * Given a void* from the client, it's fine to call it Alloc.  Roughly
-   * dual to capptr_reveal().
+   * Given a void* from the client, it's fine to call it AllocWild.
+   * Roughly dual to capptr_reveal().
    */
-  static inline SNMALLOC_FAST_PATH capptr::Alloc<void>
+  static inline SNMALLOC_FAST_PATH capptr::AllocWild<void>
   capptr_from_client(void* p)
   {
-    return capptr::Alloc<void>(p);
+    return capptr::AllocWild<void>(p);
   }
 
   /**
