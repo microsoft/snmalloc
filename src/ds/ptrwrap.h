@@ -286,12 +286,10 @@ namespace snmalloc
 
   /**
    * Dually, given a void* from the client, it's fine to call it CBAllocEW.
-   *
-   * TODO: Return CBAllocEW instead!
    */
-  static inline CapPtr<void, CBAllocE> capptr_from_client(void* p)
+  static inline CapPtr<void, CBAllocEW> capptr_from_client(void* p)
   {
-    return CapPtr<void, CBAllocE>(p);
+    return CapPtr<void, CBAllocEW>(p);
   }
 
   /**

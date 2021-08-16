@@ -71,6 +71,7 @@ namespace snmalloc
    *  * define a T::LocalState type (and alias it as T::Pagemap::LocalState)
    *  * define T::Options of type snmalloc::Flags
    *  * expose the global allocator pool via T::pool()
+   *  * have a capptr_domesticate()
    *
    */
   template<typename Globals>
@@ -89,7 +90,13 @@ namespace snmalloc
 
       typename Globals::GlobalPoolState;
       { Globals::pool() } -> ConceptSame<typename Globals::GlobalPoolState &>;
-    };
+
+    } &&
+    requires(typename Globals::LocalState* ls, CapPtr<void, CBAllocEW> ptr)
+    {
+      { Globals::capptr_domesticate(ls, ptr) }
+        -> ConceptSame<CapPtr<void, CBAllocE>>;
+    } ;
 
   /**
    * The lazy version of the above; please see ds/concept.h and use sparingly.
