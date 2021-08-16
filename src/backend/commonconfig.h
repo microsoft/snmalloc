@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../ds/defines.h"
-#include "../mem/remotecache.h"
 
 namespace snmalloc
 {
@@ -137,4 +136,54 @@ namespace snmalloc
     return true;
   }
 
+  namespace detail
+  {
+    /**
+     * SFINAE helper, calls capptr_domesticate in the backend if it exists.
+     */
+    template<
+      SNMALLOC_CONCEPT(ConceptBackendDomestication) Backend,
+      typename T,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    SNMALLOC_FAST_PATH_INLINE auto
+    capptr_domesticate(typename Backend::LocalState* ls, CapPtr<T, B> p, int)
+      -> decltype(Backend::capptr_domesticate(ls, p))
+    {
+      return Backend::capptr_domesticate(ls, p);
+    }
+
+    /**
+     * SFINAE helper.  If the back end does not provide special handling for
+     * domestication then assume all wild pointers can be domesticated.
+     */
+    template<
+      SNMALLOC_CONCEPT(ConceptBackendGlobals) Backend,
+      typename T,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    SNMALLOC_FAST_PATH_INLINE auto
+    capptr_domesticate(typename Backend::LocalState*, CapPtr<T, B> p, long)
+    {
+      return CapPtr<
+        T,
+        typename B::template with_wildness<capptr::dimension::Wildness::Tame>>(
+        p.unsafe_ptr());
+    }
+  } // namespace detail
+
+  /**
+   * Wrapper that calls `Backend::capptr_domesticate` if and only if it is
+   * implemented.  If it is not implemented then this assumes that any wild
+   * pointer can be domesticated.
+   */
+  template<
+    SNMALLOC_CONCEPT(ConceptBackendGlobals) Backend,
+    typename T,
+    SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+  SNMALLOC_FAST_PATH_INLINE auto
+  capptr_domesticate(typename Backend::LocalState* ls, CapPtr<T, B> p)
+  {
+    return detail::capptr_domesticate<Backend>(ls, p, 0);
+  }
+
 } // namespace snmalloc
+#include "../mem/remotecache.h"

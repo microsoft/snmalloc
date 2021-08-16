@@ -294,6 +294,23 @@ namespace snmalloc
         UNUSED(ls);
         concretePagemap.register_range(p, sz);
       }
+
+      /**
+       * Return the bounds of the memory this back-end manages as a pair of
+       * addresses (start then end).  This is available iff this is a
+       * fixed-range Backend.
+       */
+      template<bool fixed_range_ = fixed_range>
+      static SNMALLOC_FAST_PATH
+        std::enable_if_t<fixed_range_, std::pair<address_t, address_t>>
+        get_bounds(LocalState* local_state)
+      {
+        static_assert(
+          fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
+
+        UNUSED(local_state);
+        return concretePagemap.get_bounds();
+      }
     };
 
   private:

@@ -205,6 +205,15 @@ namespace snmalloc
       body_opt = new_body;
     }
 
+    template<bool has_bounds_ = has_bounds>
+    std::enable_if_t<has_bounds_, std::pair<address_t, size_t>> get_bounds()
+    {
+      static_assert(
+        has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
+
+      return {base, size};
+    }
+
     /**
      * Get the number of entries.
      */

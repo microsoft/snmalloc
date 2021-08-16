@@ -58,6 +58,24 @@ namespace snmalloc
   concept ConceptBackendMetaRange =
     ConceptBackendMeta<Meta> && ConceptBackendMeta_Range<Meta>;
 
+  /**
+   * The backend also defines domestication (that is, the difference between
+   * Tame and Wild CapPtr bounds).  It exports the intended affordance for
+   * testing a Wild pointer and either returning nullptr or the original
+   * pointer, now Tame.
+   */
+  template<typename Globals>
+  concept ConceptBackendDomestication =
+    requires(typename Globals::LocalState* ls,
+      capptr::AllocWild<void> ptr)
+    {
+      { Globals::capptr_domesticate(ls, ptr) }
+        -> ConceptSame<capptr::Alloc<void>>;
+
+      { Globals::capptr_domesticate(ls, ptr.template as_static<char>()) }
+        -> ConceptSame<capptr::Alloc<char>>;
+    };
+
   class CommonConfig;
   struct Flags;
 
@@ -89,6 +107,7 @@ namespace snmalloc
 
       typename Globals::GlobalPoolState;
       { Globals::pool() } -> ConceptSame<typename Globals::GlobalPoolState &>;
+
     };
 
   /**
