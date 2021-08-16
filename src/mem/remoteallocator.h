@@ -35,10 +35,10 @@ namespace snmalloc
 
     // Store the message queue on a separate cacheline. It is mutable data that
     // is read by other threads.
-    alignas(CACHELINE_SIZE) AtomicCapPtr<FreeObject, CBAlloc> back{nullptr};
+    alignas(CACHELINE_SIZE) AtomicCapPtr<FreeObject, CBAllocE> back{nullptr};
     // Store the two ends on different cache lines as access by different
     // threads.
-    alignas(CACHELINE_SIZE) CapPtr<FreeObject, CBAlloc> front{nullptr};
+    alignas(CACHELINE_SIZE) CapPtr<FreeObject, CBAllocE> front{nullptr};
 
     constexpr RemoteAllocator() = default;
 
@@ -48,7 +48,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(front != nullptr);
     }
 
-    void init(CapPtr<FreeObject, CBAlloc> stub)
+    void init(CapPtr<FreeObject, CBAllocE> stub)
     {
       stub->atomic_store_null(key_global);
       front = stub;
@@ -56,9 +56,9 @@ namespace snmalloc
       invariant();
     }
 
-    CapPtr<FreeObject, CBAlloc> destroy()
+    CapPtr<FreeObject, CBAllocE> destroy()
     {
-      CapPtr<FreeObject, CBAlloc> fnt = front;
+      CapPtr<FreeObject, CBAllocE> fnt = front;
       back.store(nullptr, std::memory_order_relaxed);
       front = nullptr;
       return fnt;
@@ -66,14 +66,14 @@ namespace snmalloc
 
     inline bool is_empty()
     {
-      CapPtr<FreeObject, CBAlloc> bk = back.load(std::memory_order_relaxed);
+      CapPtr<FreeObject, CBAllocE> bk = back.load(std::memory_order_relaxed);
 
       return bk == front;
     }
 
     void enqueue(
-      CapPtr<FreeObject, CBAlloc> first,
-      CapPtr<FreeObject, CBAlloc> last,
+      CapPtr<FreeObject, CBAllocE> first,
+      CapPtr<FreeObject, CBAllocE> last,
       const FreeListKey& key)
     {
       // Pushes a list of messages to the queue. Each message from first to
@@ -82,23 +82,24 @@ namespace snmalloc
       last->atomic_store_null(key);
 
       // exchange needs to be a release, so nullptr in next is visible.
-      CapPtr<FreeObject, CBAlloc> prev =
+      CapPtr<FreeObject, CBAllocE> prev =
         back.exchange(last, std::memory_order_release);
 
       prev->atomic_store_next(first, key);
     }
 
-    CapPtr<FreeObject, CBAlloc> peek()
+    CapPtr<FreeObject, CBAllocE> peek()
     {
       return front;
     }
 
-    std::pair<CapPtr<FreeObject, CBAlloc>, bool> dequeue(const FreeListKey& key)
+    std::pair<CapPtr<FreeObject, CBAllocE>, bool>
+    dequeue(const FreeListKey& key)
     {
       // Returns the front message, or null if not possible to return a message.
       invariant();
-      CapPtr<FreeObject, CBAlloc> first = front;
-      CapPtr<FreeObject, CBAlloc> next = first->atomic_read_next(key);
+      CapPtr<FreeObject, CBAllocE> first = front;
+      CapPtr<FreeObject, CBAllocE> next = first->atomic_read_next(key);
 
       if (next != nullptr)
       {

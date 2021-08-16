@@ -73,9 +73,9 @@ namespace snmalloc
   {
     union
     {
-      CapPtr<FreeObject, CBAlloc> next_object;
+      CapPtr<FreeObject, CBAllocE> next_object;
       // TODO: Should really use C++20 atomic_ref rather than a union.
-      AtomicCapPtr<FreeObject, CBAlloc> atomic_next_object;
+      AtomicCapPtr<FreeObject, CBAllocE> atomic_next_object;
     };
 #ifdef SNMALLOC_CHECK_CLIENT
     // Encoded representation of a back pointer.
@@ -85,7 +85,7 @@ namespace snmalloc
 #endif
 
   public:
-    static CapPtr<FreeObject, CBAlloc> make(CapPtr<void, CBAlloc> p)
+    static CapPtr<FreeObject, CBAllocE> make(CapPtr<void, CBAllocE> p)
     {
       return p.template as_static<FreeObject>();
     }
@@ -93,8 +93,8 @@ namespace snmalloc
     /**
      * Encode next
      */
-    inline static CapPtr<FreeObject, CBAlloc> encode_next(
-      address_t curr, CapPtr<FreeObject, CBAlloc> next, const FreeListKey& key)
+    inline static CapPtr<FreeObject, CBAllocE> encode_next(
+      address_t curr, CapPtr<FreeObject, CBAllocE> next, const FreeListKey& key)
     {
       // Note we can consider other encoding schemes here.
       //   * XORing curr and next.  This doesn't require any key material
@@ -105,7 +105,7 @@ namespace snmalloc
 
       if constexpr (CHECK_CLIENT && !aal_supports<StrictProvenance>)
       {
-        return CapPtr<FreeObject, CBAlloc>(reinterpret_cast<FreeObject*>(
+        return CapPtr<FreeObject, CBAllocE>(reinterpret_cast<FreeObject*>(
           reinterpret_cast<uintptr_t>(next.unsafe_ptr()) ^ key.key_next));
       }
       else
@@ -123,9 +123,9 @@ namespace snmalloc
      * optimization for repeated snoc operations (in which
      * next->next_object is nullptr).
      */
-    static CapPtr<FreeObject, CBAlloc>* store_next(
-      CapPtr<FreeObject, CBAlloc>* curr,
-      CapPtr<FreeObject, CBAlloc> next,
+    static CapPtr<FreeObject, CBAllocE>* store_next(
+      CapPtr<FreeObject, CBAllocE>* curr,
+      CapPtr<FreeObject, CBAllocE> next,
       const FreeListKey& key)
     {
 #ifdef SNMALLOC_CHECK_CLIENT
@@ -139,7 +139,7 @@ namespace snmalloc
     }
 
     static void
-    store_null(CapPtr<FreeObject, CBAlloc>* curr, const FreeListKey& key)
+    store_null(CapPtr<FreeObject, CBAllocE>* curr, const FreeListKey& key)
     {
       *curr = encode_next(address_cast(curr), nullptr, key);
     }
@@ -150,7 +150,7 @@ namespace snmalloc
      * Uses the atomic view of next, so can be used in the message queues.
      */
     void
-    atomic_store_next(CapPtr<FreeObject, CBAlloc> next, const FreeListKey& key)
+    atomic_store_next(CapPtr<FreeObject, CBAllocE> next, const FreeListKey& key)
     {
 #ifdef SNMALLOC_CHECK_CLIENT
       next->prev_encoded =
@@ -172,7 +172,7 @@ namespace snmalloc
         std::memory_order_relaxed);
     }
 
-    CapPtr<FreeObject, CBAlloc> atomic_read_next(const FreeListKey& key)
+    CapPtr<FreeObject, CBAllocE> atomic_read_next(const FreeListKey& key)
     {
       auto n = encode_next(
         address_cast(&next_object),
@@ -202,7 +202,7 @@ namespace snmalloc
     /**
      * Read the next pointer
      */
-    CapPtr<FreeObject, CBAlloc> read_next(const FreeListKey& key)
+    CapPtr<FreeObject, CBAllocE> read_next(const FreeListKey& key)
     {
       return encode_next(address_cast(&next_object), next_object, key);
     }
@@ -219,14 +219,14 @@ namespace snmalloc
    */
   class FreeListIter
   {
-    CapPtr<FreeObject, CBAlloc> curr{nullptr};
+    CapPtr<FreeObject, CBAllocE> curr{nullptr};
 #ifdef SNMALLOC_CHECK_CLIENT
     address_t prev{0};
 #endif
 
   public:
     constexpr FreeListIter(
-      CapPtr<FreeObject, CBAlloc> head, address_t prev_value)
+      CapPtr<FreeObject, CBAllocE> head, address_t prev_value)
     : curr(head)
     {
 #ifdef SNMALLOC_CHECK_CLIENT
@@ -248,7 +248,7 @@ namespace snmalloc
     /**
      * Returns current head without affecting the iterator.
      */
-    CapPtr<FreeObject, CBAlloc> peek()
+    CapPtr<FreeObject, CBAllocE> peek()
     {
       return curr;
     }
@@ -256,7 +256,7 @@ namespace snmalloc
     /**
      * Moves the iterator on, and returns the current value.
      */
-    CapPtr<FreeObject, CBAlloc> take(const FreeListKey& key)
+    CapPtr<FreeObject, CBAllocE> take(const FreeListKey& key)
     {
       auto c = curr;
       auto next = curr->read_next(key);
@@ -303,11 +303,11 @@ namespace snmalloc
     static constexpr size_t LENGTH = RANDOM ? 2 : 1;
 
     // Pointer to the first element.
-    std::array<CapPtr<FreeObject, CBAlloc>, LENGTH> head;
+    std::array<CapPtr<FreeObject, CBAllocE>, LENGTH> head;
     // Pointer to the reference to the last element.
     // In the empty case end[i] == &head[i]
     // This enables branch free enqueuing.
-    std::array<CapPtr<FreeObject, CBAlloc>*, LENGTH> end{nullptr};
+    std::array<CapPtr<FreeObject, CBAllocE>*, LENGTH> end{nullptr};
 
   public:
     constexpr FreeListBuilder()
@@ -333,7 +333,7 @@ namespace snmalloc
      * Adds an element to the builder
      */
     void add(
-      CapPtr<FreeObject, CBAlloc> n,
+      CapPtr<FreeObject, CBAllocE> n,
       const FreeListKey& key,
       LocalEntropy& entropy)
     {
@@ -356,7 +356,7 @@ namespace snmalloc
      */
     template<bool RANDOM_ = RANDOM>
     std::enable_if_t<!RANDOM_>
-    add(CapPtr<FreeObject, CBAlloc> n, const FreeListKey& key)
+    add(CapPtr<FreeObject, CBAllocE> n, const FreeListKey& key)
     {
       static_assert(RANDOM_ == RANDOM, "Don't set template parameter");
       end[0] = FreeObject::store_next(end[0], n, key);
@@ -380,7 +380,7 @@ namespace snmalloc
      * and is thus subject to encoding if the next_object pointers
      * encoded.
      */
-    CapPtr<FreeObject, CBAlloc>
+    CapPtr<FreeObject, CBAllocE>
     read_head(uint32_t index, const FreeListKey& key)
     {
       return FreeObject::encode_next(
@@ -444,7 +444,7 @@ namespace snmalloc
       }
     }
 
-    std::pair<CapPtr<FreeObject, CBAlloc>, CapPtr<FreeObject, CBAlloc>>
+    std::pair<CapPtr<FreeObject, CBAllocE>, CapPtr<FreeObject, CBAllocE>>
     extract_segment(const FreeListKey& key)
     {
       SNMALLOC_ASSERT(!empty());
@@ -456,7 +456,7 @@ namespace snmalloc
       // to the actual object.  This isn't true if the builder is
       // empty, but you are not allowed to call this in the empty case.
       auto last =
-        CapPtr<FreeObject, CBAlloc>(reinterpret_cast<FreeObject*>(end[0]));
+        CapPtr<FreeObject, CBAllocE>(reinterpret_cast<FreeObject*>(end[0]));
       init();
       return {first, last};
     }

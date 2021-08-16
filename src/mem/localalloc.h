@@ -252,18 +252,18 @@ namespace snmalloc
      * In the second case we need to recheck if this is a remote deallocation,
      * as we might acquire the originating allocator.
      */
-    SNMALLOC_SLOW_PATH void dealloc_remote_slow(void* p)
+    SNMALLOC_SLOW_PATH void dealloc_remote_slow(CapPtr<void, CBAllocE> p)
     {
       if (core_alloc != nullptr)
       {
 #ifdef SNMALLOC_TRACING
-        std::cout << "Remote dealloc post" << p << " size " << alloc_size(p)
-                  << std::endl;
+        std::cout << "Remote dealloc post" << p.unsafe_ptr() << " size "
+                  << alloc_size(p.unsafe_ptr()) << std::endl;
 #endif
         MetaEntry entry = SharedStateHandle::Pagemap::get_metaentry(
           core_alloc->backend_state_ptr(), address_cast(p));
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-          entry.get_remote()->trunc_id(), CapPtr<void, CBAlloc>(p), key_global);
+          entry.get_remote()->trunc_id(), p, key_global);
         post_remote_cache();
         return;
       }
@@ -271,8 +271,8 @@ namespace snmalloc
       // Recheck what kind of dealloc we should do incase, the allocator we get
       // from lazy_init is the originating allocator.
       lazy_init(
-        [&](CoreAlloc*, void* p) {
-          dealloc(p); // TODO don't double count statistics
+        [&](CoreAlloc*, CapPtr<void, CBAllocE> p) {
+          dealloc(p.unsafe_ptr()); // TODO don't double count statistics
           return nullptr;
         },
         p);
@@ -461,10 +461,10 @@ namespace snmalloc
       return alloc<zero_mem>(size);
     }
 
-    SNMALLOC_FAST_PATH void dealloc(void* p)
+    SNMALLOC_FAST_PATH void dealloc(void* p_raw)
     {
 #ifdef SNMALLOC_PASS_THROUGH
-      external_alloc::free(p);
+      external_alloc::free(p_raw);
 #else
       // TODO:
       // Care is needed so that dealloc(nullptr) works before init
@@ -472,6 +472,7 @@ namespace snmalloc
       //  before init, that maps null to a remote_deallocator that will never be
       //  in thread local state.
 
+      auto p = capptr_from_client(p_raw);
       const MetaEntry& entry = SharedStateHandle::Pagemap::get_metaentry(
         core_alloc->backend_state_ptr(), address_cast(p));
       if (likely(local_cache.remote_allocator == entry.get_remote()))
@@ -489,12 +490,10 @@ namespace snmalloc
         if (local_cache.remote_dealloc_cache.reserve_space(entry))
         {
           local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-            entry.get_remote()->trunc_id(),
-            CapPtr<void, CBAlloc>(p),
-            key_global);
+            entry.get_remote()->trunc_id(), p, key_global);
 #  ifdef SNMALLOC_TRACING
-          std::cout << "Remote dealloc fast" << p << " size " << alloc_size(p)
-                    << std::endl;
+          std::cout << "Remote dealloc fast" << p_raw << " size "
+                    << alloc_size(p_raw) << std::endl;
 #  endif
           return;
         }
@@ -504,7 +503,7 @@ namespace snmalloc
       }
 
       // Large deallocation or null.
-      if (likely(p != nullptr))
+      if (likely(p.unsafe_ptr() != nullptr))
       {
         // Check this is managed by this pagemap.
         check_client(entry.get_sizeclass() != 0, "Not allocated by snmalloc.");
@@ -522,7 +521,7 @@ namespace snmalloc
 #  endif
         ChunkRecord* slab_record =
           reinterpret_cast<ChunkRecord*>(entry.get_metaslab());
-        slab_record->chunk = CapPtr<void, CBChunk>(p);
+        slab_record->chunk = CapPtr<void, CBChunk>(p.unsafe_ptr()); // XXX!
         check_init(
           [](
             CoreAlloc* core_alloc,

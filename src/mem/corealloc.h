@@ -161,7 +161,7 @@ namespace snmalloc
     {
       // Manufacture an allocation to prime the queue
       // Using an actual allocation removes a conditional from a critical path.
-      auto dummy = CapPtr<void, CBAlloc>(small_alloc_one(MIN_ALLOC_SIZE))
+      auto dummy = CapPtr<void, CBAllocE>(small_alloc_one(MIN_ALLOC_SIZE))
                      .template as_static<FreeObject>();
       if (dummy == nullptr)
       {
@@ -243,14 +243,15 @@ namespace snmalloc
       auto curr_ptr = start_ptr;
       do
       {
-        b.add(FreeObject::make(curr_ptr.as_void()), key);
+        b.add(FreeObject::make(capptr_export(curr_ptr).as_void()), key);
         curr_ptr = curr_ptr->next;
       } while (curr_ptr != start_ptr);
 #else
       auto p = bumpptr;
       do
       {
-        b.add(Aal::capptr_bound<FreeObject, CBAlloc>(p, rsize), key);
+        b.add(
+          capptr_export(Aal::capptr_bound<FreeObject, CBAlloc>(p, rsize)), key);
         p = pointer_offset(p, rsize);
       } while (p < slab_end);
 #endif
@@ -419,7 +420,7 @@ namespace snmalloc
      * need_post will be set to true, if capacity is exceeded.
      */
     void handle_dealloc_remote(
-      const MetaEntry& entry, CapPtr<FreeObject, CBAlloc> p, bool& need_post)
+      const MetaEntry& entry, CapPtr<FreeObject, CBAllocE> p, bool& need_post)
     {
       // TODO this needs to not double count stats
       // TODO this needs to not double revoke if using MTE
@@ -427,7 +428,7 @@ namespace snmalloc
 
       if (likely(entry.get_remote() == public_state()))
       {
-        if (likely(dealloc_local_object_fast(entry, p.unsafe_ptr(), entropy)))
+        if (likely(dealloc_local_object_fast(entry, p.as_void(), entropy)))
           return;
 
         dealloc_local_object_slow(entry);
@@ -552,7 +553,7 @@ namespace snmalloc
       return handle_message_queue_inner(action, args...);
     }
 
-    SNMALLOC_FAST_PATH void dealloc_local_object(void* p)
+    SNMALLOC_FAST_PATH void dealloc_local_object(CapPtr<void, CBAllocE> p)
     {
       auto entry = SharedStateHandle::Pagemap::get_metaentry(
         backend_state_ptr(), snmalloc::address_cast(p));
@@ -563,7 +564,7 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH static bool dealloc_local_object_fast(
-      const MetaEntry& entry, void* p, LocalEntropy& entropy)
+      const MetaEntry& entry, CapPtr<void, CBAllocE> p, LocalEntropy& entropy)
     {
       auto meta = entry.get_metaslab();
 
@@ -573,7 +574,7 @@ namespace snmalloc
         Metaslab::is_start_of_object(entry.get_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
-      auto cp = CapPtr<FreeObject, CBAlloc>(reinterpret_cast<FreeObject*>(p));
+      auto cp = p.as_static<FreeObject>();
 
       auto& key = entropy.get_free_list_key();
 
