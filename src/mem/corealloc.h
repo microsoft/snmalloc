@@ -4,7 +4,7 @@
 #include "allocconfig.h"
 #include "localcache.h"
 #include "metaslab.h"
-#include "pooled.h"
+#include "pool.h"
 #include "remotecache.h"
 #include "sizeclasstable.h"
 #include "slaballocator.h"

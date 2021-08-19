@@ -4,11 +4,12 @@
 #include "../ds/mpmcstack.h"
 #include "../pal/pal_concept.h"
 #include "pooled.h"
+#include "slaballocator.h"
 
 namespace snmalloc
 {
   /**
-   * Pool of a particular type of object.
+   * Pool of Allocators.
    *
    * This pool will never return objects to the OS.  It maintains a list of all
    * objects ever allocated that can be iterated (not concurrency safe).  Pooled
@@ -20,8 +21,10 @@ namespace snmalloc
   template<class T>
   class PoolState
   {
-    template<typename TT>
+    template<typename TT, typename SharedStateHandle>
     friend class Pool;
+    template<typename TT>
+    friend class AllocPool;
 
   private:
     std::atomic_flag lock = ATOMIC_FLAG_INIT;
@@ -32,8 +35,85 @@ namespace snmalloc
     constexpr PoolState() = default;
   };
 
-  template<typename T>
+  template<typename T, typename SharedStateHandle>
   class Pool
+  {
+    PoolState<T> state;
+
+  public:
+    static Pool* make() noexcept
+    {
+      return ChunkAllocator::alloc_meta_data<Pool, SharedStateHandle>(nullptr);
+    }
+
+    template<typename... Args>
+    T* acquire(Args&&... args)
+    {
+      T* p = state.stack.pop();
+
+      if (p != nullptr)
+      {
+        p->set_in_use();
+        return p;
+      }
+
+      p = ChunkAllocator::alloc_meta_data<T, SharedStateHandle>(
+        nullptr, std::forward<Args>(args)...);
+
+      FlagLock f(state.lock);
+      p->list_next = state.list;
+      state.list = p;
+
+      p->set_in_use();
+      return p;
+    }
+
+    /**
+     * Return to the pool an object previously retrieved by `acquire`
+     *
+     * Do not return objects from `extract`.
+     */
+    void release(T* p)
+    {
+      // The object's destructor is not run. If the object is "reallocated", it
+      // is returned without the constructor being run, so the object is reused
+      // without re-initialisation.
+      p->reset_in_use();
+      state.stack.push(p);
+    }
+
+    T* extract(T* p = nullptr)
+    {
+      // Returns a linked list of all objects in the stack, emptying the stack.
+      if (p == nullptr)
+        return state.stack.pop_all();
+
+      return p->next;
+    }
+
+    /**
+     * Return to the pool a list of object previously retrieved by `extract`
+     *
+     * Do not return objects from `acquire`.
+     */
+    void restore(T* first, T* last)
+    {
+      // Pushes a linked list of objects onto the stack. Use to put a linked
+      // list returned by extract back onto the stack.
+      state.stack.push(first, last);
+    }
+
+    T* iterate(T* p = nullptr)
+    {
+      if (p == nullptr)
+        return state.list;
+
+      return p->list_next;
+    }
+  };
+
+  template<typename T>
+  class AllocPool
   {
   public:
     template<typename SharedStateHandle, typename... Args>
