@@ -142,13 +142,13 @@ namespace snmalloc
      */
     static SNMALLOC_FAST_PATH CapPtr<FreeObject, CBAllocE> alloc(
       Metaslab* meta,
-      FreeListIter& fast_free_list,
+      FreeListIter<CBAllocE>& fast_free_list,
       LocalEntropy& entropy,
       sizeclass_t sizeclass)
     {
       auto& key = entropy.get_free_list_key();
 
-      FreeListIter tmp_fl;
+      FreeListIter<CBAllocE> tmp_fl;
       meta->free_queue.close(tmp_fl, key);
       auto p = tmp_fl.take(key);
       fast_free_list = tmp_fl;

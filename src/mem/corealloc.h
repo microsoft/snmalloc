@@ -181,14 +181,14 @@ namespace snmalloc
       SNMALLOC_ASSERT(attached_cache != nullptr);
       // Use attached cache, and fill it if it is empty.
       return attached_cache->template alloc<NoZero, SharedStateHandle>(
-        size, [&](sizeclass_t sizeclass, FreeListIter* fl) {
+        size, [&](sizeclass_t sizeclass, FreeListIter<CBAllocE>* fl) {
           return small_alloc<NoZero>(sizeclass, *fl);
         });
     }
 
     static SNMALLOC_FAST_PATH void alloc_new_list(
       CapPtr<void, CBChunk>& bumpptr,
-      FreeListIter& fast_free_list,
+      FreeListIter<CBAllocE>& fast_free_list,
       size_t rsize,
       size_t slab_size,
       LocalEntropy& entropy)
@@ -265,7 +265,7 @@ namespace snmalloc
     ChunkRecord* clear_slab(Metaslab* meta, sizeclass_t sizeclass)
     {
       auto& key = entropy.get_free_list_key();
-      FreeListIter fl;
+      FreeListIter<CBAllocE> fl;
       meta->free_queue.close(fl, key);
       void* p = finish_alloc_no_zero(fl.take(key), sizeclass);
 
@@ -586,7 +586,7 @@ namespace snmalloc
 
     template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH void*
-    small_alloc(sizeclass_t sizeclass, FreeListIter& fast_free_list)
+    small_alloc(sizeclass_t sizeclass, FreeListIter<CBAllocE>& fast_free_list)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
 
@@ -627,7 +627,9 @@ namespace snmalloc
 
     template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH void* small_alloc_slow(
-      sizeclass_t sizeclass, FreeListIter& fast_free_list, size_t rsize)
+      sizeclass_t sizeclass,
+      FreeListIter<CBAllocE>& fast_free_list,
+      size_t rsize)
     {
       // No existing free list get a new slab.
       size_t slab_size = sizeclass_to_slab_size(sizeclass);
@@ -681,7 +683,7 @@ namespace snmalloc
         while (p != nullptr)
         {
           bool need_post = true; // Always going to post, so ignore.
-          auto n = p->atomic_read_next(key_global);
+          auto n = FreeObject::atomic_read_next(p, key_global);
           auto& entry = SharedStateHandle::Pagemap::get_metaentry(
             backend_state_ptr(), snmalloc::address_cast(p));
           handle_dealloc_remote(entry, p, need_post);

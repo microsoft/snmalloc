@@ -110,7 +110,7 @@ namespace snmalloc
         // Entries could map back onto the "resend" list,
         // so take copy of the head, mark the last element,
         // and clear the original list.
-        FreeListIter resend;
+        FreeListIter<CBAllocE> resend; // XXX
         list[my_slot].close(resend, key);
 
         post_round++;

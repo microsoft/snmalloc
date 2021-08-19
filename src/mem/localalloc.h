@@ -213,11 +213,14 @@ namespace snmalloc
       //      SNMALLOC_ASSUME(size <= sizeclass_to_size(NUM_SIZECLASSES));
       auto slowpath = [&](
                         sizeclass_t sizeclass,
-                        FreeListIter* fl) SNMALLOC_FAST_PATH_LAMBDA {
+                        FreeListIter<CBAllocE>* fl) SNMALLOC_FAST_PATH_LAMBDA {
         if (likely(core_alloc != nullptr))
         {
           return core_alloc->handle_message_queue(
-            [](CoreAlloc* core_alloc, sizeclass_t sizeclass, FreeListIter* fl) {
+            [](
+              CoreAlloc* core_alloc,
+              sizeclass_t sizeclass,
+              FreeListIter<CBAllocE>* fl) {
               return core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
             },
             core_alloc,

@@ -99,7 +99,7 @@ namespace snmalloc
       // Returns the front message, or null if not possible to return a message.
       invariant();
       CapPtr<FreeObject, CBAllocE> first = front;
-      CapPtr<FreeObject, CBAllocE> next = first->atomic_read_next(key);
+      auto next = FreeObject::atomic_read_next(first, key);
 
       if (next != nullptr)
       {
