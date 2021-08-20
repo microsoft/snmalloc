@@ -9,8 +9,6 @@
 
 namespace snmalloc
 {
-  class Slab;
-
   // The Metaslab represent the status of a single slab.
   // This can be either a short or a standard slab.
   class alignas(CACHELINE_SIZE) Metaslab
@@ -183,8 +181,6 @@ namespace snmalloc
       return {p, !sleeping};
     }
   };
-
-  struct RemoteAllocator;
 
   /**
    * Entry stored in the pagemap.
