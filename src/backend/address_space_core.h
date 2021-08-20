@@ -4,6 +4,7 @@
 #include "../mem/allocconfig.h"
 #include "../mem/metaslab.h"
 #include "../pal/pal.h"
+#include "backend_concept.h"
 
 #include <array>
 #ifdef SNMALLOC_TRACING
@@ -67,12 +68,11 @@ namespace snmalloc
      * to store the next pointer for the list of unused address space of a
      * particular size.
      */
-    template<typename Pagemap>
+    template<SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
     void set_next(
       size_t align_bits,
       CapPtr<FreeChunk, CBChunk> base,
-      CapPtr<FreeChunk, CBChunk> next,
-      Pagemap& pagemap)
+      CapPtr<FreeChunk, CBChunk> next)
     {
       if (align_bits >= MIN_CHUNK_BITS)
       {
@@ -84,7 +84,7 @@ namespace snmalloc
         // external_pointer, for example) will not attempt to follow this
         // "Metaslab" pointer.
         MetaEntry t(reinterpret_cast<Metaslab*>(next.unsafe_ptr()), nullptr, 0);
-        pagemap.set(address_cast(base), t);
+        Pagemap::set_meta_data(address_cast(base), 1, t);
         return;
       }
 
@@ -100,13 +100,14 @@ namespace snmalloc
      * to store the next pointer for the list of unused address space of a
      * particular size.
      */
-    template<typename Pagemap>
-    CapPtr<FreeChunk, CBChunk> get_next(
-      size_t align_bits, CapPtr<FreeChunk, CBChunk> base, Pagemap& pagemap)
+    template<SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
+    CapPtr<FreeChunk, CBChunk>
+    get_next(size_t align_bits, CapPtr<FreeChunk, CBChunk> base)
     {
       if (align_bits >= MIN_CHUNK_BITS)
       {
-        const MetaEntry& t = pagemap.template get<false>(address_cast(base));
+        const MetaEntry& t =
+          Pagemap::template get_meta_data<false>(address_cast(base));
         return CapPtr<FreeChunk, CBChunk>(
           reinterpret_cast<FreeChunk*>(t.get_metaslab()));
       }
@@ -117,14 +118,15 @@ namespace snmalloc
     /**
      * Adds a block to `ranges`.
      */
-    template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename Pagemap>
-    void add_block(
-      size_t align_bits, CapPtr<FreeChunk, CBChunk> base, Pagemap& pagemap)
+    template<
+      SNMALLOC_CONCEPT(ConceptPAL) PAL,
+      SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
+    void add_block(size_t align_bits, CapPtr<FreeChunk, CBChunk> base)
     {
       check_block(base, align_bits);
       SNMALLOC_ASSERT(align_bits < 64);
 
-      set_next(align_bits, base, ranges[align_bits], pagemap);
+      set_next<Pagemap>(align_bits, base, ranges[align_bits]);
       ranges[align_bits] = base.as_static<FreeChunk>();
     }
 
@@ -132,8 +134,10 @@ namespace snmalloc
      * Find a block of the correct size. May split larger blocks
      * to satisfy this request.
      */
-    template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename Pagemap>
-    CapPtr<void, CBChunk> remove_block(size_t align_bits, Pagemap& pagemap)
+    template<
+      SNMALLOC_CONCEPT(ConceptPAL) PAL,
+      SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
+    CapPtr<void, CBChunk> remove_block(size_t align_bits)
     {
       CapPtr<FreeChunk, CBChunk> first = ranges[align_bits];
       if (first == nullptr)
@@ -146,7 +150,7 @@ namespace snmalloc
 
         // Look for larger block and split up recursively
         CapPtr<void, CBChunk> bigger =
-          remove_block<PAL>(align_bits + 1, pagemap);
+          remove_block<PAL, Pagemap>(align_bits + 1);
         if (bigger != nullptr)
         {
           // This block is going to be broken up into sub CHUNK_SIZE blocks
@@ -160,10 +164,9 @@ namespace snmalloc
           size_t left_over_size = bits::one_at_bit(align_bits);
           auto left_over = pointer_offset(bigger, left_over_size);
 
-          add_block<PAL>(
+          add_block<PAL, Pagemap>(
             align_bits,
-            Aal::capptr_bound<FreeChunk, CBChunk>(left_over, left_over_size),
-            pagemap);
+            Aal::capptr_bound<FreeChunk, CBChunk>(left_over, left_over_size));
           check_block(left_over.as_static<FreeChunk>(), align_bits);
         }
         check_block(bigger.as_static<FreeChunk>(), align_bits + 1);
@@ -171,7 +174,7 @@ namespace snmalloc
       }
 
       check_block(first, align_bits);
-      ranges[align_bits] = get_next(align_bits, first, pagemap);
+      ranges[align_bits] = get_next<Pagemap>(align_bits, first);
       return first.as_void();
     }
 
@@ -180,8 +183,10 @@ namespace snmalloc
      * Add a range of memory to the address space.
      * Divides blocks into power of two sizes with natural alignment
      */
-    template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename Pagemap>
-    void add_range(CapPtr<void, CBChunk> base, size_t length, Pagemap& pagemap)
+    template<
+      SNMALLOC_CONCEPT(ConceptPAL) PAL,
+      SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
+    void add_range(CapPtr<void, CBChunk> base, size_t length)
     {
       // For start and end that are not chunk sized, we need to
       // commit the pages to track the allocations.
@@ -206,7 +211,7 @@ namespace snmalloc
         auto b = base.as_static<FreeChunk>();
 
         check_block(b, align_bits);
-        add_block<PAL>(align_bits, b, pagemap);
+        add_block<PAL, Pagemap>(align_bits, b);
 
         base = pointer_offset(base, align);
         length -= align;
@@ -238,8 +243,10 @@ namespace snmalloc
      * part of satisfying the request will be registered with the provided
      * arena_map for use in subsequent amplification.
      */
-    template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename Pagemap>
-    CapPtr<void, CBChunk> reserve(size_t size, Pagemap& pagemap)
+    template<
+      SNMALLOC_CONCEPT(ConceptPAL) PAL,
+      SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
+    CapPtr<void, CBChunk> reserve(size_t size)
     {
 #ifdef SNMALLOC_TRACING
       std::cout << "ASM Core reserve request:" << size << std::endl;
@@ -248,7 +255,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
-      return remove_block<PAL>(bits::next_pow2_bits(size), pagemap);
+      return remove_block<PAL, Pagemap>(bits::next_pow2_bits(size));
     }
 
     /**
@@ -258,8 +265,10 @@ namespace snmalloc
      * This is useful for allowing the space required for alignment to be
      * used, by smaller objects.
      */
-    template<SNMALLOC_CONCEPT(ConceptPAL) PAL, typename Pagemap>
-    CapPtr<void, CBChunk> reserve_with_left_over(size_t size, Pagemap& pagemap)
+    template<
+      SNMALLOC_CONCEPT(ConceptPAL) PAL,
+      SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
+    CapPtr<void, CBChunk> reserve_with_left_over(size_t size)
     {
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
@@ -267,13 +276,13 @@ namespace snmalloc
 
       size_t rsize = bits::next_pow2(size);
 
-      auto res = reserve<PAL>(rsize, pagemap);
+      auto res = reserve<PAL, Pagemap>(rsize);
 
       if (res != nullptr)
       {
         if (rsize > size)
         {
-          add_range<PAL>(pointer_offset(res, size), rsize - size, pagemap);
+          add_range<PAL, Pagemap>(pointer_offset(res, size), rsize - size);
         }
       }
       return res;
