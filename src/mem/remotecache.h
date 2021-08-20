@@ -95,7 +95,7 @@ namespace snmalloc
           {
             auto [first, last] = list[i].extract_segment(key);
             MetaEntry entry =
-              SharedStateHandle::get_meta_data(address_cast(first));
+              SharedStateHandle::Pagemap::get_meta_data(address_cast(first));
             entry.get_remote()->enqueue(first, last, key);
             sent_something = true;
           }
@@ -117,7 +117,8 @@ namespace snmalloc
           // Use the next N bits to spread out remote deallocs in our own
           // slot.
           auto r = resend.take(key);
-          MetaEntry entry = SharedStateHandle::get_meta_data(address_cast(r));
+          MetaEntry entry =
+            SharedStateHandle::Pagemap::get_meta_data(address_cast(r));
           auto i = entry.get_remote()->trunc_id();
           size_t slot = get_slot<allocator_size>(i, post_round);
           list[slot].add(r, key);

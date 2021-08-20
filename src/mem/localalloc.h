@@ -260,7 +260,8 @@ namespace snmalloc
         std::cout << "Remote dealloc post" << p << " size " << alloc_size(p)
                   << std::endl;
 #endif
-        MetaEntry entry = SharedStateHandle::get_meta_data(address_cast(p));
+        MetaEntry entry =
+          SharedStateHandle::Pagemap::get_meta_data(address_cast(p));
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
           entry.get_remote()->trunc_id(), CapPtr<void, CBAlloc>(p), key_global);
         post_remote_cache();
@@ -472,7 +473,7 @@ namespace snmalloc
       //  in thread local state.
 
       const MetaEntry& entry =
-        SharedStateHandle::get_meta_data(address_cast(p));
+        SharedStateHandle::Pagemap::get_meta_data(address_cast(p));
       if (likely(local_cache.remote_allocator == entry.get_remote()))
       {
         if (likely(CoreAlloc::dealloc_local_object_fast(
@@ -582,7 +583,8 @@ namespace snmalloc
       // To handle this case we require the uninitialised pagemap contain an
       // entry for the first chunk of memory, that states it represents a large
       // object, so we can pull the check for null off the fast path.
-      MetaEntry entry = SharedStateHandle::get_meta_data(address_cast(p_raw));
+      MetaEntry entry =
+        SharedStateHandle::Pagemap::get_meta_data(address_cast(p_raw));
 
       if (likely(entry.get_remote() != SharedStateHandle::fake_large_remote))
         return sizeclass_to_size(entry.get_sizeclass());
@@ -608,7 +610,8 @@ namespace snmalloc
 #ifndef SNMALLOC_PASS_THROUGH
       // TODO bring back the CHERI bits. Wes to review if required.
       MetaEntry entry =
-        SharedStateHandle::template get_meta_data<true>(address_cast(p_raw));
+        SharedStateHandle::Pagemap::template get_meta_data<true>(
+          address_cast(p_raw));
       auto sizeclass = entry.get_sizeclass();
       if (likely(entry.get_remote() != SharedStateHandle::fake_large_remote))
       {

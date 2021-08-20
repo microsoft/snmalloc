@@ -62,6 +62,38 @@ namespace snmalloc
     static inline FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, PAL, fixed_range>
       pagemap;
 
+    struct Pagemap
+    {
+      /**
+       * Get the metadata associated with a chunk.
+       *
+       * Set template parameter to true if it not an error
+       * to access a location that is not backed by a chunk.
+       */
+      template<bool potentially_out_of_range = false>
+      SNMALLOC_FAST_PATH static const MetaEntry& get_meta_data(address_t p)
+      {
+        return pagemap.template get<potentially_out_of_range>(p);
+      }
+
+      /**
+       * Set the metadata associated with a chunk.
+       */
+      SNMALLOC_FAST_PATH
+      static void set_meta_data(address_t p, size_t size, MetaEntry t)
+      {
+        for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
+        {
+          pagemap.set(a, t);
+        }
+      }
+
+      static void register_range(address_t p, size_t sz)
+      {
+        pagemap.register_range(p, sz);
+      }
+    };
+
   public:
     template<bool fixed_range_ = fixed_range>
     static std::enable_if_t<!fixed_range_> init()
@@ -77,8 +109,8 @@ namespace snmalloc
       static_assert(fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
 
       auto [heap_base, heap_length] = pagemap.init(base, length);
-      address_space.add_range(
-        CapPtr<void, CBChunk>(heap_base), heap_length, pagemap);
+      address_space.template add_range<Pagemap>(
+        CapPtr<void, CBChunk>(heap_base), heap_length);
     }
 
   private:
@@ -136,14 +168,14 @@ namespace snmalloc
         auto& local = local_state->local_address_space;
 #endif
 
-        p = local.template reserve_with_left_over<PAL>(size, pagemap);
+        p = local.template reserve_with_left_over<PAL, Pagemap>(size);
         if (p != nullptr)
         {
           return p;
         }
 
         auto refill_size = LOCAL_CACHE_BLOCK;
-        auto refill = global.template reserve<false>(refill_size, pagemap);
+        auto refill = global.template reserve<false, Pagemap>(refill_size);
         if (refill == nullptr)
           return nullptr;
 
@@ -155,10 +187,10 @@ namespace snmalloc
         }
 #endif
         PAL::template notify_using<NoZero>(refill.unsafe_ptr(), refill_size);
-        local.template add_range<PAL>(refill, refill_size, pagemap);
+        local.template add_range<PAL, Pagemap>(refill, refill_size);
 
         // This should succeed
-        return local.template reserve_with_left_over<PAL>(size, pagemap);
+        return local.template reserve_with_left_over<PAL, Pagemap>(size);
       }
 
 #ifdef SNMALLOC_CHECK_CLIENT
@@ -169,7 +201,7 @@ namespace snmalloc
         size_t rsize = bits::max(OS_PAGE_SIZE, bits::next_pow2(size));
         size_t size_request = rsize * 64;
 
-        p = global.template reserve<false>(size_request, pagemap);
+        p = global.template reserve<false, Pagemap>(size_request);
         if (p == nullptr)
           return nullptr;
 
@@ -185,7 +217,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(!is_meta);
 #endif
 
-      p = global.template reserve_with_left_over<true>(size, pagemap);
+      p = global.template reserve_with_left_over<true, Pagemap>(size);
       return p;
     }
 
@@ -249,37 +281,8 @@ namespace snmalloc
       }
 
       MetaEntry t(meta, remote, sizeclass);
-
-      for (address_t a = address_cast(p);
-           a < address_cast(pointer_offset(p, size));
-           a += MIN_CHUNK_SIZE)
-      {
-        pagemap.set(a, t);
-      }
+      Pagemap::set_meta_data(address_cast(p), size, t);
       return {p, meta};
-    }
-
-    /**
-     * Get the metadata associated with a chunk.
-     *
-     * Set template parameter to true if it not an error
-     * to access a location that is not backed by a chunk.
-     */
-    template<bool potentially_out_of_range = false>
-    static const MetaEntry& get_meta_data(address_t p)
-    {
-      return pagemap.template get<potentially_out_of_range>(p);
-    }
-
-    /**
-     * Set the metadata associated with a chunk.
-     */
-    static void set_meta_data(address_t p, size_t size, MetaEntry t)
-    {
-      for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
-      {
-        pagemap.set(a, t);
-      }
     }
   };
 } // namespace snmalloc
