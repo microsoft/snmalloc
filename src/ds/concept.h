@@ -38,5 +38,34 @@ namespace snmalloc
   template<typename T, typename U>
   concept ConceptSame = std::is_same<T, U>::value;
 #  endif
+
+  /**
+   * Some of the types in snmalloc are circular in their definition and use
+   * templating as a lazy language to carefully tie knots and only pull on the
+   * whole mess once it's assembled.  Unfortunately, concepts amount to eagerly
+   * demanding the result of the computation.  If concepts come into play during
+   * the circular definition, they may see an incomplete type and so fail (with
+   * "incomplete type ... used in type trait expression" or similar).  However,
+   * it turns out that SFINAE gives us a way to detect whether a template
+   * parameter refers to an incomplete type, and short circuit evaluation means
+   * we can bail on concept checking if we find ourselves in this situation.
+   *
+   * See https://devblogs.microsoft.com/oldnewthing/20190710-00/?p=102678
+   *
+   * Unfortunately, C++20 concepts are not first-order things and, in
+   * particular, cannot themselves be template parameters.  So while we would
+   * love to write a generic Lazy combinator,
+   *
+   *   template<template<typename> concept C, typename T>
+   *   concept Lazy = !is_type_complete_v<T> || C<T>();
+   *
+   * this will instead have to be inlined at every definition (and referred to
+   * explicitly at call sites) until C++23 or later.
+   */
+  template<typename, typename = void>
+  constexpr bool is_type_complete_v = false;
+  template<typename T>
+  constexpr bool is_type_complete_v<T, std::void_t<decltype(sizeof(T))>> = true;
+
 } // namespace snmalloc
 #endif
