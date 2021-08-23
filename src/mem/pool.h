@@ -21,7 +21,7 @@ namespace snmalloc
   template<class T>
   class PoolState
   {
-    template<typename TT>
+    template<typename TT, typename SharedStateHandle>
     friend class Pool;
 
   private:
@@ -55,11 +55,11 @@ namespace snmalloc
     }
   };
 
-  template<typename T>
+  template<typename T, typename SharedStateHandle>
   class Pool
   {
   public:
-    template<typename SharedStateHandle, typename... Args>
+    template<typename... Args>
     static T* acquire(Args&&... args)
     {
       PoolState<T>& pool = SharedStateHandle::pool();
@@ -93,7 +93,6 @@ namespace snmalloc
      *
      * Do not return objects from `extract`.
      */
-    template<typename SharedStateHandle>
     static void release(T* p)
     {
       // The object's destructor is not run. If the object is "reallocated", it
@@ -103,7 +102,6 @@ namespace snmalloc
       SharedStateHandle::pool().stack.push(p);
     }
 
-    template<typename SharedStateHandle>
     static T* extract(T* p = nullptr)
     {
       // Returns a linked list of all objects in the stack, emptying the stack.
@@ -118,7 +116,6 @@ namespace snmalloc
      *
      * Do not return objects from `acquire`.
      */
-    template<typename SharedStateHandle>
     static void restore(T* first, T* last)
     {
       // Pushes a linked list of objects onto the stack. Use to put a linked
@@ -126,7 +123,6 @@ namespace snmalloc
       SharedStateHandle::pool().stack.push(first, last);
     }
 
-    template<typename SharedStateHandle>
     static T* iterate(T* p = nullptr)
     {
       if (p == nullptr)

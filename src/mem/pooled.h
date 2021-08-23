@@ -8,7 +8,7 @@ namespace snmalloc
   class Pooled
   {
   private:
-    template<class TT>
+    template<class TT, typename SharedStateHandle>
     friend class Pool;
     template<class a, Construction c>
     friend class MPMCStack;
