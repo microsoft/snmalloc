@@ -43,13 +43,13 @@ namespace snmalloc
    *   provided externally, then it must be set explicitly with
    *   `init_message_queue`.
    */
-  template<typename SharedStateHandle>
+  template<SNMALLOC_CONCEPT(ConceptBackendGlobalsLazy) SharedStateHandle>
   class CoreAllocator : public std::conditional_t<
                           SharedStateHandle::Options.CoreAllocIsPoolAllocated,
                           Pooled<CoreAllocator<SharedStateHandle>>,
                           NotPoolAllocated>
   {
-    template<typename SharedStateHandle2>
+    template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle2>
     friend class LocalAllocator;
 
     /**

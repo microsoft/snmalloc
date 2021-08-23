@@ -75,7 +75,7 @@ namespace snmalloc
   class ChunkAllocator
   {
   public:
-    template<typename SharedStateHandle>
+    template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
     static std::pair<CapPtr<void, CBChunk>, Metaslab*> alloc_chunk(
       typename SharedStateHandle::LocalState& local_state,
       sizeclass_t sizeclass,
@@ -130,7 +130,7 @@ namespace snmalloc
       return {slab, meta};
     }
 
-    template<typename SharedStateHandle>
+    template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
     SNMALLOC_SLOW_PATH static void dealloc(
       typename SharedStateHandle::LocalState& local_state,
       ChunkRecord* p,
@@ -153,7 +153,10 @@ namespace snmalloc
      * Backend allocator may use guard pages and separate area of
      * address space to protect this from corruption.
      */
-    template<typename U, typename SharedStateHandle, typename... Args>
+    template<
+      typename U,
+      SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle,
+      typename... Args>
     static U* alloc_meta_data(
       typename SharedStateHandle::LocalState* local_state, Args&&... args)
     {
