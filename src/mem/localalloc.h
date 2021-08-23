@@ -117,7 +117,7 @@ namespace snmalloc
           "initialisation");
         // Unreachable, but needed to keep the type checker happy in deducing
         // the return type of this function.
-        return static_cast<void*>(nullptr);
+        return static_cast<decltype(action(core_alloc, args...))>(nullptr);
       }
       else
       {
