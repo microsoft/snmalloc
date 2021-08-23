@@ -345,7 +345,7 @@ namespace snmalloc
   public:
     constexpr LocalAllocator() = default;
     LocalAllocator(const LocalAllocator&) = delete;
-    LocalAllocator& operator= (const LocalAllocator&) = delete;
+    LocalAllocator& operator=(const LocalAllocator&) = delete;
 
     /**
      * Initialise the allocator.  For allocators that support local

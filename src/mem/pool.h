@@ -9,7 +9,7 @@
 namespace snmalloc
 {
   /**
-   * Pool of Allocators.
+   * Pool of a particular type of object.
    *
    * This pool will never return objects to the OS.  It maintains a list of all
    * objects ever allocated that can be iterated (not concurrency safe).  Pooled
@@ -112,6 +112,11 @@ namespace snmalloc
     }
   };
 
+  /**
+   * Collection of static wrappers for the allocator pool.
+   * The PoolState for this particular pool type is owned by the
+   * SharedStateHandle, so there is no object state in this class.
+   */
   template<typename T>
   class AllocPool
   {
