@@ -3,6 +3,7 @@
 #ifdef __cpp_concepts
 #  include <cstddef>
 #  include "../ds/concept.h"
+#  include "../pal/pal_concept.h"
 
 namespace snmalloc
 {
@@ -52,6 +53,44 @@ namespace snmalloc
   template<typename Meta>
   concept ConceptBackendMetaRange =
     ConceptBackendMeta<Meta> && ConceptBackendMeta_Range<Meta>;
+
+  class CommonConfig;
+  struct Flags;
+
+  /**
+   * Backend global objects of type T must obey a number of constraints.  They
+   * must...
+   *
+   *  * inherit from CommonConfig (see commonconfig.h)
+   *  * specify which PAL is in use via T::Pal
+   *  * have static pagemap accessors via T::Pagemap
+   *  * define a T::LocalState type
+   *  * define T::Options of type snmalloc::Flags
+   *  * expose the global allocator pool via T::pool()
+   *
+   */
+  template<typename Globals>
+  concept ConceptBackendGlobals =
+    std::is_base_of<CommonConfig, Globals>::value &&
+    ConceptPAL<typename Globals::Pal> &&
+    ConceptBackendMetaRange<typename Globals::Pagemap> &&
+    requires()
+    {
+      typename Globals::LocalState;
+
+      { Globals::Options } -> ConceptSameModRef<const Flags>;
+
+      typename Globals::GlobalPoolState;
+      { Globals::pool() } -> ConceptSame<typename Globals::GlobalPoolState &>;
+    };
+
+  /**
+   * The lazy version of the above; please see ds/concept.h and use sparingly.
+   */
+  template<typename Globals>
+  concept ConceptBackendGlobalsLazy =
+    !is_type_complete_v<Globals> || ConceptBackendGlobals<Globals>;
+
 } // namespace snmalloc
 
 #endif
