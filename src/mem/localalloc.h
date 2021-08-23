@@ -380,7 +380,7 @@ namespace snmalloc
       // Initialise the global allocator structures
       ensure_init();
       // Grab an allocator for this thread.
-      init(Pool<CoreAlloc, SharedStateHandle>::acquire(&(this->local_cache)));
+      init(AllocPool<SharedStateHandle>::acquire(&(this->local_cache)));
     }
 
     // Return all state in the fast allocator and release the underlying
@@ -402,7 +402,7 @@ namespace snmalloc
         // Return underlying allocator to the system.
         if constexpr (SharedStateHandle::Options.CoreAllocOwnsLocalState)
         {
-          Pool<CoreAlloc, SharedStateHandle>::release(core_alloc);
+          AllocPool<SharedStateHandle>::release(core_alloc);
         }
 
         // Set up thread local allocator to look like

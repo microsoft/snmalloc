@@ -5,10 +5,16 @@
 namespace snmalloc
 {
   template<class T>
+  class PoolState;
+
+  template<class T>
   class Pooled
   {
-  private:
-    template<class TT, typename SharedStateHandle>
+  public:
+    template<
+      typename TT,
+      typename SharedStateHandle,
+      PoolState<TT>& get_state()>
     friend class Pool;
     template<class a, Construction c>
     friend class MPMCStack;

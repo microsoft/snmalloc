@@ -21,7 +21,10 @@ namespace snmalloc
   template<class T>
   class PoolState
   {
-    template<typename TT, typename SharedStateHandle>
+    template<
+      typename TT,
+      typename SharedStateHandle,
+      PoolState<TT>& get_state()>
     friend class Pool;
 
   private:
@@ -34,35 +37,28 @@ namespace snmalloc
   };
 
   /**
-   * Class used to instantiate non-allocator pools using a Singleton PoolState.
+   * Class used to instantiate a global non-allocator PoolState.
    */
-  template<typename T, typename SharedStateHandle>
-  class PoolStateHandle
+  template<typename T>
+  class SingletonPoolState
   {
-    static PoolState<T>& pool_state =
-      Singleton<PoolState<T>, PoolStateHandle::make_state>::get();
-
-    static PoolState<T>* make_state()
-    {
-      return ChunkAllocator::alloc_meta_data<PoolState<T>, SharedStateHandle>(
-        nullptr);
-    }
+    static inline PoolState<T> state;
 
   public:
     static PoolState<T>& pool()
     {
-      return pool_state;
+      return state;
     }
   };
 
-  template<typename T, typename SharedStateHandle>
+  template<typename T, typename SharedStateHandle, PoolState<T>& get_state()>
   class Pool
   {
   public:
     template<typename... Args>
     static T* acquire(Args&&... args)
     {
-      PoolState<T>& pool = SharedStateHandle::pool();
+      PoolState<T>& pool = get_state();
       T* p = pool.stack.pop();
 
       if (p != nullptr)
@@ -99,14 +95,14 @@ namespace snmalloc
       // is returned without the constructor being run, so the object is reused
       // without re-initialisation.
       p->reset_in_use();
-      SharedStateHandle::pool().stack.push(p);
+      get_state().stack.push(p);
     }
 
     static T* extract(T* p = nullptr)
     {
       // Returns a linked list of all objects in the stack, emptying the stack.
       if (p == nullptr)
-        return SharedStateHandle::pool().stack.pop_all();
+        return get_state().stack.pop_all();
 
       return p->next;
     }
@@ -120,13 +116,13 @@ namespace snmalloc
     {
       // Pushes a linked list of objects onto the stack. Use to put a linked
       // list returned by extract back onto the stack.
-      SharedStateHandle::pool().stack.push(first, last);
+      get_state().stack.push(first, last);
     }
 
     static T* iterate(T* p = nullptr)
     {
       if (p == nullptr)
-        return SharedStateHandle::pool().list;
+        return get_state().list;
 
       return p->list_next;
     }

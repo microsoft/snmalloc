@@ -785,4 +785,10 @@ namespace snmalloc
       return debug_is_empty_impl(result);
     }
   };
+
+  template<typename SharedStateHandle>
+  using AllocPool = Pool<
+    CoreAllocator<SharedStateHandle>,
+    SharedStateHandle,
+    SharedStateHandle::pool>;
 } // namespace snmalloc

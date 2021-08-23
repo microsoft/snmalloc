@@ -11,8 +11,7 @@ namespace snmalloc
     static_assert(
       SharedStateHandle::Options.CoreAllocIsPoolAllocated,
       "Global statistics are available only for pool-allocated configurations");
-    auto* alloc =
-      Pool<CoreAllocator<SharedStateHandle>, SharedStateHandle>::iterate();
+    auto* alloc = AllocPool<SharedStateHandle>::iterate();
 
     while (alloc != nullptr)
     {
@@ -20,9 +19,7 @@ namespace snmalloc
       if (a != nullptr)
         stats.add(*a);
       stats.add(alloc->stats());
-      alloc =
-        Pool<CoreAllocator<SharedStateHandle>, SharedStateHandle>::iterate(
-          alloc);
+      alloc = AllocPool<SharedStateHandle>::iterate(alloc);
     }
   }
 
@@ -33,17 +30,14 @@ namespace snmalloc
     static_assert(
       SharedStateHandle::Options.CoreAllocIsPoolAllocated,
       "Global statistics are available only for pool-allocated configurations");
-    auto alloc =
-      Pool<CoreAllocator<SharedStateHandle>, SharedStateHandle>::iterate();
+    auto alloc = AllocPool<SharedStateHandle>::iterate();
 
     while (alloc != nullptr)
     {
       auto stats = alloc->stats();
       if (stats != nullptr)
         stats->template print<decltype(alloc)>(o, dumpid, alloc->id());
-      alloc =
-        Pool<CoreAllocator<SharedStateHandle>, SharedStateHandle>::iterate(
-          alloc);
+      alloc = AllocPool<SharedStateHandle>::iterate(alloc);
     }
   }
 #else
@@ -66,8 +60,7 @@ namespace snmalloc
     // allocators that are not currently in use by any thread.
     // One atomic operation to extract the stack, another to restore it.
     // Handling the message queue for each stack is non-atomic.
-    auto* first =
-      Pool<CoreAllocator<SharedStateHandle>, SharedStateHandle>::extract();
+    auto* first = AllocPool<SharedStateHandle>::extract();
     auto* alloc = first;
     decltype(alloc) last;
 
@@ -77,13 +70,10 @@ namespace snmalloc
       {
         alloc->flush();
         last = alloc;
-        alloc =
-          Pool<CoreAllocator<SharedStateHandle>, SharedStateHandle>::extract(
-            alloc);
+        alloc = AllocPool<SharedStateHandle>::extract(alloc);
       }
 
-      Pool<CoreAllocator<SharedStateHandle>, SharedStateHandle>::restore(
-        first, last);
+      AllocPool<SharedStateHandle>::restore(first, last);
     }
 #endif
   }
@@ -102,8 +92,7 @@ namespace snmalloc
       "Global status is available only for pool-allocated configurations");
     // This is a debugging function. It checks that all memory from all
     // allocators has been freed.
-    auto* alloc =
-      Pool<CoreAllocator<SharedStateHandle>, SharedStateHandle>::iterate();
+    auto* alloc = AllocPool<SharedStateHandle>::iterate();
 
 #  ifdef SNMALLOC_TRACING
     std::cout << "debug check empty: first " << alloc << std::endl;
@@ -117,8 +106,7 @@ namespace snmalloc
       std::cout << "debug_check_empty: Check all allocators!" << std::endl;
 #  endif
       done = true;
-      alloc =
-        Pool<CoreAllocator<SharedStateHandle>, SharedStateHandle>::iterate();
+      alloc = AllocPool<SharedStateHandle>::iterate();
       okay = true;
 
       while (alloc != nullptr)
@@ -140,9 +128,7 @@ namespace snmalloc
 #  ifdef SNMALLOC_TRACING
         std::cout << "debug check empty: okay = " << okay << std::endl;
 #  endif
-        alloc =
-          Pool<CoreAllocator<SharedStateHandle>, SharedStateHandle>::iterate(
-            alloc);
+        alloc = AllocPool<SharedStateHandle>::iterate(alloc);
       }
     }
 
@@ -155,14 +141,11 @@ namespace snmalloc
     // Redo check so abort is on allocator with allocation left.
     if (!okay)
     {
-      alloc =
-        Pool<CoreAllocator<SharedStateHandle>, SharedStateHandle>::iterate();
+      alloc = AllocPool<SharedStateHandle>::iterate();
       while (alloc != nullptr)
       {
         alloc->debug_is_empty(nullptr);
-        alloc =
-          Pool<CoreAllocator<SharedStateHandle>, SharedStateHandle>::iterate(
-            alloc);
+        alloc = AllocPool<SharedStateHandle>::iterate(alloc);
       }
     }
 #else
@@ -176,8 +159,7 @@ namespace snmalloc
     static_assert(
       SharedStateHandle::Options.CoreAllocIsPoolAllocated,
       "Global status is available only for pool-allocated configurations");
-    auto alloc =
-      Pool<CoreAllocator<SharedStateHandle>, SharedStateHandle>::iterate();
+    auto alloc = AllocPool<SharedStateHandle>::iterate();
     while (alloc != nullptr)
     {
       if (alloc->debug_is_in_use())
@@ -188,9 +170,7 @@ namespace snmalloc
         }
         count--;
       }
-      alloc =
-        Pool<CoreAllocator<SharedStateHandle>, SharedStateHandle>::iterate(
-          alloc);
+      alloc = AllocPool<SharedStateHandle>::iterate(alloc);
 
       if (count != 0)
       {
