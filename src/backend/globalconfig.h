@@ -31,13 +31,16 @@ namespace snmalloc
    */
   class Globals final : public BackendAllocator<Pal, false>
   {
+  public:
+    using GlobalPoolState = PoolState<CoreAllocator<Globals>>;
+
   private:
     using Backend = BackendAllocator<Pal, false>;
     SNMALLOC_REQUIRE_CONSTINIT
     inline static ChunkAllocatorState slab_allocator_state;
 
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static PoolState<CoreAllocator<Globals>> alloc_pool;
+    inline static GlobalPoolState alloc_pool;
 
     SNMALLOC_REQUIRE_CONSTINIT
     inline static std::atomic<bool> initialised{false};
@@ -52,7 +55,7 @@ namespace snmalloc
       return slab_allocator_state;
     }
 
-    static PoolState<CoreAllocator<Globals>>& pool()
+    static GlobalPoolState& pool()
     {
       return alloc_pool;
     }

@@ -14,11 +14,14 @@ namespace snmalloc
   template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
   class FixedGlobals final : public BackendAllocator<PAL, true>
   {
+  public:
+    using GlobalPoolState = PoolState<CoreAllocator<FixedGlobals>>;
+
   private:
     using Backend = BackendAllocator<PAL, true>;
     inline static ChunkAllocatorState slab_allocator_state;
 
-    inline static PoolState<CoreAllocator<FixedGlobals>> alloc_pool;
+    inline static GlobalPoolState alloc_pool;
 
   public:
     static ChunkAllocatorState&
@@ -27,7 +30,7 @@ namespace snmalloc
       return slab_allocator_state;
     }
 
-    static PoolState<CoreAllocator<FixedGlobals>>& pool()
+    static GlobalPoolState& pool()
     {
       return alloc_pool;
     }
