@@ -5,7 +5,7 @@
 
 namespace snmalloc
 {
-  template<class SharedStateHandle>
+  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
   inline static void aggregate_stats(Stats& stats)
   {
     static_assert(
@@ -24,7 +24,7 @@ namespace snmalloc
   }
 
 #ifdef USE_SNMALLOC_STATS
-  template<class SharedStateHandle>
+  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
   inline static void print_all_stats(std::ostream& o, uint64_t dumpid = 0)
   {
     static_assert(
@@ -41,7 +41,7 @@ namespace snmalloc
     }
   }
 #else
-  template<class SharedStateHandle>
+  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
   inline static void print_all_stats(void*& o, uint64_t dumpid = 0)
   {
     UNUSED(o);
@@ -49,7 +49,7 @@ namespace snmalloc
   }
 #endif
 
-  template<class SharedStateHandle>
+  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
   inline static void cleanup_unused()
   {
 #ifndef SNMALLOC_PASS_THROUGH
@@ -83,7 +83,7 @@ namespace snmalloc
     allocators are empty. If you don't pass a pointer to a bool, then will
     raise an error all the allocators are not empty.
    */
-  template<class SharedStateHandle>
+  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
   inline static void debug_check_empty(bool* result = nullptr)
   {
 #ifndef SNMALLOC_PASS_THROUGH
@@ -153,7 +153,7 @@ namespace snmalloc
 #endif
   }
 
-  template<class SharedStateHandle>
+  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
   inline static void debug_in_use(size_t count)
   {
     static_assert(

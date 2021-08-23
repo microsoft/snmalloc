@@ -23,7 +23,7 @@ namespace snmalloc
   {
     template<
       typename TT,
-      typename SharedStateHandle,
+      SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle,
       PoolState<TT>& get_state()>
     friend class Pool;
 
@@ -42,7 +42,9 @@ namespace snmalloc
    * SingletonPoolState::pool is the default provider for the PoolState within
    * the Pool class.
    */
-  template<typename T, typename SharedStateHandle>
+  template<
+    typename T,
+    SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
   class SingletonPoolState
   {
     /**
@@ -113,7 +115,7 @@ namespace snmalloc
    */
   template<
     typename T,
-    typename SharedStateHandle,
+    SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle,
     PoolState<T>& get_state() = SingletonPoolState<T, SharedStateHandle>::pool>
   class Pool
   {
