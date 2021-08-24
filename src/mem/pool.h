@@ -39,19 +39,53 @@ namespace snmalloc
   /**
    * Class used to instantiate a global non-allocator PoolState.
    */
-  template<typename T>
+  template<typename T, typename SharedStateHandle>
   class SingletonPoolState
   {
     static inline PoolState<T> state;
+    static thread_local inline bool initialized;
+
+    /**
+     * SFINAE helper.  Matched only if `T` implements `ensure_init`.  Calls it
+     * if it exists.
+     */
+    SNMALLOC_FAST_PATH static auto call_ensure_init(SharedStateHandle*, int)
+      -> decltype(SharedStateHandle::ensure_init())
+    {
+      SharedStateHandle::ensure_init();
+    }
+
+    /**
+     * SFINAE helper.  Matched only if `T` does not implement `ensure_init`.
+     * Does nothing if called.
+     */
+    SNMALLOC_FAST_PATH static auto call_ensure_init(SharedStateHandle*, long) {}
+
+    /**
+     * Call `SharedStateHandle::ensure_init()` if it is implemented, do nothing
+     * otherwise.
+     */
+    SNMALLOC_FAST_PATH static void ensure_init()
+    {
+      call_ensure_init(nullptr, 0);
+    }
 
   public:
-    static PoolState<T>& pool()
+    SNMALLOC_FAST_PATH static PoolState<T>& pool()
     {
+      if (unlikely(!initialized))
+      {
+        ensure_init();
+        initialized = true;
+      }
       return state;
     }
   };
 
-  template<typename T, typename SharedStateHandle, PoolState<T>& get_state()>
+  template<
+    typename T,
+    typename SharedStateHandle,
+    PoolState<T>& get_state() = SingletonPoolState<T, SharedStateHandle>::pool>
   class Pool
   {
   public:
