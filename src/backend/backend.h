@@ -71,7 +71,7 @@ namespace snmalloc
        * to access a location that is not backed by a chunk.
        */
       template<bool potentially_out_of_range = false>
-      SNMALLOC_FAST_PATH static const MetaEntry& get_meta_data(address_t p)
+      SNMALLOC_FAST_PATH static const MetaEntry& get_metaentry(address_t p)
       {
         return pagemap.template get<potentially_out_of_range>(p);
       }
@@ -80,7 +80,7 @@ namespace snmalloc
        * Set the metadata associated with a chunk.
        */
       SNMALLOC_FAST_PATH
-      static void set_meta_data(address_t p, size_t size, MetaEntry t)
+      static void set_metaentry(address_t p, size_t size, MetaEntry t)
       {
         for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
         {
@@ -281,7 +281,7 @@ namespace snmalloc
       }
 
       MetaEntry t(meta, remote, sizeclass);
-      Pagemap::set_meta_data(address_cast(p), size, t);
+      Pagemap::set_metaentry(address_cast(p), size, t);
       return {p, meta};
     }
   };

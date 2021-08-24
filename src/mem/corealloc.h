@@ -377,7 +377,7 @@ namespace snmalloc
       {
         auto p = message_queue().peek();
         auto& entry =
-          SharedStateHandle::Pagemap::get_meta_data(snmalloc::address_cast(p));
+          SharedStateHandle::Pagemap::get_metaentry(snmalloc::address_cast(p));
 
         auto r = message_queue().dequeue(key_global);
 
@@ -539,7 +539,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void dealloc_local_object(void* p)
     {
       auto entry =
-        SharedStateHandle::Pagemap::get_meta_data(snmalloc::address_cast(p));
+        SharedStateHandle::Pagemap::get_metaentry(snmalloc::address_cast(p));
       if (likely(dealloc_local_object_fast(entry, p, entropy)))
         return;
 
@@ -665,7 +665,7 @@ namespace snmalloc
         {
           bool need_post = true; // Always going to post, so ignore.
           auto n = p->atomic_read_next(key_global);
-          auto& entry = SharedStateHandle::Pagemap::get_meta_data(
+          auto& entry = SharedStateHandle::Pagemap::get_metaentry(
             snmalloc::address_cast(p));
           handle_dealloc_remote(entry, p, need_post);
           p = n;

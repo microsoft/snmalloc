@@ -84,7 +84,7 @@ namespace snmalloc
         // external_pointer, for example) will not attempt to follow this
         // "Metaslab" pointer.
         MetaEntry t(reinterpret_cast<Metaslab*>(next.unsafe_ptr()), nullptr, 0);
-        Pagemap::set_meta_data(address_cast(base), 1, t);
+        Pagemap::set_metaentry(address_cast(base), 1, t);
         return;
       }
 
@@ -107,7 +107,7 @@ namespace snmalloc
       if (align_bits >= MIN_CHUNK_BITS)
       {
         const MetaEntry& t =
-          Pagemap::template get_meta_data<false>(address_cast(base));
+          Pagemap::template get_metaentry<false>(address_cast(base));
         return CapPtr<FreeChunk, CBChunk>(
           reinterpret_cast<FreeChunk*>(t.get_metaslab()));
       }

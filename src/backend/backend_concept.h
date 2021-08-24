@@ -18,12 +18,12 @@ namespace snmalloc
   concept ConceptBackendMeta =
     requires(address_t addr, size_t sz, MetaEntry t)
   {
-    { Meta::set_meta_data(addr, sz, t) } -> ConceptSame<void>;
+    { Meta::set_metaentry(addr, sz, t) } -> ConceptSame<void>;
 
-    { Meta::template get_meta_data<true>(addr) }
+    { Meta::template get_metaentry<true>(addr) }
       -> ConceptSame<const MetaEntry&>;
 
-    { Meta::template get_meta_data<false>(addr) }
+    { Meta::template get_metaentry<false>(addr) }
       -> ConceptSame<const MetaEntry&>;
   };
 
