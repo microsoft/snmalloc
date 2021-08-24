@@ -19,7 +19,7 @@ struct PoolBEntry : Pooled<PoolBEntry>
   int field;
 
   PoolBEntry() : field(0){};
-  PoolBEntry(size_t f) : field(f){};
+  PoolBEntry(int f) : field(f){};
 };
 
 using PoolB = Pool<PoolBEntry, Alloc::StateHandle>;
