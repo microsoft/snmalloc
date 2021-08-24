@@ -74,7 +74,8 @@ namespace snmalloc
       size_t allocator_size,
       typename SharedStateHandle,
       typename DeallocFun>
-    bool flush(DeallocFun dealloc)
+    bool flush(
+      typename SharedStateHandle::LocalState* local_state, DeallocFun dealloc)
     {
       auto& key = entropy.get_free_list_key();
 
@@ -92,7 +93,7 @@ namespace snmalloc
       }
 
       return remote_dealloc_cache.post<allocator_size, SharedStateHandle>(
-        remote_allocator->trunc_id(), key_global);
+        local_state, remote_allocator->trunc_id(), key_global);
     }
 
     template<ZeroMem zero_mem, typename SharedStateHandle, typename Slowpath>

@@ -46,9 +46,10 @@ namespace snmalloc
       snmalloc::register_clean_up();
     }
 
-    static void init(void* base, size_t length)
+    static void
+    init(typename Backend::LocalState* local_state, void* base, size_t length)
     {
-      Backend::init(base, length);
+      Backend::init(local_state, base, length);
     }
   };
 }

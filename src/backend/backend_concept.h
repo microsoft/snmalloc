@@ -17,14 +17,18 @@ namespace snmalloc
    */
   template<typename Meta>
   concept ConceptBackendMeta =
-    requires(address_t addr, size_t sz, MetaEntry t)
+    requires(
+      typename Meta::LocalState* ls,
+      address_t addr,
+      size_t sz,
+      MetaEntry t)
   {
-    { Meta::set_metaentry(addr, sz, t) } -> ConceptSame<void>;
+    { Meta::set_metaentry(ls, addr, sz, t) } -> ConceptSame<void>;
 
-    { Meta::template get_metaentry<true>(addr) }
+    { Meta::template get_metaentry<true>(ls, addr) }
       -> ConceptSame<const MetaEntry&>;
 
-    { Meta::template get_metaentry<false>(addr) }
+    { Meta::template get_metaentry<false>(ls, addr) }
       -> ConceptSame<const MetaEntry&>;
   };
 
@@ -37,9 +41,9 @@ namespace snmalloc
    */
   template<typename Meta>
   concept ConceptBackendMeta_Range =
-    requires(address_t addr, size_t sz)
+    requires(typename Meta::LocalState* ls, address_t addr, size_t sz)
   {
-    { Meta::register_range(addr, sz) } -> ConceptSame<void>;
+    { Meta::register_range(ls, addr, sz) } -> ConceptSame<void>;
   };
 
   /**
@@ -64,7 +68,7 @@ namespace snmalloc
    *  * inherit from CommonConfig (see commonconfig.h)
    *  * specify which PAL is in use via T::Pal
    *  * have static pagemap accessors via T::Pagemap
-   *  * define a T::LocalState type
+   *  * define a T::LocalState type (and alias it as T::Pagemap::LocalState)
    *  * define T::Options of type snmalloc::Flags
    *  * expose the global allocator pool via T::pool()
    *
@@ -74,6 +78,9 @@ namespace snmalloc
     std::is_base_of<CommonConfig, Globals>::value &&
     ConceptPAL<typename Globals::Pal> &&
     ConceptBackendMetaRange<typename Globals::Pagemap> &&
+    ConceptSame<
+      typename Globals::LocalState,
+      typename Globals::Pagemap::LocalState> &&
     requires()
     {
       typename Globals::LocalState;
