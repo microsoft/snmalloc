@@ -107,7 +107,7 @@ namespace snmalloc
                   << std::endl;
 #endif
         MetaEntry entry{meta, remote, sizeclass};
-        SharedStateHandle::Pagemap::set_meta_data(
+        SharedStateHandle::Pagemap::set_metaentry(
           address_cast(slab), slab_size, entry);
         return {slab, meta};
       }
