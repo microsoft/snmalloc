@@ -40,6 +40,13 @@ namespace snmalloc
 #  endif
 
   /**
+   * Equivalence mod std::remove_reference
+   */
+  template<typename T, typename U>
+  concept ConceptSameModRef =
+    ConceptSame<std::remove_reference_t<T>, std::remove_reference_t<U>>;
+
+  /**
    * Some of the types in snmalloc are circular in their definition and use
    * templating as a lazy language to carefully tie knots and only pull on the
    * whole mess once it's assembled.  Unfortunately, concepts amount to eagerly
