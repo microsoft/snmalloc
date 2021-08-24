@@ -786,6 +786,9 @@ namespace snmalloc
     }
   };
 
+  /**
+   * Use this alias to access the pool of allocators throughout snmalloc.
+   */
   template<typename SharedStateHandle>
   using AllocPool = Pool<
     CoreAllocator<SharedStateHandle>,

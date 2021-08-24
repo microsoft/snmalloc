@@ -7,7 +7,7 @@ using namespace snmalloc;
 
 struct PoolAEntry : Pooled<PoolAEntry>
 {
-  size_t field;
+  int field;
 
   PoolAEntry() : field(1){};
 };
@@ -16,7 +16,7 @@ using PoolA = Pool<PoolAEntry, Alloc::StateHandle>;
 
 struct PoolBEntry : Pooled<PoolBEntry>
 {
-  size_t field;
+  int field;
 
   PoolBEntry() : field(0){};
   PoolBEntry(size_t f) : field(f){};
@@ -30,6 +30,7 @@ void test_alloc()
   SNMALLOC_CHECK(ptr != nullptr);
   // Pool allocations should not be visible to debug_check_empty.
   snmalloc::debug_check_empty<Alloc::StateHandle>();
+  PoolA::release(ptr);
 }
 
 void test_constructor()
@@ -45,6 +46,10 @@ void test_constructor()
   auto ptr3 = PoolB::acquire(1);
   SNMALLOC_CHECK(ptr3 != nullptr);
   SNMALLOC_CHECK(ptr3->field == 1);
+
+  PoolA::release(ptr1);
+  PoolB::release(ptr2);
+  PoolB::release(ptr3);
 }
 
 void test_alloc_many()
@@ -66,13 +71,6 @@ void test_alloc_many()
   }
 }
 
-void test_alloc_dealloc()
-{
-  auto ptr = PoolA::acquire();
-  SNMALLOC_CHECK(ptr != nullptr);
-  PoolA::release(ptr);
-}
-
 void test_double_alloc()
 {
   auto ptr1 = PoolA::acquire();
@@ -83,6 +81,8 @@ void test_double_alloc()
   PoolA::release(ptr2);
   auto ptr3 = PoolA::acquire();
   SNMALLOC_CHECK(ptr2 == ptr3);
+  PoolA::release(ptr1);
+  PoolA::release(ptr3);
 }
 
 void test_different_alloc()
@@ -93,6 +93,27 @@ void test_different_alloc()
   auto ptr2 = PoolB::acquire();
   SNMALLOC_CHECK(ptr2 != nullptr);
   SNMALLOC_CHECK(static_cast<void*>(ptr1) != static_cast<void*>(ptr2));
+  PoolB::release(ptr2);
+}
+
+void test_iterator()
+{
+  PoolAEntry* before_iteration_ptr = PoolA::acquire();
+
+  PoolAEntry* ptr = nullptr;
+  while ((ptr = PoolA::iterate(ptr)) != nullptr)
+  {
+    ptr->field = 2;
+  }
+
+  SNMALLOC_CHECK(before_iteration_ptr->field == 2);
+
+  PoolAEntry* after_iteration_ptr = PoolA::acquire();
+
+  SNMALLOC_CHECK(after_iteration_ptr->field == 2);
+
+  PoolA::release(before_iteration_ptr);
+  PoolA::release(after_iteration_ptr);
 }
 
 int main(int argc, char** argv)
@@ -110,8 +131,8 @@ int main(int argc, char** argv)
   test_alloc();
   test_constructor();
   test_alloc_many();
-  test_alloc_dealloc();
   test_double_alloc();
   test_different_alloc();
+  test_iterator();
   return 0;
 }

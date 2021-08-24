@@ -37,12 +37,20 @@ namespace snmalloc
   };
 
   /**
-   * Class used to instantiate a global non-allocator PoolState.
+   * Helper class used to instantiate a global PoolState.
+   *
+   * SingletonPoolState::pool is the default provider for the PoolState within
+   * the Pool class.
    */
   template<typename T, typename SharedStateHandle>
   class SingletonPoolState
   {
     static inline PoolState<T> state;
+    /**
+     * Thread-local initialization marker for a contention-free way to skip
+     * initialization. SharedStateHandle::ensure_init allows for multiple calls,
+     * but it uses a reentrency-safe check which is more expensive.
+     */
     static thread_local inline bool initialized;
 
     /**
@@ -71,6 +79,10 @@ namespace snmalloc
     }
 
   public:
+    /**
+     * Returns a reference for the global PoolState for the given type.
+     * Also forces the initialization of the backend state, if needed.
+     */
     SNMALLOC_FAST_PATH static PoolState<T>& pool()
     {
       if (unlikely(!initialized))
@@ -82,6 +94,19 @@ namespace snmalloc
     }
   };
 
+  /**
+   * Wrapper class to access a pool of a particular type of object.
+   *
+   * The third template argument is a method to retrieve the actual PoolState.
+   *
+   * For the pool of allocators, refer to the AllocPool alias defined in
+   * corealloc.h.
+   *
+   * For a pool of another type it is recommended to leave the
+   * third template argument with its default value. The SingletonPoolState
+   * class is used as a helper to provide a default PoolState management for
+   * this use case.
+   */
   template<
     typename T,
     typename SharedStateHandle,
