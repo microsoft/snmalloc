@@ -68,14 +68,22 @@ namespace snmalloc
 
     public:
       /**
+       * Provide a type alias for LocalState so that we can refer to it without
+       * needing the whole BackendAllocator type at hand.
+       */
+      using LocalState = BackendAllocator::LocalState;
+
+      /**
        * Get the metadata associated with a chunk.
        *
        * Set template parameter to true if it not an error
        * to access a location that is not backed by a chunk.
        */
       template<bool potentially_out_of_range = false>
-      SNMALLOC_FAST_PATH static const MetaEntry& get_metaentry(address_t p)
+      SNMALLOC_FAST_PATH static const MetaEntry&
+      get_metaentry(LocalState* ls, address_t p)
       {
+        UNUSED(ls);
         return concretePagemap.template get<potentially_out_of_range>(p);
       }
 
@@ -83,16 +91,19 @@ namespace snmalloc
        * Set the metadata associated with a chunk.
        */
       SNMALLOC_FAST_PATH
-      static void set_metaentry(address_t p, size_t size, MetaEntry t)
+      static void
+      set_metaentry(LocalState* ls, address_t p, size_t size, MetaEntry t)
       {
+        UNUSED(ls);
         for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
         {
           concretePagemap.set(a, t);
         }
       }
 
-      static void register_range(address_t p, size_t sz)
+      static void register_range(LocalState* ls, address_t p, size_t sz)
       {
+        UNUSED(ls);
         concretePagemap.register_range(p, sz);
       }
     };
@@ -107,14 +118,15 @@ namespace snmalloc
     }
 
     template<bool fixed_range_ = fixed_range>
-    static std::enable_if_t<fixed_range_> init(void* base, size_t length)
+    static std::enable_if_t<fixed_range_>
+    init(LocalState* local_state, void* base, size_t length)
     {
       static_assert(fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
 
       auto [heap_base, heap_length] =
         Pagemap::concretePagemap.init(base, length);
       address_space.template add_range<Pagemap>(
-        CapPtr<void, CBChunk>(heap_base), heap_length);
+        local_state, CapPtr<void, CBChunk>(heap_base), heap_length);
     }
 
   private:
@@ -172,14 +184,16 @@ namespace snmalloc
         auto& local = local_state->local_address_space;
 #endif
 
-        p = local.template reserve_with_left_over<PAL, Pagemap>(size);
+        p = local.template reserve_with_left_over<PAL, Pagemap>(
+          local_state, size);
         if (p != nullptr)
         {
           return p;
         }
 
         auto refill_size = LOCAL_CACHE_BLOCK;
-        auto refill = global.template reserve<false, Pagemap>(refill_size);
+        auto refill =
+          global.template reserve<false, Pagemap>(local_state, refill_size);
         if (refill == nullptr)
           return nullptr;
 
@@ -191,10 +205,12 @@ namespace snmalloc
         }
 #endif
         PAL::template notify_using<NoZero>(refill.unsafe_ptr(), refill_size);
-        local.template add_range<PAL, Pagemap>(refill, refill_size);
+        local.template add_range<PAL, Pagemap>(
+          local_state, refill, refill_size);
 
         // This should succeed
-        return local.template reserve_with_left_over<PAL, Pagemap>(size);
+        return local.template reserve_with_left_over<PAL, Pagemap>(
+          local_state, size);
       }
 
 #ifdef SNMALLOC_CHECK_CLIENT
@@ -205,7 +221,7 @@ namespace snmalloc
         size_t rsize = bits::max(OS_PAGE_SIZE, bits::next_pow2(size));
         size_t size_request = rsize * 64;
 
-        p = global.template reserve<false, Pagemap>(size_request);
+        p = global.template reserve<false, Pagemap>(local_state, size_request);
         if (p == nullptr)
           return nullptr;
 
@@ -221,7 +237,8 @@ namespace snmalloc
       SNMALLOC_ASSERT(!is_meta);
 #endif
 
-      p = global.template reserve_with_left_over<true, Pagemap>(size);
+      p = global.template reserve_with_left_over<true, Pagemap>(
+        local_state, size);
       return p;
     }
 
@@ -285,7 +302,7 @@ namespace snmalloc
       }
 
       MetaEntry t(meta, remote, sizeclass);
-      Pagemap::set_metaentry(address_cast(p), size, t);
+      Pagemap::set_metaentry(local_state, address_cast(p), size, t);
       return {p, meta};
     }
   };

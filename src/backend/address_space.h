@@ -43,7 +43,8 @@ namespace snmalloc
      * arena_map for use in subsequent amplification.
      */
     template<bool committed, SNMALLOC_CONCEPT(ConceptBackendMetaRange) Pagemap>
-    CapPtr<void, CBChunk> reserve(size_t size)
+    CapPtr<void, CBChunk>
+    reserve(typename Pagemap::LocalState* local_state, size_t size)
     {
 #ifdef SNMALLOC_TRACING
       std::cout << "ASM reserve request:" << size << std::endl;
@@ -63,7 +64,7 @@ namespace snmalloc
         {
           auto base = CapPtr<void, CBChunk>(
             PAL::template reserve_aligned<committed>(size));
-          Pagemap::register_range(address_cast(base), size);
+          Pagemap::register_range(local_state, address_cast(base), size);
           return base;
         }
       }
@@ -71,7 +72,7 @@ namespace snmalloc
       CapPtr<void, CBChunk> res;
       {
         FlagLock lock(spin_lock);
-        res = core.template reserve<PAL, Pagemap>(size);
+        res = core.template reserve<PAL, Pagemap>(local_state, size);
         if (res == nullptr)
         {
           // Allocation failed ask OS for more memory
@@ -133,12 +134,12 @@ namespace snmalloc
             return nullptr;
           }
 
-          Pagemap::register_range(address_cast(block), block_size);
+          Pagemap::register_range(local_state, address_cast(block), block_size);
 
-          core.template add_range<PAL, Pagemap>(block, block_size);
+          core.template add_range<PAL, Pagemap>(local_state, block, block_size);
 
           // still holding lock so guaranteed to succeed.
-          res = core.template reserve<PAL, Pagemap>(size);
+          res = core.template reserve<PAL, Pagemap>(local_state, size);
         }
       }
 
@@ -157,7 +158,8 @@ namespace snmalloc
      * used, by smaller objects.
      */
     template<bool committed, SNMALLOC_CONCEPT(ConceptBackendMetaRange) Pagemap>
-    CapPtr<void, CBChunk> reserve_with_left_over(size_t size)
+    CapPtr<void, CBChunk> reserve_with_left_over(
+      typename Pagemap::LocalState* local_state, size_t size)
     {
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
@@ -165,7 +167,7 @@ namespace snmalloc
 
       size_t rsize = bits::next_pow2(size);
 
-      auto res = reserve<false, Pagemap>(rsize);
+      auto res = reserve<false, Pagemap>(local_state, rsize);
 
       if (res != nullptr)
       {
@@ -173,7 +175,7 @@ namespace snmalloc
         {
           FlagLock lock(spin_lock);
           core.template add_range<PAL, Pagemap>(
-            pointer_offset(res, size), rsize - size);
+            local_state, pointer_offset(res, size), rsize - size);
         }
 
         if constexpr (committed)
@@ -194,10 +196,13 @@ namespace snmalloc
      * Divides blocks into power of two sizes with natural alignment
      */
     template<SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
-    void add_range(CapPtr<void, CBChunk> base, size_t length)
+    void add_range(
+      typename Pagemap::LocalState* local_state,
+      CapPtr<void, CBChunk> base,
+      size_t length)
     {
       FlagLock lock(spin_lock);
-      core.add_range<PAL, Pagemap>(base, length);
+      core.add_range<PAL, Pagemap>(local_state, base, length);
     }
   };
 } // namespace snmalloc

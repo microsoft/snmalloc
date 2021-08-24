@@ -115,6 +115,21 @@ namespace snmalloc
     }
 
     /**
+     * Return a pointer to the backend state.
+     */
+    LocalState* backend_state_ptr()
+    {
+      if constexpr (SharedStateHandle::Options.CoreAllocOwnsLocalState)
+      {
+        return &backend_state;
+      }
+      else
+      {
+        return backend_state;
+      }
+    }
+
+    /**
      * Return this allocator's "truncated" ID, an integer useful as a hash
      * value of this allocator.
      *
@@ -376,8 +391,8 @@ namespace snmalloc
       for (size_t i = 0; i < REMOTE_BATCH; i++)
       {
         auto p = message_queue().peek();
-        auto& entry =
-          SharedStateHandle::Pagemap::get_metaentry(snmalloc::address_cast(p));
+        auto& entry = SharedStateHandle::Pagemap::get_metaentry(
+          backend_state_ptr(), snmalloc::address_cast(p));
 
         auto r = message_queue().dequeue(key_global);
 
@@ -516,9 +531,10 @@ namespace snmalloc
     SNMALLOC_FAST_PATH bool post()
     {
       // stats().remote_post();  // TODO queue not in line!
-      bool sent_something = attached_cache->remote_dealloc_cache
-                              .post<sizeof(CoreAllocator), SharedStateHandle>(
-                                public_state()->trunc_id(), key_global);
+      bool sent_something =
+        attached_cache->remote_dealloc_cache
+          .post<sizeof(CoreAllocator), SharedStateHandle>(
+            backend_state_ptr(), public_state()->trunc_id(), key_global);
 
       return sent_something;
     }
@@ -538,8 +554,8 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH void dealloc_local_object(void* p)
     {
-      auto entry =
-        SharedStateHandle::Pagemap::get_metaentry(snmalloc::address_cast(p));
+      auto entry = SharedStateHandle::Pagemap::get_metaentry(
+        backend_state_ptr(), snmalloc::address_cast(p));
       if (likely(dealloc_local_object_fast(entry, p, entropy)))
         return;
 
@@ -666,7 +682,7 @@ namespace snmalloc
           bool need_post = true; // Always going to post, so ignore.
           auto n = p->atomic_read_next(key_global);
           auto& entry = SharedStateHandle::Pagemap::get_metaentry(
-            snmalloc::address_cast(p));
+            backend_state_ptr(), snmalloc::address_cast(p));
           handle_dealloc_remote(entry, p, need_post);
           p = n;
         }
@@ -681,7 +697,7 @@ namespace snmalloc
 
       auto posted =
         attached_cache->flush<sizeof(CoreAllocator), SharedStateHandle>(
-          [&](auto p) { dealloc_local_object(p); });
+          backend_state_ptr(), [&](auto p) { dealloc_local_object(p); });
 
       // We may now have unused slabs, return to the global allocator.
       for (sizeclass_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass++)

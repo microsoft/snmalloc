@@ -19,5 +19,6 @@ namespace snmalloc
 
 extern "C" void oe_allocator_init(void* base, void* end)
 {
-  snmalloc::CustomGlobals::init(base, address_cast(end) - address_cast(base));
+  snmalloc::CustomGlobals::init(
+    nullptr, base, address_cast(end) - address_cast(base));
 }

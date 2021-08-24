@@ -29,7 +29,7 @@ int main()
   std::cout << "Allocated region " << oe_base << " - "
             << pointer_offset(oe_base, size) << std::endl;
 
-  CustomGlobals::init(oe_base, size);
+  CustomGlobals::init(nullptr, oe_base, size);
   FixedAlloc a;
 
   size_t object_size = 128;
