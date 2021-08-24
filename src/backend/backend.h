@@ -58,12 +58,15 @@ namespace snmalloc
     SNMALLOC_REQUIRE_CONSTINIT
     static inline AddressSpaceManager<PAL> address_space;
 
-    SNMALLOC_REQUIRE_CONSTINIT
-    static inline FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, PAL, fixed_range>
-      pagemap;
-
-    struct Pagemap
+    class Pagemap
     {
+      friend class BackendAllocator;
+
+      SNMALLOC_REQUIRE_CONSTINIT
+      static inline FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, PAL, fixed_range>
+        concretePagemap;
+
+    public:
       /**
        * Get the metadata associated with a chunk.
        *
@@ -73,7 +76,7 @@ namespace snmalloc
       template<bool potentially_out_of_range = false>
       SNMALLOC_FAST_PATH static const MetaEntry& get_metaentry(address_t p)
       {
-        return pagemap.template get<potentially_out_of_range>(p);
+        return concretePagemap.template get<potentially_out_of_range>(p);
       }
 
       /**
@@ -84,13 +87,13 @@ namespace snmalloc
       {
         for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
         {
-          pagemap.set(a, t);
+          concretePagemap.set(a, t);
         }
       }
 
       static void register_range(address_t p, size_t sz)
       {
-        pagemap.register_range(p, sz);
+        concretePagemap.register_range(p, sz);
       }
     };
 
@@ -100,7 +103,7 @@ namespace snmalloc
     {
       static_assert(fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
 
-      pagemap.init();
+      Pagemap::concretePagemap.init();
     }
 
     template<bool fixed_range_ = fixed_range>
@@ -108,7 +111,8 @@ namespace snmalloc
     {
       static_assert(fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
 
-      auto [heap_base, heap_length] = pagemap.init(base, length);
+      auto [heap_base, heap_length] =
+        Pagemap::concretePagemap.init(base, length);
       address_space.template add_range<Pagemap>(
         CapPtr<void, CBChunk>(heap_base), heap_length);
     }
