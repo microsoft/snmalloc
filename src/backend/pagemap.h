@@ -41,6 +41,12 @@ namespace snmalloc
     T* body{const_cast<T*>(&default_value)};
 
     /**
+     * The representation of the pagemap, but nullptr if it has not been
+     * initialised.  Used to combine init checking and lookup.
+     */
+    T* body_opt{nullptr};
+
+    /**
      * If `has_bounds` is set, then these should contain the
      * bounds of the heap that is being managed by this pagemap.
      */
@@ -94,6 +100,7 @@ namespace snmalloc
       static_assert(
         has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
       body = address;
+      body_opt = address;
     }
 
     /**
@@ -124,7 +131,7 @@ namespace snmalloc
       // Put pagemap at start of range.
       // TODO CHERI capability bound here!
       body = reinterpret_cast<T*>(b);
-
+      body_opt = body;
       // Advance by size of pagemap.
       // Note that base needs to be aligned to GRANULARITY for the rest of the
       // code to work
@@ -183,6 +190,7 @@ namespace snmalloc
       new_body[0] = body[0];
 
       body = new_body;
+      body_opt = new_body;
     }
 
     /**
@@ -209,6 +217,12 @@ namespace snmalloc
     template<bool potentially_out_of_range>
     const T& get(address_t p)
     {
+      if constexpr (potentially_out_of_range)
+      {
+        if (unlikely(body_opt == nullptr))
+          return default_value;
+      }
+
       if constexpr (has_bounds)
       {
         if (p - base > size)
@@ -235,7 +249,10 @@ namespace snmalloc
         register_range(p, 1);
       }
 
-      return body[p >> SHIFT];
+      if constexpr (potentially_out_of_range)
+        return body_opt[p >> SHIFT];
+      else
+        return body[p >> SHIFT];
     }
 
     /**
