@@ -415,7 +415,7 @@ void test_static_sized_allocs()
 {
   // For each small, medium, and large class, do each kind dealloc.  This is
   // mostly to ensure that all of these forms compile.
-  for (size_t sc = 0; sc < NUM_SIZECLASSES_EXTENDED; sc++)
+  for (size_t sc = 0; sc < NUM_SIZECLASSES; sc++)
   {
     // test_static_sized_alloc<sc, 0>();
     // test_static_sized_alloc<sc, 1>();

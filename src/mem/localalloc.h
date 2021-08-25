@@ -189,8 +189,8 @@ namespace snmalloc
         // set up meta data so sizeclass is correct, and hence alloc size, and
         // external pointer.
 #ifdef SNMALLOC_TRACING
-        std::cout << "size " << size << " sizeclass " << size_to_sizeclass(size)
-                  << std::endl;
+        std::cout << "size " << size << " pow2 size "
+                  << bits::next_pow2_bits(size) << std::endl;
 #endif
 
         // Note that meta data is not currently used for large allocs.
