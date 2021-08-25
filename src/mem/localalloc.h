@@ -587,45 +587,38 @@ namespace snmalloc
     void* external_pointer(void* p_raw)
     {
       // TODO bring back the CHERI bits. Wes to review if required.
-      if (likely(is_initialised()))
+      MetaEntry entry =
+        SharedStateHandle::template get_meta_data<true>(address_cast(p_raw));
+      auto sizeclass = entry.get_sizeclass();
+      if (likely(entry.get_remote() != SharedStateHandle::fake_large_remote))
       {
-        MetaEntry entry =
-          SharedStateHandle::template get_meta_data<true>(address_cast(p_raw));
-        auto sizeclass = entry.get_sizeclass();
-        if (likely(entry.get_remote() != SharedStateHandle::fake_large_remote))
+        auto rsize = sizeclass_to_size(sizeclass);
+        auto offset =
+          address_cast(p_raw) & (sizeclass_to_slab_size(sizeclass) - 1);
+        auto start_offset = round_by_sizeclass(sizeclass, offset);
+        if constexpr (location == Start)
         {
-          auto rsize = sizeclass_to_size(sizeclass);
-          auto offset =
-            address_cast(p_raw) & (sizeclass_to_slab_size(sizeclass) - 1);
-          auto start_offset = round_by_sizeclass(sizeclass, offset);
-          if constexpr (location == Start)
-          {
-            UNUSED(rsize);
-            return pointer_offset(p_raw, start_offset - offset);
-          }
-          else if constexpr (location == End)
-            return pointer_offset(p_raw, rsize + start_offset - offset - 1);
-          else
-            return pointer_offset(p_raw, rsize + start_offset - offset);
+          UNUSED(rsize);
+          return pointer_offset(p_raw, start_offset - offset);
         }
-
-        // Sizeclass zero of a large allocation is used for not managed by us.
-        if (likely(sizeclass != 0))
-        {
-          // This is a large allocation, find start by masking.
-          auto rsize = bits::one_at_bit(sizeclass);
-          auto start = pointer_align_down(p_raw, rsize);
-          if constexpr (location == Start)
-            return start;
-          else if constexpr (location == End)
-            return pointer_offset(start, rsize);
-          else
-            return pointer_offset(start, rsize - 1);
-        }
+        else if constexpr (location == End)
+          return pointer_offset(p_raw, rsize + start_offset - offset - 1);
+        else
+          return pointer_offset(p_raw, rsize + start_offset - offset);
       }
-      else
+
+      // Sizeclass zero of a large allocation is used for not managed by us.
+      if (likely(sizeclass != 0))
       {
-        // Allocator not initialised, so definitely not our allocation
+        // This is a large allocation, find start by masking.
+        auto rsize = bits::one_at_bit(sizeclass);
+        auto start = pointer_align_down(p_raw, rsize);
+        if constexpr (location == Start)
+          return start;
+        else if constexpr (location == End)
+          return pointer_offset(start, rsize);
+        else
+          return pointer_offset(start, rsize - 1);
       }
 
       if constexpr ((location == End) || (location == OnePastEnd))
