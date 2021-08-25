@@ -239,6 +239,23 @@ namespace snmalloc
     }
 
     /**
+     * Like get, but gives mutable access to a real pagemap entry.
+     */
+    T& get_mut(address_t p)
+    {
+      if constexpr (has_bounds)
+      {
+        if (p - base > size)
+        {
+          PAL::error("Internal error: Pagemap read access out of range.");
+        }
+        p = p - base;
+      }
+
+      return body[p >> SHIFT];
+    }
+
+    /**
      * Return the starting address corresponding to a given entry within the
      * Pagemap. Also checks that the reference actually points to a valid entry.
      */

@@ -271,6 +271,11 @@ namespace snmalloc
       return pagemap.template get<potentially_out_of_range>(p);
     }
 
+    static MetaEntry& get_meta_data_mut(address_t p)
+    {
+      return pagemap.get_mut(p);
+    }
+
     /**
      * Set the metadata associated with a chunk.
      */
