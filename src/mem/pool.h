@@ -49,17 +49,27 @@ namespace snmalloc
      * SFINAE helper.  Matched only if `T` implements `ensure_init`.  Calls it
      * if it exists.
      */
-    SNMALLOC_FAST_PATH static auto call_ensure_init(SharedStateHandle*, int)
-      -> decltype(SharedStateHandle::ensure_init())
+    template<typename SharedStateHandle_>
+    SNMALLOC_FAST_PATH static auto call_ensure_init(SharedStateHandle_*, int)
+      -> decltype(SharedStateHandle_::ensure_init())
     {
-      SharedStateHandle::ensure_init();
+      static_assert(
+        std::is_same<SharedStateHandle, SharedStateHandle_>::value,
+        "SFINAE parameter, should only be used with SharedStateHandle");
+      SharedStateHandle_::ensure_init();
     }
 
     /**
      * SFINAE helper.  Matched only if `T` does not implement `ensure_init`.
      * Does nothing if called.
      */
-    SNMALLOC_FAST_PATH static auto call_ensure_init(SharedStateHandle*, long) {}
+    template<typename SharedStateHandle_>
+    SNMALLOC_FAST_PATH static auto call_ensure_init(SharedStateHandle_*, long)
+    {
+      static_assert(
+        std::is_same<SharedStateHandle, SharedStateHandle_>::value,
+        "SFINAE parameter, should only be used with SharedStateHandle");
+    }
 
     /**
      * Call `SharedStateHandle::ensure_init()` if it is implemented, do nothing
@@ -67,7 +77,7 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH static void ensure_init()
     {
-      call_ensure_init(nullptr, 0);
+      call_ensure_init<SharedStateHandle>(nullptr, 0);
     }
 
     static void make_pool(PoolState<T>*) noexcept
