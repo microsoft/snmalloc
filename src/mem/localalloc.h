@@ -58,9 +58,12 @@ namespace snmalloc
   template<class SharedStateHandle>
   class LocalAllocator
   {
-    using CoreAlloc = CoreAllocator<SharedStateHandle>;
+  public:
+    using StateHandle = SharedStateHandle;
 
   private:
+    using CoreAlloc = CoreAllocator<SharedStateHandle>;
+
     // Free list per small size class.  These are used for
     // allocation on the fast path. This part of the code is inspired by
     // mimalloc.
@@ -341,6 +344,8 @@ namespace snmalloc
 
   public:
     constexpr LocalAllocator() = default;
+    LocalAllocator(const LocalAllocator&) = delete;
+    LocalAllocator& operator=(const LocalAllocator&) = delete;
 
     /**
      * Initialise the allocator.  For allocators that support local
@@ -375,8 +380,7 @@ namespace snmalloc
       // Initialise the global allocator structures
       ensure_init();
       // Grab an allocator for this thread.
-      init(Pool<CoreAlloc>::template acquire<SharedStateHandle>(
-        &(this->local_cache)));
+      init(AllocPool<SharedStateHandle>::acquire(&(this->local_cache)));
     }
 
     // Return all state in the fast allocator and release the underlying
@@ -398,7 +402,7 @@ namespace snmalloc
         // Return underlying allocator to the system.
         if constexpr (SharedStateHandle::Options.CoreAllocOwnsLocalState)
         {
-          Pool<CoreAlloc>::template release<SharedStateHandle>(core_alloc);
+          AllocPool<SharedStateHandle>::release(core_alloc);
         }
 
         // Set up thread local allocator to look like

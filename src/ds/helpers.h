@@ -13,7 +13,7 @@ namespace snmalloc
    * initialised.  This singleton class is designed to not depend on the
    * runtime.
    */
-  template<class Object, Object init() noexcept>
+  template<class Object, void init(Object*) noexcept>
   class Singleton
   {
     inline static std::atomic_flag flag;
@@ -36,7 +36,7 @@ namespace snmalloc
         FlagLock lock(flag);
         if (!initialised)
         {
-          obj = init();
+          init(&obj);
           initialised.store(true, std::memory_order_release);
           if (first != nullptr)
             *first = true;

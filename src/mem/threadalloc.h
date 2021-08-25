@@ -106,11 +106,9 @@ namespace snmalloc
   /**
    * Used to give correct signature to the pthread call for the Singleton class.
    */
-  inline pthread_key_t pthread_create() noexcept
+  inline void pthread_create(pthread_key_t* key) noexcept
   {
-    pthread_key_t key;
-    pthread_key_create(&key, &pthread_cleanup);
-    return key;
+    pthread_key_create(key, &pthread_cleanup);
   }
   /**
    * Performs thread local teardown for the allocator using the pthread library.

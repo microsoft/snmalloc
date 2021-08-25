@@ -4,7 +4,7 @@
 #include "allocconfig.h"
 #include "localcache.h"
 #include "metaslab.h"
-#include "pooled.h"
+#include "pool.h"
 #include "remotecache.h"
 #include "sizeclasstable.h"
 #include "slaballocator.h"
@@ -785,4 +785,13 @@ namespace snmalloc
       return debug_is_empty_impl(result);
     }
   };
+
+  /**
+   * Use this alias to access the pool of allocators throughout snmalloc.
+   */
+  template<typename SharedStateHandle>
+  using AllocPool = Pool<
+    CoreAllocator<SharedStateHandle>,
+    SharedStateHandle,
+    SharedStateHandle::pool>;
 } // namespace snmalloc
