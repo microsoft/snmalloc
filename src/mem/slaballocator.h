@@ -8,6 +8,8 @@
 #  include <iostream>
 #endif
 
+#include <new>
+
 namespace snmalloc
 {
   /**

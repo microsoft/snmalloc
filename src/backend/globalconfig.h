@@ -6,8 +6,9 @@
 #include "../mem/slaballocator.h"
 #include "commonconfig.h"
 
-#include <iostream>
-
+#ifdef SNMALLOC_TRACING
+#  include <iostream>
+#endif
 namespace snmalloc
 {
   // Forward reference to thread local cleanup.
