@@ -1,3 +1,7 @@
+#ifdef SNMALLOC_USE_PTHREAD_DESTRUCTORS
+#  undef SNMALLOC_USE_PTHREAD_DESTRUCTORS
+#endif
+
 #include <snmalloc_core.h>
 #include <test/setup.h>
 

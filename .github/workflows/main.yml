@@ -38,16 +38,23 @@ jobs:
             build-type: Debug
             build-only: yes
           # Add the self-host build
-          - os: ubuntu-latest
+          - os: "ubuntu-latest"
             build-type: Debug
             self-host: true
+          # Extra build to check using pthread library for destructing local state.
+          - os: "ubuntu-latest"
+            variant: "Ubuntu (with pthread destructors)."
+            dependencies: "sudo apt install ninja-build"
+            build-type: Debug
+            self-host: true
+            extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On -DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10"
           # Add an extra element to the matrix that does a build with clang 12
           # but doesn't run tests.
           - os: "freebsd-13.0"
             variant: Clang 12 (Build only)
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++12"
             build-only: yes
-          - os: ubuntu-latest
+          - os: "ubuntu-latest"
             variant: Clang 10 libstdc++ (Build only)
             dependencies: "sudo apt install ninja-build"
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10 -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"

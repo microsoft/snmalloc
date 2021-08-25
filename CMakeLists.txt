@@ -19,6 +19,7 @@ option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory
 option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off)
 set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
 option(SNMALLOC_USE_CXX17 "Build as C++17 for legacy support." OFF)
+option(SNMALLOC_USE_PTHREAD_DESTRUCTORS "Build using pthread destructors. Reduces the system dependencies, but may interact badly with C++ on some platforms." OFF)
 
 # malloc.h will error if you include it on FreeBSD, so this test must not
 # unconditionally include it.
@@ -148,6 +149,10 @@ endif()
 
 if(SNMALLOC_PLATFORM_HAS_GETENTROPY)
   target_compile_definitions(snmalloc_lib INTERFACE -DSNMALLOC_PLATFORM_HAS_GETENTROPY)
+endif()
+
+if(SNMALLOC_USE_PTHREAD_DESTRUCTORS)
+  target_compile_definitions(snmalloc_lib INTERFACE -DSNMALLOC_USE_PTHREAD_DESTRUCTORS)
 endif()
 
 if(CONST_QUALIFIED_MALLOC_USABLE_SIZE)
