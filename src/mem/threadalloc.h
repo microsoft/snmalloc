@@ -19,6 +19,7 @@
 #  if defined(SNMALLOC_THREAD_TEARDOWN_DEFINED)
 #    error At most one out of method of thread teardown can be specified.
 #  else
+#    include <pthread.h>
 #    define SNMALLOC_THREAD_TEARDOWN_DEFINED
 #  endif
 #endif
@@ -95,7 +96,7 @@ namespace snmalloc
     }
   };
 
-#  ifdef SNMALLOC_USE_PTHREAD_DESTRUCTOR
+#  ifdef SNMALLOC_USE_PTHREAD_DESTRUCTORS
   /**
    * Used to give correct signature to teardown required by pthread_key.
    */
