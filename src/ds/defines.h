@@ -7,7 +7,7 @@
 #  define unlikely(x) !!(x)
 #  define SNMALLOC_SLOW_PATH NOINLINE
 #  define SNMALLOC_FAST_PATH ALWAYSINLINE
-#  if _MSC_VER >= 1927
+#  if _MSC_VER >= 1927 && !defined(SNMALLOC_USE_CXX17)
 #    define SNMALLOC_FAST_PATH_LAMBDA [[msvc::forceinline]]
 #  else
 #    define SNMALLOC_FAST_PATH_LAMBDA
