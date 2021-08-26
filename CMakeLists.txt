@@ -282,7 +282,7 @@ if(NOT DEFINED SNMALLOC_ONLY_HEADER_LIBRARY)
         # NetBSD, OpenBSD and DragonFlyBSD do not support malloc*size calls.
         set(FLAVOURS fast;check)
       else()
-        set(FLAVOURS fast;check) #malloc - TODO-need to add pass through back
+        set(FLAVOURS fast;check;malloc)
       endif()
       foreach(FLAVOUR ${FLAVOURS})
         unset(SRC)

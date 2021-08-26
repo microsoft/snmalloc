@@ -14,6 +14,10 @@
 #include "remotecache.h"
 #include "sizeclasstable.h"
 
+#ifdef SNMALLOC_PASS_THROUGH
+#  include "external_alloc.h"
+#endif
+
 #ifdef SNMALLOC_TRACING
 #  include <iostream>
 #endif
@@ -458,7 +462,9 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH void dealloc(void* p)
     {
-      // TODO Pass through code!
+#ifdef SNMALLOC_PASS_THROUGH
+      external_alloc::free(p);
+#else
       // TODO:
       // Care is needed so that dealloc(nullptr) works before init
       //  The backend allocator must ensure that a minimal page map exists
@@ -485,10 +491,10 @@ namespace snmalloc
             entry.get_remote()->trunc_id(),
             CapPtr<void, CBAlloc>(p),
             key_global);
-#ifdef SNMALLOC_TRACING
+#  ifdef SNMALLOC_TRACING
           std::cout << "Remote dealloc fast" << p << " size " << alloc_size(p)
                     << std::endl;
-#endif
+#  endif
           return;
         }
 
@@ -509,10 +515,10 @@ namespace snmalloc
           pointer_align_down(p, size) == p, "Not start of an allocation.");
 
         size_t slab_sizeclass = large_size_to_chunk_sizeclass(size);
-#ifdef SNMALLOC_TRACING
+#  ifdef SNMALLOC_TRACING
         std::cout << "Large deallocation: " << size
                   << " chunk sizeclass: " << slab_sizeclass << std::endl;
-#endif
+#  endif
         ChunkRecord* slab_record =
           reinterpret_cast<ChunkRecord*>(entry.get_metaslab());
         slab_record->chunk = CapPtr<void, CBChunk>(p);
@@ -524,10 +530,11 @@ namespace snmalloc
         return;
       }
 
-#ifdef SNMALLOC_TRACING
+#  ifdef SNMALLOC_TRACING
       std::cout << "nullptr deallocation" << std::endl;
-#endif
+#  endif
       return;
+#endif
     }
 
     SNMALLOC_FAST_PATH void dealloc(void* p, size_t s)
@@ -558,6 +565,9 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH size_t alloc_size(const void* p_raw)
     {
+#ifdef SNMALLOC_PASS_THROUGH
+      return external_alloc::malloc_usable_size(const_cast<void*>(p_raw));
+#else
       // Note that this should return 0 for nullptr.
       // Other than nullptr, we know the system will be initialised as it must
       // be called with something we have already allocated.
@@ -574,6 +584,7 @@ namespace snmalloc
         return bits::one_at_bit(entry.get_sizeclass());
 
       return 0;
+#endif
     }
 
     /**
@@ -586,6 +597,7 @@ namespace snmalloc
     template<Boundary location = Start>
     void* external_pointer(void* p_raw)
     {
+#ifndef SNMALLOC_PASS_THROUGH
       // TODO bring back the CHERI bits. Wes to review if required.
       if (likely(is_initialised()))
       {
@@ -627,6 +639,9 @@ namespace snmalloc
       {
         // Allocator not initialised, so definitely not our allocation
       }
+#else
+      UNUSED(p_raw);
+#endif
 
       if constexpr ((location == End) || (location == OnePastEnd))
         // We don't know the End, so return MAX_PTR
