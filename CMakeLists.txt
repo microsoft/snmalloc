@@ -107,6 +107,10 @@ endif()
 add_library(snmalloc_lib INTERFACE)
 target_include_directories(snmalloc_lib INTERFACE src/)
 
+if(SNMALLOC_USE_CXX17)
+  target_compile_definitions(snmalloc_lib INTERFACE -DSNMALLOC_USE_CXX17)
+endif()
+
 if(NOT MSVC)
   find_package(Threads REQUIRED COMPONENTS snmalloc_lib)
   target_link_libraries(snmalloc_lib INTERFACE ${CMAKE_THREAD_LIBS_INIT})
