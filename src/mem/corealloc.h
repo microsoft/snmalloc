@@ -304,7 +304,7 @@ namespace snmalloc
       while (curr != nullptr)
       {
         auto nxt = curr->get_next();
-        auto meta = reinterpret_cast<Metaslab*>(curr);
+        auto meta = Metaslab::from_link(curr);
         if (meta->needed() == 0)
         {
           prev->pop();
@@ -348,7 +348,7 @@ namespace snmalloc
         //  Wake slab up.
         meta->set_not_sleeping(sizeclass);
 
-        alloc_classes[sizeclass].insert(meta);
+        alloc_classes[sizeclass].insert(&meta->link);
         alloc_classes[sizeclass].length++;
 
 #ifdef SNMALLOC_TRACING
@@ -593,7 +593,7 @@ namespace snmalloc
       auto& sl = alloc_classes[sizeclass];
       if (likely(!(sl.is_empty())))
       {
-        auto meta = reinterpret_cast<Metaslab*>(sl.pop());
+        auto meta = Metaslab::from_link(sl.pop());
         // Drop length of sl, and empty count if it was empty.
         alloc_classes[sizeclass].length--;
         if (meta->needed() == 0)
@@ -736,17 +736,18 @@ namespace snmalloc
       auto test = [&result](auto& queue) {
         if (!queue.is_empty())
         {
-          auto curr = reinterpret_cast<Metaslab*>(queue.get_next());
+          auto curr = queue.get_next();
           while (curr != nullptr)
           {
-            if (curr->needed() != 0)
+            auto currmeta = Metaslab::from_link(curr);
+            if (currmeta->needed() != 0)
             {
               if (result != nullptr)
                 *result = false;
               else
                 error("debug_is_empty: found non-empty allocator");
             }
-            curr = reinterpret_cast<Metaslab*>(curr->get_next());
+            curr = currmeta->link.get_next();
           }
         }
       };
