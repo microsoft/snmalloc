@@ -16,10 +16,19 @@ namespace snmalloc
 
   // The Metaslab represent the status of a single slab.
   // This can be either a short or a standard slab.
-  class alignas(CACHELINE_SIZE) Metaslab : public SlabLink
+  class alignas(CACHELINE_SIZE) Metaslab
   {
   public:
-    constexpr Metaslab() : SlabLink(true) {}
+    // TODO: Annotate with CHERI subobject unbound for pointer arithmetic
+    SlabLink link;
+
+    constexpr Metaslab() : link(true) {}
+
+    /**
+     * Metaslab::link points at another link field.  To get the actual Metaslab,
+     * use this encapsulation of the container-of logic.
+     */
+    static Metaslab* from_link(SlabLink* ptr);
 
     /**
      *  Data-structure for building the free list for this slab.
@@ -159,6 +168,12 @@ namespace snmalloc
       return p;
     }
   };
+
+  Metaslab* Metaslab::from_link(SlabLink* lptr)
+  {
+    return pointer_offset_signed<Metaslab>(
+      lptr, -static_cast<ptrdiff_t>(offsetof(Metaslab, link)));
+  }
 
   struct RemoteAllocator;
 
