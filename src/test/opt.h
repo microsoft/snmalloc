@@ -11,10 +11,10 @@ namespace opt
   {
   private:
     int argc;
-    char** argv;
+    const char* const* argv;
 
   public:
-    Opt(int argc, char** argv) : argc(argc), argv(argv) {}
+    Opt(int argc, const char* const* argv) : argc(argc), argv(argv) {}
 
     bool has(const char* opt)
     {
