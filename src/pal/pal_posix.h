@@ -4,8 +4,8 @@
 #  include <iostream>
 #endif
 #include "../ds/address.h"
-#if defined(BACKTRACE_HEADER)
-#  include BACKTRACE_HEADER
+#if defined(SNMALLOC_BACKTRACE_HEADER)
+#  include SNMALLOC_BACKTRACE_HEADER
 #endif
 #include <errno.h>
 #include <stdio.h>
