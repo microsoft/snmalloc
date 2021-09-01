@@ -149,7 +149,7 @@ endif()
 
 if (WIN32)
   set(WIN8COMPAT FALSE CACHE BOOL "Avoid Windows 10 APIs")
-  target_compile_definitions(snmalloc INTERFACE $<$<BOOL:${WIN8COMPAT}:WINVER=0x0603>)
+  target_compile_definitions(snmalloc INTERFACE $<$<BOOL:${WIN8COMPAT}>:WINVER=0x0603>)
   # VirtualAlloc2 is exposed by mincore.lib, not Kernel32.lib (as the
   # documentation says)
   target_link_libraries(snmalloc INTERFACE $<$<NOT:$<BOOL:${WIN8COMPAT}>>:mincore>)
