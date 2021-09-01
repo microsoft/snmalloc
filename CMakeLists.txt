@@ -8,7 +8,6 @@ endif()
 
 include(CheckCXXCompilerFlag)
 include(CheckCXXSourceCompiles)
-include(CheckLinkerFlag)
 
 option(USE_SNMALLOC_STATS "Track allocation stats" OFF)
 option(SNMALLOC_CI_BUILD "Disable features not sensible for CI" OFF)
@@ -22,6 +21,23 @@ set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function p
 option(SNMALLOC_HEADER_ONLY_LIBRARY "Use snmalloc has a header-only library" OFF)
 option(SNMALLOC_USE_CXX17 "Build as C++17 for legacy support." OFF)
 option(SNMALLOC_USE_PTHREAD_DESTRUCTORS "Build using pthread destructors. Reduces the system dependencies, but may interact badly with C++ on some platforms." OFF)
+
+if (NOT MSVC)
+  # If CheckLinkerFlag doesn't exist then provide a dummy implementation that
+  # always fails.  The fallback can be removed when we move to CMake 3.18 as the
+  # baseline.
+  include(CheckLinkerFlag OPTIONAL RESULT_VARIABLE CHECK_LINKER_FLAG)
+  if (NOT CHECK_LINKER_FLAG)
+    function(check_linker_flag)
+    endfunction()
+  endif ()
+  # If the target compiler doesn't support -nostdlib++ then we must enable C at
+  # the global scope for the fallbacks to work.
+  check_linker_flag(CXX "-nostdlib++" SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
+  if (NOT SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX AND NOT SNMALLOC_HEADER_ONLY_LIBRARY)
+    enable_language(C)
+  endif()
+endif()
 
 # Define a generator expression for things that will be enabled in either CI
 # builds or debug mode.
@@ -239,7 +255,6 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
         target_link_options(${name} PRIVATE -nostdlib++)
       else()
-        enable_language(C)
         set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
       endif()
 
