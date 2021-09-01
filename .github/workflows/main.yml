@@ -18,12 +18,12 @@ jobs:
         # Build each combination of OS and release/debug variants
         os: [ "ubuntu-latest", "ubuntu-18.04", "macos-11", "macos-10.15", "freebsd-12.2", "freebsd-13.0" ]
         build-type: [ Release, Debug ]
-        extra-cmake-flags: [ " " ]
         # Modify the complete matrix
         include:
           # Provide the dependency installation for each platform
           - os: "ubuntu-18.04"
             dependencies: "sudo apt install ninja-build"
+            cmake-flags: "-DSNMALLOC_USE_CXX17=ON"
           - os: "ubuntu-latest"
             dependencies: "sudo apt install ninja-build"
           - os: "macos-11"
@@ -68,7 +68,7 @@ jobs:
     - name: Install build dependencies
       run: ${{ matrix.dependencies }}
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.extra-cmake-flags }}
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.cmake-flags }} ${{ matrix.extra-cmake-flags }}
       # Build with a nice ninja status line
     - name: Build
       working-directory: ${{github.workspace}}/build
