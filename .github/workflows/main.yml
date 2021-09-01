@@ -18,6 +18,7 @@ jobs:
         # Build each combination of OS and release/debug variants
         os: [ "ubuntu-latest", "ubuntu-18.04", "macos-11", "macos-10.15", "freebsd-12.2", "freebsd-13.0" ]
         build-type: [ Release, Debug ]
+        extra-cmake-flags: [ "" ]
         # Modify the complete matrix
         include:
           # Provide the dependency installation for each platform
@@ -41,6 +42,7 @@ jobs:
           - os: "ubuntu-latest"
             build-type: Debug
             self-host: true
+            extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On"
           # Extra build to check using pthread library for destructing local state.
           - os: "ubuntu-latest"
             variant: "Ubuntu (with pthread destructors)."

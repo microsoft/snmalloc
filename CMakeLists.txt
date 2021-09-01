@@ -22,6 +22,8 @@ option(SNMALLOC_HEADER_ONLY_LIBRARY "Use snmalloc has a header-only library" OFF
 option(SNMALLOC_USE_CXX17 "Build as C++17 for legacy support." OFF)
 option(SNMALLOC_USE_PTHREAD_DESTRUCTORS "Build using pthread destructors. Reduces the system dependencies, but may interact badly with C++ on some platforms." OFF)
 
+set(CMAKE_CXX_IMPLICIT_LINK_LIBRARIES "")
+
 if (NOT MSVC)
   # If CheckLinkerFlag doesn't exist then provide a dummy implementation that
   # always fails.  The fallback can be removed when we move to CMake 3.18 as the
