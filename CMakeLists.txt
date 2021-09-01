@@ -223,7 +223,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden)
 
     if(MSVC)
-      target_compile_options(${name} /Zi /W4 /WX /wd4127 /wd4324 /wd4201)
+      target_compile_options(${name} PRIVATE /Zi /W4 /WX /wd4127 /wd4324 /wd4201)
       set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
     else()
       target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
