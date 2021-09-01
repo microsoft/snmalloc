@@ -8,7 +8,18 @@ endif()
 
 include(CheckCXXCompilerFlag)
 include(CheckCXXSourceCompiles)
+include(CMakeDependentOption)
 
+if (${CMAKE_SYSTEM_NAME} EQUAL FreeBSD)
+  set(SNMALLOC_CLEANUP_DEFAULT THREAD_CLEANUP)
+elseif (UNIX)
+  set(SNMALLOC_CLEANUP_DEFAULT PTHREAD_DESTRUCTORS)
+else ()
+  set(SNMALLOC_CLEANUP_DEFAULT CXX11_DESTRUCTORS)
+endif()
+
+
+option(SNMALLOC_HEADER_ONLY_LIBRARY "Use snmalloc has a header-only library" OFF)
 option(USE_SNMALLOC_STATS "Track allocation stats" OFF)
 option(SNMALLOC_CI_BUILD "Disable features not sensible for CI" OFF)
 option(EXPOSE_EXTERNAL_PAGEMAP "Expose the global pagemap" OFF)
@@ -18,13 +29,15 @@ option(SNMALLOC_STATIC_LIBRARY   "Build static libraries" ON)
 option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory on Linux" Off)
 option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off)
 set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
-option(SNMALLOC_HEADER_ONLY_LIBRARY "Use snmalloc has a header-only library" OFF)
 option(SNMALLOC_USE_CXX17 "Build as C++17 for legacy support." OFF)
-option(SNMALLOC_USE_PTHREAD_DESTRUCTORS "Build using pthread destructors. Reduces the system dependencies, but may interact badly with C++ on some platforms." OFF)
+set(SNMALLOC_CLEANUP ${SNMALLOC_CLEANUP_DEFAULT} CACHE STRING "The mechanism that snmalloc will use for thread destructors.  Valid options are: CXX11_DESTRUCTORS (use C++11 destructors, may depend on the C++ runtime library), PTHREAD_DESTRUCTORS (use pthreads, may interact badly with C++ on some platforms, such as macOS) THREAD_CLEANUP (depend on an explicit call to _malloc_thread_cleanup on thread exit, supported by FreeBSD's threading implementation and possibly elsewhere)")
+set_property(CACHE SNMALLOC_CLEANUP PROPERTY STRINGS THREAD_CLEANUP PTHREAD_DESTRUCTORS CXX11_DESTRUCTORS)
 
-set(CMAKE_CXX_IMPLICIT_LINK_LIBRARIES "")
+if (NOT SNMALLOC_CLEANUP STREQUAL CXX11_DESTRUCTORS)
+  set(CMAKE_CXX_IMPLICIT_LINK_LIBRARIES "")
+endif()
 
-if (NOT MSVC)
+if (NOT MSVC AND NOT (SNMALLOC_CLEANUP STREQUAL CXX11_DESTRUCTORS))
   # If CheckLinkerFlag doesn't exist then provide a dummy implementation that
   # always fails.  The fallback can be removed when we move to CMake 3.18 as the
   # baseline.
@@ -174,7 +187,6 @@ add_as_define(USE_SNMALLOC_STATS)
 add_as_define(SNMALLOC_QEMU_WORKAROUND)
 add_as_define(SNMALLOC_CI_BUILD)
 add_as_define(SNMALLOC_PLATFORM_HAS_GETENTROPY)
-add_as_define(SNMALLOC_USE_PTHREAD_DESTRUCTORS)
 target_compile_definitions(snmalloc INTERFACE $<$<BOOL:CONST_QUALIFIED_MALLOC_USABLE_SIZE>:MALLOC_USABLE_SIZE_QUALIFIER=const>)
 
 # In debug and CI builds, link the backtrace library so that we can get stack
@@ -192,7 +204,7 @@ endif()
 if(MSVC)
   target_compile_definitions(snmalloc INTERFACE -D_HAS_EXCEPTIONS=0)
 else()
-  if (NOT CMAKE_SYSTEM_NAME MATCHES "Haiku")
+  if (NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
     # Get better stack traces in CI and debug builds.
     target_link_options(snmalloc INTERFACE $<${ci_or_debug}:-rdynamic>)
   endif()
@@ -223,6 +235,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     add_library(${name} ${type} ${ARGN})
     target_link_libraries(${name} snmalloc)
     set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+    target_compile_definitions(${name} PRIVATE "SNMALLOC_USE_${SNMALLOC_CLEANUP}")
 
     if(MSVC)
       target_compile_options(${name} PRIVATE /Zi /W4 /WX /wd4127 /wd4324 /wd4201)
@@ -235,7 +248,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
         $<$<CXX_COMPILER_ID:Clang>:-Wsign-conversion -Wconversion>)
       # Static TLS model is unsupported on Haiku.
       # All symbols are always dynamic on haiku and -rdynamic is redundant (and unsupported).
-      if (NOT CMAKE_SYSTEM_NAME MATCHES "Haiku")
+      if (NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
         target_compile_options(${name} PRIVATE -ftls-model=initial-exec)
         target_compile_options(${name} PRIVATE $<$<BOOL:${SNMALLOC_CI_BUILD}>:-g>)
       endif()
@@ -253,18 +266,16 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       # If the compiler supports excluding the C++ stdlib implementation, use
       # it.  Otherwise, fall back to linking the library as if it were C, which
       # has roughly the same effect.
-      check_linker_flag(CXX "-nostdlib++" SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
-      if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
-        target_link_options(${name} PRIVATE -nostdlib++)
-      else()
-        set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
+      if (NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
+        check_linker_flag(CXX "-nostdlib++" SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
+        if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
+          target_link_options(${name} PRIVATE -nostdlib++)
+        else()
+          set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
+        endif()
       endif()
-
-        # Only include the dependencies that actually are touched.
-        # Required so C++ library is not included with direct pthread access.
-        target_link_options(${name} PRIVATE $<$<BOOL:${LLD_WORKS}>:-Wl,--as-needed>)
-        # Remove all the duplicate new/malloc and free/delete definitions
-        target_link_options(${name} PRIVATE $<$<BOOL:${LLD_WORKS}>:-Wl,--icf=all -fuse-ld=lld>)
+      # Remove all the duplicate new/malloc and free/delete definitions
+      target_link_options(${name} PRIVATE $<$<BOOL:${LLD_WORKS}>:-Wl,--icf=all -fuse-ld=lld>)
     endif()
 
     install(TARGETS ${name} EXPORT snmallocConfig)
@@ -295,6 +306,11 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   set(TESTDIR ${CMAKE_CURRENT_SOURCE_DIR}/src/test)
   subdirlist(TEST_CATEGORIES ${TESTDIR})
   list(REVERSE TEST_CATEGORIES)
+  if (${SNMALLOC_CLEANUP} STREQUAL THREAD_CLEANUP)
+    set(TEST_CLEANUP PTHREAD_DESTRUCTORS)
+  else ()
+    set(TEST_CLEANUP ${SNMALLOC_CLEANUP})
+  endif()
   foreach(TEST_CATEGORY ${TEST_CATEGORIES})
     message(STATUS "Adding ${TEST_CATEGORY} tests")
     subdirlist(TESTS ${TESTDIR}/${TEST_CATEGORY})
@@ -325,6 +341,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
           target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_CHECK_CLIENT)
         endif()
         target_link_libraries(${TESTNAME} snmalloc)
+        target_compile_definitions(${TESTNAME} PRIVATE "SNMALLOC_USE_${TEST_CLEANUP}")
         if (${TEST} MATCHES "release-.*")
           message(VERBOSE "Adding test: ${TESTNAME} only for release configs")
           add_test(NAME ${TESTNAME} COMMAND ${TESTNAME} CONFIGURATIONS "Release")
