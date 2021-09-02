@@ -42,7 +42,6 @@ jobs:
           - os: "ubuntu-latest"
             build-type: Debug
             self-host: true
-            extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On"
           # Extra build to check using pthread library for destructing local state.
           - os: "ubuntu-latest"
             variant: "Ubuntu (with pthread destructors)."
