@@ -43,15 +43,16 @@ if (NOT SNMALLOC_CLEANUP STREQUAL CXX11_DESTRUCTORS)
   set(CMAKE_CXX_IMPLICIT_LINK_LIBRARIES "")
 endif()
 
+# If CheckLinkerFlag doesn't exist then provide a dummy implementation that
+# always fails.  The fallback can be removed when we move to CMake 3.18 as the
+# baseline.
+include(CheckLinkerFlag OPTIONAL RESULT_VARIABLE CHECK_LINKER_FLAG)
+if (NOT CHECK_LINKER_FLAG)
+  function(check_linker_flag)
+  endfunction()
+endif ()
+
 if (NOT MSVC AND NOT (SNMALLOC_CLEANUP STREQUAL CXX11_DESTRUCTORS))
-  # If CheckLinkerFlag doesn't exist then provide a dummy implementation that
-  # always fails.  The fallback can be removed when we move to CMake 3.18 as the
-  # baseline.
-  include(CheckLinkerFlag OPTIONAL RESULT_VARIABLE CHECK_LINKER_FLAG)
-  if (NOT CHECK_LINKER_FLAG)
-    function(check_linker_flag)
-    endfunction()
-  endif ()
   # If the target compiler doesn't support -nostdlib++ then we must enable C at
   # the global scope for the fallbacks to work.
   check_linker_flag(CXX "-nostdlib++" SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
