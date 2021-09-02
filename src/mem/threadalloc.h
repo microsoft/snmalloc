@@ -153,8 +153,17 @@ namespace snmalloc
  * Entry point that allows libc to call into the allocator for per-thread
  * cleanup.
  */
-void _malloc_thread_cleanup()
+inline void _malloc_thread_cleanup()
 {
   snmalloc::ThreadAlloc::get().teardown();
+}
+
+namespace snmalloc
+{
+  /**
+   * No-op version of register_clean_up.  This is called unconditionally by
+   * globalconfig but is not necessary when using a libc hook.
+   */
+  inline void register_clean_up() {}
 }
 #endif

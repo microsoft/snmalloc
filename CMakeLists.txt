@@ -18,13 +18,13 @@ option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory
 option(SNMALLOC_USE_CXX17 "Build as C++17 for legacy support." OFF)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
-cmake_dependent_option(SNMALLOC_STATIC_LIBRARY "Build static libraries" ON "NOT SNMALLOC_STATIC_LIBRARY" OFF)
-cmake_dependent_option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off "NOT SNMALLOC_STATIC_LIBRARY" OFF)
+cmake_dependent_option(SNMALLOC_STATIC_LIBRARY "Build static libraries" ON "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
+cmake_dependent_option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 if (NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   # Pick a sensible default for the thread cleanup mechanism
   if (${CMAKE_SYSTEM_NAME} STREQUAL FreeBSD)
     set(SNMALLOC_CLEANUP_DEFAULT THREAD_CLEANUP)
-  elseif (UNIX)
+  elseif (UNIX AND NOT APPLE)
     set(SNMALLOC_CLEANUP_DEFAULT PTHREAD_DESTRUCTORS)
   else ()
     set(SNMALLOC_CLEANUP_DEFAULT CXX11_DESTRUCTORS)
@@ -210,11 +210,22 @@ endif()
 if(MSVC)
   target_compile_definitions(snmalloc INTERFACE -D_HAS_EXCEPTIONS=0)
 else()
+  # All symbols are always dynamic on haiku and -rdynamic is redundant (and unsupported).
   if (NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
     # Get better stack traces in CI and debug builds.
     target_link_options(snmalloc INTERFACE $<${ci_or_debug}:-rdynamic>)
   endif()
 endif()
+
+check_linker_flag(CXX "-Wl,--no-undefined" SNMALLOC_LINKER_SUPPORT_NO_ALLOW_SHLIB_UNDEF)
+
+function(add_warning_flags name)
+  target_compile_options(${name} PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:/Zi /W4 /WX /wd4127 /wd4324 /wd4201 $<${ci_or_debug}:/DEBUG>>
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-fno-exceptions -fno-rtti -Wall -Wextra -Werror -Wundef>
+    $<$<CXX_COMPILER_ID:Clang>:-Wsign-conversion -Wconversion>)
+  target_link_options(${name} PRIVATE $<$<BOOL:${SNMALLOC_LINKER_SUPPORT_NO_ALLOW_SHLIB_UNDEF}>:-Wl,--no-undefined>)
+endfunction()
 
 
 # To build with just the header library target define SNMALLOC_HEADER_ONLY_LIBRARY
@@ -243,17 +254,12 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden)
     target_compile_definitions(${name} PRIVATE "SNMALLOC_USE_${SNMALLOC_CLEANUP}")
 
-    if(MSVC)
-      target_compile_options(${name} PRIVATE /Zi /W4 /WX /wd4127 /wd4324 /wd4201)
-      set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /DEBUG")
-    else()
+    add_warning_flags(${name})
+    if(NOT MSVC)
       target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
       target_compile_options(${name} PRIVATE
-        -fno-exceptions -fno-rtti -fomit-frame-pointer -ffunction-sections
-        -Wall -Wextra -Werror -Wundef
-        $<$<CXX_COMPILER_ID:Clang>:-Wsign-conversion -Wconversion>)
+        -fomit-frame-pointer -ffunction-sections)
       # Static TLS model is unsupported on Haiku.
-      # All symbols are always dynamic on haiku and -rdynamic is redundant (and unsupported).
       if (NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
         target_compile_options(${name} PRIVATE -ftls-model=initial-exec)
         target_compile_options(${name} PRIVATE $<$<BOOL:${SNMALLOC_CI_BUILD}>:-g>)
@@ -339,6 +345,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
         set(TESTNAME "${TEST_CATEGORY}-${TEST}-${FLAVOUR}")
 
         add_executable(${TESTNAME} ${SRC})
+        add_warning_flags(${TESTNAME})
 
         if (${FLAVOUR} STREQUAL "malloc")
           target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_PASS_THROUGH)
