@@ -1,7 +1,11 @@
 #include "malloc.cc"
 
 #ifdef _WIN32
-#  define EXCEPTSPEC
+#  ifdef __clang__
+#    define EXCEPTSPEC noexcept
+#  else
+#    define EXCEPTSPEC
+#  endif
 #else
 #  ifdef _GLIBCXX_USE_NOEXCEPT
 #    define EXCEPTSPEC _GLIBCXX_USE_NOEXCEPT
