@@ -169,7 +169,7 @@ namespace snmalloc
     }
   };
 
-  Metaslab* Metaslab::from_link(SlabLink* lptr)
+  inline Metaslab* Metaslab::from_link(SlabLink* lptr)
   {
     return pointer_offset_signed<Metaslab>(
       lptr, -static_cast<ptrdiff_t>(offsetof(Metaslab, link)));
