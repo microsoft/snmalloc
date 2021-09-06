@@ -404,6 +404,14 @@ install(DIRECTORY src/override DESTINATION include/snmalloc)
 install(DIRECTORY src/backend DESTINATION include/snmalloc)
 install(DIRECTORY src/mem DESTINATION include/snmalloc)
 install(DIRECTORY src/pal DESTINATION include/snmalloc)
+install(FILES
+    src/test/measuretime.h
+    src/test/opt.h
+    src/test/setup.h
+    src/test/usage.h
+    src/test/xoroshiro.h
+  DESTINATION include/snmalloc/test
+  )
 install(FILES src/snmalloc.h;src/snmalloc_core.h;src/snmalloc_front.h DESTINATION include/snmalloc)
 
 install(EXPORT snmallocConfig
