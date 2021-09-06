@@ -28,9 +28,9 @@ jobs:
           - os: "ubuntu-latest"
             dependencies: "sudo apt install ninja-build"
           - os: "macos-11"
-            dependencies: "brew update && brew install ninja"
+            dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
           - os: "macos-10.15"
-            dependencies: "brew update && brew install ninja"
+            dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
           # Skip the tests for the FreeBSD release builds
           - os: "freebsd-13.0"
             build-type: Release
