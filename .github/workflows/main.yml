@@ -28,6 +28,10 @@ jobs:
           - os: "ubuntu-latest"
             dependencies: "sudo apt install ninja-build"
           - os: "macos-11"
+            # The homebrew packages are broken at the moment and error out
+            # after trying to install Python as a dependency of ninja because
+            # 2to3 exists.  As a quick hack, delete it first.  This should be
+            # removed once the homebrew install is fixed.
             dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
           - os: "macos-10.15"
             dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
