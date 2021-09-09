@@ -51,5 +51,18 @@ namespace snmalloc
     {
       Backend::init(local_state, base, length);
     }
+
+    /* Verify that a pointer points into the region managed by this config */
+    static CapPtr<void, CBAllocE> capptr_domesticate(
+      typename Backend::LocalState* ls, CapPtr<void, CBAllocEW> p)
+    {
+      UNUSED(ls);
+      auto pa = address_cast(p);
+      auto bounds = Backend::Pagemap::get_bounds(nullptr);
+      if (pa < bounds.first || pa >= (bounds.first + bounds.second))
+        return nullptr;
+
+      return CapPtr<void, CBAllocE>(p.unsafe_ptr());
+    }
   };
 }

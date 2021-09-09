@@ -103,5 +103,17 @@ namespace snmalloc
     {
       snmalloc::register_clean_up();
     }
+
+    static CapPtr<void, CBAllocE> capptr_domesticate(
+      typename Backend::LocalState* ls, CapPtr<void, CBAllocEW> p)
+    {
+      /*
+       * By default, if we're using the whole address space, there's nothing to
+       * be done, and we will rely on Pagemap::get_meta_data to check that our
+       * Wild pointer actually refers to memory we manage.
+       */
+      UNUSED(ls);
+      return CapPtr<void, CBAllocE>(p.unsafe_ptr());
+    }
   };
 } // namespace snmalloc

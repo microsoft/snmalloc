@@ -213,11 +213,14 @@ namespace snmalloc
       //      SNMALLOC_ASSUME(size <= sizeclass_to_size(NUM_SIZECLASSES));
       auto slowpath = [&](
                         sizeclass_t sizeclass,
-                        FreeListIter* fl) SNMALLOC_FAST_PATH_LAMBDA {
+                        FreeListIter<CBAllocE>* fl) SNMALLOC_FAST_PATH_LAMBDA {
         if (likely(core_alloc != nullptr))
         {
           return core_alloc->handle_message_queue(
-            [](CoreAlloc* core_alloc, sizeclass_t sizeclass, FreeListIter* fl) {
+            [](
+              CoreAlloc* core_alloc,
+              sizeclass_t sizeclass,
+              FreeListIter<CBAllocE>* fl) {
               return core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
             },
             core_alloc,
@@ -252,18 +255,18 @@ namespace snmalloc
      * In the second case we need to recheck if this is a remote deallocation,
      * as we might acquire the originating allocator.
      */
-    SNMALLOC_SLOW_PATH void dealloc_remote_slow(void* p)
+    SNMALLOC_SLOW_PATH void dealloc_remote_slow(CapPtr<void, CBAllocE> p)
     {
       if (core_alloc != nullptr)
       {
 #ifdef SNMALLOC_TRACING
-        std::cout << "Remote dealloc post" << p << " size " << alloc_size(p)
-                  << std::endl;
+        std::cout << "Remote dealloc post" << p.unsafe_ptr() << " size "
+                  << alloc_size(p.unsafe_ptr()) << std::endl;
 #endif
         MetaEntry entry = SharedStateHandle::Pagemap::get_metaentry(
           core_alloc->backend_state_ptr(), address_cast(p));
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-          entry.get_remote()->trunc_id(), CapPtr<void, CBAlloc>(p), key_global);
+          entry.get_remote()->trunc_id(), p, key_global);
         post_remote_cache();
         return;
       }
@@ -271,8 +274,8 @@ namespace snmalloc
       // Recheck what kind of dealloc we should do incase, the allocator we get
       // from lazy_init is the originating allocator.
       lazy_init(
-        [&](CoreAlloc*, void* p) {
-          dealloc(p); // TODO don't double count statistics
+        [&](CoreAlloc*, CapPtr<void, CBAllocE> p) {
+          dealloc(p.unsafe_ptr()); // TODO don't double count statistics
           return nullptr;
         },
         p);
@@ -461,10 +464,10 @@ namespace snmalloc
       return alloc<zero_mem>(size);
     }
 
-    SNMALLOC_FAST_PATH void dealloc(void* p)
+    SNMALLOC_FAST_PATH void dealloc(void* p_raw)
     {
 #ifdef SNMALLOC_PASS_THROUGH
-      external_alloc::free(p);
+      external_alloc::free(p_raw);
 #else
       // TODO:
       // Care is needed so that dealloc(nullptr) works before init
@@ -472,12 +475,24 @@ namespace snmalloc
       //  before init, that maps null to a remote_deallocator that will never be
       //  in thread local state.
 
+      CapPtr<void, CBAllocEW> p_wild = capptr_from_client(p_raw);
+
+      /*
+       * p_tame may be nullptr, even if p_raw/p_wild are not, in the case where
+       * domestication fails.  We exclusively use p_tame below so that such
+       * failures become no ops; in the nullptr path, which should be well off
+       * the fast path, we could be slightly more aggressive and test that p_raw
+       * is also nullptr and Pal::error() if not. (TODO)
+       */
+      CapPtr<void, CBAllocE> p_tame = SharedStateHandle::capptr_domesticate(
+        core_alloc->backend_state_ptr(), p_wild);
+
       const MetaEntry& entry = SharedStateHandle::Pagemap::get_metaentry(
-        core_alloc->backend_state_ptr(), address_cast(p));
+        core_alloc->backend_state_ptr(), address_cast(p_tame));
       if (likely(local_cache.remote_allocator == entry.get_remote()))
       {
         if (likely(CoreAlloc::dealloc_local_object_fast(
-              entry, p, local_cache.entropy)))
+              entry, p_tame, local_cache.entropy)))
           return;
         core_alloc->dealloc_local_object_slow(entry);
         return;
@@ -489,22 +504,20 @@ namespace snmalloc
         if (local_cache.remote_dealloc_cache.reserve_space(entry))
         {
           local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-            entry.get_remote()->trunc_id(),
-            CapPtr<void, CBAlloc>(p),
-            key_global);
+            entry.get_remote()->trunc_id(), p_tame, key_global);
 #  ifdef SNMALLOC_TRACING
-          std::cout << "Remote dealloc fast" << p << " size " << alloc_size(p)
-                    << std::endl;
+          std::cout << "Remote dealloc fast" << p_raw << " size "
+                    << alloc_size(p_raw) << std::endl;
 #  endif
           return;
         }
 
-        dealloc_remote_slow(p);
+        dealloc_remote_slow(p_tame);
         return;
       }
 
       // Large deallocation or null.
-      if (likely(p != nullptr))
+      if (likely(p_tame.unsafe_ptr() != nullptr))
       {
         // Check this is managed by this pagemap.
         check_client(entry.get_sizeclass() != 0, "Not allocated by snmalloc.");
@@ -513,7 +526,8 @@ namespace snmalloc
 
         // Check for start of allocation.
         check_client(
-          pointer_align_down(p, size) == p, "Not start of an allocation.");
+          pointer_align_down(p_tame, size) == p_tame,
+          "Not start of an allocation.");
 
         size_t slab_sizeclass = large_size_to_chunk_sizeclass(size);
 #  ifdef SNMALLOC_TRACING
@@ -522,7 +536,7 @@ namespace snmalloc
 #  endif
         ChunkRecord* slab_record =
           reinterpret_cast<ChunkRecord*>(entry.get_metaslab());
-        slab_record->chunk = CapPtr<void, CBChunk>(p);
+        slab_record->chunk = CapPtr<void, CBChunk>(p_tame.unsafe_ptr()); // XXX!
         check_init(
           [](
             CoreAlloc* core_alloc,
@@ -577,6 +591,11 @@ namespace snmalloc
 #ifdef SNMALLOC_PASS_THROUGH
       return external_alloc::malloc_usable_size(const_cast<void*>(p_raw));
 #else
+      // TODO What's the domestication policy here?  At the moment we just probe
+      // the pagemap with the raw address, without checks.  There could be
+      // implicit domestication through the `SharedStateHandle::Pagemap` or we
+      // could just leave well enough alone.
+
       // Note that this should return 0 for nullptr.
       // Other than nullptr, we know the system will be initialised as it must
       // be called with something we have already allocated.
@@ -608,6 +627,11 @@ namespace snmalloc
     void* external_pointer(void* p_raw)
     {
 #ifndef SNMALLOC_PASS_THROUGH
+      // TODO What's the domestication policy here?  At the moment we just probe
+      // the pagemap with the raw address, without checks.  There could be
+      // implicit domestication through the `SharedStateHandle::Pagemap` or we
+      // could just leave well enough alone.
+
       // TODO bring back the CHERI bits. Wes to review if required.
       MetaEntry entry =
         SharedStateHandle::Pagemap::template get_metaentry<true>(

@@ -66,11 +66,11 @@ namespace snmalloc
     template<size_t allocator_size>
     SNMALLOC_FAST_PATH void dealloc(
       RemoteAllocator::alloc_id_t target_id,
-      CapPtr<void, CBAlloc> p,
+      CapPtr<void, CBAllocE> p,
       const FreeListKey& key)
     {
       SNMALLOC_ASSERT(initialised);
-      auto r = p.template as_reinterpret<FreeObject>();
+      auto r = p.template as_static<FreeObject>();
 
       list[get_slot<allocator_size>(target_id, 0)].add(r, key);
     }
@@ -110,7 +110,7 @@ namespace snmalloc
         // Entries could map back onto the "resend" list,
         // so take copy of the head, mark the last element,
         // and clear the original list.
-        FreeListIter resend;
+        FreeListIter<CBAllocE> resend; // XXX
         list[my_slot].close(resend, key);
 
         post_round++;
