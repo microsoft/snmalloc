@@ -180,8 +180,11 @@ namespace snmalloc
     void* small_alloc_one(size_t size)
     {
       SNMALLOC_ASSERT(attached_cache != nullptr);
+      auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::Alloc> p)
+                           SNMALLOC_FAST_PATH_LAMBDA { return p; };
       // Use attached cache, and fill it if it is empty.
       return attached_cache->template alloc<NoZero, SharedStateHandle>(
+        domesticate,
         size,
         [&](
           sizeclass_t sizeclass,
@@ -278,7 +281,9 @@ namespace snmalloc
       FreeListIter<capptr::bounds::Alloc, capptr::bounds::Alloc> fl;
       auto more = meta->free_queue.close(fl, key);
       UNUSED(more);
-      void* p = finish_alloc_no_zero(fl.take(key), sizeclass);
+      auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::Alloc> p)
+                           SNMALLOC_FAST_PATH_LAMBDA { return p; };
+      void* p = finish_alloc_no_zero(fl.take(key, domesticate), sizeclass);
 
 #ifdef SNMALLOC_CHECK_CLIENT
       // Check free list is well-formed on platforms with
@@ -286,7 +291,7 @@ namespace snmalloc
       size_t count = 1; // Already taken one above.
       while (!fl.empty())
       {
-        fl.take(key);
+        fl.take(key, domesticate);
         count++;
       }
       // Check the list contains all the elements
@@ -301,7 +306,7 @@ namespace snmalloc
 
         while (!fl.empty())
         {
-          fl.take(key);
+          fl.take(key, domesticate);
           count++;
         }
       }
@@ -634,8 +639,10 @@ namespace snmalloc
         if (meta->needed() == 0)
           alloc_classes[sizeclass].unused--;
 
-        auto [p, still_active] =
-          Metaslab::alloc_free_list(meta, fast_free_list, entropy, sizeclass);
+        auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::Alloc> p)
+                             SNMALLOC_FAST_PATH_LAMBDA { return p; };
+        auto [p, still_active] = Metaslab::alloc_free_list(
+          domesticate, meta, fast_free_list, entropy, sizeclass);
 
         if (still_active)
         {
@@ -701,8 +708,10 @@ namespace snmalloc
       // Build a free list for the slab
       alloc_new_list(slab, meta, rsize, slab_size, entropy);
 
-      auto [p, still_active] =
-        Metaslab::alloc_free_list(meta, fast_free_list, entropy, sizeclass);
+      auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::Alloc> p)
+                           SNMALLOC_FAST_PATH_LAMBDA { return p; };
+      auto [p, still_active] = Metaslab::alloc_free_list(
+        domesticate, meta, fast_free_list, entropy, sizeclass);
 
       if (still_active)
       {
@@ -750,7 +759,8 @@ namespace snmalloc
 
       auto posted =
         attached_cache->flush<sizeof(CoreAllocator), SharedStateHandle>(
-          backend_state_ptr(), [&](auto p) { dealloc_local_object(p); });
+          backend_state_ptr(),
+          [&](capptr::Alloc<void> p) { dealloc_local_object(p); });
 
       // We may now have unused slabs, return to the global allocator.
       for (sizeclass_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass++)
