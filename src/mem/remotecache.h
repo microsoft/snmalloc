@@ -92,6 +92,8 @@ namespace snmalloc
       SNMALLOC_ASSERT(initialised);
       size_t post_round = 0;
       bool sent_something = false;
+      auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::Alloc> p)
+                           SNMALLOC_FAST_PATH_LAMBDA { return p; };
 
       while (true)
       {
@@ -127,7 +129,7 @@ namespace snmalloc
         {
           // Use the next N bits to spread out remote deallocs in our own
           // slot.
-          auto r = resend.take(key);
+          auto r = resend.take(key, domesticate);
           MetaEntry entry = SharedStateHandle::Pagemap::get_metaentry(
             local_state, address_cast(r));
           auto i = entry.get_remote()->trunc_id();

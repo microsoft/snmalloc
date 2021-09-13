@@ -82,6 +82,8 @@ namespace snmalloc
       typename SharedStateHandle::LocalState* local_state, DeallocFun dealloc)
     {
       auto& key = entropy.get_free_list_key();
+      auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::Alloc> p)
+                           SNMALLOC_FAST_PATH_LAMBDA { return p; };
 
       for (size_t i = 0; i < NUM_SIZECLASSES; i++)
       {
@@ -89,7 +91,7 @@ namespace snmalloc
         // call.
         while (!small_fast_free_lists[i].empty())
         {
-          auto p = small_fast_free_lists[i].take(key);
+          auto p = small_fast_free_lists[i].take(key, domesticate);
           SNMALLOC_ASSERT(Metaslab::is_start_of_object(i, address_cast(p)));
           dealloc(p.as_void());
         }
@@ -99,18 +101,22 @@ namespace snmalloc
         local_state, remote_allocator->trunc_id(), key_global);
     }
 
-    template<ZeroMem zero_mem, typename SharedStateHandle, typename Slowpath>
-    SNMALLOC_FAST_PATH void* alloc(size_t size, Slowpath slowpath)
+    template<
+      ZeroMem zero_mem,
+      typename SharedStateHandle,
+      typename Slowpath,
+      typename Domesticator>
+    SNMALLOC_FAST_PATH void*
+    alloc(Domesticator domesticate, size_t size, Slowpath slowpath)
     {
       auto& key = entropy.get_free_list_key();
-
       sizeclass_t sizeclass = size_to_sizeclass(size);
       stats.alloc_request(size);
       stats.sizeclass_alloc(sizeclass);
       auto& fl = small_fast_free_lists[sizeclass];
       if (likely(!fl.empty()))
       {
-        auto p = fl.take(key);
+        auto p = fl.take(key, domesticate);
         return finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
       }
       return slowpath(sizeclass, &fl);

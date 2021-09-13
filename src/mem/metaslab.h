@@ -154,9 +154,11 @@ namespace snmalloc
      * component, but with randomisation, it may only return part of the
      * available objects for this metaslab.
      */
+    template<typename Domesticator>
     static SNMALLOC_FAST_PATH
       std::pair<FreeObject::QueuePtr<capptr::bounds::Alloc>, bool>
       alloc_free_list(
+        Domesticator domesticate,
         Metaslab* meta,
         FreeListIter<capptr::bounds::Alloc, capptr::bounds::Alloc>&
           fast_free_list,
@@ -167,7 +169,7 @@ namespace snmalloc
 
       std::remove_reference_t<decltype(fast_free_list)> tmp_fl;
       auto remaining = meta->free_queue.close(tmp_fl, key);
-      auto p = tmp_fl.take(key);
+      auto p = tmp_fl.take(key, domesticate);
       fast_free_list = tmp_fl;
 
 #ifdef SNMALLOC_CHECK_CLIENT

@@ -211,6 +211,9 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void* small_alloc(size_t size)
     {
       //      SNMALLOC_ASSUME(size <= sizeclass_to_size(NUM_SIZECLASSES));
+
+      auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::Alloc> p)
+                           SNMALLOC_FAST_PATH_LAMBDA { return p; };
       auto slowpath =
         [&](
           sizeclass_t sizeclass,
@@ -239,7 +242,7 @@ namespace snmalloc
           };
 
       return local_cache.template alloc<zero_mem, SharedStateHandle>(
-        size, slowpath);
+        domesticate, size, slowpath);
     }
 
     /**

@@ -416,12 +416,11 @@ namespace snmalloc
     /**
      * Moves the iterator on, and returns the current value.
      */
-    FreeObject::HeadPtr<BView, BQueue> take(const FreeListKey& key)
+    template<typename Domesticator>
+    FreeObject::HeadPtr<BView, BQueue>
+    take(const FreeListKey& key, Domesticator domesticate)
     {
       auto c = curr;
-      // TODO: Placeholder
-      auto domesticate = [](FreeObject::QueuePtr<BQueue> p)
-                           SNMALLOC_FAST_PATH_LAMBDA { return p; };
       auto next = curr->read_next(key, domesticate);
 
       Aal::prefetch(next.unsafe_ptr());
