@@ -9,14 +9,15 @@
 namespace snmalloc
 {
   /**
-   * This class implements the standard backend for handling allocations.
-   * It abstracts page table management and address space management.
+   * This helper class implements the core functionality to allocate from an
+   * address space and pagemap. Any backend implementation can use this class to
+   * help with basic address space managment.
    */
   template<
     SNMALLOC_CONCEPT(ConceptPAL) PAL,
-    bool fixed_range,
-    typename PageMapEntry = MetaEntry>
-  class BackendAllocator : public CommonConfig
+    typename LocalState,
+    SNMALLOC_CONCEPT(ConceptBackendMetaRange) Pagemap>
+  class AddressSpaceAllocatorCommon
   {
     // Size of local address space requests.  Currently aimed at 2MiB large
     // pages but should make this configurable (i.e. for OE, so we don't need as
@@ -32,138 +33,73 @@ namespace snmalloc
 #endif
 
   public:
-    using Pal = PAL;
-
     /**
-     * Local state for the backend allocator.
+     * Provide a block of meta-data with size and align.
      *
-     * This class contains thread local structures to make the implementation
-     * of the backend allocator more efficient.
+     * Backend allocator may use guard pages and separate area of
+     * address space to protect this from corruption.
      */
-    class LocalState
+    static CapPtr<void, CBChunk> alloc_meta_data(
+      AddressSpaceManager<PAL>& global, LocalState* local_state, size_t size)
     {
-      friend BackendAllocator;
-
-      AddressSpaceManagerCore local_address_space;
-
-#ifdef SNMALLOC_CHECK_CLIENT
-      /**
-       * Secondary local address space, so we can apply some randomisation
-       * and guard pages to protect the meta-data.
-       */
-      AddressSpaceManagerCore local_meta_address_space;
-#endif
-    };
-
-    SNMALLOC_REQUIRE_CONSTINIT
-    static inline AddressSpaceManager<PAL> address_space;
-
-    class Pagemap
-    {
-      friend class BackendAllocator;
-
-      SNMALLOC_REQUIRE_CONSTINIT
-      static inline FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, PAL, fixed_range>
-        concretePagemap;
-
-    public:
-      /**
-       * Provide a type alias for LocalState so that we can refer to it without
-       * needing the whole BackendAllocator type at hand.
-       */
-      using LocalState = BackendAllocator::LocalState;
-
-      /**
-       * Get the metadata associated with a chunk.
-       *
-       * Set template parameter to true if it not an error
-       * to access a location that is not backed by a chunk.
-       */
-      template<bool potentially_out_of_range = false>
-      SNMALLOC_FAST_PATH static const MetaEntry&
-      get_metaentry(LocalState* ls, address_t p)
-      {
-        UNUSED(ls);
-        return concretePagemap.template get<potentially_out_of_range>(p);
-      }
-
-      /**
-       * Set the metadata associated with a chunk.
-       */
-      SNMALLOC_FAST_PATH
-      static void
-      set_metaentry(LocalState* ls, address_t p, size_t size, MetaEntry t)
-      {
-        UNUSED(ls);
-        for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
-        {
-          concretePagemap.set(a, t);
-        }
-      }
-
-      static void register_range(LocalState* ls, address_t p, size_t sz)
-      {
-        UNUSED(ls);
-        concretePagemap.register_range(p, sz);
-      }
-    };
-
-  public:
-    template<bool fixed_range_ = fixed_range>
-    static std::enable_if_t<!fixed_range_> init()
-    {
-      static_assert(fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
-
-      Pagemap::concretePagemap.init();
+      return reserve<true>(global, local_state, size);
     }
 
-    template<bool fixed_range_ = fixed_range>
-    static std::enable_if_t<fixed_range_>
-    init(LocalState* local_state, void* base, size_t length)
+    /**
+     * Returns a chunk of memory with alignment and size of `size`, and a
+     * metaslab block.
+     *
+     * It additionally set the meta-data for this chunk of memory to
+     * be
+     *   (remote, sizeclass, metaslab)
+     * where metaslab, is the second element of the pair return.
+     */
+    static std::pair<CapPtr<void, CBChunk>, Metaslab*> alloc_chunk(
+      AddressSpaceManager<PAL>& global,
+      LocalState* local_state,
+      size_t size,
+      RemoteAllocator* remote,
+      sizeclass_t sizeclass)
     {
-      static_assert(fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
+      SNMALLOC_ASSERT(bits::is_pow2(size));
+      SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
 
-      auto [heap_base, heap_length] =
-        Pagemap::concretePagemap.init(base, length);
-      address_space.template add_range<Pagemap>(
-        local_state, CapPtr<void, CBChunk>(heap_base), heap_length);
+      auto meta = reinterpret_cast<Metaslab*>(
+        reserve<true>(global, local_state, sizeof(Metaslab)).unsafe_ptr());
+
+      if (meta == nullptr)
+        return {nullptr, nullptr};
+
+      CapPtr<void, CBChunk> p = reserve<false>(global, local_state, size);
+
+#ifdef SNMALLOC_TRACING
+      std::cout << "Alloc chunk: " << p.unsafe_ptr() << " (" << size << ")"
+                << std::endl;
+#endif
+      if (p == nullptr)
+      {
+        // TODO: This is leaking `meta`. Currently there is no facility for
+        // meta-data reuse, so will leave until we develop more expressive
+        // meta-data management.
+#ifdef SNMALLOC_TRACING
+        std::cout << "Out of memory" << std::endl;
+#endif
+        return {p, nullptr};
+      }
+
+      MetaEntry t(meta, remote, sizeclass);
+      Pagemap::set_metaentry(local_state, address_cast(p), size, t);
+      return {p, meta};
     }
 
   private:
-#ifdef SNMALLOC_CHECK_CLIENT
-    /**
-     * Returns a sub-range of [return, return+sub_size] that is contained in
-     * the range [base, base+full_size]. The first and last slot are not used
-     * so that the edges can be used for guard pages.
-     */
-    static CapPtr<void, CBChunk>
-    sub_range(CapPtr<void, CBChunk> base, size_t full_size, size_t sub_size)
-    {
-      SNMALLOC_ASSERT(bits::is_pow2(full_size));
-      SNMALLOC_ASSERT(bits::is_pow2(sub_size));
-      SNMALLOC_ASSERT(full_size % sub_size == 0);
-      SNMALLOC_ASSERT(full_size / sub_size >= 4);
-
-      size_t offset_mask = full_size - sub_size;
-
-      // Don't use first or last block in the larger reservation
-      // Loop required to get uniform distribution.
-      size_t offset;
-      do
-      {
-        offset = get_entropy64<PAL>() & offset_mask;
-      } while ((offset == 0) || (offset == offset_mask));
-
-      return pointer_offset(base, offset);
-    }
-#endif
-
     /**
      * Internal method for acquiring state from the local and global address
      * space managers.
      */
     template<bool is_meta>
-    static CapPtr<void, CBChunk> reserve(LocalState* local_state, size_t size)
+    static CapPtr<void, CBChunk> reserve(
+      AddressSpaceManager<PAL>& global, LocalState* local_state, size_t size)
     {
 #ifdef SNMALLOC_CHECK_CLIENT
       constexpr auto MAX_CACHED_SIZE =
@@ -171,8 +107,6 @@ namespace snmalloc
 #else
       constexpr auto MAX_CACHED_SIZE = LOCAL_CACHE_BLOCK;
 #endif
-
-      auto& global = address_space;
 
       CapPtr<void, CBChunk> p;
       if ((local_state != nullptr) && (size <= MAX_CACHED_SIZE))
@@ -242,7 +176,151 @@ namespace snmalloc
       return p;
     }
 
+#ifdef SNMALLOC_CHECK_CLIENT
+    /**
+     * Returns a sub-range of [return, return+sub_size] that is contained in
+     * the range [base, base+full_size]. The first and last slot are not used
+     * so that the edges can be used for guard pages.
+     */
+    static CapPtr<void, CBChunk>
+    sub_range(CapPtr<void, CBChunk> base, size_t full_size, size_t sub_size)
+    {
+      SNMALLOC_ASSERT(bits::is_pow2(full_size));
+      SNMALLOC_ASSERT(bits::is_pow2(sub_size));
+      SNMALLOC_ASSERT(full_size % sub_size == 0);
+      SNMALLOC_ASSERT(full_size / sub_size >= 4);
+
+      size_t offset_mask = full_size - sub_size;
+
+      // Don't use first or last block in the larger reservation
+      // Loop required to get uniform distribution.
+      size_t offset;
+      do
+      {
+        offset = get_entropy64<PAL>() & offset_mask;
+      } while ((offset == 0) || (offset == offset_mask));
+
+      return pointer_offset(base, offset);
+    }
+#endif
+  };
+
+  /**
+   * This class implements the standard backend for handling allocations.
+   * It abstracts page table management and address space management.
+   */
+  template<
+    SNMALLOC_CONCEPT(ConceptPAL) PAL,
+    bool fixed_range,
+    typename PageMapEntry = MetaEntry>
+  class BackendAllocator : public CommonConfig
+  {
   public:
+    using Pal = PAL;
+
+    /**
+     * Local state for the backend allocator.
+     *
+     * This class contains thread local structures to make the implementation
+     * of the backend allocator more efficient.
+     */
+    class LocalState
+    {
+      template<
+        SNMALLOC_CONCEPT(ConceptPAL) PAL2,
+        typename LocalState,
+        SNMALLOC_CONCEPT(ConceptBackendMetaRange) Pagemap>
+      friend class AddressSpaceAllocatorCommon;
+
+      AddressSpaceManagerCore local_address_space;
+
+#ifdef SNMALLOC_CHECK_CLIENT
+      /**
+       * Secondary local address space, so we can apply some randomisation
+       * and guard pages to protect the meta-data.
+       */
+      AddressSpaceManagerCore local_meta_address_space;
+#endif
+    };
+
+    SNMALLOC_REQUIRE_CONSTINIT
+    static inline AddressSpaceManager<PAL> address_space;
+
+    class Pagemap
+    {
+      friend class BackendAllocator;
+
+      SNMALLOC_REQUIRE_CONSTINIT
+      static inline FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, PAL, fixed_range>
+        concretePagemap;
+
+    public:
+      /**
+       * Provide a type alias for LocalState so that we can refer to it without
+       * needing the whole BackendAllocator type at hand.
+       */
+      using LocalState = BackendAllocator::LocalState;
+
+      /**
+       * Get the metadata associated with a chunk.
+       *
+       * Set template parameter to true if it not an error
+       * to access a location that is not backed by a chunk.
+       */
+      template<bool potentially_out_of_range = false>
+      SNMALLOC_FAST_PATH static const MetaEntry&
+      get_metaentry(LocalState* ls, address_t p)
+      {
+        UNUSED(ls);
+        return concretePagemap.template get<potentially_out_of_range>(p);
+      }
+
+      /**
+       * Set the metadata associated with a chunk.
+       */
+      SNMALLOC_FAST_PATH
+      static void
+      set_metaentry(LocalState* ls, address_t p, size_t size, MetaEntry t)
+      {
+        UNUSED(ls);
+        for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
+        {
+          concretePagemap.set(a, t);
+        }
+      }
+
+      static void register_range(LocalState* ls, address_t p, size_t sz)
+      {
+        UNUSED(ls);
+        concretePagemap.register_range(p, sz);
+      }
+    };
+
+  private:
+    using AddressSpaceAllocator =
+      AddressSpaceAllocatorCommon<Pal, LocalState, Pagemap>;
+
+  public:
+    template<bool fixed_range_ = fixed_range>
+    static std::enable_if_t<!fixed_range_> init()
+    {
+      static_assert(fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
+
+      Pagemap::concretePagemap.init();
+    }
+
+    template<bool fixed_range_ = fixed_range>
+    static std::enable_if_t<fixed_range_>
+    init(LocalState* local_state, void* base, size_t length)
+    {
+      static_assert(fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
+
+      auto [heap_base, heap_length] =
+        Pagemap::concretePagemap.init(base, length);
+      address_space.template add_range<Pagemap>(
+        local_state, CapPtr<void, CBChunk>(heap_base), heap_length);
+    }
+
     /**
      * Provide a block of meta-data with size and align.
      *
@@ -257,7 +335,8 @@ namespace snmalloc
     static CapPtr<void, CBChunk>
     alloc_meta_data(LocalState* local_state, size_t size)
     {
-      return reserve<true>(local_state, size);
+      return AddressSpaceAllocator::alloc_meta_data(
+        address_space, local_state, size);
     }
 
     /**
@@ -275,35 +354,8 @@ namespace snmalloc
       RemoteAllocator* remote,
       sizeclass_t sizeclass)
     {
-      SNMALLOC_ASSERT(bits::is_pow2(size));
-      SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
-
-      auto meta = reinterpret_cast<Metaslab*>(
-        reserve<true>(local_state, sizeof(Metaslab)).unsafe_ptr());
-
-      if (meta == nullptr)
-        return {nullptr, nullptr};
-
-      CapPtr<void, CBChunk> p = reserve<false>(local_state, size);
-
-#ifdef SNMALLOC_TRACING
-      std::cout << "Alloc chunk: " << p.unsafe_ptr() << " (" << size << ")"
-                << std::endl;
-#endif
-      if (p == nullptr)
-      {
-        // TODO: This is leaking `meta`. Currently there is no facility for
-        // meta-data reuse, so will leave until we develop more expressive
-        // meta-data management.
-#ifdef SNMALLOC_TRACING
-        std::cout << "Out of memory" << std::endl;
-#endif
-        return {p, nullptr};
-      }
-
-      MetaEntry t(meta, remote, sizeclass);
-      Pagemap::set_metaentry(local_state, address_cast(p), size, t);
-      return {p, meta};
+      return AddressSpaceAllocator::alloc_chunk(
+        address_space, local_state, size, remote, sizeclass);
     }
   };
 } // namespace snmalloc
