@@ -102,13 +102,12 @@ namespace snmalloc
     /**
      * Returns the front message, or null if not possible to return a message.
      */
+    template<typename Domesticator>
     std::pair<
       FreeObject::HeadPtr<capptr::bounds::Alloc, capptr::bounds::Alloc>,
       bool>
-    dequeue(const FreeListKey& key)
+    dequeue(const FreeListKey& key, Domesticator domesticate)
     {
-      auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::Alloc> p)
-                           SNMALLOC_FAST_PATH_LAMBDA { return p; };
       invariant();
       FreeObject::HeadPtr<capptr::bounds::Alloc, capptr::bounds::Alloc> first =
         domesticate(front);

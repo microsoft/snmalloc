@@ -421,13 +421,15 @@ namespace snmalloc
     handle_message_queue_inner(Action action, Args... args)
     {
       bool need_post = false;
+      auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::Alloc> p)
+                           SNMALLOC_FAST_PATH_LAMBDA { return p; };
       for (size_t i = 0; i < REMOTE_BATCH; i++)
       {
         auto p = message_queue().peek();
         auto& entry = SharedStateHandle::Pagemap::get_metaentry(
           backend_state_ptr(), snmalloc::address_cast(p));
 
-        auto r = message_queue().dequeue(key_global);
+        auto r = message_queue().dequeue(key_global, domesticate);
 
         if (unlikely(!r.second))
           break;
