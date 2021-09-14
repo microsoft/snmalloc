@@ -9,7 +9,7 @@
 namespace snmalloc
 {
   /**
-   * This mixin class implements the core functionality to allocate from an
+   * This helper class implements the core functionality to allocate from an
    * address space and pagemap. Any backend implementation can use this class to
    * help with basic address space managment.
    */
@@ -17,7 +17,7 @@ namespace snmalloc
     SNMALLOC_CONCEPT(ConceptPAL) PAL,
     typename LocalState,
     SNMALLOC_CONCEPT(ConceptBackendMetaRange) Pagemap>
-  class AddressSpaceAllocatorMixin
+  class AddressSpaceAllocatorCommon
   {
     // Size of local address space requests.  Currently aimed at 2MiB large
     // pages but should make this configurable (i.e. for OE, so we don't need as
@@ -230,7 +230,7 @@ namespace snmalloc
         SNMALLOC_CONCEPT(ConceptPAL) PAL2,
         typename LocalState,
         SNMALLOC_CONCEPT(ConceptBackendMetaRange) Pagemap>
-      friend class AddressSpaceAllocatorMixin;
+      friend class AddressSpaceAllocatorCommon;
 
       AddressSpaceManagerCore local_address_space;
 
@@ -298,7 +298,7 @@ namespace snmalloc
 
   private:
     using AddressSpaceAllocator =
-      AddressSpaceAllocatorMixin<Pal, LocalState, Pagemap>;
+      AddressSpaceAllocatorCommon<Pal, LocalState, Pagemap>;
 
   public:
     template<bool fixed_range_ = fixed_range>
