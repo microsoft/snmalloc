@@ -144,7 +144,7 @@ namespace
           UNUSED(ptr);
           UNUSED(len);
           UNUSED(msg);
-          __builtin_trap();
+          SNMALLOC_FAST_FAIL();
         }
         else
         {

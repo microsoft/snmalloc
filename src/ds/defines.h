@@ -1,6 +1,9 @@
 #pragma once
 
 #if defined(_MSC_VER) && !defined(__clang__)
+// 28 is FAST_FAIL_INVALID_BUFFER_ACCESS.  Not using the symbolic constant to
+// avoid depending on winnt.h
+#  define SNMALLOC_FAST_FAIL() __fastfail(28)
 #  define ALWAYSINLINE __forceinline
 #  define NOINLINE __declspec(noinline)
 #  define likely(x) !!(x)
@@ -17,6 +20,7 @@
 #  define SNMALLOC_REQUIRE_CONSTINIT
 #  define SNMALLOC_UNUSED_FUNCTION
 #else
+#  define SNMALLOC_FAST_FAIL() __builtin_trap()
 #  define likely(x) __builtin_expect(!!(x), 1)
 #  define unlikely(x) __builtin_expect(!!(x), 0)
 #  define ALWAYSINLINE __attribute__((always_inline))
