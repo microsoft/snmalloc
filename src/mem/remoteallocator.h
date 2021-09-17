@@ -35,10 +35,12 @@ namespace snmalloc
 
     // Store the message queue on a separate cacheline. It is mutable data that
     // is read by other threads.
-    alignas(CACHELINE_SIZE) capptr::AtomicAllocFull<FreeObject> back{nullptr};
+    alignas(CACHELINE_SIZE)
+      FreeObject::AtomicQueuePtr<capptr::bounds::AllocFull> back{nullptr};
     // Store the two ends on different cache lines as access by different
     // threads.
-    alignas(CACHELINE_SIZE) capptr::AllocFull<FreeObject> front{nullptr};
+    alignas(CACHELINE_SIZE)
+      FreeObject::QueuePtr<capptr::bounds::AllocFull> front{nullptr};
 
     constexpr RemoteAllocator() = default;
 
@@ -48,17 +50,17 @@ namespace snmalloc
       SNMALLOC_ASSERT(front != nullptr);
     }
 
-    void init(capptr::AllocFull<FreeObject> stub)
+    void init(FreeObject::QueuePtr<capptr::bounds::AllocFull> stub)
     {
-      stub->atomic_store_null(key_global);
+      FreeObject::atomic_store_null(stub, key_global);
       front = stub;
       back.store(stub, std::memory_order_relaxed);
       invariant();
     }
 
-    capptr::AllocFull<FreeObject> destroy()
+    FreeObject::QueuePtr<capptr::bounds::AllocFull> destroy()
     {
-      capptr::AllocFull<FreeObject> fnt = front;
+      FreeObject::QueuePtr<capptr::bounds::AllocFull> fnt = front;
       back.store(nullptr, std::memory_order_relaxed);
       front = nullptr;
       return fnt;
@@ -66,7 +68,8 @@ namespace snmalloc
 
     inline bool is_empty()
     {
-      capptr::AllocFull<FreeObject> bk = back.load(std::memory_order_relaxed);
+      FreeObject::QueuePtr<capptr::bounds::AllocFull> bk =
+        back.load(std::memory_order_relaxed);
 
       return bk == front;
     }
@@ -76,21 +79,22 @@ namespace snmalloc
      * last should be linked together through their next pointers.
      */
     void enqueue(
-      capptr::AllocFull<FreeObject> first,
-      capptr::AllocFull<FreeObject> last,
+      FreeObject::QueuePtr<capptr::bounds::AllocFull> first,
+      FreeObject::QueuePtr<capptr::bounds::AllocFull> last,
       const FreeListKey& key)
     {
       invariant();
-      last->atomic_store_null(key);
+      FreeObject::atomic_store_null(last, key);
 
       // exchange needs to be a release, so nullptr in next is visible.
-      capptr::AllocFull<FreeObject> prev =
+      FreeObject::QueuePtr<capptr::bounds::AllocFull> prev =
         back.exchange(last, std::memory_order_release);
 
-      prev->atomic_store_next(first, key);
+      // XXX prev is not known to be domesticated
+      FreeObject::atomic_store_next(prev, first, key);
     }
 
-    capptr::AllocFull<FreeObject> peek()
+    FreeObject::QueuePtr<capptr::bounds::AllocFull> peek()
     {
       return front;
     }
@@ -98,12 +102,13 @@ namespace snmalloc
     /**
      * Returns the front message, or null if not possible to return a message.
      */
-    std::pair<capptr::AllocFull<FreeObject>, bool>
+    std::pair<FreeObject::QueuePtr<capptr::bounds::AllocFull>, bool>
     dequeue(const FreeListKey& key)
     {
       invariant();
-      capptr::AllocFull<FreeObject> first = front;
-      capptr::AllocFull<FreeObject> next = first->atomic_read_next(key);
+      FreeObject::QueuePtr<capptr::bounds::AllocFull> first = front;
+      FreeObject::QueuePtr<capptr::bounds::AllocFull> next =
+        first->atomic_read_next(key);
 
       if (next != nullptr)
       {
