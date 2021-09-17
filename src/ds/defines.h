@@ -10,6 +10,11 @@
 #  define unlikely(x) !!(x)
 #  define SNMALLOC_SLOW_PATH NOINLINE
 #  define SNMALLOC_FAST_PATH ALWAYSINLINE
+/**
+ * Fast path with inline linkage.  MSVC assumes that `__forceinline` implies
+ * `inline` and complains if you specify `SNMALLOC_FAST_PATH` and `inline`.
+ */
+#  define SNMALLOC_FAST_PATH_INLINE ALWAYSINLINE
 #  if _MSC_VER >= 1927 && !defined(SNMALLOC_USE_CXX17)
 #    define SNMALLOC_FAST_PATH_LAMBDA [[msvc::forceinline]]
 #  else
@@ -27,6 +32,16 @@
 #  define NOINLINE __attribute__((noinline))
 #  define SNMALLOC_SLOW_PATH NOINLINE
 #  define SNMALLOC_FAST_PATH ALWAYSINLINE
+/**
+ * Fast path with inline linkage.  GCC assumes that
+ * `__attribute__((always_inline))` is orthogonal to `inline` and complains if
+ * you specify `SNMALLOC_FAST_PATH` and don't specify `inline` in places where
+ * `inline` would be required for the one definition rule.  The error message
+ * in this case is confusing: always-inline function may not be inlined.  If
+ * you see this error message when using `SNMALLOC_FAST_PATH` then switch to
+ * `SNMALLOC_FAST_PATH_INLINE`.
+ */
+#  define SNMALLOC_FAST_PATH_INLINE ALWAYSINLINE inline
 #  define SNMALLOC_FAST_PATH_LAMBDA SNMALLOC_FAST_PATH
 #  define SNMALLOC_PURE __attribute__((const))
 #  define SNMALLOC_COLD __attribute__((cold))

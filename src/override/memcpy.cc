@@ -9,11 +9,6 @@
 #if __has_include(<xlocale.h>)
 #  include <xlocale.h>
 #endif
-#ifdef _MSC_VER
-#  define INLINE
-#else
-#  define INLINE inline
-#endif
 
 using namespace snmalloc;
 
@@ -87,7 +82,7 @@ namespace
    * expands to a single load and store.
    */
   template<size_t Size>
-  SNMALLOC_FAST_PATH INLINE void copy_one(void* dst, const void* src)
+  SNMALLOC_FAST_PATH_INLINE void copy_one(void* dst, const void* src)
   {
 #if __has_builtin(__builtin_memcpy_inline)
     __builtin_memcpy_inline(dst, src, Size);
@@ -136,7 +131,7 @@ namespace
    * function is a no-op when `CheckReads` is false.
    */
   template<bool IsRead = false>
-  SNMALLOC_FAST_PATH INLINE void
+  SNMALLOC_FAST_PATH_INLINE void
   check_bounds(const void* ptr, size_t len, const char* msg = "")
   {
     if constexpr (!IsRead || CheckReads)
@@ -173,7 +168,7 @@ namespace
    * chunks of size `Size` as are possible from `len`.
    */
   template<size_t Size>
-  SNMALLOC_FAST_PATH INLINE void
+  SNMALLOC_FAST_PATH_INLINE void
   block_copy(void* dst, const void* src, size_t len)
   {
     for (size_t i = 0; (i + Size) <= len; i += Size)
@@ -188,7 +183,7 @@ namespace
    * This may overlap other bits of the copy.
    */
   template<size_t Size>
-  SNMALLOC_FAST_PATH INLINE void
+  SNMALLOC_FAST_PATH_INLINE void
   copy_end(void* dst, const void* src, size_t len)
   {
     copy_one<Size>(
