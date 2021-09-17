@@ -1,6 +1,3 @@
-// Don't complain that _snprintf_l is unsafe.  It is only unsafe in certain
-// uses and this is not one of them.
-#define _CRT_SECURE_NO_WARNINGS
 #include "override.h"
 
 #include <errno.h>
@@ -19,7 +16,7 @@ using namespace snmalloc;
 // Windows has it with an underscore prefix
 #elif defined(_MSC_VER)
 #  define snprintf_l(buf, size, loc, msg, ...) \
-    _snprintf_l(buf, size, msg, loc, __VA_ARGS__)
+    _snprintf_s_l(buf, size, _TRUNCATE, msg, loc, __VA_ARGS__)
 #endif
 
 namespace
