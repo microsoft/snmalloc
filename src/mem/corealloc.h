@@ -161,8 +161,9 @@ namespace snmalloc
     {
       // Manufacture an allocation to prime the queue
       // Using an actual allocation removes a conditional from a critical path.
-      auto dummy = capptr::AllocFull<void>(small_alloc_one(MIN_ALLOC_SIZE))
-                     .template as_static<FreeObject>();
+      auto dummy =
+        capptr::AllocFull<void>(small_alloc_one(MIN_ALLOC_SIZE))
+          .template as_static<FreeObject::T<capptr::bounds::AllocFull>>();
       if (dummy == nullptr)
       {
         error("Critical error: Out-of-memory during initialisation.");
@@ -181,9 +182,11 @@ namespace snmalloc
       SNMALLOC_ASSERT(attached_cache != nullptr);
       // Use attached cache, and fill it if it is empty.
       return attached_cache->template alloc<NoZero, SharedStateHandle>(
-        size, [&](sizeclass_t sizeclass, FreeListIter* fl) {
-          return small_alloc<NoZero>(sizeclass, *fl);
-        });
+        size,
+        [&](
+          sizeclass_t sizeclass,
+          FreeListIter<capptr::bounds::AllocFull, capptr::bounds::AllocFull>*
+            fl) { return small_alloc<NoZero>(sizeclass, *fl); });
     }
 
     static SNMALLOC_FAST_PATH void alloc_new_list(
@@ -244,7 +247,10 @@ namespace snmalloc
       auto curr_ptr = start_ptr;
       do
       {
-        b.add(FreeObject::make(curr_ptr.as_void()), key, entropy);
+        b.add(
+          FreeObject::make<capptr::bounds::AllocFull>(curr_ptr.as_void()),
+          key,
+          entropy);
         curr_ptr = curr_ptr->next;
       } while (curr_ptr != start_ptr);
 #else
@@ -252,7 +258,9 @@ namespace snmalloc
       do
       {
         b.add(
-          Aal::capptr_bound<FreeObject, capptr::bounds::AllocFull>(p, rsize),
+          Aal::capptr_bound<
+            FreeObject::T<capptr::bounds::AllocFull>,
+            capptr::bounds::AllocFull>(p, rsize),
           key);
         p = pointer_offset(p, rsize);
       } while (p < slab_end);
@@ -264,7 +272,7 @@ namespace snmalloc
     ChunkRecord* clear_slab(Metaslab* meta, sizeclass_t sizeclass)
     {
       auto& key = entropy.get_free_list_key();
-      FreeListIter fl;
+      FreeListIter<capptr::bounds::AllocFull, capptr::bounds::AllocFull> fl;
       auto more = meta->free_queue.close(fl, key);
       UNUSED(more);
       void* p = finish_alloc_no_zero(fl.take(key), sizeclass);
@@ -426,7 +434,9 @@ namespace snmalloc
      * need_post will be set to true, if capacity is exceeded.
      */
     void handle_dealloc_remote(
-      const MetaEntry& entry, capptr::AllocFull<FreeObject> p, bool& need_post)
+      const MetaEntry& entry,
+      FreeObject::QueuePtr<capptr::bounds::AllocFull> p,
+      bool& need_post)
     {
       // TODO this needs to not double count stats
       // TODO this needs to not double revoke if using MTE
@@ -580,7 +590,8 @@ namespace snmalloc
         Metaslab::is_start_of_object(entry.get_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
-      auto cp = capptr::AllocFull<FreeObject>(reinterpret_cast<FreeObject*>(p));
+      auto cp = FreeObject::QueuePtr<capptr::bounds::AllocFull>(
+        reinterpret_cast<FreeObject::T<capptr::bounds::AllocFull>*>(p));
 
       auto& key = entropy.get_free_list_key();
 
@@ -591,8 +602,10 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH void*
-    small_alloc(sizeclass_t sizeclass, FreeListIter& fast_free_list)
+    SNMALLOC_SLOW_PATH void* small_alloc(
+      sizeclass_t sizeclass,
+      FreeListIter<capptr::bounds::AllocFull, capptr::bounds::AllocFull>&
+        fast_free_list)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
 
@@ -650,7 +663,10 @@ namespace snmalloc
 
     template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH void* small_alloc_slow(
-      sizeclass_t sizeclass, FreeListIter& fast_free_list, size_t rsize)
+      sizeclass_t sizeclass,
+      FreeListIter<capptr::bounds::AllocFull, capptr::bounds::AllocFull>&
+        fast_free_list,
+      size_t rsize)
     {
       // No existing free list get a new slab.
       size_t slab_size = sizeclass_to_slab_size(sizeclass);
@@ -712,6 +728,7 @@ namespace snmalloc
           auto& entry = SharedStateHandle::Pagemap::get_metaentry(
             backend_state_ptr(), snmalloc::address_cast(p));
           handle_dealloc_remote(entry, p, need_post);
+          // XXX n is not known to be domesticated
           p = n;
         }
       }

@@ -16,7 +16,14 @@ namespace snmalloc
    */
   struct RemoteDeallocCache
   {
-    std::array<FreeListBuilder<false, false>, REMOTE_SLOTS> list;
+    std::array<
+      FreeListBuilder<
+        false,
+        capptr::bounds::AllocFull,
+        capptr::bounds::AllocFull,
+        false>,
+      REMOTE_SLOTS>
+      list;
 
     /**
      * The total amount of memory we are waiting for before we will dispatch
@@ -70,7 +77,8 @@ namespace snmalloc
       const FreeListKey& key)
     {
       SNMALLOC_ASSERT(initialised);
-      auto r = p.template as_reinterpret<FreeObject>();
+      auto r =
+        p.template as_reinterpret<FreeObject::T<capptr::bounds::AllocFull>>();
 
       list[get_slot<allocator_size>(target_id, 0)].add(r, key);
     }
@@ -110,7 +118,8 @@ namespace snmalloc
         // Entries could map back onto the "resend" list,
         // so take copy of the head, mark the last element,
         // and clear the original list.
-        FreeListIter resend;
+        FreeListIter<capptr::bounds::AllocFull, capptr::bounds::AllocFull>
+          resend;
         list[my_slot].close(resend, key);
 
         post_round++;

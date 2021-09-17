@@ -211,25 +211,33 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void* small_alloc(size_t size)
     {
       //      SNMALLOC_ASSUME(size <= sizeclass_to_size(NUM_SIZECLASSES));
-      auto slowpath = [&](
-                        sizeclass_t sizeclass,
-                        FreeListIter* fl) SNMALLOC_FAST_PATH_LAMBDA {
-        if (likely(core_alloc != nullptr))
-        {
-          return core_alloc->handle_message_queue(
-            [](CoreAlloc* core_alloc, sizeclass_t sizeclass, FreeListIter* fl) {
-              return core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
+      auto slowpath =
+        [&](
+          sizeclass_t sizeclass,
+          FreeListIter<capptr::bounds::AllocFull, capptr::bounds::AllocFull>*
+            fl) SNMALLOC_FAST_PATH_LAMBDA {
+          if (likely(core_alloc != nullptr))
+          {
+            return core_alloc->handle_message_queue(
+              [](
+                CoreAlloc* core_alloc,
+                sizeclass_t sizeclass,
+                FreeListIter<
+                  capptr::bounds::AllocFull,
+                  capptr::bounds::AllocFull>* fl) {
+                return core_alloc->template small_alloc<zero_mem>(
+                  sizeclass, *fl);
+              },
+              core_alloc,
+              sizeclass,
+              fl);
+          }
+          return lazy_init(
+            [&](CoreAlloc*, sizeclass_t sizeclass) {
+              return small_alloc<zero_mem>(sizeclass_to_size(sizeclass));
             },
-            core_alloc,
-            sizeclass,
-            fl);
-        }
-        return lazy_init(
-          [&](CoreAlloc*, sizeclass_t sizeclass) {
-            return small_alloc<zero_mem>(sizeclass_to_size(sizeclass));
-          },
-          sizeclass);
-      };
+            sizeclass);
+        };
 
       return local_cache.template alloc<zero_mem, SharedStateHandle>(
         size, slowpath);

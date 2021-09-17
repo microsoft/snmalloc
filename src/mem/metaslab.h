@@ -25,9 +25,11 @@ namespace snmalloc
      *  Data-structure for building the free list for this slab.
      */
 #ifdef SNMALLOC_CHECK_CLIENT
-    FreeListBuilder<true> free_queue;
+    FreeListBuilder<true, capptr::bounds::AllocFull, capptr::bounds::AllocFull>
+      free_queue;
 #else
-    FreeListBuilder<false> free_queue;
+    FreeListBuilder<false, capptr::bounds::AllocFull, capptr::bounds::AllocFull>
+      free_queue;
 #endif
 
     /**
@@ -152,16 +154,18 @@ namespace snmalloc
      * component, but with randomisation, it may only return part of the
      * available objects for this metaslab.
      */
-    static SNMALLOC_FAST_PATH std::pair<capptr::AllocFull<FreeObject>, bool>
-    alloc_free_list(
-      Metaslab* meta,
-      FreeListIter& fast_free_list,
-      LocalEntropy& entropy,
-      sizeclass_t sizeclass)
+    static SNMALLOC_FAST_PATH
+      std::pair<FreeObject::QueuePtr<capptr::bounds::AllocFull>, bool>
+      alloc_free_list(
+        Metaslab* meta,
+        FreeListIter<capptr::bounds::AllocFull, capptr::bounds::AllocFull>&
+          fast_free_list,
+        LocalEntropy& entropy,
+        sizeclass_t sizeclass)
     {
       auto& key = entropy.get_free_list_key();
 
-      FreeListIter tmp_fl;
+      std::remove_reference_t<decltype(fast_free_list)> tmp_fl;
       auto remaining = meta->free_queue.close(tmp_fl, key);
       auto p = tmp_fl.take(key);
       fast_free_list = tmp_fl;
