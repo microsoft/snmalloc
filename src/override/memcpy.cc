@@ -16,7 +16,7 @@ using namespace snmalloc;
 // Windows has it with an underscore prefix
 #elif defined(_MSC_VER)
 #  define snprintf_l(buf, size, loc, msg, ...) \
-    _snprintf_l(buf, size, msg, loc, __VA_ARGS__)
+    _snprintf_s_l(buf, size, _TRUNCATE, msg, loc, __VA_ARGS__)
 #endif
 
 namespace
@@ -79,7 +79,7 @@ namespace
    * expands to a single load and store.
    */
   template<size_t Size>
-  SNMALLOC_FAST_PATH inline void copy_one(void* dst, const void* src)
+  SNMALLOC_FAST_PATH_INLINE void copy_one(void* dst, const void* src)
   {
 #if __has_builtin(__builtin_memcpy_inline)
     __builtin_memcpy_inline(dst, src, Size);
@@ -128,7 +128,7 @@ namespace
    * function is a no-op when `CheckReads` is false.
    */
   template<bool IsRead = false>
-  SNMALLOC_FAST_PATH inline void
+  SNMALLOC_FAST_PATH_INLINE void
   check_bounds(const void* ptr, size_t len, const char* msg = "")
   {
     if constexpr (!IsRead || CheckReads)
@@ -144,7 +144,7 @@ namespace
           UNUSED(ptr);
           UNUSED(len);
           UNUSED(msg);
-          __builtin_trap();
+          SNMALLOC_FAST_FAIL();
         }
         else
         {
@@ -165,7 +165,7 @@ namespace
    * chunks of size `Size` as are possible from `len`.
    */
   template<size_t Size>
-  SNMALLOC_FAST_PATH inline void
+  SNMALLOC_FAST_PATH_INLINE void
   block_copy(void* dst, const void* src, size_t len)
   {
     for (size_t i = 0; (i + Size) <= len; i += Size)
@@ -180,7 +180,7 @@ namespace
    * This may overlap other bits of the copy.
    */
   template<size_t Size>
-  SNMALLOC_FAST_PATH inline void
+  SNMALLOC_FAST_PATH_INLINE void
   copy_end(void* dst, const void* src, size_t len)
   {
     copy_one<Size>(

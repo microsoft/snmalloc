@@ -1,12 +1,20 @@
 #pragma once
 
 #if defined(_MSC_VER) && !defined(__clang__)
+// 28 is FAST_FAIL_INVALID_BUFFER_ACCESS.  Not using the symbolic constant to
+// avoid depending on winnt.h
+#  define SNMALLOC_FAST_FAIL() __fastfail(28)
 #  define ALWAYSINLINE __forceinline
 #  define NOINLINE __declspec(noinline)
 #  define likely(x) !!(x)
 #  define unlikely(x) !!(x)
 #  define SNMALLOC_SLOW_PATH NOINLINE
 #  define SNMALLOC_FAST_PATH ALWAYSINLINE
+/**
+ * Fast path with inline linkage.  MSVC assumes that `__forceinline` implies
+ * `inline` and complains if you specify `SNMALLOC_FAST_PATH` and `inline`.
+ */
+#  define SNMALLOC_FAST_PATH_INLINE ALWAYSINLINE
 #  if _MSC_VER >= 1927 && !defined(SNMALLOC_USE_CXX17)
 #    define SNMALLOC_FAST_PATH_LAMBDA [[msvc::forceinline]]
 #  else
@@ -17,12 +25,23 @@
 #  define SNMALLOC_REQUIRE_CONSTINIT
 #  define SNMALLOC_UNUSED_FUNCTION
 #else
+#  define SNMALLOC_FAST_FAIL() __builtin_trap()
 #  define likely(x) __builtin_expect(!!(x), 1)
 #  define unlikely(x) __builtin_expect(!!(x), 0)
 #  define ALWAYSINLINE __attribute__((always_inline))
 #  define NOINLINE __attribute__((noinline))
 #  define SNMALLOC_SLOW_PATH NOINLINE
 #  define SNMALLOC_FAST_PATH ALWAYSINLINE
+/**
+ * Fast path with inline linkage.  GCC assumes that
+ * `__attribute__((always_inline))` is orthogonal to `inline` and complains if
+ * you specify `SNMALLOC_FAST_PATH` and don't specify `inline` in places where
+ * `inline` would be required for the one definition rule.  The error message
+ * in this case is confusing: always-inline function may not be inlined.  If
+ * you see this error message when using `SNMALLOC_FAST_PATH` then switch to
+ * `SNMALLOC_FAST_PATH_INLINE`.
+ */
+#  define SNMALLOC_FAST_PATH_INLINE ALWAYSINLINE inline
 #  define SNMALLOC_FAST_PATH_LAMBDA SNMALLOC_FAST_PATH
 #  define SNMALLOC_PURE __attribute__((const))
 #  define SNMALLOC_COLD __attribute__((cold))
