@@ -162,8 +162,8 @@ namespace snmalloc
       // Manufacture an allocation to prime the queue
       // Using an actual allocation removes a conditional from a critical path.
       auto dummy =
-        capptr::AllocFull<void>(small_alloc_one(MIN_ALLOC_SIZE))
-          .template as_static<FreeObject::T<capptr::bounds::AllocFull>>();
+        capptr::Alloc<void>(small_alloc_one(MIN_ALLOC_SIZE))
+          .template as_static<FreeObject::T<capptr::bounds::Alloc>>();
       if (dummy == nullptr)
       {
         error("Critical error: Out-of-memory during initialisation.");
@@ -185,8 +185,9 @@ namespace snmalloc
         size,
         [&](
           sizeclass_t sizeclass,
-          FreeListIter<capptr::bounds::AllocFull, capptr::bounds::AllocFull>*
-            fl) { return small_alloc<NoZero>(sizeclass, *fl); });
+          FreeListIter<capptr::bounds::Alloc, capptr::bounds::Alloc>* fl) {
+          return small_alloc<NoZero>(sizeclass, *fl);
+        });
     }
 
     static SNMALLOC_FAST_PATH void alloc_new_list(
@@ -248,7 +249,8 @@ namespace snmalloc
       do
       {
         b.add(
-          FreeObject::make<capptr::bounds::AllocFull>(curr_ptr.as_void()),
+          FreeObject::make<capptr::bounds::Alloc>(
+            capptr_to_user_address_control(curr_ptr.as_void())),
           key,
           entropy);
         curr_ptr = curr_ptr->next;
@@ -258,9 +260,10 @@ namespace snmalloc
       do
       {
         b.add(
-          Aal::capptr_bound<
-            FreeObject::T<capptr::bounds::AllocFull>,
-            capptr::bounds::AllocFull>(p, rsize),
+          FreeObject::make<capptr::bounds::Alloc>(
+            capptr_to_user_address_control(
+              Aal::capptr_bound<void, capptr::bounds::AllocFull>(
+                p.as_void(), rsize))),
           key);
         p = pointer_offset(p, rsize);
       } while (p < slab_end);
@@ -272,7 +275,7 @@ namespace snmalloc
     ChunkRecord* clear_slab(Metaslab* meta, sizeclass_t sizeclass)
     {
       auto& key = entropy.get_free_list_key();
-      FreeListIter<capptr::bounds::AllocFull, capptr::bounds::AllocFull> fl;
+      FreeListIter<capptr::bounds::Alloc, capptr::bounds::Alloc> fl;
       auto more = meta->free_queue.close(fl, key);
       UNUSED(more);
       void* p = finish_alloc_no_zero(fl.take(key), sizeclass);
@@ -435,7 +438,7 @@ namespace snmalloc
      */
     void handle_dealloc_remote(
       const MetaEntry& entry,
-      CapPtr<void, capptr::bounds::AllocFull> p,
+      CapPtr<void, capptr::bounds::Alloc> p,
       bool& need_post)
     {
       // TODO this needs to not double count stats
@@ -444,7 +447,7 @@ namespace snmalloc
 
       if (likely(entry.get_remote() == public_state()))
       {
-        if (likely(dealloc_local_object_fast(entry, p.unsafe_ptr(), entropy)))
+        if (likely(dealloc_local_object_fast(entry, p.as_void(), entropy)))
           return;
 
         dealloc_local_object_slow(entry);
@@ -569,7 +572,8 @@ namespace snmalloc
       return handle_message_queue_inner(action, args...);
     }
 
-    SNMALLOC_FAST_PATH void dealloc_local_object(void* p)
+    SNMALLOC_FAST_PATH void
+    dealloc_local_object(CapPtr<void, capptr::bounds::Alloc> p)
     {
       auto entry = SharedStateHandle::Pagemap::get_metaentry(
         backend_state_ptr(), snmalloc::address_cast(p));
@@ -580,7 +584,9 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH static bool dealloc_local_object_fast(
-      const MetaEntry& entry, void* p, LocalEntropy& entropy)
+      const MetaEntry& entry,
+      CapPtr<void, capptr::bounds::Alloc> p,
+      LocalEntropy& entropy)
     {
       auto meta = entry.get_metaslab();
 
@@ -590,8 +596,7 @@ namespace snmalloc
         Metaslab::is_start_of_object(entry.get_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
-      auto cp = FreeObject::QueuePtr<capptr::bounds::AllocFull>(
-        reinterpret_cast<FreeObject::T<capptr::bounds::AllocFull>*>(p));
+      auto cp = p.as_static<FreeObject::T<capptr::bounds::Alloc>>();
 
       auto& key = entropy.get_free_list_key();
 
@@ -604,7 +609,7 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH void* small_alloc(
       sizeclass_t sizeclass,
-      FreeListIter<capptr::bounds::AllocFull, capptr::bounds::AllocFull>&
+      FreeListIter<capptr::bounds::Alloc, capptr::bounds::Alloc>&
         fast_free_list)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
@@ -664,7 +669,7 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH void* small_alloc_slow(
       sizeclass_t sizeclass,
-      FreeListIter<capptr::bounds::AllocFull, capptr::bounds::AllocFull>&
+      FreeListIter<capptr::bounds::Alloc, capptr::bounds::Alloc>&
         fast_free_list,
       size_t rsize)
     {
@@ -717,7 +722,7 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(attached_cache != nullptr);
       // TODO: Placeholder
-      auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::AllocFull> p)
+      auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::Alloc> p)
                            SNMALLOC_FAST_PATH_LAMBDA { return p; };
 
       if (destroy_queue)

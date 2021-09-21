@@ -13,20 +13,20 @@ namespace snmalloc
   using Stats = AllocStats<NUM_SIZECLASSES, NUM_LARGE_CLASSES>;
 
   inline static SNMALLOC_FAST_PATH void* finish_alloc_no_zero(
-    FreeObject::HeadPtr<capptr::bounds::AllocFull, capptr::bounds::AllocFull> p,
+    FreeObject::HeadPtr<capptr::bounds::Alloc, capptr::bounds::Alloc> p,
     sizeclass_t sizeclass)
   {
     SNMALLOC_ASSERT(Metaslab::is_start_of_object(sizeclass, address_cast(p)));
     UNUSED(sizeclass);
 
-    auto r = capptr_reveal(capptr_to_user_address_control(p.as_void()));
+    auto r = capptr_reveal(p.as_void());
 
     return r;
   }
 
   template<ZeroMem zero_mem, typename SharedStateHandle>
   inline static SNMALLOC_FAST_PATH void* finish_alloc(
-    FreeObject::HeadPtr<capptr::bounds::AllocFull, capptr::bounds::AllocFull> p,
+    FreeObject::HeadPtr<capptr::bounds::Alloc, capptr::bounds::Alloc> p,
     sizeclass_t sizeclass)
   {
     auto r = finish_alloc_no_zero(p, sizeclass);
@@ -48,7 +48,7 @@ namespace snmalloc
     // Free list per small size class.  These are used for
     // allocation on the fast path. This part of the code is inspired by
     // mimalloc.
-    FreeListIter<capptr::bounds::AllocFull, capptr::bounds::AllocFull>
+    FreeListIter<capptr::bounds::Alloc, capptr::bounds::Alloc>
       small_fast_free_lists[NUM_SIZECLASSES];
 
     // This is the entropy for a particular thread.
@@ -90,7 +90,8 @@ namespace snmalloc
         while (!small_fast_free_lists[i].empty())
         {
           auto p = small_fast_free_lists[i].take(key);
-          dealloc(finish_alloc_no_zero(p, i));
+          SNMALLOC_ASSERT(Metaslab::is_start_of_object(i, address_cast(p)));
+          dealloc(p.as_void());
         }
       }
 

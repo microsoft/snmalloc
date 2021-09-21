@@ -249,8 +249,8 @@ namespace snmalloc
 
     /**
      * Decode next.  While traversing a queue, BView and BQueue here will often
-     * be equal (i.e., CBAllocExportWild) rather than dichotomous.  However,
-     * we do occasionally decode an actual head pointer, so be polymorphic here.
+     * be equal (i.e., AllocUserWild) rather than dichotomous.  However, we do
+     * occasionally decode an actual head pointer, so be polymorphic here.
      *
      * TODO: We'd like, in some sense, to more tightly couple or integrate this
      * into to the domestication process.  We could introduce an additional

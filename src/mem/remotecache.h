@@ -19,8 +19,8 @@ namespace snmalloc
     std::array<
       FreeListBuilder<
         false,
-        capptr::bounds::AllocFull,
-        capptr::bounds::AllocFull,
+        capptr::bounds::Alloc,
+        capptr::bounds::Alloc,
         false>,
       REMOTE_SLOTS>
       list;
@@ -73,12 +73,12 @@ namespace snmalloc
     template<size_t allocator_size>
     SNMALLOC_FAST_PATH void dealloc(
       RemoteAllocator::alloc_id_t target_id,
-      capptr::AllocFull<void> p,
+      capptr::Alloc<void> p,
       const FreeListKey& key)
     {
       SNMALLOC_ASSERT(initialised);
       auto r =
-        p.template as_reinterpret<FreeObject::T<capptr::bounds::AllocFull>>();
+        p.template as_reinterpret<FreeObject::T<capptr::bounds::Alloc>>();
 
       list[get_slot<allocator_size>(target_id, 0)].add(r, key);
     }
@@ -118,8 +118,7 @@ namespace snmalloc
         // Entries could map back onto the "resend" list,
         // so take copy of the head, mark the last element,
         // and clear the original list.
-        FreeListIter<capptr::bounds::AllocFull, capptr::bounds::AllocFull>
-          resend;
+        FreeListIter<capptr::bounds::Alloc, capptr::bounds::Alloc> resend;
         list[my_slot].close(resend, key);
 
         post_round++;
