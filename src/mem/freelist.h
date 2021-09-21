@@ -184,6 +184,17 @@ namespace snmalloc
       return p.template as_static<FreeObject::T<BQueue>>();
     }
 
+    /**
+     * A container-of operation to convert &f->next_object to f
+     */
+    template<SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
+    static FreeObject::T<BQueue>*
+    from_next_ptr(CapPtr<FreeObject::T<BQueue>, BQueue>* ptr)
+    {
+      static_assert(offsetof(FreeObject::T<BQueue>, next_object) == 0);
+      return reinterpret_cast<FreeObject::T<BQueue>*>(ptr);
+    }
+
   private:
     /**
      * Involutive encryption with raw pointers
@@ -655,7 +666,7 @@ namespace snmalloc
       // to the actual object.  This isn't true if the builder is
       // empty, but you are not allowed to call this in the empty case.
       auto last = FreeObject::HeadPtr<BView, BQueue>(
-        reinterpret_cast<FreeObject::T<BQueue>*>(end[0]));
+        FreeObject::from_next_ptr(cast_end(0)));
       init();
       return {first, last};
     }
