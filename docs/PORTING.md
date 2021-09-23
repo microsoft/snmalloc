@@ -34,6 +34,15 @@ If the template parameter is set to `YesZero` then this function is also
 responsible for ensuring that the newly requested memory is full of zeros.
 
 ```c++
+static void notify_using_readonly(void* p, size_t size) noexcept;
+```
+Notify the system that the range of memory from `p` to `p` + `size` is now in use
+for read-only access.  This is currently only requried on platforms that support
+`LazyCommit`.
+On systems that lazily provide physical memory to virtual mappings, this
+function may not be required to do anything.
+
+```c++
 template<bool page_aligned = false>
 static void zero(void* p, size_t size) noexcept;
 ```

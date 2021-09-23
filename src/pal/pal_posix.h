@@ -196,7 +196,7 @@ namespace snmalloc
      *
      * On POSIX platforms, lazy commit means that this is a no-op, unless we
      * are also zeroing the pages in which case we call the platform's `zero`
-     * function.
+     * function, or we have initially mapped the pages as PROT_NONE.
      */
     template<ZeroMem zero_mem>
     static void notify_using(void* p, size_t size) noexcept
@@ -213,6 +213,24 @@ namespace snmalloc
 
       if constexpr (zero_mem == YesZero)
         zero<true>(p, size);
+    }
+
+    /**
+     * Notify platform that we will be using these pages for reading.
+     *
+     * On POSIX platforms, lazy commit means that this is a no-op, unless
+     * we have initially mapped the pages as PROT_NONE.
+     */
+    static void notify_using_readonly(void* p, size_t size) noexcept
+    {
+      SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
+
+#ifdef SNMALLOC_CHECK_CLIENT
+      mprotect(p, size, PROT_READ);
+#else
+      UNUSED(p);
+      UNUSED(size);
+#endif
     }
 
     /**
