@@ -159,7 +159,7 @@ namespace snmalloc
 #ifdef SNMALLOC_CHECK_CLIENT
       // Allocate a power of two extra to allow the placement of the
       // pagemap be difficult to guess.
-      size_t additional_size = bits::next_pow2(REQUIRED_SIZE) * 2;
+      size_t additional_size = bits::next_pow2(REQUIRED_SIZE) * 4;
       size_t request_size = REQUIRED_SIZE + additional_size;
 #else
       size_t request_size = REQUIRED_SIZE;
@@ -178,6 +178,18 @@ namespace snmalloc
       size_t offset = get_entropy64<PAL>() & (additional_size - sizeof(T));
       auto new_body =
         reinterpret_cast<T*>(pointer_offset(new_body_untyped, offset));
+
+      if constexpr (pal_supports<LazyCommit, PAL>)
+      {
+        void* start_page = pointer_align_down<OS_PAGE_SIZE>(new_body);
+        void* end_page = pointer_align_up<OS_PAGE_SIZE>(
+          pointer_offset(new_body, REQUIRED_SIZE));
+        // Only commit readonly memory for this range, if the platform supports
+        // lazy commit.  Otherwise, this would be a lot of memory to have
+        // mapped.
+        PAL::notify_using_readonly(
+          start_page, pointer_diff(start_page, end_page));
+      }
 #else
       auto new_body = reinterpret_cast<T*>(new_body_untyped);
 #endif
@@ -243,15 +255,10 @@ namespace snmalloc
         p = p - base;
       }
 
-      //  This means external pointer on Windows will be slow.
-      // TODO: With SNMALLOC_CHECK_CLIENT we should map that region read-only,
-      // not no-access, but this requires a PAL change.
-      if constexpr (
-        potentially_out_of_range
-#ifndef SNMALLOC_CHECK_CLIENT
-        && !pal_supports<LazyCommit, PAL>
-#endif
-      )
+      //  If this is potentially_out_of_range, then the pages will not have
+      //  been mapped. With Lazy commit they will at least be mapped read-only
+      //  Note that: this means external pointer on Windows will be slow.
+      if constexpr (potentially_out_of_range && !pal_supports<LazyCommit, PAL>)
       {
         register_range(p, 1);
       }
