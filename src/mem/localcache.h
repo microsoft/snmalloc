@@ -12,9 +12,8 @@ namespace snmalloc
 {
   using Stats = AllocStats<NUM_SIZECLASSES, NUM_LARGE_CLASSES>;
 
-  inline static SNMALLOC_FAST_PATH void* finish_alloc_no_zero(
-    snmalloc::CapPtr<snmalloc::FreeObject, snmalloc::CBAlloc> p,
-    sizeclass_t sizeclass)
+  inline static SNMALLOC_FAST_PATH void*
+  finish_alloc_no_zero(CapPtr<FreeObject, CBAlloc> p, sizeclass_t sizeclass)
   {
     SNMALLOC_ASSERT(Metaslab::is_start_of_object(sizeclass, address_cast(p)));
     UNUSED(sizeclass);
@@ -25,9 +24,8 @@ namespace snmalloc
   }
 
   template<ZeroMem zero_mem, typename SharedStateHandle>
-  inline static SNMALLOC_FAST_PATH void* finish_alloc(
-    snmalloc::CapPtr<snmalloc::FreeObject, snmalloc::CBAlloc> p,
-    sizeclass_t sizeclass)
+  inline static SNMALLOC_FAST_PATH void*
+  finish_alloc(CapPtr<FreeObject, CBAlloc> p, sizeclass_t sizeclass)
   {
     auto r = finish_alloc_no_zero(p, sizeclass);
 
