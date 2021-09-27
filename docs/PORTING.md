@@ -16,31 +16,37 @@ The PAL must implement the following methods:
 ```
 Report a fatal error and exit.
 
+The memory that snmalloc is supplied from the Pal should be in one of three
+states
+
+* `using`
+* `using readonly`
+* `not using`
+
+Before accessing the memory for a read, `snmalloc` will change the state to 
+either `using` or `using readonly`,
+and before a write by it will change the state to `using`.
+If memory is not required any more, then `snmalloc` will change the state to
+`not using`, and will ensure that it notifies the `Pal` again
+before it every accesses that memory again.  
+The `not using` state allows the `Pal` to recycle the memory for other purposes.
+If `PalEnforceAccess` is set to true, then accessing that has not been notified
+correctly should trigger an exception/segfault.
+
+The state for a particular region of memory is set with 
 ```c++
 static void notify_not_using(void* p, size_t size) noexcept;
-```
-Notify the system that the range of memory from `p` to `p` + `size` is no
-longer in use, allowing the underlying physical pages to recycled for other
-purposes.
 
-```c++
 template<ZeroMem zero_mem>
 static void notify_using(void* p, size_t size) noexcept;
-```
-Notify the system that the range of memory from `p` to `p` + `size` is now in use.
-On systems that lazily provide physical memory to virtual mappings, this
-function may not be required to do anything.
-If the template parameter is set to `YesZero` then this function is also
-responsible for ensuring that the newly requested memory is full of zeros.
 
-```c++
 static void notify_using_readonly(void* p, size_t size) noexcept;
 ```
-Notify the system that the range of memory from `p` to `p` + `size` is now in use
-for read-only access.  This is currently only requried on platforms that support
-`LazyCommit`.
-On systems that lazily provide physical memory to virtual mappings, this
-function may not be required to do anything.
+These functions notify the system that the range of memory from `p` to `p` + 
+`size` is in the relevant state.
+
+If the template parameter is set to `YesZero` then `notify_using` must ensure
+the range is full of zeros.
 
 ```c++
 template<bool page_aligned = false>
@@ -54,18 +60,17 @@ efficient to request that the operating system provides background-zeroed
 pages, rather than zeroing them synchronously in this call
 
 ```c++
-template<bool committed>
+template<bool state_using>
 static void* reserve_aligned(size_t size) noexcept;
 static void* reserve(size_t size) noexcept;
 ```
 All platforms should provide `reserve` and can optionally provide
 `reserve_aligned` if the underlying system can provide strongly aligned 
 memory regions.
-If the system guarantees only page alignment, implement only the second. The Pal is 
-free to overallocate based on the platform's desire and snmalloc
-will find suitably aligned blocks inside the region.  `reserve` should 
-not commit memory as snmalloc will commit the range of memory it requires of what 
-is returned.
+If the system guarantees only page alignment, implement only the second. `snmalloc` will
+overallocate to ensure it can find suitably aligned blocks inside the region.
+`reserve` should consider memory initially as `not_using`, and `snmalloc` will notify when it 
+needs the range of memory.
 
 If the system provides strong alignment, implement the first to return memory
 at the desired alignment. If providing the first, then the `Pal` should also 

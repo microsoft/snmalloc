@@ -178,17 +178,21 @@ namespace snmalloc
     static void notify_not_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
-#ifdef SNMALLOC_CHECK_CLIENT
-      // Fill memory so that when we switch the pages back on we don't make
-      // assumptions on the content.
-#  if !defined(NDEBUG)
-      memset(p, 0x5a, size);
-#  endif
-      mprotect(p, size, PROT_NONE);
-#else
-      UNUSED(p);
-      UNUSED(size);
+
+      if constexpr (PalEnforceAccess)
+      {
+#if !defined(NDEBUG)
+        // Fill memory so that when we switch the pages back on we don't make
+        // assumptions on the content.
+        memset(p, 0x5a, size);
 #endif
+        mprotect(p, size, PROT_NONE);
+      }
+      else
+      {
+        UNUSED(p);
+        UNUSED(size);
+      }
     }
 
     /**
@@ -204,12 +208,13 @@ namespace snmalloc
       SNMALLOC_ASSERT(
         is_aligned_block<OS::page_size>(p, size) || (zero_mem == NoZero));
 
-#ifdef SNMALLOC_CHECK_CLIENT
-      mprotect(p, size, PROT_READ | PROT_WRITE);
-#else
-      UNUSED(p);
-      UNUSED(size);
-#endif
+      if constexpr (PalEnforceAccess)
+        mprotect(p, size, PROT_READ | PROT_WRITE);
+      else
+      {
+        UNUSED(p);
+        UNUSED(size);
+      }
 
       if constexpr (zero_mem == YesZero)
         zero<true>(p, size);
@@ -225,12 +230,13 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
 
-#ifdef SNMALLOC_CHECK_CLIENT
-      mprotect(p, size, PROT_READ);
-#else
-      UNUSED(p);
-      UNUSED(size);
-#endif
+      if constexpr (PalEnforceAccess)
+        mprotect(p, size, PROT_READ);
+      else
+      {
+        UNUSED(p);
+        UNUSED(size);
+      }
     }
 
     /**
@@ -286,11 +292,10 @@ namespace snmalloc
      */
     static void* reserve(size_t size) noexcept
     {
-#ifdef SNMALLOC_CHECK_CLIENT
-      auto prot = PROT_NONE;
-#else
-      auto prot = PROT_READ | PROT_WRITE;
-#endif
+      // If enforcing access, map pages initially as None, and then
+      // add permissions as required.  Otherwise, immediately give all
+      // access as this is the most efficient to implement.
+      auto prot = PalEnforceAccess ? PROT_NONE : PROT_READ | PROT_WRITE;
 
       void* p = mmap(
         nullptr,
