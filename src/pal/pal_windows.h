@@ -158,7 +158,7 @@ namespace snmalloc
     }
 
 #  ifdef PLATFORM_HAS_VIRTUALALLOC2
-    template<bool committed>
+    template<bool state_using>
     static void* reserve_aligned(size_t size) noexcept
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
@@ -166,7 +166,7 @@ namespace snmalloc
 
       DWORD flags = MEM_RESERVE;
 
-      if (committed)
+      if (state_using)
         flags |= MEM_COMMIT;
 
       // If we're on Windows 10 or newer, we can use the VirtualAlloc2

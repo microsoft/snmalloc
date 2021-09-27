@@ -34,14 +34,16 @@ namespace snmalloc
     static void notify_not_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
-      // Call this Pal to simulate the Windows decommit in CI.
-#if defined(SNMALLOC_CHECK_CLIENT) && !defined(NDEBUG)
+
+#if !defined(NDEBUG)
       memset(p, 0x5a, size);
 #endif
       madvise(p, size, MADV_FREE);
-#ifdef SNMALLOC_CHECK_CLIENT
-      mprotect(p, size, PROT_NONE);
-#endif
+
+      if constexpr (PalEnforceAccess)
+      {
+        mprotect(p, size, PROT_NONE);
+      }
     }
   };
 } // namespace snmalloc

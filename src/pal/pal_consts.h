@@ -7,6 +7,21 @@
 namespace snmalloc
 {
   /**
+   * Pal implementations should query this flag to see whether they
+   * are allowed to optimise memory access, or that they must provide
+   * exceptions/segfaults if accesses do not obey the
+   *  - using
+   *  - using_readonly
+   *  - not_using
+   * model.
+   */
+#ifdef SNMALLOC_CHECK_CLIENT
+  static constexpr bool PalEnforceAccess = true;
+#else
+  static constexpr bool PalEnforceAccess = false;
+#endif
+
+  /**
    * Flags in a bitfield of optional features that a PAL may support.  These
    * should be set in the PAL's `pal_features` static constexpr field.
    */

@@ -28,7 +28,7 @@ namespace snmalloc
     /**
      * Reserve memory at a specific alignment.
      */
-    template<bool committed>
+    template<bool state_using>
     static void* reserve_aligned(size_t size) noexcept
     {
       // Alignment must be a power of 2.
@@ -37,11 +37,8 @@ namespace snmalloc
 
       int log2align = static_cast<int>(bits::next_pow2_bits(size));
 
-#ifdef SNMALLOC_CHECK_CLIENT
-      auto prot = committed ? PROT_READ | PROT_WRITE : PROT_NONE;
-#else
-      auto prot = PROT_READ | PROT_WRITE;
-#endif
+      auto prot =
+        state_using || !PalEnforceAccess ? PROT_READ | PROT_WRITE : PROT_NONE;
 
       void* p = mmap(
         nullptr,

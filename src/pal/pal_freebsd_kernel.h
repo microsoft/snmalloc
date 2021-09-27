@@ -59,7 +59,7 @@ namespace snmalloc
       ::bzero(p, size);
     }
 
-    template<bool committed>
+    template<bool state_using>
     static void* reserve_aligned(size_t size) noexcept
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
@@ -80,7 +80,7 @@ namespace snmalloc
       {
         return nullptr;
       }
-      if (committed)
+      if (state_using)
       {
         if (
           kmem_back(kernel_object, addr, size, M_ZERO | M_WAITOK) !=

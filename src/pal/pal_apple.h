@@ -113,7 +113,7 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
 
-#  if defined(SNMALLOC_CHECK_CLIENT) && !defined(NDEBUG)
+#  if !defined(NDEBUG)
       memset(p, 0x5a, size);
 #  endif
 
@@ -126,12 +126,13 @@ namespace snmalloc
       while (madvise(p, size, MADV_FREE_REUSABLE) == -1 && errno == EAGAIN)
         ;
 
-#  ifdef SNMALLOC_CHECK_CLIENT
-      // This must occur after `MADV_FREE_REUSABLE`.
-      //
-      // `mach_vm_protect` is observably slower in benchmarks.
-      mprotect(p, size, PROT_NONE);
-#  endif
+      if constexpr (PalEnforceAccess)
+      {
+        // This must occur after `MADV_FREE_REUSABLE`.
+        //
+        // `mach_vm_protect` is observably slower in benchmarks.
+        mprotect(p, size, PROT_NONE);
+      }
     }
 
     /**
@@ -180,12 +181,13 @@ namespace snmalloc
         }
       }
 
-#  ifdef SNMALLOC_CHECK_CLIENT
-      // Mark pages as writable for `madvise` below.
-      //
-      // `mach_vm_protect` is observably slower in benchmarks.
-      mprotect(p, size, PROT_READ | PROT_WRITE);
-#  endif
+      if constexpr (PalEnforceAccess)
+      {
+        // Mark pages as writable for `madvise` below.
+        //
+        // `mach_vm_protect` is observably slower in benchmarks.
+        mprotect(p, size, PROT_READ | PROT_WRITE);
+      }
 
       // `MADV_FREE_REUSE` can only be applied to writable pages,
       // otherwise it's an error.
@@ -205,7 +207,7 @@ namespace snmalloc
     // Apple's `mmap` doesn't support user-specified alignment and only
     // guarantees mappings are aligned to the system page size, so we use
     // `mach_vm_map` instead.
-    template<bool committed>
+    template<bool state_using>
     static void* reserve_aligned(size_t size) noexcept
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
@@ -219,11 +221,9 @@ namespace snmalloc
       // must be initialized to 0 or addr is interepreted as a lower-bound.
       mach_vm_address_t addr = 0;
 
-#  ifdef SNMALLOC_CHECK_CLIENT
-      vm_prot_t prot = committed ? VM_PROT_READ | VM_PROT_WRITE : VM_PROT_NONE;
-#  else
-      vm_prot_t prot = VM_PROT_READ | VM_PROT_WRITE;
-#  endif
+      vm_prot_t prot = (state_using || !PalEnforceAccess) ?
+        VM_PROT_READ | VM_PROT_WRITE :
+        VM_PROT_NONE;
 
       kern_return_t kr = mach_vm_map(
         mach_task_self(),
