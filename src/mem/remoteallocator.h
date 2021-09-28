@@ -102,13 +102,18 @@ namespace snmalloc
     /**
      * Returns the front message, or null if not possible to return a message.
      */
-    std::pair<FreeObject::QueuePtr<capptr::bounds::AllocFull>, bool>
+    std::pair<
+      FreeObject::HeadPtr<capptr::bounds::AllocFull, capptr::bounds::AllocFull>,
+      bool>
     dequeue(const FreeListKey& key)
     {
+      auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::AllocFull> p)
+                           SNMALLOC_FAST_PATH_LAMBDA { return p; };
       invariant();
-      FreeObject::QueuePtr<capptr::bounds::AllocFull> first = front;
+      FreeObject::HeadPtr<capptr::bounds::AllocFull, capptr::bounds::AllocFull>
+        first = domesticate(front);
       FreeObject::QueuePtr<capptr::bounds::AllocFull> next =
-        first->atomic_read_next(key);
+        first->atomic_read_next(key, domesticate);
 
       if (next != nullptr)
       {

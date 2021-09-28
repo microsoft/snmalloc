@@ -127,31 +127,40 @@ namespace snmalloc
 #endif
 
     public:
-      QueuePtr<BQueue> atomic_read_next(const FreeListKey& key)
+      template<
+        SNMALLOC_CONCEPT(capptr::ConceptBound) BView = typename BQueue::
+          template with_wildness<capptr::dimension::Wildness::Tame>,
+        typename Domesticator>
+      HeadPtr<BView, BQueue>
+      atomic_read_next(const FreeListKey& key, Domesticator domesticate)
       {
-        auto n = FreeObject::decode_next(
+        auto n_wild = FreeObject::decode_next(
           address_cast(&this->next_object),
           this->atomic_next_object.load(std::memory_order_acquire),
           key);
+        auto n_tame = domesticate(n_wild);
 #ifdef SNMALLOC_CHECK_CLIENT
-        // XXX n is not known to be domesticated here
-        if (n != nullptr)
+        if (n_tame != nullptr)
         {
-          n->check_prev(signed_prev(address_cast(this), address_cast(n), key));
+          n_tame->check_prev(
+            signed_prev(address_cast(this), address_cast(n_tame), key));
         }
-#else
-        UNUSED(key);
 #endif
-        return n;
+        return n_tame;
       }
 
       /**
        * Read the next pointer
        */
-      QueuePtr<BQueue> read_next(const FreeListKey& key)
+      template<
+        SNMALLOC_CONCEPT(capptr::ConceptBound) BView = typename BQueue::
+          template with_wildness<capptr::dimension::Wildness::Tame>,
+        typename Domesticator>
+      HeadPtr<BView, BQueue>
+      read_next(const FreeListKey& key, Domesticator domesticate)
       {
-        return FreeObject::decode_next(
-          address_cast(&this->next_object), this->next_object, key);
+        return domesticate(FreeObject::decode_next(
+          address_cast(&this->next_object), this->next_object, key));
       }
 
       /**
@@ -228,10 +237,18 @@ namespace snmalloc
     }
 
     /**
-     * Decode next.  While traversing a queue, BView and BQueue here will
-     * often be equal (i.e., CBAllocExportWild) rather than dichotomous.
-     * However, we do occasionally decode an actual head pointer, so be
-     * polymorphic here.
+     * Decode next.  While traversing a queue, BView and BQueue here will often
+     * be equal (i.e., CBAllocExportWild) rather than dichotomous.  However,
+     * we do occasionally decode an actual head pointer, so be polymorphic here.
+     *
+     * TODO: We'd like, in some sense, to more tightly couple or integrate this
+     * into to the domestication process.  We could introduce an additional
+     * state in the capptr_bounds::wild taxonomy (e.g, Obfuscated) so that the
+     * Domesticator-s below have to call through this function to get the Wild
+     * pointer they can then make Tame.  It's not yet entirely clear what that
+     * would look like and whether/how the encode_next side of things should be
+     * exposed.  For the moment, obfuscation is left encapsulated within
+     * FreeObject and we do not capture any of it statically.
      */
     template<
       SNMALLOC_CONCEPT(capptr::ConceptBound) BView,
@@ -391,7 +408,10 @@ namespace snmalloc
     FreeObject::HeadPtr<BView, BQueue> take(const FreeListKey& key)
     {
       auto c = curr;
-      auto next = curr->read_next(key);
+      // TODO: Placeholder
+      auto domesticate = [](FreeObject::QueuePtr<BQueue> p)
+                           SNMALLOC_FAST_PATH_LAMBDA { return p; };
+      auto next = curr->read_next(key, domesticate);
 
       Aal::prefetch(next.unsafe_ptr());
       curr = next;
