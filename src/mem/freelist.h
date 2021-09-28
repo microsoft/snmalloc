@@ -301,6 +301,8 @@ namespace snmalloc
     // This enables branch free enqueuing.
     std::array<CapPtr<FreeObject, CBAlloc>*, LENGTH> end{nullptr};
 
+    std::array<uint16_t, RANDOM ? 2 : 0> length{};
+
   public:
     constexpr FreeListBuilder()
     {
@@ -336,6 +338,8 @@ namespace snmalloc
         index = 0;
 
       end[index] = FreeObject::store_next(end[index], n, key);
+      if constexpr (RANDOM)
+        length[index]++;
     }
 
     /**
@@ -433,6 +437,8 @@ namespace snmalloc
       for (size_t i = 0; i < LENGTH; i++)
       {
         end[i] = &head[i];
+        if (RANDOM)
+          length[i] = 0;
       }
     }
 
