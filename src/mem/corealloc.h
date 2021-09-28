@@ -163,7 +163,7 @@ namespace snmalloc
       // Using an actual allocation removes a conditional from a critical path.
       auto dummy =
         capptr::Alloc<void>(small_alloc_one(MIN_ALLOC_SIZE))
-          .template as_static<FreeObject::T<capptr::bounds::Alloc>>();
+          .template as_static<FreeObject::T<capptr::bounds::AllocWild>>();
       if (dummy == nullptr)
       {
         error("Critical error: Out-of-memory during initialisation.");
@@ -421,13 +421,17 @@ namespace snmalloc
     handle_message_queue_inner(Action action, Args... args)
     {
       bool need_post = false;
-      auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::Alloc> p)
-                           SNMALLOC_FAST_PATH_LAMBDA { return p; };
+      auto local_state = backend_state_ptr();
+      auto domesticate =
+        [local_state](FreeObject::QueuePtr<capptr::bounds::AllocWild> p)
+          SNMALLOC_FAST_PATH_LAMBDA {
+            return capptr_domesticate<SharedStateHandle>(local_state, p);
+          };
       for (size_t i = 0; i < REMOTE_BATCH; i++)
       {
         auto p = message_queue().peek();
         auto& entry = SharedStateHandle::Pagemap::get_metaentry(
-          backend_state_ptr(), snmalloc::address_cast(p));
+          local_state, snmalloc::address_cast(p));
 
         auto r = message_queue().dequeue(key_global, domesticate);
 
@@ -750,24 +754,26 @@ namespace snmalloc
     bool flush(bool destroy_queue = false)
     {
       SNMALLOC_ASSERT(attached_cache != nullptr);
-      // TODO: Placeholder
-      auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::Alloc> p)
-                           SNMALLOC_FAST_PATH_LAMBDA { return p; };
+      auto local_state = backend_state_ptr();
+      auto domesticate =
+        [local_state](FreeObject::QueuePtr<capptr::bounds::AllocWild> p)
+          SNMALLOC_FAST_PATH_LAMBDA {
+            return capptr_domesticate<SharedStateHandle>(local_state, p);
+          };
 
       if (destroy_queue)
       {
-        auto p = message_queue().destroy();
+        auto p_wild = message_queue().destroy();
+        auto p_tame = domesticate(p_wild);
 
-        while (p != nullptr)
+        while (p_tame != nullptr)
         {
           bool need_post = true; // Always going to post, so ignore.
-          auto n = p->atomic_read_next(key_global, domesticate);
+          auto n_tame = p_tame->atomic_read_next(key_global, domesticate);
           auto& entry = SharedStateHandle::Pagemap::get_metaentry(
-            backend_state_ptr(), snmalloc::address_cast(p));
-          handle_dealloc_remote(entry, p.as_void(), need_post);
-          // TODO p = SharedStateHandle::capptr_domesticate(backend_state_ptr(),
-          // n);
-          p = n;
+            backend_state_ptr(), snmalloc::address_cast(p_tame));
+          handle_dealloc_remote(entry, p_tame.as_void(), need_post);
+          p_tame = n_tame;
         }
       }
       else
