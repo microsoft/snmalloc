@@ -271,12 +271,6 @@ namespace snmalloc
    *
    * Adds signing of pointers in the SNMALLOC_CHECK_CLIENT mode
    *
-   * We use the template parameter, so that an enclosing
-   * class can make use of the remaining bytes, which may not
-   * be aligned.  On 64bit ptr architectures, this structure
-   * is a multiple of 8 bytes in the checked and random more.
-   * But on 128bit ptr architectures this may be a benefit.
-   *
    * If RANDOM is enabled, the builder uses two queues, and
    * "randomly" decides to add to one of the two queues.  This
    * means that we will maintain a randomisation of the order
@@ -348,7 +342,7 @@ namespace snmalloc
      * Adds an element to the builder, if we are guaranteed that
      * RANDOM is false.  This is useful in certain construction
      * cases that do not need to introduce randomness, such as
-     * during the initialation construction of a free list, which
+     * during the initialisation construction of a free list, which
      * uses its own algorithm, or during building remote deallocation
      * lists, which will be randomised at the other end.
      */

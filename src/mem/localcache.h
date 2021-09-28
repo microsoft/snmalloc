@@ -68,6 +68,9 @@ namespace snmalloc
     : remote_allocator(remote_allocator)
     {}
 
+    /**
+     * Return all the free lists to the allocator.  Used during thread teardown.
+     */
     template<
       size_t allocator_size,
       typename SharedStateHandle,
@@ -77,8 +80,6 @@ namespace snmalloc
     {
       auto& key = entropy.get_free_list_key();
 
-      // Return all the free lists to the allocator.
-      // Used during thread teardown
       for (size_t i = 0; i < NUM_SIZECLASSES; i++)
       {
         // TODO could optimise this, to return the whole list in one append

@@ -71,13 +71,15 @@ namespace snmalloc
       return bk == front;
     }
 
+    /**
+     * Pushes a list of messages to the queue. Each message from first to
+     * last should be linked together through their next pointers.
+     */
     void enqueue(
       CapPtr<FreeObject, CBAlloc> first,
       CapPtr<FreeObject, CBAlloc> last,
       const FreeListKey& key)
     {
-      // Pushes a list of messages to the queue. Each message from first to
-      // last should be linked together through their next pointers.
       invariant();
       last->atomic_store_null(key);
 
@@ -93,9 +95,11 @@ namespace snmalloc
       return front;
     }
 
+    /**
+     * Returns the front message, or null if not possible to return a message.
+     */
     std::pair<CapPtr<FreeObject, CBAlloc>, bool> dequeue(const FreeListKey& key)
     {
-      // Returns the front message, or null if not possible to return a message.
       invariant();
       CapPtr<FreeObject, CBAlloc> first = front;
       CapPtr<FreeObject, CBAlloc> next = first->atomic_read_next(key);
