@@ -32,8 +32,6 @@ namespace snmalloc
 
     /**
      *  Data-structure for building the free list for this slab.
-     *
-     *  Spare 32bits are used for the fields in MetaslabEnd.
      */
 #ifdef SNMALLOC_CHECK_CLIENT
     FreeListBuilder<true> free_queue;

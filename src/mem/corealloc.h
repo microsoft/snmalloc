@@ -747,7 +747,7 @@ namespace snmalloc
               else
                 error("debug_is_empty: found non-empty allocator");
             }
-            curr = currmeta->link.get_next();
+            curr = curr->get_next();
           }
         }
       };
