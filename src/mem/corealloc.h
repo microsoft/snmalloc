@@ -416,7 +416,7 @@ namespace snmalloc
 #ifdef SNMALLOC_TRACING
         std::cout << "Handling remote" << std::endl;
 #endif
-        handle_dealloc_remote(entry, p, need_post);
+        handle_dealloc_remote(entry, r.first.as_void(), need_post);
       }
 
       if (need_post)
@@ -435,7 +435,7 @@ namespace snmalloc
      */
     void handle_dealloc_remote(
       const MetaEntry& entry,
-      FreeObject::QueuePtr<capptr::bounds::AllocFull> p,
+      CapPtr<void, capptr::bounds::AllocFull> p,
       bool& need_post)
     {
       // TODO this needs to not double count stats
@@ -716,6 +716,9 @@ namespace snmalloc
     bool flush(bool destroy_queue = false)
     {
       SNMALLOC_ASSERT(attached_cache != nullptr);
+      // TODO: Placeholder
+      auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::AllocFull> p)
+                           SNMALLOC_FAST_PATH_LAMBDA { return p; };
 
       if (destroy_queue)
       {
@@ -724,10 +727,10 @@ namespace snmalloc
         while (p != nullptr)
         {
           bool need_post = true; // Always going to post, so ignore.
-          auto n = p->atomic_read_next(key_global);
+          auto n = p->atomic_read_next(key_global, domesticate);
           auto& entry = SharedStateHandle::Pagemap::get_metaentry(
             backend_state_ptr(), snmalloc::address_cast(p));
-          handle_dealloc_remote(entry, p, need_post);
+          handle_dealloc_remote(entry, p.as_void(), need_post);
           // XXX n is not known to be domesticated
           p = n;
         }
