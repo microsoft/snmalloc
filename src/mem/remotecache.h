@@ -20,7 +20,7 @@ namespace snmalloc
       FreeListBuilder<
         false,
         capptr::bounds::Alloc,
-        capptr::bounds::Alloc,
+        capptr::bounds::AllocWild,
         false>,
       REMOTE_SLOTS>
       list;
@@ -78,7 +78,7 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(initialised);
       auto r =
-        p.template as_reinterpret<FreeObject::T<capptr::bounds::Alloc>>();
+        p.template as_reinterpret<FreeObject::T<capptr::bounds::AllocWild>>();
 
       list[get_slot<allocator_size>(target_id, 0)].add(r, key);
     }
@@ -92,8 +92,11 @@ namespace snmalloc
       SNMALLOC_ASSERT(initialised);
       size_t post_round = 0;
       bool sent_something = false;
-      auto domesticate = [](FreeObject::QueuePtr<capptr::bounds::Alloc> p)
-                           SNMALLOC_FAST_PATH_LAMBDA { return p; };
+      auto domesticate =
+        [local_state](FreeObject::QueuePtr<capptr::bounds::AllocWild> p)
+          SNMALLOC_FAST_PATH_LAMBDA {
+            return capptr_domesticate<SharedStateHandle>(local_state, p);
+          };
 
       while (true)
       {
@@ -109,7 +112,7 @@ namespace snmalloc
             auto [first, last] = list[i].extract_segment(key);
             MetaEntry entry = SharedStateHandle::Pagemap::get_metaentry(
               local_state, address_cast(first));
-            entry.get_remote()->enqueue(first, last, key);
+            entry.get_remote()->enqueue(first, last, key, domesticate);
             sent_something = true;
           }
         }
@@ -120,7 +123,7 @@ namespace snmalloc
         // Entries could map back onto the "resend" list,
         // so take copy of the head, mark the last element,
         // and clear the original list.
-        FreeListIter<capptr::bounds::Alloc, capptr::bounds::Alloc> resend;
+        FreeListIter<capptr::bounds::Alloc, capptr::bounds::AllocWild> resend;
         list[my_slot].close(resend, key);
 
         post_round++;
