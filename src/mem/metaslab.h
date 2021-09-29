@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../ds/cdllist.h"
 #include "../ds/dllist.h"
 #include "../ds/helpers.h"
+#include "../ds/seqqueue.h"
 #include "../mem/remoteallocator.h"
 #include "freelist.h"
 #include "ptrhelpers.h"
@@ -12,23 +12,15 @@ namespace snmalloc
 {
   class Slab;
 
-  using SlabLink = CDLLNode<>;
-
   // The Metaslab represent the status of a single slab.
   // This can be either a short or a standard slab.
   class alignas(CACHELINE_SIZE) Metaslab
   {
   public:
-    // TODO: Annotate with CHERI subobject unbound for pointer arithmetic
-    SlabLink link;
+    // Used to link metaslabs together in various other data-structures.
+    Metaslab* next{nullptr};
 
-    constexpr Metaslab() : link(true) {}
-
-    /**
-     * Metaslab::link points at another link field.  To get the actual Metaslab,
-     * use this encapsulation of the container-of logic.
-     */
-    static Metaslab* from_link(SlabLink* ptr);
+    constexpr Metaslab() = default;
 
     /**
      *  Data-structure for building the free list for this slab.
@@ -167,12 +159,6 @@ namespace snmalloc
     }
   };
 
-  inline Metaslab* Metaslab::from_link(SlabLink* lptr)
-  {
-    return pointer_offset_signed<Metaslab>(
-      lptr, -static_cast<ptrdiff_t>(offsetof(Metaslab, link)));
-  }
-
   struct RemoteAllocator;
 
   /**
@@ -232,8 +218,9 @@ namespace snmalloc
     }
   };
 
-  struct MetaslabCache : public CDLLNode<>
+  struct MetaslabCache
   {
+    SeqQueue<Metaslab> queue;
     uint16_t unused = 0;
     uint16_t length = 0;
   };
