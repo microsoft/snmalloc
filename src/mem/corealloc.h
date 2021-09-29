@@ -299,32 +299,23 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void dealloc_local_slabs(sizeclass_t sizeclass)
     {
       // Return unused slabs of sizeclass_t back to global allocator
-      SlabLink* prev = &alloc_classes[sizeclass];
-      auto curr = prev->get_next();
-      while (curr != nullptr)
-      {
-        auto nxt = curr->get_next();
-        auto meta = Metaslab::from_link(curr);
-        if (meta->needed() == 0)
-        {
-          prev->pop();
-          alloc_classes[sizeclass].length--;
-          alloc_classes[sizeclass].unused--;
+      alloc_classes[sizeclass].queue.filter([this, sizeclass](Metaslab* meta) {
+        if (meta->needed() != 0)
+          return false;
 
-          // TODO delay the clear to the next user of the slab, or teardown so
-          // don't touch the cache lines at this point in check_client.
-          auto chunk_record = clear_slab(meta, sizeclass);
-          ChunkAllocator::dealloc<SharedStateHandle>(
-            get_backend_local_state(),
-            chunk_record,
-            sizeclass_to_slab_sizeclass(sizeclass));
-        }
-        else
-        {
-          prev = curr;
-        }
-        curr = nxt;
-      }
+        alloc_classes[sizeclass].length--;
+        alloc_classes[sizeclass].unused--;
+
+        // TODO delay the clear to the next user of the slab, or teardown so
+        // don't touch the cache lines at this point in check_client.
+        auto chunk_record = clear_slab(meta, sizeclass);
+        ChunkAllocator::dealloc<SharedStateHandle>(
+          get_backend_local_state(),
+          chunk_record,
+          sizeclass_to_slab_sizeclass(sizeclass));
+
+        return true;
+      });
     }
 
     /**
@@ -348,7 +339,7 @@ namespace snmalloc
         //  Wake slab up.
         meta->set_not_sleeping(sizeclass);
 
-        alloc_classes[sizeclass].insert(&meta->link);
+        alloc_classes[sizeclass].queue.insert(meta);
         alloc_classes[sizeclass].length++;
 
 #ifdef SNMALLOC_TRACING
@@ -590,10 +581,10 @@ namespace snmalloc
       size_t rsize = sizeclass_to_size(sizeclass);
 
       // Look to see if we can grab a free list.
-      auto& sl = alloc_classes[sizeclass];
+      auto& sl = alloc_classes[sizeclass].queue;
       if (likely(!(sl.is_empty())))
       {
-        auto meta = Metaslab::from_link(sl.pop());
+        auto meta = sl.pop();
         // Drop length of sl, and empty count if it was empty.
         alloc_classes[sizeclass].length--;
         if (meta->needed() == 0)
@@ -734,29 +725,23 @@ namespace snmalloc
     bool debug_is_empty_impl(bool* result)
     {
       auto test = [&result](auto& queue) {
-        if (!queue.is_empty())
-        {
-          auto curr = queue.get_next();
-          while (curr != nullptr)
+        queue.filter([&result](auto metaslab) {
+          if (metaslab->needed() != 0)
           {
-            auto currmeta = Metaslab::from_link(curr);
-            if (currmeta->needed() != 0)
-            {
-              if (result != nullptr)
-                *result = false;
-              else
-                error("debug_is_empty: found non-empty allocator");
-            }
-            curr = curr->get_next();
+            if (result != nullptr)
+              *result = false;
+            else
+              error("debug_is_empty: found non-empty allocator");
           }
-        }
+          return false;
+        });
       };
 
       bool sent_something = flush(true);
 
       for (auto& alloc_class : alloc_classes)
       {
-        test(alloc_class);
+        test(alloc_class.queue);
       }
 
       // Place the static stub message on the queue.
