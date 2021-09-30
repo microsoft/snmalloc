@@ -261,7 +261,8 @@ namespace snmalloc
     {
       auto& key = entropy.get_free_list_key();
       FreeListIter fl;
-      meta->free_queue.close(fl, key);
+      auto more = meta->free_queue.close(fl, key);
+      UNUSED(more);
       void* p = finish_alloc_no_zero(fl.take(key), sizeclass);
 
 #ifdef SNMALLOC_CHECK_CLIENT
@@ -274,6 +275,21 @@ namespace snmalloc
         count++;
       }
       // Check the list contains all the elements
+      SNMALLOC_ASSERT(
+        (count + more) == snmalloc::sizeclass_to_slab_object_count(sizeclass));
+
+      if (more > 0)
+      {
+        auto no_more = meta->free_queue.close(fl, key);
+        SNMALLOC_ASSERT(no_more == 0);
+        UNUSED(no_more);
+
+        while (!fl.empty())
+        {
+          fl.take(key);
+          count++;
+        }
+      }
       SNMALLOC_ASSERT(
         count == snmalloc::sizeclass_to_slab_object_count(sizeclass));
 #endif
@@ -578,15 +594,32 @@ namespace snmalloc
 
       // Look to see if we can grab a free list.
       auto& sl = alloc_classes[sizeclass].queue;
-      if (likely(!(sl.is_empty())))
+      if (likely(alloc_classes[sizeclass].length > 0))
       {
+#ifdef SNMALLOC_CHECK_CLIENT
+        // Occassionally don't use the last list.
+        if (
+          unlikely(alloc_classes[sizeclass].length == 1) &&
+          (entropy.next_bit() == 0))
+        {
+          return small_alloc_slow<zero_mem>(sizeclass, fast_free_list, rsize);
+        }
+#endif
+
         auto meta = sl.pop();
         // Drop length of sl, and empty count if it was empty.
         alloc_classes[sizeclass].length--;
         if (meta->needed() == 0)
           alloc_classes[sizeclass].unused--;
 
-        auto p = Metaslab::alloc_free_list(meta, fast_free_list, entropy, sizeclass);
+        auto [p, still_active] =
+          Metaslab::alloc_free_list(meta, fast_free_list, entropy, sizeclass);
+
+        if (still_active)
+        {
+          alloc_classes[sizeclass].length++;
+          sl.insert(meta);
+        }
 
         return finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
       }
@@ -643,7 +676,14 @@ namespace snmalloc
       // Build a free list for the slab
       alloc_new_list(slab, meta, rsize, slab_size, entropy);
 
-      auto p = Metaslab::alloc_free_list(meta, fast_free_list, entropy, sizeclass);
+      auto [p, still_active] =
+        Metaslab::alloc_free_list(meta, fast_free_list, entropy, sizeclass);
+
+      if (still_active)
+      {
+        alloc_classes[sizeclass].length++;
+        alloc_classes[sizeclass].queue.insert(meta);
+      }
 
       return finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
     }

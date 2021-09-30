@@ -71,7 +71,7 @@ namespace snmalloc
       // returned all the elements, but this is a slab that is still being bump
       // allocated from. Hence, the bump allocator slab will never be returned
       // for use in another size class.
-      set_sleeping(sizeclass);
+      set_sleeping(sizeclass, 0);
     }
 
     /**
@@ -96,14 +96,28 @@ namespace snmalloc
       return sleeping();
     }
 
-    SNMALLOC_FAST_PATH void set_sleeping(sizeclass_t sizeclass)
+    /**
+     * Try to set this metaslab to sleep.  If the remaining elements are fewer
+     * than the threshold, then it will actually be set to the sleeping state,
+     * and will return true, otherwise it will return false.
+     */
+    SNMALLOC_FAST_PATH bool
+    set_sleeping(sizeclass_t sizeclass, uint16_t remaining)
     {
-      SNMALLOC_ASSERT(free_queue.empty());
+      auto threshold = threshold_for_waking_slab(sizeclass);
+      if (remaining >= threshold)
+      {
+        // Set needed to at least one, possibly more so we only use
+        // a slab when it has a reasonable amount of free elements
+        auto allocated = sizeclass_to_slab_object_count(sizeclass);
+        needed() = allocated - remaining;
+        sleeping() = false;
+        return false;
+      }
 
-      // Set needed to at least one, possibly more so we only use
-      // a slab when it has a reasonable amount of free elements
-      needed() = threshold_for_waking_slab(sizeclass);
       sleeping() = true;
+      needed() = threshold - remaining;
+      return true;
     }
 
     SNMALLOC_FAST_PATH void set_not_sleeping(sizeclass_t sizeclass)
@@ -129,9 +143,18 @@ namespace snmalloc
     }
 
     /**
-     * TODO
+     * Allocates a free list from the meta data.
+     *
+     * Returns a freshly allocated object of the correct size, and a bool that
+     * specifies if the metaslab should be placed in the queue for that
+     * sizeclass.
+     *
+     * If Randomisation is not used, it will always return false, for the second
+     * component but with randomisation, it may only return part of the
+     * available objects for this metaslab.
      */
-    static SNMALLOC_FAST_PATH CapPtr<FreeObject, CBAlloc> alloc_free_list(
+    static SNMALLOC_FAST_PATH std::pair<CapPtr<FreeObject, CBAlloc>, bool>
+    alloc_free_list(
       Metaslab* meta,
       FreeListIter& fast_free_list,
       LocalEntropy& entropy,
@@ -140,7 +163,7 @@ namespace snmalloc
       auto& key = entropy.get_free_list_key();
 
       FreeListIter tmp_fl;
-      meta->free_queue.close(tmp_fl, key);
+      auto remaining = meta->free_queue.close(tmp_fl, key);
       auto p = tmp_fl.take(key);
       fast_free_list = tmp_fl;
 
@@ -150,12 +173,13 @@ namespace snmalloc
       UNUSED(entropy);
 #endif
 
-      // Treat stealing the free list as allocating it all.
       // This marks the slab as sleeping, and sets a wakeup
       // when sufficient deallocations have occurred to this slab.
-      meta->set_sleeping(sizeclass);
+      // Takes home many deallocations were not grab on this call
+      // This will be zero if there is no randomisation.
+      auto sleeping = meta->set_sleeping(sizeclass, remaining);
 
-      return p;
+      return {p, !sleeping};
     }
   };
 
