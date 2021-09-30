@@ -188,7 +188,7 @@ namespace snmalloc
 
     static SNMALLOC_FAST_PATH void alloc_new_list(
       CapPtr<void, CBChunk>& bumpptr,
-      FreeListIter& fast_free_list,
+      Metaslab* meta,
       size_t rsize,
       size_t slab_size,
       LocalEntropy& entropy)
@@ -197,8 +197,7 @@ namespace snmalloc
 
       auto& key = entropy.get_free_list_key();
 
-      FreeListBuilder<false> b;
-      SNMALLOC_ASSERT(b.empty());
+      auto& b = meta->free_queue;
 
 #ifdef SNMALLOC_CHECK_CLIENT
       // Structure to represent the temporary list elements
@@ -243,7 +242,7 @@ namespace snmalloc
       auto curr_ptr = start_ptr;
       do
       {
-        b.add(FreeObject::make(curr_ptr.as_void()), key);
+        b.add(FreeObject::make(curr_ptr.as_void()), key, entropy);
         curr_ptr = curr_ptr->next;
       } while (curr_ptr != start_ptr);
 #else
@@ -256,9 +255,6 @@ namespace snmalloc
 #endif
       // This code consumes everything up to slab_end.
       bumpptr = slab_end;
-
-      SNMALLOC_ASSERT(!b.empty());
-      b.close(fast_free_list, key);
     }
 
     ChunkRecord* clear_slab(Metaslab* meta, sizeclass_t sizeclass)
@@ -590,7 +586,7 @@ namespace snmalloc
         if (meta->needed() == 0)
           alloc_classes[sizeclass].unused--;
 
-        auto p = Metaslab::alloc(meta, fast_free_list, entropy, sizeclass);
+        auto p = Metaslab::alloc_free_list(meta, fast_free_list, entropy, sizeclass);
 
         return finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
       }
@@ -641,16 +637,13 @@ namespace snmalloc
         return nullptr;
       }
 
-      // Build a free list for the slab
-      alloc_new_list(slab, fast_free_list, rsize, slab_size, entropy);
-
       // Set meta slab to empty.
       meta->initialise(sizeclass);
 
-      auto& key = entropy.get_free_list_key();
+      // Build a free list for the slab
+      alloc_new_list(slab, meta, rsize, slab_size, entropy);
 
-      // take an allocation from the free list
-      auto p = fast_free_list.take(key);
+      auto p = Metaslab::alloc_free_list(meta, fast_free_list, entropy, sizeclass);
 
       return finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
     }

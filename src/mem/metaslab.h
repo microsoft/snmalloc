@@ -131,7 +131,7 @@ namespace snmalloc
     /**
      * TODO
      */
-    static SNMALLOC_FAST_PATH CapPtr<FreeObject, CBAlloc> alloc(
+    static SNMALLOC_FAST_PATH CapPtr<FreeObject, CBAlloc> alloc_free_list(
       Metaslab* meta,
       FreeListIter& fast_free_list,
       LocalEntropy& entropy,
