@@ -51,7 +51,7 @@ namespace snmalloc
     // allocation on the fast path. This part of the code is inspired by
     // mimalloc.
     FreeListIter<capptr::bounds::Alloc, capptr::bounds::AllocWild>
-      small_fast_free_lists[NUM_SIZECLASSES];
+      small_fast_free_lists[NUM_SIZECLASSES] = {};
 
     // This is the entropy for a particular thread.
     LocalEntropy entropy;
