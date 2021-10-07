@@ -339,7 +339,9 @@ namespace snmalloc
 
       end[index] = FreeObject::store_next(end[index], n, key);
       if constexpr (RANDOM)
+      {
         length[index]++;
+      }
     }
 
     /**
@@ -439,7 +441,9 @@ namespace snmalloc
       {
         end[i] = &head[i];
         if (RANDOM)
+        {
           length[i] = 0;
+        }
       }
     }
 

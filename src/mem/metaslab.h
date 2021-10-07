@@ -149,8 +149,8 @@ namespace snmalloc
      * specifies if the metaslab should be placed in the queue for that
      * sizeclass.
      *
-     * If Randomisation is not used, it will always return false, for the second
-     * component but with randomisation, it may only return part of the
+     * If Randomisation is not used, it will always return false for the second
+     * component, but with randomisation, it may only return part of the
      * available objects for this metaslab.
      */
     static SNMALLOC_FAST_PATH std::pair<CapPtr<FreeObject, CBAlloc>, bool>
@@ -175,7 +175,7 @@ namespace snmalloc
 
       // This marks the slab as sleeping, and sets a wakeup
       // when sufficient deallocations have occurred to this slab.
-      // Takes home many deallocations were not grab on this call
+      // Takes how many deallocations were not grabbed on this call
       // This will be zero if there is no randomisation.
       auto sleeping = meta->set_sleeping(sizeclass, remaining);
 
