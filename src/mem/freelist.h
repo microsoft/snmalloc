@@ -301,6 +301,8 @@ namespace snmalloc
     // This enables branch free enqueuing.
     std::array<CapPtr<FreeObject, CBAlloc>*, LENGTH> end{nullptr};
 
+    std::array<uint16_t, RANDOM ? 2 : 0> length{};
+
   public:
     constexpr FreeListBuilder()
     {
@@ -336,6 +338,10 @@ namespace snmalloc
         index = 0;
 
       end[index] = FreeObject::store_next(end[index], n, key);
+      if constexpr (RANDOM)
+      {
+        length[index]++;
+      }
     }
 
     /**
@@ -388,41 +394,42 @@ namespace snmalloc
     /**
      * Close a free list, and set the iterator parameter
      * to iterate it.
+     *
+     * In the RANDOM case, it may return only part of the freelist.
+     *
+     * The return value is how many entries are still contained in the builder.
      */
-    SNMALLOC_FAST_PATH void close(FreeListIter& fl, const FreeListKey& key)
+    SNMALLOC_FAST_PATH uint16_t close(FreeListIter& fl, const FreeListKey& key)
     {
+      uint32_t i;
       if constexpr (RANDOM)
       {
         SNMALLOC_ASSERT(end[1] != &head[0]);
         SNMALLOC_ASSERT(end[0] != &head[1]);
 
-        // If second list is non-empty, perform append.
-        if (end[1] != &head[1])
-        {
-          // The start token has been corrupted.
-          // TOCTTOU issue, but small window here.
-          read_head(1, key)->check_prev(get_fake_signed_prev(1, key));
-
-          terminate_list(1, key);
-
-          // Append 1 to 0
-          FreeObject::store_next(end[0], read_head(1, key), key);
-
-          SNMALLOC_ASSERT(end[1] != &head[0]);
-          SNMALLOC_ASSERT(end[0] != &head[1]);
-        }
-        else
-        {
-          terminate_list(0, key);
-        }
+        // Select longest list.
+        i = length[0] > length[1] ? 0 : 1;
       }
       else
       {
-        terminate_list(0, key);
+        i = 0;
       }
 
-      fl = {read_head(0, key), get_fake_signed_prev(0, key)};
-      init();
+      terminate_list(i, key);
+
+      fl = {read_head(i, key), get_fake_signed_prev(i, key)};
+
+      end[i] = &head[i];
+
+      if constexpr (RANDOM)
+      {
+        length[i] = 0;
+        return length[1 - i];
+      }
+      else
+      {
+        return 0;
+      }
     }
 
     /**
@@ -433,6 +440,10 @@ namespace snmalloc
       for (size_t i = 0; i < LENGTH; i++)
       {
         end[i] = &head[i];
+        if (RANDOM)
+        {
+          length[i] = 0;
+        }
       }
     }
 
