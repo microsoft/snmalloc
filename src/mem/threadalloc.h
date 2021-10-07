@@ -104,13 +104,29 @@ namespace snmalloc
   {
     ThreadAlloc::get().teardown();
   }
+
+  /**
+   * Used to give correct signature to teardown required by atexit.
+   */
+  inline void pthread_cleanup_main_thread()
+  {
+    ThreadAlloc::get().teardown();
+  }
+
   /**
    * Used to give correct signature to the pthread call for the Singleton class.
    */
   inline void pthread_create(pthread_key_t* key) noexcept
   {
     pthread_key_create(key, &pthread_cleanup);
+    // Main thread does not call pthread_cleanup if `main` returns or `exit` is
+    // called, so use an atexit handler to guarantee that the cleanup is run at
+    // least once.  If the main thread exits with `pthread_exit` then it will be
+    // called twice but this case is already handled because other destructors
+    // can cause the per-thread allocator to be recreated.
+    atexit(&pthread_cleanup_main_thread);
   }
+
   /**
    * Performs thread local teardown for the allocator using the pthread library.
    *
