@@ -211,21 +211,21 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void* small_alloc(size_t size)
     {
       //      SNMALLOC_ASSUME(size <= sizeclass_to_size(NUM_SIZECLASSES));
-      auto domesticate = [this](FreeObject::QueuePtr p)
+      auto domesticate = [this](freelist::QueuePtr p)
                            SNMALLOC_FAST_PATH_LAMBDA {
                              return capptr_domesticate<SharedStateHandle>(
                                core_alloc->backend_state_ptr(), p);
                            };
       auto slowpath = [&](
                         sizeclass_t sizeclass,
-                        FreeListIter<>* fl) SNMALLOC_FAST_PATH_LAMBDA {
+                        freelist::Iter<>* fl) SNMALLOC_FAST_PATH_LAMBDA {
         if (likely(core_alloc != nullptr))
         {
           return core_alloc->handle_message_queue(
             [](
               CoreAlloc* core_alloc,
               sizeclass_t sizeclass,
-              FreeListIter<>* fl) {
+              freelist::Iter<>* fl) {
               return core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
             },
             core_alloc,

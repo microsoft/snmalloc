@@ -162,7 +162,7 @@ namespace snmalloc
       // Manufacture an allocation to prime the queue
       // Using an actual allocation removes a conditional from a critical path.
       auto dummy = capptr::Alloc<void>(small_alloc_one(MIN_ALLOC_SIZE))
-                     .template as_static<FreeObject::T<>>();
+                     .template as_static<freelist::Object::T<>>();
       if (dummy == nullptr)
       {
         error("Critical error: Out-of-memory during initialisation.");
@@ -180,12 +180,12 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(attached_cache != nullptr);
       auto domesticate =
-        [this](FreeObject::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+        [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
           return capptr_domesticate<SharedStateHandle>(backend_state_ptr(), p);
         };
       // Use attached cache, and fill it if it is empty.
       return attached_cache->template alloc<NoZero, SharedStateHandle>(
-        domesticate, size, [&](sizeclass_t sizeclass, FreeListIter<>* fl) {
+        domesticate, size, [&](sizeclass_t sizeclass, freelist::Iter<>* fl) {
           return small_alloc<NoZero>(sizeclass, *fl);
         });
     }
@@ -250,7 +250,7 @@ namespace snmalloc
       {
         b.add(
           // Here begins our treatment of the heap as containing Wild pointers
-          FreeObject::make<capptr::bounds::AllocWild>(
+          freelist::Object::make<capptr::bounds::AllocWild>(
             capptr_to_user_address_control(curr_ptr.as_void())),
           key,
           entropy);
@@ -262,7 +262,7 @@ namespace snmalloc
       {
         b.add(
           // Here begins our treatment of the heap as containing Wild pointers
-          FreeObject::make<capptr::bounds::AllocWild>(
+          freelist::Object::make<capptr::bounds::AllocWild>(
             capptr_to_user_address_control(
               Aal::capptr_bound<void, capptr::bounds::AllocFull>(
                 p.as_void(), rsize))),
@@ -277,12 +277,12 @@ namespace snmalloc
     ChunkRecord* clear_slab(Metaslab* meta, sizeclass_t sizeclass)
     {
       auto& key = entropy.get_free_list_key();
-      FreeListIter<> fl;
+      freelist::Iter<> fl;
       auto more = meta->free_queue.close(fl, key);
       UNUSED(more);
       auto local_state = backend_state_ptr();
       auto domesticate =
-        [local_state](FreeObject::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+        [local_state](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
           return capptr_domesticate<SharedStateHandle>(local_state, p);
         };
       void* p = finish_alloc_no_zero(fl.take(key, domesticate), sizeclass);
@@ -415,7 +415,7 @@ namespace snmalloc
       bool need_post = false;
       auto local_state = backend_state_ptr();
       auto domesticate =
-        [local_state](FreeObject::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+        [local_state](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
           return capptr_domesticate<SharedStateHandle>(local_state, p);
         };
       for (size_t i = 0; i < REMOTE_BATCH; i++)
@@ -608,7 +608,7 @@ namespace snmalloc
         Metaslab::is_start_of_object(entry.get_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
-      auto cp = p.as_static<FreeObject::T<>>();
+      auto cp = p.as_static<freelist::Object::T<>>();
 
       auto& key = entropy.get_free_list_key();
 
@@ -620,7 +620,7 @@ namespace snmalloc
 
     template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH void*
-    small_alloc(sizeclass_t sizeclass, FreeListIter<>& fast_free_list)
+    small_alloc(sizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
 
@@ -645,7 +645,7 @@ namespace snmalloc
           alloc_classes[sizeclass].unused--;
 
         auto domesticate = [this](
-                             FreeObject::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+                             freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
           return capptr_domesticate<SharedStateHandle>(backend_state_ptr(), p);
         };
         auto [p, still_active] = Metaslab::alloc_free_list(
@@ -682,7 +682,7 @@ namespace snmalloc
 
     template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH void* small_alloc_slow(
-      sizeclass_t sizeclass, FreeListIter<>& fast_free_list, size_t rsize)
+      sizeclass_t sizeclass, freelist::Iter<>& fast_free_list, size_t rsize)
     {
       // No existing free list get a new slab.
       size_t slab_size = sizeclass_to_slab_size(sizeclass);
@@ -713,7 +713,7 @@ namespace snmalloc
       alloc_new_list(slab, meta, rsize, slab_size, entropy);
 
       auto domesticate =
-        [this](FreeObject::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+        [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
           return capptr_domesticate<SharedStateHandle>(backend_state_ptr(), p);
         };
       auto [p, still_active] = Metaslab::alloc_free_list(
@@ -738,7 +738,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(attached_cache != nullptr);
       auto local_state = backend_state_ptr();
       auto domesticate =
-        [local_state](FreeObject::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+        [local_state](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
           return capptr_domesticate<SharedStateHandle>(local_state, p);
         };
 
