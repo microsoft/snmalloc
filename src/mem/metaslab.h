@@ -25,11 +25,9 @@ namespace snmalloc
      *  Data-structure for building the free list for this slab.
      */
 #ifdef SNMALLOC_CHECK_CLIENT
-    FreeListBuilder<true, capptr::bounds::Alloc, capptr::bounds::AllocWild>
-      free_queue;
+    FreeListBuilder<true> free_queue;
 #else
-    FreeListBuilder<false, capptr::bounds::Alloc, capptr::bounds::AllocWild>
-      free_queue;
+    FreeListBuilder<false> free_queue;
 #endif
 
     /**
@@ -155,14 +153,11 @@ namespace snmalloc
      * available objects for this metaslab.
      */
     template<typename Domesticator>
-    static SNMALLOC_FAST_PATH std::pair<
-      FreeObject::HeadPtr<capptr::bounds::Alloc, capptr::bounds::AllocWild>,
-      bool>
+    static SNMALLOC_FAST_PATH std::pair<FreeObject::HeadPtr, bool>
     alloc_free_list(
       Domesticator domesticate,
       Metaslab* meta,
-      FreeListIter<capptr::bounds::Alloc, capptr::bounds::AllocWild>&
-        fast_free_list,
+      FreeListIter<>& fast_free_list,
       LocalEntropy& entropy,
       sizeclass_t sizeclass)
     {

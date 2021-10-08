@@ -211,38 +211,33 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void* small_alloc(size_t size)
     {
       //      SNMALLOC_ASSUME(size <= sizeclass_to_size(NUM_SIZECLASSES));
-      auto domesticate =
-        [this](FreeObject::QueuePtr<capptr::bounds::AllocWild> p)
-          SNMALLOC_FAST_PATH_LAMBDA {
-            return capptr_domesticate<SharedStateHandle>(
-              core_alloc->backend_state_ptr(), p);
-          };
-      auto slowpath =
-        [&](
-          sizeclass_t sizeclass,
-          FreeListIter<capptr::bounds::Alloc, capptr::bounds::AllocWild>*
-            fl) SNMALLOC_FAST_PATH_LAMBDA {
-          if (likely(core_alloc != nullptr))
-          {
-            return core_alloc->handle_message_queue(
-              [](
-                CoreAlloc* core_alloc,
-                sizeclass_t sizeclass,
-                FreeListIter<capptr::bounds::Alloc, capptr::bounds::AllocWild>*
-                  fl) {
-                return core_alloc->template small_alloc<zero_mem>(
-                  sizeclass, *fl);
-              },
-              core_alloc,
-              sizeclass,
-              fl);
-          }
-          return lazy_init(
-            [&](CoreAlloc*, sizeclass_t sizeclass) {
-              return small_alloc<zero_mem>(sizeclass_to_size(sizeclass));
+      auto domesticate = [this](FreeObject::QueuePtr p)
+                           SNMALLOC_FAST_PATH_LAMBDA {
+                             return capptr_domesticate<SharedStateHandle>(
+                               core_alloc->backend_state_ptr(), p);
+                           };
+      auto slowpath = [&](
+                        sizeclass_t sizeclass,
+                        FreeListIter<>* fl) SNMALLOC_FAST_PATH_LAMBDA {
+        if (likely(core_alloc != nullptr))
+        {
+          return core_alloc->handle_message_queue(
+            [](
+              CoreAlloc* core_alloc,
+              sizeclass_t sizeclass,
+              FreeListIter<>* fl) {
+              return core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
             },
-            sizeclass);
-        };
+            core_alloc,
+            sizeclass,
+            fl);
+        }
+        return lazy_init(
+          [&](CoreAlloc*, sizeclass_t sizeclass) {
+            return small_alloc<zero_mem>(sizeclass_to_size(sizeclass));
+          },
+          sizeclass);
+      };
 
       return local_cache.template alloc<zero_mem, SharedStateHandle>(
         domesticate, size, slowpath);
