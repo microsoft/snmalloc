@@ -35,10 +35,10 @@ namespace snmalloc
 
     // Store the message queue on a separate cacheline. It is mutable data that
     // is read by other threads.
-    alignas(CACHELINE_SIZE) FreeObject::AtomicQueuePtr back{nullptr};
+    alignas(CACHELINE_SIZE) freelist::AtomicQueuePtr back{nullptr};
     // Store the two ends on different cache lines as access by different
     // threads.
-    alignas(CACHELINE_SIZE) FreeObject::QueuePtr front{nullptr};
+    alignas(CACHELINE_SIZE) freelist::QueuePtr front{nullptr};
 
     constexpr RemoteAllocator() = default;
 
@@ -48,17 +48,17 @@ namespace snmalloc
       SNMALLOC_ASSERT(front != nullptr);
     }
 
-    void init(FreeObject::HeadPtr stub)
+    void init(freelist::HeadPtr stub)
     {
-      FreeObject::atomic_store_null(stub, key_global);
+      freelist::Object::atomic_store_null(stub, key_global);
       front = capptr_rewild(stub);
       back.store(front, std::memory_order_relaxed);
       invariant();
     }
 
-    FreeObject::QueuePtr destroy()
+    freelist::QueuePtr destroy()
     {
-      FreeObject::QueuePtr fnt = front;
+      freelist::QueuePtr fnt = front;
       back.store(nullptr, std::memory_order_relaxed);
       front = nullptr;
       return fnt;
@@ -66,7 +66,7 @@ namespace snmalloc
 
     inline bool is_empty()
     {
-      FreeObject::QueuePtr bk = back.load(std::memory_order_relaxed);
+      freelist::QueuePtr bk = back.load(std::memory_order_relaxed);
 
       return bk == front;
     }
@@ -77,22 +77,22 @@ namespace snmalloc
      */
     template<typename Domesticator>
     void enqueue(
-      FreeObject::HeadPtr first,
-      FreeObject::HeadPtr last,
+      freelist::HeadPtr first,
+      freelist::HeadPtr last,
       const FreeListKey& key,
       Domesticator domesticate)
     {
       invariant();
-      FreeObject::atomic_store_null(last, key);
+      freelist::Object::atomic_store_null(last, key);
 
       // exchange needs to be a release, so nullptr in next is visible.
-      FreeObject::QueuePtr prev =
+      freelist::QueuePtr prev =
         back.exchange(capptr_rewild(last), std::memory_order_release);
 
-      FreeObject::atomic_store_next(domesticate(prev), first, key);
+      freelist::Object::atomic_store_next(domesticate(prev), first, key);
     }
 
-    FreeObject::QueuePtr peek()
+    freelist::QueuePtr peek()
     {
       return front;
     }
@@ -101,12 +101,12 @@ namespace snmalloc
      * Returns the front message, or null if not possible to return a message.
      */
     template<typename Domesticator>
-    std::pair<FreeObject::HeadPtr, bool>
+    std::pair<freelist::HeadPtr, bool>
     dequeue(const FreeListKey& key, Domesticator domesticate)
     {
       invariant();
-      FreeObject::HeadPtr first = domesticate(front);
-      FreeObject::HeadPtr next = first->atomic_read_next(key, domesticate);
+      freelist::HeadPtr first = domesticate(front);
+      freelist::HeadPtr next = first->atomic_read_next(key, domesticate);
 
       if (next != nullptr)
       {

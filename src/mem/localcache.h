@@ -13,7 +13,7 @@ namespace snmalloc
   using Stats = AllocStats<NUM_SIZECLASSES, NUM_LARGE_CLASSES>;
 
   inline static SNMALLOC_FAST_PATH void*
-  finish_alloc_no_zero(FreeObject::HeadPtr p, sizeclass_t sizeclass)
+  finish_alloc_no_zero(freelist::HeadPtr p, sizeclass_t sizeclass)
   {
     SNMALLOC_ASSERT(Metaslab::is_start_of_object(sizeclass, address_cast(p)));
     UNUSED(sizeclass);
@@ -25,14 +25,14 @@ namespace snmalloc
 
   template<ZeroMem zero_mem, typename SharedStateHandle>
   inline static SNMALLOC_FAST_PATH void*
-  finish_alloc(FreeObject::HeadPtr p, sizeclass_t sizeclass)
+  finish_alloc(freelist::HeadPtr p, sizeclass_t sizeclass)
   {
     auto r = finish_alloc_no_zero(p, sizeclass);
 
     if constexpr (zero_mem == YesZero)
       SharedStateHandle::Pal::zero(r, sizeclass_to_size(sizeclass));
 
-    // TODO: Should this be zeroing the FreeObject state, in the non-zeroing
+    // TODO: Should this be zeroing the free Object state, in the non-zeroing
     // case?
 
     return r;
@@ -46,7 +46,7 @@ namespace snmalloc
     // Free list per small size class.  These are used for
     // allocation on the fast path. This part of the code is inspired by
     // mimalloc.
-    FreeListIter<> small_fast_free_lists[NUM_SIZECLASSES] = {};
+    freelist::Iter<> small_fast_free_lists[NUM_SIZECLASSES] = {};
 
     // This is the entropy for a particular thread.
     LocalEntropy entropy;
@@ -80,7 +80,7 @@ namespace snmalloc
     {
       auto& key = entropy.get_free_list_key();
       auto domesticate =
-        [local_state](FreeObject::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+        [local_state](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
           return capptr_domesticate<SharedStateHandle>(local_state, p);
         };
 
