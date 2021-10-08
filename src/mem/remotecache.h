@@ -16,14 +16,7 @@ namespace snmalloc
    */
   struct RemoteDeallocCache
   {
-    std::array<
-      FreeListBuilder<
-        false,
-        capptr::bounds::Alloc,
-        capptr::bounds::AllocWild,
-        false>,
-      REMOTE_SLOTS>
-      list;
+    std::array<FreeListBuilder<false, false>, REMOTE_SLOTS> list;
 
     /**
      * The total amount of memory we are waiting for before we will dispatch
@@ -77,8 +70,7 @@ namespace snmalloc
       const FreeListKey& key)
     {
       SNMALLOC_ASSERT(initialised);
-      auto r =
-        p.template as_reinterpret<FreeObject::T<capptr::bounds::AllocWild>>();
+      auto r = p.template as_reinterpret<FreeObject::T<>>();
 
       list[get_slot<allocator_size>(target_id, 0)].add(r, key);
     }
@@ -93,10 +85,9 @@ namespace snmalloc
       size_t post_round = 0;
       bool sent_something = false;
       auto domesticate =
-        [local_state](FreeObject::QueuePtr<capptr::bounds::AllocWild> p)
-          SNMALLOC_FAST_PATH_LAMBDA {
-            return capptr_domesticate<SharedStateHandle>(local_state, p);
-          };
+        [local_state](FreeObject::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+          return capptr_domesticate<SharedStateHandle>(local_state, p);
+        };
 
       while (true)
       {
@@ -123,7 +114,7 @@ namespace snmalloc
         // Entries could map back onto the "resend" list,
         // so take copy of the head, mark the last element,
         // and clear the original list.
-        FreeListIter<capptr::bounds::Alloc, capptr::bounds::AllocWild> resend;
+        FreeListIter<> resend;
         list[my_slot].close(resend, key);
 
         post_round++;
