@@ -1,5 +1,10 @@
 ## Changelog
 
+### 0.2.28
+- Deprecation of `cache-friendly`
+- Use exposed `alloc_zeroed` from `snmalloc`
+- **upstream** changes of remote communication, corruption detection and compilation flag detection.
+
 ### 0.2.27
 
 - Reduction of libc dependency

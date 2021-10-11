@@ -1,6 +1,6 @@
 [package]
 name = "snmalloc-rs"
-version = "0.2.27"
+version = "0.2.28"
 authors = ["schrodingerzhu <i@zhuyi.fan>"]
 edition = "2018"
 license = "MIT"
@@ -16,7 +16,7 @@ readme = "README.md"
 members = ["snmalloc-sys" ]
 
 [dependencies]
-snmalloc-sys = {version = "0.2.27", path = "snmalloc-sys", default-features = false }
+snmalloc-sys = {version = "0.2.28", path = "snmalloc-sys", default-features = false }
 
 [features]
 default = ["snmalloc-sys/build_cmake","1mib"]

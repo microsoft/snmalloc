@@ -44,6 +44,13 @@ unsafe impl GlobalAlloc for SnMalloc {
         ffi::rust_alloc(layout.align(), layout.size()) as _
     }
 
+
+    /// Behaves like alloc, but also ensures that the contents are set to zero before being returned.
+    #[inline(always)]
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        ffi::rust_alloc_zeroed(layout.align(), layout.size()) as _
+    }
+
     /// De-allocate the memory at the given address with the given alignment and size.
     /// The client must assure the following things:
     /// - the memory is acquired using the same allocator and the pointer points to the start position.

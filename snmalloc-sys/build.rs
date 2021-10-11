@@ -117,7 +117,10 @@ fn main() {
     }
 
     if cfg!(feature = "cache-friendly") {
-        build.define("CACHE_FRIENDLY_OFFSET", "64");
+        eprintln!("cache-friendly feature flag is deprecated and no longer has any effect. \
+            it may be removed in a future release");
+        // The following code no longer works
+        // build.define("CACHE_FRIENDLY_OFFSET", "64");
     }
 
     build.compile(target);
@@ -247,13 +250,12 @@ fn main() {
         cfg = cfg.define("SNMALLOC_QEMU_WORKAROUND", "ON")
     }
 
-    let mut dst = if cfg!(feature = "cache-friendly") {
-        cfg.define("CACHE_FRIENDLY_OFFSET", "64")
-            .build_target(target)
-            .build()
-    } else {
-        cfg.build_target(target).build()
+    if cfg!(feature = "cache-friendly") {
+        eprintln!("cache-friendly feature flag is deprecated and no longer has any effect. \
+            it may be removed in a future release");
     };
+
+    let mut dst = cfg.build_target(target).build();
 
     dst.push("./build");
 
