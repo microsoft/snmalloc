@@ -77,6 +77,15 @@ namespace snmalloc
      * for allocating core allocators.
      */
     bool LocalAllocSupportsLazyInit = true;
+
+    /**
+     * Are the front and back pointers to the message queue in a RemoteAllocator
+     * considered to be capptr_bounds::Wildness::Tame (as opposed to Wild)?
+     * That is, is it presumed that clients or other potentialadversaries cannot
+     * access the front and back pointers themselves, even if they can access
+     * the queue nodes themselves (which are always considered Wild)?
+     */
+    bool QueueHeadsAreTame = true;
   };
 
   /**

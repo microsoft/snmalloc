@@ -29,6 +29,33 @@ namespace snmalloc
    */
   inline static FreeListKey key_global(0xdeadbeef, 0xbeefdead, 0xdeadbeef);
 
+  /**
+   *
+   * A RemoteAllocator is the message queue of freed objects.  It exposes a MPSC
+   * append-only atomic queue that uses one xchg per append.
+   *
+   * The internal pointers are considered QueuePtr-s to support deployment
+   * scenarios in which the RemoteAllocator itself is exposed to the client.
+   * This is excessively paranoid in the common case that the RemoteAllocator-s
+   * are as "hard" for the client to reach as the Pagemap, which we trust to
+   * store not just Tame CapPtr<>s but raw C++ pointers.
+   *
+   * While we could try to condition the types used here on a flag in the
+   * backend's `struct Flags Options` value, we instead expose two domesticator
+   * callbacks at the interface and are careful to use one for the front and
+   * back values and the other for pointers read from the queue itself.  That's
+   * not ideal, but it lets the client condition its behavior appropriately and
+   * prevents us from accidentally following either of these pointers in generic
+   * code.
+   *
+   * `domesticate_head` is used for the pointer used to reach the of the queue,
+   * while `domesticate_queue` is used to traverse the first link in the queue
+   * itself.  In the case that the RemoteAllocator is not easily accessible to
+   * the client, `domesticate_head` can just be a type coersion, and
+   * `domesticate_queue` should perform actual validation.  If the
+   * RemoteAllocator is exposed to the client, both Domesticators should perform
+   * validation.
+   */
   struct alignas(REMOTE_MIN_ALIGN) RemoteAllocator
   {
     using alloc_id_t = address_t;
@@ -74,13 +101,16 @@ namespace snmalloc
     /**
      * Pushes a list of messages to the queue. Each message from first to
      * last should be linked together through their next pointers.
+     *
+     * The Domesticator here is used only on pointers read from the head.  See
+     * the commentary on the class.
      */
-    template<typename Domesticator>
+    template<typename Domesticator_head>
     void enqueue(
       freelist::HeadPtr first,
       freelist::HeadPtr last,
       const FreeListKey& key,
-      Domesticator domesticate)
+      Domesticator_head domesticate_head)
     {
       invariant();
       freelist::Object::atomic_store_null(last, key);
@@ -89,7 +119,7 @@ namespace snmalloc
       freelist::QueuePtr prev =
         back.exchange(capptr_rewild(last), std::memory_order_release);
 
-      freelist::Object::atomic_store_next(domesticate(prev), first, key);
+      freelist::Object::atomic_store_next(domesticate_head(prev), first, key);
     }
 
     freelist::QueuePtr peek()
@@ -99,14 +129,19 @@ namespace snmalloc
 
     /**
      * Returns the front message, or null if not possible to return a message.
+     *
+     * Takes a domestication callback for each of "pointers read from head" and
+     * "pointers read from queue".  See the commentary on the class.
      */
-    template<typename Domesticator>
-    std::pair<freelist::HeadPtr, bool>
-    dequeue(const FreeListKey& key, Domesticator domesticate)
+    template<typename Domesticator_head, typename Domesticator_queue>
+    std::pair<freelist::HeadPtr, bool> dequeue(
+      const FreeListKey& key,
+      Domesticator_head domesticate_head,
+      Domesticator_queue domesticate_queue)
     {
       invariant();
-      freelist::HeadPtr first = domesticate(front);
-      freelist::HeadPtr next = first->atomic_read_next(key, domesticate);
+      freelist::HeadPtr first = domesticate_head(front);
+      freelist::HeadPtr next = first->atomic_read_next(key, domesticate_queue);
 
       if (next != nullptr)
       {

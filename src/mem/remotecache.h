@@ -103,7 +103,17 @@ namespace snmalloc
             auto [first, last] = list[i].extract_segment(key);
             MetaEntry entry = SharedStateHandle::Pagemap::get_metaentry(
               local_state, address_cast(first));
-            entry.get_remote()->enqueue(first, last, key, domesticate);
+            if constexpr (SharedStateHandle::Options.QueueHeadsAreTame)
+            {
+              auto domesticate_nop = [](freelist::QueuePtr p) {
+                return freelist::HeadPtr(p.unsafe_ptr());
+              };
+              entry.get_remote()->enqueue(first, last, key, domesticate_nop);
+            }
+            else
+            {
+              entry.get_remote()->enqueue(first, last, key, domesticate);
+            }
             sent_something = true;
           }
         }
