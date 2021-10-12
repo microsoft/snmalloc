@@ -424,7 +424,24 @@ namespace snmalloc
         auto& entry = SharedStateHandle::Pagemap::get_metaentry(
           local_state, snmalloc::address_cast(p));
 
-        auto r = message_queue().dequeue(key_global, domesticate);
+        std::pair<freelist::HeadPtr, bool> r;
+        if constexpr (SharedStateHandle::Options.QueueHeadsAreTame)
+        {
+          /*
+           * The front of the queue has already been validated; just change the
+           * annotating type.
+           */
+          auto domesticate_first = [](freelist::QueuePtr p)
+                                     SNMALLOC_FAST_PATH_LAMBDA {
+                                       return freelist::HeadPtr(p.unsafe_ptr());
+                                     };
+          r =
+            message_queue().dequeue(key_global, domesticate_first, domesticate);
+        }
+        else
+        {
+          r = message_queue().dequeue(key_global, domesticate, domesticate);
+        }
 
         if (unlikely(!r.second))
           break;
