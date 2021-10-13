@@ -128,37 +128,56 @@ namespace snmalloc
     }
 
     /**
-     * Returns the front message, or null if not possible to return a message.
+     * Destructively iterate the queue.  Each queue element is removed and fed
+     * to the callback in turn.  The callback may return false to stop iteration
+     * early (but must have processed the element it was given!).
      *
      * Takes a domestication callback for each of "pointers read from head" and
      * "pointers read from queue".  See the commentary on the class.
      */
-    template<typename Domesticator_head, typename Domesticator_queue>
-    std::pair<freelist::HeadPtr, bool> dequeue(
+    template<
+      typename Domesticator_head,
+      typename Domesticator_queue,
+      typename Cb>
+    void dequeue(
       const FreeListKey& key,
       Domesticator_head domesticate_head,
-      Domesticator_queue domesticate_queue)
+      Domesticator_queue domesticate_queue,
+      Cb cb)
     {
       invariant();
-      freelist::HeadPtr first = domesticate_head(front);
-      freelist::HeadPtr next = first->atomic_read_next(key, domesticate_queue);
+      freelist::HeadPtr curr = domesticate_head(front);
+      freelist::HeadPtr next = curr->atomic_read_next(key, domesticate_queue);
 
-      if (next != nullptr)
+      while (next != nullptr)
       {
-        /*
-         * We've domesticate_queue-d next so that we can read through it, but
-         * we're storing it back into client-accessible memory in
-         * !QueueHeadsAreTame builds, so go ahead and consider it Wild again.
-         * On QueueHeadsAreTame builds, the subsequent domesticate_head call
-         * above will also be a type-level sleight of hand, but we can still
-         * justify it by the domesticate_queue that happened in this dequeue().
-         */
-        front = capptr_rewild(next);
-        invariant();
-        return {first, true};
+        if (!cb(curr))
+        {
+          /*
+           * We've domesticate_queue-d next so that we can read through it, but
+           * we're storing it back into client-accessible memory in
+           * !QueueHeadsAreTame builds, so go ahead and consider it Wild again.
+           * On QueueHeadsAreTame builds, the subsequent domesticate_head call
+           * above will also be a type-level sleight of hand, but we can still
+           * justify it by the domesticate_queue that happened in this
+           * dequeue().
+           */
+          front = capptr_rewild(next);
+          invariant();
+          return;
+        }
+
+        curr = next;
+        next = next->atomic_read_next(key, domesticate_queue);
       }
 
-      return {nullptr, false};
+      /*
+       * Here, we've hit the end of the queue: next is nullptr and curr has not
+       * been handed to the callback.  The same considerations about Wildness
+       * above hold here.
+       */
+      front = capptr_rewild(curr);
+      invariant();
     }
 
     alloc_id_t trunc_id()
