@@ -63,7 +63,7 @@ namespace snmalloc
    * Cast from a pointer type to an address.
    */
   template<typename T>
-  inline address_t address_cast(T* ptr)
+  inline SNMALLOC_FAST_PATH address_t address_cast(T* ptr)
   {
     return reinterpret_cast<address_t>(ptr);
   }
@@ -77,7 +77,7 @@ namespace snmalloc
    */
 
   template<typename T, enum capptr_bounds bounds>
-  inline address_t address_cast(CapPtr<T, bounds> a)
+  inline SNMALLOC_FAST_PATH address_t address_cast(CapPtr<T, bounds> a)
   {
     return address_cast(a.unsafe_ptr());
   }
