@@ -150,9 +150,6 @@ int main()
    *
    *   - RemoteAllocator::dequeue domesticating the stub's next pointer (p)
    *
-   *   - On !QueueHeadsAreTame builds only, RemoteAllocator::dequeue
-   *     domesticating the front pointer (to p, this time)
-   *
    *   - RemoteAllocator::dequeue domesticating nullptr (p is the last message)
    *
    *   - Metaslab::alloc_free_list, domesticating the successor object in the
@@ -160,7 +157,7 @@ int main()
    *     after q).
    */
   static constexpr size_t expected_count =
-    snmalloc::CustomGlobals::Options.QueueHeadsAreTame ? 3 : 5;
+    snmalloc::CustomGlobals::Options.QueueHeadsAreTame ? 3 : 4;
   SNMALLOC_CHECK(snmalloc::CustomGlobals::domesticate_count == expected_count);
 
   // Prevent the allocators from going out of scope during the above test

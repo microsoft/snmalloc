@@ -418,37 +418,36 @@ namespace snmalloc
         [local_state](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
           return capptr_domesticate<SharedStateHandle>(local_state, p);
         };
-      for (size_t i = 0; i < REMOTE_BATCH; i++)
-      {
-        auto p = message_queue().peek();
-        auto& entry = SharedStateHandle::Pagemap::get_metaentry(
-          local_state, snmalloc::address_cast(p));
-
-        std::pair<freelist::HeadPtr, bool> r;
-        if constexpr (SharedStateHandle::Options.QueueHeadsAreTame)
-        {
-          /*
-           * The front of the queue has already been validated; just change the
-           * annotating type.
-           */
-          auto domesticate_first = [](freelist::QueuePtr p)
-                                     SNMALLOC_FAST_PATH_LAMBDA {
-                                       return freelist::HeadPtr(p.unsafe_ptr());
-                                     };
-          r =
-            message_queue().dequeue(key_global, domesticate_first, domesticate);
-        }
-        else
-        {
-          r = message_queue().dequeue(key_global, domesticate, domesticate);
-        }
-
-        if (unlikely(!r.second))
-          break;
+      size_t i = 0;
+      auto cb = [this, local_state, &need_post, &i](freelist::HeadPtr msg)
+                  SNMALLOC_FAST_PATH_LAMBDA {
 #ifdef SNMALLOC_TRACING
-        std::cout << "Handling remote" << std::endl;
+                    std::cout << "Handling remote" << std::endl;
 #endif
-        handle_dealloc_remote(entry, r.first.as_void(), need_post);
+
+                    auto& entry = SharedStateHandle::Pagemap::get_metaentry(
+                      local_state, snmalloc::address_cast(msg));
+
+                    handle_dealloc_remote(entry, msg.as_void(), need_post);
+
+                    return (i++ < REMOTE_BATCH);
+                  };
+
+      if constexpr (SharedStateHandle::Options.QueueHeadsAreTame)
+      {
+        /*
+         * The front of the queue has already been validated; just change the
+         * annotating type.
+         */
+        auto domesticate_first = [](freelist::QueuePtr p)
+                                   SNMALLOC_FAST_PATH_LAMBDA {
+                                     return freelist::HeadPtr(p.unsafe_ptr());
+                                   };
+        message_queue().dequeue(key_global, domesticate_first, domesticate, cb);
+      }
+      else
+      {
+        message_queue().dequeue(key_global, domesticate, domesticate, cb);
       }
 
       if (need_post)
