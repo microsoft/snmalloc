@@ -125,7 +125,7 @@ namespace snmalloc
         const MetaEntry& t = Pagemap::template get_metaentry<false>(
           local_state, address_cast(base));
         return capptr::Chunk<FreeChunk>(
-          reinterpret_cast<FreeChunk*>(t.get_metaslab()));
+          reinterpret_cast<FreeChunk*>(t.get_metaslab_no_remote()));
       }
 
       return base->next;
