@@ -203,10 +203,12 @@ namespace snmalloc
      * the second argument of this must always be the return value from
      * `get_remote_and_sizeclass`.
      */
+    SNMALLOC_FAST_PATH
     MetaEntry(Metaslab* meta, uintptr_t remote_and_sizeclass)
     : meta(meta), remote_and_sizeclass(remote_and_sizeclass)
     {}
 
+    SNMALLOC_FAST_PATH
     MetaEntry(Metaslab* meta, RemoteAllocator* remote, sizeclass_t sizeclass)
     : meta(meta)
     {
@@ -215,7 +217,7 @@ namespace snmalloc
         pointer_offset(reinterpret_cast<uintptr_t>(remote), sizeclass);
     }
 
-    [[nodiscard]] Metaslab* get_metaslab() const
+    [[nodiscard]] SNMALLOC_FAST_PATH Metaslab* get_metaslab() const
     {
       return meta;
     }
@@ -226,18 +228,18 @@ namespace snmalloc
      * only safe use for this is to pass it to the two-argument constructor of
      * this class.
      */
-    uintptr_t get_remote_and_sizeclass()
+    [[nodiscard]] SNMALLOC_FAST_PATH uintptr_t get_remote_and_sizeclass()
     {
       return remote_and_sizeclass;
     }
 
-    [[nodiscard]] RemoteAllocator* get_remote() const
+    [[nodiscard]] SNMALLOC_FAST_PATH RemoteAllocator* get_remote() const
     {
       return reinterpret_cast<RemoteAllocator*>(
         pointer_align_down<alignof(RemoteAllocator)>(remote_and_sizeclass));
     }
 
-    [[nodiscard]] sizeclass_t get_sizeclass() const
+    [[nodiscard]] SNMALLOC_FAST_PATH sizeclass_t get_sizeclass() const
     {
       return remote_and_sizeclass & (alignof(RemoteAllocator) - 1);
     }
