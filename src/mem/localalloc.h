@@ -541,7 +541,8 @@ namespace snmalloc
          * a CapPtr<void, Chunk> to this region internally even while it's
          * allocated.
          */
-        slab_record->chunk = capptr::Chunk<void>(p_tame.unsafe_ptr());
+        slab_record->meta_common.chunk =
+          capptr::Chunk<void>(p_tame.unsafe_ptr());
         check_init(
           [](
             CoreAlloc* core_alloc,

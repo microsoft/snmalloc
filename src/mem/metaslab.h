@@ -9,6 +9,11 @@
 
 namespace snmalloc
 {
+  struct MetaCommon
+  {
+    capptr::Chunk<void> chunk;
+  };
+
   // The Metaslab represent the status of a single slab.
   // This can be either a short or a standard slab.
   class alignas(CACHELINE_SIZE) Metaslab
