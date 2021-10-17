@@ -34,7 +34,7 @@ namespace snmalloc
    * Used to ensure the per slab meta data is large enough for both use cases.
    */
   static_assert(
-    sizeof(Metaslab) >= sizeof(ChunkRecord), "We conflat these two types.");
+    sizeof(Metaslab) >= sizeof(ChunkRecord), "We conflate these two types.");
 
   /**
    * This is the global state required for the chunk allocator.

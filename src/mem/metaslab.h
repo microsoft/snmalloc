@@ -15,7 +15,6 @@ namespace snmalloc
   };
 
   // The Metaslab represent the status of a single slab.
-  // This can be either a short or a standard slab.
   class alignas(CACHELINE_SIZE) Metaslab
   {
   public:
@@ -192,7 +191,7 @@ namespace snmalloc
    */
   class MetaEntry
   {
-    Metaslab* meta{nullptr};
+    Metaslab* meta{nullptr}; // may also be ChunkRecord*
 
     /**
      * A bit-packed pointer to the owning allocator (if any), and the sizeclass

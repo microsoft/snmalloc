@@ -276,8 +276,10 @@ namespace snmalloc
         return;
       }
 
-      // Recheck what kind of dealloc we should do incase, the allocator we
-      // get from lazy_init is the originating allocator.
+      // Recheck what kind of dealloc we should do in case the allocator we get
+      // from lazy_init is the originating allocator.  (TODO: but note that this
+      // can't suddenly become a large deallocation; the only distinction is
+      // between being ours to handle and something to post to a Remote.)
       lazy_init(
         [&](CoreAlloc*, CapPtr<void, capptr::bounds::Alloc> p) {
           dealloc(p.unsafe_ptr()); // TODO don't double count statistics
@@ -602,9 +604,10 @@ namespace snmalloc
       // be implicit domestication through the `SharedStateHandle::Pagemap` or
       // we could just leave well enough alone.
 
-      // Note that this should return 0 for nullptr.
+      // Note that alloc_size should return 0 for nullptr.
       // Other than nullptr, we know the system will be initialised as it must
       // be called with something we have already allocated.
+      //
       // To handle this case we require the uninitialised pagemap contain an
       // entry for the first chunk of memory, that states it represents a
       // large object, so we can pull the check for null off the fast path.
