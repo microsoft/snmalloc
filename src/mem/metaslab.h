@@ -9,6 +9,13 @@
 
 namespace snmalloc
 {
+  /**
+   * A guaranteed type-stable sub-structure of all metadata referenced by the
+   * Pagemap.  Use-specific structures (Metaslab, ChunkRecord) are expected to
+   * have this at offset zero so that, even in the face of concurrent mutation
+   * and reuse of the memory backing that metadata, the types of these fields
+   * remain fixed.
+   */
   struct MetaCommon
   {
     capptr::Chunk<void> chunk;
@@ -18,6 +25,8 @@ namespace snmalloc
   class alignas(CACHELINE_SIZE) Metaslab
   {
   public:
+    MetaCommon meta_common;
+
     // Used to link metaslabs together in various other data-structures.
     Metaslab* next{nullptr};
 
@@ -185,6 +194,11 @@ namespace snmalloc
       return {p, !sleeping};
     }
   };
+
+  static_assert(std::is_standard_layout_v<Metaslab>);
+  static_assert(
+    offsetof(Metaslab, meta_common) == 0,
+    "ChunkRecord and Metaslab must share a common prefix");
 
   /**
    * Entry stored in the pagemap.

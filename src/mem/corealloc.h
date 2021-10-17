@@ -321,13 +321,16 @@ namespace snmalloc
       // have the whole chunk.
       auto start_of_slab = pointer_align_down<void>(
         p, snmalloc::sizeclass_to_slab_size(sizeclass));
-      // TODO Add bounds correctly here
-      chunk_record->meta_common.chunk =
-        capptr::Chunk<void>(start_of_slab.unsafe_ptr());
+
+      SNMALLOC_ASSERT(
+        address_cast(start_of_slab) ==
+        address_cast(chunk_record->meta_common.chunk));
 
 #ifdef SNMALLOC_TRACING
       std::cout << "Slab " << start_of_slab.unsafe_ptr()
                 << " is unused, Object sizeclass " << sizeclass << std::endl;
+#else
+      UNUSED(start_of_slab);
 #endif
       return chunk_record;
     }

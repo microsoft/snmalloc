@@ -536,15 +536,10 @@ namespace snmalloc
 
         ChunkRecord* slab_record =
           reinterpret_cast<ChunkRecord*>(entry.get_metaslab());
-        /*
-         * StrictProvenance TODO: this is a subversive amplification.  p_tame is
-         * tame but Alloc-bounded, but we're coercing it to Chunk-bounded.  We
-         * should, instead, not be storing ->chunk here, but should be keeping
-         * a CapPtr<void, Chunk> to this region internally even while it's
-         * allocated.
-         */
-        slab_record->meta_common.chunk =
-          capptr::Chunk<void>(p_tame.unsafe_ptr());
+
+        SNMALLOC_ASSERT(
+          address_cast(slab_record->meta_common.chunk) == address_cast(p_tame));
+
         check_init(
           [](
             CoreAlloc* core_alloc,
