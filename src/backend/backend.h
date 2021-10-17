@@ -87,6 +87,8 @@ namespace snmalloc
         return {p, nullptr};
       }
 
+      meta->meta_common.chunk = p;
+
       MetaEntry t(meta, remote, sizeclass);
       Pagemap::set_metaentry(local_state, address_cast(p), size, t);
       return {p, meta};
