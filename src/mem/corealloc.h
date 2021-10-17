@@ -322,7 +322,8 @@ namespace snmalloc
       auto start_of_slab = pointer_align_down<void>(
         p, snmalloc::sizeclass_to_slab_size(sizeclass));
       // TODO Add bounds correctly here
-      chunk_record->chunk = capptr::Chunk<void>(start_of_slab.unsafe_ptr());
+      chunk_record->meta_common.chunk =
+        capptr::Chunk<void>(start_of_slab.unsafe_ptr());
 
 #ifdef SNMALLOC_TRACING
       std::cout << "Slab " << start_of_slab.unsafe_ptr()

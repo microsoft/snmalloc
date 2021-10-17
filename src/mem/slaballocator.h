@@ -17,9 +17,13 @@ namespace snmalloc
    */
   struct ChunkRecord
   {
+    MetaCommon meta_common;
     std::atomic<ChunkRecord*> next;
-    capptr::Chunk<void> chunk;
   };
+  static_assert(std::is_standard_layout_v<ChunkRecord>);
+  static_assert(
+    offsetof(ChunkRecord, meta_common) == 0,
+    "ChunkRecord and Metaslab must share a common prefix");
 
   /**
    * How many slab sizes that can be provided.
@@ -97,7 +101,7 @@ namespace snmalloc
 
       if (chunk_record != nullptr)
       {
-        auto slab = chunk_record->chunk;
+        auto slab = chunk_record->meta_common.chunk;
         state.memory_in_stacks -= slab_size;
         auto meta = reinterpret_cast<Metaslab*>(chunk_record);
 #ifdef SNMALLOC_TRACING
@@ -138,8 +142,8 @@ namespace snmalloc
     {
       auto& state = SharedStateHandle::get_slab_allocator_state(&local_state);
 #ifdef SNMALLOC_TRACING
-      std::cout << "Return slab:" << p->chunk.unsafe_ptr() << " slab_sizeclass "
-                << slab_sizeclass << " size "
+      std::cout << "Return slab:" << p->meta_common.chunk.unsafe_ptr()
+                << " slab_sizeclass " << slab_sizeclass << " size "
                 << slab_sizeclass_to_size(slab_sizeclass)
                 << " memory in stacks " << state.memory_in_stacks << std::endl;
 #endif
