@@ -195,9 +195,12 @@ namespace snmalloc
     static SNMALLOC_FAST_PATH CapPtr<T, BOut>
     capptr_bound(CapPtr<U, BIn> a, size_t size) noexcept
     {
-      // Impose constraints on bounds annotations.
-      static_assert(BIn::spatial >= capptr::dimension::Spatial::Chunk);
-      static_assert(capptr::is_spatial_refinement<BIn, BOut>());
+      static_assert(
+        BIn::spatial > capptr::dimension::Spatial::Alloc,
+        "Refusing to re-bound Spatial::Alloc CapPtr");
+      static_assert(
+        capptr::is_spatial_refinement<BIn, BOut>(),
+        "capptr_bound must preserve non-spatial CapPtr dimensions");
 
       UNUSED(size);
       return CapPtr<T, BOut>(a.template as_static<T>().unsafe_ptr());

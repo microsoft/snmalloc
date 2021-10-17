@@ -20,6 +20,16 @@ namespace snmalloc
    *
    * It cannot unreserve memory, so this does not require the
    * usual complexity of a buddy allocator.
+   *
+   * TODO: This manages pieces of memory smaller than (1U << MIN_CHUNK_BITS) to
+   * source Metaslab and LocalCache objects.  On CHERI, where ASLR and guard
+   * pages are not needed, it may be worth switching to a design where we
+   * bootstrap allocators with at least two embedded Metaslab-s that can be used
+   * to construct slabs for LocalCache and, of course, additional Metaslab
+   * objects.  That would let us stop splitting memory below that threshold
+   * here, and may reduce address space fragmentation or address space committed
+   * to Metaslab objects in perpetuity; it could also make {set,get}_next less
+   * scary.
    */
   class AddressSpaceManagerCore
   {
