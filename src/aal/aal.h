@@ -197,7 +197,7 @@ namespace snmalloc
     {
       // Impose constraints on bounds annotations.
       static_assert(BIn::spatial >= capptr::dimension::Spatial::Chunk);
-      static_assert(capptr_is_spatial_refinement<BIn, BOut>());
+      static_assert(capptr::is_spatial_refinement<BIn, BOut>());
 
       UNUSED(size);
       return CapPtr<T, BOut>(a.template as_static<T>().unsafe_capptr);
