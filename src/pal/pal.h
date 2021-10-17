@@ -70,16 +70,6 @@ namespace snmalloc
   static constexpr size_t OS_PAGE_SIZE = Pal::page_size;
 
   /**
-   * Compute the AddressSpaceControl::User variant of a capptr::bound
-   * annotation.  This is used by the PAL's capptr_export function to compute
-   * its return value's annotation.
-   */
-  template<SNMALLOC_CONCEPT(capptr::ConceptBound) B>
-  using capptr_user_address_control_type =
-    typename B::template with_address_space_control<
-      capptr::dimension::AddressSpaceControl::User>;
-
-  /**
    * Perform platform-specific adjustment of return pointers.
    *
    * This is here, rather than in every PAL proper, merely to minimize
@@ -92,10 +82,10 @@ namespace snmalloc
     SNMALLOC_CONCEPT(capptr::ConceptBound) B>
   static inline typename std::enable_if_t<
     !aal_supports<StrictProvenance, AAL>,
-    CapPtr<T, capptr_user_address_control_type<B>>>
+    CapPtr<T, capptr::user_address_control_type<B>>>
   capptr_to_user_address_control(CapPtr<T, B> p)
   {
-    return CapPtr<T, capptr_user_address_control_type<B>>(p.unsafe_capptr);
+    return CapPtr<T, capptr::user_address_control_type<B>>(p.unsafe_capptr);
   }
 
   template<
@@ -105,7 +95,7 @@ namespace snmalloc
     SNMALLOC_CONCEPT(capptr::ConceptBound) B>
   static SNMALLOC_FAST_PATH typename std::enable_if_t<
     aal_supports<StrictProvenance, AAL>,
-    CapPtr<T, capptr_user_address_control_type<B>>>
+    CapPtr<T, capptr::user_address_control_type<B>>>
   capptr_to_user_address_control(CapPtr<T, B> p)
   {
     return PAL::capptr_to_user_address_control(p);

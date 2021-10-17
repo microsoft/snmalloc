@@ -48,7 +48,7 @@ namespace snmalloc
       /**
        * On some platforms (e.g., CHERI), pointers can be checked to see whether
        * they authorize control of the address space.  See the PAL's
-       * capptr_export().
+       * capptr_to_user_address_control().
        */
       enum class AddressSpaceControl
       {
@@ -188,37 +188,47 @@ namespace snmalloc
        */
       using AllocWild = Alloc::with_wildness<dimension::Wildness::Wild>;
     } // namespace bounds
+
+    /**
+     * Compute the AddressSpaceControl::User variant of a capptr::bound
+     * annotation.  This is used by the PAL's capptr_to_user_address_control
+     * function to compute its return value's annotation.
+     */
+    template<SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    using user_address_control_type =
+      typename B::template with_address_space_control<
+        dimension::AddressSpaceControl::User>;
+
+    /**
+     * Determine whether BI is a spatial refinement of BO.
+     * Chunk and ChunkD are considered eqivalent here.
+     */
+    template<
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BI,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BO>
+    SNMALLOC_CONSTEVAL bool is_spatial_refinement()
+    {
+      if (BI::address_space_control != BO::address_space_control)
+      {
+        return false;
+      }
+
+      if (BI::wildness != BO::wildness)
+      {
+        return false;
+      }
+
+      switch (BI::spatial)
+      {
+        using namespace capptr::dimension;
+        case Spatial::Chunk:
+          return true;
+
+        case Spatial::Alloc:
+          return BO::spatial == Spatial::Alloc;
+      }
+    }
   } // namespace capptr
-
-  /**
-   * Determine whether BI is a spatial refinement of BO.
-   * Chunk and ChunkD are considered eqivalent here.
-   */
-  template<
-    SNMALLOC_CONCEPT(capptr::ConceptBound) BI,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) BO>
-  SNMALLOC_CONSTEVAL bool capptr_is_spatial_refinement()
-  {
-    if (BI::address_space_control != BO::address_space_control)
-    {
-      return false;
-    }
-
-    if (BI::wildness != BO::wildness)
-    {
-      return false;
-    }
-
-    switch (BI::spatial)
-    {
-      using namespace capptr::dimension;
-      case Spatial::Chunk:
-        return true;
-
-      case Spatial::Alloc:
-        return BO::spatial == Spatial::Alloc;
-    }
-  }
 
   /**
    * A pointer annotated with a "phantom type parameter" carrying a static
