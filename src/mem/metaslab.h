@@ -188,6 +188,18 @@ namespace snmalloc
   class MetaEntry
   {
     Metaslab* meta{nullptr};
+
+    /**
+     * A bit-packed pointer to the owning allocator (if any), and the sizeclass
+     * of this chunk.  The sizeclass here is itself a union between two cases:
+     *
+     *  * log_2(size), at least MIN_CHUNK_BITS, for large allocations.
+     *
+     *  * a value in [0, NUM_SIZECLASSES] for small allocations.  These may be
+     *    directly passed to the sizeclass (not slab_sizeclass) functions of
+     *    sizeclasstable.h
+     *
+     */
     uintptr_t remote_and_sizeclass{0};
 
   public:
