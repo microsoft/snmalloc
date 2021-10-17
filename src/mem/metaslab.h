@@ -243,8 +243,24 @@ namespace snmalloc
         pointer_offset(reinterpret_cast<uintptr_t>(remote), sizeclass);
     }
 
+    /**
+     * Return the Metaslab field as a void*, guarded by an assert that there is
+     * no remote that owns this chunk.
+     */
+    [[nodiscard]] SNMALLOC_FAST_PATH void* get_metaslab_no_remote() const
+    {
+      SNMALLOC_ASSERT(get_remote() == nullptr);
+      return static_cast<void*>(meta);
+    }
+
+    /**
+     * Return the Metaslab metadata associated with this chunk, guarded by an
+     * assert that this chunk is being used as a slab (i.e., has an associated
+     * owning allocator).
+     */
     [[nodiscard]] SNMALLOC_FAST_PATH Metaslab* get_metaslab() const
     {
+      SNMALLOC_ASSERT(get_remote() != nullptr);
       return meta;
     }
 

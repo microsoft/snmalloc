@@ -534,8 +534,8 @@ namespace snmalloc
         UNUSED(size);
 #  endif
 
-        ChunkRecord* slab_record =
-          reinterpret_cast<ChunkRecord*>(entry.get_metaslab());
+        auto slab_record =
+          static_cast<ChunkRecord*>(entry.get_metaslab_no_remote());
 
         SNMALLOC_ASSERT(
           address_cast(slab_record->meta_common.chunk) == address_cast(p_tame));
