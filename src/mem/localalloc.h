@@ -508,21 +508,31 @@ namespace snmalloc
       // Large deallocation or null.
       if (likely(p_tame != nullptr))
       {
-        // Check this is managed by this pagemap.
-        check_client(entry.get_sizeclass() != 0, "Not allocated by snmalloc.");
+        size_t entry_sizeclass = entry.get_sizeclass();
 
-        size_t size = bits::one_at_bit(entry.get_sizeclass());
+        // Check this is managed by this pagemap.
+        //
+        // TODO: Should this be tested even in the !CHECK_CLIENT case?  Things
+        // go fairly pear-shaped, with the ASM's ranges[] getting cross-linked
+        // with a ChunkAllocator's chunk_stack[0], which seems bad.
+        check_client(entry_sizeclass != 0, "Not allocated by snmalloc.");
+
+        size_t size = bits::one_at_bit(entry_sizeclass);
+        size_t slab_sizeclass =
+          metaentry_chunk_sizeclass_to_slab_sizeclass(entry_sizeclass);
 
         // Check for start of allocation.
         check_client(
           pointer_align_down(p_tame, size) == p_tame,
           "Not start of an allocation.");
 
-        size_t slab_sizeclass = large_size_to_chunk_sizeclass(size);
 #  ifdef SNMALLOC_TRACING
         std::cout << "Large deallocation: " << size
                   << " chunk sizeclass: " << slab_sizeclass << std::endl;
+#  else
+        UNUSED(size);
 #  endif
+
         ChunkRecord* slab_record =
           reinterpret_cast<ChunkRecord*>(entry.get_metaslab());
         /*

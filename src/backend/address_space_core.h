@@ -77,13 +77,16 @@ namespace snmalloc
     {
       if (align_bits >= MIN_CHUNK_BITS)
       {
-        // The pagemap stores MetaEntrys, abuse the metaslab field to be the
+        // The pagemap stores `MetaEntry`s; abuse the metaslab field to be the
         // next block in the stack of blocks.
         //
         // The pagemap entries here have nullptr (i.e., fake_large_remote) as
         // their remote, and so other accesses to the pagemap (by
         // external_pointer, for example) will not attempt to follow this
         // "Metaslab" pointer.
+        //
+        // dealloc() can reject attempts to free such MetaEntry-s due to the
+        // zero sizeclass.
         MetaEntry t(reinterpret_cast<Metaslab*>(next.unsafe_ptr()), nullptr, 0);
         Pagemap::set_metaentry(local_state, address_cast(base), 1, t);
         return;

@@ -165,6 +165,16 @@ namespace snmalloc
     return bits::one_at_bit(MIN_CHUNK_BITS + sizeclass);
   }
 
+  /**
+   * For large allocations, the metaentry stores the raw log_2 of the size,
+   * which must be shifted into the index space of slab_sizeclass-es.
+   */
+  inline static size_t
+  metaentry_chunk_sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)
+  {
+    return sizeclass - MIN_CHUNK_BITS;
+  }
+
   inline constexpr static uint16_t
   sizeclass_to_slab_object_count(sizeclass_t sizeclass)
   {
