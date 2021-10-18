@@ -44,7 +44,7 @@ namespace snmalloc
   /**
    * This function is used to sign back pointers in the free list.
    */
-  inline static uintptr_t
+  inline static address_t
   signed_prev(address_t curr, address_t next, const FreeListKey& key)
   {
     auto c = curr;
