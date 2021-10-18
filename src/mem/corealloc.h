@@ -330,12 +330,31 @@ namespace snmalloc
       return chunk_record;
     }
 
+    template<bool check_slabs = false>
     SNMALLOC_SLOW_PATH void dealloc_local_slabs(sizeclass_t sizeclass)
     {
       // Return unused slabs of sizeclass_t back to global allocator
       alloc_classes[sizeclass].queue.filter([this, sizeclass](Metaslab* meta) {
+        auto domesticate =
+          [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+            auto res =
+              capptr_domesticate<SharedStateHandle>(backend_state_ptr(), p);
+#ifdef SNMALLOC_TRACING
+            if (res.unsafe_ptr() != p.unsafe_ptr())
+              printf(
+                "Domesticated %p to %p!\n", p.unsafe_ptr(), res.unsafe_ptr());
+#endif
+            return res;
+          };
+
         if (meta->needed() != 0)
+        {
+          if (check_slabs)
+          {
+            meta->free_queue.validate(entropy.get_free_list_key(), domesticate);
+          }
           return false;
+        }
 
         alloc_classes[sizeclass].length--;
         alloc_classes[sizeclass].unused--;
@@ -789,7 +808,7 @@ namespace snmalloc
       // We may now have unused slabs, return to the global allocator.
       for (sizeclass_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass++)
       {
-        dealloc_local_slabs(sizeclass);
+        dealloc_local_slabs<true>(sizeclass);
       }
 
       return posted;

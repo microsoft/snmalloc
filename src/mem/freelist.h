@@ -116,6 +116,13 @@ namespace snmalloc
       template<SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
       class T
       {
+        template<
+          bool,
+          bool,
+          SNMALLOC_CONCEPT(capptr::ConceptBound),
+          SNMALLOC_CONCEPT(capptr::ConceptBound)>
+        friend class Builder;
+
         friend class Object;
 
         union
@@ -698,6 +705,40 @@ namespace snmalloc
           Object::BHeadPtr<BView, BQueue>(Object::from_next_ptr(cast_end(0)));
         init();
         return {first, last};
+      }
+
+      template<typename Domesticator>
+      SNMALLOC_FAST_PATH void
+      validate(const FreeListKey& key, Domesticator domesticate)
+      {
+#ifdef SNMALLOC_CHECK_CLIENT
+        for (uint32_t i = 0; i < LENGTH; i++)
+        {
+          if (&head[i] == end[i])
+          {
+            SNMALLOC_ASSERT(length[i] == 0);
+            continue;
+          }
+
+          size_t count = 1;
+          auto curr = read_head(i, key);
+          auto prev = get_fake_signed_prev(i, key);
+          while (true)
+          {
+            curr->check_prev(prev);
+            if (address_cast(&(curr->next_object)) == address_cast(end[i]))
+              break;
+            count++;
+            auto next = curr->read_next(key, domesticate);
+            prev = signed_prev(address_cast(curr), address_cast(next), key);
+            curr = next;
+          }
+          SNMALLOC_ASSERT(count == length[i]);
+        }
+#else
+        UNUSED(key);
+        UNUSED(domesticate);
+#endif
       }
     };
   } // namespace freelist
