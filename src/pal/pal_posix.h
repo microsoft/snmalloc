@@ -146,7 +146,10 @@ namespace snmalloc
 
     static void print_stack_trace()
     {
-#ifdef SNMALLOC_BACKTRACE_HEADER
+      // TODO: the backtrace mechanism does not yet work on CHERI, and causes
+      // tests which expect to be able to hook abort() to fail.  Skip it until
+      // https://github.com/CTSRD-CHERI/cheribsd/issues/962 is fixed.
+#if defined(SNMALLOC_BACKTRACE_HEADER) && !defined(__CHERI_PURE_CAPABILITY__)
       constexpr int SIZE = 1024;
       void* buffer[SIZE];
       auto nptrs = backtrace(buffer, SIZE);
