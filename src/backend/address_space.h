@@ -53,12 +53,10 @@ namespace snmalloc
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
       /*
-       * For sufficiently large allocations with platforms that support
-       * aligned allocations and architectures that don't require
-       * StrictProvenance, try asking the platform first.
+       * For sufficiently large allocations with platforms that support aligned
+       * allocations, try asking the platform directly.
        */
-      if constexpr (
-        pal_supports<AlignedAllocation, PAL> && !aal_supports<StrictProvenance>)
+      if constexpr (pal_supports<AlignedAllocation, PAL>)
       {
         if (size >= PAL::minimum_alloc_size)
         {
