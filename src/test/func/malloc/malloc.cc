@@ -20,9 +20,8 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
     if (p != nullptr)
     {
       printf("Expected null, and got non-null return!\n");
-      failed = true;
+      abort();
     }
-    our_free(p);
     return;
   }
 
@@ -183,7 +182,6 @@ int main(int argc, char** argv)
   {
     const size_t size = sizeclass_to_size(sc);
     test_realloc(our_malloc(size), size, SUCCESS, false);
-    test_realloc(our_malloc(size), 0, SUCCESS, true);
     test_realloc(nullptr, size, SUCCESS, false);
     test_realloc(our_malloc(size), ((size_t)-1) / 2, ENOMEM, true);
     for (sizeclass_t sc2 = 0; sc2 < NUM_SIZECLASSES; sc2++)
@@ -198,7 +196,6 @@ int main(int argc, char** argv)
   {
     const size_t size = bits::one_at_bit(sc);
     test_realloc(our_malloc(size), size, SUCCESS, false);
-    test_realloc(our_malloc(size), 0, SUCCESS, true);
     test_realloc(nullptr, size, SUCCESS, false);
     test_realloc(our_malloc(size), ((size_t)-1) / 2, ENOMEM, true);
     for (sizeclass_t sc2 = 0; sc2 < (MAX_SIZECLASS_BITS + 4); sc2++)
