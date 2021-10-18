@@ -135,8 +135,13 @@ int main()
   // Skip the checks that expect bounds checks to fail when we are not the
   // malloc implementation.
 #  if !defined(SNMALLOC_PASS_THROUGH)
-  // Some sizes to check for out-of-bounds access
-  std::initializer_list<size_t> sizes = {16, 1024, 2 * 1024 * 1024};
+  // Some sizes to check for out-of-bounds access.  As we are only able to
+  // catch overflows past the end of the sizeclass-padded allocation, make
+  // sure we don't try to test on smaller allocations.
+  std::initializer_list<size_t> sizes = {MIN_ALLOC_SIZE, 1024, 2 * 1024 * 1024};
+  static_assert(
+    MIN_ALLOC_SIZE < 1024,
+    "Can't detect overflow except at sizeclass boundaries");
   for (auto sz : sizes)
   {
     // Check in bounds
