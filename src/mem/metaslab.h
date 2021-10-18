@@ -283,7 +283,10 @@ namespace snmalloc
 
     [[nodiscard]] SNMALLOC_FAST_PATH sizeclass_t get_sizeclass() const
     {
-      return remote_and_sizeclass & (alignof(RemoteAllocator) - 1);
+      // TODO: perhaps remove static_cast with resolution of
+      // https://github.com/CTSRD-CHERI/llvm-project/issues/588
+      return static_cast<sizeclass_t>(remote_and_sizeclass) &
+        (alignof(RemoteAllocator) - 1);
     }
   };
 
