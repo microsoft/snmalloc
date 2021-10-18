@@ -294,7 +294,7 @@ namespace snmalloc
     void set(address_t p, T t)
     {
 #ifdef SNMALLOC_TRACING
-      std::cout << "Pagemap.Set " << (void*)p << std::endl;
+      std::cout << "Pagemap.Set " << (void*)(uintptr_t)p << std::endl;
 #endif
       if constexpr (has_bounds)
       {
