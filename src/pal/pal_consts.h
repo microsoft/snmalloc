@@ -14,8 +14,13 @@ namespace snmalloc
    *  - using_readonly
    *  - not_using
    * model.
+   *
+   * TODO: There is a known bug in CheriBSD that means round-tripping through
+   * PROT_NONE sheds capability load and store permissions (while restoring data
+   * read/write, for added excitement).  For the moment, just force this down on
+   * CHERI.
    */
-#ifdef SNMALLOC_CHECK_CLIENT
+#if defined(SNMALLOC_CHECK_CLIENT) && !defined(__CHERI_PURE_CAPABILITY__)
   static constexpr bool PalEnforceAccess = true;
 #else
   static constexpr bool PalEnforceAccess = false;
