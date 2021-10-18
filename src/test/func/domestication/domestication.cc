@@ -69,7 +69,7 @@ namespace snmalloc
 
     /* Verify that a pointer points into the region managed by this config */
     template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) B>
-    static SNMALLOC_FAST_PATH CapPtr<
+    static CapPtr<
       T,
       typename B::template with_wildness<capptr::dimension::Wildness::Tame>>
     capptr_domesticate(typename Backend::LocalState*, CapPtr<T, B> p)
@@ -119,6 +119,8 @@ int main()
 
   auto alloc1 = new Alloc();
 
+  // Allocate from alloc1; the size doesn't matter a whole lot, it just needs to
+  // be a small object and so definitely owned by this allocator rather.
   auto p = alloc1->alloc(48);
   std::cout << "Allocated p " << p << std::endl;
 
@@ -137,7 +139,9 @@ int main()
   snmalloc::CustomGlobals::domesticate_trace = true;
   snmalloc::CustomGlobals::domesticate_count = 0;
 
-  auto q = alloc1->alloc(56);
+  // Open a new slab, so that slow path will pick up the message queue.  That
+  // means this should be a sizeclass we've not used before, even internally.
+  auto q = alloc1->alloc(512);
   std::cout << "Allocated q " << q << std::endl;
 
   snmalloc::CustomGlobals::domesticate_trace = false;
