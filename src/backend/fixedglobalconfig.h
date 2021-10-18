@@ -66,10 +66,8 @@ namespace snmalloc
 
       UNUSED(ls);
       auto address = address_cast(p);
-      auto bounds = Backend::Pagemap::get_bounds(nullptr);
-      if (
-        (address < bounds.first) || (address > bounds.second) ||
-        ((bounds.second - address) < sz))
+      auto [base, length] = Backend::Pagemap::get_bounds(nullptr);
+      if ((address - base > (length - sz)) || (length < sz))
       {
         return nullptr;
       }
