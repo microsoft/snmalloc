@@ -53,12 +53,6 @@ namespace snmalloc
     { AAL::template capptr_bound<void, capptr::bounds::Chunk>(auth, sz) }
       noexcept
       -> ConceptSame<capptr::Chunk<void>>;
-
-    /**
-     * Construct a copy of auth with its target set to that of ret.
-     */
-    { AAL::capptr_rebound(auth, ret) } noexcept
-      -> ConceptSame<capptr::Chunk<void>>;
   };
 
   template<typename AAL>
