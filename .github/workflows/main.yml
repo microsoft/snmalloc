@@ -119,18 +119,28 @@ jobs:
             system-processor: arm
             triple: arm-linux-gnueabihf
             rtld: ld-linux-armhf.so.3
+            ld-flavour: lld
           - name: arm64
             system-processor: aarch64
             triple: aarch64-linux-gnu
             rtld: ld-linux-aarch64.so.1
+            ld-flavour: lld
           - name: ppc64el
             system-processor: powerpc64le
             triple: powerpc64le-linux-gnu
             rtld: ld64.so.2
+            ld-flavour: lld
+          - name: riscv64
+            system-processor: riscv64
+            triple: riscv64-linux-gnu
+            rtld: ld-linux-riscv64-lp64d.so.1
+            extra-packages: binutils-riscv64-linux-gnu
+            ld-flavour: bfd
+            ld: /usr/bin/riscv64-linux-gnu-ld.bfd
       # Don't abort runners if a single one fails
       fail-fast: false
     runs-on: ubuntu-latest
-    name: Cross-build for ${{ matrix.arch.triple }}
+    name: ${{matrix.build-type}} cross-build for ${{ matrix.arch.triple }}
     steps:
     - uses: actions/checkout@v2
     - name: Install cross-compile toolchain and QEMU
@@ -141,6 +151,7 @@ jobs:
         sudo add-apt-repository "deb http://apt.llvm.org/focal/     llvm-toolchain-focal-13  main"
         sudo apt update
         sudo apt install libstdc++-9-dev-${{ matrix.arch.name }}-cross qemu-user ninja-build clang-13 lld-13
+        sudo apt install ${{matrix.arch.extra-packages}}
         # The default PowerPC qemu configuration uses the wrong page size.
         # Wrap it in a script that fixes this.
         sudo update-binfmts --disable qemu-ppc64le
@@ -161,6 +172,8 @@ jobs:
         -DSNMALLOC_QEMU_WORKAROUND=ON
         -DSNMALLOC_STATIC_LIBRARY=OFF
         -DCMAKE_TOOLCHAIN_FILE=ci/Toolchain.cmake
+        -DSNMALLOC_LINKER=${{matrix.arch.ld}}
+        -DSNMALLOC_LINKER_FLAVOUR=${{matrix.arch.ld-flavour}}
     - name: Build
       working-directory: ${{github.workspace}}/build
       run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
