@@ -202,21 +202,6 @@ namespace snmalloc
       UNUSED(size);
       return CapPtr<T, BOut>(a.template as_static<T>().unsafe_capptr);
     }
-
-    /**
-     * For architectures which do not enforce StrictProvenance, there's nothing
-     * to be done, so just return the pointer unmodified with new annotation.
-     */
-    template<
-      typename T,
-      SNMALLOC_CONCEPT(capptr::ConceptBound) BOut,
-      SNMALLOC_CONCEPT(capptr::ConceptBound) BIn>
-    static SNMALLOC_FAST_PATH CapPtr<T, BOut>
-    capptr_rebound(CapPtr<void, BOut> a, CapPtr<T, BIn> r) noexcept
-    {
-      UNUSED(a);
-      return CapPtr<T, BOut>(r.unsafe_capptr);
-    }
   };
 } // namespace snmalloc
 

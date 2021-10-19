@@ -628,26 +628,28 @@ namespace snmalloc
       // be implicit domestication through the `SharedStateHandle::Pagemap` or
       // we could just leave well enough alone.
 
-      // TODO bring back the CHERI bits. Wes to review if required.
+      capptr::AllocWild<void> p = capptr_from_client(p_raw);
+
       MetaEntry entry =
         SharedStateHandle::Pagemap::template get_metaentry<true>(
-          core_alloc->backend_state_ptr(), address_cast(p_raw));
+          core_alloc->backend_state_ptr(), address_cast(p));
       auto sizeclass = entry.get_sizeclass();
       if (likely(entry.get_remote() != SharedStateHandle::fake_large_remote))
       {
         auto rsize = sizeclass_to_size(sizeclass);
-        auto offset =
-          address_cast(p_raw) & (sizeclass_to_slab_size(sizeclass) - 1);
+        auto offset = address_cast(p) & (sizeclass_to_slab_size(sizeclass) - 1);
         auto start_offset = round_by_sizeclass(sizeclass, offset);
         if constexpr (location == Start)
         {
           UNUSED(rsize);
-          return pointer_offset(p_raw, start_offset - offset);
+          return capptr_reveal_wild(pointer_offset(p, start_offset - offset));
         }
         else if constexpr (location == End)
-          return pointer_offset(p_raw, rsize + start_offset - offset - 1);
+          return capptr_reveal_wild(
+            pointer_offset(p, rsize + start_offset - offset - 1));
         else
-          return pointer_offset(p_raw, rsize + start_offset - offset);
+          return capptr_reveal_wild(
+            pointer_offset(p, rsize + start_offset - offset));
       }
 
       // Sizeclass zero of a large allocation is used for not managed by us.
@@ -655,13 +657,13 @@ namespace snmalloc
       {
         // This is a large allocation, find start by masking.
         auto rsize = bits::one_at_bit(sizeclass);
-        auto start = pointer_align_down(p_raw, rsize);
+        auto start = pointer_align_down(p, rsize);
         if constexpr (location == Start)
-          return start;
+          return capptr_reveal_wild(start);
         else if constexpr (location == End)
-          return pointer_offset(start, rsize - 1);
+          return capptr_reveal_wild(pointer_offset(start, rsize - 1));
         else
-          return pointer_offset(start, rsize);
+          return capptr_reveal_wild(pointer_offset(start, rsize));
       }
 #else
       UNUSED(p_raw);
