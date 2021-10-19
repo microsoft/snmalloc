@@ -245,10 +245,21 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     set(${result} ${dirlist} PARENT_SCOPE)
   endfunction()
 
-  set(CMAKE_REQUIRED_LINK_OPTIONS -fuse-ld=lld)
-  check_cxx_source_compiles("int main() { return 1; }" LLD_WORKS)
-  if (LLD_WORKS)
-    message(STATUS "Using LLD to link snmalloc shims")
+  if(NOT (DEFINED SNMALLOC_LINKER_FLAVOUR) OR ("${SNMALLOC_LINKER_FLAVOUR}" MATCHES "^$"))
+    # Linker not specified externally; probe to see if we can make lld work
+    set(CMAKE_REQUIRED_LINK_OPTIONS -fuse-ld=lld)
+    check_cxx_source_compiles("int main() { return 1; }" LLD_WORKS)
+    if (LLD_WORKS)
+      message(STATUS "Using LLD to link snmalloc shims")
+    endif()
+  elseif(SNMALLOC_LINKER_FLAVOUR STREQUAL "lld")
+    # Linker specified externally to be lld; assume it works and that the flags
+    # have also been set for us
+    set(LLD_WORKS TRUE)
+  else()
+    # Linker specified externally as something other than lld; presume it
+    # doesn't work and don't add its flags, below
+    set(LLD_WORKS FALSE)
   endif()
 
   function(add_shim name type)
