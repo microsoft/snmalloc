@@ -65,6 +65,26 @@ namespace snmalloc
         ::memset(p, 0, size);
       }
     }
+
+    static void notify_not_using(void* p, size_t size) noexcept
+    {
+      SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
+
+      if constexpr (PalEnforceAccess)
+      {
+#  if !defined(NDEBUG)
+        // Fill memory so that when we switch the pages back on we don't make
+        // assumptions on the content.
+        memset(p, 0x5a, size);
+#  endif
+        madvise(p, size, MADV_FREE);
+        mprotect(p, size, PROT_NONE);
+      }
+      else
+      {
+        madvise(p, size, MADV_FREE);
+      }
+    }
   };
 } // namespace snmalloc
 #endif
