@@ -1,9 +1,9 @@
 #pragma once
 
 #include "../backend/backend.h"
+#include "../mem/chunkallocator.h"
 #include "../mem/corealloc.h"
 #include "../mem/pool.h"
-#include "../mem/slaballocator.h"
 #include "commonconfig.h"
 
 #ifdef SNMALLOC_TRACING
@@ -37,7 +37,7 @@ namespace snmalloc
   private:
     using Backend = BackendAllocator<Pal, false>;
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static ChunkAllocatorState slab_allocator_state;
+    inline static ChunkAllocatorState chunk_allocator_state;
 
     SNMALLOC_REQUIRE_CONSTINIT
     inline static GlobalPoolState alloc_pool;
@@ -50,9 +50,9 @@ namespace snmalloc
 
   public:
     static ChunkAllocatorState&
-    get_slab_allocator_state(Backend::LocalState* = nullptr)
+    get_chunk_allocator_state(Backend::LocalState* = nullptr)
     {
-      return slab_allocator_state;
+      return chunk_allocator_state;
     }
 
     static GlobalPoolState& pool()

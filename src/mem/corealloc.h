@@ -2,12 +2,12 @@
 
 #include "../ds/defines.h"
 #include "allocconfig.h"
+#include "chunkallocator.h"
 #include "localcache.h"
 #include "metaslab.h"
 #include "pool.h"
 #include "remotecache.h"
 #include "sizeclasstable.h"
-#include "slaballocator.h"
 
 namespace snmalloc
 {

@@ -3,8 +3,8 @@
 #include "../ds/flaglock.h"
 #include "../ds/mpmcstack.h"
 #include "../pal/pal_concept.h"
+#include "chunkallocator.h"
 #include "pooled.h"
-#include "slaballocator.h"
 
 namespace snmalloc
 {
