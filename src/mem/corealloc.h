@@ -59,6 +59,11 @@ namespace snmalloc
     MetaslabCache alloc_classes[NUM_SIZECLASSES];
 
     /**
+     * Local cache for the Chunk allocator.
+     */
+    ChunkAllocatorLocalState chunk_local_state;
+
+    /**
      * Local entropy source and current version of keys for
      * this thread
      */
@@ -376,6 +381,7 @@ namespace snmalloc
         auto chunk_record = clear_slab(meta, sizeclass);
         ChunkAllocator::dealloc<SharedStateHandle>(
           get_backend_local_state(),
+          chunk_local_state,
           chunk_record,
           sizeclass_to_slab_sizeclass(sizeclass));
 
@@ -547,6 +553,9 @@ namespace snmalloc
         init_message_queue();
         message_queue().invariant();
       }
+
+      ChunkAllocator::register_local_state<SharedStateHandle>(
+        get_backend_local_state(), chunk_local_state);
 
 #ifndef NDEBUG
       for (sizeclass_t i = 0; i < NUM_SIZECLASSES; i++)
@@ -746,6 +755,7 @@ namespace snmalloc
       auto [slab, meta] =
         snmalloc::ChunkAllocator::alloc_chunk<SharedStateHandle>(
           get_backend_local_state(),
+          chunk_local_state,
           sizeclass,
           slab_sizeclass,
           slab_size,

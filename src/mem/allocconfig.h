@@ -68,8 +68,6 @@ namespace snmalloc
   // Used to isolate values on cache lines to prevent false sharing.
   static constexpr size_t CACHELINE_SIZE = 64;
 
-  static constexpr size_t PAGE_ALIGNED_SIZE = OS_PAGE_SIZE << INTERMEDIATE_BITS;
-
   // Minimum allocation size is space for two pointers.
   static_assert(bits::next_pow2_const(sizeof(void*)) == sizeof(void*));
   static constexpr size_t MIN_ALLOC_SIZE = 2 * sizeof(void*);
