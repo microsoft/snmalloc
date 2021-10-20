@@ -2,6 +2,7 @@
 
 #include "../ds/address.h"
 #include "../ds/bits.h"
+#include "pal_timer_default.h"
 
 #ifdef _WIN32
 #  ifndef _MSC_VER
@@ -22,9 +23,11 @@
 #    endif
 #  endif
 
+#  include <chrono>
+
 namespace snmalloc
 {
-  class PALWindows
+  class PALWindows : public PalTimerDefaultImpl<PALWindows>
   {
     /**
      * A flag indicating that we have tried to register for low-memory
@@ -205,6 +208,14 @@ namespace snmalloc
           BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0)
         error("Failed to get entropy.");
       return result;
+    }
+
+    static uint64_t internal_time_in_ms()
+    {
+      return static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+          std::chrono::steady_clock::now().time_since_epoch())
+          .count());
     }
   };
 }

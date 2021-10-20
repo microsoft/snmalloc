@@ -1,13 +1,14 @@
 #pragma once
 
 #include "../ds/bits.h"
+#include "pal_timer_default.h"
 
 namespace snmalloc
 {
   // Can be extended
   // Will require a reserve method in subclasses.
   template<class State>
-  class PALPlainMixin : public State
+  class PALPlainMixin : public State, public PalTimerDefaultImpl<State>
   {
   public:
     // Notify platform that we will not be using these pages

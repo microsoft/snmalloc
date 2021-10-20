@@ -4,6 +4,7 @@
 #  include <iostream>
 #endif
 #include "../ds/address.h"
+#include "pal_timer_default.h"
 #if defined(SNMALLOC_BACKTRACE_HEADER)
 #  include SNMALLOC_BACKTRACE_HEADER
 #endif
@@ -39,7 +40,7 @@ namespace snmalloc
    * version.
    */
   template<class OS>
-  class PALPOSIX
+  class PALPOSIX : public PalTimerDefaultImpl<PALPOSIX<OS>>
   {
     /**
      * Helper class to access the `default_mmap_flags` field of `OS` if one
@@ -347,6 +348,20 @@ namespace snmalloc
 #endif
       }
       error("Entropy requested on platform that does not provide entropy");
+    }
+
+    static uint64_t internal_time_in_ms()
+    {
+      auto hold = KeepErrno();
+
+      struct timespec ts;
+      if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1)
+      {
+        error("Failed to get time");
+      }
+
+      return (static_cast<uint64_t>(ts.tv_sec) * 1000) +
+        (static_cast<uint64_t>(ts.tv_nsec) / 1000000);
     }
   };
 } // namespace snmalloc

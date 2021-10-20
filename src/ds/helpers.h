@@ -4,6 +4,7 @@
 #include "flaglock.h"
 
 #include <array>
+#include <atomic>
 #include <type_traits>
 
 namespace snmalloc
