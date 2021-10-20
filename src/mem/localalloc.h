@@ -182,6 +182,7 @@ namespace snmalloc
         // Set remote as large allocator remote.
         auto [chunk, meta] = ChunkAllocator::alloc_chunk<SharedStateHandle>(
           core_alloc->get_backend_local_state(),
+          core_alloc->chunk_local_state,
           bits::next_pow2_bits(size), // TODO
           large_size_to_chunk_sizeclass(size),
           large_size_to_chunk_size(size),
@@ -547,6 +548,7 @@ namespace snmalloc
             size_t slab_sizeclass) {
             ChunkAllocator::dealloc<SharedStateHandle>(
               core_alloc->get_backend_local_state(),
+              core_alloc->chunk_local_state,
               slab_record,
               slab_sizeclass);
             return nullptr;

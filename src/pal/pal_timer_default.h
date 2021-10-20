@@ -29,4 +29,4 @@ namespace snmalloc
       timers.register_timer(timer);
     }
   };
-}
+} // namespace snmalloc
