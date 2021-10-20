@@ -176,7 +176,7 @@ namespace snmalloc
      *   - Allocating stub in the message queue
      * Note this is not performance critical as very infrequently called.
      */
-    void* small_alloc_one(size_t size)
+    capptr::Alloc<void> small_alloc_one(size_t size)
     {
       SNMALLOC_ASSERT(attached_cache != nullptr);
       auto domesticate =
@@ -285,7 +285,8 @@ namespace snmalloc
         [local_state](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
           return capptr_domesticate<SharedStateHandle>(local_state, p);
         };
-      void* p = finish_alloc_no_zero(fl.take(key, domesticate), sizeclass);
+      capptr::Alloc<void> p =
+        finish_alloc_no_zero(fl.take(key, domesticate), sizeclass);
 
 #ifdef SNMALLOC_CHECK_CLIENT
       // Check free list is well-formed on platforms with
@@ -321,11 +322,11 @@ namespace snmalloc
       auto start_of_slab = pointer_align_down<void>(
         p, snmalloc::sizeclass_to_slab_size(sizeclass));
       // TODO Add bounds correctly here
-      chunk_record->chunk = capptr::Chunk<void>(start_of_slab);
+      chunk_record->chunk = capptr::Chunk<void>(start_of_slab.unsafe_ptr());
 
 #ifdef SNMALLOC_TRACING
-      std::cout << "Slab " << start_of_slab << " is unused, Object sizeclass "
-                << sizeclass << std::endl;
+      std::cout << "Slab " << start_of_slab.unsafe_ptr()
+                << " is unused, Object sizeclass " << sizeclass << std::endl;
 #endif
       return chunk_record;
     }
@@ -654,7 +655,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH void*
+    SNMALLOC_SLOW_PATH capptr::Alloc<void>
     small_alloc(sizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
@@ -716,7 +717,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH void* small_alloc_slow(
+    SNMALLOC_SLOW_PATH capptr::Alloc<void> small_alloc_slow(
       sizeclass_t sizeclass, freelist::Iter<>& fast_free_list, size_t rsize)
     {
       // No existing free list get a new slab.

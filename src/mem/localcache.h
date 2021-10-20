@@ -12,25 +12,24 @@ namespace snmalloc
 {
   using Stats = AllocStats<NUM_SIZECLASSES, NUM_LARGE_CLASSES>;
 
-  inline static SNMALLOC_FAST_PATH void*
+  inline static SNMALLOC_FAST_PATH capptr::Alloc<void>
   finish_alloc_no_zero(freelist::HeadPtr p, sizeclass_t sizeclass)
   {
     SNMALLOC_ASSERT(Metaslab::is_start_of_object(sizeclass, address_cast(p)));
     UNUSED(sizeclass);
 
-    auto r = capptr_reveal(p.as_void());
-
-    return r;
+    return p.as_void();
   }
 
   template<ZeroMem zero_mem, typename SharedStateHandle>
-  inline static SNMALLOC_FAST_PATH void*
+  inline static SNMALLOC_FAST_PATH capptr::Alloc<void>
   finish_alloc(freelist::HeadPtr p, sizeclass_t sizeclass)
   {
     auto r = finish_alloc_no_zero(p, sizeclass);
 
     if constexpr (zero_mem == YesZero)
-      SharedStateHandle::Pal::zero(r, sizeclass_to_size(sizeclass));
+      SharedStateHandle::Pal::zero(
+        r.unsafe_ptr(), sizeclass_to_size(sizeclass));
 
     // TODO: Should this be zeroing the free Object state, in the non-zeroing
     // case?
@@ -105,7 +104,7 @@ namespace snmalloc
       typename SharedStateHandle,
       typename Slowpath,
       typename Domesticator>
-    SNMALLOC_FAST_PATH void*
+    SNMALLOC_FAST_PATH capptr::Alloc<void>
     alloc(Domesticator domesticate, size_t size, Slowpath slowpath)
     {
       auto& key = entropy.get_free_list_key();

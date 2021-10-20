@@ -167,7 +167,7 @@ namespace snmalloc
      * passed to the core allocator.
      */
     template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH void* alloc_not_small(size_t size)
+    SNMALLOC_SLOW_PATH capptr::Alloc<void> alloc_not_small(size_t size)
     {
       if (size == 0)
       {
@@ -203,12 +203,12 @@ namespace snmalloc
             chunk.unsafe_ptr(), size);
         }
 
-        return chunk.unsafe_ptr();
+        return capptr_chunk_is_alloc(capptr_to_user_address_control(chunk));
       });
     }
 
     template<ZeroMem zero_mem>
-    SNMALLOC_FAST_PATH void* small_alloc(size_t size)
+    SNMALLOC_FAST_PATH capptr::Alloc<void> small_alloc(size_t size)
     {
       //      SNMALLOC_ASSUME(size <= sizeclass_to_size(NUM_SIZECLASSES));
       auto domesticate = [this](freelist::QueuePtr p)
@@ -430,11 +430,10 @@ namespace snmalloc
       {
         // Small allocations are more likely. Improve
         // branch prediction by placing this case first.
-        return small_alloc<zero_mem>(size);
+        return capptr_reveal(small_alloc<zero_mem>(size));
       }
 
-      // TODO capptr_reveal?
-      return alloc_not_small<zero_mem>(size);
+      return capptr_reveal(alloc_not_small<zero_mem>(size));
 #endif
     }
 
