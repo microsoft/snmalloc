@@ -6,6 +6,7 @@
 #include "../aal/aal.h"
 #include "pal_concept.h"
 #include "pal_consts.h"
+#include "pal_timer_default.h"
 
 #include <cstring>
 
@@ -27,7 +28,7 @@ namespace snmalloc
    * ever use.
    */
   template<SNMALLOC_CONCEPT(PALNoAllocBase) BasePAL>
-  struct PALNoAlloc
+  struct PALNoAlloc : public PalTimerDefaultImpl<BasePAL>
   {
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this

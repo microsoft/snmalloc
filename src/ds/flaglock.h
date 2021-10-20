@@ -2,6 +2,8 @@
 
 #include "bits.h"
 
+#include <atomic>
+
 namespace snmalloc
 {
   class FlagLock

@@ -8,6 +8,7 @@
 #include "pool.h"
 #include "remotecache.h"
 #include "sizeclasstable.h"
+#include "ticker.h"
 
 namespace snmalloc
 {
@@ -95,6 +96,11 @@ namespace snmalloc
      * allocator.
      */
     LocalCache* attached_cache;
+
+    /**
+     * Ticker to query the clock regularly at a lower cost.
+     */
+    Ticker<typename SharedStateHandle::Pal> ticker;
 
     /**
      * The message queue needs to be accessible from other threads
@@ -405,6 +411,7 @@ namespace snmalloc
         std::cout << "Slab is woken up" << std::endl;
 #endif
 
+        ticker.check_tick();
         return;
       }
 
@@ -419,6 +426,7 @@ namespace snmalloc
       {
         dealloc_local_slabs(sizeclass);
       }
+      ticker.check_tick();
     }
 
     /**
@@ -698,7 +706,8 @@ namespace snmalloc
           sl.insert(meta);
         }
 
-        return finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
+        auto r = finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
+        return ticker.check_tick(r);
       }
       return small_alloc_slow<zero_mem>(sizeclass, fast_free_list, rsize);
     }
@@ -766,7 +775,8 @@ namespace snmalloc
         alloc_classes[sizeclass].available.insert(meta);
       }
 
-      return finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
+      auto r = finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
+      return ticker.check_tick(r);
     }
 
     /**
