@@ -88,7 +88,7 @@ namespace snmalloc
       RemoteAllocator* remote)
     {
       ChunkAllocatorState& state =
-        SharedStateHandle::get_slab_allocator_state(&local_state);
+        SharedStateHandle::get_chunk_allocator_state(&local_state);
 
       if (slab_sizeclass >= NUM_SLAB_SIZES)
       {
@@ -140,7 +140,7 @@ namespace snmalloc
       ChunkRecord* p,
       size_t slab_sizeclass)
     {
-      auto& state = SharedStateHandle::get_slab_allocator_state(&local_state);
+      auto& state = SharedStateHandle::get_chunk_allocator_state(&local_state);
 #ifdef SNMALLOC_TRACING
       std::cout << "Return slab:" << p->meta_common.chunk.unsafe_ptr()
                 << " slab_sizeclass " << slab_sizeclass << " size "

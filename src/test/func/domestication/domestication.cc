@@ -25,7 +25,7 @@ namespace snmalloc
   private:
     using Backend = BackendAllocator<Pal, false>;
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static ChunkAllocatorState slab_allocator_state;
+    inline static ChunkAllocatorState chunk_allocator_state;
 
     SNMALLOC_REQUIRE_CONSTINIT
     inline static GlobalPoolState alloc_pool;
@@ -47,9 +47,9 @@ namespace snmalloc
     ();
 
     static ChunkAllocatorState&
-    get_slab_allocator_state(Backend::LocalState* = nullptr)
+    get_chunk_allocator_state(Backend::LocalState* = nullptr)
     {
-      return slab_allocator_state;
+      return chunk_allocator_state;
     }
 
     static GlobalPoolState& pool()
