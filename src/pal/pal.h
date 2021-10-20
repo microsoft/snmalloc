@@ -85,7 +85,7 @@ namespace snmalloc
     CapPtr<T, capptr::user_address_control_type<B>>>
   capptr_to_user_address_control(CapPtr<T, B> p)
   {
-    return CapPtr<T, capptr::user_address_control_type<B>>(p.unsafe_capptr);
+    return CapPtr<T, capptr::user_address_control_type<B>>(p.unsafe_ptr());
   }
 
   template<
@@ -118,7 +118,7 @@ namespace snmalloc
   {
     static_assert(
       !page_aligned || B::spatial >= capptr::dimension::Spatial::Chunk);
-    PAL::template zero<page_aligned>(p.unsafe_capptr, sz);
+    PAL::template zero<page_aligned>(p.unsafe_ptr(), sz);
   }
 
   static_assert(

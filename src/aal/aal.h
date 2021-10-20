@@ -200,7 +200,7 @@ namespace snmalloc
       static_assert(capptr::is_spatial_refinement<BIn, BOut>());
 
       UNUSED(size);
-      return CapPtr<T, BOut>(a.template as_static<T>().unsafe_capptr);
+      return CapPtr<T, BOut>(a.template as_static<T>().unsafe_ptr());
     }
   };
 } // namespace snmalloc
