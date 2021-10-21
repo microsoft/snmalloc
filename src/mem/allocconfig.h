@@ -76,7 +76,8 @@ namespace snmalloc
   static constexpr size_t MIN_ALLOC_BITS = bits::ctz_const(MIN_ALLOC_SIZE);
 
   // Minimum slab size.
-  static constexpr size_t MIN_CHUNK_BITS = 14;
+  static constexpr size_t MIN_CHUNK_BITS = bits::max(
+    static_cast<size_t>(14), bits::next_pow2_bits_const(OS_PAGE_SIZE));
   static constexpr size_t MIN_CHUNK_SIZE = bits::one_at_bit(MIN_CHUNK_BITS);
 
   // Minimum number of objects on a slab
