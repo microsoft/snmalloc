@@ -6,10 +6,12 @@
 
 using namespace snmalloc;
 
+constexpr int SUCCESS = 0;
+
 void check_result(size_t size, size_t align, void* p, int err, bool null)
 {
   bool failed = false;
-  if (errno != err)
+  if (errno != err && err != SUCCESS)
   {
     printf("Expected error: %d but got %d\n", err, errno);
     failed = true;
@@ -88,10 +90,10 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
 void test_calloc(size_t nmemb, size_t size, int err, bool null)
 {
   printf("calloc(%zu, %zu)  combined size %zu\n", nmemb, size, nmemb * size);
-  errno = 0;
+  errno = SUCCESS;
   void* p = our_calloc(nmemb, size);
 
-  if ((p != nullptr) && (errno == 0))
+  if (p != nullptr)
   {
     for (size_t i = 0; i < (size * nmemb); i++)
     {
@@ -112,7 +114,7 @@ void test_realloc(void* p, size_t size, int err, bool null)
     old_size = our_malloc_usable_size(p);
 
   printf("realloc(%p(%zu), %zu)\n", p, old_size, size);
-  errno = 0;
+  errno = SUCCESS;
   auto new_p = our_realloc(p, size);
   // Realloc failure case, deallocate original block
   if (new_p == nullptr && size != 0)
@@ -131,7 +133,7 @@ void test_posix_memalign(size_t size, size_t align, int err, bool null)
 void test_memalign(size_t size, size_t align, int err, bool null)
 {
   printf("memalign(%zu, %zu)\n", align, size);
-  errno = 0;
+  errno = SUCCESS;
   void* p = our_memalign(align, size);
   check_result(size, align, p, err, null);
 }
@@ -145,15 +147,13 @@ int main(int argc, char** argv)
 
   our_free(nullptr);
 
-  constexpr int SUCCESS = 0;
-
   for (sizeclass_t sc = 0; sc < (MAX_SIZECLASS_BITS + 4); sc++)
   {
     const size_t size = bits::one_at_bit(sc);
     printf("malloc: %zu\n", size);
-    errno = 0;
+    errno = SUCCESS;
     check_result(size, 1, our_malloc(size), SUCCESS, false);
-    errno = 0;
+    errno = SUCCESS;
     check_result(size + 1, 1, our_malloc(size + 1), SUCCESS, false);
   }
 
