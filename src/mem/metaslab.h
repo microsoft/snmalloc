@@ -292,7 +292,13 @@ namespace snmalloc
 
   struct MetaslabCache
   {
-    SeqQueue<Metaslab> queue;
+#ifdef SNMALLOC_CHECK_CLIENT
+    SeqSet<Metaslab> available;
+#else
+    // This is slightly faster in some cases,
+    // but makes memory reuse more predictable.
+    SeqSet<Metaslab, true> available;
+#endif
     uint16_t unused = 0;
     uint16_t length = 0;
   };

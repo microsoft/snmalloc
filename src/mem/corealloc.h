@@ -339,7 +339,8 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void dealloc_local_slabs(sizeclass_t sizeclass)
     {
       // Return unused slabs of sizeclass_t back to global allocator
-      alloc_classes[sizeclass].queue.filter([this, sizeclass](Metaslab* meta) {
+      alloc_classes[sizeclass].available.filter([this,
+                                                 sizeclass](Metaslab* meta) {
         auto domesticate =
           [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
             auto res =
@@ -397,7 +398,7 @@ namespace snmalloc
         //  Wake slab up.
         meta->set_not_sleeping(sizeclass);
 
-        alloc_classes[sizeclass].queue.insert(meta);
+        alloc_classes[sizeclass].available.insert(meta);
         alloc_classes[sizeclass].length++;
 
 #ifdef SNMALLOC_TRACING
@@ -665,7 +666,7 @@ namespace snmalloc
       size_t rsize = sizeclass_to_size(sizeclass);
 
       // Look to see if we can grab a free list.
-      auto& sl = alloc_classes[sizeclass].queue;
+      auto& sl = alloc_classes[sizeclass].available;
       if (likely(alloc_classes[sizeclass].length > 0))
       {
 #ifdef SNMALLOC_CHECK_CLIENT
@@ -762,7 +763,7 @@ namespace snmalloc
       if (still_active)
       {
         alloc_classes[sizeclass].length++;
-        alloc_classes[sizeclass].queue.insert(meta);
+        alloc_classes[sizeclass].available.insert(meta);
       }
 
       return finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
@@ -861,7 +862,7 @@ namespace snmalloc
 
       for (auto& alloc_class : alloc_classes)
       {
-        test(alloc_class.queue);
+        test(alloc_class.available);
       }
 
       // Place the static stub message on the queue.
