@@ -2,7 +2,7 @@
 
 #include "../ds/dllist.h"
 #include "../ds/helpers.h"
-#include "../ds/seqqueue.h"
+#include "../ds/seqset.h"
 #include "../mem/remoteallocator.h"
 #include "freelist.h"
 #include "sizeclasstable.h"
