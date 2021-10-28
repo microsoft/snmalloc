@@ -16,14 +16,6 @@ namespace snmalloc
 #endif
     ;
 
-  // Return remote small allocs when the local cache reaches this size.
-  static constexpr int64_t REMOTE_CACHE =
-#ifdef USE_REMOTE_CACHE
-    USE_REMOTE_CACHE
-#else
-    1 << 20
-#endif
-    ;
   enum DecommitStrategy
   {
     /**
@@ -91,4 +83,13 @@ namespace snmalloc
   static_assert(
     MIN_ALLOC_SIZE >= (sizeof(void*) * 2),
     "MIN_ALLOC_SIZE must be sufficient for two pointers");
+
+  // Return remote small allocs when the local cache reaches this size.
+  static constexpr int64_t REMOTE_CACHE =
+#ifdef USE_REMOTE_CACHE
+    USE_REMOTE_CACHE
+#else
+    1 << MIN_CHUNK_BITS
+#endif
+    ;
 } // namespace snmalloc
