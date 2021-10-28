@@ -11,7 +11,7 @@ namespace snmalloc
     using ABAT = ABA<T, c>;
 
   private:
-    ABAT stack;
+    alignas(CACHELINE_SIZE) ABAT stack;
 
   public:
     constexpr MPMCStack() = default;

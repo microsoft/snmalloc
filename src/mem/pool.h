@@ -28,8 +28,8 @@ namespace snmalloc
     friend class Pool;
 
   private:
-    std::atomic_flag lock = ATOMIC_FLAG_INIT;
     MPMCStack<T, PreZeroed> stack;
+    std::atomic_flag lock = ATOMIC_FLAG_INIT;
     T* list{nullptr};
 
   public:
