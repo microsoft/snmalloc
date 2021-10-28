@@ -80,6 +80,12 @@ namespace snmalloc
       decommitted_chunk_stack;
 
     /**
+     * Which is the current epoch to place dealloced chunks, and the
+     * first place we look for allocating chunks.
+     */
+    alignas(CACHELINE_SIZE) std::atomic<size_t> epoch{0};
+
+    /**
      * All memory issued by this address space manager
      */
     std::atomic<size_t> peak_memory_usage_{0};
@@ -87,12 +93,6 @@ namespace snmalloc
     std::atomic<size_t> memory_in_stacks{0};
 
     std::atomic<ChunkAllocatorLocalState*> all_local{nullptr};
-
-    /**
-     * Which is the current epoch to place dealloced chunks, and the
-     * first place we look for allocating chunks.
-     */
-    std::atomic<size_t> epoch{0};
 
     // Flag to ensure one-shot registration with the PAL for notifications.
     std::atomic_flag register_decay{};
