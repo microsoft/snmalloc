@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds/mpmcstack.h"
+#include "../ds/spmcstack.h"
 #include "../mem/metaslab.h"
 #include "../mem/sizeclasstable.h"
 #include "../pal/pal_ds.h"
@@ -55,9 +56,7 @@ namespace snmalloc
     /**
      * Stack of slabs that have been returned for reuse.
      */
-    ModArray<
-      NUM_SLAB_SIZES,
-      ModArray<NUM_EPOCHS, MPMCStack<ChunkRecord, RequiresInit>>>
+    ModArray<NUM_SLAB_SIZES, ModArray<NUM_EPOCHS, SPMCStack<ChunkRecord>>>
       chunk_stack;
 
     /**
