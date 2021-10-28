@@ -24,16 +24,6 @@ namespace snmalloc
     1 << 20
 #endif
     ;
-
-  // Handle at most this many object from the remote dealloc queue at a time.
-  static constexpr size_t REMOTE_BATCH =
-#ifdef USE_REMOTE_BATCH
-    REMOTE_BATCH
-#else
-    4096
-#endif
-    ;
-
   enum DecommitStrategy
   {
     /**

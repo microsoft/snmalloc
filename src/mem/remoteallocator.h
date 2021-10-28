@@ -146,12 +146,21 @@ namespace snmalloc
       Cb cb)
     {
       invariant();
-      freelist::HeadPtr curr = domesticate_head(front);
-      freelist::HeadPtr next = curr->atomic_read_next(key, domesticate_queue);
 
-      while (next != nullptr)
+      // Use back to bound, so we don't handle new entries.
+      auto b = back.load(std::memory_order_relaxed);
+      freelist::HeadPtr curr = domesticate_head(front);
+
+      while (address_cast(curr) != address_cast(b))
       {
-        if (!cb(curr))
+        freelist::HeadPtr next = curr->atomic_read_next(key, domesticate_queue);
+        // We have observed a non-linearisable effect of the queue.
+        // Just go back to allocating normally.
+        if (unlikely(next == nullptr))
+          break;
+        // We want this element next, so start it loading.
+        Aal::prefetch(next.unsafe_ptr());
+        if (unlikely(!cb(curr)))
         {
           /*
            * We've domesticate_queue-d next so that we can read through it, but
@@ -168,7 +177,6 @@ namespace snmalloc
         }
 
         curr = next;
-        next = next->atomic_read_next(key, domesticate_queue);
       }
 
       /*
