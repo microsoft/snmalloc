@@ -457,8 +457,7 @@ namespace snmalloc
         [local_state](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
           return capptr_domesticate<SharedStateHandle>(local_state, p);
         };
-      size_t i = 0;
-      auto cb = [this, local_state, &need_post, &i](freelist::HeadPtr msg)
+      auto cb = [this, local_state, &need_post](freelist::HeadPtr msg)
                   SNMALLOC_FAST_PATH_LAMBDA {
 #ifdef SNMALLOC_TRACING
                     std::cout << "Handling remote" << std::endl;
@@ -469,7 +468,7 @@ namespace snmalloc
 
                     handle_dealloc_remote(entry, msg.as_void(), need_post);
 
-                    return (i++ < REMOTE_BATCH);
+                    return true;
                   };
 
       if constexpr (SharedStateHandle::Options.QueueHeadsAreTame)

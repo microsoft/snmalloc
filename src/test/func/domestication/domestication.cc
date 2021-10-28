@@ -154,14 +154,12 @@ int main()
    *
    *   - RemoteAllocator::dequeue domesticating the stub's next pointer (p)
    *
-   *   - RemoteAllocator::dequeue domesticating nullptr (p is the last message)
-   *
    *   - Metaslab::alloc_free_list, domesticating the successor object in the
    *     newly minted freelist::Iter (i.e., the thing that would be allocated
    *     after q).
    */
   static constexpr size_t expected_count =
-    snmalloc::CustomGlobals::Options.QueueHeadsAreTame ? 3 : 4;
+    snmalloc::CustomGlobals::Options.QueueHeadsAreTame ? 2 : 3;
   SNMALLOC_CHECK(snmalloc::CustomGlobals::domesticate_count == expected_count);
 
   // Prevent the allocators from going out of scope during the above test
