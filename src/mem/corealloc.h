@@ -679,8 +679,6 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH capptr::Alloc<void>
     small_alloc(sizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
     {
-      size_t rsize = sizeclass_to_size(sizeclass);
-
       // Look to see if we can grab a free list.
       auto& sl = alloc_classes[sizeclass].available;
       if (likely(alloc_classes[sizeclass].length > 0))
@@ -691,7 +689,7 @@ namespace snmalloc
           unlikely(alloc_classes[sizeclass].length == 1) &&
           (entropy.next_bit() == 0))
         {
-          return small_alloc_slow<zero_mem>(sizeclass, fast_free_list, rsize);
+          return small_alloc_slow<zero_mem>(sizeclass, fast_free_list);
         }
 #endif
 
@@ -717,7 +715,7 @@ namespace snmalloc
         auto r = finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
         return ticker.check_tick(r);
       }
-      return small_alloc_slow<zero_mem>(sizeclass, fast_free_list, rsize);
+      return small_alloc_slow<zero_mem>(sizeclass, fast_free_list);
     }
 
     /**
@@ -739,9 +737,11 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH capptr::Alloc<void> small_alloc_slow(
-      sizeclass_t sizeclass, freelist::Iter<>& fast_free_list, size_t rsize)
+    SNMALLOC_SLOW_PATH capptr::Alloc<void>
+    small_alloc_slow(sizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
     {
+      size_t rsize = sizeclass_to_size(sizeclass);
+
       // No existing free list get a new slab.
       size_t slab_size = sizeclass_to_slab_size(sizeclass);
       size_t slab_sizeclass = sizeclass_to_slab_sizeclass(sizeclass);
