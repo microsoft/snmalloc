@@ -99,7 +99,7 @@ jobs:
     - name: Test
       if: ${{ matrix.build-only != 'yes' }}
       working-directory: ${{github.workspace}}/build
-      run: ctest --output-on-failure -j 4
+      run: ctest --output-on-failure -j 4 -C ${{ matrix.build-type }}
     - name: Selfhost
       if: ${{ matrix.self-host }}
       working-directory: ${{github.workspace}}/build
