@@ -48,12 +48,12 @@ namespace snmalloc
     {
 #ifdef _MSC_VER
       __prefetch(ptr);
-#else
-#  ifdef SNMALLOC_VA_BITS_64
+#elif __has_builtin(__builtin_prefetch) && !defined(SNMALLOC_NO_AAL_BUILTINS)
+      __builtin_prefetch(ptr);
+#elif defined(SNMALLOC_VA_BITS_64)
       __asm__ volatile("prfm pldl1keep, [%0]" : "=r"(ptr));
-#  else
+#else
       __asm__ volatile("pld\t[%0]" : "=r"(ptr));
-#  endif
 #endif
     }
   };
