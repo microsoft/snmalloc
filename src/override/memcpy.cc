@@ -136,8 +136,7 @@ namespace
       auto& alloc = ThreadAlloc::get();
       void* p = const_cast<void*>(ptr);
 
-      if (unlikely(
-            pointer_diff(ptr, alloc.external_pointer<OnePastEnd>(p)) < len))
+      if (unlikely(alloc.remaining_bytes(ptr) < len))
       {
         if constexpr (FailFast)
         {

@@ -5,22 +5,28 @@
 #include "../ds/helpers.h"
 #include "allocconfig.h"
 
+/**
+ * This file contains all the code for transforming transforming sizes to
+ * sizeclasses and back.  It also contains various sizeclass pre-calculated
+ * tables for operations based on size class such as `modulus` and `divisible
+ * by`, and constants for the slab based allocator.
+ *
+ * TODO:  Due to the current structure for constexpr evaluation this file does
+ * not well delimit internal versus external APIs. Some refactoring should be
+ * done.
+ */
+
 namespace snmalloc
 {
-  // Both usings should compile
-  // We use size_t as it generates better code.
-  using sizeclass_t = size_t;
-  //  using sizeclass_t = uint8_t;
-  using sizeclass_compress_t = uint8_t;
+  using smallsizeclass_t = size_t;
+  using chunksizeclass_t = size_t;
 
-  constexpr static uintptr_t SIZECLASS_MASK = 0xFF;
-
-  constexpr static inline sizeclass_t size_to_sizeclass_const(size_t size)
+  constexpr static inline smallsizeclass_t size_to_sizeclass_const(size_t size)
   {
     // Don't use sizeclasses that are not a multiple of the alignment.
     // For example, 24 byte allocations can be
     // problematic for some data due to alignment issues.
-    auto sc = static_cast<sizeclass_t>(
+    auto sc = static_cast<smallsizeclass_t>(
       bits::to_exp_mant_const<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(size));
 
     SNMALLOC_ASSERT(sc == static_cast<uint8_t>(sc));
@@ -28,20 +34,98 @@ namespace snmalloc
     return sc;
   }
 
-  static inline size_t large_sizeclass_to_size(uint8_t large_class)
-  {
-    // TODO. Remove
-    UNUSED(large_class);
-    abort();
-    //    return bits::one_at_bit(large_class + SUPERSLAB_BITS);
-  }
+  static constexpr size_t NUM_SMALL_SIZECLASSES =
+    size_to_sizeclass_const(MAX_SMALL_SIZECLASS_SIZE);
 
-  static constexpr size_t NUM_SIZECLASSES =
-    size_to_sizeclass_const(MAX_SIZECLASS_SIZE);
-
-  // Large classes range from [SUPERSLAB, ADDRESS_SPACE).// TODO
+  // Large classes range from [MAX_SMALL_SIZECLASS_SIZE, ADDRESS_SPACE).
   static constexpr size_t NUM_LARGE_CLASSES =
-    Pal::address_bits - MAX_SIZECLASS_BITS;
+    Pal::address_bits - MAX_SMALL_SIZECLASS_BITS;
+
+  // How many bits are required to represent either a large or a small
+  // sizeclass.
+  static constexpr size_t TAG_SIZECLASS_BITS = bits::max<size_t>(
+    bits::next_pow2_bits_const(NUM_SMALL_SIZECLASSES + 1),
+    bits::next_pow2_bits_const(NUM_LARGE_CLASSES + 1));
+
+  // Number of bits required to represent a tagged sizeclass that can be
+  // either small or large.
+  static constexpr size_t SIZECLASS_REP_SIZE =
+    bits::one_at_bit(TAG_SIZECLASS_BITS + 1);
+
+  /**
+   * Encapsulates a tagged union of large and small sizeclasses.
+   *
+   * Used in various lookup tables to make efficient code that handles
+   * all objects allocated by snmalloc.
+   */
+  class sizeclass_t
+  {
+    static constexpr size_t TAG = bits::one_at_bit(TAG_SIZECLASS_BITS);
+
+    size_t value{0};
+
+    constexpr sizeclass_t(size_t value) : value(value) {}
+
+  public:
+    constexpr sizeclass_t() = default;
+
+    constexpr static sizeclass_t from_small(size_t size)
+    {
+      SNMALLOC_ASSERT(size < TAG);
+      // Note could use `+` or `|`.  Using `+` as will combine nicely with array
+      // offset.
+      return {TAG + size};
+    }
+
+    /**
+     * Takes the number of leading zero bits from the actual large size-1.
+     * See size_to_sizeclass_full
+     */
+    constexpr static sizeclass_t from_large(size_t size)
+    {
+      SNMALLOC_ASSERT(size < TAG);
+      return {size};
+    }
+
+    constexpr static sizeclass_t from_raw(size_t size)
+    {
+      return {size};
+    }
+
+    constexpr size_t index()
+    {
+      return value & (TAG - 1);
+    }
+
+    constexpr smallsizeclass_t as_small()
+    {
+      SNMALLOC_ASSERT(is_small());
+      return value & (TAG - 1);
+    }
+
+    constexpr chunksizeclass_t as_large()
+    {
+      SNMALLOC_ASSERT(!is_small());
+      return bits::BITS - (value & (TAG - 1));
+    }
+
+    constexpr size_t raw()
+    {
+      return value;
+    }
+
+    constexpr bool is_small()
+    {
+      return (value & TAG) != 0;
+    }
+
+    constexpr bool is_default()
+    {
+      return value == 0;
+    }
+  };
+
+  using sizeclass_compress_t = uint8_t;
 
   inline SNMALLOC_FAST_PATH static size_t
   aligned_size(size_t alignment, size_t size)
@@ -64,9 +148,9 @@ namespace snmalloc
     // the slab.
     size_t slab_mask;
     // Table of constants for reciprocal division for each sizeclass.
-    size_t div_mult;
-    // Table of constants for reciprocal modulus for each sizeclass.
     size_t mod_mult;
+    // Table of constants for reciprocal modulus for each sizeclass.
+    size_t mod_zero_mult;
   };
 
   /**
@@ -81,64 +165,109 @@ namespace snmalloc
 
   struct SizeClassTable
   {
-    ModArray<NUM_SIZECLASSES, sizeclass_data_fast> fast;
-    ModArray<NUM_SIZECLASSES, sizeclass_data_slow> slow;
+    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_fast> fast_;
+    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_slow> slow_;
 
-    constexpr SizeClassTable() : fast(), slow()
+    [[nodiscard]] constexpr sizeclass_data_fast& fast(sizeclass_t index)
     {
-      for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
+      return fast_[index.raw()];
+    }
+
+    [[nodiscard]] constexpr sizeclass_data_fast fast(sizeclass_t index) const
+    {
+      return fast_[index.raw()];
+    }
+
+    [[nodiscard]] constexpr sizeclass_data_slow& slow(sizeclass_t index)
+    {
+      return slow_[index.raw()];
+    }
+
+    [[nodiscard]] constexpr sizeclass_data_slow slow(sizeclass_t index) const
+    {
+      return slow_[index.raw()];
+    }
+
+    constexpr SizeClassTable() : fast_(), slow_()
+    {
+      for (sizeclass_compress_t sizeclass = 0;
+           sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
       {
+        auto& meta = fast(sizeclass_t::from_small(sizeclass));
+
         size_t rsize =
           bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
-        fast[sizeclass].size = rsize;
+        meta.size = rsize;
         size_t slab_bits = bits::max(
           bits::next_pow2_bits_const(MIN_OBJECT_COUNT * rsize), MIN_CHUNK_BITS);
 
-        fast[sizeclass].slab_mask = bits::one_at_bit(slab_bits) - 1;
+        meta.slab_mask = bits::one_at_bit(slab_bits) - 1;
 
-        slow[sizeclass].capacity =
-          static_cast<uint16_t>((fast[sizeclass].slab_mask + 1) / rsize);
+        auto& meta_slow = slow(sizeclass_t::from_small(sizeclass));
+        meta_slow.capacity =
+          static_cast<uint16_t>((meta.slab_mask + 1) / rsize);
 
-        slow[sizeclass].waking =
+        meta_slow.waking =
 #ifdef SNMALLOC_CHECK_CLIENT
-          static_cast<uint16_t>(slow[sizeclass].capacity / 4);
+          static_cast<uint16_t>(meta_slow.capacity / 4);
 #else
-          static_cast<uint16_t>(bits::min((slow[sizeclass].capacity / 4), 32));
+          static_cast<uint16_t>(bits::min((meta_slow.capacity / 4), 32));
 #endif
       }
 
-      for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
+      for (sizeclass_compress_t sizeclass = 0;
+           sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
       {
-        fast[sizeclass].div_mult = // TODO is MAX_SIZECLASS_BITS right?
-          (bits::one_at_bit(bits::BITS - 24) /
-           (fast[sizeclass].size / MIN_ALLOC_SIZE));
-        if (!bits::is_pow2(fast[sizeclass].size))
-          fast[sizeclass].div_mult++;
+        // Calculate reciprocal modulus constant like reciprocal division, but
+        // constant is choosen to overflow and only leave the modulus as the
+        // result.
+        auto& meta = fast(sizeclass_t::from_small(sizeclass));
+        meta.mod_mult = bits::one_at_bit(bits::BITS - 1) / meta.size;
+        meta.mod_mult *= 2;
 
-        fast[sizeclass].mod_mult =
-          (bits::one_at_bit(bits::BITS - 1) / fast[sizeclass].size);
-        if (!bits::is_pow2(fast[sizeclass].size))
-          fast[sizeclass].mod_mult++;
-        // Shift multiplier, so that the result of division completely
-        // overflows, and thus the top SUPERSLAB_BITS will be zero if the mod is
-        // zero.
-        fast[sizeclass].mod_mult *= 2;
+        if (bits::is_pow2(meta.size))
+        {
+          // Set to zero, so masking path is taken if power of 2.
+          meta.mod_mult = 0;
+        }
+
+        size_t zero = 0;
+        meta.mod_zero_mult = (~zero / meta.size) + 1;
+      }
+
+      // Set up table for large classes.
+      // Note skipping sizeclass == 0 as this is size == 0, so the tables can be
+      // all zero.
+      for (size_t sizeclass = 1; sizeclass < bits::BITS; sizeclass++)
+      {
+        auto lsc = sizeclass_t::from_large(sizeclass);
+        fast(lsc).size = bits::one_at_bit(lsc.as_large());
+
+        // Use slab mask as 0 for power of two sizes.
+        fast(lsc).slab_mask = 0;
       }
     }
   };
 
   static inline constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
 
-  constexpr static inline size_t sizeclass_to_size(sizeclass_t sizeclass)
+  constexpr static inline size_t sizeclass_to_size(smallsizeclass_t sizeclass)
   {
-    return sizeclass_metadata.fast[sizeclass].size;
+    return sizeclass_metadata.fast(sizeclass_t::from_small(sizeclass)).size;
   }
 
-  inline static size_t sizeclass_to_slab_size(sizeclass_t sizeclass)
+  static inline size_t sizeclass_full_to_size(sizeclass_t sizeclass)
   {
-    return sizeclass_metadata.fast[sizeclass].slab_mask + 1;
+    return sizeclass_metadata.fast(sizeclass).size;
+  }
+
+  inline static size_t sizeclass_to_slab_size(smallsizeclass_t sizeclass)
+  {
+    return sizeclass_metadata.fast(sizeclass_t::from_small(sizeclass))
+             .slab_mask +
+      1;
   }
 
   /**
@@ -148,19 +277,19 @@ namespace snmalloc
    *
    * It also increases entropy, when we have randomisation.
    */
-  inline uint16_t threshold_for_waking_slab(sizeclass_t sizeclass)
+  inline uint16_t threshold_for_waking_slab(smallsizeclass_t sizeclass)
   {
-    return sizeclass_metadata.slow[sizeclass].waking;
+    return sizeclass_metadata.slow(sizeclass_t::from_small(sizeclass)).waking;
   }
 
-  inline static size_t sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)
+  inline static size_t sizeclass_to_slab_sizeclass(smallsizeclass_t sizeclass)
   {
     size_t ssize = sizeclass_to_slab_size(sizeclass);
 
     return bits::next_pow2_bits(ssize) - MIN_CHUNK_BITS;
   }
 
-  inline static size_t slab_sizeclass_to_size(sizeclass_t sizeclass)
+  inline static size_t slab_sizeclass_to_size(chunksizeclass_t sizeclass)
   {
     return bits::one_at_bit(MIN_CHUNK_BITS + sizeclass);
   }
@@ -170,74 +299,71 @@ namespace snmalloc
    * which must be shifted into the index space of slab_sizeclass-es.
    */
   inline static size_t
-  metaentry_chunk_sizeclass_to_slab_sizeclass(sizeclass_t sizeclass)
+  metaentry_chunk_sizeclass_to_slab_sizeclass(chunksizeclass_t sizeclass)
   {
     return sizeclass - MIN_CHUNK_BITS;
   }
 
   inline constexpr static uint16_t
-  sizeclass_to_slab_object_count(sizeclass_t sizeclass)
+  sizeclass_to_slab_object_count(smallsizeclass_t sizeclass)
   {
-    return sizeclass_metadata.slow[sizeclass].capacity;
+    return sizeclass_metadata.slow(sizeclass_t::from_small(sizeclass)).capacity;
   }
 
-  inline static size_t round_by_sizeclass(sizeclass_t sc, size_t offset)
+  inline static size_t mod_by_sizeclass(smallsizeclass_t sc, size_t offset)
   {
-    // Only works up to certain offsets, exhaustively tested upto
-    // SUPERSLAB_SIZE.
-    //    SNMALLOC_ASSERT(offset <= SUPERSLAB_SIZE);
+    // Only works up to certain offsets, exhaustively tested by rounding.cc
+    auto meta = sizeclass_metadata.fast(sizeclass_t::from_small(sc));
 
-    auto rsize = sizeclass_to_size(sc);
+    // Powers of two should use straigt mask.
+    SNMALLOC_ASSERT(meta.mod_mult != 0);
 
     if constexpr (sizeof(offset) >= 8)
     {
       // Only works for 64 bit multiplication, as the following will overflow in
       // 32bit.
-      // The code is using reciprocal division.  If SUPERSLABS
-      // get larger then we should review this code. For 24 bits, there are in
-      // sufficient bits to do this completely efficiently as 24 * 3 is larger
-      // than 64 bits.  But we can pre-round by MIN_ALLOC_SIZE which gets us an
-      // extra 4 * 3 bits, and thus achievable in 64bit multiplication.
-      // static_assert(
-      //   SUPERSLAB_BITS <= 24, "The following code assumes max of 24 bits");
-
-      // TODO 24 hack
-      static_assert(bits::BITS >= 24, "About to attempt a negative shift");
-      static_assert(
-        (8 * sizeof(offset)) >= (bits::BITS - 24),
-        "About to shift further than the type");
-      return (((offset >> MIN_ALLOC_BITS) *
-               sizeclass_metadata.fast[sc].div_mult) >>
-              (bits::BITS - 24)) *
-        rsize;
+      // Could be made nicer with 128bit multiply (umulh):
+      //   https://lemire.me/blog/2019/02/20/more-fun-with-fast-remainders-when-the-divisor-is-a-constant/
+      auto bits_l = bits::BITS / 2;
+      auto bits_h = bits::BITS - bits_l;
+      return (
+        ((((offset + 1) * meta.mod_mult) >> (bits_l)) * meta.size) >> bits_h);
     }
     else
       // Use 32-bit division as considerably faster than 64-bit, and
       // everything fits into 32bits here.
-      return static_cast<uint32_t>(offset / rsize) * rsize;
+      return static_cast<uint32_t>(offset % meta.size);
   }
 
-  inline static bool is_multiple_of_sizeclass(sizeclass_t sc, size_t offset)
+  inline static size_t index_in_object(sizeclass_t sc, address_t addr)
   {
-    // Only works up to certain offsets, exhaustively tested upto
-    // SUPERSLAB_SIZE.
-    //    SNMALLOC_ASSERT(offset <= SUPERSLAB_SIZE);
+    if (sizeclass_metadata.fast(sc).mod_mult == 0)
+    {
+      return addr & (sizeclass_metadata.fast(sc).size - 1);
+    }
+
+    address_t offset = addr & (sizeclass_to_slab_size(sc.as_small()) - 1);
+    return mod_by_sizeclass(sc.as_small(), offset);
+  }
+
+  inline static size_t remaining_bytes(sizeclass_t sc, address_t addr)
+  {
+    return sizeclass_metadata.fast(sc).size - index_in_object(sc, addr);
+  }
+
+  inline static bool divisible_by_sizeclass(smallsizeclass_t sc, size_t offset)
+  {
+    // Only works up to certain offsets, exhaustively tested by rounding.cc
 
     if constexpr (sizeof(offset) >= 8)
     {
       // Only works for 64 bit multiplication, as the following will overflow in
       // 32bit.
-      // The code is using reciprocal division.  If SUPERSLABS
-      // get larger then we should review this code.  The modulus code
-      // has fewer restrictions than division, as it only requires the
-      // square of the offset to be representable.
-      // TODO 24 hack. Redo the maths given the multiple
-      // slab sizes
-      static_assert(bits::BITS >= 25);
-      static constexpr size_t MASK =
-        ~(bits::one_at_bit(bits::BITS - 1 - 24) - 1);
-
-      return ((offset * sizeclass_metadata.fast[sc].mod_mult) & MASK) == 0;
+      // This is based on:
+      //  https://lemire.me/blog/2019/02/20/more-fun-with-fast-remainders-when-the-divisor-is-a-constant/
+      auto mod_zero_mult =
+        sizeclass_metadata.fast(sizeclass_t::from_small(sc)).mod_zero_mult;
+      return (offset * mod_zero_mult) < mod_zero_mult;
     }
     else
       // Use 32-bit division as considerably faster than 64-bit, and
@@ -262,10 +388,10 @@ namespace snmalloc
     return (s - 1) >> MIN_ALLOC_BITS;
   }
 
-  static inline sizeclass_t size_to_sizeclass(size_t size)
+  static inline smallsizeclass_t size_to_sizeclass(size_t size)
   {
     constexpr static size_t sizeclass_lookup_size =
-      sizeclass_lookup_index(MAX_SIZECLASS_SIZE);
+      sizeclass_lookup_index(MAX_SMALL_SIZECLASS_SIZE);
 
     /**
      * This struct is used to statically initialise a table for looking up
@@ -278,10 +404,12 @@ namespace snmalloc
       constexpr SizeClassLookup()
       {
         size_t curr = 1;
-        for (sizeclass_compress_t sizeclass = 0; sizeclass < NUM_SIZECLASSES;
+        for (sizeclass_compress_t sizeclass = 0;
+             sizeclass < NUM_SMALL_SIZECLASSES;
              sizeclass++)
         {
-          for (; curr <= sizeclass_metadata.fast[sizeclass].size;
+          for (; curr <=
+               sizeclass_metadata.fast(sizeclass_t::from_small(sizeclass)).size;
                curr += 1 << MIN_ALLOC_BITS)
           {
             auto i = sizeclass_lookup_index(curr);
@@ -307,9 +435,29 @@ namespace snmalloc
     return 0;
   }
 
+  /**
+   * A compressed size representation,
+   *   either a small size class with the 7th bit set
+   *   or a large class with the 7th bit not set.
+   * Large classes are stored as a mask shift.
+   *    size = (~0 >> lc) + 1;
+   * Thus large size class 0, has size 0.
+   * And large size class 33, has size 2^31
+   */
+  static inline sizeclass_t size_to_sizeclass_full(size_t size)
+  {
+    if ((size - 1) < sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1))
+    {
+      return sizeclass_t::from_small(size_to_sizeclass(size));
+    }
+    // bits::clz is undefined on 0, but we have size == 1 has already been
+    // handled here.  We conflate 0 and sizes larger than we can allocate.
+    return sizeclass_t::from_large(bits::clz(size - 1));
+  }
+
   inline SNMALLOC_FAST_PATH static size_t round_size(size_t size)
   {
-    if (size > sizeclass_to_size(NUM_SIZECLASSES - 1))
+    if (size > sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1))
     {
       return bits::next_pow2(size);
     }

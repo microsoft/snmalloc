@@ -55,7 +55,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH bool reserve_space(const MetaEntry& entry)
     {
       auto size =
-        static_cast<int64_t>(sizeclass_to_size(entry.get_sizeclass()));
+        static_cast<int64_t>(sizeclass_full_to_size(entry.get_sizeclass()));
 
       bool result = capacity > size;
       if (result)

@@ -236,10 +236,17 @@ void test_external_pointer()
   // Malloc does not have an external pointer querying mechanism.
   auto& alloc = ThreadAlloc::get();
 
-  for (uint8_t sc = 0; sc < NUM_SIZECLASSES; sc++)
+  for (uint8_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
   {
     size_t size = sizeclass_to_size(sc);
     void* p1 = alloc.alloc(size);
+
+    if (size != alloc.alloc_size(p1))
+    {
+      std::cout << "Requested size: " << size
+                << " alloc_size: " << alloc.alloc_size(p1) << std::endl;
+      abort();
+    }
 
     for (size_t offset = 0; offset < size; offset += 17)
     {
@@ -248,8 +255,9 @@ void test_external_pointer()
       void* p4 = alloc.external_pointer<End>(p2);
       if (p1 != p3)
       {
-        std::cout << "size: " << size << " offset: " << offset << " p1: " << p1
-                  << "  p3: " << p3 << std::endl;
+        std::cout << "size: " << size << " alloc_size: " << alloc.alloc_size(p1)
+                  << " offset: " << offset << " p1: " << p1 << "  p3: " << p3
+                  << std::endl;
       }
       SNMALLOC_CHECK(p1 == p3);
       if ((size_t)p4 != (size_t)p1 + size - 1)
@@ -272,7 +280,11 @@ void check_offset(void* base, void* interior)
   auto& alloc = ThreadAlloc::get();
   void* calced_base = alloc.external_pointer((void*)interior);
   if (calced_base != (void*)base)
+  {
+    std::cout << "Calced base: " << calced_base << " actual base: " << base
+              << " for interior: " << interior << std::endl;
     abort();
+  }
 }
 
 void check_external_pointer_large(size_t* base)
@@ -301,7 +313,7 @@ void test_external_pointer_large()
 
   for (size_t i = 0; i < count; i++)
   {
-    size_t b = MAX_SIZECLASS_BITS + 3;
+    size_t b = MAX_SMALL_SIZECLASS_BITS + 3;
     size_t rand = r.next() & ((1 << b) - 1);
     size_t size = (1 << 24) + rand;
     total_size += size;
@@ -383,7 +395,7 @@ void test_calloc_large_bug()
   // Some PALS have special paths for PAGE aligned zeroing of large
   // allocations.  This is a large allocation that is intentionally
   // not a multiple of page size.
-  const size_t size = (MAX_SIZECLASS_SIZE << 3) - 7;
+  const size_t size = (MAX_SMALL_SIZECLASS_SIZE << 3) - 7;
 
   void* p1 = alloc.alloc<YesZero>(size);
   SNMALLOC_CHECK(alloc.alloc_size(alloc.external_pointer(p1)) >= size);
@@ -415,7 +427,7 @@ void test_static_sized_allocs()
 {
   // For each small, medium, and large class, do each kind dealloc.  This is
   // mostly to ensure that all of these forms compile.
-  for (size_t sc = 0; sc < NUM_SIZECLASSES; sc++)
+  for (size_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
   {
     // test_static_sized_alloc<sc, 0>();
     // test_static_sized_alloc<sc, 1>();
@@ -428,6 +440,32 @@ void test_static_sized_allocs()
   // test_static_sized_alloc<large_sizeclass_to_size(0), 0>();
   // test_static_sized_alloc<large_sizeclass_to_size(0), 1>();
   // test_static_sized_alloc<large_sizeclass_to_size(0), 2>();
+}
+
+void test_remaining_bytes()
+{
+  auto& alloc = ThreadAlloc::get();
+  for (size_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
+  {
+    auto size = sizeclass_to_size(sc);
+    char* p = (char*)alloc.alloc(size);
+    for (size_t offset = 0; offset < size; offset++)
+    {
+      auto rem = alloc.remaining_bytes(p + offset);
+      if (rem != (size - offset))
+      {
+        printf(
+          "Allocation size: %zu,  Offset: %zu,  Remaining bytes: %zu, "
+          "Expected: %zu\n",
+          size,
+          offset,
+          rem,
+          size - offset);
+        abort();
+      }
+    }
+    alloc.dealloc(p);
+  }
 }
 
 int main(int argc, char** argv)
@@ -455,12 +493,12 @@ int main(int argc, char** argv)
   UNUSED(argc);
   UNUSED(argv);
 #endif
-
   test_alloc_dealloc_64k();
   test_random_allocation();
   test_calloc();
   test_double_alloc();
 #ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
+  test_remaining_bytes();
   test_static_sized_allocs();
   test_calloc_large_bug();
   test_external_pointer_dealloc_bug();

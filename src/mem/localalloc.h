@@ -183,7 +183,7 @@ namespace snmalloc
         auto [chunk, meta] = ChunkAllocator::alloc_chunk<SharedStateHandle>(
           core_alloc->get_backend_local_state(),
           core_alloc->chunk_local_state,
-          bits::next_pow2_bits(size), // TODO
+          size_to_sizeclass_full(size),
           large_size_to_chunk_sizeclass(size),
           large_size_to_chunk_size(size),
           SharedStateHandle::fake_large_remote);
@@ -211,21 +211,20 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     SNMALLOC_FAST_PATH capptr::Alloc<void> small_alloc(size_t size)
     {
-      //      SNMALLOC_ASSUME(size <= sizeclass_to_size(NUM_SIZECLASSES));
       auto domesticate = [this](freelist::QueuePtr p)
                            SNMALLOC_FAST_PATH_LAMBDA {
                              return capptr_domesticate<SharedStateHandle>(
                                core_alloc->backend_state_ptr(), p);
                            };
       auto slowpath = [&](
-                        sizeclass_t sizeclass,
+                        smallsizeclass_t sizeclass,
                         freelist::Iter<>* fl) SNMALLOC_FAST_PATH_LAMBDA {
         if (likely(core_alloc != nullptr))
         {
           return core_alloc->handle_message_queue(
             [](
               CoreAlloc* core_alloc,
-              sizeclass_t sizeclass,
+              smallsizeclass_t sizeclass,
               freelist::Iter<>* fl) {
               return core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
             },
@@ -234,7 +233,7 @@ namespace snmalloc
             fl);
         }
         return lazy_init(
-          [&](CoreAlloc*, sizeclass_t sizeclass) {
+          [&](CoreAlloc*, smallsizeclass_t sizeclass) {
             return small_alloc<zero_mem>(sizeclass_to_size(sizeclass));
           },
           sizeclass);
@@ -429,7 +428,8 @@ namespace snmalloc
 #else
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
-      if (likely((size - 1) <= (sizeclass_to_size(NUM_SIZECLASSES - 1) - 1)))
+      if (likely(
+            (size - 1) <= (sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1) - 1)))
       {
         // Small allocations are more likely. Improve
         // branch prediction by placing this case first.
@@ -446,7 +446,6 @@ namespace snmalloc
     template<size_t size, ZeroMem zero_mem = NoZero>
     SNMALLOC_FAST_PATH ALLOCATOR void* alloc()
     {
-      // TODO optimise
       return alloc<zero_mem>(size);
     }
 
@@ -455,7 +454,6 @@ namespace snmalloc
 #ifdef SNMALLOC_PASS_THROUGH
       external_alloc::free(p_raw);
 #else
-      // TODO:
       // Care is needed so that dealloc(nullptr) works before init
       //  The backend allocator must ensure that a minimal page map exists
       //  before init, that maps null to a remote_deallocator that will never
@@ -508,16 +506,10 @@ namespace snmalloc
       }
 
       // Large deallocation or null.
-      if (likely(p_tame != nullptr))
+      // also checks for managed by page map.
+      if (likely((p_tame != nullptr) && !entry.get_sizeclass().is_default()))
       {
-        size_t entry_sizeclass = entry.get_sizeclass();
-
-        // Check this is managed by this pagemap.
-        //
-        // TODO: Should this be tested even in the !CHECK_CLIENT case?  Things
-        // go fairly pear-shaped, with the ASM's ranges[] getting cross-linked
-        // with a ChunkAllocator's chunk_stack[0], which seems bad.
-        check_client(entry_sizeclass != 0, "Not allocated by snmalloc.");
+        size_t entry_sizeclass = entry.get_sizeclass().as_large();
 
         size_t size = bits::one_at_bit(entry_sizeclass);
         size_t slab_sizeclass =
@@ -557,6 +549,11 @@ namespace snmalloc
           slab_sizeclass);
         return;
       }
+
+      // If p_tame is not null, then dealloc has been call on something
+      // it shouldn't be called on.
+      // TODO: Should this be tested even in the !CHECK_CLIENT case?
+      check_client(p_tame == nullptr, "Not allocated by snmalloc.");
 
 #  ifdef SNMALLOC_TRACING
       std::cout << "nullptr deallocation" << std::endl;
@@ -611,14 +608,7 @@ namespace snmalloc
       MetaEntry entry = SharedStateHandle::Pagemap::get_metaentry(
         core_alloc->backend_state_ptr(), address_cast(p_raw));
 
-      if (likely(entry.get_remote() != SharedStateHandle::fake_large_remote))
-        return sizeclass_to_size(entry.get_sizeclass());
-
-      // Sizeclass zero is for large is actually zero
-      if (likely(entry.get_sizeclass() != 0))
-        return bits::one_at_bit(entry.get_sizeclass());
-
-      return 0;
+      return sizeclass_full_to_size(entry.get_sizeclass());
 #endif
     }
 
@@ -630,61 +620,61 @@ namespace snmalloc
      * the potential pointer space.
      */
     template<Boundary location = Start>
-    void* external_pointer(void* p_raw)
+    void* external_pointer(void* p)
+    {
+      if constexpr (location == Start)
+      {
+        size_t index = index_in_object(p);
+        return pointer_offset(p, 0 - index);
+      }
+      else if constexpr (location == End)
+      {
+        return pointer_offset(p, remaining_bytes(p) - 1);
+      }
+      else
+      {
+        return pointer_offset(p, remaining_bytes(p));
+      }
+    }
+
+    /**
+     * Returns the number of remaining bytes in an object.
+     *
+     * auto p = (char*)malloc(size)
+     * remaining_bytes(p + n) == size - n     provided n < size
+     */
+    size_t remaining_bytes(const void* p)
     {
 #ifndef SNMALLOC_PASS_THROUGH
-      // TODO What's the domestication policy here?  At the moment we just
-      // probe the pagemap with the raw address, without checks.  There could
-      // be implicit domestication through the `SharedStateHandle::Pagemap` or
-      // we could just leave well enough alone.
-
-      capptr::AllocWild<void> p = capptr_from_client(p_raw);
-
       MetaEntry entry =
         SharedStateHandle::Pagemap::template get_metaentry<true>(
           core_alloc->backend_state_ptr(), address_cast(p));
+
       auto sizeclass = entry.get_sizeclass();
-      if (likely(entry.get_remote() != SharedStateHandle::fake_large_remote))
-      {
-        auto rsize = sizeclass_to_size(sizeclass);
-        auto offset = address_cast(p) & (sizeclass_to_slab_size(sizeclass) - 1);
-        auto start_offset = round_by_sizeclass(sizeclass, offset);
-        if constexpr (location == Start)
-        {
-          UNUSED(rsize);
-          return capptr_reveal_wild(pointer_offset(p, start_offset - offset));
-        }
-        else if constexpr (location == End)
-          return capptr_reveal_wild(
-            pointer_offset(p, rsize + start_offset - offset - 1));
-        else
-          return capptr_reveal_wild(
-            pointer_offset(p, rsize + start_offset - offset));
-      }
-
-      // Sizeclass zero of a large allocation is used for not managed by us.
-      if (likely(sizeclass != 0))
-      {
-        // This is a large allocation, find start by masking.
-        auto rsize = bits::one_at_bit(sizeclass);
-        auto start = pointer_align_down(p, rsize);
-        if constexpr (location == Start)
-          return capptr_reveal_wild(start);
-        else if constexpr (location == End)
-          return capptr_reveal_wild(pointer_offset(start, rsize - 1));
-        else
-          return capptr_reveal_wild(pointer_offset(start, rsize));
-      }
+      return snmalloc::remaining_bytes(sizeclass, address_cast(p));
 #else
-      UNUSED(p_raw);
+      return pointer_diff(p, reinterpret_cast<void*>(UINTPTR_MAX));
 #endif
+    }
 
-      if constexpr ((location == End) || (location == OnePastEnd))
-        // We don't know the End, so return MAX_PTR
-        return reinterpret_cast<void*>(UINTPTR_MAX);
-      else
-        // We don't know the Start, so return MIN_PTR
-        return nullptr;
+    /**
+     * Returns the byte offset into an object.
+     *
+     * auto p = (char*)malloc(size)
+     * index_in_object(p + n) == n     provided n < size
+     */
+    size_t index_in_object(const void* p)
+    {
+#ifndef SNMALLOC_PASS_THROUGH
+      MetaEntry entry =
+        SharedStateHandle::Pagemap::template get_metaentry<true>(
+          core_alloc->backend_state_ptr(), address_cast(p));
+
+      auto sizeclass = entry.get_sizeclass();
+      return snmalloc::index_in_object(sizeclass, address_cast(p));
+#else
+      return reinterpret_cast<size_t>(p);
+#endif
     }
 
     /**
