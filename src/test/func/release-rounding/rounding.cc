@@ -17,35 +17,36 @@ int main(int argc, char** argv)
 
   bool failed = false;
 
-  for (size_t size_class = 0; size_class < NUM_SIZECLASSES; size_class++)
+  for (size_t size_class = 0; size_class < NUM_SMALL_SIZECLASSES; size_class++)
   {
     size_t rsize = sizeclass_to_size((uint8_t)size_class);
     size_t max_offset = sizeclass_to_slab_size(size_class);
     for (size_t offset = 0; offset < max_offset; offset++)
     {
-      size_t rounded = (offset / rsize) * rsize;
+      size_t mod = offset % rsize;
       bool mod_0 = (offset % rsize) == 0;
 
-      size_t opt_rounded = round_by_sizeclass(size_class, offset);
-      if (rounded != opt_rounded)
+      size_t opt_mod = mod_by_sizeclass(size_class, offset);
+      if (mod != opt_mod)
       {
         std::cout << "rsize " << rsize << "  offset  " << offset << "  opt "
-                  << opt_rounded << " correct " << rounded << std::endl
+                  << opt_mod << " correct " << mod << std::endl
                   << std::flush;
         failed = true;
       }
 
-      bool opt_mod_0 = is_multiple_of_sizeclass(size_class, offset);
+      bool opt_mod_0 = divisible_by_sizeclass(size_class, offset);
       if (opt_mod_0 != mod_0)
       {
-        std::cout << "rsize " << rsize << "  offset  " << offset << "  opt_mod "
-                  << opt_mod_0 << " correct " << mod_0 << std::endl
+        std::cout << "rsize " << rsize << "  offset  " << offset
+                  << "  opt_mod0 " << opt_mod_0 << " correct " << mod_0
+                  << std::endl
                   << std::flush;
         failed = true;
       }
     }
+    if (failed)
+      abort();
   }
-  if (failed)
-    abort();
   return 0;
 }

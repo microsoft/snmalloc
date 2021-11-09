@@ -73,7 +73,7 @@ namespace snmalloc
     /**
      * Initialise Metaslab for a slab.
      */
-    void initialise(sizeclass_t sizeclass)
+    void initialise(smallsizeclass_t sizeclass)
     {
       free_queue.init();
       // Set up meta data as if the entire slab has been turned into a free
@@ -112,7 +112,7 @@ namespace snmalloc
      * and will return true, otherwise it will return false.
      */
     SNMALLOC_FAST_PATH bool
-    set_sleeping(sizeclass_t sizeclass, uint16_t remaining)
+    set_sleeping(smallsizeclass_t sizeclass, uint16_t remaining)
     {
       auto threshold = threshold_for_waking_slab(sizeclass);
       if (remaining >= threshold)
@@ -130,7 +130,7 @@ namespace snmalloc
       return true;
     }
 
-    SNMALLOC_FAST_PATH void set_not_sleeping(sizeclass_t sizeclass)
+    SNMALLOC_FAST_PATH void set_not_sleeping(smallsizeclass_t sizeclass)
     {
       auto allocated = sizeclass_to_slab_object_count(sizeclass);
       needed() = allocated - threshold_for_waking_slab(sizeclass);
@@ -145,9 +145,9 @@ namespace snmalloc
     }
 
     static SNMALLOC_FAST_PATH bool
-    is_start_of_object(sizeclass_t sizeclass, address_t p)
+    is_start_of_object(smallsizeclass_t sizeclass, address_t p)
     {
-      return is_multiple_of_sizeclass(
+      return divisible_by_sizeclass(
         sizeclass,
         p - (bits::align_down(p, sizeclass_to_slab_size(sizeclass))));
     }
@@ -170,7 +170,7 @@ namespace snmalloc
       Metaslab* meta,
       freelist::Iter<>& fast_free_list,
       LocalEntropy& entropy,
-      sizeclass_t sizeclass)
+      smallsizeclass_t sizeclass)
     {
       auto& key = entropy.get_free_list_key();
 
@@ -213,8 +213,8 @@ namespace snmalloc
      *
      *  * log_2(size), at least MIN_CHUNK_BITS, for large allocations.
      *
-     *  * a value in [0, NUM_SIZECLASSES] for small allocations.  These may be
-     *    directly passed to the sizeclass (not slab_sizeclass) functions of
+     *  * a value in [0, NUM_SMALL_SIZECLASSES] for small allocations.  These
+     * may be directly passed to the sizeclass (not slab_sizeclass) functions of
      *    sizeclasstable.h
      *
      */
@@ -235,12 +235,15 @@ namespace snmalloc
     {}
 
     SNMALLOC_FAST_PATH
-    MetaEntry(Metaslab* meta, RemoteAllocator* remote, sizeclass_t sizeclass)
+    MetaEntry(
+      Metaslab* meta,
+      RemoteAllocator* remote,
+      sizeclass_t sizeclass = sizeclass_t())
     : meta(meta)
     {
       /* remote might be nullptr; cast to uintptr_t before offsetting */
       remote_and_sizeclass =
-        pointer_offset(reinterpret_cast<uintptr_t>(remote), sizeclass);
+        pointer_offset(reinterpret_cast<uintptr_t>(remote), sizeclass.raw());
     }
 
     /**
@@ -285,8 +288,9 @@ namespace snmalloc
     {
       // TODO: perhaps remove static_cast with resolution of
       // https://github.com/CTSRD-CHERI/llvm-project/issues/588
-      return static_cast<sizeclass_t>(remote_and_sizeclass) &
-        (alignof(RemoteAllocator) - 1);
+      return sizeclass_t::from_raw(
+        static_cast<size_t>(remote_and_sizeclass) &
+        (alignof(RemoteAllocator) - 1));
     }
   };
 
