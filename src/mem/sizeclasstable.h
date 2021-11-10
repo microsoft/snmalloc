@@ -69,27 +69,27 @@ namespace snmalloc
   public:
     constexpr sizeclass_t() = default;
 
-    constexpr static sizeclass_t from_small(size_t size)
+    constexpr static sizeclass_t from_small_class(smallsizeclass_t sc)
     {
-      SNMALLOC_ASSERT(size < TAG);
+      SNMALLOC_ASSERT(sc < TAG);
       // Note could use `+` or `|`.  Using `+` as will combine nicely with array
       // offset.
-      return {TAG + size};
+      return {TAG + sc};
     }
 
     /**
      * Takes the number of leading zero bits from the actual large size-1.
      * See size_to_sizeclass_full
      */
-    constexpr static sizeclass_t from_large(size_t size)
+    constexpr static sizeclass_t from_large_class(size_t large_class)
     {
-      SNMALLOC_ASSERT(size < TAG);
-      return {size};
+      SNMALLOC_ASSERT(large_class < TAG);
+      return {large_class};
     }
 
-    constexpr static sizeclass_t from_raw(size_t size)
+    constexpr static sizeclass_t from_raw(size_t raw)
     {
-      return {size};
+      return {raw};
     }
 
     constexpr size_t index()
@@ -178,6 +178,17 @@ namespace snmalloc
       return fast_[index.raw()];
     }
 
+    [[nodiscard]] constexpr sizeclass_data_fast& fast_small(smallsizeclass_t sc)
+    {
+      return fast_[sizeclass_t::from_small_class(sc).raw()];
+    }
+
+    [[nodiscard]] constexpr sizeclass_data_fast
+    fast_small(smallsizeclass_t sc) const
+    {
+      return fast_[sizeclass_t::from_small_class(sc).raw()];
+    }
+
     [[nodiscard]] constexpr sizeclass_data_slow& slow(sizeclass_t index)
     {
       return slow_[index.raw()];
@@ -194,7 +205,7 @@ namespace snmalloc
            sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
       {
-        auto& meta = fast(sizeclass_t::from_small(sizeclass));
+        auto& meta = fast_small(sizeclass);
 
         size_t rsize =
           bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
@@ -204,7 +215,7 @@ namespace snmalloc
 
         meta.slab_mask = bits::one_at_bit(slab_bits) - 1;
 
-        auto& meta_slow = slow(sizeclass_t::from_small(sizeclass));
+        auto& meta_slow = slow(sizeclass_t::from_small_class(sizeclass));
         meta_slow.capacity =
           static_cast<uint16_t>((meta.slab_mask + 1) / rsize);
 
@@ -223,7 +234,7 @@ namespace snmalloc
         // Calculate reciprocal modulus constant like reciprocal division, but
         // constant is choosen to overflow and only leave the modulus as the
         // result.
-        auto& meta = fast(sizeclass_t::from_small(sizeclass));
+        auto& meta = fast_small(sizeclass);
         meta.mod_mult = bits::one_at_bit(bits::BITS - 1) / meta.size;
         meta.mod_mult *= 2;
 
@@ -242,7 +253,7 @@ namespace snmalloc
       // all zero.
       for (size_t sizeclass = 1; sizeclass < bits::BITS; sizeclass++)
       {
-        auto lsc = sizeclass_t::from_large(sizeclass);
+        auto lsc = sizeclass_t::from_large_class(sizeclass);
         fast(lsc).size = bits::one_at_bit(lsc.as_large());
 
         // Use slab mask as 0 for power of two sizes.
@@ -255,7 +266,7 @@ namespace snmalloc
 
   constexpr static inline size_t sizeclass_to_size(smallsizeclass_t sizeclass)
   {
-    return sizeclass_metadata.fast(sizeclass_t::from_small(sizeclass)).size;
+    return sizeclass_metadata.fast_small(sizeclass).size;
   }
 
   static inline size_t sizeclass_full_to_size(sizeclass_t sizeclass)
@@ -265,9 +276,7 @@ namespace snmalloc
 
   inline static size_t sizeclass_to_slab_size(smallsizeclass_t sizeclass)
   {
-    return sizeclass_metadata.fast(sizeclass_t::from_small(sizeclass))
-             .slab_mask +
-      1;
+    return sizeclass_metadata.fast_small(sizeclass).slab_mask + 1;
   }
 
   /**
@@ -279,7 +288,8 @@ namespace snmalloc
    */
   inline uint16_t threshold_for_waking_slab(smallsizeclass_t sizeclass)
   {
-    return sizeclass_metadata.slow(sizeclass_t::from_small(sizeclass)).waking;
+    return sizeclass_metadata.slow(sizeclass_t::from_small_class(sizeclass))
+      .waking;
   }
 
   inline static size_t sizeclass_to_slab_sizeclass(smallsizeclass_t sizeclass)
@@ -307,13 +317,14 @@ namespace snmalloc
   inline constexpr static uint16_t
   sizeclass_to_slab_object_count(smallsizeclass_t sizeclass)
   {
-    return sizeclass_metadata.slow(sizeclass_t::from_small(sizeclass)).capacity;
+    return sizeclass_metadata.slow(sizeclass_t::from_small_class(sizeclass))
+      .capacity;
   }
 
   inline static size_t mod_by_sizeclass(smallsizeclass_t sc, size_t offset)
   {
     // Only works up to certain offsets, exhaustively tested by rounding.cc
-    auto meta = sizeclass_metadata.fast(sizeclass_t::from_small(sc));
+    auto meta = sizeclass_metadata.fast_small(sc);
 
     // Powers of two should use straigt mask.
     SNMALLOC_ASSERT(meta.mod_mult != 0);
@@ -361,8 +372,7 @@ namespace snmalloc
       // 32bit.
       // This is based on:
       //  https://lemire.me/blog/2019/02/20/more-fun-with-fast-remainders-when-the-divisor-is-a-constant/
-      auto mod_zero_mult =
-        sizeclass_metadata.fast(sizeclass_t::from_small(sc)).mod_zero_mult;
+      auto mod_zero_mult = sizeclass_metadata.fast_small(sc).mod_zero_mult;
       return (offset * mod_zero_mult) < mod_zero_mult;
     }
     else
@@ -408,8 +418,7 @@ namespace snmalloc
              sizeclass < NUM_SMALL_SIZECLASSES;
              sizeclass++)
         {
-          for (; curr <=
-               sizeclass_metadata.fast(sizeclass_t::from_small(sizeclass)).size;
+          for (; curr <= sizeclass_metadata.fast_small(sizeclass).size;
                curr += 1 << MIN_ALLOC_BITS)
           {
             auto i = sizeclass_lookup_index(curr);
@@ -448,11 +457,11 @@ namespace snmalloc
   {
     if ((size - 1) < sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1))
     {
-      return sizeclass_t::from_small(size_to_sizeclass(size));
+      return sizeclass_t::from_small_class(size_to_sizeclass(size));
     }
     // bits::clz is undefined on 0, but we have size == 1 has already been
     // handled here.  We conflate 0 and sizes larger than we can allocate.
-    return sizeclass_t::from_large(bits::clz(size - 1));
+    return sizeclass_t::from_large_class(bits::clz(size - 1));
   }
 
   inline SNMALLOC_FAST_PATH static size_t round_size(size_t size)

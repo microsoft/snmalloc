@@ -21,7 +21,7 @@ int main(int argc, char** argv)
   {
     size_t rsize = sizeclass_to_size((uint8_t)size_class);
     size_t max_offset = sizeclass_to_slab_size(size_class);
-    sizeclass_t sc = sizeclass_t::from_small(size_class);
+    sizeclass_t sc = sizeclass_t::from_small_class(size_class);
     for (size_t offset = 0; offset < max_offset; offset++)
     {
       size_t mod = offset % rsize;

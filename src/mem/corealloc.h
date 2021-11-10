@@ -758,7 +758,7 @@ namespace snmalloc
         snmalloc::ChunkAllocator::alloc_chunk<SharedStateHandle>(
           get_backend_local_state(),
           chunk_local_state,
-          sizeclass_t::from_small(sizeclass),
+          sizeclass_t::from_small_class(sizeclass),
           slab_sizeclass,
           slab_size,
           public_state());

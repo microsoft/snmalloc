@@ -622,6 +622,10 @@ namespace snmalloc
     template<Boundary location = Start>
     void* external_pointer(void* p)
     {
+      // Note that each case uses `pointer_offset`, so that on
+      // CHERI it is monotone with respect to the capability.
+      // Note that the returned pointer could be outside the CHERI
+      // bounds of `p`, and thus not something that can be followed.
       if constexpr (location == Start)
       {
         size_t index = index_in_object(p);
