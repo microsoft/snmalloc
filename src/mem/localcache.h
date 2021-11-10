@@ -10,10 +10,10 @@
 
 namespace snmalloc
 {
-  using Stats = AllocStats<NUM_SIZECLASSES, NUM_LARGE_CLASSES>;
+  using Stats = AllocStats<NUM_SMALL_SIZECLASSES, NUM_LARGE_CLASSES>;
 
   inline static SNMALLOC_FAST_PATH capptr::Alloc<void>
-  finish_alloc_no_zero(freelist::HeadPtr p, sizeclass_t sizeclass)
+  finish_alloc_no_zero(freelist::HeadPtr p, smallsizeclass_t sizeclass)
   {
     SNMALLOC_ASSERT(Metaslab::is_start_of_object(sizeclass, address_cast(p)));
     UNUSED(sizeclass);
@@ -23,7 +23,7 @@ namespace snmalloc
 
   template<ZeroMem zero_mem, typename SharedStateHandle>
   inline static SNMALLOC_FAST_PATH capptr::Alloc<void>
-  finish_alloc(freelist::HeadPtr p, sizeclass_t sizeclass)
+  finish_alloc(freelist::HeadPtr p, smallsizeclass_t sizeclass)
   {
     auto r = finish_alloc_no_zero(p, sizeclass);
 
@@ -45,7 +45,7 @@ namespace snmalloc
     // Free list per small size class.  These are used for
     // allocation on the fast path. This part of the code is inspired by
     // mimalloc.
-    freelist::Iter<> small_fast_free_lists[NUM_SIZECLASSES] = {};
+    freelist::Iter<> small_fast_free_lists[NUM_SMALL_SIZECLASSES] = {};
 
     // This is the entropy for a particular thread.
     LocalEntropy entropy;
@@ -83,7 +83,7 @@ namespace snmalloc
           return capptr_domesticate<SharedStateHandle>(local_state, p);
         };
 
-      for (size_t i = 0; i < NUM_SIZECLASSES; i++)
+      for (size_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
       {
         // TODO could optimise this, to return the whole list in one append
         // call.
@@ -108,7 +108,7 @@ namespace snmalloc
     alloc(Domesticator domesticate, size_t size, Slowpath slowpath)
     {
       auto& key = entropy.get_free_list_key();
-      sizeclass_t sizeclass = size_to_sizeclass(size);
+      smallsizeclass_t sizeclass = size_to_sizeclass(size);
       stats.alloc_request(size);
       stats.sizeclass_alloc(sizeclass);
       auto& fl = small_fast_free_lists[sizeclass];

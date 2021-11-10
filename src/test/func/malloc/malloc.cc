@@ -147,7 +147,7 @@ int main(int argc, char** argv)
 
   our_free(nullptr);
 
-  for (sizeclass_t sc = 0; sc < (MAX_SIZECLASS_BITS + 4); sc++)
+  for (smallsizeclass_t sc = 0; sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
   {
     const size_t size = bits::one_at_bit(sc);
     printf("malloc: %zu\n", size);
@@ -161,12 +161,13 @@ int main(int argc, char** argv)
 
   our_free(nullptr);
 
-  for (sizeclass_t sc = 0; sc < NUM_SIZECLASSES; sc++)
+  for (smallsizeclass_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
   {
     const size_t size = sizeclass_to_size(sc);
 
     bool overflow = false;
-    for (size_t n = 1; bits::umul(size, n, overflow) <= MAX_SIZECLASS_SIZE;
+    for (size_t n = 1;
+         bits::umul(size, n, overflow) <= MAX_SMALL_SIZECLASS_SIZE;
          n *= 5)
     {
       if (overflow)
@@ -178,13 +179,13 @@ int main(int argc, char** argv)
     test_calloc(0, size, SUCCESS, false);
   }
 
-  for (sizeclass_t sc = 0; sc < NUM_SIZECLASSES; sc++)
+  for (smallsizeclass_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
   {
     const size_t size = sizeclass_to_size(sc);
     test_realloc(our_malloc(size), size, SUCCESS, false);
     test_realloc(nullptr, size, SUCCESS, false);
     test_realloc(our_malloc(size), ((size_t)-1) / 2, ENOMEM, true);
-    for (sizeclass_t sc2 = 0; sc2 < NUM_SIZECLASSES; sc2++)
+    for (smallsizeclass_t sc2 = 0; sc2 < NUM_SMALL_SIZECLASSES; sc2++)
     {
       const size_t size2 = sizeclass_to_size(sc2);
       test_realloc(our_malloc(size), size2, SUCCESS, false);
@@ -192,13 +193,13 @@ int main(int argc, char** argv)
     }
   }
 
-  for (sizeclass_t sc = 0; sc < (MAX_SIZECLASS_BITS + 4); sc++)
+  for (smallsizeclass_t sc = 0; sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
   {
     const size_t size = bits::one_at_bit(sc);
     test_realloc(our_malloc(size), size, SUCCESS, false);
     test_realloc(nullptr, size, SUCCESS, false);
     test_realloc(our_malloc(size), ((size_t)-1) / 2, ENOMEM, true);
-    for (sizeclass_t sc2 = 0; sc2 < (MAX_SIZECLASS_BITS + 4); sc2++)
+    for (smallsizeclass_t sc2 = 0; sc2 < (MAX_SMALL_SIZECLASS_BITS + 4); sc2++)
     {
       const size_t size2 = bits::one_at_bit(sc2);
       printf("size1: %zu, size2:%zu\n", size, size2);
@@ -213,10 +214,10 @@ int main(int argc, char** argv)
   test_posix_memalign(((size_t)-1) / 2, 0, EINVAL, true);
   test_posix_memalign(OS_PAGE_SIZE, sizeof(uintptr_t) / 2, EINVAL, true);
 
-  for (size_t align = sizeof(uintptr_t); align < MAX_SIZECLASS_SIZE * 8;
+  for (size_t align = sizeof(uintptr_t); align < MAX_SMALL_SIZECLASS_SIZE * 8;
        align <<= 1)
   {
-    for (sizeclass_t sc = 0; sc < NUM_SIZECLASSES - 6; sc++)
+    for (smallsizeclass_t sc = 0; sc < NUM_SMALL_SIZECLASSES - 6; sc++)
     {
       const size_t size = sizeclass_to_size(sc);
       test_posix_memalign(size, align, SUCCESS, false);

@@ -97,7 +97,7 @@ namespace snmalloc
         //
         // dealloc() can reject attempts to free such MetaEntry-s due to the
         // zero sizeclass.
-        MetaEntry t(reinterpret_cast<Metaslab*>(next.unsafe_ptr()), nullptr, 0);
+        MetaEntry t(reinterpret_cast<Metaslab*>(next.unsafe_ptr()), nullptr);
         Pagemap::set_metaentry(local_state, address_cast(base), 1, t);
         return;
       }

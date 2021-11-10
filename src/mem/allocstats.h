@@ -179,7 +179,7 @@ namespace snmalloc
 #endif
     }
 
-    void sizeclass_alloc(sizeclass_t sc)
+    void sizeclass_alloc(smallsizeclass_t sc)
     {
       UNUSED(sc);
 
@@ -189,7 +189,7 @@ namespace snmalloc
 #endif
     }
 
-    void sizeclass_dealloc(sizeclass_t sc)
+    void sizeclass_dealloc(smallsizeclass_t sc)
     {
       UNUSED(sc);
 
@@ -209,7 +209,7 @@ namespace snmalloc
 #endif
     }
 
-    void sizeclass_alloc_slab(sizeclass_t sc)
+    void sizeclass_alloc_slab(smallsizeclass_t sc)
     {
       UNUSED(sc);
 
@@ -219,7 +219,7 @@ namespace snmalloc
 #endif
     }
 
-    void sizeclass_dealloc_slab(sizeclass_t sc)
+    void sizeclass_dealloc_slab(smallsizeclass_t sc)
     {
       UNUSED(sc);
 
@@ -266,7 +266,7 @@ namespace snmalloc
 #endif
     }
 
-    void remote_free(sizeclass_t sc)
+    void remote_free(smallsizeclass_t sc)
     {
       UNUSED(sc);
 
@@ -282,7 +282,7 @@ namespace snmalloc
 #endif
     }
 
-    void remote_receive(sizeclass_t sc)
+    void remote_receive(smallsizeclass_t sc)
     {
       UNUSED(sc);
 
@@ -374,7 +374,7 @@ namespace snmalloc
             << "Count" << csv.endl;
       }
 
-      for (sizeclass_t i = 0; i < N; i++)
+      for (smallsizeclass_t i = 0; i < N; i++)
       {
         if (sizeclass[i].count.is_unused())
           continue;
@@ -387,15 +387,15 @@ namespace snmalloc
         sizeclass[i].print(csv, sizeclass_to_size(i));
       }
 
-      for (uint8_t i = 0; i < LARGE_N; i++)
-      {
-        if ((large_push_count[i] == 0) && (large_pop_count[i] == 0))
-          continue;
+      // for (uint8_t i = 0; i < LARGE_N; i++)
+      // {
+      //   if ((large_push_count[i] == 0) && (large_pop_count[i] == 0))
+      //     continue;
 
-        csv << "LargeBucketedStats" << dumpid << allocatorid << (i + N)
-            << large_sizeclass_to_size(i) << large_push_count[i]
-            << large_pop_count[i] << csv.endl;
-      }
+      //   csv << "LargeBucketedStats" << dumpid << allocatorid << (i + N)
+      //       << large_sizeclass_to_size(i) << large_push_count[i]
+      //       << large_pop_count[i] << csv.endl;
+      // }
 
       size_t low = 0;
       size_t high = 0;

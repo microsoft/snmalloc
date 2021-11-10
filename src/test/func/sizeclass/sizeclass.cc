@@ -3,7 +3,7 @@
 #include <test/setup.h>
 
 NOINLINE
-snmalloc::sizeclass_t size_to_sizeclass(size_t size)
+snmalloc::smallsizeclass_t size_to_sizeclass(size_t size)
 {
   return snmalloc::size_to_sizeclass(size);
 }
@@ -15,7 +15,7 @@ void test_align_size()
   SNMALLOC_CHECK(snmalloc::aligned_size(128, 160) == 256);
 
   for (size_t size = 1;
-       size < snmalloc::sizeclass_to_size(snmalloc::NUM_SIZECLASSES - 1);
+       size < snmalloc::sizeclass_to_size(snmalloc::NUM_SMALL_SIZECLASSES - 1);
        size++)
   {
     size_t rsize = snmalloc::round_size(size);
@@ -39,7 +39,7 @@ void test_align_size()
     }
 
     for (size_t alignment_bits = 0;
-         alignment_bits < snmalloc::MAX_SIZECLASS_BITS;
+         alignment_bits < snmalloc::MAX_SMALL_SIZECLASS_BITS;
          alignment_bits++)
     {
       auto alignment = (size_t)1 << alignment_bits;
@@ -78,10 +78,11 @@ int main(int, char**)
   std::cout << "sizeclass |-> [size_low, size_high] " << std::endl;
 
   size_t slab_size = 0;
-  for (snmalloc::sizeclass_t sz = 0; sz < snmalloc::NUM_SIZECLASSES; sz++)
+  for (snmalloc::smallsizeclass_t sz = 0; sz < snmalloc::NUM_SMALL_SIZECLASSES;
+       sz++)
   {
     if (
-      sz < snmalloc::NUM_SIZECLASSES &&
+      sz < snmalloc::NUM_SMALL_SIZECLASSES &&
       slab_size != snmalloc::sizeclass_to_slab_size(sz))
     {
       slab_size = snmalloc::sizeclass_to_slab_size(sz);

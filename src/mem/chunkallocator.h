@@ -182,7 +182,7 @@ namespace snmalloc
       typename SharedStateHandle::LocalState& local_state,
       ChunkAllocatorLocalState& chunk_alloc_local_state,
       sizeclass_t sizeclass,
-      sizeclass_t slab_sizeclass, // TODO sizeclass_t
+      chunksizeclass_t slab_sizeclass,
       size_t slab_size,
       RemoteAllocator* remote)
     {

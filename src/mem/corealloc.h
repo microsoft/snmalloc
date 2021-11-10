@@ -56,7 +56,7 @@ namespace snmalloc
     /**
      * Per size class list of active slabs for this allocator.
      */
-    MetaslabCache alloc_classes[NUM_SIZECLASSES];
+    MetaslabCache alloc_classes[NUM_SMALL_SIZECLASSES];
 
     /**
      * Local cache for the Chunk allocator.
@@ -196,7 +196,9 @@ namespace snmalloc
         };
       // Use attached cache, and fill it if it is empty.
       return attached_cache->template alloc<NoZero, SharedStateHandle>(
-        domesticate, size, [&](sizeclass_t sizeclass, freelist::Iter<>* fl) {
+        domesticate,
+        size,
+        [&](smallsizeclass_t sizeclass, freelist::Iter<>* fl) {
           return small_alloc<NoZero>(sizeclass, *fl);
         });
     }
@@ -285,7 +287,7 @@ namespace snmalloc
       bumpptr = slab_end;
     }
 
-    ChunkRecord* clear_slab(Metaslab* meta, sizeclass_t sizeclass)
+    ChunkRecord* clear_slab(Metaslab* meta, smallsizeclass_t sizeclass)
     {
       auto& key = entropy.get_free_list_key();
       freelist::Iter<> fl;
@@ -347,7 +349,7 @@ namespace snmalloc
     }
 
     template<bool check_slabs = false>
-    SNMALLOC_SLOW_PATH void dealloc_local_slabs(sizeclass_t sizeclass)
+    SNMALLOC_SLOW_PATH void dealloc_local_slabs(smallsizeclass_t sizeclass)
     {
       // Return unused slabs of sizeclass_t back to global allocator
       alloc_classes[sizeclass].available.filter([this,
@@ -400,7 +402,7 @@ namespace snmalloc
       // TODO: Handle message queue on this path?
 
       Metaslab* meta = entry.get_metaslab();
-      sizeclass_t sizeclass = entry.get_sizeclass();
+      smallsizeclass_t sizeclass = entry.get_sizeclass().as_small();
 
       UNUSED(entropy);
       if (meta->is_sleeping())
@@ -557,11 +559,11 @@ namespace snmalloc
         get_backend_local_state(), chunk_local_state);
 
 #ifndef NDEBUG
-      for (sizeclass_t i = 0; i < NUM_SIZECLASSES; i++)
+      for (smallsizeclass_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
       {
         size_t size = sizeclass_to_size(i);
-        sizeclass_t sc1 = size_to_sizeclass(size);
-        sizeclass_t sc2 = size_to_sizeclass_const(size);
+        smallsizeclass_t sc1 = size_to_sizeclass(size);
+        smallsizeclass_t sc2 = size_to_sizeclass_const(size);
         size_t size1 = sizeclass_to_size(sc1);
         size_t size2 = sizeclass_to_size(sc2);
 
@@ -662,7 +664,8 @@ namespace snmalloc
       SNMALLOC_ASSERT(!meta->is_unused());
 
       check_client(
-        Metaslab::is_start_of_object(entry.get_sizeclass(), address_cast(p)),
+        Metaslab::is_start_of_object(
+          entry.get_sizeclass().as_small(), address_cast(p)),
         "Not deallocating start of an object");
 
       auto cp = p.as_static<freelist::Object::T<>>();
@@ -677,7 +680,7 @@ namespace snmalloc
 
     template<ZeroMem zero_mem>
     SNMALLOC_SLOW_PATH capptr::Alloc<void>
-    small_alloc(sizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
+    small_alloc(smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
     {
       // Look to see if we can grab a free list.
       auto& sl = alloc_classes[sizeclass].available;
@@ -737,8 +740,8 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH capptr::Alloc<void>
-    small_alloc_slow(sizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
+    SNMALLOC_SLOW_PATH capptr::Alloc<void> small_alloc_slow(
+      smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
 
@@ -755,7 +758,7 @@ namespace snmalloc
         snmalloc::ChunkAllocator::alloc_chunk<SharedStateHandle>(
           get_backend_local_state(),
           chunk_local_state,
-          sizeclass,
+          sizeclass_t::from_small_class(sizeclass),
           slab_sizeclass,
           slab_size,
           public_state());
@@ -831,7 +834,8 @@ namespace snmalloc
           [&](capptr::Alloc<void> p) { dealloc_local_object(p); });
 
       // We may now have unused slabs, return to the global allocator.
-      for (sizeclass_t sizeclass = 0; sizeclass < NUM_SIZECLASSES; sizeclass++)
+      for (smallsizeclass_t sizeclass = 0; sizeclass < NUM_SMALL_SIZECLASSES;
+           sizeclass++)
       {
         dealloc_local_slabs<true>(sizeclass);
       }
