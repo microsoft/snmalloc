@@ -464,6 +464,24 @@ namespace snmalloc
       //  before init, that maps null to a remote_deallocator that will never
       //  be in thread local state.
 
+#  ifdef __CHERI_PURE_CAPABILITY__
+      /*
+       * On CHERI platforms, snap the provided pointer to its base, ignoring
+       * any client-provided offset, which may have taken the pointer out of
+       * bounds and so appear to designate a different object.  The base is
+       * is guaranteed by monotonicity either...
+       *  * to be within the bounds originally returned by alloc(), or
+       *  * one past the end (in which case, the capability length must be 0).
+       *
+       * Setting the offset does not trap on untagged capabilities, so the tag
+       * might be clear after this, as well.
+       *
+       * For a well-behaved client, this is a no-op: the base is already at the
+       * start of the allocation and so the offset is zero.
+       */
+      p_raw = __builtin_cheri_offset_set(p_raw, 0);
+#  endif
+
       capptr::AllocWild<void> p_wild = capptr_from_client(p_raw);
 
       /*
