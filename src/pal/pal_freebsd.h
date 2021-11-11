@@ -57,6 +57,13 @@ namespace snmalloc
     static SNMALLOC_FAST_PATH CapPtr<T, capptr::user_address_control_type<B>>
     capptr_to_user_address_control(CapPtr<T, B> p)
     {
+      if constexpr (Aal::aal_cheri_features & Aal::AndPermsTrapsUntagged)
+      {
+        if (p == nullptr)
+        {
+          return nullptr;
+        }
+      }
       return CapPtr<T, capptr::user_address_control_type<B>>(
         __builtin_cheri_perms_and(
           p.unsafe_ptr(),
