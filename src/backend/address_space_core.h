@@ -232,7 +232,13 @@ namespace snmalloc
         size_t length_align_bits = (bits::BITS - 1) - bits::clz(length);
         size_t align_bits = bits::min(base_align_bits, length_align_bits);
         size_t align = bits::one_at_bit(align_bits);
-        auto b = base.as_static<FreeChunk>();
+
+        /*
+         * Now that we have found a maximally-aligned block, we can set bounds
+         * and be certain that we won't hit representation imprecision.
+         */
+        auto b =
+          Aal::capptr_bound<FreeChunk, capptr::bounds::Chunk>(base, align);
 
         check_block(b, align_bits);
         add_block<PAL, Pagemap>(local_state, align_bits, b);
@@ -289,7 +295,7 @@ namespace snmalloc
      * of the block is retained by the address space manager.
      *
      * This is useful for allowing the space required for alignment to be
-     * used, by smaller objects.
+     * used by smaller objects.
      */
     template<
       SNMALLOC_CONCEPT(ConceptPAL) PAL,
@@ -309,8 +315,14 @@ namespace snmalloc
       {
         if (rsize > size)
         {
-          add_range<PAL, Pagemap>(
-            local_state, pointer_offset(res, size), rsize - size);
+          /*
+           * Set bounds on the allocation requested but leave the residual with
+           * wider bounds for the moment; we'll fix that above in add_range.
+           */
+          size_t residual_size = rsize - size;
+          auto residual = pointer_offset(res, size);
+          res = Aal::capptr_bound<void, capptr::bounds::Chunk>(res, size);
+          add_range<PAL, Pagemap>(local_state, residual, residual_size);
         }
       }
       return res;
