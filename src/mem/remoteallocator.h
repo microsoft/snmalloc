@@ -147,11 +147,11 @@ namespace snmalloc
         freelist::HeadPtr next = curr->atomic_read_next(key, domesticate_queue);
         // We have observed a non-linearisable effect of the queue.
         // Just go back to allocating normally.
-        if (unlikely(next == nullptr))
+        if (SNMALLOC_UNLIKELY(next == nullptr))
           break;
         // We want this element next, so start it loading.
         Aal::prefetch(next.unsafe_ptr());
-        if (unlikely(!cb(curr)))
+        if (SNMALLOC_UNLIKELY(!cb(curr)))
         {
           /*
            * We've domesticate_queue-d next so that we can read through it, but

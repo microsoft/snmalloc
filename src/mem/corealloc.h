@@ -513,9 +513,9 @@ namespace snmalloc
       // TODO this needs to not double revoke if using MTE
       // TODO thread capabilities?
 
-      if (likely(entry.get_remote() == public_state()))
+      if (SNMALLOC_LIKELY(entry.get_remote() == public_state()))
       {
-        if (likely(dealloc_local_object_fast(entry, p.as_void(), entropy)))
+        if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p.as_void(), entropy)))
           return;
 
         dealloc_local_object_slow(entry);
@@ -635,7 +635,7 @@ namespace snmalloc
     handle_message_queue(Action action, Args... args)
     {
       // Inline the empty check, but not necessarily the full queue handling.
-      if (likely(!has_messages()))
+      if (SNMALLOC_LIKELY(!has_messages()))
       {
         return action(args...);
       }
@@ -648,7 +648,7 @@ namespace snmalloc
     {
       auto entry = SharedStateHandle::Pagemap::get_metaentry(
         backend_state_ptr(), snmalloc::address_cast(p));
-      if (likely(dealloc_local_object_fast(entry, p, entropy)))
+      if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p, entropy)))
         return;
 
       dealloc_local_object_slow(entry);
@@ -675,7 +675,7 @@ namespace snmalloc
       // Update the head and the next pointer in the free list.
       meta->free_queue.add(cp, key, entropy);
 
-      return likely(!meta->return_object());
+      return SNMALLOC_LIKELY(!meta->return_object());
     }
 
     template<ZeroMem zero_mem>
@@ -684,12 +684,12 @@ namespace snmalloc
     {
       // Look to see if we can grab a free list.
       auto& sl = alloc_classes[sizeclass].available;
-      if (likely(alloc_classes[sizeclass].length > 0))
+      if (SNMALLOC_LIKELY(alloc_classes[sizeclass].length > 0))
       {
 #ifdef SNMALLOC_CHECK_CLIENT
         // Occassionally don't use the last list.
         if (
-          unlikely(alloc_classes[sizeclass].length == 1) &&
+          SNMALLOC_UNLIKELY(alloc_classes[sizeclass].length == 1) &&
           (entropy.next_bit() == 0))
         {
           return small_alloc_slow<zero_mem>(sizeclass, fast_free_list);

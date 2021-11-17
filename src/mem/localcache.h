@@ -112,7 +112,7 @@ namespace snmalloc
       stats.alloc_request(size);
       stats.sizeclass_alloc(sizeclass);
       auto& fl = small_fast_free_lists[sizeclass];
-      if (likely(!fl.empty()))
+      if (SNMALLOC_LIKELY(!fl.empty()))
       {
         auto p = fl.take(key, domesticate);
         return finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
