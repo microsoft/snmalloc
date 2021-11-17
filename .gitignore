@@ -1,8 +1,20 @@
+# conventional build dirs
 release*/
 debug*/
 build*/
+cmake-build-*/
+
+# cmake intermediate files
 CMakeFiles/
+
+# vscode dirs
 .vscode/
 .vs/
+
+# jetbrains IDE dirs
+.idea/
+
+# special endings
 *~
 *.sw?
+
