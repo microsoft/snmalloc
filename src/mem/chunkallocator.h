@@ -131,7 +131,7 @@ namespace snmalloc
       {
         // Unsafe downcast here. Don't want vtable and RTTI.
         auto self = reinterpret_cast<DecayMemoryTimerObject*>(p);
-        ChunkAllocator::handle_decay_tick(self->state);
+        ChunkAllocator::handle_decay_tick<Pal>(self->state);
       }
 
       // Specify that we notify the ChunkAllocator every 500ms.
@@ -143,6 +143,7 @@ namespace snmalloc
       {}
     };
 
+    template<SNMALLOC_CONCEPT(ConceptPAL) Pal>
     static void handle_decay_tick(ChunkAllocatorState* state)
     {
       auto new_epoch = (state->epoch + 1) % NUM_EPOCHS;
@@ -186,6 +187,7 @@ namespace snmalloc
       size_t slab_size,
       RemoteAllocator* remote)
     {
+      using PAL = typename SharedStateHandle::Pal;
       ChunkAllocatorState& state =
         SharedStateHandle::get_chunk_allocator_state(&local_state);
 
@@ -196,13 +198,16 @@ namespace snmalloc
       }
 
       ChunkRecord* chunk_record = nullptr;
-      // Try local cache of chunks first
-      for (size_t e = 0; e < NUM_EPOCHS && chunk_record == nullptr; e++)
+      if constexpr (pal_supports<Time, PAL>)
       {
-        chunk_record =
-          chunk_alloc_local_state
-            .chunk_stack[slab_sizeclass][(state.epoch - e) % NUM_EPOCHS]
-            .pop();
+        // Try local cache of chunks first
+        for (size_t e = 0; e < NUM_EPOCHS && chunk_record == nullptr; e++)
+        {
+          chunk_record =
+            chunk_alloc_local_state
+              .chunk_stack[slab_sizeclass][(state.epoch - e) % NUM_EPOCHS]
+              .pop();
+        }
       }
 
       // Try global cache.
@@ -210,8 +215,10 @@ namespace snmalloc
       {
         chunk_record = state.decommitted_chunk_stack[slab_sizeclass].pop();
         if (chunk_record != nullptr)
-          Pal::notify_using<NoZero>(
+        {
+          PAL::template notify_using<NoZero>(
             chunk_record->meta_common.chunk.unsafe_ptr(), slab_size);
+        }
       }
 
       if (chunk_record != nullptr)
@@ -258,14 +265,31 @@ namespace snmalloc
     {
       ChunkAllocatorState& state =
         SharedStateHandle::get_chunk_allocator_state(&local_state);
-#ifdef SNMALLOC_TRACING
-      std::cout << "Return slab:" << p->meta_common.chunk.unsafe_ptr()
-                << " slab_sizeclass " << slab_sizeclass << " size "
-                << slab_sizeclass_to_size(slab_sizeclass)
-                << " memory in stacks " << state.memory_in_stacks << std::endl;
-#endif
 
-      chunk_alloc_local_state.chunk_stack[slab_sizeclass][state.epoch].push(p);
+      if constexpr (pal_supports<Time, typename SharedStateHandle::Pal>)
+      {
+        // If we have a time source use decay based local cache.
+#ifdef SNMALLOC_TRACING
+        std::cout << "Return slab:" << p->meta_common.chunk.unsafe_ptr()
+                  << " slab_sizeclass " << slab_sizeclass << " size "
+                  << slab_sizeclass_to_size(slab_sizeclass)
+                  << " memory in stacks " << state.memory_in_stacks
+                  << std::endl;
+#endif
+        chunk_alloc_local_state.chunk_stack[slab_sizeclass][state.epoch].push(
+          p);
+      }
+      else
+      {
+        // No time source share immediately with global state.
+        // Disable pages for this chunk.
+        SharedStateHandle::Pal::notify_not_using(
+          p->meta_common.chunk.unsafe_ptr(),
+          slab_sizeclass_to_size(slab_sizeclass));
+
+        // Add to global state
+        state.decommitted_chunk_stack[slab_sizeclass].push(p);
+      }
 
       state.memory_in_stacks += slab_sizeclass_to_size(slab_sizeclass);
     }
@@ -300,35 +324,43 @@ namespace snmalloc
       typename SharedStateHandle::LocalState& local_state,
       ChunkAllocatorLocalState& chunk_alloc_local_state)
     {
-      ChunkAllocatorState& state =
-        SharedStateHandle::get_chunk_allocator_state(&local_state);
-
-      // Register with the Pal to receive notifications.
-      if (!state.register_decay.test_and_set())
+      if constexpr (pal_supports<Time, typename SharedStateHandle::Pal>)
       {
-        auto timer = alloc_meta_data<
-          DecayMemoryTimerObject<typename SharedStateHandle::Pal>,
-          SharedStateHandle>(&local_state, &state);
-        if (timer != nullptr)
+        ChunkAllocatorState& state =
+          SharedStateHandle::get_chunk_allocator_state(&local_state);
+
+        // Register with the Pal to receive notifications.
+        if (!state.register_decay.test_and_set())
         {
-          SharedStateHandle::Pal::register_timer(timer);
+          auto timer = alloc_meta_data<
+            DecayMemoryTimerObject<typename SharedStateHandle::Pal>,
+            SharedStateHandle>(&local_state, &state);
+          if (timer != nullptr)
+          {
+            SharedStateHandle::Pal::register_timer(timer);
+          }
+          else
+          {
+            // We failed to register the notification.
+            // This is not catarophic, but if we can't allocate this
+            // state something else will fail shortly.
+            state.register_decay.clear();
+          }
         }
-        else
+
+        // Add to the list of local states.
+        auto* head = state.all_local.load();
+        do
         {
-          // We failed to register the notification.
-          // This is not catarophic, but if we can't allocate this
-          // state something else will fail shortly.
-          state.register_decay.clear();
-        }
+          chunk_alloc_local_state.next = head;
+        } while (!state.all_local.compare_exchange_strong(
+          head, &chunk_alloc_local_state));
       }
-
-      // Add to the list of local states.
-      auto* head = state.all_local.load();
-      do
+      else
       {
-        chunk_alloc_local_state.next = head;
-      } while (!state.all_local.compare_exchange_strong(
-        head, &chunk_alloc_local_state));
+        UNUSED(local_state);
+        UNUSED(chunk_alloc_local_state);
+      }
     }
   };
 } // namespace snmalloc

@@ -28,7 +28,7 @@ namespace snmalloc
      * The features exported by this PAL.
      */
     static constexpr uint64_t pal_features =
-      AlignedAllocation | LazyCommit | Entropy;
+      AlignedAllocation | LazyCommit | Entropy | Time;
 
     /*
      * `page_size`

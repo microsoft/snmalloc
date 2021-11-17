@@ -28,7 +28,7 @@ namespace snmalloc
    * ever use.
    */
   template<SNMALLOC_CONCEPT(PALNoAllocBase) BasePAL>
-  struct PALNoAlloc : public PalTimerDefaultImpl<BasePAL>
+  struct PALNoAlloc : public BasePAL
   {
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this

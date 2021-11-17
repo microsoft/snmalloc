@@ -83,13 +83,16 @@ namespace snmalloc
     template<typename T = void*>
     SNMALLOC_FAST_PATH T check_tick(T p = nullptr)
     {
-      // Check before decrement, so that later calcations can use
-      // count_down == 0 for check on the next call.
-      // This is used if the ticks are way below the frequency of
-      // heart beat.
-      if (--count_down == 0)
+      if constexpr (pal_supports<Time, PAL>)
       {
-        return check_tick_slow(p);
+        // Check before decrement, so that later calcations can use
+        // count_down == 0 for check on the next call.
+        // This is used if the ticks are way below the frequency of
+        // heart beat.
+        if (--count_down == 0)
+        {
+          return check_tick_slow(p);
+        }
       }
       return p;
     }
