@@ -169,7 +169,7 @@ namespace snmalloc
 
       if (new_body_untyped == nullptr)
       {
-        PAL::error("Failed to initialisation snmalloc.");
+        PAL::error("Failed to initialise snmalloc.");
       }
 
 #ifdef SNMALLOC_CHECK_CLIENT
