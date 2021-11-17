@@ -125,7 +125,7 @@ namespace snmalloc
      * POSIX systems are assumed to support lazy commit. The build system checks
      * getentropy is available, only then this PAL supports Entropy.
      */
-    static constexpr uint64_t pal_features = LazyCommit
+    static constexpr uint64_t pal_features = LazyCommit | Time
 #if defined(SNMALLOC_PLATFORM_HAS_GETENTROPY)
       | Entropy
 #endif

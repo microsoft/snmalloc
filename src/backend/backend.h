@@ -6,6 +6,19 @@
 #include "commonconfig.h"
 #include "pagemap.h"
 
+#if defined(SNMALLOC_CHECK_CLIENT) && !defined(OPEN_ENCLAVE)
+/**
+ * Protect meta data blocks by allocating separate from chunks for
+ * user allocations. This involves leaving gaps in address space.
+ * This is less efficient, so should only be applied for the checked
+ * build.
+ *
+ * On Open Enclave the address space is limited, so we disable this
+ * feature.
+ */
+#  define SNMALLOC_META_PROTECTED
+#endif
+
 namespace snmalloc
 {
   /**
@@ -22,14 +35,23 @@ namespace snmalloc
     // Size of local address space requests.  Currently aimed at 2MiB large
     // pages but should make this configurable (i.e. for OE, so we don't need as
     // much space).
+#ifdef OPEN_ENCLAVE
+    // Don't prefetch address space on OE, as it is limited.
+    // This could cause perf issues during warm-up phases.
+    constexpr static size_t LOCAL_CACHE_BLOCK = 0;
+#else
     constexpr static size_t LOCAL_CACHE_BLOCK = bits::one_at_bit(21);
+#endif
 
-#ifdef SNMALLOC_CHECK_CLIENT
+#ifdef SNMALLOC_META_PROTECTED
     // When protecting the meta-data, we use a smaller block for the meta-data
     // that is randomised inside a larger block.  This needs to be at least a
     // page so that we can use guard pages.
     constexpr static size_t LOCAL_CACHE_META_BLOCK =
       bits::max(MIN_CHUNK_SIZE * 2, OS_PAGE_SIZE);
+    static_assert(
+      LOCAL_CACHE_META_BLOCK <= LOCAL_CACHE_BLOCK,
+      "LOCAL_CACHE_META_BLOCK must be smaller than LOCAL_CACHE_BLOCK");
 #endif
 
   public:
@@ -103,7 +125,7 @@ namespace snmalloc
     static capptr::Chunk<void> reserve(
       AddressSpaceManager<PAL>& global, LocalState* local_state, size_t size)
     {
-#ifdef SNMALLOC_CHECK_CLIENT
+#ifdef SNMALLOC_META_PROTECTED
       constexpr auto MAX_CACHED_SIZE =
         is_meta ? LOCAL_CACHE_META_BLOCK : LOCAL_CACHE_BLOCK;
 #else
@@ -113,7 +135,7 @@ namespace snmalloc
       capptr::Chunk<void> p;
       if ((local_state != nullptr) && (size <= MAX_CACHED_SIZE))
       {
-#ifdef SNMALLOC_CHECK_CLIENT
+#ifdef SNMALLOC_META_PROTECTED
         auto& local = is_meta ? local_state->local_meta_address_space :
                                 local_state->local_address_space;
 #else
@@ -133,7 +155,7 @@ namespace snmalloc
         if (refill == nullptr)
           return nullptr;
 
-#ifdef SNMALLOC_CHECK_CLIENT
+#ifdef SNMALLOC_META_PROTECTED
         if (is_meta)
         {
           refill = sub_range(refill, LOCAL_CACHE_BLOCK, LOCAL_CACHE_META_BLOCK);
@@ -149,7 +171,7 @@ namespace snmalloc
           local_state, size);
       }
 
-#ifdef SNMALLOC_CHECK_CLIENT
+#ifdef SNMALLOC_META_PROTECTED
       // During start up we need meta-data before we have a local allocator
       // This code protects that meta-data with randomisation, and guard pages.
       if (local_state == nullptr && is_meta)
@@ -178,7 +200,7 @@ namespace snmalloc
       return p;
     }
 
-#ifdef SNMALLOC_CHECK_CLIENT
+#ifdef SNMALLOC_META_PROTECTED
     /**
      * Returns a sub-range of [return, return+sub_size] that is contained in
      * the range [base, base+full_size]. The first and last slot are not used
@@ -236,7 +258,7 @@ namespace snmalloc
 
       AddressSpaceManagerCore local_address_space;
 
-#ifdef SNMALLOC_CHECK_CLIENT
+#ifdef SNMALLOC_META_PROTECTED
       /**
        * Secondary local address space, so we can apply some randomisation
        * and guard pages to protect the meta-data.

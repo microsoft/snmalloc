@@ -28,7 +28,7 @@ namespace snmalloc
    * ever use.
    */
   template<SNMALLOC_CONCEPT(PALNoAllocBase) BasePAL>
-  struct PALNoAlloc : public PalTimerDefaultImpl<BasePAL>
+  struct PALNoAlloc : public BasePAL
   {
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this
@@ -38,7 +38,7 @@ namespace snmalloc
 
     static constexpr size_t page_size = BasePAL::page_size;
 
-    static constexpr size_t address_bits = Aal::address_bits;
+    static constexpr size_t address_bits = BasePAL::address_bits;
 
     /**
      * Print a stack trace.

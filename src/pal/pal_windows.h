@@ -55,7 +55,8 @@ namespace snmalloc
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.  This PAL supports low-memory notifications.
      */
-    static constexpr uint64_t pal_features = LowMemoryNotification | Entropy
+    static constexpr uint64_t pal_features = LowMemoryNotification | Entropy |
+      Time
 #  if defined(PLATFORM_HAS_VIRTUALALLOC2) && !defined(USE_SYSTEMATIC_TESTING)
       | AlignedAllocation
 #  endif
