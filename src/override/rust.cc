@@ -9,25 +9,26 @@
 
 using namespace snmalloc;
 
-extern "C" SNMALLOC_EXPORT void* rust_alloc(size_t alignment, size_t size)
+extern "C" SNMALLOC_EXPORT void*
+  SNMALLOC_NAME_MANGLE(rust_alloc)(size_t alignment, size_t size)
 {
   return ThreadAlloc::get().alloc(aligned_size(alignment, size));
 }
 
 extern "C" SNMALLOC_EXPORT void*
-rust_alloc_zeroed(size_t alignment, size_t size)
+  SNMALLOC_NAME_MANGLE(rust_alloc_zeroed)(size_t alignment, size_t size)
 {
   return ThreadAlloc::get().alloc<YesZero>(aligned_size(alignment, size));
 }
 
 extern "C" SNMALLOC_EXPORT void
-rust_dealloc(void* ptr, size_t alignment, size_t size)
+  SNMALLOC_NAME_MANGLE(rust_dealloc)(void* ptr, size_t alignment, size_t size)
 {
   ThreadAlloc::get().dealloc(ptr, aligned_size(alignment, size));
 }
 
-extern "C" SNMALLOC_EXPORT void*
-rust_realloc(void* ptr, size_t alignment, size_t old_size, size_t new_size)
+extern "C" SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(rust_realloc)(
+  void* ptr, size_t alignment, size_t old_size, size_t new_size)
 {
   size_t aligned_old_size = aligned_size(alignment, old_size),
          aligned_new_size = aligned_size(alignment, new_size);
@@ -42,4 +43,13 @@ rust_realloc(void* ptr, size_t alignment, size_t old_size, size_t new_size)
     ThreadAlloc::get().dealloc(ptr, aligned_old_size);
   }
   return p;
+}
+
+extern "C" SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(rust_statistics)(
+  size_t* current_memory_usage, size_t* peak_memory_usage)
+{
+  auto unused_chunks = Globals::get_chunk_allocator_state().unused_memory();
+  auto peak = Globals::get_chunk_allocator_state().peak_memory_usage();
+  *current_memory_usage = peak - unused_chunks;
+  *peak_memory_usage = peak;
 }
