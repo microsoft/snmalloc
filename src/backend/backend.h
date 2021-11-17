@@ -13,7 +13,7 @@
  * This is less efficient, so should only be applied for the checked
  * build.
  *
- * On open enclave the address space is limited, so we disable this
+ * On Open Enclave the address space is limited, so we disable this
  * feature.
  */
 #  define SNMALLOC_META_PROTECTED
