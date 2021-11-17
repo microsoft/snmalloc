@@ -25,7 +25,7 @@ namespace snmalloc
 
   public:
     static ChunkAllocatorState&
-    get_chunk_allocator_state(typename Backend::LocalState*)
+    get_chunk_allocator_state(typename Backend::LocalState* = nullptr)
     {
       return chunk_allocator_state;
     }
