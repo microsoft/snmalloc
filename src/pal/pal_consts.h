@@ -41,6 +41,7 @@ namespace snmalloc
      * whether low memory conditions are still in effect.
      */
     LowMemoryNotification = (1 << 0),
+
     /**
      * This PAL natively supports allocation with a guaranteed alignment.  If
      * this is not supported, then we will over-allocate and round the
@@ -51,22 +52,31 @@ namespace snmalloc
      * `request()` method that takes only a size.
      */
     AlignedAllocation = (1 << 1),
+
     /**
      * This PAL natively supports lazy commit of pages. This means have large
      * allocations and not touching them does not increase memory usage. This is
      * exposed in the Pal.
      */
     LazyCommit = (1 << 2),
+
     /**
      * This Pal does not support allocation.  All memory used with this Pal
      * should be pre-allocated.
      */
     NoAllocation = (1 << 3),
+
     /**
      * This Pal provides a source of Entropy
      */
     Entropy = (1 << 4),
+
+    /**
+     * This Pal provides a millisecond time source
+     */
+    Time = (1 << 5),
   };
+
   /**
    * Flag indicating whether requested memory should be zeroed.
    */
@@ -76,6 +86,7 @@ namespace snmalloc
      * Memory should not be zeroed, contents are undefined.
      */
     NoZero,
+
     /**
      * Memory must be zeroed.  This can be lazily allocated via a copy-on-write
      * mechanism as long as any load from the memory returns zero.
