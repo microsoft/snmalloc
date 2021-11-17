@@ -6,8 +6,8 @@
 #  define SNMALLOC_FAST_FAIL() __fastfail(28)
 #  define ALWAYSINLINE __forceinline
 #  define NOINLINE __declspec(noinline)
-#  define likely(x) !!(x)
-#  define unlikely(x) !!(x)
+#  define SNMALLOC_LIKELY(x) !!(x)
+#  define SNMALLOC_UNLIKELY(x) !!(x)
 #  define SNMALLOC_SLOW_PATH NOINLINE
 #  define SNMALLOC_FAST_PATH ALWAYSINLINE
 /**
@@ -26,8 +26,8 @@
 #  define SNMALLOC_UNUSED_FUNCTION
 #else
 #  define SNMALLOC_FAST_FAIL() __builtin_trap()
-#  define likely(x) __builtin_expect(!!(x), 1)
-#  define unlikely(x) __builtin_expect(!!(x), 0)
+#  define SNMALLOC_LIKELY(x) __builtin_expect(!!(x), 1)
+#  define SNMALLOC_UNLIKELY(x) __builtin_expect(!!(x), 0)
 #  define ALWAYSINLINE __attribute__((always_inline))
 #  define NOINLINE __attribute__((noinline))
 #  define SNMALLOC_SLOW_PATH NOINLINE
@@ -152,7 +152,7 @@ inline SNMALLOC_FAST_PATH void check_client_error(const char* const str)
 inline SNMALLOC_FAST_PATH void
 check_client_impl(bool test, const char* const str)
 {
-  if (unlikely(!test))
+  if (SNMALLOC_UNLIKELY(!test))
     check_client_error(str);
 }
 #ifdef SNMALLOC_CHECK_CLIENT

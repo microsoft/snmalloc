@@ -240,7 +240,7 @@ namespace snmalloc
     {
       if constexpr (potentially_out_of_range)
       {
-        if (unlikely(body_opt == nullptr))
+        if (SNMALLOC_UNLIKELY(body_opt == nullptr))
           return default_value;
       }
 

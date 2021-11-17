@@ -51,7 +51,7 @@ namespace snmalloc
       if (stack.load(std::memory_order_relaxed) == nullptr)
         return nullptr;
       T* old_head = stack.exchange(nullptr);
-      if (unlikely(old_head == nullptr))
+      if (SNMALLOC_UNLIKELY(old_head == nullptr))
         return nullptr;
 
       auto next = old_head->next.load(std::memory_order_relaxed);

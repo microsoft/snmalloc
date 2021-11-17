@@ -136,7 +136,7 @@ namespace
       auto& alloc = ThreadAlloc::get();
       void* p = const_cast<void*>(ptr);
 
-      if (unlikely(alloc.remaining_bytes(ptr) < len))
+      if (SNMALLOC_UNLIKELY(alloc.remaining_bytes(ptr) < len))
       {
         if constexpr (FailFast)
         {
@@ -209,7 +209,7 @@ extern "C"
     // 0 is a very common size for memcpy and we don't need to do external
     // pointer checks if we hit it.  It's also the fastest case, to encourage
     // the compiler to favour the other cases.
-    if (unlikely(len == 0))
+    if (SNMALLOC_UNLIKELY(len == 0))
     {
       return dst;
     }

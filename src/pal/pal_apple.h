@@ -175,7 +175,7 @@ namespace snmalloc
           anonymous_memory_fd,
           0);
 
-        if (likely(r != MAP_FAILED))
+        if (SNMALLOC_LIKELY(r != MAP_FAILED))
         {
           return;
         }
@@ -238,7 +238,7 @@ namespace snmalloc
         VM_PROT_READ | VM_PROT_WRITE,
         VM_INHERIT_COPY);
 
-      if (unlikely(kr != KERN_SUCCESS))
+      if (SNMALLOC_UNLIKELY(kr != KERN_SUCCESS))
       {
         return nullptr;
       }

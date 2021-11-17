@@ -32,7 +32,7 @@ namespace snmalloc
       // If defined should be initially false;
       SNMALLOC_ASSERT(first == nullptr || *first == false);
 
-      if (unlikely(!initialised.load(std::memory_order_acquire)))
+      if (SNMALLOC_UNLIKELY(!initialised.load(std::memory_order_acquire)))
       {
         FlagLock lock(flag);
         if (!initialised)

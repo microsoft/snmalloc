@@ -47,7 +47,7 @@ extern "C"
   {
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
-    if (unlikely(overflow))
+    if (SNMALLOC_UNLIKELY(overflow))
     {
       return SNMALLOC_NAME_MANGLE(snmalloc_set_error)();
     }
@@ -85,7 +85,7 @@ extern "C"
     }
 
     void* p = a.alloc(size);
-    if (likely(p != nullptr))
+    if (SNMALLOC_LIKELY(p != nullptr))
     {
       sz = bits::min(size, sz);
       // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
@@ -94,7 +94,7 @@ extern "C"
         memcpy(p, ptr, sz);
       a.dealloc(ptr);
     }
-    else if (likely(size == 0))
+    else if (SNMALLOC_LIKELY(size == 0))
     {
       a.dealloc(ptr);
     }
@@ -150,7 +150,7 @@ extern "C"
     }
 
     void* p = SNMALLOC_NAME_MANGLE(memalign)(alignment, size);
-    if (unlikely(p == nullptr))
+    if (SNMALLOC_UNLIKELY(p == nullptr))
     {
       if (size != 0)
         return ENOMEM;

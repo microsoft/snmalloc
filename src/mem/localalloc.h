@@ -97,7 +97,7 @@ namespace snmalloc
     template<typename Action, typename... Args>
     SNMALLOC_FAST_PATH decltype(auto) check_init(Action action, Args... args)
     {
-      if (likely(core_alloc != nullptr))
+      if (SNMALLOC_LIKELY(core_alloc != nullptr))
       {
         return core_alloc->handle_message_queue(action, core_alloc, args...);
       }
@@ -219,7 +219,7 @@ namespace snmalloc
       auto slowpath = [&](
                         smallsizeclass_t sizeclass,
                         freelist::Iter<>* fl) SNMALLOC_FAST_PATH_LAMBDA {
-        if (likely(core_alloc != nullptr))
+        if (SNMALLOC_LIKELY(core_alloc != nullptr))
         {
           return core_alloc->handle_message_queue(
             [](
@@ -428,7 +428,7 @@ namespace snmalloc
 #else
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
-      if (likely(
+      if (SNMALLOC_LIKELY(
             (size - 1) <= (sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1) - 1)))
       {
         // Small allocations are more likely. Improve
@@ -478,16 +478,17 @@ namespace snmalloc
 
       const MetaEntry& entry = SharedStateHandle::Pagemap::get_metaentry(
         core_alloc->backend_state_ptr(), address_cast(p_tame));
-      if (likely(local_cache.remote_allocator == entry.get_remote()))
+      if (SNMALLOC_LIKELY(local_cache.remote_allocator == entry.get_remote()))
       {
-        if (likely(CoreAlloc::dealloc_local_object_fast(
+        if (SNMALLOC_LIKELY(CoreAlloc::dealloc_local_object_fast(
               entry, p_tame, local_cache.entropy)))
           return;
         core_alloc->dealloc_local_object_slow(entry);
         return;
       }
 
-      if (likely(entry.get_remote() != SharedStateHandle::fake_large_remote))
+      if (SNMALLOC_LIKELY(
+            entry.get_remote() != SharedStateHandle::fake_large_remote))
       {
         // Check if we have space for the remote deallocation
         if (local_cache.remote_dealloc_cache.reserve_space(entry))
@@ -507,7 +508,8 @@ namespace snmalloc
 
       // Large deallocation or null.
       // also checks for managed by page map.
-      if (likely((p_tame != nullptr) && !entry.get_sizeclass().is_default()))
+      if (SNMALLOC_LIKELY(
+            (p_tame != nullptr) && !entry.get_sizeclass().is_default()))
       {
         size_t entry_sizeclass = entry.get_sizeclass().as_large();
 
