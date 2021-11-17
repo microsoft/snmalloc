@@ -487,7 +487,8 @@ namespace snmalloc
         return;
       }
 
-      if (SNMALLOC_LIKELY(entry.get_remote() != SharedStateHandle::fake_large_remote))
+      if (SNMALLOC_LIKELY(
+            entry.get_remote() != SharedStateHandle::fake_large_remote))
       {
         // Check if we have space for the remote deallocation
         if (local_cache.remote_dealloc_cache.reserve_space(entry))
@@ -507,7 +508,8 @@ namespace snmalloc
 
       // Large deallocation or null.
       // also checks for managed by page map.
-      if (SNMALLOC_LIKELY((p_tame != nullptr) && !entry.get_sizeclass().is_default()))
+      if (SNMALLOC_LIKELY(
+            (p_tame != nullptr) && !entry.get_sizeclass().is_default()))
       {
         size_t entry_sizeclass = entry.get_sizeclass().as_large();
 

@@ -515,7 +515,8 @@ namespace snmalloc
 
       if (SNMALLOC_LIKELY(entry.get_remote() == public_state()))
       {
-        if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p.as_void(), entropy)))
+        if (SNMALLOC_LIKELY(
+              dealloc_local_object_fast(entry, p.as_void(), entropy)))
           return;
 
         dealloc_local_object_slow(entry);
