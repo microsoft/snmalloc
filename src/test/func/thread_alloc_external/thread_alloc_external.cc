@@ -20,19 +20,48 @@ using namespace snmalloc;
 class ThreadAllocExternal
 {
 public:
+  static Alloc*& get_inner()
+  {
+    static thread_local Alloc* alloc;
+    return alloc;
+  }
+
   static Alloc& get()
   {
-    static thread_local Alloc alloc;
-    return alloc;
+    return *get_inner();
   }
 };
 
 #include <snmalloc_front.h>
 
+void allocator_thread_init(void)
+{
+  void* aptr;
+  {
+    // Create bootstrap allocator
+    auto a = snmalloc::ScopedAllocator();
+    // Create storage for the thread-local allocator
+    aptr = a->alloc(sizeof(snmalloc::Alloc));
+  }
+  // Initialize the thread-local allocator
+  ThreadAllocExternal::get_inner() = new (aptr) snmalloc::Alloc();
+  ThreadAllocExternal::get().init();
+}
+
+void allocator_thread_cleanup(void)
+{
+  // Teardown the thread-local allocator
+  ThreadAllocExternal::get().teardown();
+  // Need a bootstrap allocator to deallocate the thread-local allocator
+  auto a = snmalloc::ScopedAllocator();
+  // Deallocate the storage for the thread local allocator
+  a->dealloc(ThreadAllocExternal::get_inner());
+}
+
 int main()
 {
   setup();
-  ThreadAlloc::get().init();
+  allocator_thread_init();
 
   auto& a = ThreadAlloc::get();
 
@@ -55,4 +84,6 @@ int main()
 
     a2->dealloc(r1);
   }
+
+  allocator_thread_cleanup();
 }
