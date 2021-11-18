@@ -194,8 +194,7 @@ namespace snmalloc
       }
       else
       {
-        UNUSED(p);
-        UNUSED(size);
+        UNUSED(p, size);
       }
     }
 
@@ -216,8 +215,7 @@ namespace snmalloc
         mprotect(p, size, PROT_READ | PROT_WRITE);
       else
       {
-        UNUSED(p);
-        UNUSED(size);
+        UNUSED(p, size);
       }
 
       if constexpr (zero_mem == YesZero)
@@ -238,8 +236,7 @@ namespace snmalloc
         mprotect(p, size, PROT_READ);
       else
       {
-        UNUSED(p);
-        UNUSED(size);
+        UNUSED(p, size);
       }
     }
 

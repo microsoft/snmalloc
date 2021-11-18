@@ -35,8 +35,7 @@ void test_clz()
 
 int main(int argc, char** argv)
 {
-  UNUSED(argc);
-  UNUSED(argv);
+  snmalloc::UNUSED(argc, argv);
 
   setup();
 

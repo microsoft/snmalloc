@@ -65,8 +65,7 @@ namespace snmalloc
         bits::align_up(address_cast(base), bits::one_at_bit(align_bits)));
       // All blocks need to be bigger than a pointer.
       SNMALLOC_ASSERT(bits::one_at_bit(align_bits) >= sizeof(void*));
-      UNUSED(base);
-      UNUSED(align_bits);
+      UNUSED(base, align_bits);
     }
 
     /**

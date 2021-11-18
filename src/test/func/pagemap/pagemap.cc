@@ -120,8 +120,7 @@ void test_pagemap(bool bounded)
 
 int main(int argc, char** argv)
 {
-  UNUSED(argc);
-  UNUSED(argv);
+  UNUSED(argc, argv);
 
   setup();
 
