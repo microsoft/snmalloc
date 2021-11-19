@@ -166,6 +166,7 @@ namespace snmalloc
 #else
   static constexpr bool CHECK_CLIENT = false;
 #endif
-  template <typename... Args>
-  void UNUSED(Args&& ...) {}
+  template<typename... Args>
+  void UNUSED(Args&&...)
+  {}
 } // namespace snmalloc
