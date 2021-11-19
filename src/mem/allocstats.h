@@ -322,9 +322,7 @@ namespace snmalloc
     template<class Alloc>
     void print(std::ostream& o, uint64_t dumpid = 0, uint64_t allocatorid = 0)
     {
-      UNUSED(o);
-      UNUSED(dumpid);
-      UNUSED(allocatorid);
+      UNUSED(o, dumpid, allocatorid);
 
       CSVStream csv(&o);
 

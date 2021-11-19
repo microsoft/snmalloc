@@ -141,9 +141,7 @@ namespace
       {
         if constexpr (FailFast)
         {
-          UNUSED(ptr);
-          UNUSED(len);
-          UNUSED(msg);
+          UNUSED(ptr, len, msg);
           SNMALLOC_FAST_FAIL();
         }
         else
@@ -154,9 +152,7 @@ namespace
     }
     else
     {
-      UNUSED(ptr);
-      UNUSED(len);
-      UNUSED(msg);
+      UNUSED(ptr, len, msg);
     }
   }
 

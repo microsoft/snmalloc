@@ -90,8 +90,6 @@
 #  define __has_builtin(x) 0
 #endif
 
-#define UNUSED(x) ((void)(x))
-
 namespace snmalloc
 {
   // Forwards reference so that the platform can define how to handle errors.
@@ -168,4 +166,7 @@ namespace snmalloc
 #else
   static constexpr bool CHECK_CLIENT = false;
 #endif
+  template<typename... Args>
+  SNMALLOC_FAST_PATH_INLINE void UNUSED(Args&&...)
+  {}
 } // namespace snmalloc

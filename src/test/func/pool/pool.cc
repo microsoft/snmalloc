@@ -124,8 +124,7 @@ int main(int argc, char** argv)
   size_t seed = opt.is<size_t>("--seed", 0);
   Virtual::systematic_bump_ptr() += seed << 17;
 #else
-  UNUSED(argc);
-  UNUSED(argv);
+  UNUSED(argc, argv);
 #endif
 
   test_alloc();

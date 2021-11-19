@@ -27,8 +27,7 @@ using namespace snmalloc;
 
 void test_limited(rlim64_t as_limit, size_t& count)
 {
-  UNUSED(as_limit);
-  UNUSED(count);
+  UNUSED(as_limit, count);
 #if false && defined(TEST_LIMITED)
   auto pid = fork();
   if (!pid)
@@ -490,8 +489,7 @@ int main(int argc, char** argv)
   size_t seed = opt.is<size_t>("--seed", 0);
   Virtual::systematic_bump_ptr() += seed << 17;
 #else
-  UNUSED(argc);
-  UNUSED(argv);
+  UNUSED(argc, argv);
 #endif
   test_alloc_dealloc_64k();
   test_random_allocation();

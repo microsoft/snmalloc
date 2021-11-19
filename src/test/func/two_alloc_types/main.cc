@@ -7,14 +7,13 @@
 
 extern "C" void* oe_memset_s(void* p, size_t p_size, int c, size_t size)
 {
-  UNUSED(p_size);
+  snmalloc::UNUSED(p_size);
   return memset(p, c, size);
 }
 
 extern "C" int oe_random(void* p, size_t p_size)
 {
-  UNUSED(p_size);
-  UNUSED(p);
+  snmalloc::UNUSED(p_size, p);
   // Stub for random data.
   return 0;
 }

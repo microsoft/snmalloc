@@ -77,8 +77,7 @@ namespace snmalloc
       }
       else
       {
-        UNUSED(p);
-        UNUSED(size);
+        UNUSED(p, size);
       }
     }
 
