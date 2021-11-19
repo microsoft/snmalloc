@@ -63,7 +63,7 @@ void print_stack_trace()
 
 void _cdecl error(int signal)
 {
-  UNUSED(signal);
+  snmalloc::UNUSED(signal);
   puts("*****ABORT******");
 
   print_stack_trace();
@@ -73,7 +73,7 @@ void _cdecl error(int signal)
 
 LONG WINAPI VectoredHandler(struct _EXCEPTION_POINTERS* ExceptionInfo)
 {
-  UNUSED(ExceptionInfo);
+  snmalloc::UNUSED(ExceptionInfo);
 
   puts("*****UNHANDLED EXCEPTION******");
 
@@ -100,7 +100,7 @@ void setup()
 #    include <signal.h>
 void error_handle(int signal)
 {
-  UNUSED(signal);
+  snmalloc::UNUSED(signal);
   snmalloc::error("Seg Fault");
   _exit(1);
 }
