@@ -169,4 +169,12 @@ extern "C"
     return realloc_helper<NoZero, SizeChange::Shrink>(
       *alloc, ptr, old_alignment, new_alignment, old_size, new_size);
   }
+
+  // This function is to calculate the excessive size.
+  SNMALLOC_EXPORT size_t SNMALLOC_NAME_MANGLE(rust_round_size)(
+    size_t size, size_t alignment
+  ) {
+    return round_size(aligned_size(alignment, size));
+  }
+
 }
