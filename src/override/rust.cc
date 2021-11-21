@@ -174,11 +174,11 @@ extern "C"
     size_t old_alignment,
     size_t old_size,
     size_t new_alignment,
-    size_t new_size) {
+    size_t new_size)
+  {
     size_t aligned_old_size = aligned_size(old_alignment, old_size),
-          aligned_new_size = aligned_size(new_alignment, new_size);
-    return
-      size_to_sizeclass_full(aligned_old_size).raw() ==
+           aligned_new_size = aligned_size(new_alignment, new_size);
+    return size_to_sizeclass_full(aligned_old_size).raw() ==
       size_to_sizeclass_full(aligned_new_size).raw();
   }
 
