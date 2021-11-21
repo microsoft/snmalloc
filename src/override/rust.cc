@@ -137,7 +137,7 @@ extern "C"
     size_t new_alignment)
   {
     SNMALLOC_ASSUME(nullptr != ptr);
-    SNMALLOC_ASSUME(new_size > old_size);
+    SNMALLOC_ASSUME(new_size >= old_size);
     return realloc_helper<NoZero, SizeChange::Grow>(
       *alloc, ptr, old_alignment, new_alignment, old_size, new_size);
   }
