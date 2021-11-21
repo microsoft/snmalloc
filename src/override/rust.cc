@@ -22,8 +22,8 @@ namespace
     Alloc& alloc,
     void* ptr,
     size_t old_alignment,
-    size_t new_alignment,
     size_t old_size,
+    size_t new_alignment,
     size_t new_size)
   {
     size_t aligned_old_size = aligned_size(old_alignment, old_size),
@@ -77,7 +77,7 @@ extern "C"
     void* ptr, size_t alignment, size_t old_size, size_t new_size)
   {
     return realloc_helper<NoZero, SizeChange::Unknown>(
-      ThreadAlloc::get(), ptr, alignment, alignment, old_size, new_size);
+      ThreadAlloc::get(), ptr, alignment, old_size, alignment, new_size);
   }
 
   SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(rust_statistics)(
@@ -110,20 +110,20 @@ extern "C"
   }
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(rust_allocator_allocate)(
-    Alloc* alloc, size_t size, size_t alignment)
+    Alloc* alloc, size_t alignment, size_t size)
   {
     return alloc->alloc(aligned_size(alignment, size));
   }
 
   SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(rust_allocator_deallocate)(
-    Alloc* alloc, void* ptr, size_t size, size_t alignment)
+    Alloc* alloc, void* ptr, size_t alignment, size_t size)
   {
     SNMALLOC_ASSUME(nullptr != ptr);
     alloc->dealloc(ptr, aligned_size(alignment, size));
   }
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(rust_allocator_allocate_zeroed)(
-    Alloc* alloc, size_t size, size_t alignment)
+    Alloc* alloc, size_t alignment, size_t size)
   {
     return alloc->alloc<YesZero>(aligned_size(alignment, size));
   }
@@ -131,48 +131,60 @@ extern "C"
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(rust_allocator_grow)(
     Alloc* alloc,
     void* ptr,
-    size_t old_size,
     size_t old_alignment,
-    size_t new_size,
-    size_t new_alignment)
+    size_t old_size,
+    size_t new_alignment,
+    size_t new_size)
   {
     SNMALLOC_ASSUME(nullptr != ptr);
     SNMALLOC_ASSUME(new_size >= old_size);
     return realloc_helper<NoZero, SizeChange::Grow>(
-      *alloc, ptr, old_alignment, new_alignment, old_size, new_size);
+      *alloc, ptr, old_alignment, old_size, new_alignment, new_size);
   }
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(rust_allocator_grow_zeroed)(
     Alloc* alloc,
     void* ptr,
-    size_t old_size,
     size_t old_alignment,
-    size_t new_size,
-    size_t new_alignment)
+    size_t old_size,
+    size_t new_alignment,
+    size_t new_size)
   {
     SNMALLOC_ASSUME(nullptr != ptr);
     SNMALLOC_ASSUME(new_size >= old_size);
     return realloc_helper<YesZero, SizeChange::Grow>(
-      *alloc, ptr, old_alignment, new_alignment, old_size, new_size);
+      *alloc, ptr, old_alignment, old_size, new_alignment, new_size);
   }
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(rust_allocator_shrink)(
     Alloc* alloc,
     void* ptr,
-    size_t old_size,
     size_t old_alignment,
-    size_t new_size,
-    size_t new_alignment)
+    size_t old_size,
+    size_t new_alignment,
+    size_t new_size)
   {
     SNMALLOC_ASSUME(nullptr != ptr);
     SNMALLOC_ASSUME(new_size <= old_size);
     return realloc_helper<NoZero, SizeChange::Shrink>(
-      *alloc, ptr, old_alignment, new_alignment, old_size, new_size);
+      *alloc, ptr, old_alignment, old_size, new_alignment, new_size);
+  }
+
+  SNMALLOC_EXPORT bool SNMALLOC_NAME_MANGLE(rust_allocator_fit_inplace)(
+    size_t old_alignment,
+    size_t old_size,
+    size_t new_alignment,
+    size_t new_size) {
+    size_t aligned_old_size = aligned_size(old_alignment, old_size),
+          aligned_new_size = aligned_size(new_alignment, new_size);
+    return
+      size_to_sizeclass_full(aligned_old_size).raw() ==
+      size_to_sizeclass_full(aligned_new_size).raw();
   }
 
   // This function is to calculate the excessive size.
   SNMALLOC_EXPORT
-  size_t SNMALLOC_NAME_MANGLE(rust_round_size)(size_t size, size_t alignment)
+  size_t SNMALLOC_NAME_MANGLE(rust_round_size)(size_t alignment, size_t size)
   {
     return round_size(aligned_size(alignment, size));
   }
