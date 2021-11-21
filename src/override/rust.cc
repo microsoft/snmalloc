@@ -56,19 +56,19 @@ extern "C"
    * Global allocator
    */
   SNMALLOC_EXPORT void*
-  SNMALLOC_NAME_MANGLE(rust_alloc)(size_t alignment, size_t size)
+    SNMALLOC_NAME_MANGLE(rust_alloc)(size_t alignment, size_t size)
   {
     return ThreadAlloc::get().alloc(aligned_size(alignment, size));
   }
 
   SNMALLOC_EXPORT void*
-  SNMALLOC_NAME_MANGLE(rust_alloc_zeroed)(size_t alignment, size_t size)
+    SNMALLOC_NAME_MANGLE(rust_alloc_zeroed)(size_t alignment, size_t size)
   {
     return ThreadAlloc::get().alloc<YesZero>(aligned_size(alignment, size));
   }
 
   SNMALLOC_EXPORT void
-  SNMALLOC_NAME_MANGLE(rust_dealloc)(void* ptr, size_t alignment, size_t size)
+    SNMALLOC_NAME_MANGLE(rust_dealloc)(void* ptr, size_t alignment, size_t size)
   {
     ThreadAlloc::get().dealloc(ptr, aligned_size(alignment, size));
   }
@@ -171,8 +171,8 @@ extern "C"
   }
 
   // This function is to calculate the excessive size.
-  SNMALLOC_EXPORT size_t
-  SNMALLOC_NAME_MANGLE(rust_round_size)(size_t size, size_t alignment)
+  SNMALLOC_EXPORT
+  size_t SNMALLOC_NAME_MANGLE(rust_round_size)(size_t size, size_t alignment)
   {
     return round_size(aligned_size(alignment, size));
   }
