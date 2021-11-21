@@ -170,7 +170,7 @@ extern "C"
       *alloc, ptr, old_alignment, old_size, new_alignment, new_size);
   }
 
-  SNMALLOC_EXPORT bool SNMALLOC_NAME_MANGLE(rust_allocator_fit_inplace)(
+  SNMALLOC_EXPORT bool SNMALLOC_NAME_MANGLE(rust_fit_inplace)(
     size_t old_alignment,
     size_t old_size,
     size_t new_alignment,
