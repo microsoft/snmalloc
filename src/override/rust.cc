@@ -41,14 +41,20 @@ namespace
       if constexpr (size_change == SizeChange::Unknown)
         std::memcpy(p, ptr, old_size < new_size ? old_size : new_size);
       else if constexpr (size_change == SizeChange::Grow)
+      {
+        SNMALLOC_ASSERT(old_size <= new_size);
         std::memcpy(p, ptr, old_size);
+      }
       else
+      {
+        SNMALLOC_ASSERT(new_size <= old_size);
         std::memcpy(p, ptr, new_size);
+      }
       alloc.dealloc(ptr, aligned_old_size);
     }
     return p;
   }
-}
+} // namespace
 
 extern "C"
 {
@@ -96,16 +102,26 @@ extern "C"
 
   SNMALLOC_EXPORT Alloc* SNMALLOC_NAME_MANGLE(rust_allocator_new)(void)
   {
-    auto scope_allocator = ScopedAllocator{};
-    auto alloc = new (scope_allocator->alloc<sizeof(Alloc)>()) Alloc;
+    void* block;
+    {
+      // create an allocator from the pool and return it back to pool
+      // when exiting the scope. we want the allocator to be returned
+      // to the pool as soon as possible so that the allocator can be
+      // reused under resource contention.
+      auto scope_allocator = ScopedAllocator{};
+      block = scope_allocator->alloc<sizeof(Alloc)>();
+    }
+    auto alloc = new (block) Alloc;
     alloc->init();
     return alloc;
   }
 
   SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(rust_allocator_drop)(Alloc* alloc)
   {
-    auto scope_allocator = ScopedAllocator{};
+    // we first release the allocator to the pool to increase the possibility
+    // of reusing the same allocator object for scope_allocator.
     alloc->teardown();
+    auto scope_allocator = ScopedAllocator{};
     scope_allocator->dealloc<sizeof(Alloc)>(alloc);
   }
 
