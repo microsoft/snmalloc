@@ -11,7 +11,7 @@ using namespace snmalloc;
 
 // glibc lacks snprintf_l
 #if defined(__linux__) || defined(__OpenBSD__) || defined(__DragonFly__) || \
-  defined(__HAIKU__)
+  defined(__HAIKU__) || defined(__sun)
 #  define snprintf_l(buf, size, loc, msg, ...) \
     snprintf(buf, size, msg, __VA_ARGS__)
 // Windows has it with an underscore prefix
