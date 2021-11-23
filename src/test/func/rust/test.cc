@@ -79,13 +79,13 @@ void test_allocator_vector()
 {
   using Allocator = RAllocator<std::string, use_zeored>;
   using Vector = std::vector<std::string, Allocator>;
-  Vector vector;
+  Vector origin;
   for (auto i = 'a'; i <= 'z'; ++i)
   {
-    vector.emplace_back(i, i);
+    origin.emplace_back(i, i);
   }
-  Vector cloned = vector;
-  Vector moved = std::move(vector);
+  Vector cloned = origin;
+  Vector moved = std::move(origin);
 
   for (auto i = 'a'; i <= 'z'; ++i)
   {
