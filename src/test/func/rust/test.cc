@@ -7,12 +7,12 @@ SNMALLOC_SLOW_PATH void test_rust_global_allocate(F func)
 {
   size_t size = 32 * Pal::page_size;
   auto x = static_cast<char*>(func(Pal::page_size, size));
-  SNMALLOC_ASSERT(
-    *x == 0 && 0 == std::memcmp(x, x + 1, 32 * Pal::page_size - 1));
   if constexpr (local_clear)
   {
     Pal::zero(x, size);
   }
+  SNMALLOC_ASSERT(
+    *x == 0 && 0 == std::memcmp(x, x + 1, 32 * Pal::page_size - 1));
   for (size_t i = 1; i < size; i <<= 1)
   {
     x[i] = 1;
