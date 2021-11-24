@@ -338,6 +338,11 @@ namespace snmalloc
 
   public:
     constexpr LocalAllocator() = default;
+    /**
+     * Remove copy constructors and assignment operators.
+     * Once initialised the CoreAlloc will take references to the internals
+     * of this allocators, and thus copying/moving it is very unsound.
+     */
     LocalAllocator(const LocalAllocator&) = delete;
     LocalAllocator& operator=(const LocalAllocator&) = delete;
 
