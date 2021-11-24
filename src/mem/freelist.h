@@ -181,7 +181,7 @@ namespace snmalloc
         void check_prev(address_t signed_prev)
         {
           UNUSED(signed_prev);
-          check_client(
+          snmalloc_check_client(
             signed_prev == this->prev_encoded,
             "Heap corruption - free list corrupted!");
         }
