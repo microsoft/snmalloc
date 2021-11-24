@@ -91,13 +91,13 @@ void test_allocator_vector()
   Vector cloned = origin;
   Vector moved = std::move(origin);
 
-  for (auto i = 'a'; i <= 'z'; ++i)
+  for (size_t i = 'a'; i <= 'z'; ++i)
   {
     SNMALLOC_ASSERT(cloned[i - 'a'] == std::string(i, i));
     SNMALLOC_ASSERT(moved[i - 'a'] == std::string(i, i));
   }
 
-  for (auto i = 'A'; i <= 'Z'; ++i)
+  for (size_t i = 'A'; i <= 'Z'; ++i)
   {
     cloned.emplace_back(i, i);
     moved.emplace_back(i, i);
@@ -105,13 +105,13 @@ void test_allocator_vector()
 
   std::swap(cloned, moved);
 
-  for (auto i = 'a'; i <= 'z'; ++i)
+  for (size_t i = 'a'; i <= 'z'; ++i)
   {
     SNMALLOC_ASSERT(cloned[i - 'a'] == std::string(i, i));
     SNMALLOC_ASSERT(moved[i - 'a'] == std::string(i, i));
   }
 
-  for (auto i = 'A'; i <= 'Z'; ++i)
+  for (size_t i = 'A'; i <= 'Z'; ++i)
   {
     SNMALLOC_ASSERT(cloned[i - 'A' + ('z' - 'a' + 1)] == std::string(i, i));
     SNMALLOC_ASSERT(moved[i - 'A' + ('z' - 'a' + 1)] == std::string(i, i));
