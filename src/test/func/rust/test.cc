@@ -27,7 +27,7 @@ SNMALLOC_SLOW_PATH void test_rust_global_allocate(F func)
   sn_rust_dealloc(x, Pal::page_size, 2 * size);
 }
 
-template<class T, bool used_zeroed>
+template<class T>
 class RAllocator
 {
 public:
@@ -35,9 +35,6 @@ public:
   using size_type = std::size_t;
   using different_type = std::ptrdiff_t;
   using propagate_on_container_move_assignment = std::true_type;
-  template< class U > struct rebind {
-    using other = RAllocator<U, used_zeroed>;
-  };
 
   RAllocator() : alloc(sn_rust_allocator_new()) {}
   RAllocator(const RAllocator&) : alloc(sn_rust_allocator_new()) {}
@@ -47,12 +44,8 @@ public:
   };
   [[nodiscard]] T* allocate(std::size_t n)
   {
-    if constexpr (used_zeroed)
-      return static_cast<T*>(
-        sn_rust_allocator_allocate_zeroed(alloc, alignof(T), n * sizeof(T)));
-    else
-      return static_cast<T*>(
-        sn_rust_allocator_allocate(alloc, alignof(T), n * sizeof(T)));
+    return static_cast<T*>(
+      sn_rust_allocator_allocate(alloc, alignof(T), n * sizeof(T)));
   };
 
   void deallocate(T* p, std::size_t n)
@@ -63,21 +56,20 @@ public:
 private:
   Alloc* alloc;
 
-  template<class T1, class T2, bool x, bool y>
+  template<class T1, class T2>
   friend bool
-  operator==(const RAllocator<T1, x>& lhs, const RAllocator<T2, y>& rhs) noexcept;
+  operator==(const RAllocator<T1>& lhs, const RAllocator<T2>& rhs) noexcept;
 };
 
-template<class T1, class T2, bool x, bool y>
-bool operator==(const RAllocator<T1, x>& lhs, const RAllocator<T2, y>& rhs) noexcept
+template<class T1, class T2>
+bool operator==(const RAllocator<T1>& lhs, const RAllocator<T2>& rhs) noexcept
 {
-  return lhs.alloc == rhs.alloc && x == y;
-};
+  return lhs.alloc == rhs.alloc;
+}
 
-template <bool use_zeored>
 void test_allocator_vector()
 {
-  using Allocator = RAllocator<std::string, use_zeored>;
+  using Allocator = RAllocator<std::string>;
   using Vector = std::vector<std::string, Allocator>;
   Vector origin;
   for (auto i = 'a'; i <= 'z'; ++i)
@@ -118,6 +110,5 @@ int main()
 {
   test_rust_global_allocate<true>(sn_rust_alloc);
   test_rust_global_allocate<false>(sn_rust_alloc_zeroed);
-  test_allocator_vector<true>();
-  test_allocator_vector<false>();
+  test_allocator_vector();
 }
