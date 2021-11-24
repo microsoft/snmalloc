@@ -4,7 +4,8 @@
 #include <test/setup.h>
 #include <test/xoroshiro.h>
 #include <unordered_set>
-#if (defined(__linux__) || defined(__sun)) && !defined(SNMALLOC_QEMU_WORKAROUND)
+#if ((defined(__linux__) && !defined(__ANDROID__)) || defined(__sun)) && \
+  !defined(SNMALLOC_QEMU_WORKAROUND)
 /*
  * We only test allocations with limited AS on linux and Solaris for now.
  * It should be a good representative for POSIX systems.
