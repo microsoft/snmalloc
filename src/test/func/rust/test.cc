@@ -19,6 +19,7 @@ SNMALLOC_SLOW_PATH void test_rust_global_allocate(F func)
   }
   x = static_cast<char*>(sn_rust_realloc(x, Pal::page_size, size, 2 * size));
   bool result = true;
+  snmalloc::UNUSED(result);
   for (size_t i = 1; i < size; i++)
   {
     result &= bits::is_pow2(i) ? (x[i] == 1) : (x[i] == 0);
@@ -38,6 +39,11 @@ public:
 
   RAllocator() : alloc(sn_rust_allocator_new()) {}
   RAllocator(const RAllocator&) : alloc(sn_rust_allocator_new()) {}
+  template<class U>
+  explicit operator RAllocator<U>()
+  {
+    return {};
+  }
   RAllocator(RAllocator&& that) noexcept : alloc(that.alloc)
   {
     that.alloc = nullptr;
