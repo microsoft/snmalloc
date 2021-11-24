@@ -3,6 +3,7 @@
 #if defined(_MSC_VER) && !defined(__clang__)
 // 28 is FAST_FAIL_INVALID_BUFFER_ACCESS.  Not using the symbolic constant to
 // avoid depending on winnt.h
+#  include <intrin.h> // for __fastfail
 #  define SNMALLOC_FAST_FAIL() __fastfail(28)
 #  define ALWAYSINLINE __forceinline
 #  define NOINLINE __declspec(noinline)
@@ -141,32 +142,42 @@ namespace snmalloc
 #  endif
 #endif
 
-inline SNMALLOC_FAST_PATH void check_client_error(const char* const str)
-{
-  //[[clang::musttail]]
-  return snmalloc::error(str);
-}
-
-inline SNMALLOC_FAST_PATH void
-check_client_impl(bool test, const char* const str)
-{
-  if (SNMALLOC_UNLIKELY(!test))
-    check_client_error(str);
-}
-#ifdef SNMALLOC_CHECK_CLIENT
-#  define check_client(test, str) check_client_impl(test, str)
-#else
-#  define check_client(test, str)
-#endif
-
 namespace snmalloc
 {
+  template<typename... Args>
+  SNMALLOC_FAST_PATH_INLINE void UNUSED(Args&&...)
+  {}
+
+  inline SNMALLOC_FAST_PATH void check_client_error(const char* const str)
+  {
+    //[[clang::musttail]]
+    return snmalloc::error(str);
+  }
+
+  inline SNMALLOC_FAST_PATH void
+  check_client_impl(bool test, const char* const str)
+  {
+    if (SNMALLOC_UNLIKELY(!test))
+    {
+#ifdef NDEBUG
+      UNUSED(str);
+      SNMALLOC_FAST_FAIL();
+#else
+      check_client_error(str);
+#endif
+    }
+  }
+
 #ifdef SNMALLOC_CHECK_CLIENT
   static constexpr bool CHECK_CLIENT = true;
 #else
   static constexpr bool CHECK_CLIENT = false;
 #endif
-  template<typename... Args>
-  SNMALLOC_FAST_PATH_INLINE void UNUSED(Args&&...)
-  {}
 } // namespace snmalloc
+
+#ifdef SNMALLOC_CHECK_CLIENT
+#  define snmalloc_check_client(test, str) \
+    snmalloc::check_client_impl(test, str)
+#else
+#  define snmalloc_check_client(test, str)
+#endif

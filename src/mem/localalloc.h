@@ -523,7 +523,7 @@ namespace snmalloc
           metaentry_chunk_sizeclass_to_slab_sizeclass(entry_sizeclass);
 
         // Check for start of allocation.
-        check_client(
+        snmalloc_check_client(
           pointer_align_down(p_tame, size) == p_tame,
           "Not start of an allocation.");
 
@@ -560,7 +560,7 @@ namespace snmalloc
       // If p_tame is not null, then dealloc has been call on something
       // it shouldn't be called on.
       // TODO: Should this be tested even in the !CHECK_CLIENT case?
-      check_client(p_tame == nullptr, "Not allocated by snmalloc.");
+      snmalloc_check_client(p_tame == nullptr, "Not allocated by snmalloc.");
 
 #  ifdef SNMALLOC_TRACING
       std::cout << "nullptr deallocation" << std::endl;

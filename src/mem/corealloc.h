@@ -379,7 +379,7 @@ namespace snmalloc
         alloc_classes[sizeclass].unused--;
 
         // TODO delay the clear to the next user of the slab, or teardown so
-        // don't touch the cache lines at this point in check_client.
+        // don't touch the cache lines at this point in snmalloc_check_client.
         auto chunk_record = clear_slab(meta, sizeclass);
         ChunkAllocator::dealloc<SharedStateHandle>(
           get_backend_local_state(),
@@ -664,7 +664,7 @@ namespace snmalloc
 
       SNMALLOC_ASSERT(!meta->is_unused());
 
-      check_client(
+      snmalloc_check_client(
         Metaslab::is_start_of_object(
           entry.get_sizeclass().as_small(), address_cast(p)),
         "Not deallocating start of an object");
