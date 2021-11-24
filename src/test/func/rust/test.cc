@@ -81,10 +81,10 @@ bool operator==(const RAllocator<T1>& lhs, const RAllocator<T2>& rhs) noexcept
 
 void test_allocator_vector()
 {
-  using Allocator = RAllocator<std::string>;
-  using Vector = std::vector<std::string, Allocator>;
+  using Inner = std::vector<size_t, RAllocator<size_t>>;
+  using Vector = std::vector<Inner, RAllocator<Inner>>;
   Vector origin;
-  for (auto i = 'a'; i <= 'z'; ++i)
+  for (size_t i = 'a'; i <= 'z'; ++i)
   {
     origin.emplace_back(i, i);
   }
@@ -93,8 +93,8 @@ void test_allocator_vector()
 
   for (size_t i = 'a'; i <= 'z'; ++i)
   {
-    SNMALLOC_ASSERT(cloned[i - 'a'] == std::string(i, i));
-    SNMALLOC_ASSERT(moved[i - 'a'] == std::string(i, i));
+    SNMALLOC_ASSERT(cloned[i - 'a'] == Inner(i, i));
+    SNMALLOC_ASSERT(moved[i - 'a'] == Inner(i, i));
   }
 
   for (size_t i = 'A'; i <= 'Z'; ++i)
@@ -107,14 +107,14 @@ void test_allocator_vector()
 
   for (size_t i = 'a'; i <= 'z'; ++i)
   {
-    SNMALLOC_ASSERT(cloned[i - 'a'] == std::string(i, i));
-    SNMALLOC_ASSERT(moved[i - 'a'] == std::string(i, i));
+    SNMALLOC_ASSERT(cloned[i - 'a'] == Inner(i, i));
+    SNMALLOC_ASSERT(moved[i - 'a'] == Inner(i, i));
   }
 
   for (size_t i = 'A'; i <= 'Z'; ++i)
   {
-    SNMALLOC_ASSERT(cloned[i - 'A' + ('z' - 'a' + 1)] == std::string(i, i));
-    SNMALLOC_ASSERT(moved[i - 'A' + ('z' - 'a' + 1)] == std::string(i, i));
+    SNMALLOC_ASSERT(cloned[i - 'A' + ('z' - 'a' + 1)] == Inner(i, i));
+    SNMALLOC_ASSERT(moved[i - 'A' + ('z' - 'a' + 1)] == Inner(i, i));
   }
 }
 
