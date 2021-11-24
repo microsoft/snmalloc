@@ -42,6 +42,11 @@ public:
   {
     that.alloc = nullptr;
   };
+  ~RAllocator()
+  {
+    if (alloc)
+      sn_rust_allocator_drop(alloc);
+  }
   [[nodiscard]] T* allocate(std::size_t n)
   {
     return static_cast<T*>(
