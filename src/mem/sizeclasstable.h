@@ -274,6 +274,11 @@ namespace snmalloc
     return sizeclass_metadata.fast(sizeclass).size;
   }
 
+  inline static size_t sizeclass_full_to_slab_size(sizeclass_t sizeclass)
+  {
+    return sizeclass_metadata.fast(sizeclass).slab_mask + 1;
+  }
+
   inline static size_t sizeclass_to_slab_size(smallsizeclass_t sizeclass)
   {
     return sizeclass_metadata.fast_small(sizeclass).slab_mask + 1;
@@ -321,10 +326,10 @@ namespace snmalloc
       .capacity;
   }
 
-  inline static size_t mod_by_sizeclass(smallsizeclass_t sc, size_t offset)
+  inline static size_t mod_by_sizeclass(sizeclass_t sc, size_t offset)
   {
     // Only works up to certain offsets, exhaustively tested by rounding.cc
-    auto meta = sizeclass_metadata.fast_small(sc);
+    auto meta = sizeclass_metadata.fast(sc);
 
     // Powers of two should use straigt mask.
     SNMALLOC_ASSERT(meta.mod_mult != 0);
@@ -353,8 +358,8 @@ namespace snmalloc
       return addr & (sizeclass_metadata.fast(sc).size - 1);
     }
 
-    address_t offset = addr & (sizeclass_to_slab_size(sc.as_small()) - 1);
-    return mod_by_sizeclass(sc.as_small(), offset);
+    address_t offset = addr & (sizeclass_full_to_slab_size(sc) - 1);
+    return mod_by_sizeclass(sc, offset);
   }
 
   inline static size_t remaining_bytes(sizeclass_t sc, address_t addr)
