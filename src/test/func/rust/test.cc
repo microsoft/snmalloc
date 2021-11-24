@@ -1,5 +1,6 @@
 // clang-format off
 #include <string>
+#include <vector>
 #include "../../../override/rust.cc"
 // clang-format on
 template<bool local_clear, typename F>
