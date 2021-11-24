@@ -689,11 +689,16 @@ namespace snmalloc
       {
 #ifdef SNMALLOC_CHECK_CLIENT
         // Occassionally don't use the last list.
-        if (
-          SNMALLOC_UNLIKELY(alloc_classes[sizeclass].length == 1) &&
-          (entropy.next_bit() == 0))
+        if (SNMALLOC_UNLIKELY(alloc_classes[sizeclass].length == 1))
         {
-          return small_alloc_slow<zero_mem>(sizeclass, fast_free_list);
+          // If the slab has a lot of free space, then we shouldn't allocate a
+          // new slab.
+          auto min = alloc_classes[sizeclass]
+                       .available.peek()
+                       ->free_queue.length_after_close();
+          if ((min * 2) < threshold_for_waking_slab(sizeclass))
+            if (entropy.next_bit() == 0)
+              return small_alloc_slow<zero_mem>(sizeclass, fast_free_list);
         }
 #endif
 

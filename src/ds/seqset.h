@@ -159,5 +159,13 @@ namespace snmalloc
         v.end = &(item->next);
       }
     }
+
+    /**
+     * Peek at next element in the set.
+     */
+    SNMALLOC_FAST_PATH const T* peek()
+    {
+      return v.head;
+    }
   };
 } // namespace snmalloc

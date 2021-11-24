@@ -740,6 +740,25 @@ namespace snmalloc
         UNUSED(domesticate);
 #endif
       }
+
+      /**
+       * Returns length of free list if you call close.
+       *
+       * The Builder is not always emptied when you call close,
+       * this returns the length of the list if you had just called
+       * close.
+       */
+      [[nodiscard]] size_t length_after_close() const
+      {
+        if constexpr (RANDOM)
+        {
+          return length[0] < length[1] ? length[0] : length[1];
+        }
+        else
+        {
+          return 0;
+        }
+      }
     };
   } // namespace freelist
 } // namespace snmalloc
