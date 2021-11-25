@@ -37,6 +37,7 @@ public:
   using size_type = std::size_t;
   using different_type = std::ptrdiff_t;
   using propagate_on_container_move_assignment = std::true_type;
+  using is_always_equal = std::true_type;
 
   RAllocator() : alloc(sn_rust_allocator_new()) {}
   RAllocator(const RAllocator&) : alloc(sn_rust_allocator_new()) {}
@@ -74,9 +75,9 @@ private:
 };
 
 template<class T1, class T2>
-bool operator==(const RAllocator<T1>& lhs, const RAllocator<T2>& rhs) noexcept
+bool operator==(const RAllocator<T1>&, const RAllocator<T2>&) noexcept
 {
-  return lhs.alloc == rhs.alloc;
+  return true;
 }
 
 void test_allocator_vector()
