@@ -695,7 +695,7 @@ namespace snmalloc
           // new slab.
           auto min = alloc_classes[sizeclass]
                        .available.peek()
-                       ->free_queue.length_after_close();
+                       ->free_queue.min_list_length();
           if ((min * 2) < threshold_for_waking_slab(sizeclass))
             if (entropy.next_bit() == 0)
               return small_alloc_slow<zero_mem>(sizeclass, fast_free_list);

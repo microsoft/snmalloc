@@ -742,22 +742,17 @@ namespace snmalloc
       }
 
       /**
-       * Returns length of free list if you call close.
+       * Returns length of the shorter free list.
        *
-       * The Builder is not always emptied when you call close,
-       * this returns the length of the list if you had just called
-       * close.
+       * This method is only usable if the free list is adding randomisation
+       * as that is when it has two lists.
        */
-      [[nodiscard]] size_t length_after_close() const
+      template<bool RANDOM_ = RANDOM>
+      [[nodiscard]] std::enable_if_t<RANDOM_, size_t> min_list_length() const
       {
-        if constexpr (RANDOM)
-        {
-          return length[0] < length[1] ? length[0] : length[1];
-        }
-        else
-        {
-          return 0;
-        }
+        static_assert(RANDOM_ == RANDOM, "Don't set SFINAE parameter!");
+
+        return length[0] < length[1] ? length[0] : length[1];
       }
     };
   } // namespace freelist
