@@ -35,10 +35,10 @@ namespace snmalloc
 
     ~FlagLock()
     {
-      lock.clear(std::memory_order_release);
 #ifndef NDEBUG
       owner = {};
 #endif
+      lock.clear(std::memory_order_release);
     }
   };
 } // namespace snmalloc
