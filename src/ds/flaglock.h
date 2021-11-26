@@ -3,34 +3,40 @@
 #include "bits.h"
 
 #include <atomic>
-#include <thread>
 
 namespace snmalloc
 {
+  using ThreadIdentity = int const*;
+  inline ThreadIdentity get_thread_identity()
+  {
+    static thread_local int SNMALLOC_THREAD_INDENTITY = 0;
+    return &SNMALLOC_THREAD_INDENTITY;
+  }
+
   struct DebugFlagWord
   {
-    std::atomic_flag flag{};
-    std::thread::id owner{};
+    std::atomic_flag flag = ATOMIC_FLAG_INIT;
+    ThreadIdentity owner = nullptr;
     constexpr DebugFlagWord() = default;
     template<typename... Args>
     constexpr DebugFlagWord(Args&&... args) : flag(std::forward<Args>(args)...)
     {}
     void set_owner()
     {
-      owner = std::this_thread::get_id();
+      owner = get_thread_identity();
     }
     void clear_owner()
     {
-      owner = {};
+      owner = nullptr;
     }
     void assert_not_owned_by_current_thread()
     {
-      SNMALLOC_ASSERT(std::this_thread::get_id() != owner);
+      SNMALLOC_ASSERT(get_thread_identity() != owner);
     }
   };
   struct ReleaseFlagWord
   {
-    std::atomic_flag flag{};
+    std::atomic_flag flag = ATOMIC_FLAG_INIT;
     constexpr ReleaseFlagWord() = default;
     template<typename... Args>
     constexpr ReleaseFlagWord(Args&&... args)
