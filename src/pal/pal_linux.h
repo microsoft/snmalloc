@@ -7,6 +7,11 @@
 #  include <string.h>
 #  include <sys/mman.h>
 
+#  ifndef SNMALLOC_PLATFORM_HAS_GETENTROPY
+#    if __has_include(<syscall.h>)
+#      include <syscall.h>
+#    endif
+#  endif
 extern "C" int puts(const char* str);
 
 namespace snmalloc
@@ -23,7 +28,7 @@ namespace snmalloc
      * extends this PAL that they may need to extend the set of advertised
      * features.
      */
-    static constexpr uint64_t pal_features = PALPOSIX::pal_features;
+    static constexpr uint64_t pal_features = PALPOSIX::pal_features | Entropy;
 
     static constexpr size_t page_size =
       Aal::aal_name == PowerPC ? 0x10000 : PALPOSIX::page_size;
@@ -84,6 +89,37 @@ namespace snmalloc
       {
         madvise(p, size, MADV_FREE);
       }
+    }
+
+    static uint64_t get_entropy64()
+    {
+#  ifdef SNMALLOC_PLATFORM_HAS_GETENTROPY
+      uint64_t result;
+      if (getentropy(&result, sizeof(result)) != 0)
+        error("Failed to get system randomness");
+      return result;
+#  else
+      union
+      {
+        uint64_t result;
+        char buffer[sizeof(uint64_t)];
+      };
+      auto current = std::begin(buffer);
+      auto target = std::end(buffer);
+      while (auto length = target - current)
+      {
+        auto ret = syscall(SYS_getrandom, current, length, 0);
+        if (ret < 0)
+        {
+          if (errno == EINTR)
+            continue;
+          else
+            error("Failed to get system randomness");
+        }
+        current += ret;
+      }
+      return result;
+#  endif
     }
   };
 } // namespace snmalloc

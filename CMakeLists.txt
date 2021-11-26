@@ -97,24 +97,6 @@ int main() {
   return res;
 }
 " SNMALLOC_PLATFORM_HAS_GETENTROPY)
-
-CHECK_CXX_SOURCE_COMPILES("
-#include <cstdint>
-#if __has_include(<unistd.h>)
-#  include <unistd.h>
-#endif
-#if __has_include(<syscall.h>)
-#  include <syscall.h>
-#elif __has_include(<sys/syscall.h>)
-#  include <sys/syscall.h>
-#endif
-int main() {
-  uint64_t result;
-  syscall(SYS_getrandom, &result, sizeof(result), 0);
-  return 0;
-}
-" SNMALLOC_PLATFORM_HAS_SYS_GETRANDOM)
-
 # Provide as function so other projects can reuse
 # FIXME: This modifies some variables that may or may not be the ones that
 # provide flags and so is broken by design.  It should be removed once Verona
