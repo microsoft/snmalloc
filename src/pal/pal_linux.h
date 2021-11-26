@@ -28,7 +28,11 @@ namespace snmalloc
      * extends this PAL that they may need to extend the set of advertised
      * features.
      */
-    static constexpr uint64_t pal_features = PALPOSIX::pal_features | Entropy;
+    static constexpr uint64_t pal_features = PALPOSIX::pal_features
+#  if defined(SYS_getrandom) || defined(SNMALLOC_PLATFORM_HAS_GETENTROPY)
+      | Entropy
+#  endif
+      ;
 
     static constexpr size_t page_size =
       Aal::aal_name == PowerPC ? 0x10000 : PALPOSIX::page_size;
@@ -98,7 +102,11 @@ namespace snmalloc
       if (getentropy(&result, sizeof(result)) != 0)
         error("Failed to get system randomness");
       return result;
-#  else
+#  elif defined(SYS_getrandom)
+      // SYS_getrandom API stablized since 3.17.
+      // This fallback implementation is to aid some environments
+      // where SYS_getrandom is provided in kernel but the libc
+      // is not providing getentropy interface.
       union
       {
         uint64_t result;
@@ -120,6 +128,7 @@ namespace snmalloc
       }
       return result;
 #  endif
+      error("Entropy requested on platform that does not provide entropy");
     }
   };
 } // namespace snmalloc
