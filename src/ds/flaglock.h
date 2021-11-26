@@ -3,10 +3,7 @@
 #include "bits.h"
 
 #include <atomic>
-
-#ifndef NDEBUG
-#  include <thread>
-#endif
+#include <thread>
 
 namespace snmalloc
 {
@@ -14,8 +11,9 @@ namespace snmalloc
   {
     std::atomic_flag flag{};
     std::thread::id owner{};
+    constexpr DebugFlagWord() = default;
     template<typename... Args>
-    DebugFlagWord(Args&&... args) : flag(std::forward<Args>(args)...)
+    constexpr DebugFlagWord(Args&&... args) : flag(std::forward<Args>(args)...)
     {}
     void set_owner()
     {
@@ -33,8 +31,10 @@ namespace snmalloc
   struct ReleaseFlagWord
   {
     std::atomic_flag flag{};
+    constexpr ReleaseFlagWord() = default;
     template<typename... Args>
-    ReleaseFlagWord(Args&&... args) : flag(std::forward<Args>(args)...)
+    constexpr ReleaseFlagWord(Args&&... args)
+    : flag(std::forward<Args>(args)...)
     {}
     void set_owner() {}
     void clear_owner() {}
