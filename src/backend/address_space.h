@@ -28,7 +28,7 @@ namespace snmalloc
      * This is infrequently used code, a spin lock simplifies the code
      * considerably, and should never be on the fast path.
      */
-    FlagWord spin_lock = ATOMIC_FLAG_INIT;
+    FlagWord spin_lock{};
 
   public:
     /**
