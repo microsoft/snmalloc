@@ -10,35 +10,63 @@
 
 namespace snmalloc
 {
+  struct DebugFlagWord
+  {
+    std::atomic_flag flag{};
+    std::thread::id owner{};
+    template<typename... Args>
+    DebugFlagWord(Args&&... args) : flag(std::forward<Args>(args)...)
+    {}
+    void set_owner()
+    {
+      owner = std::this_thread::get_id();
+    }
+    void clear_owner()
+    {
+      owner = {};
+    }
+    void assert_not_owned_by_current_thread()
+    {
+      SNMALLOC_ASSERT(std::this_thread::get_id() != owner);
+    }
+  };
+  struct ReleaseFlagWord
+  {
+    std::atomic_flag flag{};
+    template<typename... Args>
+    ReleaseFlagWord(Args&&... args) : flag(std::forward<Args>(args)...)
+    {}
+    void set_owner() {}
+    void clear_owner() {}
+    void assert_not_owned_by_current_thread() {}
+  };
+
+#ifdef NDEBUG
+  using FlagWord = ReleaseFlagWord;
+#else
+  using FlagWord = DebugFlagWord;
+#endif
+
   class FlagLock
   {
   private:
-    std::atomic_flag& lock;
+    FlagWord& lock;
 
-#ifndef NDEBUG
-    std::thread::id owner{};
-#endif
   public:
-    FlagLock(std::atomic_flag& lock) : lock(lock)
+    FlagLock(FlagWord& lock) : lock(lock)
     {
-      while (lock.test_and_set(std::memory_order_acquire))
+      while (lock.flag.test_and_set(std::memory_order_acquire))
       {
-#ifndef NDEBUG
-        SNMALLOC_ASSERT(std::this_thread::get_id() != owner);
-#endif
+        lock.assert_not_owned_by_current_thread();
         Aal::pause();
       }
-#ifndef NDEBUG
-      owner = std::this_thread::get_id();
-#endif
+      lock.set_owner();
     }
 
     ~FlagLock()
     {
-#ifndef NDEBUG
-      owner = {};
-#endif
-      lock.clear(std::memory_order_release);
+      lock.clear_owner();
+      lock.flag.clear(std::memory_order_release);
     }
   };
 } // namespace snmalloc

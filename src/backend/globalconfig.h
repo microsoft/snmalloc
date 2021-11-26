@@ -46,7 +46,7 @@ namespace snmalloc
     inline static std::atomic<bool> initialised{false};
 
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static std::atomic_flag initialisation_lock{};
+    inline static FlagWord initialisation_lock{};
 
   public:
     static ChunkAllocatorState&
