@@ -16,11 +16,16 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <utility>
-#if __has_include(<sys/random.h>)
-#  include <sys/random.h>
-#endif
-#if __has_include(<unistd.h>)
-#  include <unistd.h>
+#ifdef SNMALLOC_PLATFORM_HAS_GETENTROPY
+#  if __has_include(<sys/random.h>)
+#    include <sys/random.h>
+#  endif
+#elif defined(SNMALLOC_PLATFORM_HAS_SYS_GETRANDOM)
+#  if __has_include(<syscall.h>)
+#    include <syscall.h>
+#  elif __has_include(<sys/syscall.h>)
+#    include <sys/syscall.h>
+#  endif
 #endif
 
 extern "C" int puts(const char* str);
@@ -127,6 +132,8 @@ namespace snmalloc
      */
     static constexpr uint64_t pal_features = LazyCommit | Time
 #if defined(SNMALLOC_PLATFORM_HAS_GETENTROPY)
+      | Entropy
+#elif defined(SNMALLOC_PLATFORM_HAS_SYS_GETRANDOM)
       | Entropy
 #endif
       ;
@@ -341,6 +348,30 @@ namespace snmalloc
         uint64_t result;
         if (getentropy(&result, sizeof(result)) != 0)
           error("Failed to get system randomness");
+        return result;
+#elif defined(SYS_getrandom)
+        union
+        {
+          uint64_t result;
+          char buffer[sizeof(uint64_t)];
+        };
+        int cs;
+        auto current = std::begin(buffer);
+        auto target = std::end(buffer);
+        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cs);
+        while (current != target)
+        {
+          auto ret = syscall(SYS_getrandom, current, target - current, 0);
+          if (ret < 0)
+          {
+            if (errno == EINTR)
+              continue;
+            else
+              break;
+          }
+          current += ret;
+        }
+        pthread_setcancelstate(cs, 0);
         return result;
 #endif
       }
