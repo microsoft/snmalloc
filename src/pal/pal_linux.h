@@ -4,14 +4,13 @@
 #  include "../ds/bits.h"
 #  include "pal_posix.h"
 
+#  include <fcntl.h>
 #  include <string.h>
 #  include <sys/mman.h>
-
-#  ifndef SNMALLOC_PLATFORM_HAS_GETENTROPY
-#    if __has_include(<syscall.h>)
-#      include <syscall.h>
-#    endif
+#  if __has_include(<syscall.h>)
+#    include <syscall.h>
 #  endif
+
 extern "C" int puts(const char* str);
 
 namespace snmalloc
@@ -23,16 +22,9 @@ namespace snmalloc
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
      *
-     * Linux does not support any features other than those in a generic POSIX
-     * platform.  This field is declared explicitly to remind anyone who
-     * extends this PAL that they may need to extend the set of advertised
-     * features.
+     * We always make sure that linux has entropy support.
      */
-    static constexpr uint64_t pal_features = PALPOSIX::pal_features
-#  if defined(SYS_getrandom) || defined(SNMALLOC_PLATFORM_HAS_GETENTROPY)
-      | Entropy
-#  endif
-      ;
+    static constexpr uint64_t pal_features = PALPOSIX::pal_features | Entropy;
 
     static constexpr size_t page_size =
       Aal::aal_name == PowerPC ? 0x10000 : PALPOSIX::page_size;
@@ -97,38 +89,102 @@ namespace snmalloc
 
     static uint64_t get_entropy64()
     {
-#  ifdef SNMALLOC_PLATFORM_HAS_GETENTROPY
-      uint64_t result;
-      if (getentropy(&result, sizeof(result)) != 0)
-        error("Failed to get system randomness");
-      return result;
-#  elif defined(SYS_getrandom)
+      // TODO: If the system call fails then the POSIX PAL calls libc
+      // functions that can require malloc, which may result in deadlock.
+
       // SYS_getrandom API stablized since 3.17.
       // This fallback implementation is to aid some environments
       // where SYS_getrandom is provided in kernel but the libc
       // is not providing getentropy interface.
+
       union
       {
         uint64_t result;
         char buffer[sizeof(uint64_t)];
       };
-      auto current = std::begin(buffer);
-      auto target = std::end(buffer);
-      while (auto length = target - current)
+      ssize_t ret;
+
+      // give a try to SYS_getrandom
+#  ifdef SYS_getrandom
+      static std::atomic_bool syscall_not_working = false;
+      // Relaxed ordering should be fine here. This function will be called
+      // during early initialisation, which will examine the availability in a
+      // protected routine.
+      if (false == syscall_not_working.load(std::memory_order_relaxed))
       {
-        auto ret = syscall(SYS_getrandom, current, length, 0);
-        if (ret < 0)
+        auto current = std::begin(buffer);
+        auto target = std::end(buffer);
+        while (auto length = target - current)
         {
-          if (errno == EINTR)
-            continue;
+          // reading data via syscall from system entropy pool.
+          // According to both MUSL and GLIBC implementation, getentropy uses
+          // /dev/random (blocking API) as the pool which is indicated by the
+          // value 0 at the third argument.
+          ret = syscall(SYS_getrandom, current, length, 0);
+          // check whether are interrupt by a signal
+          if (ret < 0)
+          {
+            if (errno != EINTR)
+            {
+              break;
+            }
+          }
           else
-            error("Failed to get system randomness");
+          {
+            current += ret;
+          }
         }
-        current += ret;
+        if (SNMALLOC_UNLIKELY(target != current))
+        {
+          // in this routine, the only possible situation should be ENOSYS.
+          SNMALLOC_ASSERT(errno == ENOSYS);
+          syscall_not_working.store(true, std::memory_order_relaxed);
+        }
+        else
+        {
+          return result;
+        }
       }
-      return result;
 #  endif
-      error("Entropy requested on platform that does not provide entropy");
+
+      // Syscall is not working.
+      // In this case, it is not a good idea to fallback to std::random_device:
+      // 1. it may want to use malloc to create a buffer, which causes
+      // reentrancy problem during initialisation routine.
+      // 2. some implementations also require libstdc++ to be linked since
+      // its APIs are not exception-free.
+      int flags = O_RDONLY;
+#  if defined(O_CLOEXEC)
+      flags |= O_CLOEXEC;
+#  endif
+      if (auto fd = open("/dev/random", flags, 0) > 0)
+      {
+        auto current = std::begin(buffer);
+        auto target = std::end(buffer);
+        while (auto length = static_cast<size_t>(target - current))
+        {
+          ret = read(fd, current, length);
+          if (ret <= 0)
+          {
+            if (errno != EAGAIN && errno != EINTR)
+            {
+              break;
+            }
+          }
+          else
+          {
+            current += ret;
+          }
+        }
+        ret = close(fd);
+        SNMALLOC_ASSERT(0 == ret);
+        if (SNMALLOC_LIKELY(target == current))
+        {
+          return result;
+        }
+      }
+
+      error("Failed to get system randomness");
     }
   };
 } // namespace snmalloc
