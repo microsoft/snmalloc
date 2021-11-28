@@ -6,42 +6,55 @@
 
 namespace snmalloc
 {
-  using ThreadIdentity = int const*;
-  inline ThreadIdentity get_thread_identity()
-  {
-    static thread_local int SNMALLOC_THREAD_INDENTITY = 0;
-    return &SNMALLOC_THREAD_INDENTITY;
-  }
 
   struct DebugFlagWord
   {
     std::atomic_flag flag = ATOMIC_FLAG_INIT;
-    ThreadIdentity owner = nullptr;
+
     constexpr DebugFlagWord() = default;
+
     template<typename... Args>
     constexpr DebugFlagWord(Args&&... args) : flag(std::forward<Args>(args)...)
     {}
+
     void set_owner()
     {
       owner = get_thread_identity();
     }
+
     void clear_owner()
     {
       owner = nullptr;
     }
+
     void assert_not_owned_by_current_thread()
     {
       SNMALLOC_ASSERT(get_thread_identity() != owner);
     }
+
+  private:
+    using ThreadIdentity = int const*;
+
+    ThreadIdentity owner = nullptr;
+
+    inline ThreadIdentity get_thread_identity()
+    {
+      static thread_local int SNMALLOC_THREAD_INDENTITY = 0;
+      return &SNMALLOC_THREAD_INDENTITY;
+    }
   };
+
   struct ReleaseFlagWord
   {
     std::atomic_flag flag = ATOMIC_FLAG_INIT;
+
     constexpr ReleaseFlagWord() = default;
+
     template<typename... Args>
     constexpr ReleaseFlagWord(Args&&... args)
     : flag(std::forward<Args>(args)...)
     {}
+
     void set_owner() {}
     void clear_owner() {}
     void assert_not_owned_by_current_thread() {}
