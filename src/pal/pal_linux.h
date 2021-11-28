@@ -7,9 +7,7 @@
 #  include <fcntl.h>
 #  include <string.h>
 #  include <sys/mman.h>
-#  if __has_include(<syscall.h>)
-#    include <syscall.h>
-#  endif
+#  include <syscall.h>
 
 extern "C" int puts(const char* str);
 
@@ -116,10 +114,16 @@ namespace snmalloc
         auto target = std::end(buffer);
         while (auto length = target - current)
         {
-          // reading data via syscall from system entropy pool.
+          // Reading data via syscall from system entropy pool.
           // According to both MUSL and GLIBC implementation, getentropy uses
-          // /dev/random (blocking API) as the pool which is indicated by the
-          // value 0 at the third argument.
+          // /dev/urandom (blocking API).
+          //
+          // The third argument is zero here, which indicates:
+          // 1. `GRND_RANDOM` bit is not set, so the source of entropy will be
+          // `urandom`.
+          // 2. `GRND_NONBLOCK` bit is not set. Since we are reading from
+          // `urandom`, this means the call will block if the entropy pool is
+          // not initialized.
           ret = syscall(SYS_getrandom, current, length, 0);
           // check whether are interrupt by a signal
           if (ret < 0)
@@ -136,8 +140,9 @@ namespace snmalloc
         }
         if (SNMALLOC_UNLIKELY(target != current))
         {
-          // in this routine, the only possible situation should be ENOSYS.
-          SNMALLOC_ASSERT(errno == ENOSYS);
+          // in this routine, the only possible situations should be ENOSYS
+          // or EPERM (forbidden by seccomp, for example).
+          SNMALLOC_ASSERT(errno == ENOSYS || errno == EPERM);
           syscall_not_working.store(true, std::memory_order_relaxed);
         }
         else
@@ -157,7 +162,8 @@ namespace snmalloc
 #  if defined(O_CLOEXEC)
       flags |= O_CLOEXEC;
 #  endif
-      if (auto fd = open("/dev/random", flags, 0) > 0)
+      auto fd = open("/dev/urandom", flags, 0);
+      if (fd > 0)
       {
         auto current = std::begin(buffer);
         auto target = std::end(buffer);
