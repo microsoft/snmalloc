@@ -101,7 +101,7 @@ extern "C"
     return p;
   }
 
-#if !defined(__FreeBSD__) && !defined(__OpenBSD__)
+#if !defined(SNMALLOC_NO_REALLOCARRAY)
   SNMALLOC_EXPORT void*
     SNMALLOC_NAME_MANGLE(reallocarray)(void* ptr, size_t nmemb, size_t size)
   {
@@ -113,6 +113,65 @@ extern "C"
       return nullptr;
     }
     return SNMALLOC_NAME_MANGLE(realloc)(ptr, sz);
+  }
+#endif
+
+#if !defined(SNMALLOC_NO_REALLOCARR)
+  SNMALLOC_EXPORT int
+    SNMALLOC_NAME_MANGLE(reallocarr)(void* ptr, size_t nmemb, size_t size)
+  {
+    int err = errno, r;
+    auto& a = ThreadAlloc::get();
+    bool overflow = false;
+    size_t sz = bits::umul(size, nmemb, overflow);
+    if (sz == 0)
+    {
+      errno = err;
+      return 0;
+    }
+    if (overflow)
+    {
+      errno = err;
+      return EOVERFLOW;
+    }
+
+    if (ptr == nullptr)
+    {
+      ptr = a.alloc(sz);
+      if (SNMALLOC_LIKELY(ptr != nullptr))
+      {
+        errno = err;
+        r = 0;
+      }
+      else
+      {
+        r = ENOMEM;
+      }
+      return r;
+    }
+
+    void* p = a.alloc(sz);
+    if (SNMALLOC_LIKELY(p != nullptr))
+    {
+      memcpy(p, &ptr, sizeof(ptr));
+      void* np = SNMALLOC_NAME_MANGLE(realloc)(p, sz);
+      if (SNMALLOC_LIKELY(np != nullptr))
+      {
+        errno = err;
+        memcpy(ptr, &np, sizeof(np));
+        r = 0;
+      }
+      else
+      {
+        a.dealloc(p);
+        r = ENOMEM;
+      }
+    }
+    else
+    {
+      r = ENOMEM;
+    }
+    return r;
   }
 #endif
 
