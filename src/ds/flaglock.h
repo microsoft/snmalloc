@@ -6,7 +6,6 @@
 
 namespace snmalloc
 {
-
   struct DebugFlagWord
   {
     std::atomic_flag flag = ATOMIC_FLAG_INIT;
@@ -39,8 +38,8 @@ namespace snmalloc
 
     inline ThreadIdentity get_thread_identity()
     {
-      static thread_local int SNMALLOC_THREAD_INDENTITY = 0;
-      return &SNMALLOC_THREAD_INDENTITY;
+      static thread_local int SNMALLOC_THREAD_IDENTITY = 0;
+      return &SNMALLOC_THREAD_IDENTITY;
     }
   };
 
