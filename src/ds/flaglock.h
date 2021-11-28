@@ -18,11 +18,13 @@ namespace snmalloc
 
     void set_owner()
     {
+      SNMALLOC_ASSERT(nullptr == owner);
       owner = get_thread_identity();
     }
 
     void clear_owner()
     {
+      SNMALLOC_ASSERT(get_thread_identity() == owner);
       owner = nullptr;
     }
 
