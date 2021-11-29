@@ -118,16 +118,24 @@ namespace snmalloc
           // According to both MUSL and GLIBC implementation, getentropy uses
           // /dev/urandom (blocking API).
           //
-          // The third argument is zero here, which indicates:
+          // The third argument here indicates:
           // 1. `GRND_RANDOM` bit is not set, so the source of entropy will be
           // `urandom`.
-          // 2. `GRND_NONBLOCK` bit is not set. Since we are reading from
-          // `urandom`, this means the call will block if the entropy pool is
-          // not initialized.
-          ret = syscall(SYS_getrandom, current, length, 0);
+          // 2. `GRND_NONBLOCK` bit is set. Since we are reading from
+          // `urandom`, this means if the entropy pool is
+          // not initialised, we will get a EAGAIN.
+          ret = syscall(SYS_getrandom, current, length, GRND_NONBLOCK);
           // check whether are interrupt by a signal
-          if (ret < 0)
+          if (SNMALLOC_UNLIKELY(ret < 0))
           {
+            if (SNMALLOC_UNLIKELY(errno == EAGAIN))
+            {
+              // the system is going through early initialisation: at this stage
+              // it is very likely that snmalloc is being used in some system
+              // programs and we do not want to block it.
+              return reinterpret_cast<uint64_t>(&result) ^
+                reinterpret_cast<uint64_t>(&error);
+            }
             if (errno != EINTR)
             {
               break;
