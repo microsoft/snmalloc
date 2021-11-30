@@ -63,6 +63,11 @@ namespace snmalloc
           ~static_cast<unsigned int>(CHERI_PERM_CHERIABI_VMMAP)));
     }
 #  endif
+
+    static void nodump(void* p, size_t size) noexcept
+    {
+      madvise(p, size, MADV_NOCORE);
+    }
   };
 } // namespace snmalloc
 #endif

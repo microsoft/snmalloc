@@ -94,6 +94,12 @@ namespace snmalloc
     YesZero
   };
 
+  enum CoreDumpMem
+  {
+    NoDump,
+    YesDump
+  };
+
   /**
    * Default Tag ID for the Apple class
    */

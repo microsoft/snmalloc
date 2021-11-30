@@ -54,6 +54,25 @@ extern "C"
     return ThreadAlloc::get().alloc<ZeroMem::YesZero>(sz);
   }
 
+#if !defined(__OpenBSD__)
+  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(malloc_conceal)(size_t size)
+  {
+    return ThreadAlloc::get().alloc<NoZero, CoreDumpMem::NoDump>(size);
+  }
+
+  SNMALLOC_EXPORT void*
+    SNMALLOC_NAME_MANGLE(calloc_conceal)(size_t nmemb, size_t size)
+  {
+    bool overflow = false;
+    size_t sz = bits::umul(size, nmemb, overflow);
+    if (SNMALLOC_UNLIKELY(overflow))
+    {
+      return SNMALLOC_NAME_MANGLE(snmalloc_set_error)();
+    }
+    return ThreadAlloc::get().alloc<ZeroMem::YesZero, CoreDumpMem::NoDump>(sz);
+  }
+#endif
+
   SNMALLOC_EXPORT
   size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(
     MALLOC_USABLE_SIZE_QUALIFIER void* ptr)
