@@ -229,6 +229,17 @@ int main(int argc, char** argv)
     check_result(size + 1, 1, our_malloc_conceal(size + 1), SUCCESS, false);
   }
 
+  our_freezero(nullptr, 1024);
+  void* p = our_malloc_conceal(64);
+  our_freezero(p, 128);
+  if (((uint8_t*)p)[63] != 0)
+  {
+    abort();
+  }
+
+  p = our_malloc_conceal(16);
+  our_freezero(p, 0);
+
   for (smallsizeclass_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
   {
     const size_t size = sizeclass_to_size(sc);
