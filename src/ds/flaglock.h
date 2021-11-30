@@ -112,31 +112,24 @@ namespace snmalloc
   public:
     FlagLock(FlagWord& lock) : lock(lock)
     {
-#ifdef __cpp_lib_atomic_flag_test
-      do
+      while (lock.flag.test_and_set(std::memory_order_acquire))
       {
-        // test once with acquire ordering at the beginning
-        if (!lock.flag.test_and_set(std::memory_order_acquire))
-        {
-          break;
-        }
         // assert_not_owned_by_current_thread is only called when the first
         // acquiring is failed; which means the lock is already held somewhere
         // else.
         lock.assert_not_owned_by_current_thread();
-        // only need to do relaxed ordering in the busy spin loop
-        while (lock.flag.test(std::memory_order_relaxed))
+#ifdef __cpp_lib_atomic_flag_test
+        // acquire ordering because we need other thread's release to be
+        // visible. This loop is better for spin-waiting because it won't issue
+        // expensive write operation (xchg for example).
+        while (lock.flag.test(std::memory_order_acquire))
         {
           Aal::pause();
         }
-      } while (true);
 #else
-      while (lock.flag.test_and_set(std::memory_order_acquire))
-      {
-        lock.assert_not_owned_by_current_thread();
         Aal::pause();
-      }
 #endif
+      }
       lock.set_owner();
     }
 
