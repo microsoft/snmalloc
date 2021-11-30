@@ -148,9 +148,29 @@ void test_reallocarr(void* p, size_t nmemb, size_t size, int err, bool null)
   printf("reallocarr(%p(%zu), %zu)\n", p, old_size, nmemb * size);
   errno = SUCCESS;
   int r = our_reallocarr(&p, nmemb, size);
-  if (r != SUCCESS && size != 0)
+  if (r != SUCCESS)
     our_free(p);
   check_result(nmemb * size, 1, p, err, null);
+  p = our_malloc(size);
+  if (!p)
+  {
+    abort();
+  }
+  for (size_t i = 1; i < size; i ++)
+    static_cast<char *>(p)[i] = 1;
+  our_reallocarr(&p, nmemb, size);
+  if (r != SUCCESS)
+    our_free(p);
+
+  for (size_t i = 1; i < size; i ++)
+  {
+    if (static_cast<char *>(p)[i] != 1)
+    {
+      printf("data consistency failed! at %zu", i);
+      abort();
+    }
+  }
+  our_free(p);
 }
 #endif
 

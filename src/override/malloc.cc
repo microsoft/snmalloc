@@ -118,7 +118,7 @@ extern "C"
 
 #if !defined(SNMALLOC_NO_REALLOCARR)
   SNMALLOC_EXPORT int
-    SNMALLOC_NAME_MANGLE(reallocarr)(void* ptr, size_t nmemb, size_t size)
+    SNMALLOC_NAME_MANGLE(reallocarr)(void* ptr_, size_t nmemb, size_t size)
   {
     int err = errno, r;
     auto& a = ThreadAlloc::get();
@@ -135,10 +135,11 @@ extern "C"
       return EOVERFLOW;
     }
 
-    if (ptr == nullptr)
+    void** ptr = reinterpret_cast<void **>(ptr_);
+    if (*ptr == nullptr)
     {
-      ptr = a.alloc(sz);
-      if (SNMALLOC_LIKELY(ptr != nullptr))
+      *ptr = a.alloc(sz);
+      if (SNMALLOC_LIKELY(*ptr != nullptr))
       {
         errno = err;
         r = 0;
@@ -150,22 +151,25 @@ extern "C"
       return r;
     }
 
-    void* p = a.alloc(sz);
-    if (SNMALLOC_LIKELY(p != nullptr))
+    void* p = a.alloc(size);
+    if (p == nullptr)
     {
-      memcpy(p, &ptr, sizeof(ptr));
-      void* np = SNMALLOC_NAME_MANGLE(realloc)(p, sz);
-      if (SNMALLOC_LIKELY(np != nullptr))
-      {
-        errno = err;
-        memcpy(ptr, &np, sizeof(np));
-        r = 0;
-      }
-      else
-      {
-        a.dealloc(p);
-        r = ENOMEM;
-      }
+      return ENOMEM;
+    }
+
+    sz = bits::min(size, sz);
+    // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
+    // otherwise.
+    if (sz != 0)
+      memcpy(p, *ptr, sz);
+    a.dealloc(*ptr);
+    void* np = SNMALLOC_NAME_MANGLE(realloc)(p, sz);
+    /* updating ptr on success only */
+    if (SNMALLOC_LIKELY(np != nullptr))
+    {
+      errno = err;
+      *ptr = np;
+      r = 0;
     }
     else
     {
