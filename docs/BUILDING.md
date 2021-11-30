@@ -113,3 +113,16 @@ You will also need to compile the relevant parts of snmalloc itself. Create a ne
 #include "snmalloc/src/override/malloc.cc"
 #include "snmalloc/src/override/new.cc"
 ```
+
+To enable the `reallocarray` symbol export, this can be added to your cmake command line.
+
+```
+-DSNMALLOC_NO_REALLOCARRAY=OFF
+```
+
+likewise for `reallocarr`.
+
+```
+-DSNMALLOC_NO_REALLOCARR=OFF
+```
+

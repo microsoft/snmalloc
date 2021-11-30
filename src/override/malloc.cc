@@ -120,7 +120,7 @@ extern "C"
   SNMALLOC_EXPORT int
     SNMALLOC_NAME_MANGLE(reallocarr)(void* ptr_, size_t nmemb, size_t size)
   {
-    int err = errno, r;
+    int err = errno;
     auto& a = ThreadAlloc::get();
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
@@ -136,28 +136,14 @@ extern "C"
     }
 
     void** ptr = reinterpret_cast<void**>(ptr_);
-    if (*ptr == nullptr)
-    {
-      *ptr = a.alloc(sz);
-      if (SNMALLOC_LIKELY(*ptr != nullptr))
-      {
-        errno = err;
-        r = 0;
-      }
-      else
-      {
-        r = ENOMEM;
-      }
-      return r;
-    }
-
     void* p = a.alloc(sz);
     if (p == nullptr)
     {
+      errno = ENOMEM;
       return ENOMEM;
     }
 
-    sz = bits::min(size, a.alloc_size(*ptr));
+    sz = bits::min(sz, a.alloc_size(*ptr));
     // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
     // otherwise.
     if (sz != 0)

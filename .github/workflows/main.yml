@@ -34,17 +34,14 @@ jobs:
             cmake-flags: "-DSNMALLOC_USE_CXX17=ON"
           - os: "ubuntu-latest"
             dependencies: "sudo apt install ninja-build"
-            cmake-flags: "-DSNMALLOC_NO_REALLOCARR=OFF"
           - os: "macos-11"
             # The homebrew packages are broken at the moment and error out
             # after trying to install Python as a dependency of ninja because
             # 2to3 exists.  As a quick hack, delete it first.  This should be
             # removed once the homebrew install is fixed.
             dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
-            cmake-flags: "-DSNMALLOC_NO_REALLOCARRAY=OFF -DSNMALLOC_NO_REALLOCARR=OFF"
           - os: "macos-10.15"
             dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
-            cmake-flags: "-DSNMALLOC_NO_REALLOCARRAY=OFF -DSNMALLOC_NO_REALLOCARR=OFF"
           # Skip the tests for the FreeBSD release builds
           # Also build-test the checked memcpy implementation while doing these.
           # It is run-tested on Linux and should be the same everywhere.
@@ -52,18 +49,16 @@ jobs:
             build-type: Release
             build-only: yes
             cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
-            extra-cmake-flags: "-DSNMALLOC_NO_REALLOCARR=OFF"
           - os: "freebsd-12.2"
             build-type: Debug
             build-only: yes
             cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
-            extra-cmake-flags: "-DSNMALLOC_NO_REALLOCARR=OFF"
           # Add the self-host build, using the bounds-checked memcpy in
           # maximally paranoid mode (checking loads and stores)
           - os: "ubuntu-latest"
             build-type: Debug
             self-host: true
-            extra-cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON -DSNMALLOC_NO_REALLOCARR=OFF"
+            extra-cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
             dependencies: "sudo apt install ninja-build"
           # Extra build to check using pthread library for destructing local state.
           - os: "ubuntu-latest"
@@ -71,7 +66,7 @@ jobs:
             dependencies: "sudo apt install ninja-build"
             build-type: Debug
             self-host: true
-            extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On -DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10 -DSNMALLOC_NO_REALLOCARR=OFF"
+            extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On -DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10"
           # Add an extra element to the matrix that does a build with clang 12
           # but doesn't run tests.
           - os: "freebsd-13.0"
@@ -81,7 +76,7 @@ jobs:
           - os: "ubuntu-latest"
             variant: Clang 10 libstdc++ (Build only)
             dependencies: "sudo apt install ninja-build"
-            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10 -DCMAKE_CXX_FLAGS=-stdlib=libstdc++ -DSNMALLOC_NO_REALLOCARR=OFF"
+            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10 -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
             build-only: yes
       # Don't abort runners if a single one fails
       fail-fast: false
