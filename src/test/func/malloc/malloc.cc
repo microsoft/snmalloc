@@ -138,33 +138,52 @@ void test_memalign(size_t size, size_t align, int err, bool null)
   check_result(size, align, p, err, null);
 }
 
-#if !defined(SNMALLOC_NO_REALLOCARR)
-void test_reallocarr(void* p, size_t nmemb, size_t size, int err, bool null)
+#if !defined(SNMALLOC_NO_REALLOCARRAY)
+void test_reallocarray(void* p, size_t nmemb, size_t size, int err, bool null)
 {
   size_t old_size = 0;
+  size_t tsize = nmemb * size;
   if (p != nullptr)
     old_size = our_malloc_usable_size(p);
 
-  printf("reallocarr(%p(%zu), %zu)\n", p, old_size, nmemb * size);
+  printf("reallocarray(%p(%zu), %zu)\n", p, old_size, tsize);
+  errno = SUCCESS;
+  auto new_p = our_reallocarray(p, nmemb, size);
+  if (new_p == nullptr && tsize != 0)
+    our_free(p);
+  check_result(tsize, 1, new_p, err, null);
+}
+#endif
+
+#if !defined(SNMALLOC_NO_REALLOCARR)
+void test_reallocarr(size_t nmemb, size_t size, int err, bool null)
+{
+  void* p = nullptr;
+
   errno = SUCCESS;
   int r = our_reallocarr(&p, nmemb, size);
-  if (r != SUCCESS)
-    our_free(p);
+  if (r != err)
+  {
+    printf("reallocarr failed!\n");
+    abort();
+  }
+
+  printf("reallocarr(%p(%zu), %zu)\n", p, nmemb, size);
   check_result(nmemb * size, 1, p, err, null);
   p = our_malloc(size);
   if (!p)
   {
-    abort();
+    return;
   }
-  for (size_t i = 1; i < size; i ++)
-    static_cast<char *>(p)[i] = 1;
+  for (size_t i = 1; i < size; i++)
+    static_cast<char*>(p)[i] = 1;
   our_reallocarr(&p, nmemb, size);
   if (r != SUCCESS)
     our_free(p);
 
-  for (size_t i = 1; i < size; i ++)
+  for (size_t i = 1; i < size; i++)
   {
-    if (static_cast<char *>(p)[i] != 1)
+    if (static_cast<char*>(p)[i] != 1)
     {
       printf("data consistency failed! at %zu", i);
       abort();
@@ -265,18 +284,37 @@ int main(int argc, char** argv)
     test_posix_memalign(0, align + 1, EINVAL, true);
   }
 
-#if !defined(SNMALLOC_NO_REALLOCARR)
+#if !defined(SNMALLOC_NO_REALLOCARRAY)
+  test_reallocarray(nullptr, 1, 0, SUCCESS, false);
   for (smallsizeclass_t sc = 0; sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
   {
     const size_t size = bits::one_at_bit(sc);
-    void* p = nullptr;
-    test_reallocarr(p, 1, size, SUCCESS, false);
-    test_reallocarr(p, 2, size, SUCCESS, false);
+    test_reallocarray(our_malloc(size), 1, size, SUCCESS, false);
+    test_reallocarray(nullptr, 1, size, SUCCESS, false);
+    test_reallocarray(our_malloc(size), 1, ((size_t)-1) / 2, ENOMEM, true);
+    for (smallsizeclass_t sc2 = 0; sc2 < (MAX_SMALL_SIZECLASS_BITS + 4); sc2++)
+    {
+      const size_t size2 = bits::one_at_bit(sc2);
+      test_reallocarray(our_malloc(size), 1, size2, SUCCESS, false);
+      test_reallocarray(our_malloc(size + 1), 1, size2, SUCCESS, false);
+    }
+  }
+#endif
+
+#if !defined(SNMALLOC_NO_REALLOCARR)
+  test_reallocarr(1, 0, SUCCESS, false);
+
+  for (smallsizeclass_t sc = 0; sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
+  {
+    const size_t size = bits::one_at_bit(sc);
+    test_reallocarr(1, size, SUCCESS, false);
+    test_reallocarr(2, size, SUCCESS, false);
+    test_reallocarr(1, ((size_t)-1) / 2, ENOMEM, true);
     for (smallsizeclass_t sc2 = 0; sc2 < (MAX_SMALL_SIZECLASS_BITS + 4); sc2++)
     {
       const size_t size2 = bits::one_at_bit(sc2);
       printf("size1: %zu, size2:%zu\n", size, size2);
-      test_reallocarr(p, 1, size2, SUCCESS, false);
+      test_reallocarr(1, size2, SUCCESS, false);
     }
   }
 #endif

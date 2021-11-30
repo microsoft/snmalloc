@@ -135,7 +135,7 @@ extern "C"
       return EOVERFLOW;
     }
 
-    void** ptr = reinterpret_cast<void **>(ptr_);
+    void** ptr = reinterpret_cast<void**>(ptr_);
     if (*ptr == nullptr)
     {
       *ptr = a.alloc(sz);
@@ -151,31 +151,21 @@ extern "C"
       return r;
     }
 
-    void* p = a.alloc(size);
+    void* p = a.alloc(sz);
     if (p == nullptr)
     {
       return ENOMEM;
     }
 
-    sz = bits::min(size, sz);
+    sz = bits::min(size, a.alloc_size(*ptr));
     // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
     // otherwise.
     if (sz != 0)
       memcpy(p, *ptr, sz);
+    errno = err;
     a.dealloc(*ptr);
-    void* np = SNMALLOC_NAME_MANGLE(realloc)(p, sz);
-    /* updating ptr on success only */
-    if (SNMALLOC_LIKELY(np != nullptr))
-    {
-      errno = err;
-      *ptr = np;
-      r = 0;
-    }
-    else
-    {
-      r = ENOMEM;
-    }
-    return r;
+    *ptr = p;
+    return 0;
   }
 #endif
 
