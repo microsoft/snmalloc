@@ -85,6 +85,11 @@ namespace snmalloc
         madvise(p, size, MADV_FREE);
       }
     }
+
+    static void nodump(void* p, size_t size) noexcept
+    {
+      madvise(p, size, MADV_DONTDUMP);
+    }
   };
 } // namespace snmalloc
 #endif

@@ -418,15 +418,18 @@ namespace snmalloc
     /**
      * Allocate memory of a dynamically known size.
      */
-    template<ZeroMem zero_mem = NoZero>
+    template<ZeroMem zero_mem = NoZero, CoreDumpMem core_dump = YesDump>
     SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
     {
+      void* result = nullptr;
 #ifdef SNMALLOC_PASS_THROUGH
       // snmalloc guarantees a lot of alignment, so we can depend on this
       // make pass through call aligned_alloc with the alignment snmalloc
       // would guarantee.
-      void* result = external_alloc::aligned_alloc(
+      result = external_alloc::aligned_alloc(
         natural_alignment(size), round_size(size));
+      if constexpr (core_dump == NoDump)
+        SharedStateHandle::Pal::nodump(result, size);
       if constexpr (zero_mem == YesZero)
         memset(result, 0, size);
       return result;
@@ -438,11 +441,17 @@ namespace snmalloc
       {
         // Small allocations are more likely. Improve
         // branch prediction by placing this case first.
-        return capptr_reveal(small_alloc<zero_mem>(size));
+        result = capptr_reveal(small_alloc<zero_mem>(size));
+        if constexpr (core_dump == NoDump)
+          SharedStateHandle::Pal::nodump(result, size);
+        return result;
       }
 
-      return capptr_reveal(alloc_not_small<zero_mem>(size));
+      result = capptr_reveal(alloc_not_small<zero_mem>(size));
+      if constexpr (core_dump == NoDump)
+        SharedStateHandle::Pal::nodump(result, size);
 #endif
+      return result;
     }
 
     /**

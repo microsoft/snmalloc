@@ -54,6 +54,41 @@ extern "C"
     return ThreadAlloc::get().alloc<ZeroMem::YesZero>(sz);
   }
 
+#if !defined(__OpenBSD__)
+  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(malloc_conceal)(size_t size)
+  {
+    return ThreadAlloc::get().alloc<NoZero, CoreDumpMem::NoDump>(size);
+  }
+
+  SNMALLOC_EXPORT void*
+    SNMALLOC_NAME_MANGLE(calloc_conceal)(size_t nmemb, size_t size)
+  {
+    bool overflow = false;
+    size_t sz = bits::umul(size, nmemb, overflow);
+    if (SNMALLOC_UNLIKELY(overflow))
+    {
+      return SNMALLOC_NAME_MANGLE(snmalloc_set_error)();
+    }
+    return ThreadAlloc::get().alloc<ZeroMem::YesZero, CoreDumpMem::NoDump>(sz);
+  }
+
+  SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(freezero)(void* p, size_t size)
+  {
+    if (SNMALLOC_UNLIKELY(p == nullptr))
+    {
+      return;
+    }
+
+    size_t sz = bits::min(size, ThreadAlloc::get().alloc_size(p));
+    /* we are not trying to be fast, here but disallowing to potentially
+     * optimize away the memset call */
+    void* (*volatile memset_fn)(void*, int, size_t) = memset;
+    memset_fn(p, 0, sz);
+
+    ThreadAlloc::get().dealloc(p);
+  }
+#endif
+
   SNMALLOC_EXPORT
   size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(
     MALLOC_USABLE_SIZE_QUALIFIER void* ptr)

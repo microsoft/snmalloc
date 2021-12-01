@@ -195,6 +195,12 @@ namespace snmalloc
       return VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
     }
 
+    static void nodump(void* p, size_t size) noexcept
+    {
+      UNUSED(p);
+      UNUSED(size);
+    }
+
     /**
      * Source of Entropy
      */

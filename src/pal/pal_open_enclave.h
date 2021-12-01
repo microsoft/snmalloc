@@ -41,6 +41,12 @@ namespace snmalloc
       oe_memset_s(p, size, 0, size);
     }
 
+    static void dump(void* p, size_t size) noexcept
+    {
+      UNUSED(p);
+      UNUSED(size);
+    }
+
     /**
      * Source of Entropy
      */

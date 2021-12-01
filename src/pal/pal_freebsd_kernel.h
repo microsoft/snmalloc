@@ -92,6 +92,12 @@ namespace snmalloc
       }
       return get_vm_offset(addr);
     }
+
+    static void nodump(void* p, size_t size) noexcept
+    {
+      UNUSED(p);
+      UNUSED(size);
+    }
   };
 }
 #endif

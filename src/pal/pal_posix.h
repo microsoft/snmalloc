@@ -318,6 +318,12 @@ namespace snmalloc
       return nullptr;
     }
 
+    static void nodump(void* p, size_t size) noexcept
+    {
+      UNUSED(p);
+      UNUSED(size);
+    }
+
     /**
      * Source of Entropy
      *
