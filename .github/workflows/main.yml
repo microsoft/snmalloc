@@ -73,7 +73,7 @@ jobs:
     - name: Test
       if: ${{ matrix.build-only != 'yes' }}
       working-directory: ${{github.workspace}}/build
-      run: ctest --output-on-failure -j 4
+      run: ctest --output-on-failure -j 4 -C ${{ matrix.build-type }} --timeout 400
     - name: Selfhost
       if: ${{ matrix.self-host }}
       working-directory: ${{github.workspace}}/build
@@ -138,7 +138,7 @@ jobs:
     # QEMU)
     - name: Test
       working-directory: ${{github.workspace}}/build
-      run: ctest --output-on-failure -E '(perf-.*)|(.*-malloc$)'
+      run: ctest --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
       timeout-minutes: 30
 
   windows:
@@ -178,7 +178,8 @@ jobs:
       # Run the tests.
     - name: Test
       working-directory: ${{ github.workspace }}/build
-      run: ctest -j 2 --interactive-debug-mode 0 --output-on-failure -C ${{ matrix.build-type }}
+      run: ctest -j 2 --interactive-debug-mode 0 --output-on-failure -C ${{ matrix.build-type }} --timeout 400
+      timeout-minutes: 20
 
 
   # Job to run clang-format and report errors
