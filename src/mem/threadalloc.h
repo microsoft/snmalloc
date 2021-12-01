@@ -71,7 +71,6 @@ namespace snmalloc
 #    pragma warning(pop)
 #  endif
 #else
-
   /**
    * Holds the thread local state for the allocator.  The state is constant
    * initialised, and has no direct dectructor.  Instead snmalloc will call
@@ -137,7 +136,8 @@ namespace snmalloc
     Singleton<pthread_key_t, &pthread_create> p_key;
     // We need to set a non-null value, so that the destructor is called,
     // we never look at the value.
-    pthread_setspecific(p_key.get(), reinterpret_cast<void*>(1));
+    static char p_teardown_val = 1;
+    pthread_setspecific(p_key.get(), &p_teardown_val);
 #    ifdef SNMALLOC_TRACING
     std::cout << "Using pthread clean up" << std::endl;
 #    endif
