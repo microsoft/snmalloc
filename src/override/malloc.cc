@@ -101,7 +101,7 @@ extern "C"
     return p;
   }
 
-#if !defined(__FreeBSD__) && !defined(__OpenBSD__)
+#if !defined(SNMALLOC_NO_REALLOCARRAY)
   SNMALLOC_EXPORT void*
     SNMALLOC_NAME_MANGLE(reallocarray)(void* ptr, size_t nmemb, size_t size)
   {
@@ -113,6 +113,45 @@ extern "C"
       return nullptr;
     }
     return SNMALLOC_NAME_MANGLE(realloc)(ptr, sz);
+  }
+#endif
+
+#if !defined(SNMALLOC_NO_REALLOCARR)
+  SNMALLOC_EXPORT int
+    SNMALLOC_NAME_MANGLE(reallocarr)(void* ptr_, size_t nmemb, size_t size)
+  {
+    int err = errno;
+    auto& a = ThreadAlloc::get();
+    bool overflow = false;
+    size_t sz = bits::umul(size, nmemb, overflow);
+    if (sz == 0)
+    {
+      errno = err;
+      return 0;
+    }
+    if (overflow)
+    {
+      errno = err;
+      return EOVERFLOW;
+    }
+
+    void** ptr = reinterpret_cast<void**>(ptr_);
+    void* p = a.alloc(sz);
+    if (p == nullptr)
+    {
+      errno = ENOMEM;
+      return ENOMEM;
+    }
+
+    sz = bits::min(sz, a.alloc_size(*ptr));
+    // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
+    // otherwise.
+    if (sz != 0)
+      memcpy(p, *ptr, sz);
+    errno = err;
+    a.dealloc(*ptr);
+    *ptr = p;
+    return 0;
   }
 #endif
 
