@@ -290,6 +290,7 @@ int main(int argc, char** argv)
   {
     const size_t size = bits::one_at_bit(sc);
     test_reallocarray(our_malloc(size), 1, size, SUCCESS, false);
+    test_reallocarray(our_malloc(size), 1, 0, SUCCESS, false);
     test_reallocarray(nullptr, 1, size, SUCCESS, false);
     test_reallocarray(our_malloc(size), 1, ((size_t)-1) / 2, ENOMEM, true);
     for (smallsizeclass_t sc2 = 0; sc2 < (MAX_SMALL_SIZECLASS_BITS + 4); sc2++)
@@ -307,6 +308,7 @@ int main(int argc, char** argv)
   {
     const size_t size = bits::one_at_bit(sc);
     test_reallocarr(size, 1, size, SUCCESS, false);
+    test_reallocarr(size, 1, 0, SUCCESS, false);
     test_reallocarr(size, 2, size, SUCCESS, false);
     void* p = our_malloc(size);
     if (p == nullptr)
