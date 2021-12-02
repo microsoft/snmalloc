@@ -189,19 +189,14 @@ jobs:
     strategy:
       matrix:
         # Build each combination of OS and release/debug variants
-        os: [ windows-2016, windows-2019 ]
+        os: [ windows-2019 ]
         build-type: [ Release, Debug ]
         arch: [ Win32, x64 ]
         toolchain: [ "", "-T ClangCL" ]
         extra-cmake-flags: [ "" ]
-        # The ClangCL toolchain was added in Visual Studio 2019, the Windows
-        # 2016 runners have only VS 2017, so skip them for this configuration
-        exclude:
-          - os: windows-2016
-            toolchain: "-T ClangCL"
         # Add an extra check for the Windows 8 compatible PAL
         include:
-          - os: windows-2016
+          - os: windows-2019
             build-type: Release
             arch: x64
             toolchain: ""
