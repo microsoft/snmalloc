@@ -4,8 +4,10 @@
 #  include "../ds/bits.h"
 #  include "pal_posix.h"
 
+#  include <fcntl.h>
 #  include <string.h>
 #  include <sys/mman.h>
+#  include <syscall.h>
 
 extern "C" int puts(const char* str);
 
@@ -18,12 +20,9 @@ namespace snmalloc
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.
      *
-     * Linux does not support any features other than those in a generic POSIX
-     * platform.  This field is declared explicitly to remind anyone who
-     * extends this PAL that they may need to extend the set of advertised
-     * features.
+     * We always make sure that linux has entropy support.
      */
-    static constexpr uint64_t pal_features = PALPOSIX::pal_features;
+    static constexpr uint64_t pal_features = PALPOSIX::pal_features | Entropy;
 
     static constexpr size_t page_size =
       Aal::aal_name == PowerPC ? 0x10000 : PALPOSIX::page_size;
@@ -84,6 +83,122 @@ namespace snmalloc
       {
         madvise(p, size, MADV_FREE);
       }
+    }
+
+    static uint64_t get_entropy64()
+    {
+      // TODO: If the system call fails then the POSIX PAL calls libc
+      // functions that can require malloc, which may result in deadlock.
+
+      // SYS_getrandom API stablized since 3.17.
+      // This fallback implementation is to aid some environments
+      // where SYS_getrandom is provided in kernel but the libc
+      // is not providing getentropy interface.
+
+      union
+      {
+        uint64_t result;
+        char buffer[sizeof(uint64_t)];
+      };
+      ssize_t ret;
+
+      // give a try to SYS_getrandom
+#  ifdef SYS_getrandom
+      static std::atomic_bool syscall_not_working = false;
+      // Relaxed ordering should be fine here. This function will be called
+      // during early initialisation, which will examine the availability in a
+      // protected routine.
+      if (false == syscall_not_working.load(std::memory_order_relaxed))
+      {
+        auto current = std::begin(buffer);
+        auto target = std::end(buffer);
+        while (auto length = target - current)
+        {
+          // Reading data via syscall from system entropy pool.
+          // According to both MUSL and GLIBC implementation, getentropy uses
+          // /dev/urandom (blocking API).
+          //
+          // The third argument here indicates:
+          // 1. `GRND_RANDOM` bit is not set, so the source of entropy will be
+          // `urandom`.
+          // 2. `GRND_NONBLOCK` bit is set. Since we are reading from
+          // `urandom`, this means if the entropy pool is
+          // not initialised, we will get a EAGAIN.
+          ret = syscall(SYS_getrandom, current, length, GRND_NONBLOCK);
+          // check whether are interrupt by a signal
+          if (SNMALLOC_UNLIKELY(ret < 0))
+          {
+            if (SNMALLOC_UNLIKELY(errno == EAGAIN))
+            {
+              // the system is going through early initialisation: at this stage
+              // it is very likely that snmalloc is being used in some system
+              // programs and we do not want to block it.
+              return reinterpret_cast<uint64_t>(&result) ^
+                reinterpret_cast<uint64_t>(&error);
+            }
+            if (errno != EINTR)
+            {
+              break;
+            }
+          }
+          else
+          {
+            current += ret;
+          }
+        }
+        if (SNMALLOC_UNLIKELY(target != current))
+        {
+          // in this routine, the only possible situations should be ENOSYS
+          // or EPERM (forbidden by seccomp, for example).
+          SNMALLOC_ASSERT(errno == ENOSYS || errno == EPERM);
+          syscall_not_working.store(true, std::memory_order_relaxed);
+        }
+        else
+        {
+          return result;
+        }
+      }
+#  endif
+
+      // Syscall is not working.
+      // In this case, it is not a good idea to fallback to std::random_device:
+      // 1. it may want to use malloc to create a buffer, which causes
+      // reentrancy problem during initialisation routine.
+      // 2. some implementations also require libstdc++ to be linked since
+      // its APIs are not exception-free.
+      int flags = O_RDONLY;
+#  if defined(O_CLOEXEC)
+      flags |= O_CLOEXEC;
+#  endif
+      auto fd = open("/dev/urandom", flags, 0);
+      if (fd > 0)
+      {
+        auto current = std::begin(buffer);
+        auto target = std::end(buffer);
+        while (auto length = static_cast<size_t>(target - current))
+        {
+          ret = read(fd, current, length);
+          if (ret <= 0)
+          {
+            if (errno != EAGAIN && errno != EINTR)
+            {
+              break;
+            }
+          }
+          else
+          {
+            current += ret;
+          }
+        }
+        ret = close(fd);
+        SNMALLOC_ASSERT(0 == ret);
+        if (SNMALLOC_LIKELY(target == current))
+        {
+          return result;
+        }
+      }
+
+      error("Failed to get system randomness");
     }
   };
 } // namespace snmalloc

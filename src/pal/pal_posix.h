@@ -19,9 +19,6 @@
 #if __has_include(<sys/random.h>)
 #  include <sys/random.h>
 #endif
-#if __has_include(<unistd.h>)
-#  include <unistd.h>
-#endif
 
 extern "C" int puts(const char* str);
 

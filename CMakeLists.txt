@@ -89,7 +89,7 @@ CHECK_CXX_SOURCE_COMPILES("
 #  include <unistd.h>
 #endif
 #if __has_include(<sys/random.h>)
-#include <sys/random.h>
+#  include <sys/random.h>
 #endif
 int main() {
   int entropy = 0;
@@ -97,7 +97,6 @@ int main() {
   return res;
 }
 " SNMALLOC_PLATFORM_HAS_GETENTROPY)
-
 # Provide as function so other projects can reuse
 # FIXME: This modifies some variables that may or may not be the ones that
 # provide flags and so is broken by design.  It should be removed once Verona
@@ -123,7 +122,7 @@ endfunction()
 function(clangformat_targets)
   # The clang-format tool is installed under a variety of different names.  Try
   # to find a sensible one.  Only look for versions 9 explicitly - we don't
-  # know whether our clang-format file will work with newer versions of the
+  # know whether our clang-format file will work with newer versions of the
   # tool.  It does not work with older versions as AfterCaseLabel is not supported
   # in earlier versions.
   find_program(CLANG_FORMAT NAMES
@@ -196,6 +195,7 @@ add_as_define(USE_SNMALLOC_STATS)
 add_as_define(SNMALLOC_QEMU_WORKAROUND)
 add_as_define(SNMALLOC_CI_BUILD)
 add_as_define(SNMALLOC_PLATFORM_HAS_GETENTROPY)
+
 target_compile_definitions(snmalloc INTERFACE $<$<BOOL:CONST_QUALIFIED_MALLOC_USABLE_SIZE>:MALLOC_USABLE_SIZE_QUALIFIER=const>)
 
 # In debug and CI builds, link the backtrace library so that we can get stack
