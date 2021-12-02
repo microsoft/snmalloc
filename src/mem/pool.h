@@ -29,7 +29,7 @@ namespace snmalloc
 
   private:
     MPMCStack<T, PreZeroed> stack;
-    std::atomic_flag lock = ATOMIC_FLAG_INIT;
+    FlagWord lock{};
     T* list{nullptr};
 
   public:

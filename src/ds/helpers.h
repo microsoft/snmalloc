@@ -17,7 +17,7 @@ namespace snmalloc
   template<class Object, void init(Object*) noexcept>
   class Singleton
   {
-    inline static std::atomic_flag flag;
+    inline static FlagWord flag;
     inline static std::atomic<bool> initialised{false};
     inline static Object obj;
 
