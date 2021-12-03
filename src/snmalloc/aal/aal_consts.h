@@ -24,6 +24,12 @@ namespace snmalloc
      * internal high-privilege pointers for recycling memory on free().
      */
     StrictProvenance = (1 << 2),
+    /**
+     * This architecture supports tagging pointers and memory with 'tints'; we
+     * ensure allocations and pointers are appropriately tinted before handing
+     * them out and recolor the memory on free to catch UAF.
+     */
+    Tints = (1 << 3),
   };
 
   enum AalName : int

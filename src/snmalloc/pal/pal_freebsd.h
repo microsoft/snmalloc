@@ -120,6 +120,11 @@ namespace snmalloc
       "CHERI purecap support requires StrictProvenance AAL");
 
     /**
+     * Request memory that allows storing versions.
+     */
+    static constexpr int default_mmap_prot = PROT_MTE;
+
+    /**
      * On CheriBSD, exporting a pointer means stripping it of the authority to
      * manage the address space it references by clearing the SW_VMEM
      * permission bit.
@@ -135,9 +140,34 @@ namespace snmalloc
           return nullptr;
         }
       }
+
       return CapPtr<T, capptr::user_address_control_type<B>>(
         __builtin_cheri_perms_and(
           p.unsafe_ptr(), ~static_cast<unsigned int>(CHERI_PERM_SW_VMEM)));
+    }
+
+    /**
+     * Set the tint of given memory and return a tinted pointer.
+     */
+    template<bool skip_first=false, typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    static SNMALLOC_FAST_PATH CapPtr<T, capptr::monochrome_tint_type<B>>
+    capptr_tint_region(CapPtr<T, B> p, size_t l, tint_t t)
+    {
+      static_assert(B::tint == capptr::dimension::Tint::Rainbow,
+        "Only rainbow pointers may be used to region");
+
+      if (p == nullptr)
+      {
+        return nullptr;
+      }
+
+      for (size_t off = skip_first ? 16 : 0; off < l; off += 16)
+      {
+        auto granule_ptr = pointer_offset(p, off);
+        Aal::capptr_tint_store(granule_ptr, t);
+      }
+
+      return Aal::capptr_tint_set<T, capptr::monochrome_tint_type<B>>(p, t);
     }
 #  endif
   };

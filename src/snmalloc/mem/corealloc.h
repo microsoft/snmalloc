@@ -223,7 +223,7 @@ namespace snmalloc
       // Structure to represent the temporary list elements
       struct PreAllocObject
       {
-        capptr::AllocFull<PreAllocObject> next;
+        capptr::AllocFullMono<PreAllocObject> next;
       };
       // The following code implements Sattolo's algorithm for generating
       // random cyclic permutations.  This implementation is in the opposite
@@ -235,8 +235,8 @@ namespace snmalloc
       // curr is not persisted once the list is built.
       capptr::Chunk<PreAllocObject> curr =
         pointer_offset(bumpptr, 0).template as_static<PreAllocObject>();
-      curr->next = Aal::capptr_bound<PreAllocObject, capptr::bounds::AllocFull>(
-        curr, rsize);
+      curr->next = capptr_tint_region(Aal::capptr_bound<PreAllocObject, capptr::bounds::AllocFull>(
+        curr, rsize), rsize, 15); // XXX hardcoded tint
 
       uint16_t count = 1;
       for (curr =
@@ -250,8 +250,8 @@ namespace snmalloc
           pointer_offset(bumpptr, insert_index * rsize)
             .template as_static<PreAllocObject>()
             ->next,
-          Aal::capptr_bound<PreAllocObject, capptr::bounds::AllocFull>(
-            curr, rsize));
+          capptr_tint_region(Aal::capptr_bound<PreAllocObject, capptr::bounds::AllocFull>(
+            curr, rsize), rsize, 15)); // XXX hardcoded tint
         count++;
       }
 
@@ -267,7 +267,8 @@ namespace snmalloc
         b.add(
           // Here begins our treatment of the heap as containing Wild pointers
           freelist::Object::make<capptr::bounds::AllocWild>(
-            capptr_to_user_address_control(curr_ptr.as_void())),
+            capptr_to_user_address_control(curr_ptr.as_void())
+            ),
           key,
           entropy);
         curr_ptr = curr_ptr->next;
@@ -280,8 +281,9 @@ namespace snmalloc
           // Here begins our treatment of the heap as containing Wild pointers
           freelist::Object::make<capptr::bounds::AllocWild>(
             capptr_to_user_address_control(
+              capptr_tint_region(
               Aal::capptr_bound<void, capptr::bounds::AllocFull>(
-                p.as_void(), rsize))),
+                p.as_void(), rsize), rsize, 15))), // XXX hardcoded tint
           key);
         p = pointer_offset(p, rsize);
       } while (p < slab_end);

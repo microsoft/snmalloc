@@ -68,6 +68,31 @@ namespace snmalloc
     };
 
     /**
+     * As for DefaultMMAPFlags but for the prot argument to MMAP.
+     */
+    template<typename T, typename = int>
+    struct DefaultMMAPProt
+    {
+      /**
+       * If `OS::default_mmap_prot` does not exist, use 0.  This value is
+       * or'd with the other mmap prot and so a value of 0 is a no-op.
+       */
+      static const int prot = 0;
+    };
+
+    /**
+     * Helper class to access the `default_mmap_prot` field of `OS` if one
+     * exists or a default value if not.  This provides the version that
+     * accesses the field, allowing other PALs to provide extra arguments to
+     * the `mmap` calls used here.
+     */
+    template<typename T>
+    struct DefaultMMAPProt<T, decltype((void)T::default_mmap_prot, 0)>
+    {
+      static const int prot = T::default_mmap_prot;
+    };
+
+    /**
      * Helper class to allow `OS` to provide the file descriptor used for
      * anonymous memory. This is the default version, which provides the POSIX
      * default of -1.
@@ -289,7 +314,7 @@ namespace snmalloc
         void* r = mmap(
           p,
           size,
-          PROT_READ | PROT_WRITE,
+          PROT_READ | PROT_WRITE | DefaultMMAPProt<OS>::prot,
           MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | DefaultMMAPFlags<OS>::flags,
           AnonFD<OS>::fd,
           0);
@@ -329,7 +354,7 @@ namespace snmalloc
       void* p = mmap(
         nullptr,
         size,
-        prot,
+        prot | DefaultMMAPProt<OS>::prot,
         MAP_PRIVATE | MAP_ANONYMOUS | DefaultMMAPFlags<OS>::flags |
           OS::extra_mmap_flags(false),
         AnonFD<OS>::fd,

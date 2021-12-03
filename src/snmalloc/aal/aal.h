@@ -204,15 +204,129 @@ namespace snmalloc
     static SNMALLOC_FAST_PATH CapPtr<T, BOut>
     capptr_bound(CapPtr<U, BIn> a, size_t size) noexcept
     {
-      static_assert(
-        BIn::spatial > capptr::dimension::Spatial::Alloc,
-        "Refusing to re-bound Spatial::Alloc CapPtr");
+      // static_assert(
+      //   BIn::spatial > capptr::dimension::Spatial::Alloc,
+      //   "Refusing to re-bound Spatial::Alloc CapPtr");
       static_assert(
         capptr::is_spatial_refinement<BIn, BOut>(),
         "capptr_bound must preserve non-spatial CapPtr dimensions");
 
       UNUSED(size);
       return CapPtr<T, BOut>(a.template as_static<T>().unsafe_ptr());
+    }
+  };
+
+  /**
+   * Type of 'tag' applied to pointer and memory for architectures supporting
+   * pointer + memory colouring (e.g. ARM MTE and CHERI Versions).
+   */
+  using tint_t = uint8_t;
+
+  /**
+   * Enum to indicate outcome of the tint AMO dec operation. Values chosen to
+   * match CAmoCDecVersion instruction.
+   */
+  enum class AmoDecResult {
+    /**
+     * The AmoDec failed because the memory did not have the expected tint.
+     * This could indicate an attempted double free.
+     */
+    Fail = 0,
+    /**
+     * The AmoDec succeeded: the memory's tint has been decremented by one and
+     * has not yet reached zero.
+     */
+    Reuse = 1,
+    /**
+     * The AmoDec succeeded but the memory's tint has reached zero so it is time
+     * to put the memory in quarantine pending revocation.
+     */
+    Quarantine = -1,
+  };
+
+  /**
+   * Nop implementation of the tint opeations for architectures without
+   * tinting.
+   */
+  template<class Arch>
+  class AAL_NoTints : public Arch
+  {
+    static_assert(
+      (Arch::aal_features & Tints) == 0,
+      "AAL_NoTints requires what it says on the tin");
+
+  public:
+    template<
+      typename T,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BIn>
+    static SNMALLOC_FAST_PATH tint_t
+    capptr_tint_get(CapPtr<T, BIn> a) noexcept
+    {
+      UNUSED(a);
+      return 0;
+    }
+
+    template<
+      typename T,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BOut,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BIn,
+      typename U = T>
+    static SNMALLOC_FAST_PATH CapPtr<T, BOut>
+    capptr_tint_set(CapPtr<U, BIn> a, tint_t t) noexcept
+    {
+      static_assert(
+        BIn::tint == capptr::dimension::Tint::Rainbow,
+        "Setting tint is only permitted on rainbow pointers");
+      static_assert(
+        BOut::tint == capptr::dimension::Tint::Monochrome,
+        "Setting tint produces a monochrome pointer");
+      UNUSED(t);
+      return CapPtr<T, BOut>(a.template as_static<U>().unsafe_ptr());
+    }
+
+    template<
+      typename T,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BIn>
+    static SNMALLOC_FAST_PATH tint_t
+    capptr_tint_load(CapPtr<T, BIn> a) noexcept
+    {
+      static_assert(
+        BIn::tint == capptr::dimension::Tint::Rainbow,
+        "Only rainbow pointers may be used to load tint");
+      UNUSED(a);
+      return 0;
+    }
+
+    template<
+      typename T,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BIn>
+    static SNMALLOC_FAST_PATH void
+    capptr_tint_store(CapPtr<T, BIn> a, tint_t t) noexcept
+    {
+      static_assert(
+        BIn::tint == capptr::dimension::Tint::Rainbow,
+        "Only rainbow pointers may be used to store tint");
+        UNUSED(a);
+        UNUSED(t);
+    }
+
+    template<
+      typename T,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BAuth,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BExp,
+      typename U = T>
+    static SNMALLOC_FAST_PATH AmoDecResult
+    capptr_tint_amo_dec(CapPtr<T, BAuth> a, CapPtr<U, BExp> te) noexcept
+    {
+      static_assert(
+        BAuth::tint == capptr::dimension::Tint::Rainbow,
+        "AMO Dec requires Rainbow pointer for authorisation");
+      // static_assert(
+      //   BExp::tint == capptr::dimension::Tint::Gray,
+      //   "AMO Dec requires Gray pointer for expected tint");
+      UNUSED(a);
+      UNUSED(te);
+      return AmoDecResult::Reuse;
     }
   };
 } // namespace snmalloc
@@ -238,9 +352,13 @@ namespace snmalloc
 namespace snmalloc
 {
 #if defined(__CHERI_PURE_CAPABILITY__)
-  using Aal = AAL_Generic<AAL_CHERI<AAL_Arch>>;
+#ifdef SNMALLOC_TINTS
+  using Aal = AAL_Generic<AAL_Tints<AAL_CHERI<AAL_Arch>>>;
 #else
-  using Aal = AAL_Generic<AAL_NoStrictProvenance<AAL_Arch>>;
+  using Aal = AAL_Generic<AAL_NoTints<AAL_CHERI<AAL_Arch>>>;
+#endif
+#else
+  using Aal = AAL_Generic<AAL_NoTints<AAL_NoStrictProvenance<AAL_Arch>>>;
 #endif
 
   template<AalFeatures F, SNMALLOC_CONCEPT(ConceptAAL) AAL = Aal>

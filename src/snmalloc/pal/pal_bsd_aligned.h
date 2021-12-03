@@ -43,7 +43,7 @@ namespace snmalloc
       void* p = mmap(
         nullptr,
         size,
-        prot,
+        prot | PROT_MTE, /* XXX can't get at DefaultMMAPProt */
         MAP_PRIVATE | MAP_ANONYMOUS | MAP_ALIGNED(log2align) |
           OS::extra_mmap_flags(state_using),
         -1,

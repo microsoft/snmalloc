@@ -113,6 +113,34 @@ namespace snmalloc
          */
         Tame
       };
+
+      /**
+       * For architectures that support pointer and memory colouring e.g.
+       * ARM MTE or CHERI with 'versions' we must distinguish between pointers
+       * that have been coloured and those that have not, or where we're not
+       * sure yet (for client pointers).
+       */
+      enum class Tint
+      {
+        /**
+         * Unknown authority; presumed monochromatic and matching backing
+         * memory, but unvalidated.  This will be used when consuming a
+         * pointer from a client, though it sticks to Tame-d client pointers
+         * after domestication.
+         */
+        Gray,
+        /**
+         * Low-authority, able to access only identically-tinted memory.
+         * This will be used when handing a pointer out to a client.
+         */
+        Monochrome,
+        /**
+         * High-authority, able to derive monochromatic caps or retint memory.
+         * These are used only internally and are never given out to the
+         * client.
+         */
+        Rainbow
+      };
     } // namespace dimension
 
     /**
@@ -122,31 +150,39 @@ namespace snmalloc
     template<
       dimension::Spatial S,
       dimension::AddressSpaceControl AS,
-      dimension::Wildness W>
+      dimension::Wildness W,
+      dimension::Tint T>
     struct bound
     {
       static constexpr enum dimension::Spatial spatial = S;
       static constexpr enum dimension::AddressSpaceControl
         address_space_control = AS;
       static constexpr enum dimension::Wildness wildness = W;
+      static constexpr enum dimension::Tint tint = T;
 
       /**
        * Set just the spatial component of the bounds
        */
       template<enum dimension::Spatial SO>
-      using with_spatial = bound<SO, AS, W>;
+      using with_spatial = bound<SO, AS, W, T>;
 
       /**
        * Set just the address space control component of the bounds
        */
       template<enum dimension::AddressSpaceControl ASO>
-      using with_address_space_control = bound<S, ASO, W>;
+      using with_address_space_control = bound<S, ASO, W, T>;
 
       /**
        * Set just the wild component of the bounds
        */
       template<enum dimension::Wildness WO>
-      using with_wildness = bound<S, AS, WO>;
+      using with_wildness = bound<S, AS, WO, T>;
+
+      /**
+       * Set just the tint component of the bounds
+       */
+      template<enum dimension::Tint TO>
+      using with_tint = bound<S, AS, W, TO>;
 
       /* The dimensions here are not used completely orthogonally */
       static_assert(
@@ -154,6 +190,8 @@ namespace snmalloc
           (S == dimension::Spatial::Alloc &&
            AS == dimension::AddressSpaceControl::User),
         "Wild pointers must be annotated as tightly bounded");
+
+      /** XXX add suitable assertion for Tint */
     };
 
     // clang-format off
@@ -169,7 +207,8 @@ namespace snmalloc
       ConceptSame<decltype(T::spatial), const dimension::Spatial> &&
       ConceptSame<decltype(T::address_space_control),
         const dimension::AddressSpaceControl> &&
-      ConceptSame<decltype(T::wildness), const dimension::Wildness>;
+      ConceptSame<decltype(T::wildness), const dimension::Wildness> &&
+      ConceptSame<decltype(T::tint), const dimension::Tint>;
 #endif
     // clang-format on
 
@@ -186,24 +225,29 @@ namespace snmalloc
       using Chunk = bound<
         dimension::Spatial::Chunk,
         dimension::AddressSpaceControl::Full,
-        dimension::Wildness::Tame>;
+        dimension::Wildness::Tame,
+        dimension::Tint::Rainbow>; /* Should be Monochrome? */
 
       /**
        * User access to an entire Chunk.  Used as an ephemeral state when
        * returning a large allocation.  See capptr_chunk_is_alloc.
        */
       using ChunkUser =
-        Chunk::with_address_space_control<dimension::AddressSpaceControl::User>;
+        Chunk::with_address_space_control<dimension::AddressSpaceControl::User>
+        ::template with_tint<dimension::Tint::Monochrome>;
 
       /**
        * Internal access to just one allocation (usually, within a slab).
        */
       using AllocFull = Chunk::with_spatial<dimension::Spatial::Alloc>;
 
+      using AllocFullMono = AllocFull
+        ::with_tint<dimension::Tint::Monochrome>;
+
       /**
        * User access to just one allocation (usually, within a slab).
        */
-      using Alloc = AllocFull::with_address_space_control<
+      using Alloc = AllocFullMono::with_address_space_control<
         dimension::AddressSpaceControl::User>;
 
       /**
@@ -224,6 +268,15 @@ namespace snmalloc
         dimension::AddressSpaceControl::User>;
 
     /**
+     * Compute the Tint::Monochrome variant of a capptr::bound
+     * annotation.  This is used by the PAL's capptr_tint_region
+     * function to compute its return value's annotation.
+     */
+    template<SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    using monochrome_tint_type =
+      typename B::template with_tint<dimension::Tint::Monochrome>;
+
+    /**
      * Determine whether BI is a spatial refinement of BO.
      * Chunk and ChunkD are considered eqivalent here.
      */
@@ -241,7 +294,7 @@ namespace snmalloc
       {
         return false;
       }
-
+      // XXX check for identical tint?
       switch (BI::spatial)
       {
         using namespace capptr::dimension;
@@ -365,6 +418,9 @@ namespace snmalloc
     using AllocFull = CapPtr<T, bounds::AllocFull>;
 
     template<typename T>
+    using AllocFullMono = CapPtr<T, bounds::AllocFullMono>;
+
+    template<typename T>
     using Alloc = CapPtr<T, bounds::Alloc>;
 
     template<typename T>
@@ -422,7 +478,7 @@ namespace snmalloc
   template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) B>
   static inline SNMALLOC_FAST_PATH CapPtr<
     T,
-    typename B::template with_wildness<capptr::dimension::Wildness::Wild>>
+    typename B::template with_wildness<capptr::dimension::Wildness::Wild>> // XXX maybe not needed
   capptr_rewild(CapPtr<T, B> p)
   {
     return CapPtr<

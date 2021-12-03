@@ -69,12 +69,12 @@ namespace snmalloc
     static SNMALLOC_FAST_PATH CapPtr<T, BOut>
     capptr_bound(CapPtr<U, BIn> a, size_t size) noexcept
     {
-      static_assert(
-        BIn::spatial > capptr::dimension::Spatial::Alloc,
-        "Refusing to re-bound Spatial::Alloc CapPtr");
-      static_assert(
-        capptr::is_spatial_refinement<BIn, BOut>(),
-        "capptr_bound must preserve non-spatial CapPtr dimensions");
+      // static_assert(
+      //   BIn::spatial > capptr::dimension::Spatial::Alloc,
+      //   "Refusing to re-bound Spatial::Alloc CapPtr");
+      // static_assert(
+      //   capptr::is_spatial_refinement<BIn, BOut>(),
+      //   "capptr_bound must preserve non-spatial CapPtr dimensions");
       SNMALLOC_ASSERT(__builtin_cheri_tag_get(a.unsafe_ptr()));
 
       if constexpr (aal_cheri_features & SetBoundsTrapsUntagged)
@@ -87,6 +87,93 @@ namespace snmalloc
 
       void* pb = __builtin_cheri_bounds_set_exact(a.unsafe_ptr(), size);
       return CapPtr<T, BOut>(static_cast<T*>(pb));
+    }
+  };
+
+   /**
+   * A mixin AAL that applies CHERI Tints to a `Base` architecture.  Implements
+   * the tint manipulation primitives.
+   */
+  template<typename Base>
+  class AAL_Tints : public Base
+  {
+  public:
+    /**
+     * Add Tints to set of supported features.
+     */
+    static constexpr uint64_t aal_features = Base::aal_features | Tints;
+
+  public:
+    template<
+      typename T,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BIn>
+    static SNMALLOC_FAST_PATH tint_t
+    capptr_tint_get(CapPtr<T, BIn> a) noexcept
+    {
+      return static_cast<tint_t>(cheri_getversion(a.unsafe_ptr()));
+    }
+
+    template<
+      typename T,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BOut,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BIn,
+      typename U = T>
+    static SNMALLOC_FAST_PATH CapPtr<T, BOut>
+    capptr_tint_set(CapPtr<U, BIn> a, tint_t t) noexcept
+    {
+      static_assert(
+        BIn::tint == capptr::dimension::Tint::Rainbow,
+        "Setting tint is only permitted on rainbow pointers");
+      static_assert(
+        BOut::tint == capptr::dimension::Tint::Monochrome,
+        "Setting tint produces a monochrome pointer");
+      // XXX assert non-tint dimensions unchanged?
+      void* pt = cheri_setversion(a.unsafe_ptr(), t);
+      return CapPtr<T, BOut>(static_cast<T*>(pt));
+    }
+
+    template<
+      typename T,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BIn>
+    static SNMALLOC_FAST_PATH tint_t
+    capptr_tint_load(CapPtr<T, BIn> a) noexcept
+    {
+      static_assert(
+        BIn::tint == capptr::dimension::Tint::Rainbow,
+        "Only rainbow pointers may be used to load tint");
+      return static_cast<tint_t>(cheri_loadversion(a.unsafe_ptr()));
+    }
+
+    template<
+      typename T,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BIn>
+    static SNMALLOC_FAST_PATH void
+    capptr_tint_store(CapPtr<T, BIn> a, tint_t t) noexcept
+    {
+      static_assert(
+        BIn::tint == capptr::dimension::Tint::Rainbow,
+        "Only rainbow pointers may be used to store tint");
+        cheri_storeversion(a.unsafe_ptr(), t);
+    }
+
+    template<
+      typename T,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BAuth,
+      SNMALLOC_CONCEPT(capptr::ConceptBound) BExp,
+      typename U = T>
+    static SNMALLOC_FAST_PATH AmoDecResult
+    capptr_tint_amo_dec(CapPtr<T, BAuth> a, CapPtr<U, BExp> te) noexcept
+    {
+      static_assert(
+        BAuth::tint == capptr::dimension::Tint::Rainbow,
+        "AMO Dec requires Rainbow pointer for authorisation");
+      // static_assert(
+      //   BExp::tint == capptr::dimension::Tint::Gray,
+      //   "AMO Dec requires Gray pointer for expected tint");
+      UNUSED(a);
+      UNUSED(te);
+      int r = cheri_camocdecversion(a.unsafe_ptr(), te.unsafe_ptr());
+      return static_cast<AmoDecResult> (r);
     }
   };
 } // namespace snmalloc

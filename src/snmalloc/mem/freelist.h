@@ -140,7 +140,8 @@ namespace snmalloc
       public:
         template<
           SNMALLOC_CONCEPT(capptr::ConceptBound) BView = typename BQueue::
-            template with_wildness<capptr::dimension::Wildness::Tame>,
+            template with_wildness<capptr::dimension::Wildness::Tame>::
+            template with_tint<capptr::dimension::Tint::Monochrome>,
           typename Domesticator>
         BHeadPtr<BView, BQueue>
         atomic_read_next(const FreeListKey& key, Domesticator domesticate)
@@ -165,7 +166,8 @@ namespace snmalloc
          */
         template<
           SNMALLOC_CONCEPT(capptr::ConceptBound) BView = typename BQueue::
-            template with_wildness<capptr::dimension::Wildness::Tame>,
+            template with_wildness<capptr::dimension::Wildness::Tame>::
+            template with_tint<capptr::dimension::Tint::Monochrome>,
           typename Domesticator>
         BHeadPtr<BView, BQueue>
         read_next(const FreeListKey& key, Domesticator domesticate)
@@ -310,8 +312,9 @@ namespace snmalloc
 
         static_assert(
           std::is_same_v<
-            typename BQueue::template with_wildness<
-              capptr::dimension::Wildness::Tame>,
+            typename BQueue
+              ::template with_wildness<capptr::dimension::Wildness::Tame>
+              ::template with_tint<capptr::dimension::Tint::Monochrome>, // XXX
             BView>,
           "Free Object Queue bounds must match View bounds (but may be Wild)");
       }

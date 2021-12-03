@@ -114,6 +114,49 @@ namespace snmalloc
   }
 
   /**
+   * Perform tinting of region if implemented.
+   *
+   * This is here, rather than in every PAL proper, merely to minimize
+   * disruption to PALs for platforms that do not support Tinting AALs.
+   */
+  template<
+    bool skip_first=false, // TODO turn this into an enum like ZeroMem
+    typename PAL = Pal,
+    typename AAL = Aal,
+    typename T,
+    SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+  static inline typename std::enable_if_t<
+    !aal_supports<Tints, AAL>,
+    CapPtr<T, capptr::monochrome_tint_type<B>>>
+  capptr_tint_region(CapPtr<T, B> p, size_t s, tint_t t)
+  {
+    UNUSED(t);
+    UNUSED(s);
+#ifdef SNMALLOC_TINTS_ZERO
+    if (p == nullptr)
+    {
+      return nullptr;
+    }
+    PAL::zero(p.unsafe_ptr(), s);
+#endif
+    return CapPtr<T, capptr::monochrome_tint_type<B>>(p.unsafe_ptr());
+  }
+
+  template<
+    bool skip_first=false,
+    typename PAL = Pal,
+    typename AAL = Aal,
+    typename T,
+    SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+  static SNMALLOC_FAST_PATH typename std::enable_if_t<
+    aal_supports<Tints, AAL>,
+    CapPtr<T, capptr::monochrome_tint_type<B>>>
+  capptr_tint_region(CapPtr<T, B> p, size_t s, tint_t t)
+  {
+    return PAL::template capptr_tint_region<skip_first>(p, s, t);
+  }
+
+  /**
    * A convenience wrapper that avoids the need to litter unsafe accesses with
    * every call to PAL::zero.
    *

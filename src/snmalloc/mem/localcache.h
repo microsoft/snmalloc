@@ -25,9 +25,14 @@ namespace snmalloc
   {
     auto r = finish_alloc_no_zero(p, sizeclass);
 
+// We can avoid zeroing here only in CHECK_CLIENT builds, where freelist entries
+// are zeroed -- should maybe always cleanup as it says below?
+//#ifndef SNMALLOC_TINTS_ZERO
+    // No need to zero if capptr_tint_region does it.
     if constexpr (zero_mem == YesZero)
       SharedStateHandle::Pal::zero(
         r.unsafe_ptr(), sizeclass_to_size(sizeclass));
+//#endif
 
     // TODO: Should this be zeroing the free Object state, in the non-zeroing
     // case?

@@ -223,3 +223,42 @@ namespace snmalloc
 #else
 #  define snmalloc_check_client(test, str, ...)
 #endif
+
+#ifdef __CHERI_PURE_CAPABILITY__
+/* XXX temporary static inline function until compiler builtin exists */
+static inline int _cheri_getversion(void * __capability c) {
+  int v;
+	__asm__ __volatile__ ("cgetversion %0, %1":"=r"(v):"C"(c));
+	return v;
+}
+#define cheri_getversion(c) _cheri_getversion(c)
+
+/* XXX temporary static inline function until compiler builtin exists */
+static inline void * __capability _cheri_setversion(void * __capability c, int v) {
+	__asm__ __volatile__ ("csetversion %0, %1, %2":"=C"(c):"C"(c),"r"(v));
+	return c;
+}
+#define cheri_setversion(c, v) _cheri_setversion(c, v)
+
+/* XXX temporary static inline function until compiler builtin exists */
+static inline int _cheri_loadversion(void * __capability c) {
+	int v;
+	__asm__ __volatile__ ("cloadversion %0, (%1)": "=r"(v) : "C"(c));
+	return v;
+}
+#define cheri_loadversion(c) _cheri_loadversion(c)
+
+/* XXX temporary static inline function until compiler builtin exists */
+static inline void _cheri_storeversion(void * __capability c, int v) {
+	__asm__ __volatile ("cstoreversion %0, (%1)" :: "r" (v), "C" (c) : "memory");
+}
+#define cheri_storeversion(c, v) _cheri_storeversion(c, v)
+
+static inline int _cheri_camocdecversion(void *cauth, void *cexp) {
+  int ret;
+	__asm__ __volatile ("camocdecversion %0, (%1), %2" : "=r" (ret) : "C" (cauth), "C" (cexp) : "memory");
+  return ret;
+}
+
+#define cheri_camocdecversion(cauth, cexp) _cheri_camocdecversion(cauth, cexp)
+#endif

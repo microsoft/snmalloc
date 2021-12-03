@@ -64,7 +64,8 @@ namespace snmalloc
     template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) B>
     static CapPtr<
       T,
-      typename B::template with_wildness<capptr::dimension::Wildness::Tame>>
+      typename B::template with_wildness<capptr::dimension::Wildness::Tame>
+      ::template with_tint<capptr::dimension::Tint::Monochrome>>
     capptr_domesticate(typename Backend::LocalState*, CapPtr<T, B> p)
     {
       domesticate_count++;
@@ -90,7 +91,8 @@ namespace snmalloc
 
       return CapPtr<
         T,
-        typename B::template with_wildness<capptr::dimension::Wildness::Tame>>(
+        typename B::template with_wildness<capptr::dimension::Wildness::Tame>
+        ::template with_tint<capptr::dimension::Tint::Monochrome>>(
         p.unsafe_ptr());
     }
   };
