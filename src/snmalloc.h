@@ -14,7 +14,7 @@
 // The default configuration for snmalloc
 namespace snmalloc
 {
-  using Alloc = snmalloc::LocalAllocator<snmalloc::Globals>;
+  template<SNMALLOC_CONCEPT(snmalloc::ConceptBackendGlobals) GC = snmalloc::Globals> using Alloc = snmalloc::LocalAllocator<GC>;
 }
 
 // User facing API surface, needs to know what `Alloc` is.

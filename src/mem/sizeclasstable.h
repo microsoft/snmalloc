@@ -39,7 +39,7 @@ namespace snmalloc
 
   // Large classes range from [MAX_SMALL_SIZECLASS_SIZE, ADDRESS_SPACE).
   static constexpr size_t NUM_LARGE_CLASSES =
-    Pal::address_bits - MAX_SMALL_SIZECLASS_BITS;
+    Pal<DoDump>::address_bits - MAX_SMALL_SIZECLASS_BITS;
 
   // How many bits are required to represent either a large or a small
   // sizeclass.

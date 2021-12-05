@@ -3,7 +3,7 @@
 int main()
 {
 #ifndef SNMALLOC_PASS_THROUGH // This test depends on snmalloc internals
-  snmalloc::Alloc& a = snmalloc::ThreadAlloc::get();
+  snmalloc::Alloc<>& a = snmalloc::ThreadAlloc::get();
   bool result;
 
   auto r = a.alloc(16);

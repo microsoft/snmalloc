@@ -304,7 +304,7 @@ void test_external_pointer_large()
 
   auto& alloc = ThreadAlloc::get();
 
-  constexpr size_t count_log = Pal::address_bits > 32 ? 5 : 3;
+  constexpr size_t count_log = Pal<>::address_bits > 32 ? 5 : 3;
   constexpr size_t count = 1 << count_log;
   // Pre allocate all the objects
   size_t* objects[count];

@@ -8,7 +8,7 @@
 // The default configuration for snmalloc is used if alternative not defined
 namespace snmalloc
 {
-  using Alloc = snmalloc::LocalAllocator<snmalloc::Globals>;
+  template<SNMALLOC_CONCEPT(snmalloc::ConceptBackendGlobals) GC = snmalloc::Globals> using Alloc = snmalloc::LocalAllocator<GC>;
 } // namespace snmalloc
 #endif
 

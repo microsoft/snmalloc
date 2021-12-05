@@ -12,7 +12,7 @@
 
 namespace snmalloc
 {
-  using Alloc = snmalloc::LocalAllocator<snmalloc::Globals>;
+  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) GC = snmalloc::Globals> using Alloc = snmalloc::LocalAllocator<GC>;
 }
 
 using namespace snmalloc;
@@ -20,13 +20,13 @@ using namespace snmalloc;
 class ThreadAllocExternal
 {
 public:
-  static Alloc*& get_inner()
+  static Alloc<>*& get_inner()
   {
-    static thread_local Alloc* alloc;
+    static thread_local Alloc<>* alloc;
     return alloc;
   }
 
-  static Alloc& get()
+  static Alloc<>& get()
   {
     return *get_inner();
   }
@@ -41,10 +41,10 @@ void allocator_thread_init(void)
     // Create bootstrap allocator
     auto a = snmalloc::ScopedAllocator();
     // Create storage for the thread-local allocator
-    aptr = a->alloc(sizeof(snmalloc::Alloc));
+    aptr = a->alloc(sizeof(snmalloc::Alloc<>));
   }
   // Initialize the thread-local allocator
-  ThreadAllocExternal::get_inner() = new (aptr) snmalloc::Alloc();
+  ThreadAllocExternal::get_inner() = new (aptr) snmalloc::Alloc<>();
   ThreadAllocExternal::get().init();
 }
 

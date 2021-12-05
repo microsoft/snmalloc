@@ -89,11 +89,20 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
   our_free(p);
 }
 
-void test_calloc(size_t nmemb, size_t size, int err, bool null)
+void test_calloc(
+  void* (*calloc_fn)(size_t, size_t),
+  size_t nmemb,
+  size_t size,
+  int err,
+  bool null)
 {
-  printf("calloc(%zu, %zu)  combined size %zu\n", nmemb, size, nmemb * size);
+  printf("calloc");
+  if (calloc_fn == our_calloc_conceal)
+    printf("_conceal");
+
+  printf("(%zu, %zu)  combined size %zu\n", nmemb, size, nmemb * size);
   errno = SUCCESS;
-  void* p = our_calloc(nmemb, size);
+  void* p = calloc_fn(nmemb, size);
 
   if (p != nullptr)
   {
@@ -213,7 +222,7 @@ int main(int argc, char** argv)
     check_result(size + 1, 1, our_malloc(size + 1), SUCCESS, false);
   }
 
-  test_calloc(0, 0, SUCCESS, false);
+  test_calloc(our_calloc, 0, 0, SUCCESS, false);
 
   our_free(nullptr);
 
@@ -229,10 +238,10 @@ int main(int argc, char** argv)
       if (overflow)
         break;
 
-      test_calloc(n, size, SUCCESS, false);
-      test_calloc(n, 0, SUCCESS, false);
+      test_calloc(our_calloc, n, size, SUCCESS, false);
+      test_calloc(our_calloc, n, 0, SUCCESS, false);
     }
-    test_calloc(0, size, SUCCESS, false);
+    test_calloc(our_calloc, 0, size, SUCCESS, false);
   }
 
   for (smallsizeclass_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
@@ -265,6 +274,44 @@ int main(int argc, char** argv)
   }
 
   test_realloc(our_malloc(64), 4194304, SUCCESS, false);
+for (smallsizeclass_t sc = 0; sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
+  {
+    const size_t size = bits::one_at_bit(sc);
+    printf("malloc_conceal: %zu\n", size);
+    errno = SUCCESS;
+    check_result(size, 1, our_malloc_conceal(size), SUCCESS, false);
+    errno = SUCCESS;
+    check_result(size + 1, 1, our_malloc_conceal(size + 1), SUCCESS, false);
+  }
+
+  our_freezero(nullptr, 1024);
+  void* p = our_malloc_conceal(64);
+  our_freezero(p, 128);
+  if (((uint8_t*)p)[63] != 0)
+  {
+    abort();
+  }
+
+  p = our_malloc_conceal(16);
+  our_freezero(p, 0);
+
+  for (smallsizeclass_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
+  {
+    const size_t size = sizeclass_to_size(sc);
+
+    bool overflow = false;
+    for (size_t n = 1;
+         bits::umul(size, n, overflow) <= MAX_SMALL_SIZECLASS_SIZE;
+         n *= 5)
+    {
+      if (overflow)
+        break;
+
+      test_calloc(our_calloc_conceal, n, size, SUCCESS, false);
+      test_calloc(our_calloc_conceal, n, 0, SUCCESS, false);
+    }
+    test_calloc(our_calloc_conceal, 0, size, SUCCESS, false);
+  }
 
   test_posix_memalign(0, 0, EINVAL, true);
   test_posix_memalign(((size_t)-1) / 2, 0, EINVAL, true);

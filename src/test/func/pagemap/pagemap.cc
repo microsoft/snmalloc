@@ -21,11 +21,11 @@ struct T
   T() {}
 };
 
-AddressSpaceManager<DefaultPal> address_space;
+AddressSpaceManager<DefaultPal<DoDump>> address_space;
 
-FlatPagemap<GRANULARITY_BITS, T, DefaultPal, false> pagemap_test_unbound;
+FlatPagemap<GRANULARITY_BITS, T, DefaultPal<DoDump>, false> pagemap_test_unbound;
 
-FlatPagemap<GRANULARITY_BITS, T, DefaultPal, true> pagemap_test_bound;
+FlatPagemap<GRANULARITY_BITS, T, DefaultPal<DoDump>, true> pagemap_test_bound;
 
 size_t failure_count = 0;
 
@@ -69,8 +69,8 @@ void test_pagemap(bool bounded)
   if (bounded)
   {
     auto size = bits::one_at_bit(30);
-    auto base = Pal::reserve(size);
-    Pal::notify_using<NoZero>(base, size);
+    auto base = Pal<>::reserve(size);
+    Pal<>::notify_using<NoZero>(base, size);
     std::cout << "Fixed base: " << base << " (" << size << ") "
               << " end: " << pointer_offset(base, size) << std::endl;
     auto [heap_base, heap_size] = pagemap_test_bound.init(base, size);

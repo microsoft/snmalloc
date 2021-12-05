@@ -31,6 +31,31 @@ extern "C"
     ThreadAlloc::get().dealloc(ptr);
   }
 
+  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(malloc_conceal)(size_t size)
+  {
+    size_t sz = round_size(size);
+    return ThreadAlloc::get<DontDump>().alloc(sz);
+  }
+
+  SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(freezero)(void* p, size_t size)
+  {
+    if (SNMALLOC_UNLIKELY(p == nullptr))
+    {
+      return;
+    }
+
+    auto& a = ThreadAlloc::get<CoreDump::DontDump>();
+    size_t sz = bits::min(size, a.alloc_size(p));
+
+    /* we are not trying to be fast here, but disallowing to potentially
+     * optimize away the memset call */
+
+    void* (*volatile memset_fn)(void*, int, size_t) = memset;
+    memset_fn(p, 0, sz);
+
+    a.dealloc(p);
+  }
+
   /**
    * Clang was helpfully inlining the constant return value, and
    * thus converting from a tail call to an ordinary call.
@@ -52,6 +77,17 @@ extern "C"
       return SNMALLOC_NAME_MANGLE(snmalloc_set_error)();
     }
     return ThreadAlloc::get().alloc<ZeroMem::YesZero>(sz);
+  }
+
+  SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(calloc_conceal)(size_t nmemb, size_t size)
+  {
+    bool overflow = false;
+    size_t sz = round_size(bits::umul(size, nmemb, overflow));
+    if (SNMALLOC_UNLIKELY(overflow))
+    {
+      return SNMALLOC_NAME_MANGLE(snmalloc_set_error)();
+    }
+    return ThreadAlloc::get<CoreDump::DontDump>().alloc<ZeroMem::YesZero>(sz);
   }
 
   SNMALLOC_EXPORT

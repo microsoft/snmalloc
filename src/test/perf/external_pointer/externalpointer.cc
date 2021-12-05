@@ -13,13 +13,13 @@ namespace test
   // Pre allocate all the objects
   size_t* objects[count];
 
-  NOINLINE void setup(xoroshiro::p128r64& r, Alloc& alloc)
+  NOINLINE void setup(xoroshiro::p128r64& r, Alloc<>& alloc)
   {
     for (size_t i = 0; i < count; i++)
     {
       size_t rand = (size_t)r.next();
       size_t offset = bits::clz(rand);
-      if constexpr (Pal::address_bits > 32)
+      if constexpr (Pal<>::address_bits > 32)
       {
         if (offset > 30)
           offset = 30;
@@ -39,7 +39,7 @@ namespace test
     }
   }
 
-  NOINLINE void teardown(Alloc& alloc)
+  NOINLINE void teardown(Alloc<>& alloc)
   {
     // Deallocate everything
     for (size_t i = 0; i < count; i++)

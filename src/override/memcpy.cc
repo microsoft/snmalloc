@@ -118,7 +118,7 @@ namespace
       alloc.template external_pointer<Start>(p),
       alloc.template external_pointer<OnePastEnd>(p),
       len);
-    Pal::error(buffer.data());
+    Pal<>::error(buffer.data());
   }
 
   /**

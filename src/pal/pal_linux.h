@@ -13,7 +13,8 @@ extern "C" int puts(const char* str);
 
 namespace snmalloc
 {
-  class PALLinux : public PALPOSIX<PALLinux>
+  template<CoreDump CDM>
+  class PALLinux : public PALPOSIX<PALLinux<CDM>>
   {
   public:
     /**
@@ -22,10 +23,10 @@ namespace snmalloc
      *
      * We always make sure that linux has entropy support.
      */
-    static constexpr uint64_t pal_features = PALPOSIX::pal_features | Entropy;
+    static constexpr uint64_t pal_features = PALPOSIX<PALLinux<CDM>>::pal_features | Entropy;
 
     static constexpr size_t page_size =
-      Aal::aal_name == PowerPC ? 0x10000 : PALPOSIX::page_size;
+      Aal::aal_name == PowerPC ? 0x10000 : PALPOSIX<PALLinux<CDM>>::page_size;
 
     /**
      * Linux requires an explicit no-reserve flag in `mmap` to guarantee lazy
@@ -63,6 +64,21 @@ namespace snmalloc
       {
         ::memset(p, 0, size);
       }
+    }
+
+    static void* reserve(size_t size) noexcept
+    {
+      void* p = PALPOSIX<PALLinux<CDM>>::reserve(size);
+      if (p)
+      {
+        if constexpr (CDM == DontDump)
+	{
+          SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
+          madvise(p, size, MADV_DONTDUMP);
+	}
+      }
+
+      return p;
     }
 
     static void notify_not_using(void* p, size_t size) noexcept

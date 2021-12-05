@@ -21,7 +21,7 @@ namespace snmalloc
   std::enable_if_t<!pal_supports<Entropy, PAL>, uint64_t> get_entropy64()
   {
 #ifdef SNMALLOC_PLATFORM_HAS_GETENTROPY
-    return DefaultPal::get_entropy64();
+    return DefaultPal<DoDump>::get_entropy64();
 #else
     std::random_device rd;
     uint64_t a = rd();
