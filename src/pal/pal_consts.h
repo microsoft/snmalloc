@@ -75,6 +75,11 @@ namespace snmalloc
      * This Pal provides a millisecond time source
      */
     Time = (1 << 5),
+
+    /**
+     * This Pal supports a NUMA's API
+     */
+    Numa = (1 << 6),
   };
 
   /**
@@ -92,6 +97,11 @@ namespace snmalloc
      * mechanism as long as any load from the memory returns zero.
      */
     YesZero
+  };
+
+  enum NumaMode {
+    DontBind,
+    DoBind,
   };
 
   /**

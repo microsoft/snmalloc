@@ -37,7 +37,7 @@ namespace snmalloc
    * up casts to allow this class to call non-virtual methods on the templated
    * version.
    */
-  template<class OS>
+  template<class OS, NumaMode N = DoBind>
   class PALPOSIX : public PalTimerDefaultImpl<PALPOSIX<OS>>
   {
     /**
@@ -316,10 +316,30 @@ namespace snmalloc
         std::cout << "Pal_posix reserved: " << p << " (" << size << ")"
                   << std::endl;
 #endif
+	if constexpr (N == DoBind)
+	{
+	  auto nid = get_numaindex();
+	  if (nid != -1)
+	  {
+            OS::bind_page(nid, p, size);
+	  }
+	}
         return p;
       }
 
       return nullptr;
+    }
+
+    static int64_t get_numaindex()
+    {
+      if constexpr (!pal_supports<Numa, OS>)
+      {
+        return -1;
+      }
+      else
+      {
+        return OS::get_numaindex();
+      }
     }
 
     /**
