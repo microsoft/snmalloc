@@ -186,7 +186,7 @@ namespace snmalloc
           size_to_sizeclass_full(size),
           large_size_to_chunk_sizeclass(size),
           large_size_to_chunk_size(size),
-          SharedStateHandle::fake_large_remote);
+          core_alloc->public_state());
         // set up meta data so sizeclass is correct, and hence alloc size, and
         // external pointer.
 #ifdef SNMALLOC_TRACING
@@ -194,9 +194,9 @@ namespace snmalloc
                   << bits::next_pow2_bits(size) << std::endl;
 #endif
 
-        // Note that meta data is not currently used for large allocs.
-        //        meta->initialise(size_to_sizeclass(size));
-        UNUSED(meta);
+        // Initialise meta data for a successful large allocation.
+        if (meta != nullptr)
+          meta->initialise_large();
 
         if (zero_mem == YesZero)
         {
@@ -659,56 +659,6 @@ namespace snmalloc
         }
 
         dealloc_remote_slow(p_tame);
-        return;
-      }
-
-      // Large deallocation or null.
-      // also checks for managed by page map.
-      if (SNMALLOC_LIKELY(
-            (p_tame != nullptr) && !entry.get_sizeclass().is_default()))
-      {
-#  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
-        dealloc_cheri_checks(p_tame.unsafe_ptr());
-#  endif
-
-        size_t entry_sizeclass = entry.get_sizeclass().as_large();
-
-        size_t size = bits::one_at_bit(entry_sizeclass);
-        size_t slab_sizeclass =
-          metaentry_chunk_sizeclass_to_slab_sizeclass(entry_sizeclass);
-
-        // Check for start of allocation.
-        snmalloc_check_client(
-          pointer_align_down(p_tame, size) == p_tame,
-          "Not start of an allocation.");
-
-#  ifdef SNMALLOC_TRACING
-        std::cout << "Large deallocation: " << size
-                  << " chunk sizeclass: " << slab_sizeclass << std::endl;
-#  else
-        UNUSED(size);
-#  endif
-
-        auto slab_record =
-          static_cast<ChunkRecord*>(entry.get_metaslab_no_remote());
-
-        SNMALLOC_ASSERT(
-          address_cast(slab_record->meta_common.chunk) == address_cast(p_tame));
-
-        check_init(
-          [](
-            CoreAlloc* core_alloc,
-            ChunkRecord* slab_record,
-            size_t slab_sizeclass) {
-            ChunkAllocator::dealloc<SharedStateHandle>(
-              core_alloc->get_backend_local_state(),
-              core_alloc->chunk_local_state,
-              slab_record,
-              slab_sizeclass);
-            return nullptr;
-          },
-          slab_record,
-          slab_sizeclass);
         return;
       }
 

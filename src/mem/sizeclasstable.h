@@ -254,10 +254,12 @@ namespace snmalloc
       for (size_t sizeclass = 1; sizeclass < bits::BITS; sizeclass++)
       {
         auto lsc = sizeclass_t::from_large_class(sizeclass);
-        fast(lsc).size = bits::one_at_bit(lsc.as_large());
-
-        // Use slab mask as 0 for power of two sizes.
-        fast(lsc).slab_mask = 0;
+        auto& meta = fast(lsc);
+        meta.size = bits::one_at_bit(lsc.as_large());
+        meta.slab_mask = meta.size - 1;
+        // The slab_mask will do all the necessary work, so
+        // perform identity multiplication for the test.
+        meta.mod_zero_mult = 1;
       }
     }
   };
@@ -367,7 +369,7 @@ namespace snmalloc
     return sizeclass_metadata.fast(sc).size - index_in_object(sc, addr);
   }
 
-  inline static bool divisible_by_sizeclass(smallsizeclass_t sc, size_t offset)
+  inline static bool divisible_by_sizeclass(sizeclass_t sc, size_t offset)
   {
     // Only works up to certain offsets, exhaustively tested by rounding.cc
 
@@ -377,13 +379,24 @@ namespace snmalloc
       // 32bit.
       // This is based on:
       //  https://lemire.me/blog/2019/02/20/more-fun-with-fast-remainders-when-the-divisor-is-a-constant/
-      auto mod_zero_mult = sizeclass_metadata.fast_small(sc).mod_zero_mult;
+      auto mod_zero_mult = sizeclass_metadata.fast(sc).mod_zero_mult;
       return (offset * mod_zero_mult) < mod_zero_mult;
     }
     else
       // Use 32-bit division as considerably faster than 64-bit, and
       // everything fits into 32bits here.
-      return static_cast<uint32_t>(offset % sizeclass_to_size(sc)) == 0;
+      return static_cast<uint32_t>(offset % sizeclass_full_to_size(sc)) == 0;
+  }
+
+  inline static bool is_start_of_object(sizeclass_t sc, address_t addr)
+  {
+    size_t offset = addr & (sizeclass_full_to_slab_size(sc) - 1);
+    return divisible_by_sizeclass(sc, offset);
+  }
+
+  inline static bool is_start_of_object(smallsizeclass_t sc, address_t addr)
+  {
+    return is_start_of_object(sizeclass_t::from_small_class(sc), addr);
   }
 
   inline static size_t large_size_to_chunk_size(size_t size)

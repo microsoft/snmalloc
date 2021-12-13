@@ -402,6 +402,33 @@ namespace snmalloc
       // TODO: Handle message queue on this path?
 
       Metaslab* meta = entry.get_metaslab();
+
+      if (meta->is_large())
+      {
+        // Handle large deallocation here.
+        size_t entry_sizeclass = entry.get_sizeclass().as_large();
+        size_t size = bits::one_at_bit(entry_sizeclass);
+        size_t slab_sizeclass =
+          metaentry_chunk_sizeclass_to_slab_sizeclass(entry_sizeclass);
+
+#ifdef SNMALLOC_TRACING
+        std::cout << "Large deallocation: " << size
+                  << " chunk sizeclass: " << slab_sizeclass << std::endl;
+#else
+        UNUSED(size);
+#endif
+
+        auto slab_record = reinterpret_cast<ChunkRecord*>(meta);
+
+        ChunkAllocator::dealloc<SharedStateHandle>(
+          get_backend_local_state(),
+          chunk_local_state,
+          slab_record,
+          slab_sizeclass);
+
+        return;
+      }
+
       smallsizeclass_t sizeclass = entry.get_sizeclass().as_small();
 
       UNUSED(entropy);
@@ -665,8 +692,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(!meta->is_unused());
 
       snmalloc_check_client(
-        Metaslab::is_start_of_object(
-          entry.get_sizeclass().as_small(), address_cast(p)),
+        is_start_of_object(entry.get_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
       auto cp = p.as_static<freelist::Object::T<>>();

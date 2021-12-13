@@ -15,7 +15,7 @@ namespace snmalloc
   inline static SNMALLOC_FAST_PATH capptr::Alloc<void>
   finish_alloc_no_zero(freelist::HeadPtr p, smallsizeclass_t sizeclass)
   {
-    SNMALLOC_ASSERT(Metaslab::is_start_of_object(sizeclass, address_cast(p)));
+    SNMALLOC_ASSERT(is_start_of_object(sizeclass, address_cast(p)));
     UNUSED(sizeclass);
 
     return p.as_void();
@@ -90,7 +90,7 @@ namespace snmalloc
         while (!small_fast_free_lists[i].empty())
         {
           auto p = small_fast_free_lists[i].take(key, domesticate);
-          SNMALLOC_ASSERT(Metaslab::is_start_of_object(i, address_cast(p)));
+          SNMALLOC_ASSERT(is_start_of_object(i, address_cast(p)));
           dealloc(p.as_void());
         }
       }
