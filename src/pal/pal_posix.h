@@ -151,10 +151,10 @@ namespace snmalloc
       constexpr int SIZE = 1024;
       void* buffer[SIZE];
       auto nptrs = backtrace(buffer, SIZE);
-      fsync(STDOUT_FILENO);
+      UNUSED(fsync(STDOUT_FILENO));
       backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
-      write(STDOUT_FILENO, "\n", 1);
-      fsync(STDOUT_FILENO);
+      UNUSED(write(STDOUT_FILENO, "\n", 1));
+      UNUSED(fsync(STDOUT_FILENO));
 #endif
     }
 
@@ -167,9 +167,9 @@ namespace snmalloc
       /// subsequent allocation will work.
       /// @attention: since the program is failing, we do not guarantee that
       /// previous bytes in stdout will be flushed
-      write(STDOUT_FILENO, "\n", 1);
-      write(STDOUT_FILENO, str, strlen(str));
-      write(STDOUT_FILENO, "\n", 1);
+      UNUSED(write(STDOUT_FILENO, "\n", 1));
+      UNUSED(write(STDOUT_FILENO, str, strlen(str)));
+      UNUSED(write(STDOUT_FILENO, "\n", 1));
       print_stack_trace();
       abort();
     }
