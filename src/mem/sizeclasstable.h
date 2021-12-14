@@ -369,10 +369,11 @@ namespace snmalloc
     return sizeclass_metadata.fast(sc).size - index_in_object(sc, addr);
   }
 
-  inline static bool divisible_by_sizeclass(sizeclass_t sc, size_t offset)
+  inline static bool is_start_of_object(sizeclass_t sc, address_t addr)
   {
-    // Only works up to certain offsets, exhaustively tested by rounding.cc
+    size_t offset = addr & (sizeclass_full_to_slab_size(sc) - 1);
 
+    // Only works up to certain offsets, exhaustively tested by rounding.cc
     if constexpr (sizeof(offset) >= 8)
     {
       // Only works for 64 bit multiplication, as the following will overflow in
@@ -386,17 +387,6 @@ namespace snmalloc
       // Use 32-bit division as considerably faster than 64-bit, and
       // everything fits into 32bits here.
       return static_cast<uint32_t>(offset % sizeclass_full_to_size(sc)) == 0;
-  }
-
-  inline static bool is_start_of_object(sizeclass_t sc, address_t addr)
-  {
-    size_t offset = addr & (sizeclass_full_to_slab_size(sc) - 1);
-    return divisible_by_sizeclass(sc, offset);
-  }
-
-  inline static bool is_start_of_object(smallsizeclass_t sc, address_t addr)
-  {
-    return is_start_of_object(sizeclass_t::from_small_class(sc), addr);
   }
 
   inline static size_t large_size_to_chunk_size(size_t size)
