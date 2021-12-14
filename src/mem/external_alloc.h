@@ -52,6 +52,16 @@ namespace snmalloc::external_alloc
 {
   inline void* aligned_alloc(size_t alignment, size_t size)
   {
+    // TSAN complains if allocation is large than this.
+    if constexpr (bits::BITS == 64)
+    {
+      if (size >= 0x10000000000)
+        return nullptr;
+    }
+
+    if (alignment < sizeof(void*))
+      alignment = sizeof(void*);
+
     void* result;
     if (posix_memalign(&result, alignment, size) != 0)
     {
