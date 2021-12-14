@@ -146,18 +146,17 @@ namespace snmalloc
 
       // Depulicate calls into here, and make single threaded.
       if (lock.test_and_set())
-      {
-        timers.apply_all([time_ms](PalTimerObject* curr) {
-          if (
-            (curr->last_run == 0) ||
-            ((time_ms - curr->last_run) > curr->repeat))
-          {
-            curr->last_run = time_ms;
-            curr->pal_notify(curr);
-          }
-        });
-        lock.clear();
-      }
+        return;
+
+      timers.apply_all([time_ms](PalTimerObject* curr) {
+        if (
+          (curr->last_run == 0) || ((time_ms - curr->last_run) > curr->repeat))
+        {
+          curr->last_run = time_ms;
+          curr->pal_notify(curr);
+        }
+      });
+      lock.clear();
     }
   };
 } // namespace snmalloc
