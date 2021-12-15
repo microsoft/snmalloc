@@ -151,10 +151,9 @@ namespace snmalloc
       constexpr int SIZE = 1024;
       void* buffer[SIZE];
       auto nptrs = backtrace(buffer, SIZE);
-      fflush(stdout);
       backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
-      puts("");
-      fflush(stdout);
+      UNUSED(write(STDOUT_FILENO, "\n", 1));
+      UNUSED(fsync(STDOUT_FILENO));
 #endif
     }
 
@@ -163,7 +162,14 @@ namespace snmalloc
      */
     [[noreturn]] static void error(const char* const str) noexcept
     {
-      puts(str);
+      /// by this part, the allocator is failed; so we cannot assume
+      /// subsequent allocation will work.
+      /// @attention: since the program is failing, we do not guarantee that
+      /// previous bytes in stdout will be flushed
+      UNUSED(write(STDOUT_FILENO, "\n", 1));
+      UNUSED(write(STDOUT_FILENO, str, strlen(str)));
+      UNUSED(write(STDOUT_FILENO, "\n", 1));
+      UNUSED(fsync(STDOUT_FILENO));
       print_stack_trace();
       abort();
     }
