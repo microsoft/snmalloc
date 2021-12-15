@@ -151,7 +151,6 @@ namespace snmalloc
       constexpr int SIZE = 1024;
       void* buffer[SIZE];
       auto nptrs = backtrace(buffer, SIZE);
-      UNUSED(fsync(STDOUT_FILENO));
       backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
       UNUSED(write(STDOUT_FILENO, "\n", 1));
       UNUSED(fsync(STDOUT_FILENO));
@@ -170,6 +169,7 @@ namespace snmalloc
       UNUSED(write(STDOUT_FILENO, "\n", 1));
       UNUSED(write(STDOUT_FILENO, str, strlen(str)));
       UNUSED(write(STDOUT_FILENO, "\n", 1));
+      UNUSED(fsync(STDOUT_FILENO));
       print_stack_trace();
       abort();
     }
