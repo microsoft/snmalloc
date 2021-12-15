@@ -47,6 +47,11 @@ if (NOT SNMALLOC_CLEANUP STREQUAL CXX11_DESTRUCTORS)
   set(CMAKE_CXX_IMPLICIT_LINK_LIBRARIES "")
 endif()
 
+set(SNMALLOC_SANITIZER "" CACHE STRING "Use sanitizer type (undefined|thread|...)")
+if (SNMALLOC_SANITIZER)
+  message(STATUS "Using sanitizer=${SNMALLOC_SANITIZER}")
+endif()
+
 # If CheckLinkerFlag doesn't exist then provide a dummy implementation that
 # always fails.  The fallback can be removed when we move to CMake 3.18 as the
 # baseline.
@@ -374,6 +379,12 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
         set(TESTNAME "${TEST_CATEGORY}-${TEST}-${FLAVOUR}")
 
         add_executable(${TESTNAME} ${SRC})
+
+        if(SNMALLOC_SANITIZER)
+          target_compile_options(${TESTNAME} PRIVATE -g -fsanitize=${SNMALLOC_SANITIZER} -fno-omit-frame-pointer)
+          target_link_libraries(${TESTNAME} -fsanitize=${SNMALLOC_SANITIZER})
+        endif()
+
         add_warning_flags(${TESTNAME})
 
         if (${FLAVOUR} STREQUAL "malloc")
