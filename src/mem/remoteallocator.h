@@ -106,9 +106,12 @@ namespace snmalloc
       invariant();
       freelist::Object::atomic_store_null(last, key);
 
-      // exchange needs to be a release, so nullptr in next is visible.
+      // Exchange needs to be acq_rel.
+      // *  It needs to be a release, so nullptr in next is visible.
+      // *  Needs to be acquire, so linking into the list does not race with
+      //    the other threads nullptr init of the next field.
       freelist::QueuePtr prev =
-        back.exchange(capptr_rewild(last), std::memory_order_release);
+        back.exchange(capptr_rewild(last), std::memory_order_acq_rel);
 
       freelist::Object::atomic_store_next(domesticate_head(prev), first, key);
     }
