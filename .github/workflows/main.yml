@@ -78,6 +78,10 @@ jobs:
             dependencies: "sudo apt install ninja-build"
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10 -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
             build-only: yes
+          - os: "ubuntu-latest"
+            variant: Clang 10 libc++ (TSan + UBSan)
+            dependencies: "sudo apt install ninja-build"
+            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10 -DCMAKE_CXX_FLAGS=-stdlib=libc++ -DSNMALLOC_SANITIZER=undefined,thread"
       # Don't abort runners if a single one fails
       fail-fast: false
     runs-on: ${{ matrix.os }}
