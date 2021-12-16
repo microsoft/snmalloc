@@ -469,7 +469,7 @@ namespace snmalloc
        * TODO In CHERI+MTE, this, is part of the CAmoCDecVersion instruction;
        * elide this test in that world.
        */
-      check_client(
+      snmalloc_check_client(
         !__builtin_cheri_sealed_get(p), "Sealed capability in deallocation");
 
       /*
@@ -488,7 +488,7 @@ namespace snmalloc
        */
       static const size_t reqperm = CHERI_PERM_LOAD | CHERI_PERM_STORE |
         CHERI_PERM_LOAD_CAP | CHERI_PERM_STORE_CAP;
-      check_client(
+      snmalloc_check_client(
         (__builtin_cheri_perms_get(p) & reqperm) == reqperm,
         "Insufficient permissions on capability in deallocation");
 
@@ -502,14 +502,14 @@ namespace snmalloc
        * the lookups we perform along the way to get there.  In that world,
        * elide this test.
        */
-      check_client(
+      snmalloc_check_client(
         __builtin_cheri_tag_get(p), "Untagged capability in deallocation");
 
       /*
        * Verify that the capability is not zero-length, ruling out the other
        * edge case around monotonicity.
        */
-      check_client(
+      snmalloc_check_client(
         __builtin_cheri_length_get(p) > 0,
         "Zero-length capability in deallocation");
 
