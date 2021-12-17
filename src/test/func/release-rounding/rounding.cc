@@ -36,7 +36,7 @@ int main(int argc, char** argv)
         failed = true;
       }
 
-      bool opt_mod_0 = divisible_by_sizeclass(size_class, offset);
+      bool opt_mod_0 = is_start_of_object(sc, offset);
       if (opt_mod_0 != mod_0)
       {
         std::cout << "rsize " << rsize << "  offset  " << offset

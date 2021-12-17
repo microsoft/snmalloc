@@ -60,6 +60,12 @@ namespace snmalloc
      */
     bool sleeping_ = false;
 
+    /**
+     * Flag to indicate this is actually a large allocation rather than a slab
+     * of small allocations.
+     */
+    bool large_ = false;
+
     uint16_t& needed()
     {
       return needed_;
@@ -82,6 +88,25 @@ namespace snmalloc
       // allocated from. Hence, the bump allocator slab will never be returned
       // for use in another size class.
       set_sleeping(sizeclass, 0);
+
+      large_ = false;
+    }
+
+    /**
+     * Make this a chunk represent a large allocation.
+     *
+     * Set needed so immediately moves to slow path.
+     */
+    void initialise_large()
+    {
+      // We will push to this just to make the fast path clean.
+      free_queue.init();
+
+      // Flag to detect that it is a large alloc on the slow path
+      large_ = true;
+
+      // Jump to slow path on first deallocation.
+      needed() = 1;
     }
 
     /**
@@ -104,6 +129,11 @@ namespace snmalloc
     bool is_sleeping()
     {
       return sleeping();
+    }
+
+    bool is_large()
+    {
+      return large_;
     }
 
     /**
@@ -142,14 +172,6 @@ namespace snmalloc
       SNMALLOC_ASSERT(needed() != 0);
 
       sleeping() = false;
-    }
-
-    static SNMALLOC_FAST_PATH bool
-    is_start_of_object(smallsizeclass_t sizeclass, address_t p)
-    {
-      return divisible_by_sizeclass(
-        sizeclass,
-        p - (bits::align_down(p, sizeclass_to_slab_size(sizeclass))));
     }
 
     /**
