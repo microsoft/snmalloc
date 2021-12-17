@@ -112,7 +112,7 @@ namespace snmalloc
         std::atomic<Linked>& addr = parent->linked;
 
         auto result = addr.compare_exchange_weak(
-          old, xchg, std::memory_order_relaxed, std::memory_order_relaxed);
+          old, xchg, std::memory_order_acq_rel, std::memory_order_relaxed);
 #  endif
         return result;
       }
