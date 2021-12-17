@@ -3,6 +3,12 @@
 #include "aba.h"
 #include "ptrwrap.h"
 
+#if defined(__has_feature)
+#  if __has_feature(thread_sanitizer)
+#    define SNMALLOC_THREAD_SANITIZER_ENABLED
+#  endif
+#endif
+
 namespace snmalloc
 {
   template<class T, Construction c = RequiresInit>
@@ -12,6 +18,22 @@ namespace snmalloc
 
   private:
     alignas(CACHELINE_SIZE) ABAT stack;
+
+#ifdef SNMALLOC_THREAD_SANITIZER_ENABLED
+    __attribute__((no_sanitize("thread"))) static T*
+    racy_read(std::atomic<T*>& ptr)
+    {
+      // reinterpret_cast is required as TSAN still instruments
+      // std::atomic operations, even if you disable TSAN on
+      // the function.
+      return *reinterpret_cast<T**>(&ptr);
+    }
+#else
+    static T* racy_read(std::atomic<T*>& ptr)
+    {
+      return ptr.load(std::memory_order_relaxed);
+    }
+#endif
 
   public:
     constexpr MPMCStack() = default;
@@ -52,7 +74,11 @@ namespace snmalloc
         if (top == nullptr)
           break;
 
-        next = top->next.load(std::memory_order_acquire);
+        // The following read can race with non-atomic accesses
+        // this is undefined behaviour. There is no way to use
+        // CAS sensibly that conforms to the standard with optimistic
+        // concurrency.
+        next = racy_read(top->next);
       } while (!cmp.store_conditional(next));
 
       return top;
