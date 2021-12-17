@@ -63,7 +63,7 @@ namespace snmalloc
      * std::thread::id can be another solution but it does not
      * support `constexpr` initialisation on some platforms.
      */
-    ThreadIdentity owner = nullptr;
+    std::atomic<ThreadIdentity> owner = nullptr;
 
     /**
      * @brief get_thread_identity
