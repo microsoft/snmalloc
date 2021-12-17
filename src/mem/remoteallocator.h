@@ -63,7 +63,6 @@ namespace snmalloc
     void invariant()
     {
       SNMALLOC_ASSERT(back != nullptr);
-      SNMALLOC_ASSERT(front != nullptr);
     }
 
     void init(freelist::HeadPtr stub)
@@ -140,6 +139,7 @@ namespace snmalloc
       Cb cb)
     {
       invariant();
+      SNMALLOC_ASSERT(front != nullptr);
 
       // Use back to bound, so we don't handle new entries.
       auto b = back.load(std::memory_order_relaxed);
