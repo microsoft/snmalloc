@@ -193,7 +193,7 @@ jobs:
     strategy:
       matrix:
         # Build each combination of OS and release/debug variants
-        os: [ windows-2019, windows-2022 ]
+        os: [ windows-2019 ]
         build-type: [ Release, Debug ]
         arch: [ Win32, x64 ]
         toolchain: [ "", "-T ClangCL" ]
@@ -206,6 +206,23 @@ jobs:
             toolchain: ""
             extra-cmake-flags: -DWIN8COMPAT=TRUE
             variant: Windows 8 compatible
+          - os: windows-2022
+            build-type: Release
+            arch: Win32
+            toolchain: ""
+          - os: windows-2022
+            build-type: Debug
+            arch: Win32
+            toolchain: ""
+          - os: windows-2022
+            build-type: Release
+            arch: x64
+            toolchain: ""
+          - os: windows-2022
+            build-type: Debug
+            arch: x64
+            toolchain: ""
+        
       # Don't abort runners if a single one fails
       fail-fast: false
     runs-on: ${{ matrix.os }}
