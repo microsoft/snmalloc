@@ -3,6 +3,8 @@
 #ifdef __NetBSD__
 #  include "pal_bsd_aligned.h"
 
+#  include <fcntl.h>
+
 namespace snmalloc
 {
   /**
@@ -26,7 +28,17 @@ namespace snmalloc
      * As NetBSD does not have the getentropy call, get_entropy64 will
      * currently fallback to C++ libraries std::random_device.
      */
-    static constexpr uint64_t pal_features = PALBSD_Aligned::pal_features;
+    static constexpr uint64_t pal_features =
+      PALBSD_Aligned::pal_features | Entropy;
+
+    /**
+     * Temporary solution while waiting getrandom support for the next release
+     * random_device seems unimplemented in clang for this platform
+     */
+    static uint64_t get_entropy64()
+    {
+      return PALPOSIX::dev_urandom();
+    }
   };
 } // namespace snmalloc
 #endif

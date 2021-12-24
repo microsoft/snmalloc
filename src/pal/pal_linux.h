@@ -4,7 +4,6 @@
 #  include "../ds/bits.h"
 #  include "pal_posix.h"
 
-#  include <fcntl.h>
 #  include <string.h>
 #  include <sys/mman.h>
 #  include <syscall.h>
@@ -166,39 +165,7 @@ namespace snmalloc
       // reentrancy problem during initialisation routine.
       // 2. some implementations also require libstdc++ to be linked since
       // its APIs are not exception-free.
-      int flags = O_RDONLY;
-#  if defined(O_CLOEXEC)
-      flags |= O_CLOEXEC;
-#  endif
-      auto fd = open("/dev/urandom", flags, 0);
-      if (fd > 0)
-      {
-        auto current = std::begin(buffer);
-        auto target = std::end(buffer);
-        while (auto length = static_cast<size_t>(target - current))
-        {
-          ret = read(fd, current, length);
-          if (ret <= 0)
-          {
-            if (errno != EAGAIN && errno != EINTR)
-            {
-              break;
-            }
-          }
-          else
-          {
-            current += ret;
-          }
-        }
-        ret = close(fd);
-        SNMALLOC_ASSERT(0 == ret);
-        if (SNMALLOC_LIKELY(target == current))
-        {
-          return result;
-        }
-      }
-
-      error("Failed to get system randomness");
+      return dev_urandom();
     }
   };
 } // namespace snmalloc
