@@ -227,7 +227,8 @@ if(MSVC)
   target_compile_definitions(snmalloc INTERFACE -D_HAS_EXCEPTIONS=0)
 else()
   # All symbols are always dynamic on haiku and -rdynamic is redundant (and unsupported).
-  if (NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+  # MinGW does not recognize rdynamic either.
+  if (NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku" AND NOT MINGW)
     # Get better stack traces in CI and debug builds.
     target_link_options(snmalloc INTERFACE $<${ci_or_debug}:-rdynamic>)
   endif()

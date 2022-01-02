@@ -13,7 +13,9 @@
 #    define NOMINMAX
 #  endif
 #  include <windows.h>
-#  pragma comment(lib, "bcrypt.lib")
+#  ifndef __MINGW32__ 
+#    pragma comment(lib, "bcrypt.lib")
+#  endif
 #  include <bcrypt.h>
 // VirtualAlloc2 is exposed in RS5 headers.
 #  ifdef NTDDI_WIN10_RS5

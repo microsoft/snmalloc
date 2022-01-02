@@ -15,7 +15,7 @@ using namespace snmalloc;
 #  define snprintf_l(buf, size, loc, msg, ...) \
     snprintf(buf, size, msg, __VA_ARGS__)
 // Windows has it with an underscore prefix
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) || defined(__MINGW32__)
 #  define snprintf_l(buf, size, loc, msg, ...) \
     _snprintf_s_l(buf, size, _TRUNCATE, msg, loc, __VA_ARGS__)
 #endif
