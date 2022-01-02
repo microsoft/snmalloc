@@ -1,6 +1,6 @@
+#include <iomanip>
 #include <ios>
 #include <iostream>
-#include <iomanip>
 #include <test/setup.h>
 
 #define SNMALLOC_NAME_MANGLE(a) our_##a
@@ -48,12 +48,15 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
 #endif
   if (exact_size && (alloc_size != expected_size) && (size != 0))
   {
-    std::cout << "Usable size is " << alloc_size << ", but required to be " << expected_size << "." << std::endl;
+    std::cout << "Usable size is " << alloc_size << ", but required to be "
+              << expected_size << "." << std::endl;
     failed = true;
   }
   if ((!exact_size) && (alloc_size < expected_size))
   {
-    std::cout << "Usable size is " << alloc_size << ", but required to be at least " << expected_size << "." << std::endl;
+    std::cout << "Usable size is " << alloc_size
+              << ", but required to be at least " << expected_size << "."
+              << std::endl;
     failed = true;
   }
   if (
@@ -61,7 +64,9 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
     (size != 0))
   {
     std::ios_base::fmtflags f(std::cout.flags());
-    std::cout << std::hex << "Address is " << p << ", but required to be aligned to 0x" << align << "." << std::endl;
+    std::cout << std::hex << "Address is " << p
+              << ", but required to be aligned to 0x" << align << "."
+              << std::endl;
     std::cout.flags(f);
     failed = true;
   }
@@ -70,7 +75,9 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
       reinterpret_cast<uintptr_t>(p) % natural_alignment(size)) != 0)
   {
     std::ios_base::fmtflags f(std::cout.flags());
-    std::cout << std::hex << "Address is " << p << ", but should have natural alignment to 0x" << natural_alignment(size) << "." << std::endl;
+    std::cout << std::hex << "Address is " << p
+              << ", but should have natural alignment to 0x"
+              << natural_alignment(size) << "." << std::endl;
     std::cout.flags(f);
     failed = true;
   }
@@ -85,7 +92,8 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
 
 void test_calloc(size_t nmemb, size_t size, int err, bool null)
 {
-  std::cout << "calloc(" << nmemb << ", " << size <<  ")" << " combined size " << nmemb * size << std::endl;
+  std::cout << "calloc(" << nmemb << ", " << size << ")"
+            << " combined size " << nmemb * size << std::endl;
   errno = SUCCESS;
   void* p = our_calloc(nmemb, size);
 
@@ -109,7 +117,8 @@ void test_realloc(void* p, size_t size, int err, bool null)
   if (p != nullptr)
     old_size = our_malloc_usable_size(p);
 
-  std::cout << "realloc(" << p << "(" << old_size << ")" << ", " << size << ")" << std::endl;
+  std::cout << "realloc(" << p << "(" << old_size << ")"
+            << ", " << size << ")" << std::endl;
   errno = SUCCESS;
   auto new_p = our_realloc(p, size);
   // Realloc failure case, deallocate original block
@@ -120,7 +129,8 @@ void test_realloc(void* p, size_t size, int err, bool null)
 
 void test_posix_memalign(size_t size, size_t align, int err, bool null)
 {
-  std::cout << "posix_memalign(&p, " << align << ", " << size << ")" << std::endl;
+  std::cout << "posix_memalign(&p, " << align << ", " << size << ")"
+            << std::endl;
   void* p = nullptr;
   errno = our_posix_memalign(&p, align, size);
   check_result(size, align, p, err, null);
@@ -141,7 +151,8 @@ void test_reallocarray(void* p, size_t nmemb, size_t size, int err, bool null)
   if (p != nullptr)
     old_size = our_malloc_usable_size(p);
 
-  std::cout << "reallocarray(" << p << "(" << old_size << ")" << ", " << tsize << ")" << std::endl;
+  std::cout << "reallocarray(" << p << "(" << old_size << ")"
+            << ", " << tsize << ")" << std::endl;
   errno = SUCCESS;
   auto new_p = our_reallocarray(p, nmemb, size);
   if (new_p == nullptr && tsize != 0)
@@ -160,11 +171,13 @@ void test_reallocarr(
   int r = our_reallocarr(&p, nmemb, size);
   if (r != err)
   {
-    std::cout << "reallocarr failed! expected " << err << " got " << r << std::endl;
+    std::cout << "reallocarr failed! expected " << err << " got " << r
+              << std::endl;
     abort();
   }
 
-  std::cout << "reallocarr(" << p << "(" << nmemb << ")" << ", " << size << ")" << std::endl;
+  std::cout << "reallocarr(" << p << "(" << nmemb << ")"
+            << ", " << size << ")" << std::endl;
   check_result(nmemb * size, 1, p, err, null);
   p = our_malloc(size);
   if (!p)

@@ -13,7 +13,7 @@
 #    define NOMINMAX
 #  endif
 #  include <windows.h>
-#  ifndef __MINGW32__ 
+#  ifndef __MINGW32__
 #    pragma comment(lib, "bcrypt.lib")
 #  endif
 #  include <bcrypt.h>
