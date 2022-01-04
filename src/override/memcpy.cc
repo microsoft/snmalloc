@@ -20,7 +20,7 @@ using namespace snmalloc;
     _snprintf_s_l(buf, size, _TRUNCATE, msg, loc, __VA_ARGS__)
 #endif
 
-namespace
+namespace snmalloc
 {
   /**
    * Should we check loads?  This defaults to on in debug builds, off in
@@ -141,7 +141,7 @@ namespace
       {
         if constexpr (FailFast)
         {
-          UNUSED(ptr, len, msg);
+          UNUSED(p, len, msg);
           SNMALLOC_FAST_FAIL();
         }
         else
@@ -193,15 +193,12 @@ namespace
     return (pointer_align_down<Size>(const_cast<void*>(src)) == src) &&
       (pointer_align_down<Size>(dst) == dst);
   }
-}
 
-extern "C"
-{
   /**
    * Snmalloc checked memcpy.
    */
-  SNMALLOC_EXPORT void*
-    SNMALLOC_NAME_MANGLE(memcpy)(void* dst, const void* src, size_t len)
+  template<bool checked = true>
+  void* memcpy(void* dst, const void* src, size_t len)
   {
     // 0 is a very common size for memcpy and we don't need to do external
     // pointer checks if we hit it.  It's also the fastest case, to encourage
@@ -210,11 +207,15 @@ extern "C"
     {
       return dst;
     }
-    // Check the bounds of the arguments.
-    check_bounds(
-      dst, len, "memcpy with destination out of bounds of heap allocation");
-    check_bounds<true>(
-      src, len, "memcpy with source out of bounds of heap allocation");
+
+    if constexpr (checked)
+    {
+      // Check the bounds of the arguments.
+      check_bounds(
+        dst, len, "memcpy with destination out of bounds of heap allocation");
+      check_bounds<true>(
+        src, len, "memcpy with source out of bounds of heap allocation");
+    }
     // If this is a small size, do byte-by-byte copies.
     if (len < LargestRegisterSize)
     {
@@ -224,5 +225,17 @@ extern "C"
     block_copy<LargestRegisterSize>(dst, src, len);
     copy_end<LargestRegisterSize>(dst, src, len);
     return dst;
+  }
+} // namespace snmalloc
+
+extern "C"
+{
+  /**
+   * Snmalloc checked memcpy.
+   */
+  SNMALLOC_EXPORT void*
+    SNMALLOC_NAME_MANGLE(memcpy)(void* dst, const void* src, size_t len)
+  {
+    return snmalloc::memcpy<true>(dst, src, len);
   }
 }
