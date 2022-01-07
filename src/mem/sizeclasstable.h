@@ -148,7 +148,7 @@ namespace snmalloc
     // the slab.
     size_t slab_mask;
     // Table of constants for reciprocal division for each sizeclass.
-    size_t mod_mult;
+    size_t div_mult;
     // Table of constants for reciprocal modulus for each sizeclass.
     size_t mod_zero_mult;
   };
@@ -167,6 +167,8 @@ namespace snmalloc
   {
     ModArray<SIZECLASS_REP_SIZE, sizeclass_data_fast> fast_;
     ModArray<SIZECLASS_REP_SIZE, sizeclass_data_slow> slow_;
+
+    size_t DIV_MULT_SHIFT{0};
 
     [[nodiscard]] constexpr sizeclass_data_fast& fast(sizeclass_t index)
     {
@@ -199,8 +201,10 @@ namespace snmalloc
       return slow_[index.raw()];
     }
 
-    constexpr SizeClassTable() : fast_(), slow_()
+    constexpr SizeClassTable() : fast_(), slow_(), DIV_MULT_SHIFT()
     {
+      size_t max_capacity = 0;
+
       for (sizeclass_compress_t sizeclass = 0;
            sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
@@ -225,46 +229,48 @@ namespace snmalloc
 #else
           static_cast<uint16_t>(bits::min((meta_slow.capacity / 4), 32));
 #endif
+
+        if (meta_slow.capacity > max_capacity)
+        {
+          max_capacity = meta_slow.capacity;
+        }
       }
+
+      // Get maximum precision to calculate largest division range.
+      DIV_MULT_SHIFT = bits::BITS - bits::next_pow2_bits_const(max_capacity);
 
       for (sizeclass_compress_t sizeclass = 0;
            sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
       {
-        // Calculate reciprocal modulus constant like reciprocal division, but
-        // constant is choosen to overflow and only leave the modulus as the
-        // result.
+        // Calculate reciprocal division constant.
         auto& meta = fast_small(sizeclass);
-        meta.mod_mult = bits::one_at_bit(bits::BITS - 1) / meta.size;
-        meta.mod_mult *= 2;
-
-        if (bits::is_pow2(meta.size))
-        {
-          // Set to zero, so masking path is taken if power of 2.
-          meta.mod_mult = 0;
-        }
+        meta.div_mult =
+          ((bits::one_at_bit(DIV_MULT_SHIFT) - 1) / meta.size) + 1;
 
         size_t zero = 0;
         meta.mod_zero_mult = (~zero / meta.size) + 1;
       }
 
-      // Set up table for large classes.
-      // Note skipping sizeclass == 0 as this is size == 0, so the tables can be
-      // all zero.
-      for (size_t sizeclass = 1; sizeclass < bits::BITS; sizeclass++)
+      for (size_t sizeclass = 0; sizeclass < bits::BITS; sizeclass++)
       {
         auto lsc = sizeclass_t::from_large_class(sizeclass);
         auto& meta = fast(lsc);
-        meta.size = bits::one_at_bit(lsc.as_large());
+        meta.size = sizeclass == 0 ? 0 : bits::one_at_bit(lsc.as_large());
         meta.slab_mask = meta.size - 1;
         // The slab_mask will do all the necessary work, so
         // perform identity multiplication for the test.
         meta.mod_zero_mult = 1;
+        // The slab_mask will do all the necessary work for division
+        // so collapse the calculated offset.
+        meta.div_mult = 0;
       }
     }
   };
 
   static inline constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
+
+  static constexpr size_t DIV_MULT_SHIFT = sizeclass_metadata.DIV_MULT_SHIFT;
 
   constexpr static inline size_t sizeclass_to_size(smallsizeclass_t sizeclass)
   {
@@ -328,40 +334,36 @@ namespace snmalloc
       .capacity;
   }
 
-  inline static size_t mod_by_sizeclass(sizeclass_t sc, size_t offset)
+  inline static address_t start_of_object(sizeclass_t sc, address_t addr)
   {
-    // Only works up to certain offsets, exhaustively tested by rounding.cc
     auto meta = sizeclass_metadata.fast(sc);
+    address_t slab_start = addr & ~meta.slab_mask;
+    size_t offset = addr & meta.slab_mask;
+    size_t size = meta.size;
 
-    // Powers of two should use straigt mask.
-    SNMALLOC_ASSERT(meta.mod_mult != 0);
-
-    if constexpr (sizeof(offset) >= 8)
+    if constexpr (sizeof(addr) >= 8)
     {
       // Only works for 64 bit multiplication, as the following will overflow in
       // 32bit.
-      // Could be made nicer with 128bit multiply (umulh):
+      // Based on
       //   https://lemire.me/blog/2019/02/20/more-fun-with-fast-remainders-when-the-divisor-is-a-constant/
-      auto bits_l = bits::BITS / 2;
-      auto bits_h = bits::BITS - bits_l;
-      return (
-        ((((offset + 1) * meta.mod_mult) >> (bits_l)) * meta.size) >> bits_h);
+      // We are using an adaptation of the "indirect" method.  By using the
+      // indirect method we can handle the large power of two classes just with
+      // the slab_mask by making the `div_mult` zero. The link uses 128 bit
+      // multiplication, we have shrunk the range of the calculation to remove
+      // this dependency.
+      size_t offset_start = ((offset * meta.div_mult) >> DIV_MULT_SHIFT) * size;
+      return slab_start + offset_start;
     }
     else
-      // Use 32-bit division as considerably faster than 64-bit, and
-      // everything fits into 32bits here.
-      return static_cast<uint32_t>(offset % meta.size);
+    {
+      return slab_start + (offset / size) * size;
+    }
   }
 
   inline static size_t index_in_object(sizeclass_t sc, address_t addr)
   {
-    if (sizeclass_metadata.fast(sc).mod_mult == 0)
-    {
-      return addr & (sizeclass_metadata.fast(sc).size - 1);
-    }
-
-    address_t offset = addr & (sizeclass_full_to_slab_size(sc) - 1);
-    return mod_by_sizeclass(sc, offset);
+    return addr - start_of_object(sc, addr);
   }
 
   inline static size_t remaining_bytes(sizeclass_t sc, address_t addr)
