@@ -640,8 +640,7 @@ namespace snmalloc
         return;
       }
 
-      if (SNMALLOC_LIKELY(
-            entry.get_remote() != SharedStateHandle::fake_large_remote))
+      if (SNMALLOC_LIKELY(entry.get_remote() != nullptr))
       {
 #  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
         dealloc_cheri_checks(p_tame.unsafe_ptr());
