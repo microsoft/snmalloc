@@ -78,13 +78,13 @@ void test(
 NOINLINE
 void memcpy_checked(void* dst, const void* src, size_t size)
 {
-  snmalloc::memcpy<true>(dst, src, size);
+  memcpy<true>(dst, src, size);
 }
 
 NOINLINE
 void memcpy_unchecked(void* dst, const void* src, size_t size)
 {
-  snmalloc::memcpy<false>(dst, src, size);
+  memcpy<false>(dst, src, size);
 }
 
 NOINLINE

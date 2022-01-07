@@ -82,7 +82,7 @@ void check_size(size_t size)
     {
       dst[i] = 0;
     }
-    snmalloc::memcpy(dst, src, sz);
+    my_memcpy(dst, src, sz);
     for (size_t i = 0; i < sz; ++i)
     {
       if (dst[i] != static_cast<unsigned char>(i))
@@ -118,7 +118,7 @@ void check_bounds(size_t size, size_t out_of_bounds)
   can_longjmp = true;
   if (setjmp(jmp) == 0)
   {
-    snmalloc::memcpy(d, s, size + out_of_bounds);
+    my_memcpy(d, s, size + out_of_bounds);
   }
   else
   {

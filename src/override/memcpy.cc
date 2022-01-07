@@ -20,7 +20,7 @@ using namespace snmalloc;
     _snprintf_s_l(buf, size, _TRUNCATE, msg, loc, __VA_ARGS__)
 #endif
 
-namespace snmalloc
+namespace
 {
   /**
    * Should we check loads?  This defaults to on in debug builds, off in
@@ -236,6 +236,6 @@ extern "C"
   SNMALLOC_EXPORT void*
     SNMALLOC_NAME_MANGLE(memcpy)(void* dst, const void* src, size_t len)
   {
-    return snmalloc::memcpy<true>(dst, src, len);
+    return memcpy<true>(dst, src, len);
   }
 }
