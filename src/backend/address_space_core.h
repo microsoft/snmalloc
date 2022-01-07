@@ -89,10 +89,9 @@ namespace snmalloc
         // The pagemap stores `MetaEntry`s; abuse the metaslab field to be the
         // next block in the stack of blocks.
         //
-        // The pagemap entries here have nullptr (i.e., fake_large_remote) as
-        // their remote, and so other accesses to the pagemap (by
-        // external_pointer, for example) will not attempt to follow this
-        // "Metaslab" pointer.
+        // The pagemap entries here have nullptr as their remote, and so other
+        // accesses to the pagemap (by external_pointer, for example) will not
+        // attempt to follow this "Metaslab" pointer.
         //
         // dealloc() can reject attempts to free such MetaEntry-s due to the
         // zero sizeclass.
