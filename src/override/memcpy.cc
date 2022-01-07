@@ -197,7 +197,7 @@ namespace
   /**
    * Snmalloc checked memcpy.
    */
-  template<bool checked = true>
+  template<bool checked>
   void* memcpy(void* dst, const void* src, size_t len)
   {
     // 0 is a very common size for memcpy and we don't need to do external
@@ -226,7 +226,7 @@ namespace
     copy_end<LargestRegisterSize>(dst, src, len);
     return dst;
   }
-} // namespace snmalloc
+} // namespace
 
 extern "C"
 {
