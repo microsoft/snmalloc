@@ -9,6 +9,7 @@
 #  include SNMALLOC_BACKTRACE_HEADER
 #endif
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -362,6 +363,49 @@ namespace snmalloc
 
       return (static_cast<uint64_t>(ts.tv_sec) * 1000) +
         (static_cast<uint64_t>(ts.tv_nsec) / 1000000);
+    }
+
+    static uint64_t dev_urandom()
+    {
+      union
+      {
+        uint64_t result;
+        char buffer[sizeof(uint64_t)];
+      };
+      ssize_t ret;
+      int flags = O_RDONLY;
+#if defined(O_CLOEXEC)
+      flags |= O_CLOEXEC;
+#endif
+      auto fd = open("/dev/urandom", flags, 0);
+      if (fd > 0)
+      {
+        auto current = std::begin(buffer);
+        auto target = std::end(buffer);
+        while (auto length = static_cast<size_t>(target - current))
+        {
+          ret = read(fd, current, length);
+          if (ret <= 0)
+          {
+            if (errno != EAGAIN && errno != EINTR)
+            {
+              break;
+            }
+          }
+          else
+          {
+            current += ret;
+          }
+        }
+        ret = close(fd);
+        SNMALLOC_ASSERT(0 == ret);
+        if (SNMALLOC_LIKELY(target == current))
+        {
+          return result;
+        }
+      }
+
+      error("Failed to get system randomness");
     }
   };
 } // namespace snmalloc
