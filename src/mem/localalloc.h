@@ -772,6 +772,16 @@ namespace snmalloc
 #endif
     }
 
+    bool check_bounds(const void* p, size_t s)
+    {
+      auto ls = core_alloc->backend_state_ptr();
+      if (SNMALLOC_LIKELY(SharedStateHandle::Pagemap::is_initialised(ls)))
+      {
+        return remaining_bytes(p) >= s;
+      }
+      return true;
+    }
+
     /**
      * Returns the byte offset into an object.
      *

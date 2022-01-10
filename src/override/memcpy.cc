@@ -137,7 +137,7 @@ namespace
       auto& alloc = ThreadAlloc::get();
       void* p = const_cast<void*>(ptr);
 
-      if (SNMALLOC_UNLIKELY(alloc.remaining_bytes(ptr) < len))
+      if (SNMALLOC_UNLIKELY(!alloc.check_bounds(ptr, len)))
       {
         if constexpr (FailFast)
         {
