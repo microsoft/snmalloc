@@ -279,6 +279,14 @@ namespace snmalloc
     }
 
     /**
+     * Check if the pagemap has been initialised.
+     */
+    [[nodiscard]] bool is_initialised() const
+    {
+      return body_opt != nullptr;
+    }
+
+    /**
      * Return the starting address corresponding to a given entry within the
      * Pagemap. Also checks that the reference actually points to a valid entry.
      */

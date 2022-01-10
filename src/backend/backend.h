@@ -335,6 +335,12 @@ namespace snmalloc
         UNUSED(local_state);
         return concretePagemap.get_bounds();
       }
+
+      static bool is_initialised(LocalState* ls)
+      {
+        UNUSED(ls);
+        return concretePagemap.is_initialised();
+      }
     };
 
   private:

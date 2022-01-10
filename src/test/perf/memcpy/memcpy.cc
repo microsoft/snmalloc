@@ -112,7 +112,7 @@ int main(int argc, char** argv)
   };
 
   std::vector<size_t> sizes;
-  for (size_t size = 1; size < 64; size++)
+  for (size_t size = 0; size < 64; size++)
   {
     sizes.push_back(size);
   }
