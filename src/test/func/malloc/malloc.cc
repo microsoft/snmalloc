@@ -339,6 +339,7 @@ int main(int argc, char** argv)
     abort();
   }
 
+#ifndef __PIC__
   snmalloc::debug_check_empty<snmalloc::Globals>();
   void* bootstrap = __je_bootstrap_malloc(42);
   if (bootstrap == nullptr)
@@ -346,5 +347,6 @@ int main(int argc, char** argv)
     printf("Failed to allocate from bootstrap malloc\n");
   }
   __je_bootstrap_free(bootstrap);
+#endif
   return 0;
 }
