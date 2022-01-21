@@ -25,6 +25,7 @@
 #  define SNMALLOC_COLD
 #  define SNMALLOC_REQUIRE_CONSTINIT
 #  define SNMALLOC_UNUSED_FUNCTION
+#  define SNMALLOC_USED_FUNCTION
 #else
 #  define SNMALLOC_FAST_FAIL() __builtin_trap()
 #  define SNMALLOC_LIKELY(x) __builtin_expect(!!(x), 1)
@@ -47,6 +48,7 @@
 #  define SNMALLOC_PURE __attribute__((const))
 #  define SNMALLOC_COLD __attribute__((cold))
 #  define SNMALLOC_UNUSED_FUNCTION __attribute((unused))
+#  define SNMALLOC_USED_FUNCTION __attribute((used))
 #  ifdef __clang__
 #    define SNMALLOC_REQUIRE_CONSTINIT \
       [[clang::require_constant_initialization]]

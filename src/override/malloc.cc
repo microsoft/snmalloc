@@ -238,7 +238,7 @@ extern "C"
 
   void* __je_bootstrap_malloc(size_t size)
   {
-    return get_scoped_allocator().alloc(size);
+    return get_scoped_allocator()->alloc(size);
   }
 
   void* __je_bootstrap_calloc(size_t nmemb, size_t size)
@@ -252,12 +252,12 @@ extern "C"
     }
     // Include size 0 in the first sizeclass.
     sz = ((sz - 1) >> (bits::BITS - 1)) + sz;
-    return get_scoped_allocator().alloc<ZeroMem::YesZero>(sz);
+    return get_scoped_allocator()->alloc<ZeroMem::YesZero>(sz);
   }
 
   void __je_bootstrap_free(void* ptr)
   {
-    get_scoped_allocator().dealloc(ptr);
+    get_scoped_allocator()->dealloc(ptr);
   }
 #endif
 }
