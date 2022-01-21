@@ -169,6 +169,7 @@ namespace snmalloc
  * Entry point that allows libc to call into the allocator for per-thread
  * cleanup.
  */
+SNMALLOC_USED_FUNCTION
 inline void _malloc_thread_cleanup()
 {
   snmalloc::ThreadAlloc::get().teardown();

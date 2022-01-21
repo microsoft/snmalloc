@@ -4,6 +4,7 @@
 #define SNMALLOC_NAME_MANGLE(a) our_##a
 #undef SNMALLOC_NO_REALLOCARRAY
 #undef SNMALLOC_NO_REALLOCARR
+#define SNMALLOC_BOOTSTRAP_ALLOCATOR
 #include "../../../override/malloc.cc"
 
 using namespace snmalloc;
@@ -338,6 +339,14 @@ int main(int argc, char** argv)
     abort();
   }
 
+#ifndef __PIC__
   snmalloc::debug_check_empty<snmalloc::Globals>();
+  void* bootstrap = __je_bootstrap_malloc(42);
+  if (bootstrap == nullptr)
+  {
+    printf("Failed to allocate from bootstrap malloc\n");
+  }
+  __je_bootstrap_free(bootstrap);
+#endif
   return 0;
 }
