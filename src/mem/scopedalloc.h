@@ -20,7 +20,7 @@ namespace snmalloc
     /**
      * The allocator that this wrapper will use.
      */
-    Alloc alloc;
+    Alloc<> alloc;
 
     /**
      * Constructor.  Claims an allocator from the global pool
@@ -66,7 +66,7 @@ namespace snmalloc
      * Arrow operator, allows methods exposed by `Alloc` to be called on the
      * wrapper.
      */
-    Alloc* operator->()
+    Alloc<>* operator->()
     {
       return &alloc;
     }

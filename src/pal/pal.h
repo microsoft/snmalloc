@@ -26,13 +26,14 @@
 namespace snmalloc
 {
 #if !defined(OPEN_ENCLAVE) || defined(OPEN_ENCLAVE_SIMULATION)
+  template<CoreDump CDM = DoDump>
   using DefaultPal =
 #  if defined(_WIN32)
     PALWindows;
 #  elif defined(__APPLE__)
     PALApple<>;
 #  elif defined(__linux__)
-    PALLinux;
+    PALLinux<CDM>;
 #  elif defined(FreeBSD_KERNEL)
     PALFreeBSDKernel;
 #  elif defined(__FreeBSD__)
@@ -52,22 +53,23 @@ namespace snmalloc
 #  endif
 #endif
 
+  template<CoreDump CDM = DoDump>
   using Pal =
 #if defined(SNMALLOC_MEMORY_PROVIDER)
     PALPlainMixin<SNMALLOC_MEMORY_PROVIDER>;
 #elif defined(OPEN_ENCLAVE)
     PALOpenEnclave;
 #else
-    DefaultPal;
+    DefaultPal<CDM>;
 #endif
 
   [[noreturn]] SNMALLOC_SLOW_PATH inline void error(const char* const str)
   {
-    Pal::error(str);
+    Pal<DoDump>::error(str);
   }
 
   // Used to keep Superslab metadata committed.
-  static constexpr size_t OS_PAGE_SIZE = Pal::page_size;
+  static constexpr size_t OS_PAGE_SIZE = Pal<DoDump>::page_size;
 
   /**
    * Perform platform-specific adjustment of return pointers.
@@ -76,7 +78,7 @@ namespace snmalloc
    * disruption to PALs for platforms that do not support StrictProvenance AALs.
    */
   template<
-    typename PAL = Pal,
+    typename PAL = Pal<>,
     typename AAL = Aal,
     typename T,
     SNMALLOC_CONCEPT(capptr::ConceptBound) B>
@@ -89,7 +91,7 @@ namespace snmalloc
   }
 
   template<
-    typename PAL = Pal,
+    typename PAL = Pal<>,
     typename AAL = Aal,
     typename T,
     SNMALLOC_CONCEPT(capptr::ConceptBound) B>

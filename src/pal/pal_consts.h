@@ -94,6 +94,18 @@ namespace snmalloc
     YesZero
   };
 
+  enum CoreDump
+  {
+    /**
+     * Default mode, memory are being dumped into a core file
+     */
+    DoDump,
+    /**
+     * Memory content not dumped into a core file
+     */
+    DontDump,
+  };
+
   /**
    * Default Tag ID for the Apple class
    */

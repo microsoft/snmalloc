@@ -45,7 +45,7 @@ namespace snmalloc
     static void register_cleanup() {}
 
   public:
-    static SNMALLOC_FAST_PATH Alloc& get()
+    static SNMALLOC_FAST_PATH Alloc<>& get()
     {
       return ThreadAllocExternal::get();
     }
@@ -88,9 +88,10 @@ namespace snmalloc
      * It can be used during thread teardown, but its performance will be
      * less good.
      */
-    static SNMALLOC_FAST_PATH Alloc& get()
+    template<CoreDump CDM = DoDump>
+    static SNMALLOC_FAST_PATH Alloc<>& get()
     {
-      SNMALLOC_REQUIRE_CONSTINIT static thread_local Alloc alloc;
+      SNMALLOC_REQUIRE_CONSTINIT static thread_local Alloc<> alloc;
       return alloc;
     }
   };

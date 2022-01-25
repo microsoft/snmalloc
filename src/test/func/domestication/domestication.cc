@@ -17,7 +17,7 @@ int main()
 #  define SNMALLOC_PROVIDE_OWN_CONFIG
 namespace snmalloc
 {
-  class CustomGlobals : public BackendAllocator<Pal, false>
+  class CustomGlobals : public BackendAllocator<Pal<>, false>
   {
   public:
     using GlobalPoolState = PoolState<CoreAllocator<CustomGlobals>>;
@@ -102,7 +102,7 @@ namespace snmalloc
     }
   };
 
-  using Alloc = LocalAllocator<CustomGlobals>;
+  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) GC = CustomGlobals> using Alloc = LocalAllocator<GC>;
 }
 
 #  define SNMALLOC_NAME_MANGLE(a) test_##a
@@ -114,10 +114,10 @@ int main()
   snmalloc::CustomGlobals::domesticate_count = 0;
 
   LocalEntropy entropy;
-  entropy.init<Pal>();
+  entropy.init<Pal<>>();
   key_global = FreeListKey(entropy.get_free_list_key());
 
-  auto alloc1 = new Alloc();
+  auto alloc1 = new Alloc<>();
 
   // Allocate from alloc1; the size doesn't matter a whole lot, it just needs to
   // be a small object and so definitely owned by this allocator rather.
@@ -125,7 +125,7 @@ int main()
   std::cout << "Allocated p " << p << std::endl;
 
   // Put that free object on alloc1's remote queue
-  auto alloc2 = new Alloc();
+  auto alloc2 = new Alloc<>();
   alloc2->dealloc(p);
   alloc2->flush();
 

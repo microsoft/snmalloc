@@ -29,13 +29,14 @@ namespace snmalloc
    * from the operating system and expects to manage memory anywhere in the
    * address space.
    */
-  class Globals final : public BackendAllocator<Pal, false>
+  template<CoreDump CDM = DoDump>
+  class GlobalsConfig final : public BackendAllocator<Pal<CDM>, false>
   {
   public:
-    using GlobalPoolState = PoolState<CoreAllocator<Globals>>;
+    using GlobalPoolState = PoolState<CoreAllocator<GlobalsConfig<CDM>>>;
 
   private:
-    using Backend = BackendAllocator<Pal, false>;
+    using Backend = BackendAllocator<Pal<CDM>, false>;
     SNMALLOC_REQUIRE_CONSTINIT
     inline static ChunkAllocatorState chunk_allocator_state;
 
@@ -76,7 +77,7 @@ namespace snmalloc
         return;
 
       LocalEntropy entropy;
-      entropy.init<Pal>();
+      entropy.init<Pal<CDM>>();
       // Initialise key for remote deallocation lists
       key_global = FreeListKey(entropy.get_free_list_key());
 
@@ -104,4 +105,7 @@ namespace snmalloc
       snmalloc::register_clean_up();
     }
   };
+
+  using Globals = GlobalsConfig<DoDump>;
+  using GlobalsNd = GlobalsConfig<DontDump>;
 } // namespace snmalloc

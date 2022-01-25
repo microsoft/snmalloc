@@ -31,7 +31,7 @@ namespace
    */
   struct Sandbox
   {
-    using NoOpPal = PALNoAlloc<DefaultPal>;
+    using NoOpPal = PALNoAlloc<DefaultPal<DoDump>>;
 
     struct ArenaMap
     {
@@ -237,7 +237,7 @@ namespace
     }
 
   private:
-    template<typename PAL = DefaultPal>
+    template<typename PAL = DefaultPal<DoDump>>
     void* alloc_sandbox_heap(size_t sb_size)
     {
       // Use the outside-sandbox snmalloc to allocate memory, rather than using

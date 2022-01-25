@@ -10,8 +10,8 @@
 #define SNMALLOC_PROVIDE_OWN_CONFIG
 namespace snmalloc
 {
-  using CustomGlobals = FixedGlobals<PALNoAlloc<DefaultPal>>;
-  using Alloc = LocalAllocator<CustomGlobals>;
+  using CustomGlobals = FixedGlobals<PALNoAlloc<DefaultPal<DoDump>>>;
+  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) GC = CustomGlobals> using Alloc = LocalAllocator<GC>;
 }
 
 #define SNMALLOC_NAME_MANGLE(a) enclave_##a

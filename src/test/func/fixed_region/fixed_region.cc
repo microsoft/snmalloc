@@ -11,7 +11,7 @@
 
 using namespace snmalloc;
 
-using CustomGlobals = FixedGlobals<PALNoAlloc<DefaultPal>>;
+using CustomGlobals = FixedGlobals<PALNoAlloc<DefaultPal<DoDump>>>;
 using FixedAlloc = LocalAllocator<CustomGlobals>;
 
 int main()
@@ -23,8 +23,8 @@ int main()
   // It is also large enough for the example to run in.
   // For 1MiB superslabs, SUPERSLAB_BITS + 4 is not big enough for the example.
   auto size = bits::one_at_bit(28);
-  auto oe_base = Pal::reserve(size);
-  Pal::notify_using<NoZero>(oe_base, size);
+  auto oe_base = Pal<>::reserve(size);
+  Pal<>::notify_using<NoZero>(oe_base, size);
   auto oe_end = pointer_offset(oe_base, size);
   std::cout << "Allocated region " << oe_base << " - "
             << pointer_offset(oe_base, size) << std::endl;
