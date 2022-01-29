@@ -27,7 +27,8 @@
 
 namespace snmalloc
 {
-  class PALWindows : public PalTimerDefaultImpl<PALWindows>
+  template<NumaMode N = DoBind>
+  class PALWindows : public PalTimerDefaultImpl<PALWindows<>>
   {
     /**
      * A flag indicating that we have tried to register for low-memory
@@ -60,7 +61,7 @@ namespace snmalloc
 #  if defined(PLATFORM_HAS_VIRTUALALLOC2) && !defined(USE_SYSTEMATIC_TESTING)
       | AlignedAllocation
 #  endif
-      ;
+      | Numa;
 
     static SNMALLOC_CONSTINIT_STATIC size_t minimum_alloc_size = 0x10000;
 
@@ -179,7 +180,8 @@ namespace snmalloc
       MEM_ADDRESS_REQUIREMENTS addressReqs = {NULL, NULL, size};
 
       MEM_EXTENDED_PARAMETER param = {
-        {MemExtendedParameterAddressRequirements, 0}, {0}};
+        {MemExtendedParameterAddressRequirements, 0},
+        { 0 }};
       // Separate assignment as MSVC doesn't support .Pointer in the
       // initialisation list.
       param.Pointer = &addressReqs;
@@ -192,7 +194,31 @@ namespace snmalloc
 
     static void* reserve(size_t size) noexcept
     {
-      return VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
+      if constexpr (N != DoBind)
+      {
+        return VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
+      }
+      else
+      {
+#  ifdef PLATFORM_HAS_VIRTUALALLOC2
+        UCHAR n = 0;
+        auto cpu = GetCurrentProcessorNumber();
+        GetNumaProcessorNode((UCHAR)cpu, &n);
+        MEM_EXTENDED_PARAMETER p = {{MemExtendedParameterNumaNode, 0}, { 0 }};
+        // Issue with anonymous union access thus later assignment.
+        p.ULong = (ULONG)n;
+        return VirtualAlloc2(
+          GetCurrentProcess(),
+          nullptr,
+          size,
+          MEM_RESERVE,
+          PAGE_READWRITE,
+          &p,
+          1);
+#  else
+        error("NUMA mode unsupported.");
+#  endif
+      }
     }
 
     /**

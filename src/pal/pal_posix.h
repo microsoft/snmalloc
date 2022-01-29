@@ -316,14 +316,17 @@ namespace snmalloc
         std::cout << "Pal_posix reserved: " << p << " (" << size << ")"
                   << std::endl;
 #endif
-	if constexpr (N == DoBind)
-	{
-	  auto nid = get_numaindex();
-	  if (nid != -1)
-	  {
-            OS::bind_page(nid, p, size);
-	  }
-	}
+        if constexpr (pal_supports<Numa, OS>)
+        {
+          if constexpr (N == DoBind)
+          {
+            auto nid = get_numaindex();
+            if (nid != -1)
+            {
+              OS::bind_page(nid, p, size);
+            }
+          }
+        }
         return p;
       }
 

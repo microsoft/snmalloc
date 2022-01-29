@@ -28,7 +28,7 @@ namespace snmalloc
 #if !defined(OPEN_ENCLAVE) || defined(OPEN_ENCLAVE_SIMULATION)
   using DefaultPal =
 #  if defined(_WIN32)
-    PALWindows;
+    PALWindows<>;
 #  elif defined(__APPLE__)
     PALApple<>;
 #  elif defined(__linux__)

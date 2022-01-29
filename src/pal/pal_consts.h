@@ -99,7 +99,8 @@ namespace snmalloc
     YesZero
   };
 
-  enum NumaMode {
+  enum NumaMode
+  {
     DontBind,
     DoBind,
   };

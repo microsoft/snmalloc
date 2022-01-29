@@ -21,7 +21,8 @@ namespace snmalloc
      *
      * We always make sure that linux has entropy support.
      */
-    static constexpr uint64_t pal_features = PALPOSIX::pal_features | Entropy | Numa;
+    static constexpr uint64_t pal_features =
+      PALPOSIX::pal_features | Entropy | Numa;
 
     static constexpr size_t page_size =
       Aal::aal_name == PowerPC ? 0x10000 : PALPOSIX::page_size;
@@ -86,9 +87,9 @@ namespace snmalloc
 
     static void bind_page(int64_t nid, void* p, size_t size)
     {
-       unsigned long mask = (1UL << static_cast<unsigned long>(nid));
-       size_t maxnode = sizeof(void*) * 8;
-       syscall(SYS_mbind, p, size, 1, &mask, maxnode, 0);
+      unsigned long mask = (1UL << static_cast<unsigned long>(nid));
+      size_t maxnode = sizeof(void*) * 8;
+      syscall(SYS_mbind, p, size, 1, &mask, maxnode, 0);
     }
 
     static int64_t get_numaindex()
@@ -96,7 +97,7 @@ namespace snmalloc
       unsigned long cpu, id;
       if (syscall(SYS_getcpu, &cpu, &id, NULL) == 0)
       {
-        return id;
+        return static_cast<int64_t>(id);
       }
 
       return -1;
