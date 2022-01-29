@@ -179,46 +179,62 @@ namespace snmalloc
       // cannot allocate executable memory.
       MEM_ADDRESS_REQUIREMENTS addressReqs = {NULL, NULL, size};
 
-      MEM_EXTENDED_PARAMETER param = {
+      MEM_EXTENDED_PARAMETER param[3] = {
         {MemExtendedParameterAddressRequirements, 0},
+        {0},
         { 0 }};
       // Separate assignment as MSVC doesn't support .Pointer in the
       // initialisation list.
-      param.Pointer = &addressReqs;
+      param[0].Pointer = &addressReqs;
+      ULONG paramn = 1;
 
-      void* ret = VirtualAlloc2FromApp(
-        nullptr, nullptr, size, flags, PAGE_READWRITE, &param, 1);
-      return ret;
+      if constexpr (N == DoBind)
+      {
+        auto n = get_numaindex();
+        if (n != -1)
+        {
+          param[1].Type = MemExtendedParameterNumaNode;
+          param[1].ULong = static_cast<ULONG>(n);
+          paramn = 2;
+        }
+      }
+
+      return VirtualAlloc2FromApp(
+        nullptr, nullptr, size, flags, PAGE_READWRITE, param, paramn);
     }
 #  endif
 
     static void* reserve(size_t size) noexcept
     {
-      if constexpr (N != DoBind)
-      {
-        return VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
-      }
-      else
-      {
 #  ifdef PLATFORM_HAS_VIRTUALALLOC2
-        UCHAR n = 0;
-        auto cpu = GetCurrentProcessorNumber();
-        GetNumaProcessorNode((UCHAR)cpu, &n);
-        MEM_EXTENDED_PARAMETER p = {{MemExtendedParameterNumaNode, 0}, { 0 }};
-        // Issue with anonymous union access thus later assignment.
-        p.ULong = (ULONG)n;
-        return VirtualAlloc2(
-          GetCurrentProcess(),
-          nullptr,
-          size,
-          MEM_RESERVE,
-          PAGE_READWRITE,
-          &p,
-          1);
-#  else
-        error("NUMA mode unsupported.");
-#  endif
+      MEM_EXTENDED_PARAMETER param = {{0}, { 0 }};
+      ULONG paramn = 0;
+      if constexpr (N == DoBind)
+      {
+        auto n = get_numaindex();
+        if (n != -1)
+        {
+          // Issue with the union access thus later assignment.
+          param.Type = MemExtendedParameterNumaNode;
+          param.ULong = static_cast<ULONG>(n);
+          paramn = 1;
+        }
       }
+
+      return VirtualAlloc2FromApp(
+        nullptr, nullptr, size, MEM_RESERVE, PAGE_READWRITE, &param, paramn);
+#  else
+      return VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
+#  endif
+    }
+
+    static int64_t get_numaindex()
+    {
+      UCHAR n = 0;
+      auto cpu = GetCurrentProcessorNumber();
+      return GetNumaProcessorNode(static_cast<UCHAR>(cpu), &n) ?
+        static_cast<int64_t>(n) :
+        -1;
     }
 
     /**
