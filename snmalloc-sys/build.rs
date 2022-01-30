@@ -39,20 +39,17 @@ fn main() {
     build.static_crt(true);
     build.cpp(true);
     build.debug(debug);
-    if cfg!(feature = "usecxx20") {
-        build.flag_if_supported("-std=c++17"); //original required if cxx20 not supported
-        build.flag_if_supported("/std:c++17");
-        build.flag_if_supported("-Wc++17-extensions");
-        build.flag_if_supported("/Wc++17-extensions");
-        build.flag_if_supported("-std=c++20");
-        build.flag_if_supported("/std:c++20");
-        build.flag_if_supported("-Wc++20-extensions");
-        build.flag_if_supported("/Wc++20-extensions");
-    } else {
+    if cfg!(feature = "usecxx17") {
         build.flag_if_supported("-std=c++17");
         build.flag_if_supported("/std:c++17");
         build.flag_if_supported("-Wc++17-extensions");
         build.flag_if_supported("/Wc++17-extensions");
+        build.define("SNMALLOC_USE_CXX17", "1");
+    } else {
+        build.flag_if_supported("-std=c++20");
+        build.flag_if_supported("/std:c++20");
+        build.flag_if_supported("-Wc++20-extensions");
+        build.flag_if_supported("/Wc++20-extensions");
     }
 
     let triple = std::env::var("TARGET").unwrap();
@@ -92,15 +89,13 @@ fn main() {
     }
 
     if cfg!(feature = "win8compat") {
-        build.flag_if_supported("-DWINVER=0x0603");
+        build.define("WINVER", "0x0603");
     }
 
-    let target = if cfg!(feature = "1mib") {
-        "snmallocshim-1mib-rust"
-    } else if cfg!(feature = "16mib") {
-        "snmallocshim-16mib-rust"
+    let target = if cfg!(feature = "check") {
+        "snmallocshim-rust"
     } else {
-        panic!("please set a chunk configuration");
+        "snmallocshim-checks-rust"
     };
 
     if cfg!(feature = "native-cpu") {
@@ -125,10 +120,6 @@ fn main() {
 
     build.compile(target);
 
-    if cfg!(feature = "android-shared-stl") {
-        println!("cargo:rustc-link-lib=dylib=c++_shared");
-    }
-
     if target_env == "msvc" {
         if cfg!(not(feature = "win8compat")) {
             println!("cargo:rustc-link-lib=dylib=mincore");
@@ -139,22 +130,29 @@ fn main() {
         println!("cargo:rustc-link-lib=dylib=atomic");
     }
 
-    if target_os == "macos" {
-        println!("cargo:rustc-link-lib=dylib=c++");
-    }
-
-    if target_os == "openbsd" {
-        println!("cargo:rustc-link-lib=dylib=c++");
-    }
-
-    if target_os == "freebsd" {
-        println!("cargo:rustc-link-lib=dylib=c++");
-    }
-
     if target_os == "linux" {
-        println!("cargo:rustc-link-lib=dylib=stdc++");
         println!("cargo:rustc-link-lib=dylib=atomic");
     };
+
+    if cfg!(target_os = "freebsd") {
+        // using THREAD_DESTRUCTOR
+    } else if cfg!(all(unix, not(target_os = "macos"))) {
+        if cfg!(target_env = "gnu") {
+            println!("cargo:rustc-link-lib=c_nonshared");
+        }
+    } else if cfg!(windows) {
+        // no need
+    } else {
+        // link c++ runtime
+        println!("cargo:rustc-link-lib={}",
+                 std::env::var("CXXSTDLIB").unwrap_or_else(|_| {
+                     if cfg!(target_os = "macos") || cfg!(target_os = "openbsd") {
+                         "c++".to_string()
+                     } else {
+                         "stdc++".to_string()
+                     }
+                 }))
+    }
 }
 
 #[cfg(not(feature = "build_cc"))]
@@ -226,20 +224,18 @@ fn main() {
         cfg = cfg.define("CMAKE_SH", "CMAKE_SH-NOTFOUND");
     }
 
-    let target = if cfg!(feature = "1mib") {
-        "snmallocshim-1mib-rust"
-    } else if cfg!(feature = "16mib") {
-        "snmallocshim-16mib-rust"
+    let target = if cfg!(feature = "check") {
+        "snmallocshim-checks-rust"
     } else {
-        panic!("please set a chunk configuration");
+        "snmallocshim-rust"
     };
 
     if cfg!(feature = "native-cpu") {
         cfg = cfg.define("SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE", "ON")
     }
 
-    if cfg!(feature = "usecxx20") {
-        cfg = cfg.define("SNMALLOC_USE_CXX20", "ON")
+    if cfg!(feature = "usecxx17") {
+        cfg = cfg.define("SNMALLOC_USE_CXX17", "ON")
     }
 
     if cfg!(feature = "stats") {
@@ -249,11 +245,6 @@ fn main() {
     if cfg!(feature = "qemu") {
         cfg = cfg.define("SNMALLOC_QEMU_WORKAROUND", "ON")
     }
-
-    if cfg!(feature = "cache-friendly") {
-        eprintln!("cache-friendly feature flag is deprecated and no longer has any effect. \
-            it may be removed in a future release");
-    };
 
     let mut dst = cfg.build_target(target).build();
 
@@ -297,27 +288,34 @@ fn main() {
             .for_each(|path| {
                 println!("cargo:rustc-link-search=native={}", path);
             });
-
-        println!("cargo:rustc-link-lib=dylib=stdc++");
         println!("cargo:rustc-link-lib=dylib=atomic");
         println!("cargo:rustc-link-lib=dylib=winpthread");
         println!("cargo:rustc-link-lib=dylib=gcc_s");
     }
 
-    if cfg!(target_os = "macos") {
-        println!("cargo:rustc-link-lib=dylib=c++");
-    }
-
-    if cfg!(target_os = "openbsd") {
-        println!("cargo:rustc-link-lib=dylib=c++");
+    // linux: using PTHREAD_DESTRUCTORS
+    if cfg!(target_os = "linux") {
+        println!("cargo:rustc-link-lib=dylib=atomic");
     }
 
     if cfg!(target_os = "freebsd") {
-        println!("cargo:rustc-link-lib=dylib=c++");
-    }
-
-    if cfg!(target_os = "linux") {
-        println!("cargo:rustc-link-lib=dylib=stdc++");
-        println!("cargo:rustc-link-lib=dylib=atomic");
+        // using THREAD_DESTRUCTOR
+    } else if cfg!(all(unix, not(target_os = "macos"))) {
+        // using PTHREAD_DESTRUCTOR
+        if cfg!(target_env = "gnu") {
+            println!("cargo:rustc-link-lib=c_nonshared");
+        }
+    } else if cfg!(windows) {
+        // not need for explicit c++ runtime
+    } else {
+        // link c++ runtime
+        println!("cargo:rustc-link-lib={}",
+                 std::env::var("CXXSTDLIB").unwrap_or_else(|_| {
+                     if cfg!(target_os = "macos") || cfg!(target_os = "openbsd") {
+                         "c++".to_string()
+                     } else {
+                         "stdc++".to_string()
+                     }
+                 }))
     }
 }

@@ -21,18 +21,19 @@ are listed at
 [bench_suite](https://github.com/SchrodingerZhu/bench_suite). There are three features defined in this crate:
 
 - `debug`: Enable the `Debug` mode in `snmalloc`.
-- `1mib`: Use the `1mib` chunk configuration. From `0.2.17`, this is set as a default feature
-- `16mib`: Use the `16mib` chunk configuration.
-- `cache-friendly`: Make the allocator more cache friendly (setting `CACHE_FRIENDLY_OFFSET` to `64` in building the
-  library).
-  (**deprecated since 0.2.28**)
+- ~~`1mib`: Use the `1mib` chunk configuration. From `0.2.17`, this is set as a default feature~~ (removed since 0.3.0)
+- ~~`16mib`: Use the `16mib` chunk configuration.~~ (removed since 0.3.0)
+- ~~`cache-friendly`: Make the allocator more cache friendly (setting `CACHE_FRIENDLY_OFFSET` to `64` in building the
+  library).~~ (removed since 0.3.0)
 - `native-cpu`: Optimize `snmalloc` for the native CPU of the host machine. (this is not a default behavior
   since `0.2.14`)
 - `qemu`: Workaround `madvise` problem of QEMU environment
 - `stats`: Enable statistics
 - `local_dynamic_tls`: Workaround cannot allocate memory in static tls block
 - `build_cc`: Use of cc crate instead of cmake (cmake still default) as builder (more platform agnostic)
-- `usecxx20`: Enable C++20 standard if available
+- ~~`usecxx20`: Enable C++20 standard if available~~ (removed since 0.3.0)
+- `usecxx17`: Use C++17 standard
+- `check`: Enable extra checks to improve security
 - `win8compat`: Improve compatibility for old Windows platforms (removing usages of `VirtualAlloc2` and other new APIs)
 
 **To get the crates compiled, you need to choose either `1mib` or `16mib` to determine the chunk configuration**
@@ -42,7 +43,7 @@ To use `snmalloc-rs` add it as a dependency:
 ```toml
 # Cargo.toml
 [dependencies]
-snmalloc-rs = "0.2"
+snmalloc-rs = "0.3-beta.1"
 ```
 
 To set `SnMalloc` as the global allocator add this to your project:
@@ -71,10 +72,14 @@ target.
 - `ANDROID_PLATFORM` can be passed as an optional environment variable
 - `ANDROID_ABI` used by CMake is detected automatically
 - feature `android-lld` can be used to set the linker of `snmalloc` to `lld`
-- feature `android-shared-std` can be used to set the STL library of `snmalloc` to `c++_shared` (it uses `c++_static` by
-  default)
+- ~~feature `android-shared-std` can be used to set the STL library of `snmalloc` to `c++_shared` (it uses `c++_static` by
+  default)~~ (`libstdc++` is no longer a dependency)
 
 ## Changelog
+
+### 0.3.0-beta.1
+
+- Beta release to support snmalloc 2
 
 ### 0.2.28
 
@@ -89,18 +94,6 @@ target.
 - **upstream** Option to use C++20 standards if available
 - **upstream** Preparations of cherification (heavy refactors of the structure)
 - **upstream** Cold routine annotations
-
-### 0.2.26
-
-- **upstream** Building adjustment
-- option of cc crate as build feature, only c compiler needed, no cmake required
-- Addition of dynamic local TLS option
-
-### 0.2.25
-
-- **upstream** Apple M1 support
-- **upstream** Building adjust
-- non-allocation tracking functions
 
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 

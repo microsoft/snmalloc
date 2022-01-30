@@ -1,5 +1,9 @@
 ## Changelog
 
+### 0.3.0-beta.1
+
+- Beta release to support snmalloc 2
+
 ### 0.2.28
 - Deprecation of `cache-friendly`
 - Use exposed `alloc_zeroed` from `snmalloc`

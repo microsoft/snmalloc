@@ -41,15 +41,9 @@ unsafe impl GlobalAlloc for SnMalloc {
     /// The program may be forced to abort if the constrains are not full-filled.
     #[inline(always)]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        ffi::rust_alloc(layout.align(), layout.size()) as _
+        ffi::sn_rust_alloc(layout.align(), layout.size()) as _
     }
 
-
-    /// Behaves like alloc, but also ensures that the contents are set to zero before being returned.
-    #[inline(always)]
-    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
-        ffi::rust_alloc_zeroed(layout.align(), layout.size()) as _
-    }
 
     /// De-allocate the memory at the given address with the given alignment and size.
     /// The client must assure the following things:
@@ -58,7 +52,13 @@ unsafe impl GlobalAlloc for SnMalloc {
     /// The program may be forced to abort if the constrains are not full-filled.
     #[inline(always)]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        ffi::rust_dealloc(ptr as _, layout.align(), layout.size());
+        ffi::sn_rust_dealloc(ptr as _, layout.align(), layout.size());
+    }
+
+    /// Behaves like alloc, but also ensures that the contents are set to zero before being returned.
+    #[inline(always)]
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        ffi::sn_rust_alloc_zeroed(layout.align(), layout.size()) as _
     }
 
     /// Re-allocate the memory at the given address with the given alignment and size.
@@ -72,7 +72,7 @@ unsafe impl GlobalAlloc for SnMalloc {
     /// The program may be forced to abort if the constrains are not full-filled.
     #[inline(always)]
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        ffi::rust_realloc(ptr as _, layout.align(), layout.size(), new_size) as _
+        ffi::sn_rust_realloc(ptr as _, layout.align(), layout.size(), new_size) as _
     }
 }
 
