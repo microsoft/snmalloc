@@ -95,6 +95,12 @@
 
 namespace snmalloc
 {
+#ifdef NDEBUG
+  static constexpr bool DEBUG = false;
+#else
+  static constexpr bool DEBUG = true;
+#endif
+
   // Forwards reference so that the platform can define how to handle errors.
   [[noreturn]] SNMALLOC_COLD void error(const char* const str);
 } // namespace snmalloc
@@ -161,12 +167,15 @@ namespace snmalloc
   {
     if (SNMALLOC_UNLIKELY(!test))
     {
-#ifdef NDEBUG
-      UNUSED(str);
-      SNMALLOC_FAST_FAIL();
-#else
-      check_client_error(str);
-#endif
+      if constexpr (DEBUG)
+      {
+        UNUSED(str);
+        SNMALLOC_FAST_FAIL();
+      }
+      else
+      {
+        check_client_error(str);
+      }
     }
   }
 

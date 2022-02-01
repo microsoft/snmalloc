@@ -92,9 +92,7 @@ namespace snmalloc
 
     void insert(Ptr<T> item)
     {
-#ifndef NDEBUG
       debug_check_not_contains(item);
-#endif
 
       item->next = head;
       item->prev = Terminator();
@@ -105,16 +103,14 @@ namespace snmalloc
         tail = item;
 
       head = item;
-#ifndef NDEBUG
-      debug_check();
-#endif
+
+      if constexpr (DEBUG)
+        debug_check();
     }
 
     void insert_back(Ptr<T> item)
     {
-#ifndef NDEBUG
       debug_check_not_contains(item);
-#endif
 
       item->prev = tail;
       item->next = Terminator();
@@ -125,16 +121,13 @@ namespace snmalloc
         head = item;
 
       tail = item;
-#ifndef NDEBUG
+
       debug_check();
-#endif
     }
 
     SNMALLOC_FAST_PATH void remove(Ptr<T> item)
     {
-#ifndef NDEBUG
       debug_check_contains(item);
-#endif
 
       if (item->next != Terminator())
         item->next->prev = item->prev;
@@ -146,9 +139,7 @@ namespace snmalloc
       else
         head = item->next;
 
-#ifndef NDEBUG
       debug_check();
-#endif
     }
 
     void clear()
@@ -163,49 +154,56 @@ namespace snmalloc
 
     void debug_check_contains(Ptr<T> item)
     {
-#ifndef NDEBUG
-      debug_check();
-      Ptr<T> curr = head;
-
-      while (curr != item)
+      if constexpr (DEBUG)
       {
-        SNMALLOC_ASSERT(curr != Terminator());
-        curr = curr->next;
+        debug_check();
+        Ptr<T> curr = head;
+
+        while (curr != item)
+        {
+          SNMALLOC_ASSERT(curr != Terminator());
+          curr = curr->next;
+        }
       }
-#else
-      UNUSED(item);
-#endif
+      else
+      {
+        UNUSED(item);
+      }
     }
 
     void debug_check_not_contains(Ptr<T> item)
     {
-#ifndef NDEBUG
-      debug_check();
-      Ptr<T> curr = head;
-
-      while (curr != Terminator())
+      if constexpr (DEBUG)
       {
-        SNMALLOC_ASSERT(curr != item);
-        curr = curr->next;
+        debug_check();
+        Ptr<T> curr = head;
+
+        while (curr != Terminator())
+        {
+          SNMALLOC_ASSERT(curr != item);
+          curr = curr->next;
+        }
       }
-#else
-      UNUSED(item);
-#endif
+      else
+      {
+        UNUSED(item);
+      }
     }
 
     void debug_check()
     {
-#ifndef NDEBUG
-      Ptr<T> item = head;
-      Ptr<T> prev = Terminator();
-
-      while (item != Terminator())
+      if constexpr (DEBUG)
       {
-        SNMALLOC_ASSERT(item->prev == prev);
-        prev = item;
-        item = item->next;
+        Ptr<T> item = head;
+        Ptr<T> prev = Terminator();
+
+        while (item != Terminator())
+        {
+          SNMALLOC_ASSERT(item->prev == prev);
+          prev = item;
+          item = item->next;
+        }
       }
-#endif
     }
   };
 } // namespace snmalloc

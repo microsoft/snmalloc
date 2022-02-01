@@ -35,9 +35,9 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
 
-#if !defined(NDEBUG)
-      memset(p, 0x5a, size);
-#endif
+      if constexpr (DEBUG)
+        memset(p, 0x5a, size);
+
       madvise(p, size, MADV_FREE);
 
       if constexpr (PalEnforceAccess)

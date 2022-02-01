@@ -95,11 +95,8 @@ int main(int, char**)
   setup();
 
   xoroshiro::p128r64 r;
-#  ifdef NDEBUG
-  size_t nn = 30;
-#  else
-  size_t nn = 3;
-#  endif
+
+  size_t nn = snmalloc::DEBUG ? 30 : 3;
 
   for (size_t n = 0; n < nn; n++)
     test::test_external_pointer(r);
