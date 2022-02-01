@@ -30,11 +30,7 @@ namespace
 #ifdef SNMALLOC_CHECK_LOADS
     SNMALLOC_CHECK_LOADS
 #else
-#  ifdef NDEBUG
-    false
-#  else
-    true
-#  endif
+    DEBUG
 #endif
     ;
 
@@ -50,11 +46,7 @@ namespace
 #ifdef SNMALLOC_FAIL_FAST
     SNMALLOC_FAIL_FAST
 #else
-#  ifdef NDEBUG
-    true
-#  else
-    false
-#  endif
+    !DEBUG
 #endif
     ;
 

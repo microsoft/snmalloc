@@ -189,11 +189,11 @@ namespace snmalloc
 
       if constexpr (PalEnforceAccess)
       {
-#if !defined(NDEBUG)
         // Fill memory so that when we switch the pages back on we don't make
         // assumptions on the content.
-        memset(p, 0x5a, size);
-#endif
+        if constexpr (DEBUG)
+          memset(p, 0x5a, size);
+
         mprotect(p, size, PROT_NONE);
       }
       else

@@ -586,21 +586,22 @@ namespace snmalloc
       ChunkAllocator::register_local_state<SharedStateHandle>(
         get_backend_local_state(), chunk_local_state);
 
-#ifndef NDEBUG
-      for (smallsizeclass_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
+      if constexpr (DEBUG)
       {
-        size_t size = sizeclass_to_size(i);
-        smallsizeclass_t sc1 = size_to_sizeclass(size);
-        smallsizeclass_t sc2 = size_to_sizeclass_const(size);
-        size_t size1 = sizeclass_to_size(sc1);
-        size_t size2 = sizeclass_to_size(sc2);
+        for (smallsizeclass_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
+        {
+          size_t size = sizeclass_to_size(i);
+          smallsizeclass_t sc1 = size_to_sizeclass(size);
+          smallsizeclass_t sc2 = size_to_sizeclass_const(size);
+          size_t size1 = sizeclass_to_size(sc1);
+          size_t size2 = sizeclass_to_size(sc2);
 
-        SNMALLOC_ASSERT(sc1 == i);
-        SNMALLOC_ASSERT(sc1 == sc2);
-        SNMALLOC_ASSERT(size1 == size);
-        SNMALLOC_ASSERT(size1 == size2);
+          SNMALLOC_CHECK(sc1 == i);
+          SNMALLOC_CHECK(sc1 == sc2);
+          SNMALLOC_CHECK(size1 == size);
+          SNMALLOC_CHECK(size1 == size2);
+        }
       }
-#endif
     }
 
   public:
