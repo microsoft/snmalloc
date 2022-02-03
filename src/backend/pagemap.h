@@ -236,12 +236,12 @@ namespace snmalloc
      * read/write.
      */
     template<bool potentially_out_of_range>
-    const T& get(address_t p)
+    T& get_mut(address_t p)
     {
       if constexpr (potentially_out_of_range)
       {
         if (SNMALLOC_UNLIKELY(body_opt == nullptr))
-          return default_value;
+          return const_cast<T&>(default_value);
       }
 
       if constexpr (has_bounds)
@@ -250,14 +250,14 @@ namespace snmalloc
         {
           if constexpr (potentially_out_of_range)
           {
-            return default_value;
+            return const_cast<T&>(default_value);
           }
           else
           {
             // Out of range null should
             // still return the default value.
             if (p == 0)
-              return default_value;
+              return const_cast<T&>(default_value);
             PAL::error("Internal error: Pagemap read access out of range.");
           }
         }
@@ -276,6 +276,18 @@ namespace snmalloc
         return body_opt[p >> SHIFT];
       else
         return body[p >> SHIFT];
+    }
+
+    /**
+     * If the location has not been used before, then
+     * `potentially_out_of_range` should be set to true.
+     * This will ensure there is a location for the
+     * read/write.
+     */
+    template<bool potentially_out_of_range>
+    const T& get(address_t p)
+    {
+      return get_mut<potentially_out_of_range>(p);
     }
 
     /**
