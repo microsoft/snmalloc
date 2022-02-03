@@ -62,7 +62,9 @@ namespace snmalloc
      * address space to protect this from corruption.
      */
     static capptr::Chunk<void> alloc_meta_data(
-      AddressSpaceManager<PAL>& global, LocalState* local_state, size_t size)
+      AddressSpaceManager<PAL, Pagemap>& global,
+      LocalState* local_state,
+      size_t size)
     {
       return reserve<true>(global, local_state, size);
     }
@@ -77,7 +79,7 @@ namespace snmalloc
      * where metaslab, is the second element of the pair return.
      */
     static std::pair<capptr::Chunk<void>, Metaslab*> alloc_chunk(
-      AddressSpaceManager<PAL>& global,
+      AddressSpaceManager<PAL, Pagemap>& global,
       LocalState* local_state,
       size_t size,
       RemoteAllocator* remote,
@@ -123,7 +125,9 @@ namespace snmalloc
      */
     template<bool is_meta>
     static capptr::Chunk<void> reserve(
-      AddressSpaceManager<PAL>& global, LocalState* local_state, size_t size)
+      AddressSpaceManager<PAL, Pagemap>& global,
+      LocalState* local_state,
+      size_t size)
     {
 #ifdef SNMALLOC_META_PROTECTED
       constexpr auto MAX_CACHED_SIZE =
@@ -142,16 +146,14 @@ namespace snmalloc
         auto& local = local_state->local_address_space;
 #endif
 
-        p = local.template reserve_with_left_over<PAL, Pagemap>(
-          local_state, size);
+        p = local.template reserve_with_left_over<PAL>(local_state, size);
         if (p != nullptr)
         {
           return p;
         }
 
         auto refill_size = LOCAL_CACHE_BLOCK;
-        auto refill =
-          global.template reserve<false, Pagemap>(local_state, refill_size);
+        auto refill = global.template reserve<false>(local_state, refill_size);
         if (refill == nullptr)
           return nullptr;
 
@@ -163,12 +165,10 @@ namespace snmalloc
         }
 #endif
         PAL::template notify_using<NoZero>(refill.unsafe_ptr(), refill_size);
-        local.template add_range<PAL, Pagemap>(
-          local_state, refill, refill_size);
+        local.template add_range<PAL>(local_state, refill, refill_size);
 
         // This should succeed
-        return local.template reserve_with_left_over<PAL, Pagemap>(
-          local_state, size);
+        return local.template reserve_with_left_over<PAL>(local_state, size);
       }
 
 #ifdef SNMALLOC_META_PROTECTED
@@ -179,7 +179,7 @@ namespace snmalloc
         size_t rsize = bits::max(OS_PAGE_SIZE, bits::next_pow2(size));
         size_t size_request = rsize * 64;
 
-        p = global.template reserve<false, Pagemap>(local_state, size_request);
+        p = global.template reserve<false>(local_state, size_request);
         if (p == nullptr)
           return nullptr;
 
@@ -195,8 +195,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(!is_meta);
 #endif
 
-      p = global.template reserve_with_left_over<true, Pagemap>(
-        local_state, size);
+      p = global.template reserve_with_left_over<true>(local_state, size);
       return p;
     }
 
@@ -242,33 +241,7 @@ namespace snmalloc
   public:
     using Pal = PAL;
 
-    /**
-     * Local state for the backend allocator.
-     *
-     * This class contains thread local structures to make the implementation
-     * of the backend allocator more efficient.
-     */
-    class LocalState
-    {
-      template<
-        SNMALLOC_CONCEPT(ConceptPAL) PAL2,
-        typename LocalState,
-        SNMALLOC_CONCEPT(ConceptBackendMetaRange) Pagemap>
-      friend class AddressSpaceAllocatorCommon;
-
-      AddressSpaceManagerCore local_address_space;
-
-#ifdef SNMALLOC_META_PROTECTED
-      /**
-       * Secondary local address space, so we can apply some randomisation
-       * and guard pages to protect the meta-data.
-       */
-      AddressSpaceManagerCore local_meta_address_space;
-#endif
-    };
-
-    SNMALLOC_REQUIRE_CONSTINIT
-    static inline AddressSpaceManager<PAL> address_space;
+    class LocalState;
 
     class Pagemap
     {
@@ -343,6 +316,34 @@ namespace snmalloc
       }
     };
 
+    /**
+     * Local state for the backend allocator.
+     *
+     * This class contains thread local structures to make the implementation
+     * of the backend allocator more efficient.
+     */
+    class LocalState
+    {
+      template<
+        SNMALLOC_CONCEPT(ConceptPAL) PAL2,
+        typename LocalState,
+        SNMALLOC_CONCEPT(ConceptBackendMetaRange) Pagemap2>
+      friend class AddressSpaceAllocatorCommon;
+
+      AddressSpaceManagerCore<Pagemap> local_address_space;
+
+#ifdef SNMALLOC_META_PROTECTED
+      /**
+       * Secondary local address space, so we can apply some randomisation
+       * and guard pages to protect the meta-data.
+       */
+      AddressSpaceManagerCore<Pagemap> local_meta_address_space;
+#endif
+    };
+
+    SNMALLOC_REQUIRE_CONSTINIT
+    static inline AddressSpaceManager<PAL, Pagemap> address_space;
+
   private:
     using AddressSpaceAllocator =
       AddressSpaceAllocatorCommon<Pal, LocalState, Pagemap>;
@@ -364,7 +365,7 @@ namespace snmalloc
 
       auto [heap_base, heap_length] =
         Pagemap::concretePagemap.init(base, length);
-      address_space.template add_range<Pagemap>(
+      address_space.add_range(
         local_state, capptr::Chunk<void>(heap_base), heap_length);
     }
 

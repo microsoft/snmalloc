@@ -21,8 +21,6 @@ struct T
   T() {}
 };
 
-AddressSpaceManager<DefaultPal> address_space;
-
 FlatPagemap<GRANULARITY_BITS, T, DefaultPal, false> pagemap_test_unbound;
 
 FlatPagemap<GRANULARITY_BITS, T, DefaultPal, true> pagemap_test_bound;

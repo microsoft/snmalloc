@@ -31,6 +31,7 @@ namespace snmalloc
    * to Metaslab objects in perpetuity; it could also make {set,get}_next less
    * scary.
    */
+  template<SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
   class AddressSpaceManagerCore
   {
     struct FreeChunk
@@ -77,7 +78,6 @@ namespace snmalloc
      * to store the next pointer for the list of unused address space of a
      * particular size.
      */
-    template<SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
     void set_next(
       typename Pagemap::LocalState* local_state,
       size_t align_bits,
@@ -112,7 +112,6 @@ namespace snmalloc
      * to store the next pointer for the list of unused address space of a
      * particular size.
      */
-    template<SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
     capptr::Chunk<FreeChunk> get_next(
       typename Pagemap::LocalState* local_state,
       size_t align_bits,
@@ -132,9 +131,7 @@ namespace snmalloc
     /**
      * Adds a block to `ranges`.
      */
-    template<
-      SNMALLOC_CONCEPT(ConceptPAL) PAL,
-      SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     void add_block(
       typename Pagemap::LocalState* local_state,
       size_t align_bits,
@@ -143,17 +140,15 @@ namespace snmalloc
       check_block(base, align_bits);
       SNMALLOC_ASSERT(align_bits < 64);
 
-      set_next<Pagemap>(local_state, align_bits, base, ranges[align_bits]);
-      ranges[align_bits] = base.as_static<FreeChunk>();
+      set_next(local_state, align_bits, base, ranges[align_bits]);
+      ranges[align_bits] = base.template as_static<FreeChunk>();
     }
 
     /**
      * Find a block of the correct size. May split larger blocks
      * to satisfy this request.
      */
-    template<
-      SNMALLOC_CONCEPT(ConceptPAL) PAL,
-      SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     capptr::Chunk<void>
     remove_block(typename Pagemap::LocalState* local_state, size_t align_bits)
     {
@@ -168,7 +163,7 @@ namespace snmalloc
 
         // Look for larger block and split up recursively
         capptr::Chunk<void> bigger =
-          remove_block<PAL, Pagemap>(local_state, align_bits + 1);
+          remove_block<PAL>(local_state, align_bits + 1);
 
         if (SNMALLOC_UNLIKELY(bigger == nullptr))
           return nullptr;
@@ -184,7 +179,7 @@ namespace snmalloc
         size_t half_bigger_size = bits::one_at_bit(align_bits);
         auto left_over = pointer_offset(bigger, half_bigger_size);
 
-        add_block<PAL, Pagemap>(
+        add_block<PAL>(
           local_state,
           align_bits,
           Aal::capptr_bound<FreeChunk, capptr::bounds::Chunk>(
@@ -196,7 +191,7 @@ namespace snmalloc
       }
 
       check_block(first, align_bits);
-      ranges[align_bits] = get_next<Pagemap>(local_state, align_bits, first);
+      ranges[align_bits] = get_next(local_state, align_bits, first);
       return first.as_void();
     }
 
@@ -205,9 +200,7 @@ namespace snmalloc
      * Add a range of memory to the address space.
      * Divides blocks into power of two sizes with natural alignment
      */
-    template<
-      SNMALLOC_CONCEPT(ConceptPAL) PAL,
-      SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     void add_range(
       typename Pagemap::LocalState* local_state,
       capptr::Chunk<void> base,
@@ -242,7 +235,7 @@ namespace snmalloc
           Aal::capptr_bound<FreeChunk, capptr::bounds::Chunk>(base, align);
 
         check_block(b, align_bits);
-        add_block<PAL, Pagemap>(local_state, align_bits, b);
+        add_block<PAL>(local_state, align_bits, b);
 
         base = pointer_offset(base, align);
         length -= align;
@@ -274,9 +267,7 @@ namespace snmalloc
      * part of satisfying the request will be registered with the provided
      * arena_map for use in subsequent amplification.
      */
-    template<
-      SNMALLOC_CONCEPT(ConceptPAL) PAL,
-      SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     capptr::Chunk<void>
     reserve(typename Pagemap::LocalState* local_state, size_t size)
     {
@@ -287,8 +278,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
-      return remove_block<PAL, Pagemap>(
-        local_state, bits::next_pow2_bits(size));
+      return remove_block<PAL>(local_state, bits::next_pow2_bits(size));
     }
 
     /**
@@ -298,9 +288,7 @@ namespace snmalloc
      * This is useful for allowing the space required for alignment to be
      * used by smaller objects.
      */
-    template<
-      SNMALLOC_CONCEPT(ConceptPAL) PAL,
-      SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
+    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
     capptr::Chunk<void> reserve_with_left_over(
       typename Pagemap::LocalState* local_state, size_t size)
     {
@@ -310,7 +298,7 @@ namespace snmalloc
 
       size_t rsize = bits::next_pow2(size);
 
-      auto res = reserve<PAL, Pagemap>(local_state, rsize);
+      auto res = reserve<PAL>(local_state, rsize);
 
       if (res != nullptr)
       {
@@ -323,7 +311,7 @@ namespace snmalloc
           size_t residual_size = rsize - size;
           auto residual = pointer_offset(res, size);
           res = Aal::capptr_bound<void, capptr::bounds::Chunk>(res, size);
-          add_range<PAL, Pagemap>(local_state, residual, residual_size);
+          add_range<PAL>(local_state, residual, residual_size);
         }
       }
       return res;
