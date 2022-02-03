@@ -273,6 +273,20 @@ namespace snmalloc
       }
 
       /**
+       * Get the metadata associated with a chunk.
+       *
+       * Set template parameter to true if it not an error
+       * to access a location that is not backed by a chunk.
+       */
+      template<bool potentially_out_of_range = false>
+      SNMALLOC_FAST_PATH static MetaEntry&
+      get_metaentry_mut(LocalState* ls, address_t p)
+      {
+        UNUSED(ls);
+        return concretePagemap.template get_mut<potentially_out_of_range>(p);
+      }
+
+      /**
        * Set the metadata associated with a chunk.
        */
       SNMALLOC_FAST_PATH
