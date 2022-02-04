@@ -8,6 +8,7 @@
 #include <iostream>
 #include <vector>
 
+#define SNMALLOC_TRACING
 // Redblack tree needs some libraries with trace enabled.
 #include "ds/redblacktree.h"
 #include "snmalloc.h"
@@ -40,8 +41,6 @@ public:
   using key = size_t;
 
   static constexpr key null = 0;
-  static constexpr key MinKey = 0;
-  static constexpr key MaxKey = ~MinKey;
 
   using Holder = Wrapper;
   using Contents = size_t;

@@ -8,6 +8,37 @@
 
 namespace snmalloc
 {
+  template<bool TRACE>
+  class debug_out
+  {
+  public:
+    template<bool new_line = true, typename A, typename... Args>
+    static void msg(A a, Args... args)
+    {
+      if constexpr (TRACE)
+      {
+#ifdef SNMALLOC_TRACING
+        std::cout << a;
+#else
+        UNUSED(a);
+#endif
+
+        msg<new_line>(args...);
+      }
+    }
+
+    template<bool new_line = true>
+    static void msg()
+    {
+      if constexpr (TRACE && new_line)
+      {
+#ifdef SNMALLOC_TRACING
+        std::cout << std::endl;
+#endif
+      }
+    }
+  };
+
 #ifdef __cpp_concepts
   template<typename Rep>
   concept RBRepTypes = requires()
@@ -133,7 +164,7 @@ namespace snmalloc
      * Verify structural invariants.  Returns the black depth of the `curr`ent
      * node.
      */
-    int invariant(K curr, K lower = Rep::MinKey, K upper = Rep::MaxKey)
+    int invariant(K curr, K lower = Rep::null, K upper = Rep::null)
     {
       if constexpr (!run_checks)
       {
@@ -143,12 +174,19 @@ namespace snmalloc
       if (curr == Rep::null)
         return 1;
 
-      if (curr < lower || curr > upper)
+      if (
+        ((lower != Rep::null) && curr < lower) ||
+        ((upper != Rep::null) && curr > upper))
       {
         if constexpr (TRACE)
         {
-          std::cout << "Invariant failed: " << curr << " is out of bounds "
-                    << lower << ", " << upper << std::endl;
+          debug_out<true>::msg(
+            "Invariant failed: ",
+            curr,
+            " is out of bounds ",
+            lower,
+            ", ",
+            upper);
           print();
         }
         snmalloc::error("Invariant failed");
@@ -160,8 +198,8 @@ namespace snmalloc
       {
         if constexpr (TRACE)
         {
-          std::cout << "Red invariant failed: " << curr
-                    << " is red and has red children" << std::endl;
+          debug_out<true>::msg(
+            "Red invariant failed: ", curr, " is red and has red children");
           print();
         }
         snmalloc::error("Invariant failed");
@@ -174,9 +212,10 @@ namespace snmalloc
       {
         if constexpr (TRACE)
         {
-          std::cout << "Balance failed: " << curr
-                    << " has different black depths on left and right"
-                    << std::endl;
+          debug_out<true>::msg(
+            "Balance failed: ",
+            curr,
+            " has different black depths on left and right");
           print();
         }
         snmalloc::error("Invariant failed");
@@ -315,10 +354,16 @@ namespace snmalloc
         {
           for (size_t i = 0; i < length; i++)
           {
-            std::cout << "->" << K(path[i].node) << "@" << path[i].node.addr()
-                      << " (" << path[i].dir << ") ";
+            debug_out<true>::msg<false>(
+              "->",
+              K(path[i].node),
+              "@",
+              path[i].node.addr(),
+              " (",
+              path[i].dir,
+              ") ");
           }
-          std::cout << std::endl;
+          debug_out<true>::msg<true>();
         }
       }
     };
@@ -333,8 +378,8 @@ namespace snmalloc
     {
       if constexpr (TRACE)
       {
-        std::cout << "-------" << std::endl;
-        std::cout << msg << std::endl;
+        debug_out<true>::msg("-------");
+        debug_out<true>::msg(msg);
         path.print();
         print(base);
       }
@@ -356,11 +401,9 @@ namespace snmalloc
     {
       if constexpr (TRACE)
       {
-        std::cout << indent << "\\_";
-
         if (curr == Rep::null)
         {
-          std::cout << "null" << std::endl;
+          debug_out<true>::msg(indent, "\\_", "null");
           return;
         }
 
@@ -372,8 +415,17 @@ namespace snmalloc
         auto reset = "\e[0m";
 #endif
 
-        std::cout << colour << curr << reset << curr.addr() << " (" << depth
-                  << ")" << std::endl;
+        debug_out<true>::msg(
+          indent,
+          "\\_",
+          colour,
+          curr,
+          reset,
+          "@",
+          curr.addr(),
+          " (",
+          depth,
+          ")");
         if ((get_dir(true, curr) != 0) || (get_dir(false, curr) != 0))
         {
           auto s_indent = std::string(indent);
@@ -542,9 +594,11 @@ namespace snmalloc
         // Handle black sibling and niblings, and red parent.
         if (Rep::is_red(parent))
         {
-          //   std::cout << "Black sibling and red parent case" << std::endl;
+          debug_log("Black sibling and red parent case", path, path.parent());
           Rep::set_red(parent, false);
           Rep::set_red(sibling, true);
+          debug_log(
+            "Black sibling and red parent case - done", path, path.parent());
           break;
         }
         // Handle black sibling and niblings and black parent.
