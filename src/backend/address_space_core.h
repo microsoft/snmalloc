@@ -169,28 +169,30 @@ namespace snmalloc
         // Look for larger block and split up recursively
         capptr::Chunk<void> bigger =
           remove_block<PAL, Pagemap>(local_state, align_bits + 1);
-        if (bigger != nullptr)
+
+        if (SNMALLOC_UNLIKELY(bigger == nullptr))
+          return nullptr;
+
+        // This block is going to be broken up into sub CHUNK_SIZE blocks
+        // so we need to commit it to enable the next pointers to be used
+        // inside the block.
+        if ((align_bits + 1) == MIN_CHUNK_BITS)
         {
-          // This block is going to be broken up into sub CHUNK_SIZE blocks
-          // so we need to commit it to enable the next pointers to be used
-          // inside the block.
-          if ((align_bits + 1) == MIN_CHUNK_BITS)
-          {
-            commit_block<PAL>(bigger, MIN_CHUNK_SIZE);
-          }
-
-          size_t left_over_size = bits::one_at_bit(align_bits);
-          auto left_over = pointer_offset(bigger, left_over_size);
-
-          add_block<PAL, Pagemap>(
-            local_state,
-            align_bits,
-            Aal::capptr_bound<FreeChunk, capptr::bounds::Chunk>(
-              left_over, left_over_size));
-          check_block(left_over.as_static<FreeChunk>(), align_bits);
+          commit_block<PAL>(bigger, MIN_CHUNK_SIZE);
         }
-        check_block(bigger.as_static<FreeChunk>(), align_bits + 1);
-        return bigger;
+
+        size_t half_bigger_size = bits::one_at_bit(align_bits);
+        auto left_over = pointer_offset(bigger, half_bigger_size);
+
+        add_block<PAL, Pagemap>(
+          local_state,
+          align_bits,
+          Aal::capptr_bound<FreeChunk, capptr::bounds::Chunk>(
+            left_over, half_bigger_size));
+        check_block(left_over.as_static<FreeChunk>(), align_bits);
+        check_block(bigger.as_static<FreeChunk>(), align_bits);
+        return Aal::capptr_bound<void, capptr::bounds::Chunk>(
+          bigger, half_bigger_size);
       }
 
       check_block(first, align_bits);
