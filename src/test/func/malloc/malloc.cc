@@ -45,6 +45,15 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
 #else
   const auto exact_size = align == 1;
 #endif
+#ifdef __CHERI_PURE_CAPABILITY__
+  const auto cheri_size = __builtin_cheri_length_get(p);
+  if (cheri_size != alloc_size && (size != 0))
+  {
+    printf(
+      "Cheri size is %zu, but required to be %zu.\n", cheri_size, alloc_size);
+    failed = true;
+  }
+#endif
   if (exact_size && (alloc_size != expected_size) && (size != 0))
   {
     printf(
