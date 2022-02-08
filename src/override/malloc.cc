@@ -344,7 +344,7 @@ extern "C"
     size = f.aligned_size(size);
     if (rsize != nullptr)
     {
-      *rsize = size;
+      *rsize = round_size(size);
     }
     if (f.should_zero())
     {
@@ -408,7 +408,7 @@ extern "C"
       *ptr = p;
       if (rsize != nullptr)
       {
-        *rsize = size;
+        *rsize = alloc_size;
       }
       return allocm_success;
     }
@@ -422,8 +422,7 @@ extern "C"
    */
   int SNMALLOC_NAME_MANGLE(sallocm)(const void* ptr, size_t* rsize, int)
   {
-    auto& a = ThreadAlloc::get();
-    *rsize = a.alloc_size(ptr);
+    *rsize = ThreadAlloc::get().alloc_size(ptr);
     return allocm_success;
   }
 
@@ -479,9 +478,9 @@ extern "C"
     size = f.aligned_size(size);
 
     auto& a = ThreadAlloc::get();
-    size_t sz = a.alloc_size(ptr);
+    size_t sz = round_size(a.alloc_size(ptr));
     // Keep the current allocation if the given size is in the same sizeclass.
-    if (sz == round_size(size))
+    if (sz == size)
     {
       return ptr;
     }
