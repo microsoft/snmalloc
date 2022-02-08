@@ -283,6 +283,11 @@ extern "C"
       return nullptr;
     }
 
+    // We have a choice here of either asking for zeroed memory, or trying to
+    // zero the remainder.  The former is *probably* faster for large
+    // allocations, because we get zeroed memory from the PAL and don't zero it
+    // twice.  This is not profiled and so should be considered for refactoring
+    // if anyone cares about the performance of these APIs.
     void* p = f.should_zero() ? a.alloc<YesZero>(size) : a.alloc(size);
     if (SNMALLOC_LIKELY(p != nullptr))
     {
