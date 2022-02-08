@@ -6,7 +6,10 @@
 #undef SNMALLOC_NO_REALLOCARRAY
 #undef SNMALLOC_NO_REALLOCARR
 #define SNMALLOC_BOOTSTRAP_ALLOCATOR
+#define SNMALLOC_JEMALLOC3_EXPERIMENTAL
+#define SNMALLOC_JEMALLOC_NONSTANDARD
 #include "../../../override/malloc.cc"
+#include "../../../override/jemalloc_compat.cc"
 
 #if __has_include(<malloc_np.h>)
 #  include <malloc_np.h>
@@ -381,6 +384,16 @@ int main()
     our_sallocm,
     our_dallocm,
     our_nallocm>();
+
+#ifndef __PIC__
+  void* bootstrap = __je_bootstrap_malloc(42);
+  if (bootstrap == nullptr)
+  {
+    printf("Failed to allocate from bootstrap malloc\n");
+  }
+  __je_bootstrap_free(bootstrap);
+#endif
+
   // These tests are for jemalloc compatibility and so should work with
   // jemalloc's implementation of these functions.  If TEST_JEMALLOC is
   // defined then we try
@@ -390,4 +403,5 @@ int main()
   test_xallocx<mallocx, dallocx, xallocx>();
   test_legacy_experimental_apis<allocm, rallocm, sallocm, dallocm, nallocm>();
 #endif
+
 }
