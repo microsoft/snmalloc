@@ -60,6 +60,24 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
       "Cheri size is %zu, but required to be %zu.\n", cheri_size, alloc_size);
     failed = true;
   }
+  if (p != nullptr)
+  {
+    /*
+     * Scan the allocation for any tagged capabilities. Since this test doesn't
+     * use the allocated memory if there is a valid cap it must have leaked from
+     * the allocator, which is bad.
+     */
+    void** vp = static_cast<void**>(p);
+    for (size_t n = 0; n < alloc_size / sizeof(*vp); vp++, n++)
+    {
+      void* c = *vp;
+      if (__builtin_cheri_tag_get(c))
+      {
+        printf("Found cap tag set in alloc: %#p at %#p\n", c, vp);
+        failed = true;
+      }
+    }
+  }
 #endif
   if (exact_size && (alloc_size != expected_size) && (size != 0))
   {

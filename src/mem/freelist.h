@@ -185,6 +185,21 @@ namespace snmalloc
             signed_prev == this->prev_encoded,
             "Heap corruption - free list corrupted!");
         }
+
+        /**
+         * Clean up this object when removing it from the list. This is
+         * important on CHERI to avoid leaking capabilities. On CHECK_CLIENT
+         * builds it might increase the difficulty to bypass the checks.
+         */
+        void cleanup()
+        {
+#if defined(__CHERI_PURE_CAPABILITY__) || defined(SNMALLOC_CHECK_CLIENT)
+          this->next_object = nullptr;
+#  ifdef SNMALLOC_CHECK_CLIENT
+          this->prev_encoded = 0;
+#  endif
+#endif
+        }
       };
 
       // Note the inverted template argument order, since BView is inferable.
@@ -467,7 +482,7 @@ namespace snmalloc
 #else
         UNUSED(key);
 #endif
-
+        c->cleanup();
         return c;
       }
     };
