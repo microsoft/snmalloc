@@ -215,6 +215,4 @@ extern "C"
     return SNMALLOC_NAME_MANGLE(memalign)(
       OS_PAGE_SIZE, (size + OS_PAGE_SIZE - 1) & ~(OS_PAGE_SIZE - 1));
   }
-
 }
-
