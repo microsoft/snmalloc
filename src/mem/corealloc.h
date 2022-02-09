@@ -339,6 +339,17 @@ namespace snmalloc
         address_cast(start_of_slab) ==
         address_cast(chunk_record->meta_common.chunk));
 
+#if defined(__CHERI_PURE_CAPABILITY__) && !defined(SNMALLOC_CHECK_CLIENT)
+      // Zero the whole slab. For CHERI we at least need to clear the freelist
+      // pointers to avoid leaking capabilities but we do not need to do it in
+      // the freelist order as for SNMALLOC_CHECK_CLIENT. Zeroing the whole slab
+      // may be more friendly to hw because it does not involve pointer chasing
+      // and is amenable to prefetching.
+      SharedStateHandle::Pal::zero(
+        chunk_record->meta_common.chunk.unsafe_ptr(),
+        snmalloc::sizeclass_to_slab_size(sizeclass));
+#endif
+
 #ifdef SNMALLOC_TRACING
       std::cout << "Slab " << start_of_slab.unsafe_ptr()
                 << " is unused, Object sizeclass " << sizeclass << std::endl;
