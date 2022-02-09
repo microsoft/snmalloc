@@ -264,7 +264,7 @@ namespace
         ret);
       void* ptr;
       size_t allocated;
-      ret = Allocm(&ptr, &allocated, expected, flags);
+      ret = Allocm(&ptr, &allocated, size, flags);
       EXPECT(
         (ptr != nullptr) && (ret == ALLOCM_SUCCESS),
         "Failed to allocate 0x%zx bytes with %d bit alignment",
