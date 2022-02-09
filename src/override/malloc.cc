@@ -215,49 +215,4 @@ extern "C"
     return SNMALLOC_NAME_MANGLE(memalign)(
       OS_PAGE_SIZE, (size + OS_PAGE_SIZE - 1) & ~(OS_PAGE_SIZE - 1));
   }
-
-  // Stub implementations for jemalloc compatibility.
-  // These are called by FreeBSD's libthr (pthreads) to notify malloc of
-  // various events.  They are currently unused, though we may wish to reset
-  // statistics on fork if built with statistics.
-
-  SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(_malloc_prefork)(void) {}
-  SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(_malloc_postfork)(void) {}
-  SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(_malloc_first_thread)(void) {}
-
-  SNMALLOC_EXPORT int
-    SNMALLOC_NAME_MANGLE(mallctl)(const char*, void*, size_t*, void*, size_t)
-  {
-    return ENOENT;
-  }
-
-#if !defined(__PIC__) && defined(SNMALLOC_BOOTSTRAP_ALLOCATOR)
-  // The following functions are required to work before TLS is set up, in
-  // statically-linked programs.  These temporarily grab an allocator from the
-  // pool and return it.
-
-  void* __je_bootstrap_malloc(size_t size)
-  {
-    return get_scoped_allocator()->alloc(size);
-  }
-
-  void* __je_bootstrap_calloc(size_t nmemb, size_t size)
-  {
-    bool overflow = false;
-    size_t sz = bits::umul(size, nmemb, overflow);
-    if (overflow)
-    {
-      errno = ENOMEM;
-      return nullptr;
-    }
-    // Include size 0 in the first sizeclass.
-    sz = ((sz - 1) >> (bits::BITS - 1)) + sz;
-    return get_scoped_allocator()->alloc<ZeroMem::YesZero>(sz);
-  }
-
-  void __je_bootstrap_free(void* ptr)
-  {
-    get_scoped_allocator()->dealloc(ptr);
-  }
-#endif
 }
