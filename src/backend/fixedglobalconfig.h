@@ -49,7 +49,8 @@ namespace snmalloc
     static void
     init(typename Backend::LocalState* local_state, void* base, size_t length)
     {
-      Backend::init(local_state, base, length);
+      UNUSED(local_state);
+      Backend::init(base, length);
     }
 
     /* Verify that a pointer points into the region managed by this config */
@@ -66,7 +67,7 @@ namespace snmalloc
 
       UNUSED(ls);
       auto address = address_cast(p);
-      auto [base, length] = Backend::Pagemap::get_bounds(nullptr);
+      auto [base, length] = Backend::Pagemap::get_bounds();
       if ((address - base > (length - sz)) || (length < sz))
       {
         return nullptr;

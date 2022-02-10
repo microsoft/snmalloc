@@ -18,17 +18,16 @@ namespace snmalloc
   template<typename Meta>
   concept ConceptBackendMeta =
     requires(
-      typename Meta::LocalState* ls,
       address_t addr,
       size_t sz,
       MetaEntry t)
   {
-    { Meta::set_metaentry(ls, addr, sz, t) } -> ConceptSame<void>;
+    { Meta::set_metaentry(addr, sz, t) } -> ConceptSame<void>;
 
-    { Meta::template get_metaentry<true>(ls, addr) }
+    { Meta::template get_metaentry<true>(addr) }
       -> ConceptSame<const MetaEntry&>;
 
-    { Meta::template get_metaentry<false>(ls, addr) }
+    { Meta::template get_metaentry<false>(addr) }
       -> ConceptSame<const MetaEntry&>;
   };
 
@@ -41,9 +40,9 @@ namespace snmalloc
    */
   template<typename Meta>
   concept ConceptBackendMeta_Range =
-    requires(typename Meta::LocalState* ls, address_t addr, size_t sz)
+    requires(address_t addr, size_t sz)
   {
-    { Meta::register_range(ls, addr, sz) } -> ConceptSame<void>;
+    { Meta::register_range(addr, sz) } -> ConceptSame<void>;
   };
 
   /**
@@ -66,7 +65,8 @@ namespace snmalloc
    */
   template<typename Globals>
   concept ConceptBackendDomestication =
-    requires(typename Globals::LocalState* ls,
+    requires(
+      typename Globals::LocalState* ls,
       capptr::AllocWild<void> ptr)
     {
       { Globals::capptr_domesticate(ls, ptr) }
@@ -96,9 +96,6 @@ namespace snmalloc
     std::is_base_of<CommonConfig, Globals>::value &&
     ConceptPAL<typename Globals::Pal> &&
     ConceptBackendMetaRange<typename Globals::Pagemap> &&
-    ConceptSame<
-      typename Globals::LocalState,
-      typename Globals::Pagemap::LocalState> &&
     requires()
     {
       typename Globals::LocalState;

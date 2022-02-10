@@ -486,14 +486,14 @@ namespace snmalloc
         [local_state](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
           return capptr_domesticate<SharedStateHandle>(local_state, p);
         };
-      auto cb = [this, local_state, &need_post](freelist::HeadPtr msg)
+      auto cb = [this, &need_post](freelist::HeadPtr msg)
                   SNMALLOC_FAST_PATH_LAMBDA {
 #ifdef SNMALLOC_TRACING
                     std::cout << "Handling remote" << std::endl;
 #endif
 
                     auto& entry = SharedStateHandle::Pagemap::get_metaentry(
-                      local_state, snmalloc::address_cast(msg));
+                      snmalloc::address_cast(msg));
 
                     handle_dealloc_remote(entry, msg.as_void(), need_post);
 
@@ -675,8 +675,8 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void
     dealloc_local_object(CapPtr<void, capptr::bounds::Alloc> p)
     {
-      auto entry = SharedStateHandle::Pagemap::get_metaentry(
-        backend_state_ptr(), snmalloc::address_cast(p));
+      auto entry =
+        SharedStateHandle::Pagemap::get_metaentry(snmalloc::address_cast(p));
       if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p, entropy)))
         return;
 
@@ -848,7 +848,7 @@ namespace snmalloc
           bool need_post = true; // Always going to post, so ignore.
           auto n_tame = p_tame->atomic_read_next(key_global, domesticate);
           auto& entry = SharedStateHandle::Pagemap::get_metaentry(
-            backend_state_ptr(), snmalloc::address_cast(p_tame));
+            snmalloc::address_cast(p_tame));
           handle_dealloc_remote(entry, p_tame.as_void(), need_post);
           p_tame = n_tame;
         }

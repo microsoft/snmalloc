@@ -101,8 +101,8 @@ namespace snmalloc
           if (!list[i].empty())
           {
             auto [first, last] = list[i].extract_segment(key);
-            MetaEntry entry = SharedStateHandle::Pagemap::get_metaentry(
-              local_state, address_cast(first));
+            MetaEntry entry =
+              SharedStateHandle::Pagemap::get_metaentry(address_cast(first));
             if constexpr (SharedStateHandle::Options.QueueHeadsAreTame)
             {
               auto domesticate_nop = [](freelist::QueuePtr p) {
@@ -134,8 +134,8 @@ namespace snmalloc
           // Use the next N bits to spread out remote deallocs in our own
           // slot.
           auto r = resend.take(key, domesticate);
-          MetaEntry entry = SharedStateHandle::Pagemap::get_metaentry(
-            local_state, address_cast(r));
+          MetaEntry entry =
+            SharedStateHandle::Pagemap::get_metaentry(address_cast(r));
           auto i = entry.get_remote()->trunc_id();
           size_t slot = get_slot<allocator_size>(i, post_round);
           list[slot].add(r, key);
