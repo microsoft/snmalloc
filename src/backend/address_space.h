@@ -45,8 +45,7 @@ namespace snmalloc
      * arena_map for use in subsequent amplification.
      */
     template<bool committed>
-    capptr::Chunk<void>
-    reserve(typename Pagemap::LocalState* local_state, size_t size)
+    capptr::Chunk<void> reserve(size_t size)
     {
 #ifdef SNMALLOC_TRACING
       std::cout << "ASM reserve request:" << size << std::endl;
@@ -64,7 +63,7 @@ namespace snmalloc
         {
           auto base =
             capptr::Chunk<void>(PAL::template reserve_aligned<committed>(size));
-          Pagemap::register_range(local_state, address_cast(base), size);
+          Pagemap::register_range(address_cast(base), size);
           return base;
         }
       }
@@ -72,7 +71,7 @@ namespace snmalloc
       capptr::Chunk<void> res;
       {
         FlagLock lock(spin_lock);
-        res = core.template reserve<PAL>(local_state, size);
+        res = core.template reserve<PAL>(size);
         if (res == nullptr)
         {
           // Allocation failed ask OS for more memory
@@ -134,12 +133,12 @@ namespace snmalloc
             return nullptr;
           }
 
-          Pagemap::register_range(local_state, address_cast(block), block_size);
+          Pagemap::register_range(address_cast(block), block_size);
 
-          core.template add_range<PAL>(local_state, block, block_size);
+          core.template add_range<PAL>(block, block_size);
 
           // still holding lock so guaranteed to succeed.
-          res = core.template reserve<PAL>(local_state, size);
+          res = core.template reserve<PAL>(size);
         }
       }
 
@@ -158,8 +157,7 @@ namespace snmalloc
      * used, by smaller objects.
      */
     template<bool committed>
-    capptr::Chunk<void> reserve_with_left_over(
-      typename Pagemap::LocalState* local_state, size_t size)
+    capptr::Chunk<void> reserve_with_left_over(size_t size)
     {
       SNMALLOC_ASSERT(size >= sizeof(void*));
 
@@ -167,15 +165,14 @@ namespace snmalloc
 
       size_t rsize = bits::next_pow2(size);
 
-      auto res = reserve<false>(local_state, rsize);
+      auto res = reserve<false>(rsize);
 
       if (res != nullptr)
       {
         if (rsize > size)
         {
           FlagLock lock(spin_lock);
-          core.template add_range<PAL>(
-            local_state, pointer_offset(res, size), rsize - size);
+          core.template add_range<PAL>(pointer_offset(res, size), rsize - size);
         }
 
         if constexpr (committed)
@@ -195,13 +192,10 @@ namespace snmalloc
      * Add a range of memory to the address space.
      * Divides blocks into power of two sizes with natural alignment
      */
-    void add_range(
-      typename Pagemap::LocalState* local_state,
-      capptr::Chunk<void> base,
-      size_t length)
+    void add_range(capptr::Chunk<void> base, size_t length)
     {
       FlagLock lock(spin_lock);
-      core.template add_range<PAL>(local_state, base, length);
+      core.template add_range<PAL>(base, length);
     }
   };
 } // namespace snmalloc
