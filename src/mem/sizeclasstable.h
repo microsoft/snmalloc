@@ -480,9 +480,14 @@ namespace snmalloc
     {
       return bits::next_pow2(size);
     }
+    // If realloc(ptr, 0) returns nullptr, some consumers treat this as a
+    // reallocation failure and abort.  To avoid this, we round up the size of
+    // requested allocations to the smallest size class.  This can be changed
+    // on any platform that's happy to return nullptr from realloc(ptr,0) and
+    // should eventually become a configuration option.
     if (size == 0)
     {
-      return 0;
+      return sizeclass_to_size(size_to_sizeclass(1));
     }
     return sizeclass_to_size(size_to_sizeclass(size));
   }
