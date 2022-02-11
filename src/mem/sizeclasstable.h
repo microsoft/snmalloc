@@ -482,7 +482,7 @@ namespace snmalloc
     }
     if (size == 0)
     {
-      return 0;
+      return 1;
     }
     return sizeclass_to_size(size_to_sizeclass(size));
   }
