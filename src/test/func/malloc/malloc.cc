@@ -42,9 +42,9 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
   // snmalloc. Note, we have called the system allocator with
   // the size snmalloc would allocate, so it won't be smaller.
   const auto exact_size = false;
-  // We allocate 1 byte for 0-sized allocations (and so round_size will tell us
-  // that the minimum size is 1), but the system allocator may return a 0-sized
-  // allocation.
+  // We allocate MIN_ALLOC_SIZE byte for 0-sized allocations (and so round_size
+  // will tell us that the minimum size is MIN_ALLOC_SIZE), but the system
+  // allocator may return a 0-sized allocation.
   if (size == 0)
   {
     expected_size = 0;
