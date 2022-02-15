@@ -233,7 +233,9 @@ else()
   endif()
 endif()
 
-check_linker_flag(CXX "-Wl,--no-undefined" SNMALLOC_LINKER_SUPPORT_NO_ALLOW_SHLIB_UNDEF)
+if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
+  check_linker_flag(CXX "-Wl,--no-undefined" SNMALLOC_LINKER_SUPPORT_NO_ALLOW_SHLIB_UNDEF)
+endif()
 
 function(add_warning_flags name)
   target_compile_options(${name} PRIVATE
