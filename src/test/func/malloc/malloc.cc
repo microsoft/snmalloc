@@ -17,7 +17,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
   if (errno != err && err != SUCCESS)
   {
     printf("Expected error: %d but got %d\n", err, errno);
-    failed = true;
+    abort();
   }
 
   if (null)
