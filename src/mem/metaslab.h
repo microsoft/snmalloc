@@ -303,7 +303,8 @@ namespace snmalloc
     [[nodiscard]] SNMALLOC_FAST_PATH RemoteAllocator* get_remote() const
     {
       return reinterpret_cast<RemoteAllocator*>(
-        pointer_align_down<alignof(RemoteAllocator)>(remote_and_sizeclass));
+        pointer_align_down<REMOTE_WITH_BACKEND_MARKER_ALIGN>(
+          remote_and_sizeclass));
     }
 
     [[nodiscard]] SNMALLOC_FAST_PATH sizeclass_t get_sizeclass() const

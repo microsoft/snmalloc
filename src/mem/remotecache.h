@@ -103,16 +103,23 @@ namespace snmalloc
             auto [first, last] = list[i].extract_segment(key);
             MetaEntry entry =
               SharedStateHandle::Pagemap::get_metaentry(address_cast(first));
+            auto remote = entry.get_remote();
+            // If the allocator is not correctly aligned, then the bit that is
+            // set implies this is used by the backend, and we should not be
+            // deallocating memory here.
+            snmalloc_check_client(
+              (address_cast(remote) & BACKEND_MARKER) == 0,
+              "Delayed detection of attempt to free internal structure.");
             if constexpr (SharedStateHandle::Options.QueueHeadsAreTame)
             {
               auto domesticate_nop = [](freelist::QueuePtr p) {
                 return freelist::HeadPtr(p.unsafe_ptr());
               };
-              entry.get_remote()->enqueue(first, last, key, domesticate_nop);
+              remote->enqueue(first, last, key, domesticate_nop);
             }
             else
             {
-              entry.get_remote()->enqueue(first, last, key, domesticate);
+              remote->enqueue(first, last, key, domesticate);
             }
             sent_something = true;
           }
