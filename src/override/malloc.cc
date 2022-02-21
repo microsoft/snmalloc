@@ -98,6 +98,10 @@ extern "C"
     {
       a.dealloc(ptr);
     }
+    else
+    {
+      errno = ENOMEM;
+    }
     return p;
   }
 
