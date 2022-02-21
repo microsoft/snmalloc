@@ -1,8 +1,8 @@
 #pragma once
 
+#include "../backend/chunkallocator.h"
 #include "../ds/defines.h"
 #include "allocconfig.h"
-#include "chunkallocator.h"
 #include "localcache.h"
 #include "metaslab.h"
 #include "pool.h"
@@ -61,7 +61,8 @@ namespace snmalloc
     /**
      * Local cache for the Chunk allocator.
      */
-    ChunkAllocatorLocalState chunk_local_state;
+    ChunkAllocatorLocalState
+      chunk_local_state; // TODO MOVE INTO BACKEND LOCALSTATE
 
     /**
      * Local entropy source and current version of keys for

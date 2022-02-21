@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../backend/backend.h"
-#include "../mem/chunkallocator.h"
+#include "../backend/chunkallocator.h"
 #include "../mem/corealloc.h"
 #include "../mem/pool.h"
 #include "commonconfig.h"
