@@ -186,13 +186,18 @@ namespace snmalloc
 
       void* ret = VirtualAlloc2FromApp(
         nullptr, nullptr, size, flags, PAGE_READWRITE, &param, 1);
+      if (ret == nullptr)
+        errno = ENOMEM;
       return ret;
     }
 #  endif
 
     static void* reserve(size_t size) noexcept
     {
-      return VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
+      void* ret = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
+      if (ret == nullptr)
+        errno = ENOMEM;
+      return ret;
     }
 
     /**

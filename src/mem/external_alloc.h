@@ -56,15 +56,20 @@ namespace snmalloc::external_alloc
     if constexpr (bits::BITS == 64)
     {
       if (size >= 0x10000000000)
+      {
+        errno = ENOMEM;
         return nullptr;
+      }
     }
 
     if (alignment < sizeof(void*))
       alignment = sizeof(void*);
 
     void* result;
-    if (posix_memalign(&result, alignment, size) != 0)
+    int err = posix_memalign(&result, alignment, size);
+    if (err != 0)
     {
+      errno = err;
       result = nullptr;
     }
     return result;

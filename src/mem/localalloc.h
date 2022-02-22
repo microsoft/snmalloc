@@ -198,7 +198,7 @@ namespace snmalloc
         if (meta != nullptr)
           meta->initialise_large();
 
-        if (zero_mem == YesZero)
+        if (zero_mem == YesZero && chunk.unsafe_ptr() != nullptr)
         {
           SharedStateHandle::Pal::template zero<false>(
             chunk.unsafe_ptr(), size);
@@ -427,7 +427,7 @@ namespace snmalloc
       // would guarantee.
       void* result = external_alloc::aligned_alloc(
         natural_alignment(size), round_size(size));
-      if constexpr (zero_mem == YesZero)
+      if (zero_mem == YesZero && result != nullptr)
         memset(result, 0, size);
       return result;
 #else
