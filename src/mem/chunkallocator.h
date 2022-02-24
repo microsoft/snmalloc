@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../backend/backend_concept.h"
 #include "../ds/mpmcstack.h"
 #include "../ds/spmcstack.h"
 #include "../mem/metaslab.h"

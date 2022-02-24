@@ -1,55 +1,10 @@
+#include "../mem/bounds_checks.h"
 #include "override.h"
-
-#include <errno.h>
-#include <stdio.h>
-#include <string.h>
-#if __has_include(<xlocale.h>)
-#  include <xlocale.h>
-#endif
 
 using namespace snmalloc;
 
-// glibc lacks snprintf_l
-#if defined(__linux__) || defined(__OpenBSD__) || defined(__DragonFly__) || \
-  defined(__HAIKU__) || defined(__sun)
-#  define snprintf_l(buf, size, loc, msg, ...) \
-    snprintf(buf, size, msg, __VA_ARGS__)
-// Windows has it with an underscore prefix
-#elif defined(_MSC_VER)
-#  define snprintf_l(buf, size, loc, msg, ...) \
-    _snprintf_s_l(buf, size, _TRUNCATE, msg, loc, __VA_ARGS__)
-#endif
-
 namespace
 {
-  /**
-   * Should we check loads?  This defaults to on in debug builds, off in
-   * release (store-only checks)
-   */
-  static constexpr bool CheckReads =
-#ifdef SNMALLOC_CHECK_LOADS
-    SNMALLOC_CHECK_LOADS
-#else
-    DEBUG
-#endif
-    ;
-
-  /**
-   * Should we fail fast when we encounter an error?  With this set to true, we
-   * just issue a trap instruction and crash the process once we detect an
-   * error. With it set to false we print a helpful error message and then crash
-   * the process.  The process may be in an undefined state by the time the
-   * check fails, so there are potentially security implications to turning this
-   * off. It defaults to true for debug builds, false for release builds.
-   */
-  static constexpr bool FailFast =
-#ifdef SNMALLOC_FAIL_FAST
-    SNMALLOC_FAIL_FAST
-#else
-    !DEBUG
-#endif
-    ;
-
   /**
    * The largest register size that we can use for loads and stores.  These
    * types are expected to work for overlapping copies: we can always load them
@@ -90,62 +45,6 @@ namespace
     auto* s = static_cast<const Block*>(src);
     *d = *s;
 #endif
-  }
-
-  SNMALLOC_SLOW_PATH SNMALLOC_UNUSED_FUNCTION void crashWithMessage
-    [[noreturn]] (
-      void* p, size_t len, const char* msg, decltype(ThreadAlloc::get())& alloc)
-  {
-    // We're going to crash the program now, but try to avoid heap
-    // allocations if possible, since the heap may be in an undefined
-    // state.
-    std::array<char, 1024> buffer;
-    snprintf_l(
-      buffer.data(),
-      buffer.size(),
-      /* Force C locale */ nullptr,
-      "%s: %p is in allocation %p--%p, offset 0x%zx is past the end.\n",
-      msg,
-      p,
-      alloc.template external_pointer<Start>(p),
-      alloc.template external_pointer<OnePastEnd>(p),
-      len);
-    Pal::error(buffer.data());
-  }
-
-  /**
-   * Check whether a pointer + length is in the same object as the pointer.
-   * Fail with the error message from the third argument if not.
-   *
-   * The template parameter indicates whether this is a read.  If so, this
-   * function is a no-op when `CheckReads` is false.
-   */
-  template<bool IsRead = false>
-  SNMALLOC_FAST_PATH_INLINE void
-  check_bounds(const void* ptr, size_t len, const char* msg = "")
-  {
-    if constexpr (!IsRead || CheckReads)
-    {
-      auto& alloc = ThreadAlloc::get();
-      void* p = const_cast<void*>(ptr);
-
-      if (SNMALLOC_UNLIKELY(!alloc.check_bounds(ptr, len)))
-      {
-        if constexpr (FailFast)
-        {
-          UNUSED(p, len, msg);
-          SNMALLOC_FAST_FAIL();
-        }
-        else
-        {
-          crashWithMessage(p, len, msg, alloc);
-        }
-      }
-    }
-    else
-    {
-      UNUSED(ptr, len, msg);
-    }
   }
 
   /**
@@ -205,7 +104,7 @@ namespace
       // Check the bounds of the arguments.
       check_bounds(
         dst, len, "memcpy with destination out of bounds of heap allocation");
-      check_bounds<true>(
+      check_bounds<CheckDirection::Read>(
         src, len, "memcpy with source out of bounds of heap allocation");
     }
     // If this is a small size, do byte-by-byte copies.

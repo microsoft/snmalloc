@@ -142,4 +142,30 @@ namespace snmalloc
 #  endif
     "Page size from system header does not match snmalloc config page size.");
 #endif
+
+  /**
+   * Report a fatal error via a PAL-specific error reporting mechanism.  This
+   * takes a format string and a set of arguments.  The format string indicates
+   * the remaining arguments with "{}".  This could be extended later to
+   * support indexing fairly easily, if we ever want to localise these error
+   * messages.
+   *
+   * The following are supported as arguments:
+   *
+   *  - Characters (`char`), printed verbatim.
+   *  - Strings (anything convertible to `std::string_view`), typically string
+   *    literals because nothing on this path should be performing heap
+   *    allocations.  Printed verbatim.
+   *  - Raw pointers (void*), printed as hex strings.
+   *  - Integers (convertible to `size_t`), printed as hex strings.
+   *
+   *  These types should be sufficient for allocator-related error messages.
+   */
+  template<size_t BufferSize = 1024, typename... Args>
+  [[noreturn]] inline void report_fatal_error(Args... args)
+  {
+    FatalErrorBuilder<BufferSize> msg{std::forward<Args>(args)...};
+    Pal::error(msg.get_message());
+  }
+
 } // namespace snmalloc

@@ -5,6 +5,7 @@
 
 #include <array>
 #include <atomic>
+#include <string_view>
 #include <type_traits>
 
 namespace snmalloc
@@ -249,4 +250,144 @@ namespace snmalloc
 
   static_assert(sizeof(TrivialInitAtomic<char>) == sizeof(char));
   static_assert(alignof(TrivialInitAtomic<char>) == alignof(char));
+
+  /**
+   * Helper class for building fatal errors.  Used by `report_fatal_error` to
+   * build an on-stack buffer containing the formatted string.
+   */
+  template<size_t BufferSize>
+  class FatalErrorBuilder
+  {
+    /**
+     * The buffer that is used to store the formatted output.
+     */
+    std::array<char, BufferSize> buffer;
+
+    /**
+     * Space in the buffer, excluding a trailing null terminator.
+     */
+    static constexpr size_t SafeLength = BufferSize - 1;
+
+    /**
+     * The insert position within `buffer`.
+     */
+    size_t insert = 0;
+
+    /**
+     * Add argument `i` from the tuple `args` to the output.  This is
+     * implemented recursively because the different tuple elements can have
+     * different types and so the code for dispatching will depend on the type
+     * at the index.  The compiler will lower this to a jump table in optimised
+     * builds.
+     */
+    template<size_t I, typename... Args>
+    void add_tuple_arg(size_t i, const std::tuple<Args...>& args)
+    {
+      if (i == I)
+      {
+        append(std::get<I>(args));
+      }
+      else if constexpr (I != 0)
+      {
+        add_tuple_arg<I - 1>(i, args);
+      }
+    }
+
+    /**
+     * Append a single character into the buffer.  This is the single primitive
+     * operation permitted on the buffer and performs bounds checks to ensure
+     * that there is space for the character and for a null terminator.
+     */
+    void append_char(char c)
+    {
+      if (insert < SafeLength)
+      {
+        buffer[insert++] = c;
+      }
+    }
+
+    /**
+     * Append a string to the buffer.
+     */
+    void append(std::string_view sv)
+    {
+      for (auto c : sv)
+      {
+        append_char(c);
+      }
+    }
+
+    /**
+     * Append a raw pointer to the buffer as a hex string.
+     */
+    void append(void* ptr)
+    {
+      append(static_cast<size_t>(reinterpret_cast<uintptr_t>(ptr)));
+    }
+
+    /**
+     * Append a size to the buffer, as a hex string.
+     */
+    void append(size_t s)
+    {
+      append_char('0');
+      append_char('x');
+      std::array<char, sizeof(size_t) * 2> buf;
+      const char hexdigits[] = "0123456789abcdef";
+      // Length of string including null terminator
+      static_assert(sizeof(hexdigits) == 0x11);
+      for (ssize_t i = buf.size() - 1; i >= 0; i--)
+      {
+        buf.at(static_cast<size_t>(i)) = hexdigits[s & 0xf];
+        s >>= 4;
+      }
+      bool skipZero = true;
+      for (auto c : buf)
+      {
+        if (skipZero && (c == '0'))
+        {
+          continue;
+        }
+        skipZero = false;
+        append_char(c);
+      }
+      if (skipZero)
+      {
+        append_char('0');
+      }
+    }
+
+  public:
+    /**
+     * Constructor.  Takes a format string and the arguments to output.
+     */
+    template<typename... Args>
+    SNMALLOC_FAST_PATH FatalErrorBuilder(const char* fmt, Args... args)
+    {
+      buffer.at(SafeLength) = 0;
+      size_t arg = 0;
+      auto args_tuple = std::forward_as_tuple(args...);
+      for (const char* s = fmt; *s != 0; ++s)
+      {
+        if (s[0] == '{' && s[1] == '}')
+        {
+          add_tuple_arg<sizeof...(Args) - 1>(arg++, args_tuple);
+          ++s;
+        }
+        else
+        {
+          append_char(*s);
+        }
+      }
+      append_char('\0');
+    }
+
+    /**
+     * Return the error buffer.
+     */
+    const char* get_message()
+    {
+      return buffer.data();
+    }
+  };
 } // namespace snmalloc
