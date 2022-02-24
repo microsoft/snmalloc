@@ -194,6 +194,7 @@ namespace snmalloc
       if (slab_sizeclass >= NUM_SLAB_SIZES)
       {
         // Your address space is not big enough for this allocation!
+        errno = ENOMEM;
         return {nullptr, nullptr};
       }
 

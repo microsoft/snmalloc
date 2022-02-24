@@ -151,6 +151,7 @@ namespace snmalloc
         if (align_bits == (bits::BITS - 1))
         {
           // Out of memory
+          errno = ENOMEM;
           return nullptr;
         }
 
