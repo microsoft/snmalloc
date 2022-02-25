@@ -241,10 +241,15 @@ int main(int argc, char** argv)
   // including all of the kinds of things that it expects to be able to format.
   void* fakeptr = reinterpret_cast<void*>(static_cast<uintptr_t>(0x42));
   FatalErrorBuilder<1024> b{
-    "testing pointer {} size_t {} message, {} world, null is {}", fakeptr, size_t(42), "hello", nullptr};
+    "testing pointer {} size_t {} message, {} world, null is {}",
+    fakeptr,
+    size_t(42),
+    "hello",
+    nullptr};
   if (
     strcmp(
-      "testing pointer 0x42 size_t 0x2a message, hello world, null is 0x0", b.get_message()) != 0)
+      "testing pointer 0x42 size_t 0x2a message, hello world, null is 0x0",
+      b.get_message()) != 0)
   {
     printf("Incorrect rendering of fatal error message: %s\n", b.get_message());
     abort();
