@@ -336,7 +336,7 @@ namespace snmalloc
       const char hexdigits[] = "0123456789abcdef";
       // Length of string including null terminator
       static_assert(sizeof(hexdigits) == 0x11);
-      for (ssize_t i = buf.size() - 1; i >= 0; i--)
+      for (long i = long(buf.size() - 1); i >= 0; i--)
       {
         buf[static_cast<size_t>(i)] = hexdigits[s & 0xf];
         s >>= 4;
