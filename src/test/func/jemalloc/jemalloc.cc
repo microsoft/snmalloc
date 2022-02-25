@@ -60,10 +60,6 @@
 #  define ALLOCM_ERR_NOT_MOVED OUR_ALLOCM_ERR_NOT_MOVED
 #endif
 
-#ifdef _MSC_VER
-#  define __PRETTY_FUNCTION__ __FUNCSIG__
-#endif
-
 using namespace snmalloc;
 using namespace snmalloc::bits;
 
