@@ -18,8 +18,8 @@ namespace snmalloc
   do \
   { \
     current_test = __PRETTY_FUNCTION__; \
-    FatalErrorBuilder<1024> feb{"Starting test: " msg "\n", ##__VA_ARGS__}; \
-    fputs(feb.get_message(), stderr); \
+    MessageBuilder<1024> mb{"Starting test: " msg "\n", ##__VA_ARGS__}; \
+    fputs(mb.get_message(), stderr); \
   } while (0)
 
   /**
@@ -32,8 +32,8 @@ namespace snmalloc
 #define INFO(msg, ...) \
   do \
   { \
-    FatalErrorBuilder<1024> feb{msg "\n", ##__VA_ARGS__}; \
-    fputs(feb.get_message(), stderr); \
+    MessageBuilder<1024> mb{msg "\n", ##__VA_ARGS__}; \
+    fputs(mb.get_message(), stderr); \
   } while (0)
 
 }

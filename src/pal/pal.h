@@ -164,7 +164,7 @@ namespace snmalloc
   template<size_t BufferSize, typename... Args>
   [[noreturn]] inline void report_fatal_error(Args... args)
   {
-    FatalErrorBuilder<BufferSize> msg{std::forward<Args>(args)...};
+    MessageBuilder<BufferSize> msg{std::forward<Args>(args)...};
     Pal::error(msg.get_message());
   }
 

@@ -256,7 +256,7 @@ namespace snmalloc
    * build an on-stack buffer containing the formatted string.
    */
   template<size_t BufferSize>
-  class FatalErrorBuilder
+  class MessageBuilder
   {
     /**
      * The buffer that is used to store the formatted output.
@@ -428,7 +428,7 @@ namespace snmalloc
      * Constructor.  Takes a format string and the arguments to output.
      */
     template<typename... Args>
-    SNMALLOC_FAST_PATH FatalErrorBuilder(const char* fmt, Args... args)
+    SNMALLOC_FAST_PATH MessageBuilder(const char* fmt, Args... args)
     {
       buffer[SafeLength] = 0;
       size_t arg = 0;
@@ -450,10 +450,10 @@ namespace snmalloc
 
     /**
      * Constructor for trivial format strings (no arguments).  This exists to
-     * allow `FatalErrorBuilder` to be used with macros without special casing
+     * allow `MessageBuilder` to be used with macros without special casing
      * the single-argument version.
      */
-    SNMALLOC_FAST_PATH FatalErrorBuilder(const char* fmt)
+    SNMALLOC_FAST_PATH MessageBuilder(const char* fmt)
     {
       buffer[SafeLength] = 0;
       for (const char* s = fmt; *s != 0; ++s)
