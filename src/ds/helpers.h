@@ -338,7 +338,7 @@ namespace snmalloc
       static_assert(sizeof(hexdigits) == 0x11);
       for (ssize_t i = buf.size() - 1; i >= 0; i--)
       {
-        buf.at(static_cast<size_t>(i)) = hexdigits[s & 0xf];
+        buf[static_cast<size_t>(i)] = hexdigits[s & 0xf];
         s >>= 4;
       }
       bool skipZero = true;
@@ -364,7 +364,7 @@ namespace snmalloc
     template<typename... Args>
     SNMALLOC_FAST_PATH FatalErrorBuilder(const char* fmt, Args... args)
     {
-      buffer.at(SafeLength) = 0;
+      buffer[SafeLength] = 0;
       size_t arg = 0;
       auto args_tuple = std::forward_as_tuple(args...);
       for (const char* s = fmt; *s != 0; ++s)
