@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <test/helpers.h>
 #include <test/setup.h>
 
 #define SNMALLOC_NAME_MANGLE(a) our_##a
@@ -14,26 +15,20 @@ constexpr int SUCCESS = 0;
 void check_result(size_t size, size_t align, void* p, int err, bool null)
 {
   bool failed = false;
-  if (errno != err && err != SUCCESS)
-  {
-    // Note: successful calls are allowed to spuriously set errno
-    printf("Expected error: %d but got %d\n", err, errno);
-    abort();
-  }
-
+  EXPECT(
+    (errno == err) || (err == SUCCESS),
+    "Expected error: {} but got {}",
+    err,
+    errno);
   if (null)
   {
-    if (p != nullptr)
-    {
-      printf("Expected null, and got non-null return!\n");
-      abort();
-    }
+    EXPECT(p == nullptr, "Expected null but got {}", p);
     return;
   }
 
   if ((p == nullptr) && (size != 0))
   {
-    printf("Unexpected null returned.\n");
+    INFO("Unexpected null returned.\n");
     failed = true;
   }
   const auto alloc_size = our_malloc_usable_size(p);
@@ -57,8 +52,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
   const auto cheri_size = __builtin_cheri_length_get(p);
   if (cheri_size != alloc_size && (size != 0))
   {
-    printf(
-      "Cheri size is %zu, but required to be %zu.\n", cheri_size, alloc_size);
+    INFO("Cheri size is {}, but required to be {}.", cheri_size, alloc_size);
     failed = true;
   }
   if (p != nullptr)
@@ -82,16 +76,14 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
 #endif
   if (exact_size && (alloc_size != expected_size) && (size != 0))
   {
-    printf(
-      "Usable size is %zu, but required to be %zu.\n",
-      alloc_size,
-      expected_size);
+    INFO(
+      "Usable size is {}, but required to be {}.", alloc_size, expected_size);
     failed = true;
   }
   if ((!exact_size) && (alloc_size < expected_size))
   {
-    printf(
-      "Usable size is %zu, but required to be at least %zu.\n",
+    INFO(
+      "Usable size is {}, but required to be at least {}.",
       alloc_size,
       expected_size);
     failed = true;
@@ -100,34 +92,27 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
     (static_cast<size_t>(reinterpret_cast<uintptr_t>(p) % align) != 0) &&
     (size != 0))
   {
-    printf(
-      "Address is 0x%zx, but required to be aligned to 0x%zx.\n",
-      reinterpret_cast<size_t>(p),
-      align);
+    INFO("Address is {}, but required to be aligned to {}.\n", p, align);
     failed = true;
   }
   if (
     static_cast<size_t>(
       reinterpret_cast<uintptr_t>(p) % natural_alignment(size)) != 0)
   {
-    printf(
-      "Address is 0x%zx, but should have natural alignment to 0x%zx.\n",
-      reinterpret_cast<size_t>(p),
+    INFO(
+      "Address is {}, but should have natural alignment to {}.\n",
+      p,
       natural_alignment(size));
     failed = true;
   }
 
-  if (failed)
-  {
-    printf("check_result failed! %p", p);
-    abort();
-  }
+  EXPECT(!failed, "check_result failed! {}", p);
   our_free(p);
 }
 
 void test_calloc(size_t nmemb, size_t size, int err, bool null)
 {
-  printf("calloc(%zu, %zu)  combined size %zu\n", nmemb, size, nmemb * size);
+  START_TEST("calloc({}, {})  combined size {}\n", nmemb, size, nmemb * size);
   errno = SUCCESS;
   void* p = our_calloc(nmemb, size);
 
@@ -135,11 +120,7 @@ void test_calloc(size_t nmemb, size_t size, int err, bool null)
   {
     for (size_t i = 0; i < (size * nmemb); i++)
     {
-      if (((uint8_t*)p)[i] != 0)
-      {
-        printf("non-zero at @%zu\n", i);
-        abort();
-      }
+      EXPECT(((uint8_t*)p)[i] == 0, "non-zero at {}", i);
     }
   }
   check_result(nmemb * size, 1, p, err, null);
@@ -151,7 +132,7 @@ void test_realloc(void* p, size_t size, int err, bool null)
   if (p != nullptr)
     old_size = our_malloc_usable_size(p);
 
-  printf("realloc(%p(%zu), %zu)\n", p, old_size, size);
+  START_TEST("realloc({}({}), {})", p, old_size, size);
   errno = SUCCESS;
   auto new_p = our_realloc(p, size);
   // Realloc failure case, deallocate original block
@@ -162,7 +143,7 @@ void test_realloc(void* p, size_t size, int err, bool null)
 
 void test_posix_memalign(size_t size, size_t align, int err, bool null)
 {
-  printf("posix_memalign(&p, %zu, %zu)\n", align, size);
+  START_TEST("posix_memalign(&p, {}, {})", align, size);
   void* p = nullptr;
   errno = our_posix_memalign(&p, align, size);
   check_result(size, align, p, err, null);
@@ -170,7 +151,7 @@ void test_posix_memalign(size_t size, size_t align, int err, bool null)
 
 void test_memalign(size_t size, size_t align, int err, bool null)
 {
-  printf("memalign(%zu, %zu)\n", align, size);
+  START_TEST("memalign({}, {})", align, size);
   errno = SUCCESS;
   void* p = our_memalign(align, size);
   check_result(size, align, p, err, null);
@@ -183,7 +164,7 @@ void test_reallocarray(void* p, size_t nmemb, size_t size, int err, bool null)
   if (p != nullptr)
     old_size = our_malloc_usable_size(p);
 
-  printf("reallocarray(%p(%zu), %zu)\n", p, old_size, tsize);
+  START_TEST("reallocarray({}({}), {})", p, old_size, tsize);
   errno = SUCCESS;
   auto new_p = our_reallocarray(p, nmemb, size);
   if (new_p == nullptr && tsize != 0)
@@ -198,15 +179,11 @@ void test_reallocarr(
 
   if (size_old != (size_t)~0)
     p = our_malloc(size_old);
+  START_TEST("reallocarr({}({}), {})", p, nmemb, size);
   errno = SUCCESS;
   int r = our_reallocarr(&p, nmemb, size);
-  if (r != err)
-  {
-    printf("reallocarr failed! expected %d got %d\n", err, r);
-    abort();
-  }
+  EXPECT(r == err, "reallocarr failed! expected {} got {}\n", err, r);
 
-  printf("reallocarr(%p(%zu), %zu)\n", p, nmemb, size);
   check_result(nmemb * size, 1, p, err, null);
   p = our_malloc(size);
   if (!p)
@@ -221,11 +198,7 @@ void test_reallocarr(
 
   for (size_t i = 1; i < size; i++)
   {
-    if (static_cast<char*>(p)[i] != 1)
-    {
-      printf("data consistency failed! at %zu", i);
-      abort();
-    }
+    EXPECT(static_cast<char*>(p)[i] == 1, "data consistency failed! at {}", i);
   }
   our_free(p);
 }
@@ -239,16 +212,23 @@ int main(int argc, char** argv)
 
   // Smoke test the fatal error builder.  Check that it can generate strings
   // including all of the kinds of things that it expects to be able to format.
+  //
+  // Note: We cannot use the check or assert macros here because they depend on
+  // `MessageBuilder` working.  They are safe to use in any other test.
   void* fakeptr = reinterpret_cast<void*>(static_cast<uintptr_t>(0x42));
-  FatalErrorBuilder<1024> b{
-    "testing pointer {} size_t {} message, {} world, null is {}",
+  MessageBuilder<1024> b{
+    "testing pointer {} size_t {} message, {} world, null is {}, -123456 is "
+    "{}, 1234567 is {}",
     fakeptr,
     size_t(42),
     "hello",
-    nullptr};
+    nullptr,
+    -123456,
+    1234567};
   if (
     strcmp(
-      "testing pointer 0x42 size_t 0x2a message, hello world, null is 0x0",
+      "testing pointer 0x42 size_t 0x2a message, hello world, null is 0x0, "
+      "-123456 is -123456, 1234567 is 1234567",
       b.get_message()) != 0)
   {
     printf("Incorrect rendering of fatal error message: %s\n", b.get_message());
@@ -265,7 +245,7 @@ int main(int argc, char** argv)
   for (smallsizeclass_t sc = 0; sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
   {
     const size_t size = bits::one_at_bit(sc);
-    printf("malloc: %zu\n", size);
+    START_TEST("malloc: {}", size);
     errno = SUCCESS;
     check_result(size, 1, our_malloc(size), SUCCESS, false);
     errno = SUCCESS;
@@ -320,7 +300,7 @@ int main(int argc, char** argv)
     for (smallsizeclass_t sc2 = 0; sc2 < (MAX_SMALL_SIZECLASS_BITS + 4); sc2++)
     {
       const size_t size2 = bits::one_at_bit(sc2);
-      printf("size1: %zu, size2:%zu\n", size, size2);
+      INFO("size1: {}, size2:{}\n", size, size2);
       test_realloc(our_malloc(size), size2, SUCCESS, false);
       test_realloc(our_malloc(size + 1), size2, SUCCESS, false);
     }
@@ -373,32 +353,22 @@ int main(int argc, char** argv)
     test_reallocarr(size, 1, 0, SUCCESS, false);
     test_reallocarr(size, 2, size, SUCCESS, false);
     void* p = our_malloc(size);
-    if (p == nullptr)
-    {
-      printf("realloc alloc failed with %zu\n", size);
-      abort();
-    }
+    EXPECT(p != nullptr, "realloc alloc failed with {}", size);
     int r = our_reallocarr(&p, 1, too_big_size);
-    if (r != ENOMEM)
-    {
-      printf("expected failure on allocation\n");
-      abort();
-    }
+    EXPECT(r == ENOMEM, "expected failure on allocation\n");
     our_free(p);
 
     for (smallsizeclass_t sc2 = 0; sc2 < (MAX_SMALL_SIZECLASS_BITS + 4); sc2++)
     {
       const size_t size2 = bits::one_at_bit(sc2);
-      printf("size1: %zu, size2:%zu\n", size, size2);
+      START_TEST("size1: {}, size2:{}", size, size2);
       test_reallocarr(size, 1, size2, SUCCESS, false);
     }
   }
 
-  if (our_malloc_usable_size(nullptr) != 0)
-  {
-    printf("malloc_usable_size(nullptr) should be zero");
-    abort();
-  }
+  EXPECT(
+    our_malloc_usable_size(nullptr) == 0,
+    "malloc_usable_size(nullptr) should be zero");
 
   snmalloc::debug_check_empty<snmalloc::Globals>();
   return 0;

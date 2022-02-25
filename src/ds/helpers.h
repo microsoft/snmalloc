@@ -256,7 +256,7 @@ namespace snmalloc
    * build an on-stack buffer containing the formatted string.
    */
   template<size_t BufferSize>
-  class FatalErrorBuilder
+  class MessageBuilder
   {
     /**
      * The buffer that is used to store the formatted output.
@@ -322,17 +322,51 @@ namespace snmalloc
      */
     void append(void* ptr)
     {
-      append(static_cast<size_t>(reinterpret_cast<uintptr_t>(ptr)));
+      append(static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(ptr)));
+      // TODO: CHERI bits.
+    }
+
+    /**
+     * Append a signed integer to the buffer, as a decimal string.
+     */
+    void append(long long s)
+    {
+      if (s < 0)
+      {
+        append_char('-');
+        s = 0 - s;
+      }
+      std::array<char, 20> buf;
+      const char digits[] = "0123456789";
+      for (long i = long(buf.size() - 1); i >= 0; i--)
+      {
+        buf[static_cast<size_t>(i)] = digits[s % 10];
+        s /= 10;
+      }
+      bool skipZero = true;
+      for (auto c : buf)
+      {
+        if (skipZero && (c == '0'))
+        {
+          continue;
+        }
+        skipZero = false;
+        append_char(c);
+      }
+      if (skipZero)
+      {
+        append_char('0');
+      }
     }
 
     /**
      * Append a size to the buffer, as a hex string.
      */
-    void append(size_t s)
+    void append(unsigned long long s)
     {
       append_char('0');
       append_char('x');
-      std::array<char, sizeof(size_t) * 2> buf;
+      std::array<char, 16> buf;
       const char hexdigits[] = "0123456789abcdef";
       // Length of string including null terminator
       static_assert(sizeof(hexdigits) == 0x11);
@@ -357,12 +391,44 @@ namespace snmalloc
       }
     }
 
+    /**
+     * Overload to force `long` to be promoted to `long long`.
+     */
+    void append(long x)
+    {
+      append(static_cast<long long>(x));
+    }
+
+    /**
+     * Overload to force `unsigned long` to be promoted to `unsigned long long`.
+     */
+    void append(unsigned long x)
+    {
+      append(static_cast<unsigned long long>(x));
+    }
+
+    /**
+     * Overload to force `int` to be promoted to `long long`.
+     */
+    void append(int x)
+    {
+      append(static_cast<long long>(x));
+    }
+
+    /**
+     * Overload to force `unsigned int` to be promoted to `unsigned long long`.
+     */
+    void append(unsigned int x)
+    {
+      append(static_cast<unsigned long long>(x));
+    }
+
   public:
     /**
      * Constructor.  Takes a format string and the arguments to output.
      */
     template<typename... Args>
-    SNMALLOC_FAST_PATH FatalErrorBuilder(const char* fmt, Args... args)
+    SNMALLOC_FAST_PATH MessageBuilder(const char* fmt, Args... args)
     {
       buffer[SafeLength] = 0;
       size_t arg = 0;
@@ -378,6 +444,21 @@ namespace snmalloc
         {
           append_char(*s);
         }
+      }
+      append_char('\0');
+    }
+
+    /**
+     * Constructor for trivial format strings (no arguments).  This exists to
+     * allow `MessageBuilder` to be used with macros without special casing
+     * the single-argument version.
+     */
+    SNMALLOC_FAST_PATH MessageBuilder(const char* fmt)
+    {
+      buffer[SafeLength] = 0;
+      for (const char* s = fmt; *s != 0; ++s)
+      {
+        append_char(*s);
       }
       append_char('\0');
     }
