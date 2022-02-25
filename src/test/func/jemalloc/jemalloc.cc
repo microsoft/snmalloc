@@ -1,5 +1,6 @@
 #include <functional>
 #include <stdio.h>
+#include <test/helpers.h>
 #include <test/setup.h>
 
 #define SNMALLOC_NAME_MANGLE(a) our_##a
@@ -92,37 +93,6 @@ namespace
   }
 
   /**
-   * The name of the function under test.  This is set in the START_TEST macro
-   * and used for error reporting in EXPECT.
-   */
-  const char* function = nullptr;
-
-  /**
-   * Log that the test started.
-   */
-#define START_TEST(msg) \
-  function = __PRETTY_FUNCTION__; \
-  fprintf(stderr, "Starting test: " msg "\n");
-
-  /**
-   * An assertion that fires even in debug builds.  Uses the value set by
-   * START_TEST.
-   */
-#define EXPECT(x, msg, ...) \
-  if (!(x)) \
-  { \
-    fprintf( \
-      stderr, \
-      "%s:%d in %s: " msg "\n", \
-      __FILE__, \
-      __LINE__, \
-      function, \
-      ##__VA_ARGS__); \
-    fflush(stderr); \
-    abort(); \
-  }
-
-  /**
    * The default maximum number of bits of address space to use for tests.
    * This is clamped on platforms without lazy commit because this much RAM
    * (or, at least, commit charge) will be used on such systems.
@@ -142,7 +112,7 @@ namespace
     constexpr size_t low = 5;
     for (size_t base = low; base < Log2MaxSize; base++)
     {
-      fprintf(stderr, "\tTrying 0x%zx-byte allocations\n", one_at_bit(base));
+      INFO("\tTrying {}-byte allocations\n", one_at_bit(base));
       for (size_t i = 0; i < one_at_bit(low); i++)
       {
         for (int align = 1; align < 20; align++)
@@ -171,13 +141,13 @@ namespace
       void* ptr = Mallocx(size, flags);
       EXPECT(
         ptr != nullptr,
-        "Failed to allocate 0x%zx bytes with %d bit alignment",
+        "Failed to allocate {} bytes with {}-bit alignment",
         size,
         align);
       size_t allocated = Sallocx(ptr, 0);
       EXPECT(
         allocated == expected,
-        "Expected to have allocated 0x%zx bytes, got 0x%zx bytes",
+        "Expected to have allocated {} bytes, got {} bytes",
         expected,
         allocated);
       Dallocx(ptr, 0);
@@ -202,11 +172,11 @@ namespace
       ptr = static_cast<char*>(Rallocx(ptr, size * 2, flags));
       EXPECT(
         ptr != nullptr,
-        "Failed to reallocate for 0x%zx byte allocation",
+        "Failed to reallocate for {} byte allocation",
         size * 2);
       EXPECT(
         ptr[size] == 0,
-        "Memory not zero initialised for 0x%zx byte reallocation from 0x%zx "
+        "Memory not zero initialised for {} byte reallocation from {} "
         "byte allocation",
         size * 2,
         size);
@@ -234,11 +204,9 @@ namespace
     auto test = [](size_t size, int align) {
       int flags = MALLOCX_LG_ALIGN(align);
       void* ptr = Mallocx(size, flags);
-      EXPECT(
-        ptr != nullptr, "Failed to allocate for 0x%zx byte allocation", size);
+      EXPECT(ptr != nullptr, "Failed to allocate for zx byte allocation", size);
       size_t sz = Xallocx(ptr, size, 1024, flags);
-      EXPECT(
-        sz >= size, "xalloc returned 0x%zx, expected at least 0x%zx", sz, size);
+      EXPECT(sz >= size, "xalloc returned {}, expected at least {}", sz, size);
       Dallocx(ptr, 0);
     };
     test_sizes_and_alignments(test);
@@ -258,7 +226,7 @@ namespace
       int ret = Nallocm(&expected, size, flags);
       EXPECT(
         (ret == ALLOCM_SUCCESS),
-        "nallocm(%zx, %d) failed with error %d",
+        "nallocm({}, {}) failed with error {}",
         size,
         flags,
         ret);
@@ -267,18 +235,18 @@ namespace
       ret = Allocm(&ptr, &allocated, size, flags);
       EXPECT(
         (ptr != nullptr) && (ret == ALLOCM_SUCCESS),
-        "Failed to allocate 0x%zx bytes with %d bit alignment",
+        "Failed to allocate {} bytes with {} bit alignment",
         size,
         align);
       EXPECT(
         allocated == expected,
-        "Expected to have allocated 0x%zx bytes, got 0x%zx bytes",
+        "Expected to have allocated {} bytes, got {} bytes",
         expected,
         allocated);
       ret = Sallocm(ptr, &expected, 0);
       EXPECT(
         (ret == ALLOCM_SUCCESS) && (allocated == expected),
-        "Expected to have allocated 0x%zx bytes, got 0x%zx bytes",
+        "Expected to have allocated {} bytes, got {} bytes",
         expected,
         allocated);
 
@@ -301,14 +269,14 @@ namespace
       void* orig = ptr;
       EXPECT(
         (ptr != nullptr) && (ret == ALLOCM_SUCCESS),
-        "Failed to allocate 0x%zx bytes with %d bit alignment",
+        "Failed to allocate {} bytes with {} bit alignment",
         size,
         align);
       ret = Rallocm(&ptr, nullptr, allocated + 1, 12, flags | ALLOCM_NO_MOVE);
       EXPECT(
         (ret == ALLOCM_ERR_NOT_MOVED) || (ptr == orig),
         "Expected rallocm not to be able to move or reallocate, but return was "
-        "%d\n",
+        "{}\n",
         ret);
       Dallocm(ptr, 0);
     });
@@ -327,8 +295,8 @@ namespace
     int ret = Allocm(&ptr, nullptr, std::numeric_limits<size_t>::max() / 2, 0);
     EXPECT(
       (ptr == nullptr) && (ret == OUR_ALLOCM_ERR_OOM),
-      "Expected massive allocation to fail with out of memory (%d), received "
-      "allocation %p, return code %d",
+      "Expected massive allocation to fail with out of memory ({}), received "
+      "allocation {}, return code {}",
       OUR_ALLOCM_ERR_OOM,
       ptr,
       ret);

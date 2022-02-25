@@ -326,13 +326,54 @@ namespace snmalloc
     }
 
     /**
+     * Append a signed integer to the buffer, as a decimal string.
+     */
+    void append(int64_t s)
+    {
+      if (s < 0)
+      {
+        append_char('-');
+        s = 0 - s;
+      }
+      std::array<char, 20> buf;
+      const char digits[] = "0123456789";
+      for (long i = long(buf.size() - 1); i >= 0; i--)
+      {
+        buf[static_cast<size_t>(i)] = digits[s % 10];
+        s /= 10;
+      }
+      bool skipZero = true;
+      for (auto c : buf)
+      {
+        if (skipZero && (c == '0'))
+        {
+          continue;
+        }
+        skipZero = false;
+        append_char(c);
+      }
+      if (skipZero)
+      {
+        append_char('0');
+      }
+    }
+
+    /**
+     * Overload to force `int` to be promoted to `int64_t`, not `uint64_t`.
+     */
+    void append(int x)
+    {
+      append(int64_t(x));
+    }
+
+    /**
      * Append a size to the buffer, as a hex string.
      */
-    void append(size_t s)
+    void append(uint64_t s)
     {
       append_char('0');
       append_char('x');
-      std::array<char, sizeof(size_t) * 2> buf;
+      std::array<char, 16> buf;
       const char hexdigits[] = "0123456789abcdef";
       // Length of string including null terminator
       static_assert(sizeof(hexdigits) == 0x11);
@@ -378,6 +419,21 @@ namespace snmalloc
         {
           append_char(*s);
         }
+      }
+      append_char('\0');
+    }
+
+    /**
+     * Constructor for trivial format strings (no arguments).  This exists to
+     * allow `FatalErrorBuilder` to be used with macros without special casing
+     * the single-argument version.
+     */
+    SNMALLOC_FAST_PATH FatalErrorBuilder(const char* fmt)
+    {
+      buffer[SafeLength] = 0;
+      for (const char* s = fmt; *s != 0; ++s)
+      {
+        append_char(*s);
       }
       append_char('\0');
     }

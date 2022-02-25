@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 
 #if defined(_MSC_VER) && !defined(__clang__)
 // 28 is FAST_FAIL_INVALID_BUFFER_ACCESS.  Not using the symbolic constant to
@@ -109,27 +110,40 @@ namespace snmalloc
 #define TOSTRING2(expr) #expr
 
 #ifdef NDEBUG
-#  define SNMALLOC_ASSERT(expr) \
+#  define SNMALLOC_ASSERT_MSG(...) \
     {}
 #else
-#  define SNMALLOC_ASSERT(expr) \
+#  define SNMALLOC_ASSERT_MSG(expr, fmt, ...) \
+    do \
     { \
       if (!(expr)) \
       { \
-        snmalloc::error("assert fail: " #expr " in " __FILE__ \
-                        " on " TOSTRING(__LINE__)); \
+        snmalloc::report_fatal_error( \
+          "assert fail: {} in {} on {} " fmt "\n", \
+          #expr, \
+          __FILE__, \
+          TOSTRING(__LINE__), \
+          ##__VA_ARGS__); \
       } \
-    }
+    } while (0)
 #endif
+#define SNMALLOC_ASSERT(expr) SNMALLOC_ASSERT_MSG(expr, "")
 
-#define SNMALLOC_CHECK(expr) \
+#define SNMALLOC_CHECK_MSG(expr, fmt, ...) \
+  do \
   { \
     if (!(expr)) \
     { \
-      snmalloc::error("Check fail: " #expr " in " __FILE__ \
-                      " on " TOSTRING(__LINE__)); \
+      snmalloc::report_fatal_error( \
+        "Check fail: {} in {} on {} " fmt "\n", \
+        #expr, \
+        __FILE__, \
+        TOSTRING(__LINE__), \
+        ##__VA_ARGS__); \
     } \
-  }
+  } while (0)
+
+#define SNMALLOC_CHECK(expr) SNMALLOC_CHECK_MSG(expr, "")
 
 #ifndef NDEBUG
 #  define SNMALLOC_ASSUME(x) SNMALLOC_ASSERT(x)
@@ -184,6 +198,13 @@ namespace snmalloc
 #else
   static constexpr bool CHECK_CLIENT = false;
 #endif
+
+  /**
+   * Forward declaration so that this can be called before the pal header is
+   * included.
+   */
+  template<size_t BufferSize = 1024, typename... Args>
+  [[noreturn]] inline void report_fatal_error(Args... args);
 } // namespace snmalloc
 
 #ifdef SNMALLOC_CHECK_CLIENT

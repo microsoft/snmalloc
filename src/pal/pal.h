@@ -161,7 +161,7 @@ namespace snmalloc
    *
    *  These types should be sufficient for allocator-related error messages.
    */
-  template<size_t BufferSize = 1024, typename... Args>
+  template<size_t BufferSize, typename... Args>
   [[noreturn]] inline void report_fatal_error(Args... args)
   {
     FatalErrorBuilder<BufferSize> msg{std::forward<Args>(args)...};

@@ -27,6 +27,7 @@ int main()
 #    define my_free(x) free(x)
 #  endif
 #  include "override/memcpy.cc"
+#  include "test/helpers.h"
 
 #  include <assert.h>
 #  include <csetjmp>
@@ -65,6 +66,7 @@ extern "C" void abort()
  */
 void check_size(size_t size)
 {
+  START_TEST("checking {}-byte memcpy", size);
   auto* s = reinterpret_cast<unsigned char*>(my_malloc(size + 1));
   auto* d = reinterpret_cast<unsigned char*>(my_malloc(size + 1));
   d[size] = 0;
@@ -94,9 +96,13 @@ void check_size(size_t size)
           static_cast<unsigned char>(i),
           dst[i]);
       }
-      SNMALLOC_CHECK(dst[i] == (unsigned char)i);
+      EXPECT(
+        dst[i] == (unsigned char)i,
+        "dst[i] == {}, i == {}",
+        size_t(dst[i]),
+        i & 0xff);
     }
-    SNMALLOC_CHECK(d[size] == 0);
+    EXPECT(d[size] == 0, "d[size] == {}", d[size]);
   }
   my_free(s);
   my_free(d);
@@ -104,6 +110,8 @@ void check_size(size_t size)
 
 void check_bounds(size_t size, size_t out_of_bounds)
 {
+  START_TEST(
+    "memcpy bounds, size {}, {} bytes out of bounds", size, out_of_bounds);
   auto* s = reinterpret_cast<unsigned char*>(my_malloc(size));
   auto* d = reinterpret_cast<unsigned char*>(my_malloc(size));
   for (size_t i = 0; i < size; ++i)
@@ -125,7 +133,11 @@ void check_bounds(size_t size, size_t out_of_bounds)
     bounds_error = true;
   }
   can_longjmp = false;
-  SNMALLOC_CHECK(bounds_error == (out_of_bounds > 0));
+  EXPECT(
+    bounds_error == (out_of_bounds > 0),
+    "bounds error: {}, out_of_bounds: {}",
+    bounds_error,
+    out_of_bounds);
   my_free(s);
   my_free(d);
 }
