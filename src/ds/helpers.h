@@ -322,13 +322,14 @@ namespace snmalloc
      */
     void append(void* ptr)
     {
-      append(static_cast<size_t>(reinterpret_cast<uintptr_t>(ptr)));
+      append(static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(ptr)));
+      // TODO: CHERI bits.
     }
 
     /**
      * Append a signed integer to the buffer, as a decimal string.
      */
-    void append(int64_t s)
+    void append(long long s)
     {
       if (s < 0)
       {
@@ -359,17 +360,9 @@ namespace snmalloc
     }
 
     /**
-     * Overload to force `int` to be promoted to `int64_t`, not `uint64_t`.
-     */
-    void append(int x)
-    {
-      append(int64_t(x));
-    }
-
-    /**
      * Append a size to the buffer, as a hex string.
      */
-    void append(uint64_t s)
+    void append(unsigned long long s)
     {
       append_char('0');
       append_char('x');
@@ -396,6 +389,38 @@ namespace snmalloc
       {
         append_char('0');
       }
+    }
+
+    /**
+     * Overload to force `long` to be promoted to `long long`.
+     */
+    void append(long x)
+    {
+      append(static_cast<long long>(x));
+    }
+
+    /**
+     * Overload to force `unsigned long` to be promoted to `unsigned long long`.
+     */
+    void append(unsigned long x)
+    {
+      append(static_cast<unsigned long long>(x));
+    }
+
+    /**
+     * Overload to force `int` to be promoted to `long long`.
+     */
+    void append(int x)
+    {
+      append(static_cast<long long>(x));
+    }
+
+    /**
+     * Overload to force `unsigned int` to be promoted to `unsigned long long`.
+     */
+    void append(unsigned int x)
+    {
+      append(static_cast<unsigned long long>(x));
     }
 
   public:
