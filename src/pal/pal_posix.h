@@ -164,7 +164,7 @@ namespace snmalloc
      */
     static void message(const char* const str) noexcept
     {
-		void *nl = const_cast<char*>("\n");
+      void* nl = const_cast<char*>("\n");
       struct iovec iov[] = {{const_cast<char*>(str), strlen(str)}, {nl, 1}};
       UNUSED(writev(STDERR_FILENO, iov, sizeof(iov) / sizeof(struct iovec)));
       UNUSED(fsync(STDERR_FILENO));
@@ -179,8 +179,9 @@ namespace snmalloc
       /// subsequent allocation will work.
       /// @attention: since the program is failing, we do not guarantee that
       /// previous bytes in stdout will be flushed
-		void *nl = const_cast<char*>("\n");
-      struct iovec iov[] = {{nl,  1}, {const_cast<char*>(str), strlen(str)}, {nl, 1}};
+      void* nl = const_cast<char*>("\n");
+      struct iovec iov[] = {
+        {nl, 1}, {const_cast<char*>(str), strlen(str)}, {nl, 1}};
       UNUSED(writev(STDERR_FILENO, iov, sizeof(iov) / sizeof(struct iovec)));
       UNUSED(fsync(STDERR_FILENO));
       print_stack_trace();
