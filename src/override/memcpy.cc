@@ -209,7 +209,7 @@ namespace
 #  ifdef __GNUC__
         asm volatile("rep movsb" : : "S"(src), "D"(dst), "c"(len) : "memory");
 #  elif defined(_MSC_VER)
-        __movsb(dst, src, len);
+        __movsb(static_cast<char*>(dst), static_cast<const char*>(src), len);
 #  else
 #    error No inline assembly or rep movsb intrinsic for this compiler.
 #  endif
