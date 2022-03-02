@@ -1,4 +1,5 @@
 #if defined(SNMALLOC_CI_BUILD)
+#  include <pal/pal.h>
 #  if defined(WIN32)
 #    include <ds/bits.h>
 #    include <iostream>
@@ -96,7 +97,6 @@ void setup()
   SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 }
 #  else
-#    include <pal/pal.h>
 #    include <signal.h>
 void error_handle(int signal)
 {
