@@ -107,7 +107,8 @@ namespace
    * largest size to copy in a single operation.
    */
   template<size_t Size, size_t WordSize = Size>
-  SNMALLOC_FAST_PATH_INLINE void small_copies(void* dst, const void* src, size_t len)
+  SNMALLOC_FAST_PATH_INLINE void
+  small_copies(void* dst, const void* src, size_t len)
   {
     if (len == Size)
     {
@@ -158,6 +159,7 @@ namespace
      * machine level: the compiler may spill temporaries to the stack, just not
      * to the source or destination object.
      */
+    SNMALLOC_UNUSED_FUNCTION
     static constexpr size_t LargestRegisterSize =
       std::max(sizeof(uint64_t), sizeof(void*));
 
