@@ -66,7 +66,7 @@ namespace
    * aligned to be copied as aligned chunks of `Size` bytes.
    */
   template<size_t Size>
-  SNMALLOC_FAST_PATH bool is_aligned_memcpy(void* dst, const void* src)
+  SNMALLOC_FAST_PATH_INLINE bool is_aligned_memcpy(void* dst, const void* src)
   {
     return (pointer_align_down<Size>(const_cast<void*>(src)) == src) &&
       (pointer_align_down<Size>(dst) == dst);
@@ -78,7 +78,7 @@ namespace
    * single copy.
    */
   template<size_t Size, size_t Word>
-  SNMALLOC_FAST_PATH void small_copy(void* dst, const void* src)
+  SNMALLOC_FAST_PATH_INLINE void small_copy(void* dst, const void* src)
   {
     static_assert(
       bits::next_pow2_const(Word) == Word, "Word size must be a power of two!");
@@ -95,6 +95,11 @@ namespace
         small_copy<Size, Word / 2>(dst, src);
       }
     }
+    else
+    {
+      UNUSED(src);
+      UNUSED(dst);
+    }
   }
 
   /**
@@ -102,7 +107,7 @@ namespace
    * largest size to copy in a single operation.
    */
   template<size_t Size, size_t WordSize = Size>
-  SNMALLOC_FAST_PATH void small_copies(void* dst, const void* src, size_t len)
+  SNMALLOC_FAST_PATH_INLINE void small_copies(void* dst, const void* src, size_t len)
   {
     if (len == Size)
     {
@@ -125,7 +130,7 @@ namespace
    * copy may not do the right thing.
    */
   template<size_t BlockSize = 64, size_t WordSize>
-  SNMALLOC_FAST_PATH void
+  SNMALLOC_FAST_PATH_INLINE void
   unaligned_start(void*& dst, const void*& src, size_t& len)
   {
     constexpr size_t block_mask = BlockSize - 1;
@@ -160,7 +165,7 @@ namespace
      * Hook for architecture-specific optimisations.  Does nothing in the
      * default case.
      */
-    static inline SNMALLOC_FAST_PATH bool copy(void*&, const void*&, size_t&)
+    static SNMALLOC_FAST_PATH_INLINE bool copy(void*&, const void*&, size_t&)
     {
       return false;
     }
@@ -187,7 +192,7 @@ namespace
     /**
      * Platform-specific copy hook.  For large copies, use `rep movsb`.
      */
-    static inline SNMALLOC_FAST_PATH bool
+    static SNMALLOC_FAST_PATH_INLINE bool
     copy(void*& dst, const void*& src, size_t& len)
     {
       // The Intel optimisation manual recommends doing this for sizes >256
