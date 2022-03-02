@@ -40,10 +40,6 @@ namespace
   {
     for (size_t i = 0; (i + Size) <= len; i += Size)
     {
-      if constexpr (PrefetchOffset > 0)
-      {
-        __builtin_prefetch(pointer_offset(src, i + PrefetchOffset));
-      }
       copy_one<Size>(pointer_offset(dst, i), pointer_offset(src, i));
     }
   }
@@ -141,7 +137,7 @@ namespace
     if ((src_offset > 0) && (src_offset == (dst_addr & block_mask)))
     {
       size_t disp = BlockSize - src_offset;
-      small_copy<BlockSize, WordSize>(dst, src);
+      small_copies<BlockSize, WordSize>(dst, src, len);
       src = pointer_offset(src, disp);
       dst = pointer_offset(dst, disp);
       len -= disp;
@@ -168,7 +164,7 @@ namespace
      * Hook for architecture-specific optimisations.  Does nothing in the
      * default case.
      */
-    static SNMALLOC_FAST_PATH_INLINE bool copy(void*&, const void*&, size_t&)
+    static SNMALLOC_FAST_PATH_INLINE bool copy(void*, const void*, size_t)
     {
       return false;
     }
@@ -197,7 +193,7 @@ namespace
      * Platform-specific copy hook.  For large copies, use `rep movsb`.
      */
     static SNMALLOC_FAST_PATH_INLINE bool
-    copy(void*& dst, const void*& src, size_t& len)
+    copy(void* dst, const void* src, size_t len)
     {
       // The Intel optimisation manual recommends doing this for sizes >256
       // bytes on modern systems and for all sizes on very modern systems.
@@ -205,10 +201,13 @@ namespace
       if (SNMALLOC_UNLIKELY(len >= 512))
       {
         // Align to cache-line boundaries if possible.
-        unaligned_start<64, LargestRegisterSize>(dst, src, len);
+        // unaligned_start<64, LargestRegisterSize>(dst, src, len);
         // Bulk copy.  This is aggressively optimised on
 #  ifdef __GNUC__
-        asm volatile("rep movsb" : : "S"(src), "D"(dst), "c"(len) : "memory");
+        asm volatile("rep movsb"
+                     : "+S"(src), "+D"(dst), "+c"(len)
+                     :
+                     : "memory");
 #  elif defined(_MSC_VER)
         __movsb(
           static_cast<unsigned char*>(dst),
@@ -245,6 +244,7 @@ namespace
   template<bool checked, typename Arch = DefaultArch>
   void* memcpy(void* dst, const void* src, size_t len)
   {
+    auto orig_dst = dst;
     // 0 is a very common size for memcpy and we don't need to do external
     // pointer checks if we hit it.  It's also the fastest case, to encourage
     // the compiler to favour the other cases.
@@ -274,7 +274,7 @@ namespace
       block_copy<Arch::LargestRegisterSize>(dst, src, len);
       copy_end<Arch::LargestRegisterSize>(dst, src, len);
     }
-    return dst;
+    return orig_dst;
   }
 } // namespace
 
