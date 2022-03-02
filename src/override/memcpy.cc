@@ -173,6 +173,7 @@ namespace
     }
   };
 
+#if defined(__x86_64__) || defined(_M_X64)
   /**
    * x86-64 architecture.  Prefers SSE registers for small and medium copies
    * and uses `rep movsb` for large ones.
@@ -205,12 +206,19 @@ namespace
         // Align to cache-line boundaries if possible.
         unaligned_start<64, LargestRegisterSize>(dst, src, len);
         // Bulk copy.  This is aggressively optimised on
+#  ifdef __GNUCLIKE_ASM
         asm volatile("rep movsb" : : "S"(src), "D"(dst), "c"(len) : "memory");
+#  elif defined(_MSC_VER)
+        __movsb(dst, src, len);
+#  else
+#    error No inline assembly or rep movsb intrinsic for this compiler.
+#  endif
         return true;
       }
       return false;
     }
   };
+#endif
 
   using DefaultArch =
 #ifdef __x86_64__
