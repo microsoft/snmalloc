@@ -77,7 +77,7 @@ namespace
   SNMALLOC_FAST_PATH_INLINE void small_copy(void* dst, const void* src)
   {
     static_assert(
-      bits::next_pow2_const(Word) == Word, "Word size must be a power of two!");
+      bits::is_pow2(Word), "Word size must be a power of two!");
     if constexpr (Size != 0)
     {
       if constexpr (Size >= Word)
@@ -201,8 +201,8 @@ namespace
       if (SNMALLOC_UNLIKELY(len >= 512))
       {
         // Align to cache-line boundaries if possible.
-        // unaligned_start<64, LargestRegisterSize>(dst, src, len);
-        // Bulk copy.  This is aggressively optimised on
+        unaligned_start<64, LargestRegisterSize>(dst, src, len);
+        // Bulk copy.  This is aggressively optimised on modern x86 cores.
 #  ifdef __GNUC__
         asm volatile("rep movsb"
                      : "+S"(src), "+D"(dst), "+c"(len)
