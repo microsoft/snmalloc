@@ -15,6 +15,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/mman.h>
+#include <sys/uio.h>
 #include <unistd.h>
 #include <utility>
 #if __has_include(<sys/random.h>)
@@ -152,10 +153,21 @@ namespace snmalloc
       constexpr int SIZE = 1024;
       void* buffer[SIZE];
       auto nptrs = backtrace(buffer, SIZE);
-      backtrace_symbols_fd(buffer, nptrs, STDOUT_FILENO);
-      UNUSED(write(STDOUT_FILENO, "\n", 1));
-      UNUSED(fsync(STDOUT_FILENO));
+      backtrace_symbols_fd(buffer, nptrs, STDERR_FILENO);
+      UNUSED(write(STDERR_FILENO, "\n", 1));
+      UNUSED(fsync(STDERR_FILENO));
 #endif
+    }
+
+    /**
+     * Report a message to standard error, followed by a newline.
+     */
+    static void message(const char* const str) noexcept
+    {
+		void *nl = const_cast<char*>("\n");
+      struct iovec iov[] = {{const_cast<char*>(str), strlen(str)}, {nl, 1}};
+      UNUSED(writev(STDERR_FILENO, iov, sizeof(iov) / sizeof(struct iovec)));
+      UNUSED(fsync(STDERR_FILENO));
     }
 
     /**
@@ -167,10 +179,10 @@ namespace snmalloc
       /// subsequent allocation will work.
       /// @attention: since the program is failing, we do not guarantee that
       /// previous bytes in stdout will be flushed
-      UNUSED(write(STDOUT_FILENO, "\n", 1));
-      UNUSED(write(STDOUT_FILENO, str, strlen(str)));
-      UNUSED(write(STDOUT_FILENO, "\n", 1));
-      UNUSED(fsync(STDOUT_FILENO));
+		void *nl = const_cast<char*>("\n");
+      struct iovec iov[] = {{nl,  1}, {const_cast<char*>(str), strlen(str)}, {nl, 1}};
+      UNUSED(writev(STDERR_FILENO, iov, sizeof(iov) / sizeof(struct iovec)));
+      UNUSED(fsync(STDERR_FILENO));
       print_stack_trace();
       abort();
     }

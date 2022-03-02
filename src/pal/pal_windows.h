@@ -118,8 +118,14 @@ namespace snmalloc
 
     [[noreturn]] static void error(const char* const str)
     {
-      puts(str);
-      fflush(stdout);
+      fputs(str, stderr);
+      fputc('\n', stderr);
+      fflush(stderr);
+    }
+
+    [[noreturn]] static void error(const char* const str)
+    {
+      message(str);
       abort();
     }
 
