@@ -206,7 +206,7 @@ namespace
         // Align to cache-line boundaries if possible.
         unaligned_start<64, LargestRegisterSize>(dst, src, len);
         // Bulk copy.  This is aggressively optimised on
-#  ifdef __GNUCLIKE_ASM
+#  ifdef __GNUC__
         asm volatile("rep movsb" : : "S"(src), "D"(dst), "c"(len) : "memory");
 #  elif defined(_MSC_VER)
         __movsb(dst, src, len);
