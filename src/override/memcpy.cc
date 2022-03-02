@@ -76,8 +76,7 @@ namespace
   template<size_t Size, size_t Word>
   SNMALLOC_FAST_PATH_INLINE void small_copy(void* dst, const void* src)
   {
-    static_assert(
-      bits::is_pow2(Word), "Word size must be a power of two!");
+    static_assert(bits::is_pow2(Word), "Word size must be a power of two!");
     if constexpr (Size != 0)
     {
       if constexpr (Size >= Word)
@@ -137,7 +136,7 @@ namespace
     if ((src_offset > 0) && (src_offset == (dst_addr & block_mask)))
     {
       size_t disp = BlockSize - src_offset;
-      small_copies<BlockSize, WordSize>(dst, src, len);
+      small_copies<BlockSize, WordSize>(dst, src, disp);
       src = pointer_offset(src, disp);
       dst = pointer_offset(dst, disp);
       len -= disp;
