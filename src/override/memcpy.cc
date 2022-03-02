@@ -130,17 +130,18 @@ namespace
    * not overlap.  It unconditionally copies `BlockSize` bytes, so a subsequent
    * copy may not do the right thing.
    */
-  template<size_t BlockSize = 64, size_t WordSize>
+  template<size_t BlockSize, size_t WordSize>
   SNMALLOC_FAST_PATH_INLINE void
   unaligned_start(void*& dst, const void*& src, size_t& len)
   {
     constexpr size_t block_mask = BlockSize - 1;
     size_t src_addr = static_cast<size_t>(reinterpret_cast<uintptr_t>(src));
     size_t dst_addr = static_cast<size_t>(reinterpret_cast<uintptr_t>(dst));
-    if ((src_addr & block_mask) == (dst_addr & block_mask))
+    size_t src_offset = src_addr & block_mask;
+    if ((src_offset > 0) && (src_offset == (dst_addr & block_mask)))
     {
+      size_t disp = BlockSize - src_offset;
       small_copy<BlockSize, WordSize>(dst, src);
-      size_t disp = BlockSize - (src_addr & block_mask);
       src = pointer_offset(src, disp);
       dst = pointer_offset(dst, disp);
       len -= disp;
