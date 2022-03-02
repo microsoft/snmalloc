@@ -88,7 +88,7 @@ namespace
       {
         copy_one<Word>(dst, src);
         small_copy<Size - Word, Word>(
-          pointer_offset(dst, Size), pointer_offset(src, Size));
+          pointer_offset(dst, Word), pointer_offset(src, Word));
       }
       else
       {
