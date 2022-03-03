@@ -34,6 +34,14 @@ namespace snmalloc
      */
     static constexpr int default_mmap_flags = MAP_NORESERVE;
 
+    static void* reserve(size_t size) noexcept
+    {
+      void* p = PALPOSIX<PALLinux>::reserve(size);
+      if (p)
+        madvise(p, size, MADV_DONTDUMP);
+      return p;
+    }
+
     /**
      * OS specific function for zeroing memory.
      *
