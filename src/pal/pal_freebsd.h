@@ -67,7 +67,8 @@ namespace snmalloc
       if constexpr (DEBUG)
         memset(p, 0x5a, size);
 
-      madvise(p, size, MADV_FREE | MADV_NOCORE);
+      madvise(p, size, MADV_NOCORE);
+      madvise(p, size, MADV_FREE);
 
       if constexpr (PalEnforceAccess)
       {
