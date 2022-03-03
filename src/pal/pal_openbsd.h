@@ -22,6 +22,15 @@ namespace snmalloc
      * should add any required features.
      */
     static constexpr uint64_t pal_features = PALBSD::pal_features;
+
+    /**
+     * Extra mmap flags.  Exclude mappings from core files if they are
+     * pure reservations.
+     */
+    static int extra_mmap_flags(bool state_using)
+    {
+      return state_using ? 0 : MAP_PRIVATE;
+    }
   };
 } // namespace snmalloc
 #endif
