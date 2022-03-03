@@ -83,7 +83,7 @@ namespace snmalloc
      */
     static void notify_using_readonly(void* p, size_t size) noexcept
     {
-      PALBSD_Aligned<PALFreeBSD>::notify_not_using(p, size);
+      PALBSD_Aligned<PALFreeBSD>::notify_using_readonly(p, size);
       madvise(p, size, MADV_NOCORE);
     }
 
