@@ -49,6 +49,14 @@ namespace snmalloc
     }
 
     /**
+     * Report a message to the user.
+     */
+    static void message(const char* const str) noexcept
+    {
+      BasePAL::message(str);
+    }
+
+    /**
      * Report a fatal error an exit.
      */
     [[noreturn]] static void error(const char* const str) noexcept

@@ -116,10 +116,16 @@ namespace snmalloc
       low_memory_callbacks.register_notification(callback);
     }
 
+    static void message(const char* const str)
+    {
+      fputs(str, stderr);
+      fputc('\n', stderr);
+      fflush(stderr);
+    }
+
     [[noreturn]] static void error(const char* const str)
     {
-      puts(str);
-      fflush(stdout);
+      message(str);
       abort();
     }
 

@@ -1,4 +1,5 @@
 #if defined(SNMALLOC_CI_BUILD)
+#  include <pal/pal.h>
 #  if defined(WIN32)
 #    include <ds/bits.h>
 #    include <iostream>
@@ -64,7 +65,7 @@ void print_stack_trace()
 void _cdecl error(int signal)
 {
   snmalloc::UNUSED(signal);
-  puts("*****ABORT******");
+  snmalloc::Pal::message("*****ABORT******");
 
   print_stack_trace();
 
@@ -75,7 +76,7 @@ LONG WINAPI VectoredHandler(struct _EXCEPTION_POINTERS* ExceptionInfo)
 {
   snmalloc::UNUSED(ExceptionInfo);
 
-  puts("*****UNHANDLED EXCEPTION******");
+  snmalloc::Pal::message("*****UNHANDLED EXCEPTION******");
 
   print_stack_trace();
 
@@ -96,7 +97,6 @@ void setup()
   SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 }
 #  else
-#    include <pal/pal.h>
 #    include <signal.h>
 void error_handle(int signal)
 {

@@ -19,7 +19,7 @@ namespace snmalloc
   { \
     current_test = __PRETTY_FUNCTION__; \
     MessageBuilder<1024> mb{"Starting test: " msg "\n", ##__VA_ARGS__}; \
-    fputs(mb.get_message(), stderr); \
+    Pal::message(mb.get_message()); \
   } while (0)
 
   /**
@@ -33,7 +33,7 @@ namespace snmalloc
   do \
   { \
     MessageBuilder<1024> mb{msg "\n", ##__VA_ARGS__}; \
-    fputs(mb.get_message(), stderr); \
+    Pal::message(mb.get_message()); \
   } while (0)
 
 }
