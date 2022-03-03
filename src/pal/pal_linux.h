@@ -68,20 +68,40 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
 
+      // Fill memory so that when we switch the pages back on we don't make
+      // assumptions on the content.
+      if constexpr (DEBUG)
+        memset(p, 0x5a, size);
+
+      madvise(p, size, MADV_DONTDUMP);
+      madvise(p, size, MADV_FREE);
+
       if constexpr (PalEnforceAccess)
       {
-        // Fill memory so that when we switch the pages back on we don't make
-        // assumptions on the content.
-        if constexpr (DEBUG)
-          memset(p, 0x5a, size);
-
-        madvise(p, size, MADV_FREE);
         mprotect(p, size, PROT_NONE);
       }
-      else
-      {
-        madvise(p, size, MADV_FREE);
-      }
+    }
+
+    /**
+     * Notify platform that we will be using these pages for reading.
+     *
+     * This is used only for pages full of zeroes and so we exclude them from
+     * core dumps.
+     */
+    static void notify_using_readonly(void* p, size_t size) noexcept
+    {
+      PALPOSIX<PALLinux>::notify_using_readonly(p, size);
+      madvise(p, size, MADV_DONTDUMP);
+    }
+
+    /**
+     * Notify platform that we will be using these pages.
+     */
+    template<ZeroMem zero_mem>
+    static void notify_using(void* p, size_t size) noexcept
+    {
+      PALPOSIX<PALLinux>::notify_using<zero_mem>(p, size);
+      madvise(p, size, MADV_DODUMP);
     }
 
     static uint64_t get_entropy64()
