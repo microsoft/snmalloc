@@ -43,6 +43,63 @@ namespace snmalloc
       (Aal::aal_name == RISCV ? 38 : Aal::address_bits);
     // TODO, if we ever backport to MIPS, this should yield 39 there.
 
+    /**
+     * Extra mmap flags.  Exclude mappings from core files if they are
+     * read-only or pure reservations.
+     */
+    static int extra_mmap_flags(bool state_using)
+    {
+      return state_using ? 0 : MAP_NOCORE;
+    }
+
+    /**
+     * Notify platform that we will not be using these pages.
+     *
+     * We use the `MADV_FREE` and `NADV_NOCORE` flags to `madvise`.  The first
+     * allows the system to discard the page and replace it with a CoW mapping
+     * of the zero page.  The second prevents this mapping from appearing in
+     * core files.
+     */
+    static void notify_not_using(void* p, size_t size) noexcept
+    {
+      SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
+
+      if constexpr (DEBUG)
+        memset(p, 0x5a, size);
+
+      madvise(p, size, MADV_FREE | MADV_NOCORE);
+
+      if constexpr (PalEnforceAccess)
+      {
+        mprotect(p, size, PROT_NONE);
+      }
+    }
+
+    /**
+     * Notify platform that we will be using these pages for reading.
+     *
+     * This is used only for pages full of zeroes and so we exclude them from
+     * core dumps.
+     */
+    static void notify_using_readonly(void* p, size_t size) noexcept
+    {
+      PALBSD_Aligned<PALFreeBSD>::notify_using_readonly(p, size);
+      madvise(p, size, MADV_NOCORE);
+    }
+
+    /**
+     * Notify platform that we will be using these pages.
+     *
+     * We may have previously marked this memory as not being included in core
+     * files, so mark it for inclusion again.
+     */
+    template<ZeroMem zero_mem>
+    static void notify_using(void* p, size_t size) noexcept
+    {
+      PALBSD_Aligned<PALFreeBSD>::notify_using<zero_mem>(p, size);
+      madvise(p, size, MADV_CORE);
+    }
+
 #  if defined(__CHERI_PURE_CAPABILITY__)
     static_assert(
       aal_supports<StrictProvenance>,

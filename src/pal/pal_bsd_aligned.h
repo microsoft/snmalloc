@@ -44,7 +44,8 @@ namespace snmalloc
         nullptr,
         size,
         prot,
-        MAP_PRIVATE | MAP_ANONYMOUS | MAP_ALIGNED(log2align),
+        MAP_PRIVATE | MAP_ANONYMOUS | MAP_ALIGNED(log2align) |
+          OS::extra_mmap_flags(state_using),
         -1,
         0);
 

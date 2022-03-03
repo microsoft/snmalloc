@@ -300,6 +300,15 @@ namespace snmalloc
     }
 
     /**
+     * Extension point to allow subclasses to provide extra mmap flags.  The
+     * argument indicates whether the memory should be in use or not.
+     */
+    static int extra_mmap_flags(bool)
+    {
+      return 0;
+    }
+
+    /**
      * Reserve memory.
      *
      * POSIX platforms support lazy commit, and so this also puts the memory in
@@ -319,7 +328,8 @@ namespace snmalloc
         nullptr,
         size,
         prot,
-        MAP_PRIVATE | MAP_ANONYMOUS | DefaultMMAPFlags<OS>::flags,
+        MAP_PRIVATE | MAP_ANONYMOUS | DefaultMMAPFlags<OS>::flags |
+          OS::extra_mmap_flags(false),
         AnonFD<OS>::fd,
         0);
 
