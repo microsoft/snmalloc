@@ -1,10 +1,11 @@
 #include <test/measuretime.h>
 #include <test/opt.h>
 
-#define SNMALLOC_NAME_MANGLE(a) our_##a
-#include "override/memcpy.cc"
+#include "mem/memcpy.h"
 
 #include <vector>
+
+using namespace snmalloc;
 
 struct Shape
 {
