@@ -239,7 +239,7 @@ namespace snmalloc
    *    particular architecture.
    */
   template<bool Checked, bool ReadsChecked = CheckReads, typename Arch = DefaultArch>
-  SNMALLOC_FAST_PATH
+  SNMALLOC_FAST_PATH_INLINE
   void* memcpy(void* dst, const void* src, size_t len)
   {
     auto orig_dst = dst;
