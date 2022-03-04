@@ -161,9 +161,20 @@ namespace snmalloc
      * Hook for architecture-specific optimisations.  Does nothing in the
      * default case.
      */
-    static SNMALLOC_FAST_PATH_INLINE bool copy(void*, const void*, size_t)
+    static SNMALLOC_FAST_PATH_INLINE void
+    copy(void* dst, const void* src, size_t len)
     {
-      return false;
+      // If this is a small size, use a jump table for small sizes.
+      if (len <= LargestRegisterSize)
+      {
+        small_copies<LargestRegisterSize>(dst, src, len);
+      }
+      // Otherwise do a simple bulk copy loop.
+      else
+      {
+        block_copy<LargestRegisterSize>(dst, src, len);
+        copy_end<LargestRegisterSize>(dst, src, len);
+      }
     }
   };
 
@@ -189,13 +200,20 @@ namespace snmalloc
     /**
      * Platform-specific copy hook.  For large copies, use `rep movsb`.
      */
-    static SNMALLOC_FAST_PATH_INLINE bool
+    static SNMALLOC_FAST_PATH_INLINE void
     copy(void* dst, const void* src, size_t len)
     {
+      // If this is a small size, use a jump table for small sizes, like on the
+      // generic architecture case above.
+      if (len <= LargestRegisterSize)
+      {
+        small_copies<LargestRegisterSize>(dst, src, len);
+      }
+
       // The Intel optimisation manual recommends doing this for sizes >256
       // bytes on modern systems and for all sizes on very modern systems.
       // Testing shows that this is somewhat overly optimistic.
-      if (SNMALLOC_UNLIKELY(len >= 512))
+      else if (SNMALLOC_UNLIKELY(len >= 512))
       {
         // Align to cache-line boundaries if possible.
         unaligned_start<64, LargestRegisterSize>(dst, src, len);
@@ -213,9 +231,14 @@ namespace snmalloc
 #  else
 #    error No inline assembly or rep movsb intrinsic for this compiler.
 #  endif
-        return true;
       }
-      return false;
+
+      // Otherwise do a simple bulk copy loop.
+      else
+      {
+        block_copy<LargestRegisterSize>(dst, src, len);
+        copy_end<LargestRegisterSize>(dst, src, len);
+      }
     }
   };
 #endif
@@ -262,18 +285,7 @@ namespace snmalloc
         src, len, "memcpy with source out of bounds of heap allocation");
     }
 
-    // If this is a small size, use a jump table for small sizes.
-    if (len <= Arch::LargestRegisterSize)
-    {
-      small_copies<Arch::LargestRegisterSize>(dst, src, len);
-    }
-    // If there's an architecture-specific hook, try using it. Otherwise do a
-    // simple bulk copy loop.
-    else if (!Arch::copy(dst, src, len))
-    {
-      block_copy<Arch::LargestRegisterSize>(dst, src, len);
-      copy_end<Arch::LargestRegisterSize>(dst, src, len);
-    }
+    Arch::copy(dst, src, len);
     return orig_dst;
   }
 } // namespace
