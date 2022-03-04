@@ -1,8 +1,7 @@
-#include <test/measuretime.h>
-#include <test/opt.h>
-
 #include "mem/memcpy.h"
 
+#include <test/measuretime.h>
+#include <test/opt.h>
 #include <vector>
 
 using namespace snmalloc;

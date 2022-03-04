@@ -238,9 +238,11 @@ namespace snmalloc
    *    otherwise.  This can be used to special-case some or all sizes for a
    *    particular architecture.
    */
-  template<bool Checked, bool ReadsChecked = CheckReads, typename Arch = DefaultArch>
-  SNMALLOC_FAST_PATH_INLINE
-  void* memcpy(void* dst, const void* src, size_t len)
+  template<
+    bool Checked,
+    bool ReadsChecked = CheckReads,
+    typename Arch = DefaultArch>
+  SNMALLOC_FAST_PATH_INLINE void* memcpy(void* dst, const void* src, size_t len)
   {
     auto orig_dst = dst;
     // 0 is a very common size for memcpy and we don't need to do external
@@ -275,4 +277,3 @@ namespace snmalloc
     return orig_dst;
   }
 } // namespace
-

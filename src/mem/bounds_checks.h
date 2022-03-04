@@ -77,7 +77,9 @@ namespace snmalloc
    * The template parameter indicates whether this is a read.  If so, this
    * function is a no-op when `CheckReads` is false.
    */
-  template<CheckDirection Direction = CheckDirection::Write, bool CheckBoth = CheckReads>
+  template<
+    CheckDirection Direction = CheckDirection::Write,
+    bool CheckBoth = CheckReads>
   SNMALLOC_FAST_PATH_INLINE void
   check_bounds(const void* ptr, size_t len, const char* msg = "")
   {
