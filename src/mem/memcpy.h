@@ -220,9 +220,35 @@ namespace snmalloc
   };
 #endif
 
+#if defined(__powerpc64__)
+  struct PPC64Arch
+  {
+    /* Modern POWER machines have vector registers */
+    static constexpr size_t LargestRegisterSize = 16;
+
+    /*
+     * For large copies (128 bytes or above), use a copy loop that moves up to
+     * 128 bytes at once with pre-loop alignment up to 64 bytes.
+     */
+    static SNMALLOC_FAST_PATH_INLINE bool
+    copy(void* dst, const void* src, size_t len)
+    {
+      if (SNMALLOC_UNLIKELY(len >= 128)) {
+        unaligned_start<64, LargestRegisterSize>(dst, src, len);
+        block_copy<128>(dst, src, len);
+        copy_end<LargestRegisterSize>(dst, src, len);
+        return true;
+      }
+      return false;
+    }
+  };
+#endif
+
   using DefaultArch =
 #ifdef __x86_64__
     X86_64Arch
+#elif defined(__powerpc64__)
+    PPC64Arch
 #else
     GenericArch
 #endif
