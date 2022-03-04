@@ -35,6 +35,8 @@ int main()
 #  include <stdlib.h>
 #  include <string.h>
 
+using namespace snmalloc;
+
 /**
  * Jump buffer used to jump out of `abort()` for recoverable errors.
  */
@@ -84,7 +86,8 @@ void check_size(size_t size)
     {
       dst[i] = 0;
     }
-    my_memcpy(dst, src, sz);
+    void* ret = my_memcpy(dst, src, sz);
+    EXPECT(ret == dst, "Return value should be {}, was {}", dst, ret);
     for (size_t i = 0; i < sz; ++i)
     {
       if (dst[i] != static_cast<unsigned char>(i))
