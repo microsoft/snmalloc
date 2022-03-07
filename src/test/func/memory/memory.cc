@@ -134,8 +134,8 @@ void test_random_allocation()
       auto& cell = objects[index % count];
       if (cell != nullptr)
       {
-        alloc.dealloc(cell);
         allocated.erase(cell);
+        alloc.dealloc(cell);
         cell = nullptr;
         alloc_count--;
       }
