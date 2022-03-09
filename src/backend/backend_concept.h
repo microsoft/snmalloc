@@ -4,7 +4,7 @@
 #  include <cstddef>
 #  include "../ds/concept.h"
 #  include "../pal/pal_concept.h"
-
+#  include "../ds/address.h"
 namespace snmalloc
 {
   class MetaEntry;
@@ -20,7 +20,7 @@ namespace snmalloc
     requires(
       address_t addr,
       size_t sz,
-      MetaEntry t)
+      const MetaEntry& t)
   {
     { Meta::set_metaentry(addr, sz, t) } -> ConceptSame<void>;
 

@@ -278,7 +278,7 @@ namespace snmalloc
        * Set the metadata associated with a chunk.
        */
       SNMALLOC_FAST_PATH
-      static void set_metaentry(address_t p, size_t size, MetaEntry t)
+      static void set_metaentry(address_t p, size_t size, const MetaEntry& t)
       {
         for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
         {

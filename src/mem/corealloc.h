@@ -687,7 +687,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void
     dealloc_local_object(CapPtr<void, capptr::bounds::Alloc> p)
     {
-      auto entry =
+      const MetaEntry& entry =
         SharedStateHandle::Pagemap::get_metaentry(snmalloc::address_cast(p));
       if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p, entropy)))
         return;
