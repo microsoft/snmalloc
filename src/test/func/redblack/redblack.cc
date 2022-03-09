@@ -73,6 +73,21 @@ public:
     if (new_is_red != is_red(k))
       array[k].left.value ^= 1;
   }
+
+  static bool compare(key k1, key k2)
+  {
+    return k1 > k2;
+  }
+
+  static bool equal(key k1, key k2)
+  {
+    return k1 == k2;
+  }
+
+  static size_t printable(key k)
+  {
+    return k;
+  }
 };
 
 template<bool TRACE>
