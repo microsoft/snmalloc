@@ -168,4 +168,10 @@ namespace snmalloc
     Pal::error(msg.get_message());
   }
 
+  template<size_t BufferSize, typename... Args>
+  inline void message(Args... args)
+  {
+    MessageBuilder<BufferSize> msg{std::forward<Args>(args)...};
+    Pal::message(msg.get_message());
+  }
 } // namespace snmalloc

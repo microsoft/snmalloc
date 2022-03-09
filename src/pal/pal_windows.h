@@ -150,7 +150,8 @@ namespace snmalloc
       void* r = VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE);
 
       if (r == nullptr)
-        error("out of memory");
+        report_fatal_error(
+          "out of memory: {} ({}) could not be committed", p, size);
     }
 
     /// OS specific function for zeroing memory
