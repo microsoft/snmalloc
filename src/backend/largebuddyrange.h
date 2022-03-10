@@ -22,7 +22,7 @@ namespace snmalloc
     using Holder = uintptr_t;
     using Contents = uintptr_t;
 
-    static constexpr uintptr_t RED_BIT = 2;
+    static constexpr address_t RED_BIT = 2;
 
     static constexpr Contents null = 0;
 
@@ -30,7 +30,7 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT((r & (MIN_CHUNK_SIZE - 1)) == 0);
       // Preserve lower bits.
-      *ptr = r | (*ptr & (MIN_CHUNK_SIZE - 1)) | BACKEND_MARKER;
+      *ptr = r | address_cast(*ptr & (MIN_CHUNK_SIZE - 1)) | BACKEND_MARKER;
     }
 
     static Contents get(const Holder* ptr)
@@ -40,7 +40,8 @@ namespace snmalloc
 
     static Holder& ref(bool direction, Contents k)
     {
-      MetaEntry& entry = Pagemap::template get_metaentry_mut<false>(k);
+      MetaEntry& entry =
+        Pagemap::template get_metaentry_mut<false>(address_cast(k));
       if (direction)
         return *reinterpret_cast<Holder*>(&entry.meta);
 
@@ -96,7 +97,8 @@ namespace snmalloc
       // The buddy could be in a part of the pagemap that has
       // not been registered and thus could segfault on access.
       auto larger = bits::max(k, buddy(k, size));
-      MetaEntry& entry = Pagemap::template get_metaentry_mut<false>(larger);
+      MetaEntry& entry =
+        Pagemap::template get_metaentry_mut<false>(address_cast(larger));
       return !entry.is_boundary();
     }
   };

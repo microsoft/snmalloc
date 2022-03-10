@@ -246,7 +246,7 @@ namespace snmalloc
      * representable.  It is also true on Windows as you cannot Commit across
      * multiple continuous VirtualAllocs.
      */
-    static constexpr uintptr_t BOUNDARY_BIT = 1;
+    static constexpr address_t BOUNDARY_BIT = 1;
 
     /**
      * A bit-packed pointer to the owning allocator (if any), and the sizeclass
@@ -331,7 +331,7 @@ namespace snmalloc
     MetaEntry& operator=(const MetaEntry& other)
     {
       // Don't overwrite the boundary bit with the other's
-      meta = (other.meta & ~BOUNDARY_BIT) | (meta & BOUNDARY_BIT);
+      meta = (other.meta & ~BOUNDARY_BIT) | address_cast(meta & BOUNDARY_BIT);
       remote_and_sizeclass = other.remote_and_sizeclass;
       return *this;
     }

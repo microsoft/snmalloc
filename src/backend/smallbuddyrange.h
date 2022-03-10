@@ -33,7 +33,7 @@ namespace snmalloc
       SNMALLOC_ASSERT((address_cast(r) & MASK) == 0);
       if (r == nullptr)
         *ptr = capptr::Chunk<FreeChunk>(
-          reinterpret_cast<FreeChunk*>(address_cast(*ptr) & MASK));
+          reinterpret_cast<FreeChunk*>((*ptr).unsafe_uintptr() & MASK));
       else
         // Preserve lower bit.
         *ptr = pointer_offset(r, (address_cast(*ptr) & MASK))
