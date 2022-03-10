@@ -295,7 +295,7 @@ namespace snmalloc
      * only safe use for this is to pass it to the two-argument constructor of
      * this class.
      */
-    [[nodiscard]] SNMALLOC_FAST_PATH uintptr_t get_remote_and_sizeclass()
+    [[nodiscard]] SNMALLOC_FAST_PATH uintptr_t get_remote_and_sizeclass() const
     {
       return remote_and_sizeclass;
     }
@@ -329,5 +329,4 @@ namespace snmalloc
     uint16_t unused = 0;
     uint16_t length = 0;
   };
-
 } // namespace snmalloc

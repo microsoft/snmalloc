@@ -135,10 +135,11 @@ void test_realloc(void* p, size_t size, int err, bool null)
   START_TEST("realloc({}({}), {})", p, old_size, size);
   errno = SUCCESS;
   auto new_p = our_realloc(p, size);
-  // Realloc failure case, deallocate original block
+  check_result(size, 1, new_p, err, null);
+  // Realloc failure case, deallocate original block as not
+  // handled by check_result.
   if (new_p == nullptr && size != 0)
     our_free(p);
-  check_result(size, 1, new_p, err, null);
 }
 
 void test_posix_memalign(size_t size, size_t align, int err, bool null)

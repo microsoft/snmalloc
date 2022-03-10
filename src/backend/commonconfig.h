@@ -1,6 +1,8 @@
 #pragma once
 
+#include "../backend/backend_concept.h"
 #include "../ds/defines.h"
+#include "../mem/remoteallocator.h"
 
 namespace snmalloc
 {
