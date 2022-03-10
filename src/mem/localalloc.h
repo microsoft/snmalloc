@@ -180,13 +180,11 @@ namespace snmalloc
       return check_init([&](CoreAlloc* core_alloc) {
         // Grab slab of correct size
         // Set remote as large allocator remote.
-        auto [chunk, meta] = ChunkAllocator::alloc_chunk<SharedStateHandle>(
+        auto [chunk, meta] = SharedStateHandle::alloc_chunk(
           core_alloc->get_backend_local_state(),
-          core_alloc->chunk_local_state,
-          size_to_sizeclass_full(size),
-          large_size_to_chunk_sizeclass(size),
           large_size_to_chunk_size(size),
-          core_alloc->public_state());
+          core_alloc->public_state(),
+          size_to_sizeclass_full(size));
         // set up meta data so sizeclass is correct, and hence alloc size, and
         // external pointer.
 #ifdef SNMALLOC_TRACING
@@ -201,7 +199,7 @@ namespace snmalloc
         if (zero_mem == YesZero && chunk.unsafe_ptr() != nullptr)
         {
           SharedStateHandle::Pal::template zero<false>(
-            chunk.unsafe_ptr(), size);
+            chunk.unsafe_ptr(), bits::next_pow2(size));
         }
 
         return capptr_chunk_is_alloc(capptr_to_user_address_control(chunk));

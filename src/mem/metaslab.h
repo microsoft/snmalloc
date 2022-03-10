@@ -227,7 +227,26 @@ namespace snmalloc
    */
   class MetaEntry
   {
-    Metaslab* meta{nullptr}; // may also be ChunkRecord*
+    template<typename Pagemap>
+    friend class BuddyChunkRep;
+
+    /**
+     * The pointer to the metaslab, the bottom bit is used to indicate if this
+     * is the first chunk in a PAL allocation, that cannot be combined with
+     * the preceeding chunk.
+     */
+    uintptr_t meta{0};
+
+    /**
+     * Bit used to indicate this should not be considered part of the previous
+     * PAL allocation.
+     *
+     * Some platforms cannot treat different PalAllocs as a single allocation.
+     * This is true on CHERI as the combined permission might not be
+     * representable.  It is also true on Windows as you cannot Commit across
+     * multiple continuous VirtualAllocs.
+     */
+    static constexpr uintptr_t BOUNDARY_BIT = 1;
 
     /**
      * A bit-packed pointer to the owning allocator (if any), and the sizeclass
@@ -253,7 +272,8 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH
     MetaEntry(Metaslab* meta, uintptr_t remote_and_sizeclass)
-    : meta(meta), remote_and_sizeclass(remote_and_sizeclass)
+    : meta(reinterpret_cast<uintptr_t>(meta)),
+      remote_and_sizeclass(remote_and_sizeclass)
     {}
 
     SNMALLOC_FAST_PATH
@@ -261,21 +281,11 @@ namespace snmalloc
       Metaslab* meta,
       RemoteAllocator* remote,
       sizeclass_t sizeclass = sizeclass_t())
-    : meta(meta)
+    : meta(reinterpret_cast<uintptr_t>(meta))
     {
       /* remote might be nullptr; cast to uintptr_t before offsetting */
       remote_and_sizeclass =
         pointer_offset(reinterpret_cast<uintptr_t>(remote), sizeclass.raw());
-    }
-
-    /**
-     * Return the Metaslab field as a void*, guarded by an assert that there is
-     * no remote that owns this chunk.
-     */
-    [[nodiscard]] SNMALLOC_FAST_PATH void* get_metaslab_no_remote() const
-    {
-      SNMALLOC_ASSERT(get_remote() == nullptr);
-      return static_cast<void*>(meta);
     }
 
     /**
@@ -286,7 +296,7 @@ namespace snmalloc
     [[nodiscard]] SNMALLOC_FAST_PATH Metaslab* get_metaslab() const
     {
       SNMALLOC_ASSERT(get_remote() != nullptr);
-      return meta;
+      return reinterpret_cast<Metaslab*>(meta & ~BOUNDARY_BIT);
     }
 
     /**
@@ -313,7 +323,32 @@ namespace snmalloc
       // https://github.com/CTSRD-CHERI/llvm-project/issues/588
       return sizeclass_t::from_raw(
         static_cast<size_t>(remote_and_sizeclass) &
-        (alignof(RemoteAllocator) - 1));
+        (REMOTE_WITH_BACKEND_MARKER_ALIGN - 1));
+    }
+
+    MetaEntry(const MetaEntry&) = delete;
+
+    MetaEntry& operator=(const MetaEntry& other)
+    {
+      // Don't overwrite the boundary bit with the other's
+      meta = (other.meta & ~BOUNDARY_BIT) | (meta & BOUNDARY_BIT);
+      remote_and_sizeclass = other.remote_and_sizeclass;
+      return *this;
+    }
+
+    void set_boundary()
+    {
+      meta |= BOUNDARY_BIT;
+    }
+
+    [[nodiscard]] bool is_boundary() const
+    {
+      return meta & BOUNDARY_BIT;
+    }
+
+    bool clear_boundary_bit()
+    {
+      return meta &= ~BOUNDARY_BIT;
     }
   };
 
