@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../backend/backend.h"
-#include "../mem/chunkallocator.h"
+#include "../backend/chunkallocator.h"
 #include "../mem/corealloc.h"
 #include "../mem/pool.h"
 #include "commonconfig.h"
@@ -19,17 +19,10 @@ namespace snmalloc
 
   private:
     using Backend = BackendAllocator<PAL, true>;
-    inline static ChunkAllocatorState chunk_allocator_state;
 
     inline static GlobalPoolState alloc_pool;
 
   public:
-    static ChunkAllocatorState&
-    get_chunk_allocator_state(typename Backend::LocalState* = nullptr)
-    {
-      return chunk_allocator_state;
-    }
-
     static GlobalPoolState& pool()
     {
       return alloc_pool;

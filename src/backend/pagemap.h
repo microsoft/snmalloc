@@ -115,7 +115,7 @@ namespace snmalloc
       static_assert(
         has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
 #ifdef SNMALLOC_TRACING
-      std::cout << "Pagemap.init " << b << " (" << s << ")" << std::endl;
+      message<1024>("Pagemap.init {} ({})", b, s);
 #endif
       SNMALLOC_ASSERT(s != 0);
       // TODO take account of pagemap size in the calculation of how big it
@@ -311,10 +311,10 @@ namespace snmalloc
       return base + (entry_index << GRANULARITY_BITS);
     }
 
-    void set(address_t p, T t)
+    void set(address_t p, const T& t)
     {
 #ifdef SNMALLOC_TRACING
-      std::cout << "Pagemap.Set " << (void*)(uintptr_t)p << std::endl;
+      message<1024>("Pagemap.Set {}", p);
 #endif
       if constexpr (has_bounds)
       {

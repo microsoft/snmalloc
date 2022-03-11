@@ -48,8 +48,6 @@ extern "C" SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(rust_realloc)(
 extern "C" SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(rust_statistics)(
   size_t* current_memory_usage, size_t* peak_memory_usage)
 {
-  auto unused_chunks = Globals::get_chunk_allocator_state().unused_memory();
-  auto peak = Globals::get_chunk_allocator_state().peak_memory_usage();
-  *current_memory_usage = peak - unused_chunks;
-  *peak_memory_usage = peak;
+  *current_memory_usage = Globals::get_current_usage();
+  *peak_memory_usage = Globals::get_peak_usage();
 }

@@ -72,11 +72,15 @@ namespace snmalloc
    * as per above, and uses the wrapper types in its own definition, e.g., of
    * capptr_bound.
    */
-
   template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
   inline SNMALLOC_FAST_PATH address_t address_cast(CapPtr<T, bounds> a)
   {
     return address_cast(a.unsafe_ptr());
+  }
+
+  inline SNMALLOC_FAST_PATH address_t address_cast(uintptr_t a)
+  {
+    return static_cast<address_t>(a);
   }
 
   /**

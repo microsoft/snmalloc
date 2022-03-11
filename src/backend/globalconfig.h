@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../backend/backend.h"
-#include "../mem/chunkallocator.h"
+#include "../backend/chunkallocator.h"
 #include "../mem/corealloc.h"
 #include "../mem/pool.h"
 #include "commonconfig.h"
@@ -36,8 +36,6 @@ namespace snmalloc
 
   private:
     using Backend = BackendAllocator<Pal, false>;
-    SNMALLOC_REQUIRE_CONSTINIT
-    inline static ChunkAllocatorState chunk_allocator_state;
 
     SNMALLOC_REQUIRE_CONSTINIT
     inline static GlobalPoolState alloc_pool;
@@ -49,12 +47,6 @@ namespace snmalloc
     inline static FlagWord initialisation_lock{};
 
   public:
-    static ChunkAllocatorState&
-    get_chunk_allocator_state(Backend::LocalState* = nullptr)
-    {
-      return chunk_allocator_state;
-    }
-
     static GlobalPoolState& pool()
     {
       return alloc_pool;

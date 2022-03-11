@@ -1,5 +1,11 @@
 #pragma once
 
+/***
+ * WARNING:  This file is not currently in use.  The functionality has not
+ * be transistioned to the new backend.  It does not seem to be required
+ * but further testing is required before we delete it.
+ */
+
 #include "../backend/backend_concept.h"
 #include "../ds/mpmcstack.h"
 #include "../ds/spmcstack.h"
@@ -316,7 +322,10 @@ namespace snmalloc
         SharedStateHandle::template alloc_meta_data<U>(local_state, size);
 
       if (p == nullptr)
+      {
+        errno = ENOMEM;
         return nullptr;
+      }
 
       return new (p.unsafe_ptr()) U(std::forward<Args>(args)...);
     }

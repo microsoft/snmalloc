@@ -1,44 +1,15 @@
 #pragma once
+#include "../pal/pal.h"
 #include "concept.h"
 #include "defines.h"
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 namespace snmalloc
 {
-  template<bool TRACE>
-  class debug_out
-  {
-  public:
-    template<bool new_line = true, typename A, typename... Args>
-    static void msg(A a, Args... args)
-    {
-      if constexpr (TRACE)
-      {
-#ifdef SNMALLOC_TRACING
-        std::cout << a;
-#else
-        UNUSED(a);
-#endif
-
-        msg<new_line>(args...);
-      }
-    }
-
-    template<bool new_line = true>
-    static void msg()
-    {
-      if constexpr (TRACE && new_line)
-      {
-#ifdef SNMALLOC_TRACING
-        std::cout << std::endl;
-#endif
-      }
-    }
-  };
-
 #ifdef __cpp_concepts
   template<typename Rep>
   concept RBRepTypes = requires()
@@ -118,20 +89,20 @@ namespace snmalloc
         return Rep::get(ptr);
       }
 
-      K operator=(K t)
+      ChildRef& operator=(const K& t)
       {
         // Use representations assigment, so we update the correct bits
         // color and other things way also be stored in the Holder.
         Rep::set(ptr, t);
-        return t;
+        return *this;
       }
 
-      bool operator==(ChildRef& t)
+      bool operator==(const ChildRef t) const
       {
         return ptr == t.ptr;
       }
 
-      bool operator!=(ChildRef& t)
+      bool operator!=(const ChildRef t) const
       {
         return ptr != t.ptr;
       }
@@ -139,6 +110,11 @@ namespace snmalloc
       H* addr()
       {
         return ptr;
+      }
+
+      bool is_null()
+      {
+        return Rep::get(ptr) == Rep::null;
       }
     };
 
@@ -171,60 +147,47 @@ namespace snmalloc
         UNUSED(curr, lower, upper);
         return 0;
       }
-      if (curr == Rep::null)
-        return 1;
-
-      if (
-        ((lower != Rep::null) && curr < lower) ||
-        ((upper != Rep::null) && curr > upper))
-      {
-        if constexpr (TRACE)
-        {
-          debug_out<true>::msg(
-            "Invariant failed: ",
-            curr,
-            " is out of bounds ",
-            lower,
-            ", ",
-            upper);
-          print();
-        }
-        snmalloc::error("Invariant failed");
-      }
-
-      if (
-        Rep::is_red(curr) &&
-        (Rep::is_red(get_dir(true, curr)) || Rep::is_red(get_dir(false, curr))))
-      {
-        if constexpr (TRACE)
-        {
-          debug_out<true>::msg(
-            "Red invariant failed: ", curr, " is red and has red children");
-          print();
-        }
-        snmalloc::error("Invariant failed");
-      }
-
-      int left_inv = invariant(get_dir(true, curr), lower, curr);
-      int right_inv = invariant(get_dir(false, curr), curr, upper);
-
-      if (left_inv != right_inv)
-      {
-        if constexpr (TRACE)
-        {
-          debug_out<true>::msg(
-            "Balance failed: ",
-            curr,
-            " has different black depths on left and right");
-          print();
-        }
-        snmalloc::error("Invariant failed");
-      }
-
-      if (Rep::is_red(curr))
-        return left_inv;
       else
+      {
+        if (curr == Rep::null)
+          return 1;
+
+        if (
+          ((lower != Rep::null) && Rep::compare(lower, curr)) ||
+          ((upper != Rep::null) && Rep::compare(curr, upper)))
+        {
+          report_fatal_error(
+            "Invariant failed: {} is out of bounds {}..{}",
+            Rep::printable(curr),
+            Rep::printable(lower),
+            Rep::printable(upper));
+        }
+
+        if (
+          Rep::is_red(curr) &&
+          (Rep::is_red(get_dir(true, curr)) ||
+           Rep::is_red(get_dir(false, curr))))
+        {
+          report_fatal_error(
+            "Invariant failed: {} is red and has red child",
+            Rep::printable(curr));
+        }
+
+        int left_inv = invariant(get_dir(true, curr), lower, curr);
+        int right_inv = invariant(get_dir(false, curr), curr, upper);
+
+        if (left_inv != right_inv)
+        {
+          report_fatal_error(
+            "Invariant failed: {} has different black depths",
+            Rep::printable(curr));
+        }
+
+        if (Rep::is_red(curr))
+          return left_inv;
+
         return left_inv + 1;
+      }
     }
 
     struct RBStep
@@ -293,7 +256,7 @@ namespace snmalloc
       bool move(bool direction)
       {
         auto next = get_dir(direction, curr());
-        if (next == Rep::null)
+        if (next.is_null())
           return false;
         path[length] = {next, direction};
         length++;
@@ -308,7 +271,7 @@ namespace snmalloc
         auto next = get_dir(direction, curr());
         path[length] = {next, direction};
         length++;
-        return next != Rep::null;
+        return !(next.is_null());
       }
 
       // Remove top element from the path.
@@ -354,16 +317,12 @@ namespace snmalloc
         {
           for (size_t i = 0; i < length; i++)
           {
-            debug_out<true>::msg<false>(
-              "->",
+            message<1024>(
+              "  -> {} @ {} ({})",
               K(path[i].node),
-              "@",
               path[i].node.addr(),
-              " (",
-              path[i].dir,
-              ") ");
+              path[i].dir);
           }
-          debug_out<true>::msg<true>();
         }
       }
     };
@@ -378,8 +337,8 @@ namespace snmalloc
     {
       if constexpr (TRACE)
       {
-        debug_out<true>::msg("-------");
-        debug_out<true>::msg(msg);
+        message<100>("-------");
+        message<1024>(msg);
         path.print();
         print(base);
       }
@@ -390,7 +349,7 @@ namespace snmalloc
     }
 
   public:
-    RBTree() {}
+    constexpr RBTree() = default;
 
     void print()
     {
@@ -401,9 +360,9 @@ namespace snmalloc
     {
       if constexpr (TRACE)
       {
-        if (curr == Rep::null)
+        if (curr.is_null())
         {
-          debug_out<true>::msg(indent, "\\_", "null");
+          message<1024>("{}\\_null", indent);
           return;
         }
 
@@ -415,17 +374,14 @@ namespace snmalloc
         auto reset = "\e[0m";
 #endif
 
-        debug_out<true>::msg(
+        message<1024>(
+          "{}\\_{}{}{}@{} ({})",
           indent,
-          "\\_",
           colour,
           curr,
           reset,
-          "@",
           curr.addr(),
-          " (",
-          depth,
-          ")");
+          depth);
         if ((get_dir(true, curr) != 0) || (get_dir(false, curr) != 0))
         {
           auto s_indent = std::string(indent);
@@ -439,14 +395,14 @@ namespace snmalloc
     {
       bool dir;
 
-      if (path.curr() == Rep::null)
+      if (path.curr().is_null())
         return false;
 
       do
       {
-        if (path.curr() == value)
+        if (Rep::equal(path.curr(), value))
           return true;
-        dir = path.curr() > value;
+        dir = Rep::compare(path.curr(), value);
       } while (path.move_inc_null(dir));
 
       return false;
@@ -455,7 +411,7 @@ namespace snmalloc
     bool remove_path(RBPath& path)
     {
       ChildRef splice = path.curr();
-      SNMALLOC_ASSERT(splice != Rep::null);
+      SNMALLOC_ASSERT(!(splice.is_null()));
 
       debug_log("Removing", path);
 
@@ -493,6 +449,8 @@ namespace snmalloc
       }
 
       debug_log("Splice done", path);
+
+      // TODO: Clear node contents?
 
       // Red leaf removal requires no rebalancing.
       if (leaf_red)
@@ -618,7 +576,7 @@ namespace snmalloc
     // Insert an element at the given path.
     void insert_path(RBPath path, K value)
     {
-      SNMALLOC_ASSERT(path.curr() == Rep::null);
+      SNMALLOC_ASSERT(path.curr().is_null());
       path.curr() = value;
       get_dir(true, path.curr()) = Rep::null;
       get_dir(false, path.curr()) = Rep::null;
@@ -706,7 +664,7 @@ namespace snmalloc
 
     K remove_min()
     {
-      if (get_root() == Rep::null)
+      if (get_root().is_null())
         return Rep::null;
 
       auto path = get_root_path();
@@ -722,7 +680,7 @@ namespace snmalloc
 
     bool remove_elem(K value)
     {
-      if (get_root() == Rep::null)
+      if (get_root().is_null())
         return false;
 
       auto path = get_root_path();
@@ -749,4 +707,4 @@ namespace snmalloc
       return RBPath(root);
     }
   };
-}
+} // namespace snmalloc

@@ -1,8 +1,8 @@
 #pragma once
 
+#include "../backend/chunkallocator.h"
 #include "../ds/defines.h"
 #include "allocconfig.h"
-#include "chunkallocator.h"
 #include "localcache.h"
 #include "metaslab.h"
 #include "pool.h"
@@ -57,11 +57,6 @@ namespace snmalloc
      * Per size class list of active slabs for this allocator.
      */
     MetaslabCache alloc_classes[NUM_SMALL_SIZECLASSES];
-
-    /**
-     * Local cache for the Chunk allocator.
-     */
-    ChunkAllocatorLocalState chunk_local_state;
 
     /**
      * Local entropy source and current version of keys for
@@ -392,11 +387,11 @@ namespace snmalloc
         // TODO delay the clear to the next user of the slab, or teardown so
         // don't touch the cache lines at this point in snmalloc_check_client.
         auto chunk_record = clear_slab(meta, sizeclass);
-        ChunkAllocator::dealloc<SharedStateHandle>(
+
+        SharedStateHandle::dealloc_chunk(
           get_backend_local_state(),
-          chunk_local_state,
           chunk_record,
-          sizeclass_to_slab_sizeclass(sizeclass));
+          sizeclass_to_slab_size(sizeclass));
 
         return true;
       });
@@ -419,23 +414,17 @@ namespace snmalloc
         // Handle large deallocation here.
         size_t entry_sizeclass = entry.get_sizeclass().as_large();
         size_t size = bits::one_at_bit(entry_sizeclass);
-        size_t slab_sizeclass =
-          metaentry_chunk_sizeclass_to_slab_sizeclass(entry_sizeclass);
 
 #ifdef SNMALLOC_TRACING
-        std::cout << "Large deallocation: " << size
-                  << " chunk sizeclass: " << slab_sizeclass << std::endl;
+        std::cout << "Large deallocation: " << size << std::endl;
 #else
         UNUSED(size);
 #endif
 
         auto slab_record = reinterpret_cast<ChunkRecord*>(meta);
 
-        ChunkAllocator::dealloc<SharedStateHandle>(
-          get_backend_local_state(),
-          chunk_local_state,
-          slab_record,
-          slab_sizeclass);
+        SharedStateHandle::dealloc_chunk(
+          get_backend_local_state(), slab_record, size);
 
         return;
       }
@@ -594,9 +583,6 @@ namespace snmalloc
         message_queue().invariant();
       }
 
-      ChunkAllocator::register_local_state<SharedStateHandle>(
-        get_backend_local_state(), chunk_local_state);
-
       if constexpr (DEBUG)
       {
         for (smallsizeclass_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
@@ -686,7 +672,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void
     dealloc_local_object(CapPtr<void, capptr::bounds::Alloc> p)
     {
-      auto entry =
+      const MetaEntry& entry =
         SharedStateHandle::Pagemap::get_metaentry(snmalloc::address_cast(p));
       if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p, entropy)))
         return;
@@ -791,21 +777,17 @@ namespace snmalloc
 
       // No existing free list get a new slab.
       size_t slab_size = sizeclass_to_slab_size(sizeclass);
-      size_t slab_sizeclass = sizeclass_to_slab_sizeclass(sizeclass);
 
 #ifdef SNMALLOC_TRACING
       std::cout << "rsize " << rsize << std::endl;
       std::cout << "slab size " << slab_size << std::endl;
 #endif
 
-      auto [slab, meta] =
-        snmalloc::ChunkAllocator::alloc_chunk<SharedStateHandle>(
-          get_backend_local_state(),
-          chunk_local_state,
-          sizeclass_t::from_small_class(sizeclass),
-          slab_sizeclass,
-          slab_size,
-          public_state());
+      auto [slab, meta] = SharedStateHandle::alloc_chunk(
+        get_backend_local_state(),
+        slab_size,
+        public_state(),
+        sizeclass_t::from_small_class(sizeclass));
 
       if (slab == nullptr)
       {
