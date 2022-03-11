@@ -289,6 +289,8 @@ namespace snmalloc
 
       MetaEntry t(meta, remote, sizeclass);
       Pagemap::set_metaentry(address_cast(p), size, t);
+
+      p = Aal::capptr_bound<void, capptr::bounds::Chunk>(p, size);
       return {p, meta};
     }
 
