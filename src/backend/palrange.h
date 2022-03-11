@@ -13,6 +13,8 @@ namespace snmalloc
     public:
       PalRange* operator->()
       {
+        // There is no state required for the PalRange
+        // using a global just to satisfy the typing.
         static PalRange range{};
         return &range;
       }
