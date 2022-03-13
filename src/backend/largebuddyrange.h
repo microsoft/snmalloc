@@ -3,7 +3,6 @@
 #include "../ds/address.h"
 #include "../ds/bits.h"
 #include "../mem/allocconfig.h"
-#include "../mem/metaslab.h"
 #include "../pal/pal.h"
 #include "buddy.h"
 #include "range_helpers.h"
