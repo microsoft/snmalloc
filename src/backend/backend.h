@@ -1,6 +1,5 @@
 #pragma once
 #include "../mem/allocconfig.h"
-#include "../mem/metaslab.h"
 #include "../pal/pal.h"
 #include "chunkallocator.h"
 #include "commitrange.h"
@@ -8,6 +7,7 @@
 #include "empty_range.h"
 #include "globalrange.h"
 #include "largebuddyrange.h"
+#include "metatypes.h"
 #include "pagemap.h"
 #include "pagemapregisterrange.h"
 #include "palrange.h"
@@ -259,7 +259,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
 
       auto meta_cap =
-        local_state.get_meta_range()->alloc_range(sizeof(Metaslab));
+        local_state.get_meta_range()->alloc_range(PAGEMAP_METADATA_STRUCT_SIZE);
 
       auto meta = meta_cap.template as_reinterpret<Metaslab>().unsafe_ptr();
 
@@ -277,7 +277,8 @@ namespace snmalloc
 #endif
       if (p == nullptr)
       {
-        local_state.get_meta_range()->dealloc_range(meta_cap, sizeof(Metaslab));
+        local_state.get_meta_range()->dealloc_range(
+          meta_cap, PAGEMAP_METADATA_STRUCT_SIZE);
         errno = ENOMEM;
 #ifdef SNMALLOC_TRACING
         std::cout << "Out of memory" << std::endl;
@@ -300,7 +301,7 @@ namespace snmalloc
       auto chunk = chunk_record->meta_common.chunk;
 
       local_state.get_meta_range()->dealloc_range(
-        capptr::Chunk<void>(chunk_record), sizeof(Metaslab));
+        capptr::Chunk<void>(chunk_record), PAGEMAP_METADATA_STRUCT_SIZE);
 
       // TODO, should we set the sizeclass to something specific here?
 
