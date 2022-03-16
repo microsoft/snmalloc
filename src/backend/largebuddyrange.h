@@ -18,17 +18,45 @@ namespace snmalloc
   class BuddyChunkRep
   {
   public:
+    /*
+     * The values we store in our rbtree are the addresses of (combined spans
+     * of) chunks of the address space; as such, bits in (MIN_CHUNK_SIZE - 1)
+     * are unused and so the RED_BIT is packed therein.  However, in practice,
+     * these are not "just any" uintptr_t-s, but specifically the uintptr_t-s
+     * inside the Pagemap's MetaEntry structures.  As such, there are some
+     * additional bit-swizzling concerns; see set() and get() below.
+     */
     using Holder = uintptr_t;
     using Contents = uintptr_t;
 
-    static constexpr address_t RED_BIT = 2;
+    static constexpr address_t RED_BIT = 1 << 1;
+
+    static_assert(RED_BIT < MIN_CHUNK_SIZE);
+    static_assert(RED_BIT != MetaEntry::META_BOUNDARY_BIT);
+    static_assert(RED_BIT != MetaEntry::REMOTE_BACKEND_MARKER);
 
     static constexpr Contents null = 0;
 
     static void set(Holder* ptr, Contents r)
     {
       SNMALLOC_ASSERT((r & (MIN_CHUNK_SIZE - 1)) == 0);
-      // Preserve lower bits.
+      /*
+       * Preserve lower bits, claim as backend, and update contents of holder.
+       *
+       * This is excessive at present but no harder than being more precise
+       * while also being future-proof.  All that is strictly required would be
+       * to preserve META_BOUNDARY_BIT and RED_BIT in ->meta and to assert
+       * REMOTE_BACKEND_MARKER in ->remote_and_sizeclass (if it isn't already
+       * asserted).  However, we don't know which Holder* we have been given,
+       * nor do we know whether this Holder* is completely new (and so we are
+       * the first reasonable opportunity to assert REMOTE_BACKEND_MARKER) or
+       * recycled from the frontend, and so we preserve and assert more than
+       * strictly necessary.
+       *
+       * The use of `address_cast` below is a CHERI-ism; otherwise both `r` and
+       * `*ptr & ...` are plausibly provenance-carrying values and the compiler
+       * balks at the ambiguity.
+       */
       *ptr = r | address_cast(*ptr & (MIN_CHUNK_SIZE - 1)) |
         MetaEntry::REMOTE_BACKEND_MARKER;
     }

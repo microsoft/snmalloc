@@ -84,7 +84,8 @@ namespace snmalloc
   class sizeclass_t;
 
   /**
-   * Entry stored in the pagemap.
+   * Entry stored in the pagemap.  See docs/AddressSpace.md for the full
+   * MetaEntry lifecycle.
    */
   class MetaEntry
   {
@@ -92,9 +93,11 @@ namespace snmalloc
     friend class BuddyChunkRep;
 
     /**
-     * The pointer to the metaslab, the bottom bit is used to indicate if this
-     * is the first chunk in a PAL allocation, that cannot be combined with
-     * the preceeding chunk.
+     * In common cases, the pointer to the metaslab.  See docs/AddressSpace.md
+     * for additional details.
+     *
+     * The bottom bit is used to indicate if this is the first chunk in a PAL
+     * allocation, that cannot be combined with the preceeding chunk.
      */
     uintptr_t meta{0};
 
@@ -107,18 +110,12 @@ namespace snmalloc
      * representable.  It is also true on Windows as you cannot Commit across
      * multiple continuous VirtualAllocs.
      */
-    static constexpr address_t BOUNDARY_BIT = 1;
+    static constexpr address_t META_BOUNDARY_BIT = 1 << 0;
 
     /**
-     * A bit-packed pointer to the owning allocator (if any), and the sizeclass
-     * of this chunk.  The sizeclass here is itself a union between two cases:
-     *
-     *  * log_2(size), at least MIN_CHUNK_BITS, for large allocations.
-     *
-     *  * a value in [0, NUM_SMALL_SIZECLASSES] for small allocations.  These
-     *    may be directly passed to the sizeclass (not slab_sizeclass) functions
-     *    of sizeclasstable.h
-     *
+     * In common cases, a bit-packed pointer to the owning allocator (if any),
+     * and the sizeclass of this chunk.  See mem/metaslab.h:MetaEntryRemote for
+     * details of this case and docs/AddressSpace.md for further details.
      */
     uintptr_t remote_and_sizeclass{0};
 
@@ -160,7 +157,7 @@ namespace snmalloc
     [[nodiscard]] SNMALLOC_FAST_PATH Metaslab* get_metaslab() const
     {
       SNMALLOC_ASSERT(get_remote() != nullptr);
-      return unsafe_from_uintptr<Metaslab>(meta & ~BOUNDARY_BIT);
+      return unsafe_from_uintptr<Metaslab>(meta & ~META_BOUNDARY_BIT);
     }
 
     /**
@@ -183,24 +180,25 @@ namespace snmalloc
     MetaEntry& operator=(const MetaEntry& other)
     {
       // Don't overwrite the boundary bit with the other's
-      meta = (other.meta & ~BOUNDARY_BIT) | address_cast(meta & BOUNDARY_BIT);
+      meta = (other.meta & ~META_BOUNDARY_BIT) |
+        address_cast(meta & META_BOUNDARY_BIT);
       remote_and_sizeclass = other.remote_and_sizeclass;
       return *this;
     }
 
     void set_boundary()
     {
-      meta |= BOUNDARY_BIT;
+      meta |= META_BOUNDARY_BIT;
     }
 
     [[nodiscard]] bool is_boundary() const
     {
-      return meta & BOUNDARY_BIT;
+      return meta & META_BOUNDARY_BIT;
     }
 
     bool clear_boundary_bit()
     {
-      return meta &= ~BOUNDARY_BIT;
+      return meta &= ~META_BOUNDARY_BIT;
     }
   };
 

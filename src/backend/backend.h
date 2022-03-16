@@ -217,7 +217,8 @@ namespace snmalloc
      *
      * The template argument is the type of the metadata being allocated.  This
      * allows the backend to allocate different types of metadata in different
-     * places or with different policies.
+     * places or with different policies.  The default implementation, here,
+     * does not avail itself of this degree of freedom.
      */
     template<typename T>
     static capptr::Chunk<void>
