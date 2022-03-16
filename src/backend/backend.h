@@ -305,10 +305,17 @@ namespace snmalloc
     {
       auto chunk = chunk_record->meta_common.chunk;
 
+      /*
+       * The backend takes possession of these chunks now, by disassociating
+       * any existing remote allocator and metadata structure.  If
+       * interrogated, the sizeclass reported by the MetaEntry is 0, which has
+       * size 0.
+       */
+      MetaEntry t(nullptr, MetaEntry::REMOTE_BACKEND_MARKER);
+      Pagemap::set_metaentry(address_cast(chunk), size, t);
+
       local_state.get_meta_range()->dealloc_range(
         capptr::Chunk<void>(chunk_record), PAGEMAP_METADATA_STRUCT_SIZE);
-
-      // TODO, should we set the sizeclass to something specific here?
 
       local_state.object_range->dealloc_range(chunk, size);
     }
