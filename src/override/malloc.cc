@@ -1,4 +1,6 @@
 #include "override.h"
+// Must be included after snmalloc headers
+#include "../mem/memcpy.h"
 
 #include <errno.h>
 #include <string.h>
@@ -8,6 +10,31 @@ using namespace snmalloc;
 #ifndef MALLOC_USABLE_SIZE_QUALIFIER
 #  define MALLOC_USABLE_SIZE_QUALIFIER
 #endif
+
+namespace
+{
+  /**
+   * Specialised memcpy that knows that it is copying at least the minimum
+   * object size and that the start and end are strongly aligned.
+   */
+  SNMALLOC_FAST_PATH
+  void memcpy_for_realloc(void* dst, const void* src, size_t size)
+  {
+    // Tell the compiler some things that it can use to optimise the memcpy:
+    // The size is at least the minimum alloc size (skip all of the small copy
+    // things) and the size is a multiple of the smallest size.
+    SNMALLOC_ASSUME(size >= MIN_ALLOC_SIZE);
+    SNMALLOC_ASSUME((size % MIN_ALLOC_SIZE) == 0);
+    // The start of both objects is strongly aligned
+    SNMALLOC_ASSUME(
+      (static_cast<size_t>(reinterpret_cast<uintptr_t>(src)) &
+       (MIN_ALLOC_SIZE - 1)) == 0);
+    SNMALLOC_ASSUME(
+      (static_cast<size_t>(reinterpret_cast<uintptr_t>(dst)) &
+       (MIN_ALLOC_SIZE - 1)) == 0);
+    snmalloc::memcpy<DEBUG, false>(dst, src, size);
+  }
+}
 
 extern "C"
 {
@@ -91,7 +118,7 @@ extern "C"
       // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
       // otherwise.
       if (sz != 0)
-        memcpy(p, ptr, sz);
+        memcpy_for_realloc(p, ptr, sz);
       a.dealloc(ptr);
     }
     else if (SNMALLOC_LIKELY(size == 0))
@@ -151,7 +178,7 @@ extern "C"
     // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
     // otherwise.
     if (sz != 0)
-      memcpy(p, *ptr, sz);
+      memcpy_for_realloc(p, *ptr, sz);
     errno = err;
     a.dealloc(*ptr);
     *ptr = p;
