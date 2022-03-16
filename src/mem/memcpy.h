@@ -328,4 +328,4 @@ namespace snmalloc
     Arch::copy(dst, src, len);
     return orig_dst;
   }
-} // namespace
+} // namespace snmalloc

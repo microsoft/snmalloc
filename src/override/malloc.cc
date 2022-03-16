@@ -34,7 +34,7 @@ namespace
        (MIN_ALLOC_SIZE - 1)) == 0);
     snmalloc::memcpy<DEBUG, false>(dst, src, size);
   }
-}
+} // namespace
 
 extern "C"
 {
