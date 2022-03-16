@@ -17,7 +17,7 @@ namespace
    * Specialised memcpy that knows that it is copying at least the minimum
    * object size and that the start and end are strongly aligned.
    */
-  SNMALLOC_FAST_PATH
+  SNMALLOC_FAST_PATH_INLINE
   void memcpy_for_realloc(void* dst, const void* src, size_t size)
   {
     // Tell the compiler some things that it can use to optimise the memcpy:
@@ -118,7 +118,7 @@ extern "C"
       // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
       // otherwise.
       if (sz != 0)
-        memcpy_for_realloc(p, ptr, sz);
+        memcpy_for_realloc(p, ptr, bits::max(MIN_ALLOC_SIZE, sz));
       a.dealloc(ptr);
     }
     else if (SNMALLOC_LIKELY(size == 0))
@@ -178,7 +178,7 @@ extern "C"
     // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
     // otherwise.
     if (sz != 0)
-      memcpy_for_realloc(p, *ptr, sz);
+      memcpy_for_realloc(p, *ptr, bits::max(MIN_ALLOC_SIZE, sz));
     errno = err;
     a.dealloc(*ptr);
     *ptr = p;
