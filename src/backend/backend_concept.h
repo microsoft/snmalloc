@@ -76,6 +76,29 @@ namespace snmalloc
         -> ConceptSame<capptr::Alloc<char>>;
     };
 
+  /**
+   * Backend allocators are formed of Range sources, which must know how to
+   * allocate and may know how to deallocate ranges.
+   */
+  template<typename Range>
+  concept ConceptBackendRange_Alloc =
+    requires(Range r, size_t sz)
+    {
+       { r.alloc_range(sz) } -> ConceptSame<capptr::Chunk<void>>;
+    };
+
+  template<typename Range>
+  concept ConceptBackendRange_Dealloc =
+    requires(Range r, capptr::Chunk<void> p, size_t sz)
+    {
+       { r.dealloc_range(p, sz) } -> ConceptSame<void>;
+    };
+
+  template<typename Range>
+  concept ConceptBackendRange =
+    ConceptBackendRange_Alloc<Range> &&
+    ConceptBackendRange_Dealloc<Range>;
+
   class CommonConfig;
   struct Flags;
 

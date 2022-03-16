@@ -7,7 +7,7 @@ namespace snmalloc
   /**
    * Used to measure memory usage.
    */
-  template<typename ParentRange>
+  template<SNMALLOC_CONCEPT(ConceptBackendRange_Alloc) ParentRange>
   class StatsRange
   {
     typename ParentRange::State parent{};
@@ -49,8 +49,12 @@ namespace snmalloc
       return result;
     }
 
+    template<SNMALLOC_CONCEPT(ConceptBackendRange_Dealloc) _pr = ParentRange>
     void dealloc_range(capptr::Chunk<void> base, size_t size)
     {
+      static_assert(
+        std::is_same<_pr, ParentRange>::value,
+        "Don't set SFINAE template parameter!");
       current_usage -= size;
       parent->dealloc_range(base, size);
     }

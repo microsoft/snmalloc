@@ -10,7 +10,7 @@ namespace snmalloc
    * Makes the supplied ParentRange into a global variable,
    * and protects access with a lock.
    */
-  template<typename ParentRange>
+  template<SNMALLOC_CONCEPT(ConceptBackendRange_Alloc) ParentRange>
   class GlobalRange
   {
     typename ParentRange::State parent{};
@@ -45,8 +45,12 @@ namespace snmalloc
       return parent->alloc_range(size);
     }
 
+    template<SNMALLOC_CONCEPT(ConceptBackendRange_Dealloc) _pr = ParentRange>
     void dealloc_range(capptr::Chunk<void> base, size_t size)
     {
+      static_assert(
+        std::is_same<_pr, ParentRange>::value,
+        "Don't set SFINAE template parameter!");
       FlagLock lock(spin_lock);
       parent->dealloc_range(base, size);
     }

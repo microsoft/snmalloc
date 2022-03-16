@@ -122,7 +122,7 @@ namespace snmalloc
     }
   };
 
-  template<typename ParentRange>
+  template<SNMALLOC_CONCEPT(ConceptBackendRange) ParentRange>
   class SmallBuddyRange
   {
     typename ParentRange::State parent{};

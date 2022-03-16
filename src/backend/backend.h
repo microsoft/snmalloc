@@ -1,6 +1,7 @@
 #pragma once
 #include "../mem/allocconfig.h"
 #include "../pal/pal.h"
+#include "backend_concept.h"
 #include "chunkallocator.h"
 #include "commitrange.h"
 #include "commonconfig.h"

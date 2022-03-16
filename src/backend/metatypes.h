@@ -85,7 +85,7 @@ namespace snmalloc
    */
   class MetaEntry
   {
-    template<typename Pagemap>
+    template<SNMALLOC_CONCEPT(ConceptBackendMeta)>
     friend class BuddyChunkRep;
 
     /**

@@ -8,7 +8,10 @@ namespace snmalloc
    * 2^RATIO_BITS.  Will not return a the block at the start or
    * the end of the large allocation.
    */
-  template<typename ParentRange, typename PAL, size_t RATIO_BITS>
+  template<
+    SNMALLOC_CONCEPT(ConceptBackendRange_Alloc) ParentRange,
+    SNMALLOC_CONCEPT(ConceptPAL) PAL,
+    size_t RATIO_BITS>
   class SubRange
   {
     typename ParentRange::State parent{};

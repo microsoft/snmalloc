@@ -7,7 +7,7 @@ namespace snmalloc
 {
   template<
     SNMALLOC_CONCEPT(ConceptBackendMetaRange) Pagemap,
-    typename ParentRange>
+    SNMALLOC_CONCEPT(ConceptBackendRange_Alloc) ParentRange>
   class PagemapRegisterRange
   {
     typename ParentRange::State state{};

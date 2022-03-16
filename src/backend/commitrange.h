@@ -4,7 +4,9 @@
 
 namespace snmalloc
 {
-  template<typename ParentRange, typename PAL>
+  template<
+    SNMALLOC_CONCEPT(ConceptBackendRange_Alloc) ParentRange,
+    SNMALLOC_CONCEPT(ConceptPAL) PAL>
   class CommitRange
   {
     typename ParentRange::State parent{};
@@ -35,8 +37,12 @@ namespace snmalloc
       return range;
     }
 
+    template<SNMALLOC_CONCEPT(ConceptBackendRange_Dealloc) _pr = ParentRange>
     void dealloc_range(capptr::Chunk<void> base, size_t size)
     {
+      static_assert(
+        std::is_same<_pr, ParentRange>::value,
+        "Don't set SFINAE template parameter!");
       PAL::notify_not_using(base.unsafe_ptr(), size);
       parent->dealloc_range(base, size);
     }

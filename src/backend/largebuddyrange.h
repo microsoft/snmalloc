@@ -14,7 +14,7 @@ namespace snmalloc
   /**
    * Class for using the pagemap entries for the buddy allocator.
    */
-  template<typename Pagemap>
+  template<SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap>
   class BuddyChunkRep
   {
   public:
@@ -132,7 +132,7 @@ namespace snmalloc
   };
 
   template<
-    typename ParentRange,
+    SNMALLOC_CONCEPT(ConceptBackendRange_Alloc) ParentRange,
     size_t REFILL_SIZE_BITS,
     size_t MAX_SIZE_BITS,
     SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap,
@@ -165,6 +165,11 @@ namespace snmalloc
     {
       if constexpr (MAX_SIZE_BITS != (bits::BITS - 1))
       {
+#ifdef __cpp_concepts
+        static_assert(
+          ConceptBackendRange_Dealloc<ParentRange>,
+          "MAX_SIZE_BITS < address space size requires overflow to parent");
+#endif
         if (overflow != nullptr)
         {
           parent->dealloc_range(overflow, bits::one_at_bit(MAX_SIZE_BITS));
