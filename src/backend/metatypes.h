@@ -79,10 +79,6 @@ namespace snmalloc
 #endif
   // clang-format on
 
-  struct RemoteAllocator;
-  class Metaslab;
-  class sizeclass_t;
-
   /**
    * Entry stored in the pagemap.  See docs/AddressSpace.md for the full
    * MetaEntry lifecycle.
@@ -140,25 +136,10 @@ namespace snmalloc
      * `get_remote_and_sizeclass`.
      */
     SNMALLOC_FAST_PATH
-    MetaEntry(Metaslab* meta, uintptr_t remote_and_sizeclass)
-    : meta(unsafe_to_uintptr<Metaslab>(meta)),
+    MetaEntry(MetaCommon* meta, uintptr_t remote_and_sizeclass)
+    : meta(unsafe_to_uintptr<MetaCommon>(meta)),
       remote_and_sizeclass(remote_and_sizeclass)
     {}
-
-    /* See mem/metaslab.h */
-    SNMALLOC_FAST_PATH
-    MetaEntry(Metaslab* meta, RemoteAllocator* remote, sizeclass_t sizeclass);
-
-    /**
-     * Return the Metaslab metadata associated with this chunk, guarded by an
-     * assert that this chunk is being used as a slab (i.e., has an associated
-     * owning allocator).
-     */
-    [[nodiscard]] SNMALLOC_FAST_PATH Metaslab* get_metaslab() const
-    {
-      SNMALLOC_ASSERT(get_remote() != nullptr);
-      return unsafe_from_uintptr<Metaslab>(meta & ~META_BOUNDARY_BIT);
-    }
 
     /**
      * Return the remote and sizeclass in an implementation-defined encoding.
@@ -166,14 +147,11 @@ namespace snmalloc
      * only safe use for this is to pass it to the two-argument constructor of
      * this class.
      */
-    [[nodiscard]] SNMALLOC_FAST_PATH uintptr_t get_remote_and_sizeclass() const
+    [[nodiscard]] SNMALLOC_FAST_PATH const uintptr_t&
+    get_remote_and_sizeclass() const
     {
       return remote_and_sizeclass;
     }
-
-    /* See mem/metaslab.h */
-    [[nodiscard]] SNMALLOC_FAST_PATH RemoteAllocator* get_remote() const;
-    [[nodiscard]] SNMALLOC_FAST_PATH sizeclass_t get_sizeclass() const;
 
     MetaEntry(const MetaEntry&) = delete;
 
@@ -184,6 +162,16 @@ namespace snmalloc
         address_cast(meta & META_BOUNDARY_BIT);
       remote_and_sizeclass = other.remote_and_sizeclass;
       return *this;
+    }
+
+    /**
+     * Return the Metaslab metadata associated with this chunk, guarded by an
+     * assert that this chunk is being used as a slab (i.e., has an associated
+     * owning allocator).
+     */
+    [[nodiscard]] SNMALLOC_FAST_PATH MetaCommon* get_meta() const
+    {
+      return reinterpret_cast<MetaCommon*>(meta & ~META_BOUNDARY_BIT);
     }
 
     void set_boundary()
@@ -201,5 +189,4 @@ namespace snmalloc
       return meta &= ~META_BOUNDARY_BIT;
     }
   };
-
 } // namespace snmalloc

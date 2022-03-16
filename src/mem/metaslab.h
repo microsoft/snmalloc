@@ -226,39 +226,56 @@ namespace snmalloc
   };
 
   /*
-   * MetaEntry methods that deal with RemoteAllocator* and sizeclass_t are here,
-   * so that the backend does not need to know the details and can, instead,
-   * just provide the storage space.
+   * A convenience wrapper aroun MetaEntry with a meaningful RemoteAllocator
+   * pointer.  This encodes a RemoteAllocator* and a sizeclass_t into a the
+   * uintptr_t remote_and_sizeclass field.
+   *
+   * There's a little bit of an asymmetry here.  Since the backend actually sets
+   * the entry (when associating a metadata structure), MetaslabMetaEntry-s are
+   * not constructed directly; please use ::encode().  On the other hand, the
+   * backend's Pagemap::get_metaentry() method is templated on its return type,
+   * so it is relatively straightforward to view a pagemap entry as a
+   * MetaslabMetaEntry and then use the accessors here for decoding.
    */
-
-  SNMALLOC_FAST_PATH_INLINE
-  MetaEntry::MetaEntry(
-    Metaslab* meta,
-    RemoteAllocator* remote,
-    sizeclass_t sizeclass = sizeclass_t())
-  : meta(reinterpret_cast<uintptr_t>(meta))
+  struct MetaslabMetaEntry : public MetaEntry
   {
-    /* remote might be nullptr; cast to uintptr_t before offsetting */
-    remote_and_sizeclass =
-      pointer_offset(reinterpret_cast<uintptr_t>(remote), sizeclass.raw());
-  }
+    /// Perform the encoding.
+    static SNMALLOC_FAST_PATH uintptr_t
+    encode(RemoteAllocator* remote, sizeclass_t sizeclass)
+    {
+      /* remote might be nullptr; cast to uintptr_t before offsetting */
+      return pointer_offset(
+        reinterpret_cast<uintptr_t>(remote), sizeclass.raw());
+    }
 
-  [[nodiscard]] SNMALLOC_FAST_PATH_INLINE RemoteAllocator*
-  MetaEntry::get_remote() const
-  {
-    return reinterpret_cast<RemoteAllocator*>(
-      pointer_align_down<REMOTE_WITH_BACKEND_MARKER_ALIGN>(
-        remote_and_sizeclass));
-  }
+    [[nodiscard]] SNMALLOC_FAST_PATH RemoteAllocator* get_remote() const
+    {
+      return reinterpret_cast<RemoteAllocator*>(
+        pointer_align_down<REMOTE_WITH_BACKEND_MARKER_ALIGN>(
+          get_remote_and_sizeclass()));
+    }
 
-  [[nodiscard]] SNMALLOC_FAST_PATH_INLINE sizeclass_t
-  MetaEntry::get_sizeclass() const
-  {
-    // TODO: perhaps remove static_cast with resolution of
-    // https://github.com/CTSRD-CHERI/llvm-project/issues/588
-    return sizeclass_t::from_raw(
-      static_cast<size_t>(remote_and_sizeclass) &
-      (REMOTE_WITH_BACKEND_MARKER_ALIGN - 1));
-  }
+    [[nodiscard]] SNMALLOC_FAST_PATH sizeclass_t get_sizeclass() const
+    {
+      // TODO: perhaps remove static_cast with resolution of
+      // https://github.com/CTSRD-CHERI/llvm-project/issues/588
+      return sizeclass_t::from_raw(
+        static_cast<size_t>(get_remote_and_sizeclass()) &
+        (REMOTE_WITH_BACKEND_MARKER_ALIGN - 1));
+    }
+
+    /**
+     * Return the Metaslab metadata associated with this chunk, guarded by an
+     * assert that this chunk is being used as a slab (i.e., has an associated
+     * owning allocator).
+     */
+    [[nodiscard]] SNMALLOC_FAST_PATH Metaslab* get_metaslab() const
+    {
+      SNMALLOC_ASSERT(get_remote() != nullptr);
+      return reinterpret_cast<Metaslab*>(get_meta());
+    }
+  };
+
+  static_assert(sizeof(MetaslabMetaEntry) == sizeof(MetaEntry));
 
 } // namespace snmalloc

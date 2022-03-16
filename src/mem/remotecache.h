@@ -52,7 +52,7 @@ namespace snmalloc
      *
      * This does not require initialisation to be safely called.
      */
-    SNMALLOC_FAST_PATH bool reserve_space(const MetaEntry& entry)
+    SNMALLOC_FAST_PATH bool reserve_space(const MetaslabMetaEntry& entry)
     {
       auto size =
         static_cast<int64_t>(sizeclass_full_to_size(entry.get_sizeclass()));
@@ -101,8 +101,9 @@ namespace snmalloc
           if (!list[i].empty())
           {
             auto [first, last] = list[i].extract_segment(key);
-            const MetaEntry& entry =
-              SharedStateHandle::Pagemap::get_metaentry(address_cast(first));
+            const MetaslabMetaEntry& entry =
+              SharedStateHandle::Pagemap::template get_metaentry<
+                MetaslabMetaEntry>(address_cast(first));
             auto remote = entry.get_remote();
             // If the allocator is not correctly aligned, then the bit that is
             // set implies this is used by the backend, and we should not be
@@ -141,8 +142,9 @@ namespace snmalloc
           // Use the next N bits to spread out remote deallocs in our own
           // slot.
           auto r = resend.take(key, domesticate);
-          const MetaEntry& entry =
-            SharedStateHandle::Pagemap::get_metaentry(address_cast(r));
+          const MetaslabMetaEntry& entry =
+            SharedStateHandle::Pagemap::template get_metaentry<
+              MetaslabMetaEntry>(address_cast(r));
           auto i = entry.get_remote()->trunc_id();
           size_t slot = get_slot<allocator_size>(i, post_round);
           list[slot].add(r, key);
