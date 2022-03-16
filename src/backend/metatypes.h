@@ -123,6 +123,17 @@ namespace snmalloc
     uintptr_t remote_and_sizeclass{0};
 
   public:
+    /**
+     * This bit is set in remote_and_sizeclass to discriminate between the case
+     * that it is in use by the frontend (0) or by the backend (1).  For the
+     * former case, see mem/metaslab.h; for the latter, see backend/backend.h
+     * and backend/largebuddyrange.h.
+     *
+     * This value is statically checked by the frontend to ensure that its
+     * bit packing does not conflict; see mem/remoteallocator.h
+     */
+    static constexpr address_t REMOTE_BACKEND_MARKER = 1 << 7;
+
     constexpr MetaEntry() = default;
 
     /**

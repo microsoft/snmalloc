@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../backend/metatypes.h"
 #include "../mem/allocconfig.h"
 #include "../mem/freelist.h"
 #include "../mem/sizeclasstable.h"
@@ -15,14 +16,12 @@ namespace snmalloc
   static constexpr size_t REMOTE_MIN_ALIGN =
     bits::max<size_t>(CACHELINE_SIZE, SIZECLASS_REP_SIZE) << 1;
 
-  // This bit is set on the RemoteAllocator* to indicate it is
-  // actually being used by the backend for some other use.
-  static constexpr size_t BACKEND_MARKER = REMOTE_MIN_ALIGN >> 1;
-
   // The bit above the sizeclass is always zero unless this is used
   // by the backend to represent another datastructure such as the buddy
   // allocator entries.
-  constexpr size_t REMOTE_WITH_BACKEND_MARKER_ALIGN = BACKEND_MARKER;
+  constexpr size_t REMOTE_WITH_BACKEND_MARKER_ALIGN =
+    MetaEntry::REMOTE_BACKEND_MARKER;
+  static_assert((REMOTE_MIN_ALIGN >> 1) == MetaEntry::REMOTE_BACKEND_MARKER);
 
   /**
    * Global key for all remote lists.

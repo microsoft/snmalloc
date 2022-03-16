@@ -29,7 +29,8 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT((r & (MIN_CHUNK_SIZE - 1)) == 0);
       // Preserve lower bits.
-      *ptr = r | address_cast(*ptr & (MIN_CHUNK_SIZE - 1)) | BACKEND_MARKER;
+      *ptr = r | address_cast(*ptr & (MIN_CHUNK_SIZE - 1)) |
+        MetaEntry::REMOTE_BACKEND_MARKER;
     }
 
     static Contents get(const Holder* ptr)
