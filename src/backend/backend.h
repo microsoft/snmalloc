@@ -59,10 +59,14 @@ namespace snmalloc
        * Set template parameter to true if it not an error
        * to access a location that is not backed by a chunk.
        */
-      template<bool potentially_out_of_range = false>
-      SNMALLOC_FAST_PATH static const MetaEntry& get_metaentry(address_t p)
+      template<typename Ret = MetaEntry, bool potentially_out_of_range = false>
+      SNMALLOC_FAST_PATH static const Ret& get_metaentry(address_t p)
       {
-        return concretePagemap.template get<potentially_out_of_range>(p);
+        static_assert(
+          std::is_base_of_v<MetaEntry, Ret> && sizeof(MetaEntry) == sizeof(Ret),
+          "Backend Pagemap get_metaentry return must look like MetaEntry");
+        return static_cast<const Ret&>(
+          concretePagemap.template get<potentially_out_of_range>(p));
       }
 
       /**
@@ -250,14 +254,14 @@ namespace snmalloc
      *   (remote, sizeclass, metaslab)
      * where metaslab, is the second element of the pair return.
      */
-    static std::pair<capptr::Chunk<void>, Metaslab*> alloc_chunk(
-      LocalState& local_state,
-      size_t size,
-      RemoteAllocator* remote,
-      sizeclass_t sizeclass)
+    static std::pair<capptr::Chunk<void>, Metaslab*>
+    alloc_chunk(LocalState& local_state, size_t size, uintptr_t ras)
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
+
+      SNMALLOC_ASSERT((ras & MetaEntry::REMOTE_BACKEND_MARKER) == 0);
+      ras &= ~MetaEntry::REMOTE_BACKEND_MARKER;
 
       auto meta_cap =
         local_state.get_meta_range()->alloc_range(PAGEMAP_METADATA_STRUCT_SIZE);
@@ -289,7 +293,7 @@ namespace snmalloc
 
       meta->meta_common.chunk = p;
 
-      MetaEntry t(meta, remote, sizeclass);
+      MetaEntry t(&meta->meta_common, ras);
       Pagemap::set_metaentry(address_cast(p), size, t);
 
       p = Aal::capptr_bound<void, capptr::bounds::Chunk>(p, size);
