@@ -118,7 +118,7 @@ extern "C"
       // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
       // otherwise.
       if (sz != 0)
-        memcpy_for_realloc(p, ptr, bits::max(MIN_ALLOC_SIZE, sz));
+        memcpy_for_realloc(p, ptr, bits::align_up(sz, MIN_ALLOC_SIZE));
       a.dealloc(ptr);
     }
     else if (SNMALLOC_LIKELY(size == 0))
@@ -178,7 +178,7 @@ extern "C"
     // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
     // otherwise.
     if (sz != 0)
-      memcpy_for_realloc(p, *ptr, bits::max(MIN_ALLOC_SIZE, sz));
+      memcpy_for_realloc(p, *ptr, bits::align_up(sz, MIN_ALLOC_SIZE));
     errno = err;
     a.dealloc(*ptr);
     *ptr = p;
