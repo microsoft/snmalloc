@@ -43,9 +43,9 @@ namespace snmalloc
       MetaEntry& entry =
         Pagemap::template get_metaentry_mut<false>(address_cast(k));
       if (direction)
-        return *reinterpret_cast<Holder*>(&entry.meta);
+        return entry.meta;
 
-      return *reinterpret_cast<Holder*>(&entry.remote_and_sizeclass);
+      return entry.remote_and_sizeclass;
     }
 
     static bool is_red(Contents k)
