@@ -20,7 +20,7 @@ int main()
   auto& global = GlobalChunkmap::pagemap();
   SNMALLOC_CHECK(&p == &global);
   // Get a valid heap address
-  uintptr_t addr = reinterpret_cast<uintptr_t>(malloc(42));
+  uintptr_t addr = unsafe_to_uintptr<void>(malloc(42));
   // Make this very strongly aligned
   addr &= ~0xfffffULL;
   void* page = p.page_for_address(addr);

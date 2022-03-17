@@ -272,7 +272,7 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH
     MetaEntry(Metaslab* meta, uintptr_t remote_and_sizeclass)
-    : meta(reinterpret_cast<uintptr_t>(meta)),
+    : meta(unsafe_to_uintptr<Metaslab>(meta)),
       remote_and_sizeclass(remote_and_sizeclass)
     {}
 
@@ -281,11 +281,11 @@ namespace snmalloc
       Metaslab* meta,
       RemoteAllocator* remote,
       sizeclass_t sizeclass = sizeclass_t())
-    : meta(reinterpret_cast<uintptr_t>(meta))
+    : meta(unsafe_to_uintptr<Metaslab>(meta))
     {
       /* remote might be nullptr; cast to uintptr_t before offsetting */
-      remote_and_sizeclass =
-        pointer_offset(reinterpret_cast<uintptr_t>(remote), sizeclass.raw());
+      remote_and_sizeclass = pointer_offset(
+        unsafe_to_uintptr<RemoteAllocator>(remote), sizeclass.raw());
     }
 
     /**
@@ -296,7 +296,7 @@ namespace snmalloc
     [[nodiscard]] SNMALLOC_FAST_PATH Metaslab* get_metaslab() const
     {
       SNMALLOC_ASSERT(get_remote() != nullptr);
-      return reinterpret_cast<Metaslab*>(meta & ~BOUNDARY_BIT);
+      return unsafe_from_uintptr<Metaslab>(meta & ~BOUNDARY_BIT);
     }
 
     /**
@@ -312,7 +312,7 @@ namespace snmalloc
 
     [[nodiscard]] SNMALLOC_FAST_PATH RemoteAllocator* get_remote() const
     {
-      return reinterpret_cast<RemoteAllocator*>(
+      return unsafe_from_uintptr<RemoteAllocator>(
         pointer_align_down<REMOTE_WITH_BACKEND_MARKER_ALIGN>(
           remote_and_sizeclass));
     }

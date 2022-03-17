@@ -239,8 +239,8 @@ namespace snmalloc
 
         if constexpr (CHECK_CLIENT && !aal_supports<StrictProvenance>)
         {
-          return reinterpret_cast<Object::T<BQueue>*>(
-            reinterpret_cast<uintptr_t>(next) ^ key.key_next);
+          return unsafe_from_uintptr<Object::T<BQueue>>(
+            unsafe_to_uintptr<Object::T<BQueue>>(next) ^ key.key_next);
         }
         else
         {

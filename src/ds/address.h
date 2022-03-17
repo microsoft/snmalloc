@@ -28,8 +28,8 @@ namespace snmalloc
   inline U* pointer_offset(T* base, size_t diff)
   {
     SNMALLOC_ASSERT(base != nullptr); /* Avoid UB */
-    return reinterpret_cast<U*>(
-      reinterpret_cast<uintptr_t>(base) + static_cast<uintptr_t>(diff));
+    return unsafe_from_uintptr<U>(
+      unsafe_to_uintptr<T>(base) + static_cast<uintptr_t>(diff));
   }
 
   template<SNMALLOC_CONCEPT(capptr::ConceptBound) bounds, typename T>
@@ -129,8 +129,8 @@ namespace snmalloc
   template<size_t alignment, typename T = void>
   inline T* pointer_align_down(void* p)
   {
-    return reinterpret_cast<T*>(
-      pointer_align_down<alignment>(reinterpret_cast<uintptr_t>(p)));
+    return unsafe_from_uintptr<T>(
+      pointer_align_down<alignment>(unsafe_to_uintptr<void>(p)));
   }
 
   template<
@@ -164,8 +164,8 @@ namespace snmalloc
 #if __has_builtin(__builtin_align_up)
       return static_cast<T*>(__builtin_align_up(p, alignment));
 #else
-      return reinterpret_cast<T*>(
-        bits::align_up(reinterpret_cast<uintptr_t>(p), alignment));
+      return unsafe_from_uintptr<T>(
+        bits::align_up(unsafe_to_uintptr<void>(p), alignment));
 #endif
     }
   }
@@ -197,8 +197,8 @@ namespace snmalloc
 #if __has_builtin(__builtin_align_down)
     return static_cast<T*>(__builtin_align_down(p, alignment));
 #else
-    return reinterpret_cast<T*>(
-      bits::align_down(reinterpret_cast<uintptr_t>(p), alignment));
+    return unsafe_from_uintptr<T>(
+      bits::align_down(unsafe_to_uintptr<void>(p), alignment));
 #endif
   }
 
@@ -221,8 +221,8 @@ namespace snmalloc
 #if __has_builtin(__builtin_align_up)
     return static_cast<T*>(__builtin_align_up(p, alignment));
 #else
-    return reinterpret_cast<T*>(
-      bits::align_up(reinterpret_cast<uintptr_t>(p), alignment));
+    return unsafe_from_uintptr<T>(
+      bits::align_up(unsafe_to_uintptr<void>(p), alignment));
 #endif
   }
 
