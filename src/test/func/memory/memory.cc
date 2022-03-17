@@ -344,6 +344,7 @@ void test_external_pointer_large()
 
 void test_external_pointer_dealloc_bug()
 {
+  std::cout << "Testing external pointer dealloc bug" << std::endl;
   auto& alloc = ThreadAlloc::get();
   constexpr size_t count = MIN_CHUNK_SIZE;
   void* allocs[count];
@@ -364,6 +365,29 @@ void test_external_pointer_dealloc_bug()
   }
 
   alloc.dealloc(allocs[0]);
+  std::cout << "Testing external pointer dealloc bug - done" << std::endl;
+}
+
+void test_external_pointer_stack()
+{
+  std::cout << "Testing external pointer stack" << std::endl;
+
+  std::array<int, 2000> stack;
+
+  auto& alloc = ThreadAlloc::get();
+
+  for (size_t i = 0; i < stack.size(); i++)
+  {
+    if (alloc.external_pointer(&stack[i]) > &stack[i])
+    {
+      std::cout << "Stack pointer: " << &stack[i]
+                << " external pointer: " << alloc.external_pointer(&stack[i])
+                << std::endl;
+      abort();
+    }
+  }
+
+  std::cout << "Testing external pointer stack - done" << std::endl;
 }
 
 void test_alloc_16M()
@@ -500,6 +524,7 @@ int main(int argc, char** argv)
   test_remaining_bytes();
   test_static_sized_allocs();
   test_calloc_large_bug();
+  test_external_pointer_stack();
   test_external_pointer_dealloc_bug();
   test_external_pointer_large();
   test_external_pointer();
