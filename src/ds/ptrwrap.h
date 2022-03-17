@@ -7,6 +7,30 @@
 
 namespace snmalloc
 {
+  /*
+   * reinterpret_cast<> is a powerful primitive that, excitingly, does not
+   * require the programmer to annotate the expected *source* type.  We
+   * therefore wrap its use to interconvert between uintptr_t and pointer types.
+   */
+
+  /**
+   * Convert a pointer to a uintptr_t.  Template argument inference is
+   * prohibited.
+   */
+  template<typename T>
+  SNMALLOC_FAST_PATH_INLINE uintptr_t
+  unsafe_to_uintptr(std::enable_if_t<true, T>* p)
+  {
+    return reinterpret_cast<uintptr_t>(p);
+  }
+
+  /** Convert a uintptr_t to a T*. */
+  template<typename T>
+  SNMALLOC_FAST_PATH_INLINE T* unsafe_from_uintptr(uintptr_t p)
+  {
+    return reinterpret_cast<T*>(p);
+  }
+
   /**
    * To assist in providing a uniform interface regardless of pointer wrapper,
    * we also export intrinsic pointer and atomic pointer aliases, as the postfix
@@ -321,7 +345,7 @@ namespace snmalloc
 
     [[nodiscard]] SNMALLOC_FAST_PATH uintptr_t unsafe_uintptr() const
     {
-      return reinterpret_cast<uintptr_t>(this->unsafe_capptr);
+      return unsafe_to_uintptr<T>(this->unsafe_capptr);
     }
   };
 

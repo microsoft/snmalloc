@@ -212,7 +212,7 @@ int main(int argc, char** argv)
   //
   // Note: We cannot use the check or assert macros here because they depend on
   // `MessageBuilder` working.  They are safe to use in any other test.
-  void* fakeptr = reinterpret_cast<void*>(static_cast<uintptr_t>(0x42));
+  void* fakeptr = unsafe_from_uintptr<void>(static_cast<uintptr_t>(0x42));
   MessageBuilder<1024> b{
     "testing pointer {} size_t {} message, {} world, null is {}, -123456 is "
     "{}, 1234567 is {}",
