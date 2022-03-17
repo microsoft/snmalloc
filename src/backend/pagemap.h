@@ -130,7 +130,7 @@ namespace snmalloc
 
       // Put pagemap at start of range.
       // TODO CHERI capability bound here!
-      body = reinterpret_cast<T*>(b);
+      body = static_cast<T*>(b);
       body_opt = body;
       // Advance by size of pagemap.
       // Note that base needs to be aligned to GRANULARITY for the rest of the
@@ -176,8 +176,7 @@ namespace snmalloc
       // Begin pagemap at random offset within the additionally allocated space.
       static_assert(bits::is_pow2(sizeof(T)), "Next line assumes this.");
       size_t offset = get_entropy64<PAL>() & (additional_size - sizeof(T));
-      auto new_body =
-        reinterpret_cast<T*>(pointer_offset(new_body_untyped, offset));
+      auto new_body = pointer_offset<T>(new_body_untyped, offset);
 
       if constexpr (pal_supports<LazyCommit, PAL>)
       {
@@ -191,7 +190,7 @@ namespace snmalloc
           start_page, pointer_diff(start_page, end_page));
       }
 #else
-      auto new_body = reinterpret_cast<T*>(new_body_untyped);
+      auto new_body = static_cast<T*>(new_body_untyped);
 #endif
       // Ensure bottom page is committed
       // ASSUME: new memory is zeroed.

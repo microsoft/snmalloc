@@ -88,16 +88,12 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
       expected_size);
     failed = true;
   }
-  if (
-    (static_cast<size_t>(reinterpret_cast<uintptr_t>(p) % align) != 0) &&
-    (size != 0))
+  if (((address_cast(p) % align) != 0) && (size != 0))
   {
     INFO("Address is {}, but required to be aligned to {}.\n", p, align);
     failed = true;
   }
-  if (
-    static_cast<size_t>(
-      reinterpret_cast<uintptr_t>(p) % natural_alignment(size)) != 0)
+  if ((address_cast(p) % natural_alignment(size)) != 0)
   {
     INFO(
       "Address is {}, but should have natural alignment to {}.\n",

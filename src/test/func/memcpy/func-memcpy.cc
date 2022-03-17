@@ -69,8 +69,8 @@ extern "C" void abort()
 void check_size(size_t size)
 {
   START_TEST("checking {}-byte memcpy", size);
-  auto* s = reinterpret_cast<unsigned char*>(my_malloc(size + 1));
-  auto* d = reinterpret_cast<unsigned char*>(my_malloc(size + 1));
+  auto* s = static_cast<unsigned char*>(my_malloc(size + 1));
+  auto* d = static_cast<unsigned char*>(my_malloc(size + 1));
   d[size] = 0;
   s[size] = 255;
   for (size_t start = 0; start < size; start++)
@@ -115,8 +115,8 @@ void check_bounds(size_t size, size_t out_of_bounds)
 {
   START_TEST(
     "memcpy bounds, size {}, {} bytes out of bounds", size, out_of_bounds);
-  auto* s = reinterpret_cast<unsigned char*>(my_malloc(size));
-  auto* d = reinterpret_cast<unsigned char*>(my_malloc(size));
+  auto* s = static_cast<unsigned char*>(my_malloc(size));
+  auto* d = static_cast<unsigned char*>(my_malloc(size));
   for (size_t i = 0; i < size; ++i)
   {
     s[i] = static_cast<unsigned char>(i);
