@@ -357,6 +357,8 @@ namespace snmalloc
     }
     else
     {
+      if (size == 0)
+        return 0;
       return slab_start + (offset / size) * size;
     }
   }
