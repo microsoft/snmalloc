@@ -30,7 +30,7 @@ void shape(size_t size)
     // size / alignment) * alignment;
     Shape s;
     s.object = ThreadAlloc::get().alloc(rsize);
-    s.dst = reinterpret_cast<unsigned char*>(s.object) + offset;
+    s.dst = static_cast<unsigned char*>(s.object) + offset;
     // Bring into cache the destination of the copy.
     memset(s.dst, 0xFF, size);
     allocs.push_back(s);
@@ -51,7 +51,7 @@ void test_memcpy(size_t size, void* src, Memcpy mc)
 {
   for (auto& s : allocs)
   {
-    auto* dst = reinterpret_cast<unsigned char*>(s.dst);
+    auto* dst = static_cast<unsigned char*>(s.dst);
     mc(dst, src, size);
   }
 }
