@@ -239,10 +239,12 @@ endif()
 
 function(add_warning_flags name)
   target_compile_options(${name} PRIVATE
-    $<$<CXX_COMPILER_ID:MSVC>:/Zi /W4 /WX /wd4127 /wd4324 /wd4201 $<${ci_or_debug}:/DEBUG>>
+    $<$<CXX_COMPILER_ID:MSVC>:/Zi /W4 /WX /wd4127 /wd4324 /wd4201>
     $<$<NOT:$<OR:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_CXX_SIMULATE_ID},MSVC>>>:-fno-exceptions -fno-rtti -Wall -Wextra -Werror -Wundef>
     $<$<CXX_COMPILER_ID:Clang>:-Wsign-conversion -Wconversion>)
-  target_link_options(${name} PRIVATE $<$<BOOL:${SNMALLOC_LINKER_SUPPORT_NO_ALLOW_SHLIB_UNDEF}>:-Wl,--no-undefined>)
+  target_link_options(${name} PRIVATE 
+    $<$<BOOL:${SNMALLOC_LINKER_SUPPORT_NO_ALLOW_SHLIB_UNDEF}>:-Wl,--no-undefined>
+    $<$<CXX_COMPILER_ID:MSVC>:$<${ci_or_debug}:/DEBUG>>)
 endfunction()
 
 
