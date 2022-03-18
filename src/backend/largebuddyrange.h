@@ -143,6 +143,8 @@ namespace snmalloc
     using B = typename ParentRange::B;
     static_assert(B::spatial >= capptr::dimension::Spatial::Chunk);
 
+    using KArg = typename ParentRange::KArg;
+
   private:
     typename ParentRange::State parent{};
 
@@ -159,14 +161,14 @@ namespace snmalloc
      */
     template<bool exists = MAX_SIZE_BITS != (bits::BITS - 1)>
     std::enable_if_t<exists>
-    parent_dealloc_range(CapPtr<void, B> base, size_t size)
+    parent_dealloc_range(KArg ka, CapPtr<void, B> base, size_t size)
     {
       static_assert(
         MAX_SIZE_BITS != (bits::BITS - 1), "Don't set SFINAE parameter");
-      parent->dealloc_range(base, size);
+      parent->dealloc_range(ka, base, size);
     }
 
-    void dealloc_overflow(CapPtr<void, B> overflow)
+    void dealloc_overflow(KArg ka, CapPtr<void, B> overflow)
     {
       if constexpr (MAX_SIZE_BITS != (bits::BITS - 1))
       {
@@ -177,7 +179,7 @@ namespace snmalloc
 #endif
         if (overflow != nullptr)
         {
-          parent->dealloc_range(overflow, bits::one_at_bit(MAX_SIZE_BITS));
+          parent->dealloc_range(ka, overflow, bits::one_at_bit(MAX_SIZE_BITS));
         }
       }
       else
@@ -191,10 +193,12 @@ namespace snmalloc
      * Add a range of memory to the address space.
      * Divides blocks into power of two sizes with natural alignment
      */
-    void add_range(CapPtr<void, B> base, size_t length)
+    void add_range(KArg ka, CapPtr<void, B> base, size_t length)
     {
       range_to_pow_2_blocks<MIN_CHUNK_BITS>(
-        base, length, [this](CapPtr<void, B> base, size_t align, bool first) {
+        base,
+        length,
+        [this, ka](CapPtr<void, B> base, size_t align, bool first) {
           if constexpr (!Consolidate)
           {
             // Tag first entry so we don't consolidate it.
@@ -211,23 +215,23 @@ namespace snmalloc
           auto overflow = CapPtr<void, B>(reinterpret_cast<void*>(
             buddy_large.add_block(base.unsafe_uintptr(), align)));
 
-          dealloc_overflow(overflow);
+          dealloc_overflow(ka, overflow);
         });
     }
 
-    CapPtr<void, B> refill(size_t size)
+    CapPtr<void, B> refill(KArg ka, size_t size)
     {
       if (ParentRange::Aligned)
       {
         // TODO have to add consolidation blocker for these cases.
         if (size >= REFILL_SIZE)
         {
-          return parent->alloc_range(size);
+          return parent->alloc_range(ka, size);
         }
 
-        auto refill_range = parent->alloc_range(REFILL_SIZE);
+        auto refill_range = parent->alloc_range(ka, REFILL_SIZE);
         if (refill_range != nullptr)
-          add_range(pointer_offset(refill_range, size), REFILL_SIZE - size);
+          add_range(ka, pointer_offset(refill_range, size), REFILL_SIZE - size);
         return refill_range;
       }
 
@@ -242,11 +246,11 @@ namespace snmalloc
       auto refill_size = bits::max(needed_size, REFILL_SIZE);
       while (needed_size <= refill_size)
       {
-        auto refill = parent->alloc_range(refill_size);
+        auto refill = parent->alloc_range(ka, refill_size);
 
         if (refill != nullptr)
         {
-          add_range(refill, refill_size);
+          add_range(ka, refill, refill_size);
 
           SNMALLOC_ASSERT(refill_size < bits::one_at_bit(MAX_SIZE_BITS));
           static_assert(
@@ -254,7 +258,7 @@ namespace snmalloc
               ParentRange::Aligned,
             "Required to prevent overflow.");
 
-          return alloc_range(size);
+          return alloc_range(ka, size);
         }
 
         refill_size >>= 1;
@@ -281,7 +285,7 @@ namespace snmalloc
 
     constexpr LargeBuddyRange() = default;
 
-    CapPtr<void, B> alloc_range(size_t size)
+    CapPtr<void, B> alloc_range(KArg ka, size_t size)
     {
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
       SNMALLOC_ASSERT(bits::is_pow2(size));
@@ -289,7 +293,7 @@ namespace snmalloc
       if (size >= (bits::one_at_bit(MAX_SIZE_BITS) - 1))
       {
         if (ParentRange::Aligned)
-          return parent->alloc_range(size);
+          return parent->alloc_range(ka, size);
 
         return nullptr;
       }
@@ -300,10 +304,10 @@ namespace snmalloc
       if (result != nullptr)
         return result;
 
-      return refill(size);
+      return refill(ka, size);
     }
 
-    void dealloc_range(CapPtr<void, B> base, size_t size)
+    void dealloc_range(KArg ka, CapPtr<void, B> base, size_t size)
     {
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
       SNMALLOC_ASSERT(bits::is_pow2(size));
@@ -312,14 +316,14 @@ namespace snmalloc
       {
         if (size >= (bits::one_at_bit(MAX_SIZE_BITS) - 1))
         {
-          parent_dealloc_range(base, size);
+          parent_dealloc_range(ka, base, size);
           return;
         }
       }
 
       auto overflow = capptr::Chunk<void>(reinterpret_cast<void*>(
         buddy_large.add_block(base.unsafe_uintptr(), size)));
-      dealloc_overflow(overflow);
+      dealloc_overflow(ka, overflow);
     }
   };
 } // namespace snmalloc

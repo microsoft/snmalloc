@@ -33,15 +33,16 @@ namespace snmalloc
     constexpr SubRange() = default;
 
     using B = typename ParentRange::B;
+    using KArg = typename ParentRange::KArg;
 
     static constexpr bool Aligned = ParentRange::Aligned;
 
-    CapPtr<void, B> alloc_range(size_t sub_size)
+    CapPtr<void, B> alloc_range(KArg ka, size_t sub_size)
     {
       SNMALLOC_ASSERT(bits::is_pow2(sub_size));
 
       auto full_size = sub_size << RATIO_BITS;
-      auto overblock = parent->alloc_range(full_size);
+      auto overblock = parent->alloc_range(ka, full_size);
       if (overblock == nullptr)
         return nullptr;
 

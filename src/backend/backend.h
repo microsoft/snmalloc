@@ -210,7 +210,7 @@ namespace snmalloc
         heap_length,
         [&](capptr::Chunk<void> p, size_t sz, bool) {
           typename GlobalR::State g;
-          g->dealloc_range(p, sz);
+          g->dealloc_range(nullptr, p, sz);
         });
     }
 
@@ -232,12 +232,13 @@ namespace snmalloc
       capptr::Chunk<void> p;
       if (local_state != nullptr)
       {
-        p = local_state->get_meta_range()->alloc_range_with_leftover(size);
+        p = local_state->get_meta_range()->alloc_range_with_leftover(
+          nullptr, size);
       }
       else
       {
         typename GlobalMetaRange::State global_state;
-        p = global_state->alloc_range(bits::next_pow2(size));
+        p = global_state->alloc_range(nullptr, bits::next_pow2(size));
       }
 
       if (p == nullptr)
@@ -264,8 +265,8 @@ namespace snmalloc
       SNMALLOC_ASSERT((ras & MetaEntry::REMOTE_BACKEND_MARKER) == 0);
       ras &= ~MetaEntry::REMOTE_BACKEND_MARKER;
 
-      auto meta_cap =
-        local_state.get_meta_range()->alloc_range(PAGEMAP_METADATA_STRUCT_SIZE);
+      auto meta_cap = local_state.get_meta_range()->alloc_range(
+        nullptr, PAGEMAP_METADATA_STRUCT_SIZE);
 
       auto meta = meta_cap.template as_reinterpret<Metaslab>().unsafe_ptr();
 
@@ -275,7 +276,7 @@ namespace snmalloc
         return {nullptr, nullptr};
       }
 
-      auto p = local_state.object_range->alloc_range(size);
+      auto p = local_state.object_range->alloc_range(nullptr, size);
 
 #ifdef SNMALLOC_TRACING
       std::cout << "Alloc chunk: " << p.unsafe_ptr() << " (" << size << ")"
@@ -284,7 +285,7 @@ namespace snmalloc
       if (p == nullptr)
       {
         local_state.get_meta_range()->dealloc_range(
-          meta_cap, PAGEMAP_METADATA_STRUCT_SIZE);
+          nullptr, meta_cap, PAGEMAP_METADATA_STRUCT_SIZE);
         errno = ENOMEM;
 #ifdef SNMALLOC_TRACING
         std::cout << "Out of memory" << std::endl;
@@ -316,9 +317,11 @@ namespace snmalloc
       Pagemap::set_metaentry(address_cast(chunk), size, t);
 
       local_state.get_meta_range()->dealloc_range(
-        capptr::Chunk<void>(chunk_record), PAGEMAP_METADATA_STRUCT_SIZE);
+        nullptr,
+        capptr::Chunk<void>(chunk_record),
+        PAGEMAP_METADATA_STRUCT_SIZE);
 
-      local_state.object_range->dealloc_range(chunk, size);
+      local_state.object_range->dealloc_range(nullptr, chunk, size);
     }
 
     static size_t get_current_usage()

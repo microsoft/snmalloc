@@ -31,11 +31,13 @@ namespace snmalloc
     using B = typename ParentRange::B;
     static_assert(B::spatial >= capptr::dimension::Spatial::Chunk);
 
+    using KArg = typename ParentRange::KArg;
+
     static constexpr bool Aligned = ParentRange::Aligned;
 
-    CapPtr<void, B> alloc_range(size_t size)
+    CapPtr<void, B> alloc_range(KArg ka, size_t size)
     {
-      auto base = state->alloc_range(size);
+      auto base = state->alloc_range(ka, size);
 
       if (base != nullptr)
         Pagemap::register_range(address_cast(base), size);

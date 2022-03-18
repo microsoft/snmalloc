@@ -23,12 +23,13 @@ namespace snmalloc
     };
 
     using B = capptr::bounds::Chunk;
+    using KArg = std::nullptr_t;
 
     static constexpr bool Aligned = pal_supports<AlignedAllocation, PAL>;
 
     constexpr PalRange() = default;
 
-    CapPtr<void, B> alloc_range(size_t size)
+    CapPtr<void, B> alloc_range(KArg, size_t size)
     {
       if (bits::next_pow2_bits(size) >= bits::BITS - 1)
       {

@@ -36,25 +36,26 @@ namespace snmalloc
     };
 
     using B = typename ParentRange::B;
+    using KArg = typename ParentRange::KArg;
 
     static constexpr bool Aligned = ParentRange::Aligned;
 
     constexpr GlobalRange() = default;
 
-    CapPtr<void, B> alloc_range(size_t size)
+    CapPtr<void, B> alloc_range(KArg ka, size_t size)
     {
       FlagLock lock(spin_lock);
-      return parent->alloc_range(size);
+      return parent->alloc_range(ka, size);
     }
 
     template<SNMALLOC_CONCEPT(ConceptBackendRange_Dealloc) _pr = ParentRange>
-    void dealloc_range(CapPtr<void, B> base, size_t size)
+    void dealloc_range(KArg ka, CapPtr<void, B> base, size_t size)
     {
       static_assert(
         std::is_same<_pr, ParentRange>::value,
         "Don't set SFINAE template parameter!");
       FlagLock lock(spin_lock);
-      parent->dealloc_range(base, size);
+      parent->dealloc_range(ka, base, size);
     }
   };
 } // namespace snmalloc

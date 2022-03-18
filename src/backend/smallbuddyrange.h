@@ -130,9 +130,11 @@ namespace snmalloc
   {
   public:
     using B = typename ParentRange::B;
+    using KArg = typename ParentRange::KArg;
 
   private:
     using FreeChunk = FreeChunkB<B>;
+
     typename ParentRange::State parent{};
 
     static constexpr size_t MIN_BITS =
@@ -144,25 +146,26 @@ namespace snmalloc
      * Add a range of memory to the address space.
      * Divides blocks into power of two sizes with natural alignment
      */
-    void add_range(CapPtr<void, B> base, size_t length)
+    void add_range(KArg ka, CapPtr<void, B> base, size_t length)
     {
       range_to_pow_2_blocks<MIN_BITS>(
-        base, length, [this](CapPtr<void, B> base, size_t align, bool) {
+        base, length, [this, ka](CapPtr<void, B> base, size_t align, bool) {
           CapPtr<void, B> overflow =
             buddy_small
               .add_block(base.template as_reinterpret<FreeChunk>(), align)
               .template as_reinterpret<void>();
           if (overflow != nullptr)
-            parent->dealloc_range(overflow, bits::one_at_bit(MIN_CHUNK_BITS));
+            parent->dealloc_range(
+              ka, overflow, bits::one_at_bit(MIN_CHUNK_BITS));
         });
     }
 
-    CapPtr<void, B> refill(size_t size)
+    CapPtr<void, B> refill(KArg ka, size_t size)
     {
-      auto refill = parent->alloc_range(MIN_CHUNK_SIZE);
+      auto refill = parent->alloc_range(ka, MIN_CHUNK_SIZE);
 
       if (refill != nullptr)
-        add_range(pointer_offset(refill, size), MIN_CHUNK_SIZE - size);
+        add_range(ka, pointer_offset(refill, size), MIN_CHUNK_SIZE - size);
 
       return refill;
     }
@@ -186,11 +189,11 @@ namespace snmalloc
 
     constexpr SmallBuddyRange() = default;
 
-    CapPtr<void, B> alloc_range(size_t size)
+    CapPtr<void, B> alloc_range(KArg ka, size_t size)
     {
       if (size >= MIN_CHUNK_SIZE)
       {
-        return parent->alloc_range(size);
+        return parent->alloc_range(ka, size);
       }
 
       auto result = buddy_small.remove_block(size);
@@ -200,36 +203,36 @@ namespace snmalloc
         result->right = nullptr;
         return result.template as_reinterpret<void>();
       }
-      return refill(size);
+      return refill(ka, size);
     }
 
-    CapPtr<void, B> alloc_range_with_leftover(size_t size)
+    CapPtr<void, B> alloc_range_with_leftover(KArg ka, size_t size)
     {
       SNMALLOC_ASSERT(size <= MIN_CHUNK_SIZE);
 
       auto rsize = bits::next_pow2(size);
 
-      auto result = alloc_range(rsize);
+      auto result = alloc_range(ka, rsize);
 
       if (result == nullptr)
         return nullptr;
 
       auto remnant = pointer_offset(result, size);
 
-      add_range(remnant, rsize - size);
+      add_range(ka, remnant, rsize - size);
 
       return result.template as_reinterpret<void>();
     }
 
-    void dealloc_range(CapPtr<void, B> base, size_t size)
+    void dealloc_range(KArg ka, CapPtr<void, B> base, size_t size)
     {
       if (size >= MIN_CHUNK_SIZE)
       {
-        parent->dealloc_range(base, size);
+        parent->dealloc_range(ka, base, size);
         return;
       }
 
-      add_range(base, size);
+      add_range(ka, base, size);
     }
   };
 } // namespace snmalloc
