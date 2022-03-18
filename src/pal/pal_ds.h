@@ -142,10 +142,10 @@ namespace snmalloc
 
     void check(uint64_t time_ms)
     {
-      static std::atomic_flag lock = ATOMIC_FLAG_INIT;
+      static std::atomic_bool lock{false};
 
-      // Depulicate calls into here, and make single threaded.
-      if (lock.test_and_set())
+      // Deduplicate calls into here, and make single threaded.
+      if (lock.exchange(true, std::memory_order_acquire))
         return;
 
       timers.apply_all([time_ms](PalTimerObject* curr) {
@@ -156,7 +156,8 @@ namespace snmalloc
           curr->pal_notify(curr);
         }
       });
-      lock.clear();
+
+      lock.store(false, std::memory_order_release);
     }
   };
 } // namespace snmalloc

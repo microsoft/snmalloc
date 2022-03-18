@@ -17,7 +17,7 @@ namespace snmalloc
      * @brief flag
      * The underlying atomic field.
      */
-    std::atomic_flag flag = ATOMIC_FLAG_INIT;
+    std::atomic_bool flag{false};
 
     constexpr DebugFlagWord() = default;
 
@@ -84,7 +84,7 @@ namespace snmalloc
    */
   struct ReleaseFlagWord
   {
-    std::atomic_flag flag = ATOMIC_FLAG_INIT;
+    std::atomic_bool flag{false};
 
     constexpr ReleaseFlagWord() = default;
 
@@ -112,23 +112,18 @@ namespace snmalloc
   public:
     FlagLock(FlagWord& lock) : lock(lock)
     {
-      while (lock.flag.test_and_set(std::memory_order_acquire))
+      while (lock.flag.exchange(true, std::memory_order_acquire))
       {
         // assert_not_owned_by_current_thread is only called when the first
         // acquiring is failed; which means the lock is already held somewhere
         // else.
         lock.assert_not_owned_by_current_thread();
-#ifdef __cpp_lib_atomic_flag_test
-        // acquire ordering because we need other thread's release to be
-        // visible. This loop is better for spin-waiting because it won't issue
+        // This loop is better for spin-waiting because it won't issue
         // expensive write operation (xchg for example).
-        while (lock.flag.test(std::memory_order_acquire))
+        while (lock.flag.load(std::memory_order_relaxed))
         {
           Aal::pause();
         }
-#else
-        Aal::pause();
-#endif
       }
       lock.set_owner();
     }
@@ -136,7 +131,7 @@ namespace snmalloc
     ~FlagLock()
     {
       lock.clear_owner();
-      lock.flag.clear(std::memory_order_release);
+      lock.flag.store(false, std::memory_order_release);
     }
   };
 } // namespace snmalloc
