@@ -167,7 +167,7 @@ namespace snmalloc
      * passed to the core allocator.
      */
     template<ZeroMem zero_mem>
-    SNMALLOC_SLOW_PATH capptr::Alloc<void> alloc_not_small(size_t size)
+    SNMALLOC_FAST_PATH capptr::Alloc<void> alloc_not_small_fast(size_t size)
     {
       if (size == 0)
       {
@@ -207,6 +207,12 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem>
+    SNMALLOC_SLOW_PATH capptr::Alloc<void> alloc_not_small(size_t size)
+    {
+      return alloc_not_small_fast<zero_mem>(size);
+    }
+
+    template<ZeroMem zero_mem>
     SNMALLOC_FAST_PATH capptr::Alloc<void> small_alloc(size_t size)
     {
       auto domesticate = [this](freelist::QueuePtr p)
@@ -239,6 +245,12 @@ namespace snmalloc
 
       return local_cache.template alloc<zero_mem, SharedStateHandle>(
         domesticate, size, slowpath);
+    }
+
+    template<ZeroMem zero_mem>
+    SNMALLOC_SLOW_PATH capptr::Alloc<void> small_alloc_slow(size_t size)
+    {
+      return small_alloc<zero_mem>(size);
     }
 
     /**
@@ -416,8 +428,8 @@ namespace snmalloc
     /**
      * Allocate memory of a dynamically known size.
      */
-    template<ZeroMem zero_mem = NoZero>
-    SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
+    template<size_t size_hint, ZeroMem zero_mem = NoZero>
+    SNMALLOC_FAST_PATH ALLOCATOR void* alloc_hinted(size_t size)
     {
 #ifdef SNMALLOC_PASS_THROUGH
       // snmalloc guarantees a lot of alignment, so we can depend on this
@@ -429,18 +441,37 @@ namespace snmalloc
         memset(result, 0, size);
       return result;
 #else
-      // Perform the - 1 on size, so that zero wraps around and ends up on
-      // slow path.
-      if (SNMALLOC_LIKELY(
-            (size - 1) <= (sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1) - 1)))
+      if constexpr (
+        (size_hint - 1) <= (sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1) - 1))
       {
-        // Small allocations are more likely. Improve
-        // branch prediction by placing this case first.
-        return capptr_reveal(small_alloc<zero_mem>(size));
-      }
+        // Perform the - 1 on size, so that zero wraps around and ends up on
+        // slow path.
+        if (SNMALLOC_LIKELY(
+              (size - 1) <= (sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1) - 1)))
+        {
+          return capptr_reveal(small_alloc<zero_mem>(size));
+        }
 
-      return capptr_reveal(alloc_not_small<zero_mem>(size));
+        return capptr_reveal(alloc_not_small<zero_mem>(size));
+      }
+      else
+      {
+        if (SNMALLOC_UNLIKELY(
+              (size - 1) <= (sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1) - 1)))
+        {
+          return capptr_reveal(small_alloc_slow<zero_mem>(size));
+        }
+
+        return capptr_reveal(alloc_not_small_fast<zero_mem>(size));
+      }
 #endif
+    }
+
+    template<ZeroMem zero_mem = NoZero>
+    SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
+    {
+      // Small allocations are more likely
+      return alloc_hinted<1, zero_mem>(size);
     }
 
     /**
@@ -449,7 +480,7 @@ namespace snmalloc
     template<size_t size, ZeroMem zero_mem = NoZero>
     SNMALLOC_FAST_PATH ALLOCATOR void* alloc()
     {
-      return alloc<zero_mem>(size);
+      return alloc_hinted<size, zero_mem>(size);
     }
 
     /*
