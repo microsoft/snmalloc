@@ -22,11 +22,13 @@ namespace snmalloc
       constexpr State() = default;
     };
 
+    using B = capptr::bounds::Chunk;
+
     static constexpr bool Aligned = pal_supports<AlignedAllocation, PAL>;
 
     constexpr PalRange() = default;
 
-    capptr::Chunk<void> alloc_range(size_t size)
+    CapPtr<void, B> alloc_range(size_t size)
     {
       if (bits::next_pow2_bits(size) >= bits::BITS - 1)
       {
@@ -37,7 +39,7 @@ namespace snmalloc
       {
         SNMALLOC_ASSERT(size >= PAL::minimum_alloc_size);
         auto result =
-          capptr::Chunk<void>(PAL::template reserve_aligned<false>(size));
+          CapPtr<void, B>(PAL::template reserve_aligned<false>(size));
 
 #ifdef SNMALLOC_TRACING
         message<1024>("Pal range alloc: {} ({})", result.unsafe_ptr(), size);
@@ -46,7 +48,7 @@ namespace snmalloc
       }
       else
       {
-        auto result = capptr::Chunk<void>(PAL::reserve(size));
+        auto result = CapPtr<void, B>(PAL::reserve(size));
 
 #ifdef SNMALLOC_TRACING
         message<1024>("Pal range alloc: {} ({})", result.unsafe_ptr(), size);

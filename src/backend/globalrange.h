@@ -35,18 +35,20 @@ namespace snmalloc
       constexpr State() = default;
     };
 
+    using B = typename ParentRange::B;
+
     static constexpr bool Aligned = ParentRange::Aligned;
 
     constexpr GlobalRange() = default;
 
-    capptr::Chunk<void> alloc_range(size_t size)
+    CapPtr<void, B> alloc_range(size_t size)
     {
       FlagLock lock(spin_lock);
       return parent->alloc_range(size);
     }
 
     template<SNMALLOC_CONCEPT(ConceptBackendRange_Dealloc) _pr = ParentRange>
-    void dealloc_range(capptr::Chunk<void> base, size_t size)
+    void dealloc_range(CapPtr<void, B> base, size_t size)
     {
       static_assert(
         std::is_same<_pr, ParentRange>::value,

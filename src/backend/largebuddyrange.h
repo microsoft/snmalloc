@@ -139,6 +139,11 @@ namespace snmalloc
     bool Consolidate = true>
   class LargeBuddyRange
   {
+  public:
+    using B = typename ParentRange::B;
+    static_assert(B::spatial >= capptr::dimension::Spatial::Chunk);
+
+  private:
     typename ParentRange::State parent{};
 
     static constexpr size_t REFILL_SIZE = bits::one_at_bit(REFILL_SIZE_BITS);
@@ -154,14 +159,14 @@ namespace snmalloc
      */
     template<bool exists = MAX_SIZE_BITS != (bits::BITS - 1)>
     std::enable_if_t<exists>
-    parent_dealloc_range(capptr::Chunk<void> base, size_t size)
+    parent_dealloc_range(CapPtr<void, B> base, size_t size)
     {
       static_assert(
         MAX_SIZE_BITS != (bits::BITS - 1), "Don't set SFINAE parameter");
       parent->dealloc_range(base, size);
     }
 
-    void dealloc_overflow(capptr::Chunk<void> overflow)
+    void dealloc_overflow(CapPtr<void, B> overflow)
     {
       if constexpr (MAX_SIZE_BITS != (bits::BITS - 1))
       {
@@ -186,12 +191,10 @@ namespace snmalloc
      * Add a range of memory to the address space.
      * Divides blocks into power of two sizes with natural alignment
      */
-    void add_range(capptr::Chunk<void> base, size_t length)
+    void add_range(CapPtr<void, B> base, size_t length)
     {
       range_to_pow_2_blocks<MIN_CHUNK_BITS>(
-        base,
-        length,
-        [this](capptr::Chunk<void> base, size_t align, bool first) {
+        base, length, [this](CapPtr<void, B> base, size_t align, bool first) {
           if constexpr (!Consolidate)
           {
             // Tag first entry so we don't consolidate it.
@@ -205,14 +208,14 @@ namespace snmalloc
             UNUSED(first);
           }
 
-          auto overflow = capptr::Chunk<void>(reinterpret_cast<void*>(
+          auto overflow = CapPtr<void, B>(reinterpret_cast<void*>(
             buddy_large.add_block(base.unsafe_uintptr(), align)));
 
           dealloc_overflow(overflow);
         });
     }
 
-    capptr::Chunk<void> refill(size_t size)
+    CapPtr<void, B> refill(size_t size)
     {
       if (ParentRange::Aligned)
       {
@@ -278,7 +281,7 @@ namespace snmalloc
 
     constexpr LargeBuddyRange() = default;
 
-    capptr::Chunk<void> alloc_range(size_t size)
+    CapPtr<void, B> alloc_range(size_t size)
     {
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
       SNMALLOC_ASSERT(bits::is_pow2(size));
@@ -300,7 +303,7 @@ namespace snmalloc
       return refill(size);
     }
 
-    void dealloc_range(capptr::Chunk<void> base, size_t size)
+    void dealloc_range(CapPtr<void, B> base, size_t size)
     {
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
       SNMALLOC_ASSERT(bits::is_pow2(size));

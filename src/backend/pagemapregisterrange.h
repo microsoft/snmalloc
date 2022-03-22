@@ -28,9 +28,12 @@ namespace snmalloc
 
     constexpr PagemapRegisterRange() = default;
 
+    using B = typename ParentRange::B;
+    static_assert(B::spatial >= capptr::dimension::Spatial::Chunk);
+
     static constexpr bool Aligned = ParentRange::Aligned;
 
-    capptr::Chunk<void> alloc_range(size_t size)
+    CapPtr<void, B> alloc_range(size_t size)
     {
       auto base = state->alloc_range(size);
 

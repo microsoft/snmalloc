@@ -17,11 +17,13 @@ namespace snmalloc
       constexpr State() = default;
     };
 
+    using B = capptr::bounds::Chunk;
+
     static constexpr bool Aligned = true;
 
     constexpr EmptyRange() = default;
 
-    capptr::Chunk<void> alloc_range(size_t)
+    CapPtr<void, B> alloc_range(size_t)
     {
       return nullptr;
     }

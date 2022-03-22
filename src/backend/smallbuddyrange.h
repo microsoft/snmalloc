@@ -10,20 +10,23 @@ namespace snmalloc
    * struct for representing the redblack nodes
    * directly inside the meta data.
    */
-  struct FreeChunk
+  template<SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+  struct FreeChunkB
   {
-    capptr::Chunk<FreeChunk> left;
-    capptr::Chunk<FreeChunk> right;
+    CapPtr<FreeChunkB<B>, B> left;
+    CapPtr<FreeChunkB<B>, B> right;
   };
 
   /**
    * Class for using the allocations own space to store in the RBTree.
    */
+  template<SNMALLOC_CONCEPT(capptr::ConceptBound) B>
   class BuddyInplaceRep
   {
   public:
-    using Holder = capptr::Chunk<FreeChunk>;
-    using Contents = capptr::Chunk<FreeChunk>;
+    using FreeChunk = FreeChunkB<B>;
+    using Holder = CapPtr<FreeChunk, B>;
+    using Contents = CapPtr<FreeChunk, B>;
 
     static constexpr Contents null = nullptr;
 
@@ -32,8 +35,8 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT((address_cast(r) & MASK) == 0);
       if (r == nullptr)
-        *ptr = capptr::Chunk<FreeChunk>(
-          reinterpret_cast<FreeChunk*>((*ptr).unsafe_uintptr() & MASK));
+        *ptr =
+          Holder(reinterpret_cast<FreeChunk*>((*ptr).unsafe_uintptr() & MASK));
       else
         // Preserve lower bit.
         *ptr = pointer_offset(r, (address_cast(*ptr) & MASK))
@@ -70,7 +73,7 @@ namespace snmalloc
         if (new_is_red)
         {
           if (old_addr == nullptr)
-            r = capptr::Chunk<FreeChunk>(reinterpret_cast<FreeChunk*>(MASK));
+            r = Holder(reinterpret_cast<FreeChunk*>(MASK));
           else
             r = pointer_offset(old_addr, MASK).template as_static<FreeChunk>();
         }
@@ -125,30 +128,36 @@ namespace snmalloc
   template<SNMALLOC_CONCEPT(ConceptBackendRange) ParentRange>
   class SmallBuddyRange
   {
+  public:
+    using B = typename ParentRange::B;
+
+  private:
+    using FreeChunk = FreeChunkB<B>;
     typename ParentRange::State parent{};
 
     static constexpr size_t MIN_BITS =
       bits::next_pow2_bits_const(sizeof(FreeChunk));
 
-    Buddy<BuddyInplaceRep, MIN_BITS, MIN_CHUNK_BITS> buddy_small;
+    Buddy<BuddyInplaceRep<B>, MIN_BITS, MIN_CHUNK_BITS> buddy_small;
 
     /**
      * Add a range of memory to the address space.
      * Divides blocks into power of two sizes with natural alignment
      */
-    void add_range(capptr::Chunk<void> base, size_t length)
+    void add_range(CapPtr<void, B> base, size_t length)
     {
       range_to_pow_2_blocks<MIN_BITS>(
-        base, length, [this](capptr::Chunk<void> base, size_t align, bool) {
-          capptr::Chunk<void> overflow =
-            buddy_small.add_block(base.as_reinterpret<FreeChunk>(), align)
+        base, length, [this](CapPtr<void, B> base, size_t align, bool) {
+          CapPtr<void, B> overflow =
+            buddy_small
+              .add_block(base.template as_reinterpret<FreeChunk>(), align)
               .template as_reinterpret<void>();
           if (overflow != nullptr)
             parent->dealloc_range(overflow, bits::one_at_bit(MIN_CHUNK_BITS));
         });
     }
 
-    capptr::Chunk<void> refill(size_t size)
+    CapPtr<void, B> refill(size_t size)
     {
       auto refill = parent->alloc_range(MIN_CHUNK_SIZE);
 
@@ -177,7 +186,7 @@ namespace snmalloc
 
     constexpr SmallBuddyRange() = default;
 
-    capptr::Chunk<void> alloc_range(size_t size)
+    CapPtr<void, B> alloc_range(size_t size)
     {
       if (size >= MIN_CHUNK_SIZE)
       {
@@ -194,7 +203,7 @@ namespace snmalloc
       return refill(size);
     }
 
-    capptr::Chunk<void> alloc_range_with_leftover(size_t size)
+    CapPtr<void, B> alloc_range_with_leftover(size_t size)
     {
       SNMALLOC_ASSERT(size <= MIN_CHUNK_SIZE);
 
@@ -212,7 +221,7 @@ namespace snmalloc
       return result.template as_reinterpret<void>();
     }
 
-    void dealloc_range(capptr::Chunk<void> base, size_t size)
+    void dealloc_range(CapPtr<void, B> base, size_t size)
     {
       if (size >= MIN_CHUNK_SIZE)
       {

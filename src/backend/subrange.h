@@ -32,9 +32,11 @@ namespace snmalloc
 
     constexpr SubRange() = default;
 
+    using B = typename ParentRange::B;
+
     static constexpr bool Aligned = ParentRange::Aligned;
 
-    capptr::Chunk<void> alloc_range(size_t sub_size)
+    CapPtr<void, B> alloc_range(size_t sub_size)
     {
       SNMALLOC_ASSERT(bits::is_pow2(sub_size));
 

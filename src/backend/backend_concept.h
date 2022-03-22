@@ -84,12 +84,15 @@ namespace snmalloc
   concept ConceptBackendRange_Alloc =
     requires(Range r, size_t sz)
     {
-       { r.alloc_range(sz) } -> ConceptSame<capptr::Chunk<void>>;
+       { r.alloc_range(sz) } -> ConceptSame<CapPtr<void, typename Range::B>>;
     };
 
   template<typename Range>
   concept ConceptBackendRange_Dealloc =
-    requires(Range r, capptr::Chunk<void> p, size_t sz)
+    requires(
+      Range r,
+      CapPtr<void, typename Range::B> p,
+      size_t sz)
     {
        { r.dealloc_range(p, sz) } -> ConceptSame<void>;
     };
