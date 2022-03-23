@@ -151,7 +151,7 @@ namespace snmalloc
         if (post_teardown)
         {
 #ifdef SNMALLOC_TRACING
-          std::cout << "post_teardown flush()" << std::endl;
+          message<1024>("post_teardown flush()");
 #endif
           // We didn't have an allocator because the thread is being torndown.
           // We need to return any local state, so we don't leak it.
@@ -188,8 +188,7 @@ namespace snmalloc
         // set up meta data so sizeclass is correct, and hence alloc size, and
         // external pointer.
 #ifdef SNMALLOC_TRACING
-        std::cout << "size " << size << " pow2 size "
-                  << bits::next_pow2_bits(size) << std::endl;
+        message<1024>("size {} pow2size {}", size, bits::next_pow2_bits(size));
 #endif
 
         // Initialise meta data for a successful large allocation.
@@ -263,8 +262,10 @@ namespace snmalloc
       if (core_alloc != nullptr)
       {
 #ifdef SNMALLOC_TRACING
-        std::cout << "Remote dealloc post" << p.unsafe_ptr() << " size "
-                  << alloc_size(p.unsafe_ptr()) << std::endl;
+        message<1024>(
+          "Remote dealloc post {} ({})",
+          p.unsafe_ptr(),
+          alloc_size(p.unsafe_ptr()));
 #endif
         const MetaslabMetaEntry& entry =
           SharedStateHandle::Pagemap::template get_metaentry<MetaslabMetaEntry>(
@@ -364,8 +365,7 @@ namespace snmalloc
       c->attach(&local_cache);
       core_alloc = c;
 #ifdef SNMALLOC_TRACING
-      std::cout << "init(): core_alloc=" << core_alloc << "@" << &local_cache
-                << std::endl;
+      message<1024>("init(): core_alloc={} @ {}", core_alloc, &local_cache);
 #endif
       // local_cache.stats.sta rt();
     }
@@ -407,7 +407,7 @@ namespace snmalloc
         // it is new to hit slow paths.
         core_alloc = nullptr;
 #ifdef SNMALLOC_TRACING
-        std::cout << "flush(): core_alloc=" << core_alloc << std::endl;
+        message<1024>("flush(): core_alloc={}", core_alloc);
 #endif
         local_cache.remote_allocator = &SharedStateHandle::unused_remote;
         local_cache.remote_dealloc_cache.capacity = 0;
@@ -651,8 +651,8 @@ namespace snmalloc
           local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
             entry.get_remote()->trunc_id(), p_tame, key_global);
 #  ifdef SNMALLOC_TRACING
-          std::cout << "Remote dealloc fast" << p_raw << " size "
-                    << alloc_size(p_raw) << std::endl;
+          message<1024>(
+            "Remote dealloc fast {} ({})", p_raw, alloc_size(p_raw));
 #  endif
           return;
         }
@@ -667,7 +667,7 @@ namespace snmalloc
       snmalloc_check_client(p_tame == nullptr, "Not allocated by snmalloc.");
 
 #  ifdef SNMALLOC_TRACING
-      std::cout << "nullptr deallocation" << std::endl;
+      message<1024>("nullptr deallocation");
 #  endif
       return;
 #endif
@@ -689,8 +689,7 @@ namespace snmalloc
     void teardown()
     {
 #ifdef SNMALLOC_TRACING
-      std::cout << "Teardown: core_alloc=" << core_alloc << "@" << &local_cache
-                << std::endl;
+      message<1024>("Teardown: core_alloc={} @ {}", core_alloc, &local_cache);
 #endif
       post_teardown = true;
       if (core_alloc != nullptr)

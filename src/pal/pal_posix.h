@@ -336,8 +336,7 @@ namespace snmalloc
       if (p != MAP_FAILED)
       {
 #ifdef SNMALLOC_TRACING
-        std::cout << "Pal_posix reserved: " << p << " (" << size << ")"
-                  << std::endl;
+        snmalloc::message<1024>("Pal_posix reserved: {} ({})", p, size);
 #endif
         return p;
       }

@@ -277,8 +277,7 @@ namespace snmalloc
       auto p = local_state.object_range->alloc_range(size);
 
 #ifdef SNMALLOC_TRACING
-      std::cout << "Alloc chunk: " << p.unsafe_ptr() << " (" << size << ")"
-                << std::endl;
+      message<1024>("Alloc chunk: {} ({})", p.unsafe_ptr(), size);
 #endif
       if (p == nullptr)
       {
@@ -286,7 +285,7 @@ namespace snmalloc
           meta_cap, PAGEMAP_METADATA_STRUCT_SIZE);
         errno = ENOMEM;
 #ifdef SNMALLOC_TRACING
-        std::cout << "Out of memory" << std::endl;
+        message<1024>("Out of memory");
 #endif
         return {p, nullptr};
       }

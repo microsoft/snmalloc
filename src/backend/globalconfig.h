@@ -60,7 +60,7 @@ namespace snmalloc
     {
       FlagLock lock{initialisation_lock};
 #ifdef SNMALLOC_TRACING
-      std::cout << "Run init_impl" << std::endl;
+      message<1024>("Run init_impl");
 #endif
 
       if (initialised)
