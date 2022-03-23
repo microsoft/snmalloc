@@ -271,6 +271,8 @@ namespace snmalloc
 
     static constexpr bool Aligned = true;
 
+    static constexpr bool ConcurrencySafe = false;
+
     constexpr LargeBuddyRange() = default;
 
     capptr::Chunk<void> alloc_range(size_t size)

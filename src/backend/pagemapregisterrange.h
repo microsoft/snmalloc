@@ -30,6 +30,8 @@ namespace snmalloc
 
     static constexpr bool Aligned = ParentRange::Aligned;
 
+    static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
+
     capptr::Chunk<void> alloc_range(size_t size)
     {
       auto base = state->alloc_range(size);
