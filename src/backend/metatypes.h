@@ -98,6 +98,14 @@ namespace snmalloc
     uintptr_t meta{0};
 
     /**
+     * In common cases, a bit-packed pointer to the owning allocator (if any),
+     * and the sizeclass of this chunk.  See mem/metaslab.h:MetaEntryRemote for
+     * details of this case and docs/AddressSpace.md for further details.
+     */
+    uintptr_t remote_and_sizeclass{0};
+
+  public:
+    /**
      * Bit used to indicate this should not be considered part of the previous
      * PAL allocation.
      *
@@ -108,14 +116,6 @@ namespace snmalloc
      */
     static constexpr address_t META_BOUNDARY_BIT = 1 << 0;
 
-    /**
-     * In common cases, a bit-packed pointer to the owning allocator (if any),
-     * and the sizeclass of this chunk.  See mem/metaslab.h:MetaEntryRemote for
-     * details of this case and docs/AddressSpace.md for further details.
-     */
-    uintptr_t remote_and_sizeclass{0};
-
-  public:
     /**
      * This bit is set in remote_and_sizeclass to discriminate between the case
      * that it is in use by the frontend (0) or by the backend (1).  For the

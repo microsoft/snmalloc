@@ -246,6 +246,48 @@ namespace snmalloc
     }
 
     /**
+     * Returns a chunk of memory with alignment and size of `size` and a
+     * MetaCommon structure that must be held by the frontend.  This function is
+     * given a word to store in the meta field of the Pagemap rather than
+     * allocating the metadata structure; see alloc_chunk() below.
+     */
+    static std::pair<capptr::Chunk<void>, MetaCommon> alloc_chunk_premeta(
+      LocalState& local_state, size_t size, uintptr_t ras, MetaCommon* meta)
+    {
+      SNMALLOC_ASSERT(bits::is_pow2(size));
+      SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
+
+      SNMALLOC_ASSERT((ras & MetaEntry::REMOTE_BACKEND_MARKER) == 0);
+      ras &= ~MetaEntry::REMOTE_BACKEND_MARKER;
+
+      SNMALLOC_ASSERT((reinterpret_cast<uintptr_t>(meta) &
+MetaEntry::META_BOUNDARY_BIT) == 0);
+
+      auto p = local_state.object_range->alloc_range(size);
+#ifdef SNMALLOC_TRACING
+      std::cout << "Alloc chunk: " << p.unsafe_ptr() << " (" << size << ")"
+                << std::endl;
+#endif
+      if (p == nullptr)
+      {
+        errno = ENOMEM;
+#ifdef SNMALLOC_TRACING
+        std::cout << "Out of memory" << std::endl;
+#endif
+
+        MetaCommon n;
+        n.chunk = nullptr;
+        return {nullptr, n};
+      }
+
+      Pagemap::set_metaentry(address_cast(p), size, MetaEntry(meta, ras));
+
+      MetaCommon mc;
+      mc.chunk = p;
+      return {Aal::capptr_bound<void, capptr::bounds::Chunk>(p, size), mc};
+    }
+
+    /**
      * Returns a chunk of memory with alignment and size of `size`, and a
      * metaslab block.
      *
@@ -257,24 +299,20 @@ namespace snmalloc
     static std::pair<capptr::Chunk<void>, Metaslab*>
     alloc_chunk(LocalState& local_state, size_t size, uintptr_t ras)
     {
-      SNMALLOC_ASSERT(bits::is_pow2(size));
-      SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
-
-      SNMALLOC_ASSERT((ras & MetaEntry::REMOTE_BACKEND_MARKER) == 0);
-      ras &= ~MetaEntry::REMOTE_BACKEND_MARKER;
-
       auto meta_cap =
         local_state.get_meta_range()->alloc_range(PAGEMAP_METADATA_STRUCT_SIZE);
 
-      auto meta = meta_cap.template as_reinterpret<Metaslab>().unsafe_ptr();
-
-      if (meta == nullptr)
+      if (meta_cap == nullptr)
       {
         errno = ENOMEM;
         return {nullptr, nullptr};
       }
 
-      auto p = local_state.object_range->alloc_range(size);
+      auto [p, mc] = alloc_chunk_premeta(
+        local_state,
+        size,
+        ras,
+        meta_cap.template as_static<MetaCommon>().unsafe_ptr());
 
 #ifdef SNMALLOC_TRACING
       std::cout << "Alloc chunk: " << p.unsafe_ptr() << " (" << size << ")"
@@ -291,12 +329,10 @@ namespace snmalloc
         return {p, nullptr};
       }
 
-      meta->meta_common.chunk = p;
+      auto meta = meta_cap.template as_static<Metaslab>().unsafe_ptr();
 
-      MetaEntry t(&meta->meta_common, ras);
-      Pagemap::set_metaentry(address_cast(p), size, t);
+      meta->meta_common = mc;
 
-      p = Aal::capptr_bound<void, capptr::bounds::Chunk>(p, size);
       return {p, meta};
     }
 
