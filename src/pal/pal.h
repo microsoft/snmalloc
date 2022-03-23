@@ -168,10 +168,23 @@ namespace snmalloc
     Pal::error(msg.get_message());
   }
 
+  static inline size_t get_tid()
+  {
+    static thread_local size_t tid{0};
+    static std::atomic<size_t> tid_source{1};
+
+    if (tid == 0)
+    {
+      tid = tid_source++;
+    }
+    return tid;
+  }
+
   template<size_t BufferSize, typename... Args>
   inline void message(Args... args)
   {
     MessageBuilder<BufferSize> msg{std::forward<Args>(args)...};
-    Pal::message(msg.get_message());
+    MessageBuilder<BufferSize> msg_tid{"{}: {}", get_tid(), msg.get_message()};
+    Pal::message(msg_tid.get_message());
   }
 } // namespace snmalloc
