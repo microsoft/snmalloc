@@ -7,6 +7,7 @@
 #include "commonconfig.h"
 #include "empty_range.h"
 #include "globalrange.h"
+#include "indirectrange.h"
 #include "largebuddyrange.h"
 #include "metatypes.h"
 #include "pagemap.h"
@@ -154,15 +155,17 @@ namespace snmalloc
       LargeBuddyRange<CommitRange<GlobalR, DefaultPal>, 21, 21, Pagemap>;
     // Set up protected range for metadata
     using SubR = CommitRange<SubRange<GlobalR, DefaultPal, 6>, DefaultPal>;
-    using MetaRange =
-      SmallBuddyRange<LargeBuddyRange<SubR, 21 - 6, bits::BITS - 1, Pagemap>>;
+    using MetaRange = SmallBuddyRange<DropArgRange<
+      LargeBuddyRange<SubR, 21 - 6, bits::BITS - 1, Pagemap>,
+      typename ObjectRange::State*>>;
     using GlobalMetaRange = GlobalRange<MetaRange>;
 #  else
     // Source for object allocations and metadata
     // No separation between the two
-    using ObjectRange = SmallBuddyRange<
-      LargeBuddyRange<CommitRange<GlobalR, DefaultPal>, 21, 21, Pagemap>>;
-    using GlobalMetaRange = GlobalRange<ObjectRange>;
+    using ObjectRange =
+      LargeBuddyRange<CommitRange<GlobalR, DefaultPal>, 21, 21, Pagemap>;
+    using MetaRange = SmallBuddyRange<IndirectRange<ObjectRange>>;
+    using GlobalMetaRange = GlobalRange<SmallBuddyRange<ObjectRange>>;
 #  endif
 #endif
 
@@ -170,19 +173,27 @@ namespace snmalloc
     {
       typename ObjectRange::State object_range;
 
-#ifdef SNMALLOC_META_PROTECTED
+    private:
       typename MetaRange::State meta_range;
 
-      typename MetaRange::State& get_meta_range()
+    public:
+      SNMALLOC_FAST_PATH
+      capptr::Chunk<void> alloc_meta_with_leftover(size_t size)
       {
-        return meta_range;
+        return meta_range->alloc_range_with_leftover(&object_range, size);
       }
-#else
-      typename ObjectRange::State& get_meta_range()
+
+      SNMALLOC_FAST_PATH
+      capptr::Chunk<void> alloc_meta(size_t size)
       {
-        return object_range;
+        return meta_range->alloc_range(&object_range, size);
       }
-#endif
+
+      SNMALLOC_FAST_PATH
+      void dealloc_meta(capptr::Chunk<void> p, size_t size)
+      {
+        meta_range->dealloc_range(&object_range, p, size);
+      }
     };
 
   public:
@@ -232,8 +243,7 @@ namespace snmalloc
       capptr::Chunk<void> p;
       if (local_state != nullptr)
       {
-        p = local_state->get_meta_range()->alloc_range_with_leftover(
-          nullptr, size);
+        p = local_state->alloc_meta_with_leftover(size);
       }
       else
       {
@@ -265,8 +275,7 @@ namespace snmalloc
       SNMALLOC_ASSERT((ras & MetaEntry::REMOTE_BACKEND_MARKER) == 0);
       ras &= ~MetaEntry::REMOTE_BACKEND_MARKER;
 
-      auto meta_cap = local_state.get_meta_range()->alloc_range(
-        nullptr, PAGEMAP_METADATA_STRUCT_SIZE);
+      auto meta_cap = local_state.alloc_meta(PAGEMAP_METADATA_STRUCT_SIZE);
 
       auto meta = meta_cap.template as_reinterpret<Metaslab>().unsafe_ptr();
 
@@ -284,8 +293,7 @@ namespace snmalloc
 #endif
       if (p == nullptr)
       {
-        local_state.get_meta_range()->dealloc_range(
-          nullptr, meta_cap, PAGEMAP_METADATA_STRUCT_SIZE);
+        local_state.dealloc_meta(meta_cap, PAGEMAP_METADATA_STRUCT_SIZE);
         errno = ENOMEM;
 #ifdef SNMALLOC_TRACING
         std::cout << "Out of memory" << std::endl;
@@ -316,10 +324,8 @@ namespace snmalloc
       MetaEntry t(nullptr, MetaEntry::REMOTE_BACKEND_MARKER);
       Pagemap::set_metaentry(address_cast(chunk), size, t);
 
-      local_state.get_meta_range()->dealloc_range(
-        nullptr,
-        capptr::Chunk<void>(chunk_record),
-        PAGEMAP_METADATA_STRUCT_SIZE);
+      local_state.dealloc_meta(
+        capptr::Chunk<void>(chunk_record), PAGEMAP_METADATA_STRUCT_SIZE);
 
       local_state.object_range->dealloc_range(nullptr, chunk, size);
     }
