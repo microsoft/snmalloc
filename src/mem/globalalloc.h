@@ -94,7 +94,7 @@ namespace snmalloc
     auto* alloc = AllocPool<SharedStateHandle>::iterate();
 
 #  ifdef SNMALLOC_TRACING
-    std::cout << "debug check empty: first " << alloc << std::endl;
+    message<1024>("debug check empty: first {}", alloc);
 #  endif
     bool done = false;
     bool okay = true;
@@ -102,7 +102,7 @@ namespace snmalloc
     while (!done)
     {
 #  ifdef SNMALLOC_TRACING
-      std::cout << "debug_check_empty: Check all allocators!" << std::endl;
+      message<1024>("debug_check_empty: Check all allocators!");
 #  endif
       done = true;
       alloc = AllocPool<SharedStateHandle>::iterate();
@@ -111,7 +111,7 @@ namespace snmalloc
       while (alloc != nullptr)
       {
 #  ifdef SNMALLOC_TRACING
-        std::cout << "debug check empty: " << alloc << std::endl;
+        message<1024>("debug check empty: {}", alloc);
 #  endif
         // Check that the allocator has freed all memory.
         // repeat the loop if empty caused message sends.
@@ -119,13 +119,12 @@ namespace snmalloc
         {
           done = false;
 #  ifdef SNMALLOC_TRACING
-          std::cout << "debug check empty: sent messages " << alloc
-                    << std::endl;
+          message<1024>("debug check empty: sent messages {}", alloc);
 #  endif
         }
 
 #  ifdef SNMALLOC_TRACING
-        std::cout << "debug check empty: okay = " << okay << std::endl;
+        message<1024>("debug check empty: okay = {}", okay);
 #  endif
         alloc = AllocPool<SharedStateHandle>::iterate(alloc);
       }

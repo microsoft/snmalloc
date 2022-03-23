@@ -205,6 +205,13 @@ namespace snmalloc
    */
   template<size_t BufferSize = 1024, typename... Args>
   [[noreturn]] inline void report_fatal_error(Args... args);
+
+  /**
+   * Forward declaration so that this can be called before the pal header is
+   * included.
+   */
+  template<size_t BufferSize = 1024, typename... Args>
+  inline void message(Args... args);
 } // namespace snmalloc
 
 #ifdef SNMALLOC_CHECK_CLIENT

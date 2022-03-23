@@ -342,8 +342,10 @@ namespace snmalloc
 #endif
 
 #ifdef SNMALLOC_TRACING
-      std::cout << "Slab " << start_of_slab.unsafe_ptr()
-                << " is unused, Object sizeclass " << sizeclass << std::endl;
+      message<1024>(
+        "Slab {}  is unused, Object sizeclass {}",
+        start_of_slab.unsafe_ptr(),
+        sizeclass);
 #else
       UNUSED(start_of_slab);
 #endif
@@ -412,7 +414,7 @@ namespace snmalloc
         size_t size = bits::one_at_bit(entry_sizeclass);
 
 #ifdef SNMALLOC_TRACING
-        std::cout << "Large deallocation: " << size << std::endl;
+        message<1024>("Large deallocation: {}", size);
 #else
         UNUSED(size);
 #endif
@@ -437,7 +439,7 @@ namespace snmalloc
         alloc_classes[sizeclass].length++;
 
 #ifdef SNMALLOC_TRACING
-        std::cout << "Slab is woken up" << std::endl;
+        message<1024>("Slab is woken up");
 #endif
 
         ticker.check_tick();
@@ -483,7 +485,7 @@ namespace snmalloc
       auto cb = [this,
                  &need_post](freelist::HeadPtr msg) SNMALLOC_FAST_PATH_LAMBDA {
 #ifdef SNMALLOC_TRACING
-        std::cout << "Handling remote" << std::endl;
+        message<1024>("Handling remote");
 #endif
 
         auto& entry =
@@ -562,7 +564,7 @@ namespace snmalloc
     void init()
     {
 #ifdef SNMALLOC_TRACING
-      std::cout << "Making an allocator." << std::endl;
+      message<1024>("Making an allocator.");
 #endif
       // Entropy must be first, so that all data-structures can use the key
       // it generates.
@@ -776,8 +778,7 @@ namespace snmalloc
       size_t slab_size = sizeclass_to_slab_size(sizeclass);
 
 #ifdef SNMALLOC_TRACING
-      std::cout << "rsize " << rsize << std::endl;
-      std::cout << "slab size " << slab_size << std::endl;
+      message<1024>("small_alloc_slow rsize={} slab size={}", rsize, slab_size);
 #endif
 
       auto [slab, meta] = SharedStateHandle::alloc_chunk(
@@ -872,7 +873,7 @@ namespace snmalloc
     void attach(LocalCache* c)
     {
 #ifdef SNMALLOC_TRACING
-      std::cout << "Attach cache to " << this << std::endl;
+      message<1024>("Attach cache to {}", this);
 #endif
       attached_cache = c;
 
@@ -916,7 +917,7 @@ namespace snmalloc
       init_message_queue();
 
 #ifdef SNMALLOC_TRACING
-      std::cout << "debug_is_empty - done" << std::endl;
+      message<1024>("debug_is_empty - done");
 #endif
       return sent_something;
     }
@@ -934,7 +935,7 @@ namespace snmalloc
     bool debug_is_empty(bool* result)
     {
 #ifdef SNMALLOC_TRACING
-      std::cout << "debug_is_empty" << std::endl;
+      message<1024>("debug_is_empty");
 #endif
       if (attached_cache == nullptr)
       {
@@ -943,7 +944,7 @@ namespace snmalloc
         LocalCache temp(public_state());
         attach(&temp);
 #ifdef SNMALLOC_TRACING
-        std::cout << "debug_is_empty - attach a cache" << std::endl;
+        message<1024>("debug_is_empty - attach a cache");
 #endif
         auto sent_something = debug_is_empty_impl(result);
 

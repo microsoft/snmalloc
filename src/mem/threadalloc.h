@@ -139,7 +139,7 @@ namespace snmalloc
     static char p_teardown_val = 1;
     pthread_setspecific(p_key.get(), &p_teardown_val);
 #    ifdef SNMALLOC_TRACING
-    std::cout << "Using pthread clean up" << std::endl;
+    message<1024>("Using pthread clean up");
 #    endif
   }
 #  elif defined(SNMALLOC_USE_CXX_THREAD_DESTRUCTORS)
@@ -157,7 +157,7 @@ namespace snmalloc
       []() { ThreadAlloc::get().teardown(); });
     UNUSED(dummy);
 #    ifdef SNMALLOC_TRACING
-    std::cout << "Using C++ destructor clean up" << std::endl;
+    message<1024>("Using C++ destructor clean up");
 #    endif
   }
 #  endif
