@@ -235,6 +235,9 @@ namespace snmalloc
       }
       else
       {
+        static_assert(
+          GlobalMetaRange::ConcurrencySafe,
+          "Global meta data range needs to be concurrency safe.");
         typename GlobalMetaRange::State global_state;
         p = global_state->alloc_range(bits::next_pow2(size));
       }

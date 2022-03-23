@@ -175,6 +175,8 @@ namespace snmalloc
     static constexpr bool Aligned = true;
     static_assert(ParentRange::Aligned, "ParentRange must be aligned");
 
+    static constexpr bool ConcurrencySafe = false;
+
     constexpr SmallBuddyRange() = default;
 
     capptr::Chunk<void> alloc_range(size_t size)

@@ -31,6 +31,8 @@ namespace snmalloc
 
     static constexpr bool Aligned = ParentRange::Aligned;
 
+    static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
+
     capptr::Chunk<void> alloc_range(size_t sub_size)
     {
       SNMALLOC_ASSERT(bits::is_pow2(sub_size));

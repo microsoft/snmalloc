@@ -25,6 +25,8 @@ namespace snmalloc
 
     static constexpr bool Aligned = ParentRange::Aligned;
 
+    static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
+
     constexpr CommitRange() = default;
 
     capptr::Chunk<void> alloc_range(size_t size)
