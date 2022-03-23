@@ -1,10 +1,11 @@
 #pragma once
 
-#include "../backend/chunkallocator.h"
 #include "../ds/flaglock.h"
 #include "../ds/mpmcstack.h"
 #include "../pal/pal_concept.h"
 #include "pooled.h"
+
+#include <new>
 
 namespace snmalloc
 {
@@ -132,14 +133,16 @@ namespace snmalloc
         return p;
       }
 
-      p = ChunkAllocator::alloc_meta_data<T, SharedStateHandle>(
-        nullptr, std::forward<Args>(args)...);
+      auto raw =
+        SharedStateHandle::template alloc_meta_data<T>(nullptr, sizeof(T));
 
-      if (p == nullptr)
+      if (raw == nullptr)
       {
         SharedStateHandle::Pal::error(
           "Failed to initialise thread local allocator.");
       }
+
+      p = new (raw.unsafe_ptr()) T(std::forward<Args>(args)...);
 
       FlagLock f(pool.lock);
       p->list_next = pool.list;

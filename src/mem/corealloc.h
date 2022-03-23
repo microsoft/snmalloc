@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../backend/chunkallocator.h"
 #include "../ds/defines.h"
 #include "allocconfig.h"
 #include "localcache.h"
@@ -282,7 +281,7 @@ namespace snmalloc
       bumpptr = slab_end;
     }
 
-    ChunkRecord* clear_slab(Metaslab* meta, smallsizeclass_t sizeclass)
+    void clear_slab(Metaslab* meta, smallsizeclass_t sizeclass)
     {
       auto& key = entropy.get_free_list_key();
       freelist::Iter<> fl;
@@ -324,15 +323,13 @@ namespace snmalloc
       SNMALLOC_ASSERT(
         count == snmalloc::sizeclass_to_slab_object_count(sizeclass));
 #endif
-      ChunkRecord* chunk_record = reinterpret_cast<ChunkRecord*>(meta);
       // TODO: This is a capability amplification as we are saying we
       // have the whole chunk.
       auto start_of_slab = pointer_align_down<void>(
         p, snmalloc::sizeclass_to_slab_size(sizeclass));
 
       SNMALLOC_ASSERT(
-        address_cast(start_of_slab) ==
-        chunk_record->meta_common.chunk_address());
+        address_cast(start_of_slab) == meta->meta_common.chunk_address());
 
 #if defined(__CHERI_PURE_CAPABILITY__) && !defined(SNMALLOC_CHECK_CLIENT)
       // Zero the whole slab. For CHERI we at least need to clear the freelist
@@ -340,9 +337,8 @@ namespace snmalloc
       // the freelist order as for SNMALLOC_CHECK_CLIENT. Zeroing the whole slab
       // may be more friendly to hw because it does not involve pointer chasing
       // and is amenable to prefetching.
-      chunk_record->meta_common
-        .template zero_chunk<typename SharedStateHandle::Pal>(
-          snmalloc::sizeclass_to_slab_size(sizeclass));
+      meta->meta_common.template zero_chunk<typename SharedStateHandle::Pal>(
+        snmalloc::sizeclass_to_slab_size(sizeclass));
 #endif
 
 #ifdef SNMALLOC_TRACING
@@ -351,7 +347,6 @@ namespace snmalloc
 #else
       UNUSED(start_of_slab);
 #endif
-      return chunk_record;
     }
 
     template<bool check_slabs = false>
@@ -386,11 +381,11 @@ namespace snmalloc
 
         // TODO delay the clear to the next user of the slab, or teardown so
         // don't touch the cache lines at this point in snmalloc_check_client.
-        auto chunk_record = clear_slab(meta, sizeclass);
+        clear_slab(meta, sizeclass);
 
         SharedStateHandle::dealloc_chunk(
           get_backend_local_state(),
-          chunk_record,
+          meta->meta_common,
           sizeclass_to_slab_size(sizeclass));
 
         return true;
@@ -422,10 +417,8 @@ namespace snmalloc
         UNUSED(size);
 #endif
 
-        auto slab_record = reinterpret_cast<ChunkRecord*>(meta);
-
         SharedStateHandle::dealloc_chunk(
-          get_backend_local_state(), slab_record, size);
+          get_backend_local_state(), meta->meta_common, size);
 
         return;
       }

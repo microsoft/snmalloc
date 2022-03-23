@@ -1,7 +1,6 @@
 #pragma once
 #include "../mem/allocconfig.h"
 #include "../pal/pal.h"
-#include "chunkallocator.h"
 #include "commitrange.h"
 #include "commonconfig.h"
 #include "empty_range.h"
@@ -301,10 +300,10 @@ namespace snmalloc
       return {p, meta};
     }
 
-    static void dealloc_chunk(
-      LocalState& local_state, ChunkRecord* chunk_record, size_t size)
+    static void
+    dealloc_chunk(LocalState& local_state, MetaCommon& meta_common, size_t size)
     {
-      auto chunk = chunk_record->meta_common.chunk;
+      auto chunk = meta_common.chunk;
 
       /*
        * The backend takes possession of these chunks now, by disassociating
@@ -316,7 +315,7 @@ namespace snmalloc
       Pagemap::set_metaentry(address_cast(chunk), size, t);
 
       local_state.get_meta_range()->dealloc_range(
-        capptr::Chunk<void>(chunk_record), PAGEMAP_METADATA_STRUCT_SIZE);
+        capptr::Chunk<void>(&meta_common), PAGEMAP_METADATA_STRUCT_SIZE);
 
       local_state.object_range->dealloc_range(chunk, size);
     }
