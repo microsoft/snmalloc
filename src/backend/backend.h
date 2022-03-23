@@ -129,8 +129,9 @@ namespace snmalloc
 #if defined(OPEN_ENCLAVE)
     // Single global buddy allocator is used on open enclave due to
     // the limited address space.
-    using GlobalR = GlobalRange<StatsR<SmallBuddyRange<
-      LargeBuddyRange<EmptyRange, bits::BITS - 1, bits::BITS - 1, Pagemap>>>>;
+    using StatsR = StatsRange<SmallBuddyRange<
+      LargeBuddyRange<EmptyRange, bits::BITS - 1, bits::BITS - 1, Pagemap>>>;
+    using GlobalR = GlobalRange<StatsR>;
     using ObjectRange = GlobalR;
     using GlobalMetaRange = ObjectRange;
 #else
