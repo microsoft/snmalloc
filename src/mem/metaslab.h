@@ -239,6 +239,11 @@ namespace snmalloc
    */
   struct MetaslabMetaEntry : public MetaEntry
   {
+    /**
+     * Inherit MetaEntry's constructors.
+     */
+    using MetaEntry::MetaEntry;
+
     /// Perform the encoding.
     static SNMALLOC_FAST_PATH uintptr_t
     encode(RemoteAllocator* remote, sizeclass_t sizeclass)
