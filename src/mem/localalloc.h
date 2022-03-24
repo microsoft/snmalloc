@@ -183,7 +183,7 @@ namespace snmalloc
         auto [chunk, meta] = SharedStateHandle::alloc_chunk(
           core_alloc->get_backend_local_state(),
           large_size_to_chunk_size(size),
-          MetaslabMetaEntry::encode(
+          FrontendMetaEntry::encode(
             core_alloc->public_state(), size_to_sizeclass_full(size)));
         // set up meta data so sizeclass is correct, and hence alloc size, and
         // external pointer.
@@ -266,11 +266,10 @@ namespace snmalloc
         std::cout << "Remote dealloc post" << p.unsafe_ptr() << " size "
                   << alloc_size(p.unsafe_ptr()) << std::endl;
 #endif
-        const MetaslabMetaEntry& entry =
-          SharedStateHandle::Pagemap::template get_metaentry<MetaslabMetaEntry>(
-            address_cast(p));
+        const MetaEntry& entry =
+          SharedStateHandle::Pagemap::get_metaentry(address_cast(p));
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-          entry.get_remote()->trunc_id(), p, key_global);
+          FrontendMetaEntry::get_remote(entry)->trunc_id(), p, key_global);
         post_remote_cache();
         return;
       }
@@ -625,10 +624,11 @@ namespace snmalloc
       capptr::Alloc<void> p_tame = capptr_domesticate<SharedStateHandle>(
         core_alloc->backend_state_ptr(), p_wild);
 
-      const MetaslabMetaEntry& entry =
-        SharedStateHandle::Pagemap::template get_metaentry<MetaslabMetaEntry>(
-          address_cast(p_tame));
-      if (SNMALLOC_LIKELY(local_cache.remote_allocator == entry.get_remote()))
+      const MetaEntry& entry =
+        SharedStateHandle::Pagemap::get_metaentry(address_cast(p_tame));
+      if (SNMALLOC_LIKELY(
+            local_cache.remote_allocator ==
+            FrontendMetaEntry::get_remote(entry)))
       {
 #  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
         dealloc_cheri_checks(p_tame.unsafe_ptr());
@@ -640,7 +640,8 @@ namespace snmalloc
         return;
       }
 
-      if (SNMALLOC_LIKELY(entry.get_remote() != nullptr))
+      RemoteAllocator* remote = FrontendMetaEntry::get_remote(entry);
+      if (SNMALLOC_LIKELY(remote != nullptr))
       {
 #  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
         dealloc_cheri_checks(p_tame.unsafe_ptr());
@@ -649,7 +650,7 @@ namespace snmalloc
         if (local_cache.remote_dealloc_cache.reserve_space(entry))
         {
           local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-            entry.get_remote()->trunc_id(), p_tame, key_global);
+            remote->trunc_id(), p_tame, key_global);
 #  ifdef SNMALLOC_TRACING
           std::cout << "Remote dealloc fast" << p_raw << " size "
                     << alloc_size(p_raw) << std::endl;
@@ -716,11 +717,10 @@ namespace snmalloc
       // To handle this case we require the uninitialised pagemap contain an
       // entry for the first chunk of memory, that states it represents a
       // large object, so we can pull the check for null off the fast path.
-      const MetaslabMetaEntry& entry =
-        SharedStateHandle::Pagemap::template get_metaentry<MetaslabMetaEntry>(
-          address_cast(p_raw));
+      const MetaEntry& entry =
+        SharedStateHandle::Pagemap::get_metaentry(address_cast(p_raw));
 
-      return sizeclass_full_to_size(entry.get_sizeclass());
+      return sizeclass_full_to_size(FrontendMetaEntry::get_sizeclass(entry));
 #endif
     }
 
@@ -762,10 +762,11 @@ namespace snmalloc
     size_t remaining_bytes(const void* p)
     {
 #ifndef SNMALLOC_PASS_THROUGH
-      const MetaslabMetaEntry& entry = SharedStateHandle::Pagemap::
-        template get_metaentry<MetaslabMetaEntry, true>(address_cast(p));
+      const MetaEntry& entry =
+        SharedStateHandle::Pagemap::template get_metaentry<true>(
+          address_cast(p));
 
-      auto sizeclass = entry.get_sizeclass();
+      auto sizeclass = FrontendMetaEntry::get_sizeclass(entry);
       return snmalloc::remaining_bytes(sizeclass, address_cast(p));
 #else
       return pointer_diff(p, reinterpret_cast<void*>(UINTPTR_MAX));
@@ -790,10 +791,11 @@ namespace snmalloc
     size_t index_in_object(const void* p)
     {
 #ifndef SNMALLOC_PASS_THROUGH
-      const MetaslabMetaEntry& entry = SharedStateHandle::Pagemap::
-        template get_metaentry<MetaslabMetaEntry, true>(address_cast(p));
+      const MetaEntry& entry =
+        SharedStateHandle::Pagemap::template get_metaentry<true>(
+          address_cast(p));
 
-      auto sizeclass = entry.get_sizeclass();
+      auto sizeclass = FrontendMetaEntry::get_sizeclass(entry);
       return snmalloc::index_in_object(sizeclass, address_cast(p));
 #else
       return reinterpret_cast<size_t>(p);

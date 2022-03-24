@@ -226,18 +226,17 @@ namespace snmalloc
   };
 
   /*
-   * A convenience wrapper aroun MetaEntry with a meaningful RemoteAllocator
-   * pointer.  This encodes a RemoteAllocator* and a sizeclass_t into a the
-   * uintptr_t remote_and_sizeclass field.
+   * Define the encoding of a RemoteAllocator* and a sizeclass_t into a
+   * MetaEntry's uintptr_t remote_and_sizeclass field.
    *
    * There's a little bit of an asymmetry here.  Since the backend actually sets
-   * the entry (when associating a metadata structure), MetaslabMetaEntry-s are
-   * not constructed directly; please use ::encode().  On the other hand, the
-   * backend's Pagemap::get_metaentry() method is templated on its return type,
-   * so it is relatively straightforward to view a pagemap entry as a
-   * MetaslabMetaEntry and then use the accessors here for decoding.
+   * the entry (when associating a metadata structure), we don't construct a
+   * full MetaEntry here, but rather use ::encode() to compute its
+   * remote_and_sizeclass value.  On the decode side, we are given read-only
+   * access to MetaEntry-s so can directly read therefrom rather than having to
+   * speak in terms of uintptr_t-s.
    */
-  struct MetaslabMetaEntry : public MetaEntry
+  struct FrontendMetaEntry
   {
     /// Perform the encoding.
     static SNMALLOC_FAST_PATH uintptr_t
@@ -248,19 +247,21 @@ namespace snmalloc
         reinterpret_cast<uintptr_t>(remote), sizeclass.raw());
     }
 
-    [[nodiscard]] SNMALLOC_FAST_PATH RemoteAllocator* get_remote() const
+    [[nodiscard]] static SNMALLOC_FAST_PATH RemoteAllocator*
+    get_remote(const MetaEntry& me)
     {
       return reinterpret_cast<RemoteAllocator*>(
         pointer_align_down<REMOTE_WITH_BACKEND_MARKER_ALIGN>(
-          get_remote_and_sizeclass()));
+          me.get_remote_and_sizeclass()));
     }
 
-    [[nodiscard]] SNMALLOC_FAST_PATH sizeclass_t get_sizeclass() const
+    [[nodiscard]] static SNMALLOC_FAST_PATH sizeclass_t
+    get_sizeclass(const MetaEntry& me)
     {
       // TODO: perhaps remove static_cast with resolution of
       // https://github.com/CTSRD-CHERI/llvm-project/issues/588
       return sizeclass_t::from_raw(
-        static_cast<size_t>(get_remote_and_sizeclass()) &
+        static_cast<size_t>(me.get_remote_and_sizeclass()) &
         (REMOTE_WITH_BACKEND_MARKER_ALIGN - 1));
     }
 
@@ -269,13 +270,11 @@ namespace snmalloc
      * assert that this chunk is being used as a slab (i.e., has an associated
      * owning allocator).
      */
-    [[nodiscard]] SNMALLOC_FAST_PATH Metaslab* get_metaslab() const
+    [[nodiscard]] static SNMALLOC_FAST_PATH Metaslab*
+    get_metaslab(const MetaEntry& me)
     {
-      SNMALLOC_ASSERT(get_remote() != nullptr);
-      return reinterpret_cast<Metaslab*>(get_meta());
+      SNMALLOC_ASSERT(get_remote(me) != nullptr);
+      return reinterpret_cast<Metaslab*>(me.get_meta());
     }
   };
-
-  static_assert(sizeof(MetaslabMetaEntry) == sizeof(MetaEntry));
-
 } // namespace snmalloc
