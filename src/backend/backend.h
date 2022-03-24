@@ -58,14 +58,10 @@ namespace snmalloc
        * Set template parameter to true if it not an error
        * to access a location that is not backed by a chunk.
        */
-      template<typename Ret = MetaEntry, bool potentially_out_of_range = false>
-      SNMALLOC_FAST_PATH static const Ret& get_metaentry(address_t p)
+      template<bool potentially_out_of_range = false>
+      SNMALLOC_FAST_PATH static const MetaEntry& get_metaentry(address_t p)
       {
-        static_assert(
-          std::is_base_of_v<MetaEntry, Ret> && sizeof(MetaEntry) == sizeof(Ret),
-          "Backend Pagemap get_metaentry return must look like MetaEntry");
-        return static_cast<const Ret&>(
-          concretePagemap.template get<potentially_out_of_range>(p));
+        return concretePagemap.template get<potentially_out_of_range>(p);
       }
 
       /**

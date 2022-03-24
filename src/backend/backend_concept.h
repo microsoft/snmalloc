@@ -24,10 +24,10 @@ namespace snmalloc
   {
     { Meta::set_metaentry(addr, sz, t) } -> ConceptSame<void>;
 
-    { Meta::template get_metaentry<MetaEntry, true>(addr) }
+    { Meta::template get_metaentry<true>(addr) }
       -> ConceptSame<const MetaEntry&>;
 
-    { Meta::template get_metaentry<MetaEntry, false>(addr) }
+    { Meta::template get_metaentry<false>(addr) }
       -> ConceptSame<const MetaEntry&>;
   };
 
