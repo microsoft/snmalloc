@@ -10,8 +10,8 @@ namespace snmalloc
    * This adds aligned allocation using `MAP_ALIGNED` to the generic BSD
    * implementation.  This flag is supported by NetBSD and FreeBSD.
    */
-  template<class OS>
-  class PALBSD_Aligned : public PALBSD<OS>
+  template<class OS, auto... Args>
+  class PALBSD_Aligned : public PALBSD<OS, Args...>
   {
   public:
     /**

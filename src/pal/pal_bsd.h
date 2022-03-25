@@ -10,8 +10,8 @@ namespace snmalloc
    * Generic *BSD PAL mixin.  This provides features that are common to the BSD
    * family.
    */
-  template<typename OS>
-  class PALBSD : public PALPOSIX<OS>
+  template<typename OS, auto... Args>
+  class PALBSD : public PALPOSIX<OS, Args...>
   {
   public:
     /**
