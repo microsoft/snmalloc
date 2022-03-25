@@ -15,16 +15,10 @@ namespace snmalloc
    * This class's data is fully private but is friends with the relevant backend
    * types and, thus, is "opaque" to the frontend.
    */
-  class MetaCommon
+  struct MetaCommon
   {
-    friend class ChunkAllocator;
-
-    template<SNMALLOC_CONCEPT(ConceptPAL) PAL, bool, typename>
-    friend class BackendAllocator;
-
     capptr::Chunk<void> chunk;
 
-  public:
     /**
      * Expose the address of, though not the authority to, our corresponding
      * chunk.
