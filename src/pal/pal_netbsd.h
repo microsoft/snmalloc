@@ -5,6 +5,9 @@
 
 #  include <fcntl.h>
 
+extern "C" ssize_t _sys_writev(int fd, const struct iovec *iov, int iovcnt);
+extern "C" int _sys_fsync(int fd);
+
 namespace snmalloc
 {
   /**
@@ -13,7 +16,7 @@ namespace snmalloc
    * This adds NetBSD-specific aligned allocation to the generic BSD
    * implementation.
    */
-  class PALNetBSD : public PALBSD_Aligned<PALNetBSD>
+  class PALNetBSD : public PALBSD_Aligned<PALNetBSD, _sys_writev, _sys_fsync>
   {
   public:
     /**
