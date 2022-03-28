@@ -1,5 +1,15 @@
 #pragma once
 
+#include "backend/commitrange.h"
 #include "backend/commonconfig.h"
+#include "backend/empty_range.h"
+#include "backend/globalrange.h"
+#include "backend/largebuddyrange.h"
 #include "backend/pagemap.h"
+#include "backend/pagemapregisterrange.h"
+#include "backend/palrange.h"
+#include "backend/range_helpers.h"
+#include "backend/smallbuddyrange.h"
+#include "backend/statsrange.h"
+#include "backend/subrange.h"
 #include "mem/globalalloc.h"

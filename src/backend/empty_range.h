@@ -1,3 +1,4 @@
+#pragma once
 #include "../ds/ptrwrap.h"
 
 namespace snmalloc
