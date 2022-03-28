@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds/ptrwrap.h"
+#include "../pal/pal_consts.h"
 
 namespace snmalloc
 {
