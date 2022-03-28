@@ -20,8 +20,9 @@ namespace snmalloc
   // by the backend to represent another datastructure such as the buddy
   // allocator entries.
   constexpr size_t REMOTE_WITH_BACKEND_MARKER_ALIGN =
-    MetaEntry::REMOTE_BACKEND_MARKER;
-  static_assert((REMOTE_MIN_ALIGN >> 1) == MetaEntry::REMOTE_BACKEND_MARKER);
+    MetaEntryBase::REMOTE_BACKEND_MARKER;
+  static_assert(
+    (REMOTE_MIN_ALIGN >> 1) == MetaEntryBase::REMOTE_BACKEND_MARKER);
 
   /**
    * Global key for all remote lists.

@@ -20,12 +20,13 @@ namespace snmalloc
   template<typename T, bool Fifo = false>
   class SeqSet
   {
+    using NextPtr = decltype(std::declval<T>().next);
     /**
      * Field representation for Fifo behaviour.
      */
     struct FieldFifo
     {
-      T* head{nullptr};
+      NextPtr head{nullptr};
     };
 
     /**
@@ -33,12 +34,12 @@ namespace snmalloc
      */
     struct FieldLifo
     {
-      T* head{nullptr};
-      T** end{&head};
+      NextPtr head{nullptr};
+      NextPtr* end{&head};
     };
 
     static_assert(
-      std::is_same<decltype(T::next), T*>::value,
+      std::is_convertible_v<T*, decltype(T::next)>,
       "T->next must be a queue pointer to T");
 
     /**
@@ -90,7 +91,10 @@ namespace snmalloc
         else
           v.head = v.head->next;
       }
-      return result;
+      // This cast is safe if the ->next pointers in all of the objects in the
+      // list are managed by this class because object types are checked on
+      // insertion.
+      return static_cast<T*>(result);
     }
 
     /**
@@ -107,7 +111,7 @@ namespace snmalloc
       if (is_empty())
         return;
 
-      T** prev = &(v.head);
+      NextPtr* prev = &(v.head);
 
       while (true)
       {
@@ -117,11 +121,11 @@ namespace snmalloc
             break;
         }
 
-        T* curr = *prev;
+        NextPtr curr = *prev;
         // Note must read curr->next before calling `f` as `f` is allowed to
         // mutate that field.
-        T* next = curr->next;
-        if (f(curr))
+        NextPtr next = curr->next;
+        if (f(static_cast<T*>(curr)))
         {
           // Remove element;
           *prev = next;
@@ -165,7 +169,7 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH const T* peek()
     {
-      return v.head;
+      return static_cast<T*>(v.head);
     }
   };
 } // namespace snmalloc

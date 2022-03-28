@@ -37,18 +37,38 @@ namespace snmalloc
   template<
     SNMALLOC_CONCEPT(ConceptPAL) PAL,
     bool fixed_range,
-    typename PageMapEntry = MetaEntry>
+    template<typename> class PageMapEntry = MetaEntry>
   class BackendAllocator : public CommonConfig
   {
   public:
     using Pal = PAL;
+
+    /**
+     * This class will go away in the next PR and be replaced with:
+     *
+     * using BackendMetadata = Metaslab;
+     *
+     * In non-CHERI systems, the chunk field should be unnecessary.  It is
+     * present in this version so that we can make owning this state part of the
+     * back-end API contract in one commit and then removing its use in back
+     * ends that don't use it a separate one.
+     */
+    class BackendMetadata : public Metaslab
+    {
+      friend class BackendAllocator;
+      capptr::Chunk<void> chunk;
+    };
 
     class Pagemap
     {
       friend class BackendAllocator;
 
       SNMALLOC_REQUIRE_CONSTINIT
-      static inline FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, PAL, fixed_range>
+      static inline FlatPagemap<
+        MIN_CHUNK_BITS,
+        PageMapEntry<BackendMetadata>,
+        PAL,
+        fixed_range>
         concretePagemap;
 
     public:
@@ -59,7 +79,7 @@ namespace snmalloc
        * to access a location that is not backed by a chunk.
        */
       template<bool potentially_out_of_range = false>
-      SNMALLOC_FAST_PATH static const MetaEntry& get_metaentry(address_t p)
+      SNMALLOC_FAST_PATH static const auto& get_metaentry(address_t p)
       {
         return concretePagemap.template get<potentially_out_of_range>(p);
       }
@@ -71,7 +91,7 @@ namespace snmalloc
        * to access a location that is not backed by a chunk.
        */
       template<bool potentially_out_of_range = false>
-      SNMALLOC_FAST_PATH static MetaEntry& get_metaentry_mut(address_t p)
+      SNMALLOC_FAST_PATH static auto& get_metaentry_mut(address_t p)
       {
         return concretePagemap.template get_mut<potentially_out_of_range>(p);
       }
@@ -80,7 +100,8 @@ namespace snmalloc
        * Set the metadata associated with a chunk.
        */
       SNMALLOC_FAST_PATH
-      static void set_metaentry(address_t p, size_t size, const MetaEntry& t)
+      static void set_metaentry(
+        address_t p, size_t size, const PageMapEntry<BackendMetadata>& t)
       {
         for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
         {
@@ -253,19 +274,20 @@ namespace snmalloc
      *   (remote, sizeclass, metaslab)
      * where metaslab, is the second element of the pair return.
      */
-    static std::pair<capptr::Chunk<void>, Metaslab*>
+    static std::pair<capptr::Chunk<void>, BackendMetadata*>
     alloc_chunk(LocalState& local_state, size_t size, uintptr_t ras)
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
 
-      SNMALLOC_ASSERT((ras & MetaEntry::REMOTE_BACKEND_MARKER) == 0);
-      ras &= ~MetaEntry::REMOTE_BACKEND_MARKER;
+      SNMALLOC_ASSERT((ras & MetaEntryBase::REMOTE_BACKEND_MARKER) == 0);
+      ras &= ~MetaEntryBase::REMOTE_BACKEND_MARKER;
 
       auto meta_cap =
-        local_state.get_meta_range()->alloc_range(PAGEMAP_METADATA_STRUCT_SIZE);
+        local_state.get_meta_range()->alloc_range(sizeof(BackendMetadata));
 
-      auto meta = meta_cap.template as_reinterpret<Metaslab>().unsafe_ptr();
+      auto meta =
+        meta_cap.template as_reinterpret<BackendMetadata>().unsafe_ptr();
 
       if (meta == nullptr)
       {
@@ -289,17 +311,17 @@ namespace snmalloc
         return {p, nullptr};
       }
 
-      meta->meta_common.chunk = p;
+      meta->chunk = p;
 
-      MetaEntry t(&meta->meta_common, ras);
+      PageMapEntry<BackendMetadata> t(meta, ras);
       Pagemap::set_metaentry(address_cast(p), size, t);
 
       p = Aal::capptr_bound<void, capptr::bounds::Chunk>(p, size);
       return {p, meta};
     }
 
-    static void
-    dealloc_chunk(LocalState& local_state, MetaCommon& meta_common, size_t size)
+    static void dealloc_chunk(
+      LocalState& local_state, BackendMetadata& meta_common, size_t size)
     {
       auto chunk = meta_common.chunk;
 
@@ -309,7 +331,8 @@ namespace snmalloc
        * interrogated, the sizeclass reported by the MetaEntry is 0, which has
        * size 0.
        */
-      MetaEntry t(nullptr, MetaEntry::REMOTE_BACKEND_MARKER);
+      PageMapEntry<BackendMetadata> t(
+        nullptr, MetaEntryBase::REMOTE_BACKEND_MARKER);
       Pagemap::set_metaentry(address_cast(chunk), size, t);
 
       local_state.get_meta_range()->dealloc_range(

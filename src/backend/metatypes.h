@@ -5,40 +5,6 @@
 
 namespace snmalloc
 {
-  /**
-   * A guaranteed type-stable sub-structure of all metadata referenced by the
-   * Pagemap.  Use-specific structures (Metaslab, ChunkRecord) are expected to
-   * have this at offset zero so that, even in the face of concurrent mutation
-   * and reuse of the memory backing that metadata, the types of these fields
-   * remain fixed.
-   *
-   * This class's data is fully private but is friends with the relevant backend
-   * types and, thus, is "opaque" to the frontend.
-   */
-  struct MetaCommon
-  {
-    capptr::Chunk<void> chunk;
-
-    /**
-     * Expose the address of, though not the authority to, our corresponding
-     * chunk.
-     */
-    [[nodiscard]] SNMALLOC_FAST_PATH address_t chunk_address()
-    {
-      return address_cast(this->chunk);
-    }
-
-    /**
-     * Zero (possibly by unmapping) the memory backing this chunk.  We must rely
-     * on the caller to tell us its size, which is a little unfortunate.
-     */
-    template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
-    SNMALLOC_FAST_PATH void zero_chunk(size_t chunk_size)
-    {
-      PAL::zero(this->chunk.unsafe_ptr(), chunk_size);
-    }
-  };
-
   static const size_t PAGEMAP_METADATA_STRUCT_SIZE =
 #ifdef __CHERI_PURE_CAPABILITY__
     2 * CACHELINE_SIZE
@@ -47,37 +13,47 @@ namespace snmalloc
 #endif
     ;
 
-  // clang-format off
-  /* This triggers an ICE (C1001) in MSVC, so disable it there */
-#if defined(__cpp_concepts) && !defined(_MSC_VER)
+  /**
+   * Base class for the templated MetaEntry.  This exists to avoid needing a
+   * template parameter to access constants that are independent of the
+   * template parameter.
+   */
+  class MetaEntryBase
+  {
+    template<typename Pagemap>
+    friend class BuddyChunkRep;
 
-  template<typename Meta>
-  concept ConceptMetadataStruct =
-    // Metadata structures must be standard layout (for offsetof()),
-    std::is_standard_layout_v<Meta> &&
-    // must be of a sufficiently small size,
-    sizeof(Meta) <= PAGEMAP_METADATA_STRUCT_SIZE &&
-    // and must be pointer-interconvertable with MetaCommon.
-    (
-      ConceptSame<Meta, MetaCommon> ||
-      requires(Meta m) {
-        // Otherwise, meta must have MetaCommon field named meta_common ...
-        { &m.meta_common } -> ConceptSame<MetaCommon*>;
-        // at offset zero.
-        (offsetof(Meta, meta_common) == 0);
-      }
-    );
+  protected:
+    /**
+     * Bit used to indicate this should not be considered part of the previous
+     * PAL allocation.
+     *
+     * Some platforms cannot treat different PalAllocs as a single allocation.
+     * This is true on CHERI as the combined permission might not be
+     * representable.  It is also true on Windows as you cannot Commit across
+     * multiple continuous VirtualAllocs.
+     */
+    static constexpr address_t META_BOUNDARY_BIT = 1 << 0;
 
-  static_assert(ConceptMetadataStruct<MetaCommon>);
-#  define USE_METADATA_CONCEPT
-#endif
-  // clang-format on
+  public:
+    /**
+     * This bit is set in remote_and_sizeclass to discriminate between the case
+     * that it is in use by the frontend (0) or by the backend (1).  For the
+     * former case, see mem/metaslab.h; for the latter, see backend/backend.h
+     * and backend/largebuddyrange.h.
+     *
+     * This value is statically checked by the frontend to ensure that its
+     * bit packing does not conflict; see mem/remoteallocator.h
+     */
+    static constexpr address_t REMOTE_BACKEND_MARKER = 1 << 7;
+  };
 
   /**
    * Entry stored in the pagemap.  See docs/AddressSpace.md for the full
    * MetaEntry lifecycle.
    */
-  class MetaEntry
+  template<typename BackendMetadata>
+  class MetaEntry : public MetaEntryBase
   {
     template<typename Pagemap>
     friend class BuddyChunkRep;
@@ -92,17 +68,6 @@ namespace snmalloc
     uintptr_t meta{0};
 
     /**
-     * Bit used to indicate this should not be considered part of the previous
-     * PAL allocation.
-     *
-     * Some platforms cannot treat different PalAllocs as a single allocation.
-     * This is true on CHERI as the combined permission might not be
-     * representable.  It is also true on Windows as you cannot Commit across
-     * multiple continuous VirtualAllocs.
-     */
-    static constexpr address_t META_BOUNDARY_BIT = 1 << 0;
-
-    /**
      * In common cases, a bit-packed pointer to the owning allocator (if any),
      * and the sizeclass of this chunk.  See mem/metaslab.h:MetaEntryRemote for
      * details of this case and docs/AddressSpace.md for further details.
@@ -110,17 +75,6 @@ namespace snmalloc
     uintptr_t remote_and_sizeclass{0};
 
   public:
-    /**
-     * This bit is set in remote_and_sizeclass to discriminate between the case
-     * that it is in use by the frontend (0) or by the backend (1).  For the
-     * former case, see mem/metaslab.h; for the latter, see backend/backend.h
-     * and backend/largebuddyrange.h.
-     *
-     * This value is statically checked by the frontend to ensure that its
-     * bit packing does not conflict; see mem/remoteallocator.h
-     */
-    static constexpr address_t REMOTE_BACKEND_MARKER = 1 << 7;
-
     constexpr MetaEntry() = default;
 
     /**
@@ -130,8 +84,8 @@ namespace snmalloc
      * `get_remote_and_sizeclass`.
      */
     SNMALLOC_FAST_PATH
-    MetaEntry(MetaCommon* meta, uintptr_t remote_and_sizeclass)
-    : meta(unsafe_to_uintptr<MetaCommon>(meta)),
+    MetaEntry(BackendMetadata* meta, uintptr_t remote_and_sizeclass)
+    : meta(unsafe_to_uintptr<BackendMetadata>(meta)),
       remote_and_sizeclass(remote_and_sizeclass)
     {}
 
@@ -163,9 +117,9 @@ namespace snmalloc
      * assert that this chunk is being used as a slab (i.e., has an associated
      * owning allocator).
      */
-    [[nodiscard]] SNMALLOC_FAST_PATH MetaCommon* get_meta() const
+    [[nodiscard]] SNMALLOC_FAST_PATH BackendMetadata* get_meta() const
     {
-      return reinterpret_cast<MetaCommon*>(meta & ~META_BOUNDARY_BIT);
+      return reinterpret_cast<BackendMetadata*>(meta & ~META_BOUNDARY_BIT);
     }
 
     void set_boundary()

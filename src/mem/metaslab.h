@@ -9,12 +9,12 @@
 
 namespace snmalloc
 {
-  // The Metaslab represent the status of a single slab.
+  /**
+   * The Metaslab represent the metadata associated with a single slab.
+   */
   class alignas(CACHELINE_SIZE) Metaslab
   {
   public:
-    MetaCommon meta_common;
-
     // Used to link metaslabs together in various other data-structures.
     Metaslab* next{nullptr};
 
@@ -212,19 +212,6 @@ namespace snmalloc
     sizeof(Metaslab) == PAGEMAP_METADATA_STRUCT_SIZE,
     "Metaslab is expected to be the largest pagemap metadata record");
 
-  struct MetaslabCache
-  {
-#ifdef SNMALLOC_CHECK_CLIENT
-    SeqSet<Metaslab> available;
-#else
-    // This is slightly faster in some cases,
-    // but makes memory reuse more predictable.
-    SeqSet<Metaslab, true> available;
-#endif
-    uint16_t unused = 0;
-    uint16_t length = 0;
-  };
-
   /*
    * Define the encoding of a RemoteAllocator* and a sizeclass_t into a
    * MetaEntry's uintptr_t remote_and_sizeclass field.
@@ -236,6 +223,7 @@ namespace snmalloc
    * access to MetaEntry-s so can directly read therefrom rather than having to
    * speak in terms of uintptr_t-s.
    */
+  template<typename BackendMetadata>
   struct FrontendMetaEntry
   {
     /// Perform the encoding.
@@ -248,7 +236,7 @@ namespace snmalloc
     }
 
     [[nodiscard]] static SNMALLOC_FAST_PATH RemoteAllocator*
-    get_remote(const MetaEntry& me)
+    get_remote(const snmalloc::MetaEntry<BackendMetadata>& me)
     {
       return reinterpret_cast<RemoteAllocator*>(
         pointer_align_down<REMOTE_WITH_BACKEND_MARKER_ALIGN>(
@@ -256,7 +244,7 @@ namespace snmalloc
     }
 
     [[nodiscard]] static SNMALLOC_FAST_PATH sizeclass_t
-    get_sizeclass(const MetaEntry& me)
+    get_sizeclass(const snmalloc::MetaEntry<BackendMetadata>& me)
     {
       // TODO: perhaps remove static_cast with resolution of
       // https://github.com/CTSRD-CHERI/llvm-project/issues/588
@@ -270,11 +258,11 @@ namespace snmalloc
      * assert that this chunk is being used as a slab (i.e., has an associated
      * owning allocator).
      */
-    [[nodiscard]] static SNMALLOC_FAST_PATH Metaslab*
-    get_metaslab(const MetaEntry& me)
+    [[nodiscard]] static SNMALLOC_FAST_PATH auto*
+    get_metaslab(const snmalloc::MetaEntry<BackendMetadata>& me)
     {
       SNMALLOC_ASSERT(get_remote(me) != nullptr);
-      return reinterpret_cast<Metaslab*>(me.get_meta());
+      return me.get_meta();
     }
   };
 } // namespace snmalloc

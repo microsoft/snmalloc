@@ -32,8 +32,8 @@ namespace snmalloc
     static constexpr address_t RED_BIT = 1 << 1;
 
     static_assert(RED_BIT < MIN_CHUNK_SIZE);
-    static_assert(RED_BIT != MetaEntry::META_BOUNDARY_BIT);
-    static_assert(RED_BIT != MetaEntry::REMOTE_BACKEND_MARKER);
+    static_assert(RED_BIT != MetaEntryBase::META_BOUNDARY_BIT);
+    static_assert(RED_BIT != MetaEntryBase::REMOTE_BACKEND_MARKER);
 
     static constexpr Contents null = 0;
 
@@ -58,7 +58,7 @@ namespace snmalloc
        * balks at the ambiguity.
        */
       *ptr = r | address_cast(*ptr & (MIN_CHUNK_SIZE - 1)) |
-        MetaEntry::REMOTE_BACKEND_MARKER;
+        MetaEntryBase::REMOTE_BACKEND_MARKER;
     }
 
     static Contents get(const Holder* ptr)
@@ -68,8 +68,7 @@ namespace snmalloc
 
     static Holder& ref(bool direction, Contents k)
     {
-      MetaEntry& entry =
-        Pagemap::template get_metaentry_mut<false>(address_cast(k));
+      auto& entry = Pagemap::template get_metaentry_mut<false>(address_cast(k));
       if (direction)
         return entry.meta;
 
@@ -125,7 +124,7 @@ namespace snmalloc
       // The buddy could be in a part of the pagemap that has
       // not been registered and thus could segfault on access.
       auto larger = bits::max(k, buddy(k, size));
-      MetaEntry& entry =
+      auto& entry =
         Pagemap::template get_metaentry_mut<false>(address_cast(larger));
       return !entry.is_boundary();
     }

@@ -52,10 +52,12 @@ namespace snmalloc
      *
      * This does not require initialisation to be safely called.
      */
-    SNMALLOC_FAST_PATH bool reserve_space(const MetaEntry& entry)
+    template<typename BackendMetadata>
+    SNMALLOC_FAST_PATH bool
+    reserve_space(const MetaEntry<BackendMetadata>& entry)
     {
-      auto size = static_cast<int64_t>(
-        sizeclass_full_to_size(FrontendMetaEntry::get_sizeclass(entry)));
+      auto size = static_cast<int64_t>(sizeclass_full_to_size(
+        FrontendMetaEntry<BackendMetadata>::get_sizeclass(entry)));
 
       bool result = capacity > size;
       if (result)
@@ -75,19 +77,19 @@ namespace snmalloc
       list[get_slot<allocator_size>(target_id, 0)].add(r, key);
     }
 
-    template<size_t allocator_size, typename SharedStateHandle>
+    template<size_t allocator_size, typename Backend>
     bool post(
-      typename SharedStateHandle::LocalState* local_state,
+      typename Backend::LocalState* local_state,
       RemoteAllocator::alloc_id_t id,
       const FreeListKey& key)
     {
       SNMALLOC_ASSERT(initialised);
       size_t post_round = 0;
       bool sent_something = false;
-      auto domesticate =
-        [local_state](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
-          return capptr_domesticate<SharedStateHandle>(local_state, p);
-        };
+      auto domesticate = [local_state](freelist::QueuePtr p)
+                           SNMALLOC_FAST_PATH_LAMBDA {
+                             return capptr_domesticate<Backend>(local_state, p);
+                           };
 
       while (true)
       {
@@ -101,16 +103,19 @@ namespace snmalloc
           if (!list[i].empty())
           {
             auto [first, last] = list[i].extract_segment(key);
-            const MetaEntry& entry =
-              SharedStateHandle::Pagemap::get_metaentry(address_cast(first));
-            auto remote = FrontendMetaEntry::get_remote(entry);
+            const auto& entry =
+              Backend::Pagemap::get_metaentry(address_cast(first));
+            auto remote =
+              FrontendMetaEntry<typename Backend::BackendMetadata>::get_remote(
+                entry);
             // If the allocator is not correctly aligned, then the bit that is
             // set implies this is used by the backend, and we should not be
             // deallocating memory here.
             snmalloc_check_client(
-              (address_cast(remote) & MetaEntry::REMOTE_BACKEND_MARKER) == 0,
+              (address_cast(remote) & MetaEntryBase::REMOTE_BACKEND_MARKER) ==
+                0,
               "Delayed detection of attempt to free internal structure.");
-            if constexpr (SharedStateHandle::Options.QueueHeadsAreTame)
+            if constexpr (Backend::Options.QueueHeadsAreTame)
             {
               auto domesticate_nop = [](freelist::QueuePtr p) {
                 return freelist::HeadPtr(p.unsafe_ptr());
@@ -141,9 +146,11 @@ namespace snmalloc
           // Use the next N bits to spread out remote deallocs in our own
           // slot.
           auto r = resend.take(key, domesticate);
-          const MetaEntry& entry =
-            SharedStateHandle::Pagemap::get_metaentry(address_cast(r));
-          auto i = FrontendMetaEntry::get_remote(entry)->trunc_id();
+          const auto& entry = Backend::Pagemap::get_metaentry(address_cast(r));
+          auto i =
+            FrontendMetaEntry<typename Backend::BackendMetadata>::get_remote(
+              entry)
+              ->trunc_id();
           size_t slot = get_slot<allocator_size>(i, post_round);
           list[slot].add(r, key);
         }

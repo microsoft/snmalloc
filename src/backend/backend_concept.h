@@ -1,12 +1,14 @@
 #pragma once
 
 #ifdef __cpp_concepts
-#  include <cstddef>
+#  include "../ds/address.h"
 #  include "../ds/concept.h"
 #  include "../pal/pal_concept.h"
-#  include "../ds/address.h"
+
+#  include <cstddef>
 namespace snmalloc
 {
+  template<typename BackendMetadata>
   class MetaEntry;
 
   /**
@@ -15,20 +17,29 @@ namespace snmalloc
    * get_metadata takes a bool-ean template parameter indicating whether it may
    * be accessing memory that is not known to be committed.
    */
-  template<typename Meta>
+  template<
+    typename Meta,
+    typename BackendMetadata = std::remove_pointer_t<
+      decltype(std::declval<Meta>()
+                 .template get_metaentry_mut<true>(std::declval<address_t>())
+                 .get_meta())>>
   concept ConceptBackendMeta =
-    requires(
-      address_t addr,
-      size_t sz,
-      const MetaEntry& t)
+    requires(address_t addr, size_t sz, const MetaEntry<BackendMetadata>& t)
   {
-    { Meta::set_metaentry(addr, sz, t) } -> ConceptSame<void>;
+    {
+      Meta::set_metaentry(addr, sz, t)
+    }
+    ->ConceptSame<void>;
 
-    { Meta::template get_metaentry<true>(addr) }
-      -> ConceptSame<const MetaEntry&>;
+    {
+      Meta::template get_metaentry<true>(addr)
+    }
+    ->ConceptSame<const MetaEntry<BackendMetadata>&>;
 
-    { Meta::template get_metaentry<false>(addr) }
-      -> ConceptSame<const MetaEntry&>;
+    {
+      Meta::template get_metaentry<false>(addr)
+    }
+    ->ConceptSame<const MetaEntry<BackendMetadata>&>;
   };
 
   /**
@@ -39,10 +50,12 @@ namespace snmalloc
    * underscore) below, which combines this and the core concept, above.
    */
   template<typename Meta>
-  concept ConceptBackendMeta_Range =
-    requires(address_t addr, size_t sz)
+  concept ConceptBackendMeta_Range = requires(address_t addr, size_t sz)
   {
-    { Meta::register_range(addr, sz) } -> ConceptSame<void>;
+    {
+      Meta::register_range(addr, sz)
+    }
+    ->ConceptSame<void>;
   };
 
   /**
@@ -53,9 +66,14 @@ namespace snmalloc
    * concept checking is lower bounding and does not constrain the templatized
    * code to use only those affordances given by the concept).
    */
-  template<typename Meta>
+  template<
+    typename Meta,
+    typename BackendMetadata = std::remove_pointer_t<decltype(
+      std::declval<Meta>()
+        .template get_metaentry_mut<true>(std::declval<address_t>())
+        .get_meta())>>
   concept ConceptBackendMetaRange =
-    ConceptBackendMeta<Meta> && ConceptBackendMeta_Range<Meta>;
+    ConceptBackendMeta<Meta, BackendMetadata>&& ConceptBackendMeta_Range<Meta>;
 
   /**
    * The backend also defines domestication (that is, the difference between
@@ -65,16 +83,18 @@ namespace snmalloc
    */
   template<typename Globals>
   concept ConceptBackendDomestication =
-    requires(
-      typename Globals::LocalState* ls,
-      capptr::AllocWild<void> ptr)
+    requires(typename Globals::LocalState* ls, capptr::AllocWild<void> ptr)
+  {
     {
-      { Globals::capptr_domesticate(ls, ptr) }
-        -> ConceptSame<capptr::Alloc<void>>;
+      Globals::capptr_domesticate(ls, ptr)
+    }
+    ->ConceptSame<capptr::Alloc<void>>;
 
-      { Globals::capptr_domesticate(ls, ptr.template as_static<char>()) }
-        -> ConceptSame<capptr::Alloc<char>>;
-    };
+    {
+      Globals::capptr_domesticate(ls, ptr.template as_static<char>())
+    }
+    ->ConceptSame<capptr::Alloc<char>>;
+  };
 
   class CommonConfig;
   struct Flags;
@@ -93,19 +113,24 @@ namespace snmalloc
    */
   template<typename Globals>
   concept ConceptBackendGlobals =
-    std::is_base_of<CommonConfig, Globals>::value &&
-    ConceptPAL<typename Globals::Pal> &&
-    ConceptBackendMetaRange<typename Globals::Pagemap> &&
-    requires()
+    std::is_base_of<CommonConfig, Globals>::value&&
+      ConceptPAL<typename Globals::Pal>&& ConceptBackendMetaRange<
+        typename Globals::Pagemap,
+        typename Globals::BackendMetadata>&& requires()
+  {
+    typename Globals::LocalState;
+
     {
-      typename Globals::LocalState;
+      Globals::Options
+    }
+    ->ConceptSameModRef<const Flags>;
 
-      { Globals::Options } -> ConceptSameModRef<const Flags>;
-
-      typename Globals::GlobalPoolState;
-      { Globals::pool() } -> ConceptSame<typename Globals::GlobalPoolState &>;
-
-    };
+    typename Globals::GlobalPoolState;
+    {
+      Globals::pool()
+    }
+    ->ConceptSame<typename Globals::GlobalPoolState&>;
+  };
 
   /**
    * The lazy version of the above; please see ds/concept.h and use sparingly.
