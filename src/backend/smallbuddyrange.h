@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds/address.h"
+#include "../mem/allocconfig.h"
 #include "../pal/pal.h"
 #include "range_helpers.h"
 

@@ -1,20 +1,191 @@
 #pragma once
 
-#include "../backend/metatypes.h"
+#include "../backend/backend_concept.h"
 #include "../ds/helpers.h"
 #include "../ds/seqset.h"
-#include "../mem/remoteallocator.h"
 #include "freelist.h"
 #include "sizeclasstable.h"
 
 namespace snmalloc
 {
-  // The Metaslab represent the status of a single slab.
+  struct RemoteAllocator;
+
+  /**
+   * Base class for the templated MetaEntry.  This exists to avoid needing a
+   * template parameter to access constants that are independent of the
+   * template parameter.
+   */
+  class MetaEntryBase
+  {
+    template<SNMALLOC_CONCEPT(ConceptBuddyRangeMeta) Pagemap>
+    friend class BuddyChunkRep;
+
+  protected:
+    /**
+     * Bit used to indicate this should not be considered part of the previous
+     * PAL allocation.
+     *
+     * Some platforms cannot treat different PalAllocs as a single allocation.
+     * This is true on CHERI as the combined permission might not be
+     * representable.  It is also true on Windows as you cannot Commit across
+     * multiple continuous VirtualAllocs.
+     */
+    static constexpr address_t META_BOUNDARY_BIT = 1 << 0;
+
+  public:
+    /**
+     * This bit is set in remote_and_sizeclass to discriminate between the case
+     * that it is in use by the frontend (0) or by the backend (1).  For the
+     * former case, see mem/metaslab.h; for the latter, see backend/backend.h
+     * and backend/largebuddyrange.h.
+     *
+     * This value is statically checked by the frontend to ensure that its
+     * bit packing does not conflict; see mem/remoteallocator.h
+     */
+    static constexpr address_t REMOTE_BACKEND_MARKER = 1 << 7;
+  };
+
+  /**
+   * Remotes need to be aligned enough that the bottom bits have enough room for
+   * all the size classes, both large and small. An additional bit is required
+   * to separate backend uses.
+   */
+  static constexpr size_t REMOTE_MIN_ALIGN =
+    bits::max<size_t>(CACHELINE_SIZE, SIZECLASS_REP_SIZE) << 1;
+
+  /**
+   * The bit above the sizeclass is always zero unless this is used
+   * by the backend to represent another datastructure such as the buddy
+   * allocator entries.
+   */
+  constexpr size_t REMOTE_WITH_BACKEND_MARKER_ALIGN =
+    MetaEntryBase::REMOTE_BACKEND_MARKER;
+  static_assert(
+    (REMOTE_MIN_ALIGN >> 1) == MetaEntryBase::REMOTE_BACKEND_MARKER);
+
+  /**
+   * Entry stored in the pagemap.  See docs/AddressSpace.md for the full
+   * MetaEntry lifecycle.
+   */
+  template<typename BackendMetadata>
+  class MetaEntry : public MetaEntryBase
+  {
+    template<SNMALLOC_CONCEPT(ConceptBuddyRangeMeta) Pagemap>
+    friend class BuddyChunkRep;
+
+    /**
+     * In common cases, the pointer to the metaslab.  See docs/AddressSpace.md
+     * for additional details.
+     *
+     * The bottom bit is used to indicate if this is the first chunk in a PAL
+     * allocation, that cannot be combined with the preceeding chunk.
+     */
+    uintptr_t meta{0};
+
+    /**
+     * In common cases, a bit-packed pointer to the owning allocator (if any),
+     * and the sizeclass of this chunk.  See mem/metaslab.h:MetaEntryRemote for
+     * details of this case and docs/AddressSpace.md for further details.
+     */
+    uintptr_t remote_and_sizeclass{0};
+
+  public:
+    constexpr MetaEntry() = default;
+
+    /**
+     * Constructor, provides the remote and sizeclass embedded in a single
+     * pointer-sized word.  This format is not guaranteed to be stable and so
+     * the second argument of this must always be the return value from
+     * `get_remote_and_sizeclass`.
+     */
+    SNMALLOC_FAST_PATH
+    MetaEntry(BackendMetadata* meta, uintptr_t remote_and_sizeclass)
+    : meta(unsafe_to_uintptr<BackendMetadata>(meta)),
+      remote_and_sizeclass(remote_and_sizeclass)
+    {}
+
+    /**
+     * Encode the remote and the sizeclass.
+     */
+    [[nodiscard]] static SNMALLOC_FAST_PATH uintptr_t
+    encode(RemoteAllocator* remote, sizeclass_t sizeclass)
+    {
+      /* remote might be nullptr; cast to uintptr_t before offsetting */
+      return pointer_offset(
+        reinterpret_cast<uintptr_t>(remote), sizeclass.raw());
+    }
+
+    /**
+     * Return the remote and sizeclass in an implementation-defined encoding.
+     * This is not guaranteed to be stable across snmalloc releases and so the
+     * only safe use for this is to pass it to the two-argument constructor of
+     * this class.
+     */
+    [[nodiscard]] SNMALLOC_FAST_PATH const uintptr_t&
+    get_remote_and_sizeclass() const
+    {
+      return remote_and_sizeclass;
+    }
+
+    MetaEntry(const MetaEntry&) = delete;
+
+    MetaEntry& operator=(const MetaEntry& other)
+    {
+      // Don't overwrite the boundary bit with the other's
+      meta = (other.meta & ~META_BOUNDARY_BIT) |
+        address_cast(meta & META_BOUNDARY_BIT);
+      remote_and_sizeclass = other.remote_and_sizeclass;
+      return *this;
+    }
+
+    /**
+     * Return the Metaslab metadata associated with this chunk, guarded by an
+     * assert that this chunk is being used as a slab (i.e., has an associated
+     * owning allocator).
+     */
+    [[nodiscard]] SNMALLOC_FAST_PATH BackendMetadata* get_metaslab() const
+    {
+      SNMALLOC_ASSERT(get_remote() != nullptr);
+      return unsafe_from_uintptr<BackendMetadata>(meta & ~META_BOUNDARY_BIT);
+    }
+
+    void set_boundary()
+    {
+      meta |= META_BOUNDARY_BIT;
+    }
+
+    [[nodiscard]] bool is_boundary() const
+    {
+      return meta & META_BOUNDARY_BIT;
+    }
+
+    bool clear_boundary_bit()
+    {
+      return meta &= ~META_BOUNDARY_BIT;
+    }
+
+    [[nodiscard]] SNMALLOC_FAST_PATH RemoteAllocator* get_remote() const
+    {
+      return reinterpret_cast<RemoteAllocator*>(
+        pointer_align_down<REMOTE_WITH_BACKEND_MARKER_ALIGN>(
+          get_remote_and_sizeclass()));
+    }
+
+    [[nodiscard]] SNMALLOC_FAST_PATH sizeclass_t get_sizeclass() const
+    {
+      // TODO: perhaps remove static_cast with resolution of
+      // https://github.com/CTSRD-CHERI/llvm-project/issues/588
+      return sizeclass_t::from_raw(
+        static_cast<size_t>(get_remote_and_sizeclass()) &
+        (REMOTE_WITH_BACKEND_MARKER_ALIGN - 1));
+    }
+  };
+  /**
+   * The Metaslab represent the metadata associated with a single slab.
+   */
   class alignas(CACHELINE_SIZE) Metaslab
   {
   public:
-    MetaCommon meta_common;
-
     // Used to link metaslabs together in various other data-structures.
     Metaslab* next{nullptr};
 
@@ -205,76 +376,4 @@ namespace snmalloc
     }
   };
 
-#if defined(USE_METADATA_CONCEPT)
-  static_assert(ConceptMetadataStruct<Metaslab>);
-#endif
-  static_assert(
-    sizeof(Metaslab) == PAGEMAP_METADATA_STRUCT_SIZE,
-    "Metaslab is expected to be the largest pagemap metadata record");
-
-  struct MetaslabCache
-  {
-#ifdef SNMALLOC_CHECK_CLIENT
-    SeqSet<Metaslab> available;
-#else
-    // This is slightly faster in some cases,
-    // but makes memory reuse more predictable.
-    SeqSet<Metaslab, true> available;
-#endif
-    uint16_t unused = 0;
-    uint16_t length = 0;
-  };
-
-  /*
-   * Define the encoding of a RemoteAllocator* and a sizeclass_t into a
-   * MetaEntry's uintptr_t remote_and_sizeclass field.
-   *
-   * There's a little bit of an asymmetry here.  Since the backend actually sets
-   * the entry (when associating a metadata structure), we don't construct a
-   * full MetaEntry here, but rather use ::encode() to compute its
-   * remote_and_sizeclass value.  On the decode side, we are given read-only
-   * access to MetaEntry-s so can directly read therefrom rather than having to
-   * speak in terms of uintptr_t-s.
-   */
-  struct FrontendMetaEntry
-  {
-    /// Perform the encoding.
-    static SNMALLOC_FAST_PATH uintptr_t
-    encode(RemoteAllocator* remote, sizeclass_t sizeclass)
-    {
-      /* remote might be nullptr; cast to uintptr_t before offsetting */
-      return pointer_offset(
-        reinterpret_cast<uintptr_t>(remote), sizeclass.raw());
-    }
-
-    [[nodiscard]] static SNMALLOC_FAST_PATH RemoteAllocator*
-    get_remote(const MetaEntry& me)
-    {
-      return reinterpret_cast<RemoteAllocator*>(
-        pointer_align_down<REMOTE_WITH_BACKEND_MARKER_ALIGN>(
-          me.get_remote_and_sizeclass()));
-    }
-
-    [[nodiscard]] static SNMALLOC_FAST_PATH sizeclass_t
-    get_sizeclass(const MetaEntry& me)
-    {
-      // TODO: perhaps remove static_cast with resolution of
-      // https://github.com/CTSRD-CHERI/llvm-project/issues/588
-      return sizeclass_t::from_raw(
-        static_cast<size_t>(me.get_remote_and_sizeclass()) &
-        (REMOTE_WITH_BACKEND_MARKER_ALIGN - 1));
-    }
-
-    /**
-     * Return the Metaslab metadata associated with this chunk, guarded by an
-     * assert that this chunk is being used as a slab (i.e., has an associated
-     * owning allocator).
-     */
-    [[nodiscard]] static SNMALLOC_FAST_PATH Metaslab*
-    get_metaslab(const MetaEntry& me)
-    {
-      SNMALLOC_ASSERT(get_remote(me) != nullptr);
-      return reinterpret_cast<Metaslab*>(me.get_meta());
-    }
-  };
 } // namespace snmalloc
