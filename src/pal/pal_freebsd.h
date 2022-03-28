@@ -13,6 +13,15 @@
 #    endif
 #  endif
 
+/**
+ * Direct system-call wrappers so that we can skip libthr interception, which
+ * won't work if malloc is broken.
+ * @{
+ */
+extern "C" ssize_t __sys_writev(int fd, const struct iovec* iov, int iovcnt);
+extern "C" int __sys_fsync(int fd);
+/// @}
+
 namespace snmalloc
 {
   /**
@@ -21,7 +30,8 @@ namespace snmalloc
    * This adds FreeBSD-specific aligned allocation to the generic BSD
    * implementation.
    */
-  class PALFreeBSD : public PALBSD_Aligned<PALFreeBSD>
+  class PALFreeBSD
+  : public PALBSD_Aligned<PALFreeBSD, __sys_writev, __sys_fsync>
   {
   public:
     /**

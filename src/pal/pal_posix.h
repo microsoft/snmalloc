@@ -34,11 +34,13 @@ namespace snmalloc
    * efficient implementation.  Subclasses should provide more efficient
    * implementations using platform-specific functionality.
    *
-   * The template parameter for this is the subclass and is used for explicit
-   * up casts to allow this class to call non-virtual methods on the templated
-   * version.
+   * The first template parameter for this is the subclass and is used for
+   * explicit up casts to allow this class to call non-virtual methods on the
+   * templated version.  The next two allow subclasses to provide `writev` and
+   * `fsync` implementations that bypass any libc machinery that might not be
+   * working when an early-malloc error appears.
    */
-  template<class OS>
+  template<class OS, auto writev = ::writev, auto fsync = ::fsync>
   class PALPOSIX : public PalTimerDefaultImpl<PALPOSIX<OS>>
   {
     /**
