@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../backend/backend_concept.h"
 #include "../ds/helpers.h"
 #include "../ds/seqset.h"
 #include "freelist.h"
@@ -16,7 +17,7 @@ namespace snmalloc
    */
   class MetaEntryBase
   {
-    template<typename Pagemap>
+    template<SNMALLOC_CONCEPT(ConceptBuddyRangeMeta) Pagemap>
     friend class BuddyChunkRep;
 
   protected:
@@ -69,7 +70,7 @@ namespace snmalloc
   template<typename BackendMetadata>
   class MetaEntry : public MetaEntryBase
   {
-    template<typename Pagemap>
+    template<SNMALLOC_CONCEPT(ConceptBuddyRangeMeta) Pagemap>
     friend class BuddyChunkRep;
 
     /**
@@ -144,6 +145,7 @@ namespace snmalloc
      */
     [[nodiscard]] SNMALLOC_FAST_PATH BackendMetadata* get_metaslab() const
     {
+      SNMALLOC_ASSERT(get_remote() != nullptr);
       return unsafe_from_uintptr<BackendMetadata>(meta & ~META_BOUNDARY_BIT);
     }
 
