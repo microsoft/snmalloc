@@ -22,16 +22,6 @@ namespace snmalloc
     address_t addr, size_t sz, const typename Meta::Entry& t)
   {
     {
-      Meta::template get_metaentry_mut<true>(addr)
-    }
-    ->ConceptSame<typename Meta::Entry&>;
-
-    {
-      Meta::template get_metaentry_mut<false>(addr)
-    }
-    ->ConceptSame<typename Meta::Entry&>;
-
-    {
       Meta::template get_metaentry<true>(addr)
     }
     ->ConceptSame<const typename Meta::Entry&>;
@@ -57,6 +47,22 @@ namespace snmalloc
     }
     ->ConceptSame<void>;
   };
+
+  template<typename Meta>
+  concept ConceptBuddyRangeMeta = requires(
+    address_t addr, size_t sz, const typename Meta::Entry& t)
+  {
+    {
+      Meta::template get_metaentry_mut<true>(addr)
+    }
+    ->ConceptSame<typename Meta::Entry&>;
+
+    {
+      Meta::template get_metaentry_mut<false>(addr)
+    }
+    ->ConceptSame<typename Meta::Entry&>;
+  };
+
 
   /**
    * The full pagemap accessor interface, with all of {get,set}_metadata and

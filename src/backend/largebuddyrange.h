@@ -4,6 +4,7 @@
 #include "../ds/bits.h"
 #include "../mem/allocconfig.h"
 #include "../pal/pal.h"
+#include "backend_concept.h"
 #include "buddy.h"
 #include "range_helpers.h"
 
@@ -14,7 +15,7 @@ namespace snmalloc
   /**
    * Class for using the pagemap entries for the buddy allocator.
    */
-  template<typename Pagemap>
+  template<SNMALLOC_CONCEPT(ConceptBuddyRangeMeta) Pagemap>
   class BuddyChunkRep
   {
   public:
@@ -134,7 +135,7 @@ namespace snmalloc
     typename ParentRange,
     size_t REFILL_SIZE_BITS,
     size_t MAX_SIZE_BITS,
-    SNMALLOC_CONCEPT(ConceptBackendMeta) Pagemap,
+    SNMALLOC_CONCEPT(ConceptBuddyRangeMeta) Pagemap,
     bool Consolidate = true>
   class LargeBuddyRange
   {
