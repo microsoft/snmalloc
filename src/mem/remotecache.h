@@ -56,8 +56,8 @@ namespace snmalloc
     SNMALLOC_FAST_PATH bool
     reserve_space(const MetaEntry<BackendMetadata>& entry)
     {
-      auto size = static_cast<int64_t>(sizeclass_full_to_size(
-        FrontendMetaEntry<BackendMetadata>::get_sizeclass(entry)));
+      auto size =
+        static_cast<int64_t>(sizeclass_full_to_size(entry.get_sizeclass()));
 
       bool result = capacity > size;
       if (result)
@@ -105,9 +105,7 @@ namespace snmalloc
             auto [first, last] = list[i].extract_segment(key);
             const auto& entry =
               Backend::Pagemap::get_metaentry(address_cast(first));
-            auto remote =
-              FrontendMetaEntry<typename Backend::BackendMetadata>::get_remote(
-                entry);
+            auto remote = entry.get_remote();
             // If the allocator is not correctly aligned, then the bit that is
             // set implies this is used by the backend, and we should not be
             // deallocating memory here.
@@ -147,10 +145,7 @@ namespace snmalloc
           // slot.
           auto r = resend.take(key, domesticate);
           const auto& entry = Backend::Pagemap::get_metaentry(address_cast(r));
-          auto i =
-            FrontendMetaEntry<typename Backend::BackendMetadata>::get_remote(
-              entry)
-              ->trunc_id();
+          auto i = entry.get_remote()->trunc_id();
           size_t slot = get_slot<allocator_size>(i, post_round);
           list[slot].add(r, key);
         }

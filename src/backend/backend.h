@@ -1,12 +1,12 @@
 #pragma once
 #include "../mem/allocconfig.h"
+#include "../mem/metaslab.h"
 #include "../pal/pal.h"
 #include "commitrange.h"
 #include "commonconfig.h"
 #include "empty_range.h"
 #include "globalrange.h"
 #include "largebuddyrange.h"
-#include "metatypes.h"
 #include "pagemap.h"
 #include "pagemapregisterrange.h"
 #include "palrange.h"
@@ -46,14 +46,14 @@ namespace snmalloc
     /**
      * This class will go away in the next PR and be replaced with:
      *
-     * using BackendMetadata = Metaslab;
+     * using SlabMetadata = Metaslab;
      *
      * In non-CHERI systems, the chunk field should be unnecessary.  It is
      * present in this version so that we can make owning this state part of the
      * back-end API contract in one commit and then removing its use in back
      * ends that don't use it a separate one.
      */
-    class BackendMetadata : public Metaslab
+    class SlabMetadata : public Metaslab
     {
       friend class BackendAllocator;
       capptr::Chunk<void> chunk;
@@ -63,13 +63,76 @@ namespace snmalloc
     {
       friend class BackendAllocator;
 
+    public:
+      /**
+       * Export the type stored in the pagemap.
+       * The following class could be replaced by:
+       *
+       * ```
+       * using Entry = PageMapEntry<SlabMetadata>;
+       * ```
+       *
+       * The full form here provides an example of how to extend the pagemap
+       * entries.  It also guarantees that the front end never directly
+       * constructs meta entries, it only ever reads them or modifies them in
+       * place.
+       */
+      class Entry : public PageMapEntry<SlabMetadata>
+      {
+        /**
+         * The private initialising constructor is usable only by this back end.
+         */
+        friend class BackendAllocator;
+
+        /**
+         * The private default constructor is usable only by the pagemap.
+         */
+        friend class FlatPagemap<
+          MIN_CHUNK_BITS,
+          Entry,
+          PAL,
+          fixed_range>;
+
+        /**
+         * The only constructor that creates newly initialised meta entries.
+         * This is callable only by the back end.  The front end may copy,
+         * query, and update these entries, but it may not create them
+         * directly.  This contract allows the back end to store any arbitrary
+         * metadata in meta entries when they are first constructed.
+         */
+        SNMALLOC_FAST_PATH
+        Entry(SlabMetadata* meta, uintptr_t ras)
+        : PageMapEntry<SlabMetadata>(meta, ras)
+        {}
+
+        /**
+         * Default constructor.  This must be callable from the pagemap.
+         */
+        SNMALLOC_FAST_PATH Entry() = default;
+      };
+
+    private:
       SNMALLOC_REQUIRE_CONSTINIT
       static inline FlatPagemap<
         MIN_CHUNK_BITS,
-        PageMapEntry<BackendMetadata>,
+        Entry,
         PAL,
         fixed_range>
         concretePagemap;
+
+      /**
+       * Set the metadata associated with a chunk.
+       */
+      SNMALLOC_FAST_PATH
+      static void
+      set_metaentry(address_t p, size_t size, const Entry& t)
+      {
+        for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
+        {
+          concretePagemap.set(a, t);
+        }
+      }
+
 
     public:
       /**
@@ -94,19 +157,6 @@ namespace snmalloc
       SNMALLOC_FAST_PATH static auto& get_metaentry_mut(address_t p)
       {
         return concretePagemap.template get_mut<potentially_out_of_range>(p);
-      }
-
-      /**
-       * Set the metadata associated with a chunk.
-       */
-      SNMALLOC_FAST_PATH
-      static void set_metaentry(
-        address_t p, size_t size, const PageMapEntry<BackendMetadata>& t)
-      {
-        for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
-        {
-          concretePagemap.set(a, t);
-        }
       }
 
       static void register_range(address_t p, size_t sz)
@@ -274,7 +324,7 @@ namespace snmalloc
      *   (remote, sizeclass, metaslab)
      * where metaslab, is the second element of the pair return.
      */
-    static std::pair<capptr::Chunk<void>, BackendMetadata*>
+    static std::pair<capptr::Chunk<void>, SlabMetadata*>
     alloc_chunk(LocalState& local_state, size_t size, uintptr_t ras)
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
@@ -284,10 +334,10 @@ namespace snmalloc
       ras &= ~MetaEntryBase::REMOTE_BACKEND_MARKER;
 
       auto meta_cap =
-        local_state.get_meta_range()->alloc_range(sizeof(BackendMetadata));
+        local_state.get_meta_range()->alloc_range(sizeof(SlabMetadata));
 
       auto meta =
-        meta_cap.template as_reinterpret<BackendMetadata>().unsafe_ptr();
+        meta_cap.template as_reinterpret<SlabMetadata>().unsafe_ptr();
 
       if (meta == nullptr)
       {
@@ -303,7 +353,7 @@ namespace snmalloc
       if (p == nullptr)
       {
         local_state.get_meta_range()->dealloc_range(
-          meta_cap, PAGEMAP_METADATA_STRUCT_SIZE);
+          meta_cap, sizeof(SlabMetadata));
         errno = ENOMEM;
 #ifdef SNMALLOC_TRACING
         message<1024>("Out of memory");
@@ -313,7 +363,7 @@ namespace snmalloc
 
       meta->chunk = p;
 
-      PageMapEntry<BackendMetadata> t(meta, ras);
+      typename Pagemap::Entry t(meta, ras);
       Pagemap::set_metaentry(address_cast(p), size, t);
 
       p = Aal::capptr_bound<void, capptr::bounds::Chunk>(p, size);
@@ -321,7 +371,7 @@ namespace snmalloc
     }
 
     static void dealloc_chunk(
-      LocalState& local_state, BackendMetadata& meta_common, size_t size)
+      LocalState& local_state, SlabMetadata& meta_common, size_t size)
     {
       auto chunk = meta_common.chunk;
 
@@ -331,12 +381,12 @@ namespace snmalloc
        * interrogated, the sizeclass reported by the MetaEntry is 0, which has
        * size 0.
        */
-      PageMapEntry<BackendMetadata> t(
+      typename Pagemap::Entry t(
         nullptr, MetaEntryBase::REMOTE_BACKEND_MARKER);
       Pagemap::set_metaentry(address_cast(chunk), size, t);
 
       local_state.get_meta_range()->dealloc_range(
-        capptr::Chunk<void>(&meta_common), PAGEMAP_METADATA_STRUCT_SIZE);
+        capptr::Chunk<void>(&meta_common), sizeof(SlabMetadata));
 
       local_state.object_range->dealloc_range(chunk, size);
     }

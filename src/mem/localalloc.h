@@ -72,9 +72,8 @@ namespace snmalloc
      * @{
      */
     using CoreAlloc = CoreAllocator<Backend>;
-    using Metaslab = typename Backend::BackendMetadata;
-    using MetaEntry = snmalloc::MetaEntry<Metaslab>;
-    using FrontendMetaEntry = snmalloc::FrontendMetaEntry<Metaslab>;
+    using BackendSlabMetadata = typename Backend::SlabMetadata;
+    using PagemapEntry = typename Backend::Pagemap::Entry;
     /// }@
 
     // Free list per small size class.  These are used for
@@ -192,7 +191,7 @@ namespace snmalloc
         auto [chunk, meta] = Backend::alloc_chunk(
           core_alloc->get_backend_local_state(),
           large_size_to_chunk_size(size),
-          FrontendMetaEntry::encode(
+          PagemapEntry::encode(
             core_alloc->public_state(), size_to_sizeclass_full(size)));
         // set up meta data so sizeclass is correct, and hence alloc size, and
         // external pointer.
@@ -275,10 +274,10 @@ namespace snmalloc
           p.unsafe_ptr(),
           alloc_size(p.unsafe_ptr()));
 #endif
-        const MetaEntry& entry =
+        const PagemapEntry& entry =
           Backend::Pagemap::get_metaentry(address_cast(p));
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-          FrontendMetaEntry::get_remote(entry)->trunc_id(), p, key_global);
+          entry.get_remote()->trunc_id(), p, key_global);
         post_remote_cache();
         return;
       }
@@ -632,11 +631,9 @@ namespace snmalloc
       capptr::Alloc<void> p_tame =
         capptr_domesticate<Backend>(core_alloc->backend_state_ptr(), p_wild);
 
-      const MetaEntry& entry =
+      const PagemapEntry& entry =
         Backend::Pagemap::get_metaentry(address_cast(p_tame));
-      if (SNMALLOC_LIKELY(
-            local_cache.remote_allocator ==
-            FrontendMetaEntry::get_remote(entry)))
+      if (SNMALLOC_LIKELY(local_cache.remote_allocator == entry.get_remote()))
       {
 #  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
         dealloc_cheri_checks(p_tame.unsafe_ptr());
@@ -648,7 +645,7 @@ namespace snmalloc
         return;
       }
 
-      RemoteAllocator* remote = FrontendMetaEntry::get_remote(entry);
+      RemoteAllocator* remote = entry.get_remote();
       if (SNMALLOC_LIKELY(remote != nullptr))
       {
 #  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
@@ -724,10 +721,10 @@ namespace snmalloc
       // To handle this case we require the uninitialised pagemap contain an
       // entry for the first chunk of memory, that states it represents a
       // large object, so we can pull the check for null off the fast path.
-      const MetaEntry& entry =
+      const PagemapEntry& entry =
         Backend::Pagemap::get_metaentry(address_cast(p_raw));
 
-      return sizeclass_full_to_size(FrontendMetaEntry::get_sizeclass(entry));
+      return sizeclass_full_to_size(entry.get_sizeclass());
 #endif
     }
 
@@ -769,10 +766,10 @@ namespace snmalloc
     size_t remaining_bytes(const void* p)
     {
 #ifndef SNMALLOC_PASS_THROUGH
-      const MetaEntry& entry =
+      const PagemapEntry& entry =
         Backend::Pagemap::template get_metaentry<true>(address_cast(p));
 
-      auto sizeclass = FrontendMetaEntry::get_sizeclass(entry);
+      auto sizeclass = entry.get_sizeclass();
       return snmalloc::remaining_bytes(sizeclass, address_cast(p));
 #else
       return pointer_diff(p, reinterpret_cast<void*>(UINTPTR_MAX));
@@ -797,10 +794,10 @@ namespace snmalloc
     size_t index_in_object(const void* p)
     {
 #ifndef SNMALLOC_PASS_THROUGH
-      const MetaEntry& entry =
+      const PagemapEntry& entry =
         Backend::Pagemap::template get_metaentry<true>(address_cast(p));
 
-      auto sizeclass = FrontendMetaEntry::get_sizeclass(entry);
+      auto sizeclass = entry.get_sizeclass();
       return snmalloc::index_in_object(sizeclass, address_cast(p));
 #else
       return reinterpret_cast<size_t>(p);

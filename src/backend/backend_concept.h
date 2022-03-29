@@ -14,32 +14,32 @@ namespace snmalloc
   /**
    * The core of the static pagemap accessor interface: {get,set}_metadata.
    *
-   * get_metadata takes a bool-ean template parameter indicating whether it may
+   * get_metadata takes a boolean template parameter indicating whether it may
    * be accessing memory that is not known to be committed.
    */
-  template<
-    typename Meta,
-    typename BackendMetadata = std::remove_pointer_t<
-      decltype(std::declval<Meta>()
-                 .template get_metaentry_mut<true>(std::declval<address_t>())
-                 .get_meta())>>
-  concept ConceptBackendMeta =
-    requires(address_t addr, size_t sz, const MetaEntry<BackendMetadata>& t)
+  template<typename Meta>
+  concept ConceptBackendMeta = requires(
+    address_t addr, size_t sz, const typename Meta::Entry& t)
   {
     {
-      Meta::set_metaentry(addr, sz, t)
+      Meta::template get_metaentry_mut<true>(addr)
     }
-    ->ConceptSame<void>;
+    ->ConceptSame<typename Meta::Entry&>;
+
+    {
+      Meta::template get_metaentry_mut<false>(addr)
+    }
+    ->ConceptSame<typename Meta::Entry&>;
 
     {
       Meta::template get_metaentry<true>(addr)
     }
-    ->ConceptSame<const MetaEntry<BackendMetadata>&>;
+    ->ConceptSame<const typename Meta::Entry&>;
 
     {
       Meta::template get_metaentry<false>(addr)
     }
-    ->ConceptSame<const MetaEntry<BackendMetadata>&>;
+    ->ConceptSame<const typename Meta::Entry&>;
   };
 
   /**
@@ -66,14 +66,9 @@ namespace snmalloc
    * concept checking is lower bounding and does not constrain the templatized
    * code to use only those affordances given by the concept).
    */
-  template<
-    typename Meta,
-    typename BackendMetadata = std::remove_pointer_t<decltype(
-      std::declval<Meta>()
-        .template get_metaentry_mut<true>(std::declval<address_t>())
-        .get_meta())>>
+  template<typename Meta>
   concept ConceptBackendMetaRange =
-    ConceptBackendMeta<Meta, BackendMetadata>&& ConceptBackendMeta_Range<Meta>;
+    ConceptBackendMeta<Meta>&& ConceptBackendMeta_Range<Meta>;
 
   /**
    * The backend also defines domestication (that is, the difference between
@@ -114,9 +109,8 @@ namespace snmalloc
   template<typename Globals>
   concept ConceptBackendGlobals =
     std::is_base_of<CommonConfig, Globals>::value&&
-      ConceptPAL<typename Globals::Pal>&& ConceptBackendMetaRange<
-        typename Globals::Pagemap,
-        typename Globals::BackendMetadata>&& requires()
+      ConceptPAL<typename Globals::Pal>&&
+        ConceptBackendMetaRange<typename Globals::Pagemap>&& requires()
   {
     typename Globals::LocalState;
 

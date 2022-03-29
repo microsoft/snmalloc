@@ -47,9 +47,8 @@ namespace snmalloc
      * specialised for the back-end that we are using.
      * @{
      */
-    using Metaslab = typename Backend::BackendMetadata;
-    using MetaEntry = snmalloc::MetaEntry<Metaslab>;
-    using FrontendMetaEntry = snmalloc::FrontendMetaEntry<Metaslab>;
+    using BackendSlabMetadata = typename Backend::SlabMetadata;
+    using PagemapEntry = typename Backend::Pagemap::Entry;
     /// }@
 
     /**
@@ -58,11 +57,11 @@ namespace snmalloc
     struct MetaslabCache
     {
 #ifdef SNMALLOC_CHECK_CLIENT
-      SeqSet<Metaslab> available;
+      SeqSet<BackendSlabMetadata> available;
 #else
       // This is slightly faster in some cases,
       // but makes memory reuse more predictable.
-      SeqSet<Metaslab, true> available;
+      SeqSet<BackendSlabMetadata, true> available;
 #endif
       uint16_t unused = 0;
       uint16_t length = 0;
@@ -210,7 +209,7 @@ namespace snmalloc
 
     static SNMALLOC_FAST_PATH void alloc_new_list(
       capptr::Chunk<void>& bumpptr,
-      Metaslab* meta,
+      BackendSlabMetadata* meta,
       size_t rsize,
       size_t slab_size,
       LocalEntropy& entropy)
@@ -292,7 +291,7 @@ namespace snmalloc
       bumpptr = slab_end;
     }
 
-    void clear_slab(Metaslab* meta, smallsizeclass_t sizeclass)
+    void clear_slab(BackendSlabMetadata* meta, smallsizeclass_t sizeclass)
     {
       auto& key = entropy.get_free_list_key();
       freelist::Iter<> fl;
@@ -403,17 +402,17 @@ namespace snmalloc
      * by this thread, or handling the final deallocation onto a slab,
      * so it can be reused by other threads.
      */
-    SNMALLOC_SLOW_PATH void dealloc_local_object_slow(const MetaEntry& entry)
+    SNMALLOC_SLOW_PATH void
+    dealloc_local_object_slow(const PagemapEntry& entry)
     {
       // TODO: Handle message queue on this path?
 
-      auto* meta = FrontendMetaEntry::get_metaslab(entry);
+      auto* meta = entry.get_metaslab();
 
       if (meta->is_large())
       {
         // Handle large deallocation here.
-        size_t entry_sizeclass =
-          FrontendMetaEntry::get_sizeclass(entry).as_large();
+        size_t entry_sizeclass = entry.get_sizeclass().as_large();
         size_t size = bits::one_at_bit(entry_sizeclass);
 
 #ifdef SNMALLOC_TRACING
@@ -427,8 +426,7 @@ namespace snmalloc
         return;
       }
 
-      smallsizeclass_t sizeclass =
-        FrontendMetaEntry::get_sizeclass(entry).as_small();
+      smallsizeclass_t sizeclass = entry.get_sizeclass().as_small();
 
       UNUSED(entropy);
       if (meta->is_sleeping())
@@ -531,7 +529,7 @@ namespace snmalloc
      * need_post will be set to true, if capacity is exceeded.
      */
     void handle_dealloc_remote(
-      const MetaEntry& entry,
+      const PagemapEntry& entry,
       CapPtr<void, capptr::bounds::Alloc> p,
       bool& need_post)
     {
@@ -539,8 +537,7 @@ namespace snmalloc
       // TODO this needs to not double revoke if using MTE
       // TODO thread capabilities?
 
-      if (SNMALLOC_LIKELY(
-            FrontendMetaEntry::get_remote(entry) == public_state()))
+      if (SNMALLOC_LIKELY(entry.get_remote() == public_state()))
       {
         if (SNMALLOC_LIKELY(
               dealloc_local_object_fast(entry, p.as_void(), entropy)))
@@ -556,9 +553,7 @@ namespace snmalloc
           need_post = true;
         attached_cache->remote_dealloc_cache
           .template dealloc<sizeof(CoreAllocator)>(
-            FrontendMetaEntry::get_remote(entry)->trunc_id(),
-            p.as_void(),
-            key_global);
+            entry.get_remote()->trunc_id(), p.as_void(), key_global);
       }
     }
 
@@ -674,7 +669,8 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void
     dealloc_local_object(CapPtr<void, capptr::bounds::Alloc> p)
     {
-      // MetaEntry-s seen here are expected to have meaningful Remote pointers
+      // PagemapEntry-s seen here are expected to have meaningful Remote
+      // pointers
       auto& entry =
         Backend::Pagemap::template get_metaentry(snmalloc::address_cast(p));
       if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p, entropy)))
@@ -684,17 +680,16 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH static bool dealloc_local_object_fast(
-      const MetaEntry& entry,
+      const PagemapEntry& entry,
       CapPtr<void, capptr::bounds::Alloc> p,
       LocalEntropy& entropy)
     {
-      auto meta = FrontendMetaEntry::get_metaslab(entry);
+      auto meta = entry.get_metaslab();
 
       SNMALLOC_ASSERT(!meta->is_unused());
 
       snmalloc_check_client(
-        is_start_of_object(
-          FrontendMetaEntry::get_sizeclass(entry), address_cast(p)),
+        is_start_of_object(entry.get_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
       auto cp = p.as_static<freelist::Object::T<>>();
@@ -740,7 +735,7 @@ namespace snmalloc
           [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
             return capptr_domesticate<Backend>(backend_state_ptr(), p);
           };
-        auto [p, still_active] = Metaslab::alloc_free_list(
+        auto [p, still_active] = BackendSlabMetadata::alloc_free_list(
           domesticate, meta, fast_free_list, entropy, sizeclass);
 
         if (still_active)
@@ -789,7 +784,7 @@ namespace snmalloc
       auto [slab, meta] = Backend::alloc_chunk(
         get_backend_local_state(),
         slab_size,
-        FrontendMetaEntry::encode(
+        PagemapEntry::encode(
           public_state(), sizeclass_t::from_small_class(sizeclass)));
 
       if (slab == nullptr)
@@ -807,7 +802,7 @@ namespace snmalloc
         [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
           return capptr_domesticate<Backend>(backend_state_ptr(), p);
         };
-      auto [p, still_active] = Metaslab::alloc_free_list(
+      auto [p, still_active] = BackendSlabMetadata::alloc_free_list(
         domesticate, meta, fast_free_list, entropy, sizeclass);
 
       if (still_active)
@@ -843,7 +838,7 @@ namespace snmalloc
         {
           bool need_post = true; // Always going to post, so ignore.
           auto n_tame = p_tame->atomic_read_next(key_global, domesticate);
-          const MetaEntry& entry =
+          const PagemapEntry& entry =
             Backend::Pagemap::get_metaentry(snmalloc::address_cast(p_tame));
           handle_dealloc_remote(entry, p_tame.as_void(), need_post);
           p_tame = n_tame;

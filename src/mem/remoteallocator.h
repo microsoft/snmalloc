@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../backend/metatypes.h"
 #include "../mem/allocconfig.h"
 #include "../mem/freelist.h"
+#include "../mem/metaslab.h"
 #include "../mem/sizeclasstable.h"
 
 #include <array>
@@ -10,20 +10,6 @@
 
 namespace snmalloc
 {
-  // Remotes need to be aligned enough that the bottom bits have enough room for
-  // all the size classes, both large and small. An additional bit is required
-  // to separate backend uses.
-  static constexpr size_t REMOTE_MIN_ALIGN =
-    bits::max<size_t>(CACHELINE_SIZE, SIZECLASS_REP_SIZE) << 1;
-
-  // The bit above the sizeclass is always zero unless this is used
-  // by the backend to represent another datastructure such as the buddy
-  // allocator entries.
-  constexpr size_t REMOTE_WITH_BACKEND_MARKER_ALIGN =
-    MetaEntryBase::REMOTE_BACKEND_MARKER;
-  static_assert(
-    (REMOTE_MIN_ALIGN >> 1) == MetaEntryBase::REMOTE_BACKEND_MARKER);
-
   /**
    * Global key for all remote lists.
    */
