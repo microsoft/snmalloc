@@ -5,6 +5,16 @@
 
 #  include <fcntl.h>
 
+/**
+ * We skip the pthread cancellation checkpoints by reaching directly
+ * the following syscalls so we avoid the possible pthread
+ * allocation initialization timing issues.
+ * @{
+ */
+extern "C" ssize_t _sys_writev(int fd, const struct iovec* iov, int iovcnt);
+extern "C" int _sys_fsync(int fd);
+/// @}
+
 namespace snmalloc
 {
   /**
@@ -13,7 +23,7 @@ namespace snmalloc
    * This adds NetBSD-specific aligned allocation to the generic BSD
    * implementation.
    */
-  class PALNetBSD : public PALBSD_Aligned<PALNetBSD>
+  class PALNetBSD : public PALBSD_Aligned<PALNetBSD, _sys_writev, _sys_fsync>
   {
   public:
     /**
