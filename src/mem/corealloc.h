@@ -402,8 +402,7 @@ namespace snmalloc
      * by this thread, or handling the final deallocation onto a slab,
      * so it can be reused by other threads.
      */
-    SNMALLOC_SLOW_PATH void
-    dealloc_local_object_slow(const PagemapEntry& entry)
+    SNMALLOC_SLOW_PATH void dealloc_local_object_slow(const PagemapEntry& entry)
     {
       // TODO: Handle message queue on this path?
 
