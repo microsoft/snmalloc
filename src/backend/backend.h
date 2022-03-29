@@ -87,11 +87,7 @@ namespace snmalloc
         /**
          * The private default constructor is usable only by the pagemap.
          */
-        friend class FlatPagemap<
-          MIN_CHUNK_BITS,
-          Entry,
-          PAL,
-          fixed_range>;
+        friend class FlatPagemap<MIN_CHUNK_BITS, Entry, PAL, fixed_range>;
 
         /**
          * The only constructor that creates newly initialised meta entries.
@@ -109,30 +105,33 @@ namespace snmalloc
          * Default constructor.  This must be callable from the pagemap.
          */
         SNMALLOC_FAST_PATH Entry() = default;
+
+        /**
+         * Copy assignment is used only by the pagemap.
+         */
+        Entry& operator=(const Entry& other)
+        {
+          PageMapEntry<SlabMetadata>::operator=(other);
+          return *this;
+        }
       };
 
     private:
       SNMALLOC_REQUIRE_CONSTINIT
-      static inline FlatPagemap<
-        MIN_CHUNK_BITS,
-        Entry,
-        PAL,
-        fixed_range>
+      static inline FlatPagemap<MIN_CHUNK_BITS, Entry, PAL, fixed_range>
         concretePagemap;
 
       /**
        * Set the metadata associated with a chunk.
        */
       SNMALLOC_FAST_PATH
-      static void
-      set_metaentry(address_t p, size_t size, const Entry& t)
+      static void set_metaentry(address_t p, size_t size, const Entry& t)
       {
         for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
         {
           concretePagemap.set(a, t);
         }
       }
-
 
     public:
       /**
@@ -336,8 +335,7 @@ namespace snmalloc
       auto meta_cap =
         local_state.get_meta_range()->alloc_range(sizeof(SlabMetadata));
 
-      auto meta =
-        meta_cap.template as_reinterpret<SlabMetadata>().unsafe_ptr();
+      auto meta = meta_cap.template as_reinterpret<SlabMetadata>().unsafe_ptr();
 
       if (meta == nullptr)
       {
@@ -381,8 +379,7 @@ namespace snmalloc
        * interrogated, the sizeclass reported by the MetaEntry is 0, which has
        * size 0.
        */
-      typename Pagemap::Entry t(
-        nullptr, MetaEntryBase::REMOTE_BACKEND_MARKER);
+      typename Pagemap::Entry t(nullptr, MetaEntryBase::REMOTE_BACKEND_MARKER);
       Pagemap::set_metaentry(address_cast(chunk), size, t);
 
       local_state.get_meta_range()->dealloc_range(
