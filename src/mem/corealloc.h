@@ -291,7 +291,8 @@ namespace snmalloc
       bumpptr = slab_end;
     }
 
-    void clear_slab(BackendSlabMetadata* meta, smallsizeclass_t sizeclass)
+    capptr::Alloc<void>
+    clear_slab(BackendSlabMetadata* meta, smallsizeclass_t sizeclass)
     {
       auto& key = entropy.get_free_list_key();
       freelist::Iter<> fl;
@@ -352,9 +353,8 @@ namespace snmalloc
         "Slab {}  is unused, Object sizeclass {}",
         start_of_slab.unsafe_ptr(),
         sizeclass);
-#else
-      UNUSED(start_of_slab);
 #endif
+      return start_of_slab;
     }
 
     template<bool check_slabs = false>
@@ -387,10 +387,13 @@ namespace snmalloc
 
         // TODO delay the clear to the next user of the slab, or teardown so
         // don't touch the cache lines at this point in snmalloc_check_client.
-        clear_slab(meta, sizeclass);
+        auto start = clear_slab(meta, sizeclass);
 
         Backend::dealloc_chunk(
-          get_backend_local_state(), *meta, sizeclass_to_slab_size(sizeclass));
+          get_backend_local_state(),
+          *meta,
+          start,
+          sizeclass_to_slab_size(sizeclass));
 
         return true;
       });
@@ -402,7 +405,8 @@ namespace snmalloc
      * by this thread, or handling the final deallocation onto a slab,
      * so it can be reused by other threads.
      */
-    SNMALLOC_SLOW_PATH void dealloc_local_object_slow(const PagemapEntry& entry)
+    SNMALLOC_SLOW_PATH void
+    dealloc_local_object_slow(capptr::Alloc<void> p, const PagemapEntry& entry)
     {
       // TODO: Handle message queue on this path?
 
@@ -420,7 +424,7 @@ namespace snmalloc
         UNUSED(size);
 #endif
 
-        Backend::dealloc_chunk(get_backend_local_state(), *meta, size);
+        Backend::dealloc_chunk(get_backend_local_state(), *meta, p, size);
 
         return;
       }
@@ -542,7 +546,7 @@ namespace snmalloc
               dealloc_local_object_fast(entry, p.as_void(), entropy)))
           return;
 
-        dealloc_local_object_slow(entry);
+        dealloc_local_object_slow(p, entry);
       }
       else
       {
@@ -675,7 +679,7 @@ namespace snmalloc
       if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p, entropy)))
         return;
 
-      dealloc_local_object_slow(entry);
+      dealloc_local_object_slow(p, entry);
     }
 
     SNMALLOC_FAST_PATH static bool dealloc_local_object_fast(

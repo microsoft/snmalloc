@@ -640,7 +640,7 @@ namespace snmalloc
         if (SNMALLOC_LIKELY(CoreAlloc::dealloc_local_object_fast(
               entry, p_tame, local_cache.entropy)))
           return;
-        core_alloc->dealloc_local_object_slow(entry);
+        core_alloc->dealloc_local_object_slow(p_tame, entry);
         return;
       }
 

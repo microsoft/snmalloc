@@ -40,21 +40,7 @@ namespace snmalloc
   public:
     using Pal = PAL;
 
-    /**
-     * This class will go away in the next PR and be replaced with:
-     *
-     * using SlabMetadata = Metaslab;
-     *
-     * In non-CHERI systems, the chunk field should be unnecessary.  It is
-     * present in this version so that we can make owning this state part of the
-     * back-end API contract in one commit and then removing its use in back
-     * ends that don't use it a separate one.
-     */
-    class SlabMetadata : public Metaslab
-    {
-      friend class BackendAllocator;
-      capptr::Chunk<void> chunk;
-    };
+    using SlabMetadata = Metaslab;
 
     class Pagemap
     {
@@ -353,8 +339,6 @@ namespace snmalloc
         return {p, nullptr};
       }
 
-      meta->chunk = p;
-
       typename Pagemap::Entry t(meta, ras);
       Pagemap::set_metaentry(address_cast(p), size, t);
 
@@ -363,10 +347,11 @@ namespace snmalloc
     }
 
     static void dealloc_chunk(
-      LocalState& local_state, SlabMetadata& meta_common, size_t size)
+      LocalState& local_state,
+      SlabMetadata& meta_common,
+      capptr::Alloc<void> alloc,
+      size_t size)
     {
-      auto chunk = meta_common.chunk;
-
       /*
        * The backend takes possession of these chunks now, by disassociating
        * any existing remote allocator and metadata structure.  If
@@ -375,11 +360,15 @@ namespace snmalloc
        */
       typename Pagemap::Entry t(nullptr, 0);
       t.claim_for_backend();
-      Pagemap::set_metaentry(address_cast(chunk), size, t);
+      Pagemap::set_metaentry(address_cast(alloc), size, t);
 
       local_state.get_meta_range()->dealloc_range(
         capptr::Chunk<void>(&meta_common), sizeof(SlabMetadata));
 
+      // On non-CHERI platforms, we don't need to re-derive to get a pointer to
+      // the chunk.  On CHERI platforms this will need to be stored in the
+      // SlabMetadata or similar.
+      capptr::Chunk<void> chunk{alloc.unsafe_ptr()};
       local_state.object_range->dealloc_range(chunk, size);
     }
 
