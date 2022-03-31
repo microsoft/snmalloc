@@ -11,6 +11,14 @@
 namespace snmalloc
 {
 #ifdef __cpp_concepts
+  /**
+   * The representation must define two types.  `Contents` defines some
+   * identifier that can be mapped to a node as a value type.  `Holder` defines
+   * a reference to the storage, which can be used to update it.
+   *
+   * Conceptually, `Contents` is a node ID and `Holder` is a pointer to a node
+   * ID.
+   */
   template<typename Rep>
   concept RBRepTypes = requires()
   {
@@ -18,9 +26,25 @@ namespace snmalloc
     typename Rep::Contents;
   };
 
+  /**
+   * The representation must define operations on the holder and contents
+   * types.  It must be able to 'dereference' a holder with `get`, assign to it
+   * with `set`, set and query the red/black colour of a node with `set_red` and
+   * `is_red`.
+   *
+   * The `ref` method provides uniform access to the children of a node,
+   * returning a holder pointing to either the left or right child, depending on
+   * the direction parameter.
+   *
+   * The backend must also provide two constant values.
+   * `Rep::null` defines a value that, if returned from `get`, indicates a null
+   * value. `Rep::root` defines a value that, if constructed directly, indicates
+   * a null value and can therefore be used as the initial raw bit pattern of
+   * the root node.
+   */
   template<typename Rep>
   concept RBRepMethods =
-    requires(typename Rep::Holder* hp, typename Rep::Contents k, bool b)
+    requires(typename Rep::Holder hp, typename Rep::Contents k, bool b)
   {
     {
       Rep::get(hp)
@@ -41,7 +65,15 @@ namespace snmalloc
     {
       Rep::ref(b, k)
     }
-    ->ConceptSame<typename Rep::Holder&>;
+    ->ConceptSame<typename Rep::Holder>;
+    {
+      Rep::null
+    }
+    ->ConceptSameModRef<const typename Rep::Contents>;
+    {
+      Rep::root
+    }
+    ->ConceptSameModRef<const typename Rep::Contents>;
   };
 
   template<typename Rep>
@@ -77,19 +109,23 @@ namespace snmalloc
     // to treat left, right and root uniformly.
     class ChildRef
     {
-      H* ptr;
+      H ptr;
 
     public:
       ChildRef() : ptr(nullptr) {}
 
-      ChildRef(H& p) : ptr(&p) {}
+      ChildRef(H p) : ptr(p) {}
+
+      ChildRef(const ChildRef& other) = default;
 
       operator K()
       {
         return Rep::get(ptr);
       }
 
-      ChildRef& operator=(const K& t)
+      ChildRef& operator=(const ChildRef& other) = default;
+
+      ChildRef& operator=(const K t)
       {
         // Use representations assigment, so we update the correct bits
         // color and other things way also be stored in the Holder.
@@ -97,6 +133,11 @@ namespace snmalloc
         return *this;
       }
 
+      /**
+       * Comparison operators.  Note that these are address-comparison, not
+       * comparison of the values held in these child references.
+       * @{
+       */
       bool operator==(const ChildRef t) const
       {
         return ptr == t.ptr;
@@ -106,20 +147,26 @@ namespace snmalloc
       {
         return ptr != t.ptr;
       }
-
-      H* addr()
-      {
-        return ptr;
-      }
+      ///@}
 
       bool is_null()
       {
         return Rep::get(ptr) == Rep::null;
       }
+
+      /**
+       * Return the reference in some printable format defined by the
+       * representation.
+       */
+      auto printable()
+      {
+        return Rep::printable(ptr);
+      }
     };
 
     // Root field of the tree
-    H root{};
+    K root_val{Rep::root};
+    H root{&root_val};
 
     static ChildRef get_dir(bool direction, K k)
     {
@@ -194,6 +241,16 @@ namespace snmalloc
     {
       ChildRef node;
       bool dir = false;
+      void set(typename Rep::Holder r, bool direction)
+      {
+        node = ChildRef(r);
+        dir = direction;
+      }
+      void set(ChildRef r, bool direction)
+      {
+        node = r;
+        dir = direction;
+      }
     };
 
   public:
@@ -207,9 +264,9 @@ namespace snmalloc
       std::array<RBStep, 128> path;
       size_t length = 0;
 
-      RBPath(typename Rep::Holder& root) : path{}
+      RBPath(typename Rep::Holder root) : path{}
       {
-        path[0] = {root, false};
+        path[0].set(root, false);
         length = 1;
       }
 
@@ -258,7 +315,7 @@ namespace snmalloc
         auto next = get_dir(direction, curr());
         if (next.is_null())
           return false;
-        path[length] = {next, direction};
+        path[length].set(next, direction);
         length++;
         return true;
       }
@@ -269,7 +326,7 @@ namespace snmalloc
       bool move_inc_null(bool direction)
       {
         auto next = get_dir(direction, curr());
-        path[length] = {next, direction};
+        path[length].set(next, direction);
         length++;
         return !(next.is_null());
       }
@@ -319,8 +376,8 @@ namespace snmalloc
           {
             message<1024>(
               "  -> {} @ {} ({})",
-              K(path[i].node),
-              path[i].node.addr(),
+              Rep::printable(K(path[i].node)),
+              path[i].node.printable(),
               path[i].dir);
           }
         }
@@ -337,7 +394,7 @@ namespace snmalloc
     {
       if constexpr (TRACE)
       {
-        message<100>("-------");
+        message<100>("------- {}", Rep::name());
         message<1024>(msg);
         path.print();
         print(base);
@@ -378,11 +435,11 @@ namespace snmalloc
           "{}\\_{}{}{}@{} ({})",
           indent,
           colour,
-          curr,
+          Rep::printable((K(curr))),
           reset,
-          curr.addr(),
+          curr.printable(),
           depth);
-        if ((get_dir(true, curr) != 0) || (get_dir(false, curr) != 0))
+        if (!(get_dir(true, curr).is_null() && get_dir(false, curr).is_null()))
         {
           auto s_indent = std::string(indent);
           print(get_dir(true, curr), (s_indent + "|").c_str(), depth + 1);
@@ -574,7 +631,7 @@ namespace snmalloc
     }
 
     // Insert an element at the given path.
-    void insert_path(RBPath path, K value)
+    void insert_path(RBPath& path, K value)
     {
       SNMALLOC_ASSERT(path.curr().is_null());
       path.curr() = value;

@@ -24,67 +24,83 @@ namespace snmalloc
      * of) chunks of the address space; as such, bits in (MIN_CHUNK_SIZE - 1)
      * are unused and so the RED_BIT is packed therein.  However, in practice,
      * these are not "just any" uintptr_t-s, but specifically the uintptr_t-s
-     * inside the Pagemap's MetaEntry structures.  As such, there are some
-     * additional bit-swizzling concerns; see set() and get() below.
+     * inside the Pagemap's MetaEntry structures.
+     *
+     * The MetaEntry provides us with helpers that guarantee that we use only
+     * the bits that we are allowed to.
+     * @{
      */
-    using Holder = uintptr_t;
+    using Holder = MetaEntryBase::BackendStateWord;
     using Contents = uintptr_t;
+    ///@}
 
-    static constexpr address_t RED_BIT = 1 << 1;
+    /**
+     * The bit that we will use to mark an entry as red.
+     * This has constraints in two directions, it must not be one of the
+     * reserved bits from the perspective of the meta entry and it must not be
+     * a bit that is a valid part of the address of a chunk.
+     * @{
+     */
+    static constexpr address_t RED_BIT = 1 << 8;
 
     static_assert(RED_BIT < MIN_CHUNK_SIZE);
-    static_assert(RED_BIT != MetaEntryBase::META_BOUNDARY_BIT);
-    static_assert(RED_BIT != MetaEntryBase::REMOTE_BACKEND_MARKER);
+    static_assert((RED_BIT & MetaEntryBase::BackendReservedMask) == 0);
+    ///@}
 
+    /// The value of a null node, as returned by `get`
     static constexpr Contents null = 0;
+    /// The value of a null node, as stored in a `uintptr_t`.
+    static constexpr Contents root = 0;
 
-    static void set(Holder* ptr, Contents r)
+    /**
+     * Set the value.  Preserve the red/black colour.
+     */
+    static void set(Holder ptr, Contents r)
     {
-      SNMALLOC_ASSERT((r & (MIN_CHUNK_SIZE - 1)) == 0);
-      /*
-       * Preserve lower bits, claim as backend, and update contents of holder.
-       *
-       * This is excessive at present but no harder than being more precise
-       * while also being future-proof.  All that is strictly required would be
-       * to preserve META_BOUNDARY_BIT and RED_BIT in ->meta and to assert
-       * REMOTE_BACKEND_MARKER in ->remote_and_sizeclass (if it isn't already
-       * asserted).  However, we don't know which Holder* we have been given,
-       * nor do we know whether this Holder* is completely new (and so we are
-       * the first reasonable opportunity to assert REMOTE_BACKEND_MARKER) or
-       * recycled from the frontend, and so we preserve and assert more than
-       * strictly necessary.
-       *
-       * The use of `address_cast` below is a CHERI-ism; otherwise both `r` and
-       * `*ptr & ...` are plausibly provenance-carrying values and the compiler
-       * balks at the ambiguity.
-       */
-      *ptr = r | address_cast(*ptr & (MIN_CHUNK_SIZE - 1)) |
-        MetaEntryBase::REMOTE_BACKEND_MARKER;
+      ptr = r | (ptr.get() & RED_BIT);
     }
 
-    static Contents get(const Holder* ptr)
+    /**
+     * Returns the value, stripping out the red/black colour.
+     */
+    static Contents get(const Holder ptr)
     {
-      return *ptr & ~(MIN_CHUNK_SIZE - 1);
+      return ptr.get() & ~RED_BIT;
     }
 
-    static Holder& ref(bool direction, Contents k)
+    /**
+     * Returns a pointer to the tree node for the specified address.
+     */
+    static Holder ref(bool direction, Contents k)
     {
+      // Special case for accessing the null entry.  We want to make sure
+      // that this is never modified by the back end, so we make it point to
+      // a constant entry and use the MMU to trap even in release modes.
+      static const Contents null_entry = 0;
+      if (SNMALLOC_UNLIKELY(address_cast(k) == 0))
+      {
+        return {const_cast<Contents*>(&null_entry)};
+      }
       auto& entry = Pagemap::template get_metaentry_mut<false>(address_cast(k));
       if (direction)
-        return entry.meta;
+        return entry.get_backend_word(Pagemap::Entry::Word::One);
 
-      return entry.remote_and_sizeclass;
+      return entry.get_backend_word(Pagemap::Entry::Word::Two);
     }
 
     static bool is_red(Contents k)
     {
-      return (ref(true, k) & RED_BIT) == RED_BIT;
+      return (ref(true, k).get() & RED_BIT) == RED_BIT;
     }
 
     static void set_red(Contents k, bool new_is_red)
     {
       if (new_is_red != is_red(k))
-        ref(true, k) ^= RED_BIT;
+      {
+        auto v = ref(true, k);
+        v = v.get() ^ RED_BIT;
+      }
+      SNMALLOC_ASSERT(is_red(k) == new_is_red);
     }
 
     static Contents offset(Contents k, size_t size)
@@ -115,6 +131,24 @@ namespace snmalloc
     static uintptr_t printable(Contents k)
     {
       return k;
+    }
+
+    /**
+     * Convert the pointer wrapper into something that the snmalloc debug
+     * printing code can print.
+     */
+    static address_t printable(Holder k)
+    {
+      return k.printable_address();
+    }
+
+    /**
+     * Returns the name for use in debugging traces.  Not used in normal builds
+     * (release or debug), only when tracing is enabled.
+     */
+    static const char* name()
+    {
+      return "BuddyChunkRep";
     }
 
     static bool can_consolidate(Contents k, size_t size)

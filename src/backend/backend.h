@@ -329,9 +329,6 @@ namespace snmalloc
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
 
-      SNMALLOC_ASSERT((ras & MetaEntryBase::REMOTE_BACKEND_MARKER) == 0);
-      ras &= ~MetaEntryBase::REMOTE_BACKEND_MARKER;
-
       auto meta_cap =
         local_state.get_meta_range()->alloc_range(sizeof(SlabMetadata));
 
@@ -379,7 +376,8 @@ namespace snmalloc
        * interrogated, the sizeclass reported by the MetaEntry is 0, which has
        * size 0.
        */
-      typename Pagemap::Entry t(nullptr, MetaEntryBase::REMOTE_BACKEND_MARKER);
+      typename Pagemap::Entry t(nullptr, 0);
+      t.claim_for_backend();
       Pagemap::set_metaentry(address_cast(chunk), size, t);
 
       local_state.get_meta_range()->dealloc_range(

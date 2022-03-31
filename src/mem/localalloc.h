@@ -72,7 +72,6 @@ namespace snmalloc
      * @{
      */
     using CoreAlloc = CoreAllocator<Backend>;
-    using BackendSlabMetadata = typename Backend::SlabMetadata;
     using PagemapEntry = typename Backend::Pagemap::Entry;
     /// }@
 

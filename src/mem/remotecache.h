@@ -110,8 +110,7 @@ namespace snmalloc
             // set implies this is used by the backend, and we should not be
             // deallocating memory here.
             snmalloc_check_client(
-              (address_cast(remote) & MetaEntryBase::REMOTE_BACKEND_MARKER) ==
-                0,
+              !entry.is_backend_owned(),
               "Delayed detection of attempt to free internal structure.");
             if constexpr (Backend::Options.QueueHeadsAreTame)
             {

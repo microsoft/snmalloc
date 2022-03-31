@@ -23,13 +23,14 @@ namespace snmalloc
   class BuddyInplaceRep
   {
   public:
-    using Holder = capptr::Chunk<FreeChunk>;
+    using Holder = capptr::Chunk<FreeChunk>*;
     using Contents = capptr::Chunk<FreeChunk>;
 
     static constexpr Contents null = nullptr;
+    static constexpr Contents root = nullptr;
 
     static constexpr address_t MASK = 1;
-    static void set(Holder* ptr, Contents r)
+    static void set(Holder ptr, Contents r)
     {
       SNMALLOC_ASSERT((address_cast(r) & MASK) == 0);
       if (r == nullptr)
@@ -41,44 +42,45 @@ namespace snmalloc
                  .template as_static<FreeChunk>();
     }
 
-    static Contents get(Holder* ptr)
+    static Contents get(Holder ptr)
     {
       return pointer_align_down<2, FreeChunk>((*ptr).as_void());
     }
 
-    static Holder& ref(bool direction, Contents r)
+    static Holder ref(bool direction, Contents r)
     {
       if (direction)
-        return r->left;
+        return &r->left;
 
-      return r->right;
+      return &r->right;
     }
 
     static bool is_red(Contents k)
     {
       if (k == nullptr)
         return false;
-      return (address_cast(ref(false, k)) & MASK) == MASK;
+      return (address_cast(*ref(false, k)) & MASK) == MASK;
     }
 
     static void set_red(Contents k, bool new_is_red)
     {
       if (new_is_red != is_red(k))
       {
-        auto& r = ref(false, k);
-        auto old_addr = pointer_align_down<2, FreeChunk>(r.as_void());
+        auto r = ref(false, k);
+        auto old_addr = pointer_align_down<2, FreeChunk>(r->as_void());
 
         if (new_is_red)
         {
           if (old_addr == nullptr)
-            r = capptr::Chunk<FreeChunk>(reinterpret_cast<FreeChunk*>(MASK));
+            *r = capptr::Chunk<FreeChunk>(reinterpret_cast<FreeChunk*>(MASK));
           else
-            r = pointer_offset(old_addr, MASK).template as_static<FreeChunk>();
+            *r = pointer_offset(old_addr, MASK).template as_static<FreeChunk>();
         }
         else
         {
-          r = old_addr;
+          *r = old_addr;
         }
+        SNMALLOC_ASSERT(is_red(k) == new_is_red);
       }
     }
 
@@ -114,6 +116,25 @@ namespace snmalloc
     static address_t printable(Contents k)
     {
       return address_cast(k);
+    }
+
+    /**
+     * Return the holder in some format suitable for printing by snmalloc's
+     * debug log mechanism.  Used only when used in tracing mode, not normal
+     * debug or release builds. Raw pointers are printable already, so this is
+     * the identity function.
+     */
+    static Holder printable(Holder k)
+    {
+      return k;
+    }
+
+    /**
+     * Return a name for use in tracing mode.  Unused in any other context.
+     */
+    static const char* name()
+    {
+      return "BuddyInplaceRep";
     }
 
     static bool can_consolidate(Contents k, size_t size)

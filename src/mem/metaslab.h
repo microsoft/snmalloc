@@ -11,16 +11,32 @@ namespace snmalloc
   struct RemoteAllocator;
 
   /**
+   * Remotes need to be aligned enough that the bottom bits have enough room for
+   * all the size classes, both large and small. An additional bit is required
+   * to separate backend uses.
+   */
+  static constexpr size_t REMOTE_MIN_ALIGN =
+    bits::max<size_t>(CACHELINE_SIZE, SIZECLASS_REP_SIZE) << 1;
+
+  /**
    * Base class for the templated MetaEntry.  This exists to avoid needing a
    * template parameter to access constants that are independent of the
    * template parameter.
    */
   class MetaEntryBase
   {
-    template<SNMALLOC_CONCEPT(ConceptBuddyRangeMeta) Pagemap>
-    friend class BuddyChunkRep;
-
   protected:
+    /**
+     * This bit is set in remote_and_sizeclass to discriminate between the case
+     * that it is in use by the frontend (0) or by the backend (1).  For the
+     * former case, see mem/metaslab.h; for the latter, see backend/backend.h
+     * and backend/largebuddyrange.h.
+     *
+     * This value is statically checked by the frontend to ensure that its
+     * bit packing does not conflict; see mem/remoteallocator.h
+     */
+    static constexpr address_t REMOTE_BACKEND_MARKER = 1 << 7;
+
     /**
      * Bit used to indicate this should not be considered part of the previous
      * PAL allocation.
@@ -32,46 +48,15 @@ namespace snmalloc
      */
     static constexpr address_t META_BOUNDARY_BIT = 1 << 0;
 
-  public:
     /**
-     * This bit is set in remote_and_sizeclass to discriminate between the case
-     * that it is in use by the frontend (0) or by the backend (1).  For the
-     * former case, see mem/metaslab.h; for the latter, see backend/backend.h
-     * and backend/largebuddyrange.h.
-     *
-     * This value is statically checked by the frontend to ensure that its
-     * bit packing does not conflict; see mem/remoteallocator.h
+     * The bit above the sizeclass is always zero unless this is used
+     * by the backend to represent another datastructure such as the buddy
+     * allocator entries.
      */
-    static constexpr address_t REMOTE_BACKEND_MARKER = 1 << 7;
-  };
-
-  /**
-   * Remotes need to be aligned enough that the bottom bits have enough room for
-   * all the size classes, both large and small. An additional bit is required
-   * to separate backend uses.
-   */
-  static constexpr size_t REMOTE_MIN_ALIGN =
-    bits::max<size_t>(CACHELINE_SIZE, SIZECLASS_REP_SIZE) << 1;
-
-  /**
-   * The bit above the sizeclass is always zero unless this is used
-   * by the backend to represent another datastructure such as the buddy
-   * allocator entries.
-   */
-  constexpr size_t REMOTE_WITH_BACKEND_MARKER_ALIGN =
-    MetaEntryBase::REMOTE_BACKEND_MARKER;
-  static_assert(
-    (REMOTE_MIN_ALIGN >> 1) == MetaEntryBase::REMOTE_BACKEND_MARKER);
-
-  /**
-   * Entry stored in the pagemap.  See docs/AddressSpace.md for the full
-   * MetaEntry lifecycle.
-   */
-  template<typename BackendMetadata>
-  class MetaEntry : public MetaEntryBase
-  {
-    template<SNMALLOC_CONCEPT(ConceptBuddyRangeMeta) Pagemap>
-    friend class BuddyChunkRep;
+    static constexpr size_t REMOTE_WITH_BACKEND_MARKER_ALIGN =
+      MetaEntryBase::REMOTE_BACKEND_MARKER;
+    static_assert(
+      (REMOTE_MIN_ALIGN >> 1) == MetaEntryBase::REMOTE_BACKEND_MARKER);
 
     /**
      * In common cases, the pointer to the metaslab.  See docs/AddressSpace.md
@@ -89,20 +74,51 @@ namespace snmalloc
      */
     uintptr_t remote_and_sizeclass{0};
 
-  public:
-    constexpr MetaEntry() = default;
+    /**
+     * Constructor from two pointer-sized words.  The subclass is responsible
+     * for ensuring that accesses to these are type-safe.
+     */
+    constexpr MetaEntryBase(uintptr_t m, uintptr_t ras)
+    : meta(m), remote_and_sizeclass(ras)
+    {}
 
     /**
-     * Constructor, provides the remote and sizeclass embedded in a single
-     * pointer-sized word.  This format is not guaranteed to be stable and so
-     * the second argument of this must always be the return value from
-     * `get_remote_and_sizeclass`.
+     * Default constructor, zero initialises.
      */
-    SNMALLOC_FAST_PATH
-    MetaEntry(BackendMetadata* meta, uintptr_t remote_and_sizeclass)
-    : meta(unsafe_to_uintptr<BackendMetadata>(meta)),
-      remote_and_sizeclass(remote_and_sizeclass)
-    {}
+    constexpr MetaEntryBase() : MetaEntryBase(0, 0) {}
+
+  public:
+    /**
+     * When a meta entry is in use by the back end, it exposes tow words of
+     * state.  The low bits in both are reserved.  Bits in this bitmask must
+     * not be set by the back end in either word.
+     *
+     * During a major release, this constraint may be weakened, allowing the
+     * back end to set more bits.
+     */
+    static constexpr address_t BackendReservedMask =
+      (REMOTE_BACKEND_MARKER + 1);
+
+    /**
+     * Does the back end currently own this entry?  Note that freshly
+     * allocated entries are owned by the front end until explicitly
+     * claimed by the back end and so this will return `false` if neither
+     * the front nor back end owns this entry.
+     */
+    bool is_backend_owned() const
+    {
+      return (REMOTE_BACKEND_MARKER & remote_and_sizeclass) ==
+        REMOTE_BACKEND_MARKER;
+    }
+
+    /**
+     * Returns true if this metaentry has not been claimed by the front or back
+     * ends.
+     */
+    bool is_unowned() const
+    {
+      return (meta == 0) && (remote_and_sizeclass == 0);
+    }
 
     /**
      * Encode the remote and the sizeclass.
@@ -121,15 +137,16 @@ namespace snmalloc
      * only safe use for this is to pass it to the two-argument constructor of
      * this class.
      */
-    [[nodiscard]] SNMALLOC_FAST_PATH const uintptr_t&
-    get_remote_and_sizeclass() const
+    [[nodiscard]] SNMALLOC_FAST_PATH uintptr_t get_remote_and_sizeclass() const
     {
       return remote_and_sizeclass;
     }
 
-    MetaEntry(const MetaEntry&) = delete;
-
-    MetaEntry& operator=(const MetaEntry& other)
+    /**
+     * Explicit assignment operator, copies the data preserving the boundary bit
+     * in the target if it is set.
+     */
+    MetaEntryBase& operator=(const MetaEntryBase& other)
     {
       // Don't overwrite the boundary bit with the other's
       meta = (other.meta & ~META_BOUNDARY_BIT) |
@@ -139,16 +156,12 @@ namespace snmalloc
     }
 
     /**
-     * Return the Metaslab metadata associated with this chunk, guarded by an
-     * assert that this chunk is being used as a slab (i.e., has an associated
-     * owning allocator).
+     * On some platforms, allocations originating from the OS may not be
+     * combined.  The boundary bit indicates whether this is meta entry
+     * corresponds to the first chunk in such a range and so may not be combined
+     * with anything before it in the address space.
+     * @{
      */
-    [[nodiscard]] SNMALLOC_FAST_PATH BackendMetadata* get_metaslab() const
-    {
-      SNMALLOC_ASSERT(get_remote() != nullptr);
-      return unsafe_from_uintptr<BackendMetadata>(meta & ~META_BOUNDARY_BIT);
-    }
-
     void set_boundary()
     {
       meta |= META_BOUNDARY_BIT;
@@ -163,14 +176,30 @@ namespace snmalloc
     {
       return meta &= ~META_BOUNDARY_BIT;
     }
+    ///@}
 
+    /**
+     * Returns the remote.
+     *
+     * If the meta entry is owned by the back end then this returns an
+     * undefined value and will abort in debug builds.
+     */
     [[nodiscard]] SNMALLOC_FAST_PATH RemoteAllocator* get_remote() const
     {
+      SNMALLOC_ASSERT(!is_backend_owned());
       return reinterpret_cast<RemoteAllocator*>(
         pointer_align_down<REMOTE_WITH_BACKEND_MARKER_ALIGN>(
           get_remote_and_sizeclass()));
     }
 
+    /**
+     * Return the sizeclass.
+     *
+     * This is called by `external_pointer` on arbitrary memory and so cannot
+     * assert that the meta entry is owned by the front end.  In the future, it
+     * may provide some stronger guarantees on the value that is returned in
+     * this case.
+     */
     [[nodiscard]] SNMALLOC_FAST_PATH sizeclass_t get_sizeclass() const
     {
       // TODO: perhaps remove static_cast with resolution of
@@ -178,6 +207,189 @@ namespace snmalloc
       return sizeclass_t::from_raw(
         static_cast<size_t>(get_remote_and_sizeclass()) &
         (REMOTE_WITH_BACKEND_MARKER_ALIGN - 1));
+    }
+
+    /**
+     * Claim the meta entry for use by the back end.  This preserves the
+     * boundary bit, if it is set, but otherwise resets the meta entry to a
+     * pristine state.
+     */
+    void claim_for_backend()
+    {
+      meta = is_boundary() ? META_BOUNDARY_BIT : 0;
+      remote_and_sizeclass = REMOTE_BACKEND_MARKER;
+    }
+
+    /**
+     * When used by the back end, the two words in a meta entry have no
+     * semantics defined by the front end and are identified by enumeration
+     * values.
+     */
+    enum class Word
+    {
+      /**
+       * The first word.
+       */
+      One,
+
+      /**
+       * The second word.
+       */
+      Two
+    };
+
+    /**
+     * Proxy class that allows setting and reading back the bits in each word
+     * that are exposed for the back end.
+     *
+     * The back end must not keep instances of this class after returning the
+     * corresponding meta entry to the front end.
+     */
+    class BackendStateWord
+    {
+      /**
+       * A pointer to the relevant word.
+       */
+      uintptr_t* val;
+
+    public:
+      /**
+       * Constructor, wraps a `uintptr_t`.  Note that this may be used outside
+       * of the meta entry by code wishing to provide uniform storage to things
+       * that are either in a meta entry or elsewhere.
+       */
+      constexpr BackendStateWord(uintptr_t* v) : val(v) {}
+
+      /**
+       * Copy constructor.  Aliases the underlying storage.  Note that this is
+       * not thread safe: two `BackendStateWord` instances sharing access to the
+       * same storage must not be used from different threads without explicit
+       * synchronisation.
+       */
+      constexpr BackendStateWord(const BackendStateWord& other) = default;
+
+      /**
+       * Read the value.  This zeroes any bits in the underlying storage that
+       * the back end is not permitted to access.
+       */
+      uintptr_t get() const
+      {
+        return (*val) & ~BackendReservedMask;
+      }
+
+      /**
+       * Default copy assignment.  See the copy constructor for constraints on
+       * using this.
+       */
+      BackendStateWord& operator=(const BackendStateWord& other) = default;
+
+      /**
+       * Assignment operator.  Zeroes the bits in the provided value that the
+       * back end is not permitted to use and then stores the result in the
+       * value that this class manages.
+       */
+      BackendStateWord& operator=(uintptr_t v)
+      {
+        SNMALLOC_ASSERT_MSG(
+          ((v & BackendReservedMask) == 0),
+          "The back end is not permitted to use the low bits in the meta "
+          "entry. ({} & {}) == {}.",
+          v,
+          BackendReservedMask,
+          (v & BackendReservedMask));
+        *val = v | (*val & BackendReservedMask);
+        return *this;
+      }
+
+      /**
+       * Comparison operator.  Performs address comparison *not* value
+       * comparison.
+       */
+      bool operator!=(const BackendStateWord& other) const
+      {
+        return val != other.val;
+      }
+
+      /**
+       * Returns the address of the underlying storage in a form that can be
+       * passed to `snmalloc::message` for printing.
+       */
+      address_t printable_address()
+      {
+        return address_cast(val);
+      }
+    };
+
+    /**
+     * Get a proxy that allows the back end to read from and write to (some bits
+     * of) a word in the meta entry.  The meta entry must either be unowned or
+     * explicitly claimed by the back end before calling this.
+     */
+    BackendStateWord get_backend_word(Word w)
+    {
+      if (!is_backend_owned())
+      {
+        SNMALLOC_ASSERT(is_unowned());
+        claim_for_backend();
+      }
+      return {w == Word::One ? &meta : &remote_and_sizeclass};
+    }
+  };
+
+  /**
+   * Entry stored in the pagemap.  See docs/AddressSpace.md for the full
+   * MetaEntry lifecycle.
+   */
+  template<typename BackendMetadata>
+  class MetaEntry : public MetaEntryBase
+  {
+  public:
+    constexpr MetaEntry() = default;
+
+    /**
+     * Constructor, provides the remote and sizeclass embedded in a single
+     * pointer-sized word.  This format is not guaranteed to be stable and so
+     * the second argument of this must always be the return value from
+     * `get_remote_and_sizeclass`.
+     */
+    SNMALLOC_FAST_PATH
+    MetaEntry(BackendMetadata* meta, uintptr_t remote_and_sizeclass)
+    : MetaEntryBase(
+        unsafe_to_uintptr<BackendMetadata>(meta), remote_and_sizeclass)
+    {
+      SNMALLOC_ASSERT_MSG(
+        (REMOTE_BACKEND_MARKER & remote_and_sizeclass) == 0,
+        "Setting a backend-owned value ({}) via the front-end interface is not "
+        "allowed",
+        remote_and_sizeclass);
+      remote_and_sizeclass &= ~REMOTE_BACKEND_MARKER;
+    }
+
+    /**
+     * Implicit copying of meta entries is almost certainly a bug and so the
+     * copy constructor is deleted to statically catch these problems.
+     */
+    MetaEntry(const MetaEntry&) = delete;
+
+    /**
+     * Explicit assignment operator, copies the data preserving the boundary bit
+     * in the target if it is set.
+     */
+    MetaEntry& operator=(const MetaEntry& other)
+    {
+      MetaEntryBase::operator=(other);
+      return *this;
+    }
+
+    /**
+     * Return the Metaslab metadata associated with this chunk, guarded by an
+     * assert that this chunk is being used as a slab (i.e., has an associated
+     * owning allocator).
+     */
+    [[nodiscard]] SNMALLOC_FAST_PATH BackendMetadata* get_metaslab() const
+    {
+      SNMALLOC_ASSERT(get_remote() != nullptr);
+      return unsafe_from_uintptr<BackendMetadata>(meta & ~META_BOUNDARY_BIT);
     }
   };
   /**
