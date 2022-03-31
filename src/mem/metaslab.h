@@ -105,7 +105,7 @@ namespace snmalloc
      * claimed by the back end and so this will return `false` if neither
      * the front nor back end owns this entry.
      */
-    bool is_backend_owned() const
+    [[nodiscard]] bool is_backend_owned() const
     {
       return (REMOTE_BACKEND_MARKER & remote_and_sizeclass) ==
         REMOTE_BACKEND_MARKER;
@@ -115,7 +115,7 @@ namespace snmalloc
      * Returns true if this metaentry has not been claimed by the front or back
      * ends.
      */
-    bool is_unowned() const
+    [[nodiscard]] bool is_unowned() const
     {
       return (meta == 0) && (remote_and_sizeclass == 0);
     }
@@ -272,7 +272,7 @@ namespace snmalloc
        * Read the value.  This zeroes any bits in the underlying storage that
        * the back end is not permitted to access.
        */
-      uintptr_t get() const
+      [[nodiscard]] uintptr_t get() const
       {
         return (*val) & ~BackendReservedMask;
       }
