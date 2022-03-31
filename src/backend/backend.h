@@ -34,10 +34,7 @@ namespace snmalloc
    * This class implements the standard backend for handling allocations.
    * It abstracts page table management and address space management.
    */
-  template<
-    SNMALLOC_CONCEPT(ConceptPAL) PAL,
-    bool fixed_range,
-    template<typename> class PageMapEntry = MetaEntry>
+  template<SNMALLOC_CONCEPT(ConceptPAL) PAL, bool fixed_range>
   class BackendAllocator : public CommonConfig
   {
   public:
@@ -69,7 +66,7 @@ namespace snmalloc
        * The following class could be replaced by:
        *
        * ```
-       * using Entry = PageMapEntry<SlabMetadata>;
+       * using Entry = MetaEntry<SlabMetadata>;
        * ```
        *
        * The full form here provides an example of how to extend the pagemap
@@ -77,7 +74,7 @@ namespace snmalloc
        * constructs meta entries, it only ever reads them or modifies them in
        * place.
        */
-      class Entry : public PageMapEntry<SlabMetadata>
+      class Entry : public MetaEntry<SlabMetadata>
       {
         /**
          * The private initialising constructor is usable only by this back end.
@@ -98,7 +95,7 @@ namespace snmalloc
          */
         SNMALLOC_FAST_PATH
         Entry(SlabMetadata* meta, uintptr_t ras)
-        : PageMapEntry<SlabMetadata>(meta, ras)
+        : MetaEntry<SlabMetadata>(meta, ras)
         {}
 
         /**
@@ -111,7 +108,7 @@ namespace snmalloc
          */
         Entry& operator=(const Entry& other)
         {
-          PageMapEntry<SlabMetadata>::operator=(other);
+          MetaEntry<SlabMetadata>::operator=(other);
           return *this;
         }
       };
