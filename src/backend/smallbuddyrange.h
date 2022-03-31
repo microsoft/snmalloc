@@ -44,9 +44,7 @@ namespace snmalloc
 
     static Contents get(Holder ptr)
     {
-      return (ptr == nullptr) ?
-        nullptr :
-        pointer_align_down<2, FreeChunk>((*ptr).as_void());
+      return pointer_align_down<2, FreeChunk>((*ptr).as_void());
     }
 
     static Holder ref(bool direction, Contents r)
