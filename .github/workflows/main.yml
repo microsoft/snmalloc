@@ -58,8 +58,8 @@ jobs:
           - os: "ubuntu-latest"
             build-type: Debug
             self-host: true
-            extra-cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON -DCMAKE_CXX_COMPILER=g++-10"
-            dependencies: "sudo apt install ninja-build g++-10"
+            extra-cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
+            dependencies: "sudo apt install ninja-build"
           # Extra build to check using pthread library for destructing local state.
           - os: "ubuntu-latest"
             variant: "Ubuntu (with pthread destructors)."
