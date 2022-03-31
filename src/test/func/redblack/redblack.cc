@@ -13,7 +13,7 @@
 #include "ds/redblacktree.h"
 #include "snmalloc.h"
 
-struct Wrapper
+struct NodeRef
 {
   // The redblack tree is going to be used inside the pagemap,
   // and the redblack tree cannot use all the bits.  Applying an offset
@@ -22,27 +22,27 @@ struct Wrapper
   static constexpr size_t offset = 10000;
 
   size_t* ptr;
-  constexpr Wrapper(size_t* p) : ptr(p) {}
-  constexpr Wrapper() : ptr(nullptr) {}
-  constexpr Wrapper(const Wrapper& other) : ptr(other.ptr) {}
-  constexpr Wrapper(Wrapper&& other) : ptr(other.ptr) {}
+  constexpr NodeRef(size_t* p) : ptr(p) {}
+  constexpr NodeRef() : ptr(nullptr) {}
+  constexpr NodeRef(const NodeRef& other) : ptr(other.ptr) {}
+  constexpr NodeRef(NodeRef&& other) : ptr(other.ptr) {}
 
-  bool operator!=(const Wrapper& other) const
+  bool operator!=(const NodeRef& other) const
   {
     return ptr != other.ptr;
   }
-  Wrapper& operator=(const Wrapper& other)
+  NodeRef& operator=(const NodeRef& other)
   {
     ptr = other.ptr;
     return *this;
   }
-  void set(size_t val)
+  void set(uint16_t val)
   {
-    *ptr = ((val + offset) << 1) + (*ptr & 1);
+    *ptr = ((size_t(val) + offset) << 1) + (*ptr & 1);
   }
-  explicit operator size_t()
+  explicit operator uint16_t()
   {
-    return (*ptr >> 1) - offset;
+    return uint16_t((*ptr >> 1) - offset);
   }
   explicit operator size_t*()
   {
@@ -64,13 +64,13 @@ inline static node array[2048];
 class Rep
 {
 public:
-  using key = size_t;
+  using key = uint16_t;
 
   static constexpr key null = 0;
-  static constexpr key root = (Wrapper::offset << 1);
+  static constexpr size_t root{NodeRef::offset << 1};
 
-  using Holder = Wrapper;
-  using Contents = size_t;
+  using Holder = NodeRef;
+  using Contents = uint16_t;
 
   static void set(Holder ptr, Contents r)
   {
@@ -79,7 +79,7 @@ public:
 
   static Contents get(Holder ptr)
   {
-    return (Contents)ptr;
+    return static_cast<Contents>(ptr);
   }
 
   static Holder ref(bool direction, key k)
@@ -116,7 +116,7 @@ public:
     return k;
   }
 
-  static size_t* printable(Wrapper k)
+  static size_t* printable(NodeRef k)
   {
     return static_cast<size_t*>(k);
   }
@@ -149,9 +149,9 @@ void test(size_t size, unsigned int seed)
       for (auto j = batch; j > 0; j--)
       {
         auto index = 1 + rand.next() % size;
-        if (tree.insert_elem(index))
+        if (tree.insert_elem(Rep::key(index)))
         {
-          entries.push_back(index);
+          entries.push_back(Rep::key(index));
         }
       }
     }

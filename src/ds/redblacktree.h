@@ -246,15 +246,22 @@ namespace snmalloc
     {
       ChildRef node;
       bool dir = false;
-      void set(typename Rep::Holder r, bool direction)
-      {
-        node = ChildRef(r);
-        dir = direction;
-      }
+
+      /**
+       * Update the step to point to a new node and direction.
+       */
       void set(ChildRef r, bool direction)
       {
         node = r;
         dir = direction;
+      }
+
+      /**
+       * Update the step to point to a new node and direction.
+       */
+      void set(typename Rep::Holder r, bool direction)
+      {
+        set(ChildRef(r), direction);
       }
     };
 
