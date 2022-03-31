@@ -71,9 +71,14 @@ namespace snmalloc
     }
     ->ConceptSameModRef<const typename Rep::Contents>;
     {
-      Rep::root
+      typename Rep::Holder
+      {
+        const_cast<
+          std::remove_const_t<std::remove_reference_t<decltype(Rep::root)>>*>(
+          &Rep::root)
+      }
     }
-    ->ConceptSameModRef<const typename Rep::Contents>;
+    ->ConceptSame<typename Rep::Holder>;
   };
 
   template<typename Rep>
@@ -165,8 +170,8 @@ namespace snmalloc
     };
 
     // Root field of the tree
-    K root_val{Rep::root};
-    H root{&root_val};
+    typename std::remove_const_t<std::remove_reference_t<decltype(Rep::root)>>
+      root{Rep::root};
 
     static ChildRef get_dir(bool direction, K k)
     {
@@ -175,7 +180,7 @@ namespace snmalloc
 
     ChildRef get_root()
     {
-      return {root};
+      return {H{&root}};
     }
 
     void invariant()
@@ -522,7 +527,7 @@ namespace snmalloc
       // we are searching for nearby red elements so we can rotate the tree to
       // rebalance. The following slides nicely cover the case analysis below
       //   https://www.cs.purdue.edu/homes/ayg/CS251/slides/chap13c.pdf
-      while (path.curr() != ChildRef(root))
+      while (path.curr() != ChildRef(H{&root}))
       {
         K parent = path.parent();
         bool cur_dir = path.curr_dir();
@@ -761,7 +766,7 @@ namespace snmalloc
 
     RBPath get_root_path()
     {
-      return RBPath(root);
+      return RBPath(H{&root});
     }
   };
 } // namespace snmalloc
