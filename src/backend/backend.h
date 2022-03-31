@@ -348,7 +348,7 @@ namespace snmalloc
 
     static void dealloc_chunk(
       LocalState& local_state,
-      SlabMetadata& meta_common,
+      SlabMetadata& slab_metadata,
       capptr::Alloc<void> alloc,
       size_t size)
     {
@@ -360,10 +360,18 @@ namespace snmalloc
        */
       typename Pagemap::Entry t(nullptr, 0);
       t.claim_for_backend();
+      SNMALLOC_ASSERT_MSG(
+        Pagemap::get_metaentry(address_cast(alloc)).get_metaslab() ==
+          &slab_metadata,
+        "Slab metadata {} passed for address {} does not match the meta entry "
+        "{} that is used for that address",
+        &slab_metadata,
+        address_cast(alloc),
+        Pagemap::get_metaentry(address_cast(alloc)).get_metaslab());
       Pagemap::set_metaentry(address_cast(alloc), size, t);
 
       local_state.get_meta_range()->dealloc_range(
-        capptr::Chunk<void>(&meta_common), sizeof(SlabMetadata));
+        capptr::Chunk<void>(&slab_metadata), sizeof(SlabMetadata));
 
       // On non-CHERI platforms, we don't need to re-derive to get a pointer to
       // the chunk.  On CHERI platforms this will need to be stored in the
