@@ -89,7 +89,7 @@ namespace snmalloc
 
   public:
     /**
-     * When a meta entry is in use by the back end, it exposes tow words of
+     * When a meta entry is in use by the back end, it exposes two words of
      * state.  The low bits in both are reserved.  Bits in this bitmask must
      * not be set by the back end in either word.
      *
