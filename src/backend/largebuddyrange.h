@@ -226,7 +226,9 @@ namespace snmalloc
             // Tag first entry so we don't consolidate it.
             if (first)
             {
-              Pagemap::get_metaentry_mut(address_cast(base)).set_boundary();
+              auto& entry = Pagemap::get_metaentry_mut(address_cast(base));
+              entry.claim_for_backend();
+              entry.set_boundary();
             }
           }
           else

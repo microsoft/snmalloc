@@ -329,7 +329,12 @@ namespace snmalloc
     {
       if (!is_backend_owned())
       {
-        SNMALLOC_ASSERT(is_unowned());
+        SNMALLOC_ASSERT_MSG(
+          is_unowned(),
+          "Meta entry is owned by the front end.  Meta: {}, "
+          "remote_and_sizeclass:{}",
+          meta,
+          remote_and_sizeclass);
         claim_for_backend();
       }
       return {w == Word::One ? &meta : &remote_and_sizeclass};
