@@ -30,7 +30,7 @@ namespace snmalloc
      * the bits that we are allowed to.
      * @{
      */
-    using Holder = MetaEntryBase::BackendStateWord;
+    using Holder = MetaEntryBase::BackendStateWordRef;
     using Contents = uintptr_t;
     ///@}
 
@@ -44,7 +44,10 @@ namespace snmalloc
     static constexpr address_t RED_BIT = 1 << 8;
 
     static_assert(RED_BIT < MIN_CHUNK_SIZE);
-    static_assert((RED_BIT & MetaEntryBase::BackendReservedMask) == 0);
+    static_assert(MetaEntryBase::is_backend_allowed_value(
+      MetaEntryBase::Word::One, RED_BIT));
+    static_assert(MetaEntryBase::is_backend_allowed_value(
+      MetaEntryBase::Word::Two, RED_BIT));
     ///@}
 
     /// The value of a null node, as returned by `get`
@@ -57,7 +60,7 @@ namespace snmalloc
      */
     static void set(Holder ptr, Contents r)
     {
-      ptr = r | (ptr.get() & RED_BIT);
+      ptr = r | (static_cast<address_t>(ptr.get()) & RED_BIT);
     }
 
     /**

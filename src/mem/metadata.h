@@ -96,18 +96,23 @@ namespace snmalloc
      */
     constexpr MetaEntryBase() : MetaEntryBase(0, 0) {}
 
-  public:
     /**
      * When a meta entry is in use by the back end, it exposes two words of
      * state.  The low bits in both are reserved.  Bits in this bitmask must
      * not be set by the back end in either word.
      *
      * During a major release, this constraint may be weakened, allowing the
-     * back end to set more bits.
+     * back end to set more bits.  We don't currently use all of these bits in
+     * both words, but we reserve them all to make access uniform.  If more
+     * bits are required by a back end then we could make this asymmetric.
+     *
+     * `REMOTE_BACKEND_MARKER` is the highest bit that we reserve, so this is
+     * currently every bit including that bit and all lower bits.
      */
-    static constexpr address_t BackendReservedMask =
-      (REMOTE_BACKEND_MARKER + 1);
+    static constexpr address_t BACKEND_RESERVED_MASK =
+      (REMOTE_BACKEND_MARKER << 1) - 1;
 
+  public:
     /**
      * Does the back end currently own this entry?  Note that freshly
      * allocated entries are owned by the front end until explicitly
@@ -247,6 +252,11 @@ namespace snmalloc
       Two
     };
 
+    static constexpr bool is_backend_allowed_value(Word, uintptr_t val)
+    {
+      return (val & BACKEND_RESERVED_MASK) == 0;
+    }
+
     /**
      * Proxy class that allows setting and reading back the bits in each word
      * that are exposed for the back end.
@@ -254,7 +264,7 @@ namespace snmalloc
      * The back end must not keep instances of this class after returning the
      * corresponding meta entry to the front end.
      */
-    class BackendStateWord
+    class BackendStateWordRef
     {
       /**
        * A pointer to the relevant word.
@@ -267,15 +277,15 @@ namespace snmalloc
        * of the meta entry by code wishing to provide uniform storage to things
        * that are either in a meta entry or elsewhere.
        */
-      constexpr BackendStateWord(uintptr_t* v) : val(v) {}
+      constexpr BackendStateWordRef(uintptr_t* v) : val(v) {}
 
       /**
        * Copy constructor.  Aliases the underlying storage.  Note that this is
-       * not thread safe: two `BackendStateWord` instances sharing access to the
-       * same storage must not be used from different threads without explicit
-       * synchronisation.
+       * not thread safe: two `BackendStateWordRef` instances sharing access to
+       * the same storage must not be used from different threads without
+       * explicit synchronisation.
        */
-      constexpr BackendStateWord(const BackendStateWord& other) = default;
+      constexpr BackendStateWordRef(const BackendStateWordRef& other) = default;
 
       /**
        * Read the value.  This zeroes any bits in the underlying storage that
@@ -283,30 +293,31 @@ namespace snmalloc
        */
       [[nodiscard]] uintptr_t get() const
       {
-        return (*val) & ~BackendReservedMask;
+        return (*val) & ~BACKEND_RESERVED_MASK;
       }
 
       /**
        * Default copy assignment.  See the copy constructor for constraints on
        * using this.
        */
-      BackendStateWord& operator=(const BackendStateWord& other) = default;
+      BackendStateWordRef&
+      operator=(const BackendStateWordRef& other) = default;
 
       /**
        * Assignment operator.  Zeroes the bits in the provided value that the
        * back end is not permitted to use and then stores the result in the
        * value that this class manages.
        */
-      BackendStateWord& operator=(uintptr_t v)
+      BackendStateWordRef& operator=(uintptr_t v)
       {
         SNMALLOC_ASSERT_MSG(
-          ((v & BackendReservedMask) == 0),
+          ((v & BACKEND_RESERVED_MASK) == 0),
           "The back end is not permitted to use the low bits in the meta "
           "entry. ({} & {}) == {}.",
           v,
-          BackendReservedMask,
-          (v & BackendReservedMask));
-        *val = v | (*val & BackendReservedMask);
+          BACKEND_RESERVED_MASK,
+          (v & BACKEND_RESERVED_MASK));
+        *val = v | (static_cast<address_t>(*val) & BACKEND_RESERVED_MASK);
         return *this;
       }
 
@@ -314,7 +325,7 @@ namespace snmalloc
        * Comparison operator.  Performs address comparison *not* value
        * comparison.
        */
-      bool operator!=(const BackendStateWord& other) const
+      bool operator!=(const BackendStateWordRef& other) const
       {
         return val != other.val;
       }
@@ -334,7 +345,7 @@ namespace snmalloc
      * of) a word in the meta entry.  The meta entry must either be unowned or
      * explicitly claimed by the back end before calling this.
      */
-    BackendStateWord get_backend_word(Word w)
+    BackendStateWordRef get_backend_word(Word w)
     {
       if (!is_backend_owned())
       {
