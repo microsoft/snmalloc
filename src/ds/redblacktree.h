@@ -139,7 +139,9 @@ namespace snmalloc
       }
 
       /**
-       * Comparison operators.  Note that these are address-comparison, not
+       * Comparison operators.  Note that these are nominal comparisons:
+       * they compare the identities of the references rather than the values
+       * referenced.
        * comparison of the values held in these child references.
        * @{
        */
