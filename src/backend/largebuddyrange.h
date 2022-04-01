@@ -24,9 +24,9 @@ namespace snmalloc
      * of) chunks of the address space; as such, bits in (MIN_CHUNK_SIZE - 1)
      * are unused and so the RED_BIT is packed therein.  However, in practice,
      * these are not "just any" uintptr_t-s, but specifically the uintptr_t-s
-     * inside the Pagemap's MetaEntry structures.
+     * inside the Pagemap's BackendAllocator::Entry structures.
      *
-     * The MetaEntry provides us with helpers that guarantee that we use only
+     * The BackendAllocator::Entry provides us with helpers that guarantee that we use only
      * the bits that we are allowed to.
      * @{
      */
