@@ -69,20 +69,20 @@ public:
   static constexpr key null = 0;
   static constexpr size_t root{NodeRef::offset << 1};
 
-  using Holder = NodeRef;
+  using Handle = NodeRef;
   using Contents = uint16_t;
 
-  static void set(Holder ptr, Contents r)
+  static void set(Handle ptr, Contents r)
   {
     ptr.set(r);
   }
 
-  static Contents get(Holder ptr)
+  static Contents get(Handle ptr)
   {
     return static_cast<Contents>(ptr);
   }
 
-  static Holder ref(bool direction, key k)
+  static Handle ref(bool direction, key k)
   {
     if (direction)
       return {&array[k].left};

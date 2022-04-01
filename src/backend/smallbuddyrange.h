@@ -23,14 +23,14 @@ namespace snmalloc
   class BuddyInplaceRep
   {
   public:
-    using Holder = capptr::Chunk<FreeChunk>*;
+    using Handle = capptr::Chunk<FreeChunk>*;
     using Contents = capptr::Chunk<FreeChunk>;
 
     static constexpr Contents null = nullptr;
     static constexpr Contents root = nullptr;
 
     static constexpr address_t MASK = 1;
-    static void set(Holder ptr, Contents r)
+    static void set(Handle ptr, Contents r)
     {
       SNMALLOC_ASSERT((address_cast(r) & MASK) == 0);
       if (r == nullptr)
@@ -42,12 +42,12 @@ namespace snmalloc
                  .template as_static<FreeChunk>();
     }
 
-    static Contents get(Holder ptr)
+    static Contents get(Handle ptr)
     {
       return pointer_align_down<2, FreeChunk>((*ptr).as_void());
     }
 
-    static Holder ref(bool direction, Contents r)
+    static Handle ref(bool direction, Contents r)
     {
       if (direction)
         return &r->left;
@@ -124,7 +124,7 @@ namespace snmalloc
      * debug or release builds. Raw pointers are printable already, so this is
      * the identity function.
      */
-    static Holder printable(Holder k)
+    static Handle printable(Handle k)
     {
       return k;
     }

@@ -26,11 +26,11 @@ namespace snmalloc
      * these are not "just any" uintptr_t-s, but specifically the uintptr_t-s
      * inside the Pagemap's BackendAllocator::Entry structures.
      *
-     * The BackendAllocator::Entry provides us with helpers that guarantee that we use only
-     * the bits that we are allowed to.
+     * The BackendAllocator::Entry provides us with helpers that guarantee that
+     * we use only the bits that we are allowed to.
      * @{
      */
-    using Holder = MetaEntryBase::BackendStateWordRef;
+    using Handle = MetaEntryBase::BackendStateWordRef;
     using Contents = uintptr_t;
     ///@}
 
@@ -58,7 +58,7 @@ namespace snmalloc
     /**
      * Set the value.  Preserve the red/black colour.
      */
-    static void set(Holder ptr, Contents r)
+    static void set(Handle ptr, Contents r)
     {
       ptr = r | (static_cast<address_t>(ptr.get()) & RED_BIT);
     }
@@ -66,7 +66,7 @@ namespace snmalloc
     /**
      * Returns the value, stripping out the red/black colour.
      */
-    static Contents get(const Holder ptr)
+    static Contents get(const Handle ptr)
     {
       return ptr.get() & ~RED_BIT;
     }
@@ -74,7 +74,7 @@ namespace snmalloc
     /**
      * Returns a pointer to the tree node for the specified address.
      */
-    static Holder ref(bool direction, Contents k)
+    static Handle ref(bool direction, Contents k)
     {
       // Special case for accessing the null entry.  We want to make sure
       // that this is never modified by the back end, so we make it point to
@@ -140,7 +140,7 @@ namespace snmalloc
      * Convert the pointer wrapper into something that the snmalloc debug
      * printing code can print.
      */
-    static address_t printable(Holder k)
+    static address_t printable(Handle k)
     {
       return k.printable_address();
     }

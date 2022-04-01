@@ -13,16 +13,16 @@ namespace snmalloc
 #ifdef __cpp_concepts
   /**
    * The representation must define two types.  `Contents` defines some
-   * identifier that can be mapped to a node as a value type.  `Holder` defines
+   * identifier that can be mapped to a node as a value type.  `Handle` defines
    * a reference to the storage, which can be used to update it.
    *
-   * Conceptually, `Contents` is a node ID and `Holder` is a pointer to a node
+   * Conceptually, `Contents` is a node ID and `Handle` is a pointer to a node
    * ID.
    */
   template<typename Rep>
   concept RBRepTypes = requires()
   {
-    typename Rep::Holder;
+    typename Rep::Handle;
     typename Rep::Contents;
   };
 
@@ -44,7 +44,7 @@ namespace snmalloc
    */
   template<typename Rep>
   concept RBRepMethods =
-    requires(typename Rep::Holder hp, typename Rep::Contents k, bool b)
+    requires(typename Rep::Handle hp, typename Rep::Contents k, bool b)
   {
     {
       Rep::get(hp)
@@ -65,20 +65,20 @@ namespace snmalloc
     {
       Rep::ref(b, k)
     }
-    ->ConceptSame<typename Rep::Holder>;
+    ->ConceptSame<typename Rep::Handle>;
     {
       Rep::null
     }
     ->ConceptSameModRef<const typename Rep::Contents>;
     {
-      typename Rep::Holder
+      typename Rep::Handle
       {
         const_cast<
           std::remove_const_t<std::remove_reference_t<decltype(Rep::root)>>*>(
           &Rep::root)
       }
     }
-    ->ConceptSame<typename Rep::Holder>;
+    ->ConceptSame<typename Rep::Handle>;
   };
 
   template<typename Rep>
@@ -107,7 +107,7 @@ namespace snmalloc
     bool TRACE = false>
   class RBTree
   {
-    using H = typename Rep::Holder;
+    using H = typename Rep::Handle;
     using K = typename Rep::Contents;
 
     // Container that behaves like a C++ Ref type to enable assignment
@@ -133,7 +133,7 @@ namespace snmalloc
       ChildRef& operator=(const K t)
       {
         // Use representations assigment, so we update the correct bits
-        // color and other things way also be stored in the Holder.
+        // color and other things way also be stored in the Handle.
         Rep::set(ptr, t);
         return *this;
       }
@@ -261,7 +261,7 @@ namespace snmalloc
       /**
        * Update the step to point to a new node and direction.
        */
-      void set(typename Rep::Holder r, bool direction)
+      void set(typename Rep::Handle r, bool direction)
       {
         set(ChildRef(r), direction);
       }
@@ -278,7 +278,7 @@ namespace snmalloc
       std::array<RBStep, 128> path;
       size_t length = 0;
 
-      RBPath(typename Rep::Holder root) : path{}
+      RBPath(typename Rep::Handle root) : path{}
       {
         path[0].set(root, false);
         length = 1;

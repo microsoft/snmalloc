@@ -209,10 +209,10 @@ namespace snmalloc
     /**
      * Return the sizeclass.
      *
-     * This is called by `external_pointer` on arbitrary memory and so cannot
-     * assert that the meta entry is owned by the front end.  In the future, it
-     * may provide some stronger guarantees on the value that is returned in
-     * this case.
+     * This can be called irrespective of whether the corresponding meta entry
+     * is owned by the front or back end (and is, for example, called by
+     * `external_pointer`). In the future, it may provide some stronger
+     * guarantees on the value that is returned in this case.
      */
     [[nodiscard]] SNMALLOC_FAST_PATH sizeclass_t get_sizeclass() const
     {
