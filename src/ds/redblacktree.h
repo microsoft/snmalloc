@@ -11,16 +11,40 @@
 namespace snmalloc
 {
 #ifdef __cpp_concepts
+  /**
+   * The representation must define two types.  `Contents` defines some
+   * identifier that can be mapped to a node as a value type.  `Handle` defines
+   * a reference to the storage, which can be used to update it.
+   *
+   * Conceptually, `Contents` is a node ID and `Handle` is a pointer to a node
+   * ID.
+   */
   template<typename Rep>
   concept RBRepTypes = requires()
   {
-    typename Rep::Holder;
+    typename Rep::Handle;
     typename Rep::Contents;
   };
 
+  /**
+   * The representation must define operations on the holder and contents
+   * types.  It must be able to 'dereference' a holder with `get`, assign to it
+   * with `set`, set and query the red/black colour of a node with `set_red` and
+   * `is_red`.
+   *
+   * The `ref` method provides uniform access to the children of a node,
+   * returning a holder pointing to either the left or right child, depending on
+   * the direction parameter.
+   *
+   * The backend must also provide two constant values.
+   * `Rep::null` defines a value that, if returned from `get`, indicates a null
+   * value. `Rep::root` defines a value that, if constructed directly, indicates
+   * a null value and can therefore be used as the initial raw bit pattern of
+   * the root node.
+   */
   template<typename Rep>
   concept RBRepMethods =
-    requires(typename Rep::Holder* hp, typename Rep::Contents k, bool b)
+    requires(typename Rep::Handle hp, typename Rep::Contents k, bool b)
   {
     {
       Rep::get(hp)
@@ -41,7 +65,20 @@ namespace snmalloc
     {
       Rep::ref(b, k)
     }
-    ->ConceptSame<typename Rep::Holder&>;
+    ->ConceptSame<typename Rep::Handle>;
+    {
+      Rep::null
+    }
+    ->ConceptSameModRef<const typename Rep::Contents>;
+    {
+      typename Rep::Handle
+      {
+        const_cast<
+          std::remove_const_t<std::remove_reference_t<decltype(Rep::root)>>*>(
+          &Rep::root)
+      }
+    }
+    ->ConceptSame<typename Rep::Handle>;
   };
 
   template<typename Rep>
@@ -70,33 +107,44 @@ namespace snmalloc
     bool TRACE = false>
   class RBTree
   {
-    using H = typename Rep::Holder;
+    using H = typename Rep::Handle;
     using K = typename Rep::Contents;
 
     // Container that behaves like a C++ Ref type to enable assignment
     // to treat left, right and root uniformly.
     class ChildRef
     {
-      H* ptr;
+      H ptr;
 
     public:
       ChildRef() : ptr(nullptr) {}
 
-      ChildRef(H& p) : ptr(&p) {}
+      ChildRef(H p) : ptr(p) {}
+
+      ChildRef(const ChildRef& other) = default;
 
       operator K()
       {
         return Rep::get(ptr);
       }
 
-      ChildRef& operator=(const K& t)
+      ChildRef& operator=(const ChildRef& other) = default;
+
+      ChildRef& operator=(const K t)
       {
         // Use representations assigment, so we update the correct bits
-        // color and other things way also be stored in the Holder.
+        // color and other things way also be stored in the Handle.
         Rep::set(ptr, t);
         return *this;
       }
 
+      /**
+       * Comparison operators.  Note that these are nominal comparisons:
+       * they compare the identities of the references rather than the values
+       * referenced.
+       * comparison of the values held in these child references.
+       * @{
+       */
       bool operator==(const ChildRef t) const
       {
         return ptr == t.ptr;
@@ -106,20 +154,26 @@ namespace snmalloc
       {
         return ptr != t.ptr;
       }
-
-      H* addr()
-      {
-        return ptr;
-      }
+      ///@}
 
       bool is_null()
       {
         return Rep::get(ptr) == Rep::null;
       }
+
+      /**
+       * Return the reference in some printable format defined by the
+       * representation.
+       */
+      auto printable()
+      {
+        return Rep::printable(ptr);
+      }
     };
 
     // Root field of the tree
-    H root{};
+    typename std::remove_const_t<std::remove_reference_t<decltype(Rep::root)>>
+      root{Rep::root};
 
     static ChildRef get_dir(bool direction, K k)
     {
@@ -128,7 +182,7 @@ namespace snmalloc
 
     ChildRef get_root()
     {
-      return {root};
+      return {H{&root}};
     }
 
     void invariant()
@@ -194,6 +248,23 @@ namespace snmalloc
     {
       ChildRef node;
       bool dir = false;
+
+      /**
+       * Update the step to point to a new node and direction.
+       */
+      void set(ChildRef r, bool direction)
+      {
+        node = r;
+        dir = direction;
+      }
+
+      /**
+       * Update the step to point to a new node and direction.
+       */
+      void set(typename Rep::Handle r, bool direction)
+      {
+        set(ChildRef(r), direction);
+      }
     };
 
   public:
@@ -207,9 +278,9 @@ namespace snmalloc
       std::array<RBStep, 128> path;
       size_t length = 0;
 
-      RBPath(typename Rep::Holder& root) : path{}
+      RBPath(typename Rep::Handle root) : path{}
       {
-        path[0] = {root, false};
+        path[0].set(root, false);
         length = 1;
       }
 
@@ -258,7 +329,7 @@ namespace snmalloc
         auto next = get_dir(direction, curr());
         if (next.is_null())
           return false;
-        path[length] = {next, direction};
+        path[length].set(next, direction);
         length++;
         return true;
       }
@@ -269,7 +340,7 @@ namespace snmalloc
       bool move_inc_null(bool direction)
       {
         auto next = get_dir(direction, curr());
-        path[length] = {next, direction};
+        path[length].set(next, direction);
         length++;
         return !(next.is_null());
       }
@@ -319,8 +390,8 @@ namespace snmalloc
           {
             message<1024>(
               "  -> {} @ {} ({})",
-              K(path[i].node),
-              path[i].node.addr(),
+              Rep::printable(K(path[i].node)),
+              path[i].node.printable(),
               path[i].dir);
           }
         }
@@ -337,7 +408,7 @@ namespace snmalloc
     {
       if constexpr (TRACE)
       {
-        message<100>("-------");
+        message<100>("------- {}", Rep::name());
         message<1024>(msg);
         path.print();
         print(base);
@@ -378,11 +449,11 @@ namespace snmalloc
           "{}\\_{}{}{}@{} ({})",
           indent,
           colour,
-          curr,
+          Rep::printable((K(curr))),
           reset,
-          curr.addr(),
+          curr.printable(),
           depth);
-        if ((get_dir(true, curr) != 0) || (get_dir(false, curr) != 0))
+        if (!(get_dir(true, curr).is_null() && get_dir(false, curr).is_null()))
         {
           auto s_indent = std::string(indent);
           print(get_dir(true, curr), (s_indent + "|").c_str(), depth + 1);
@@ -465,7 +536,7 @@ namespace snmalloc
       // we are searching for nearby red elements so we can rotate the tree to
       // rebalance. The following slides nicely cover the case analysis below
       //   https://www.cs.purdue.edu/homes/ayg/CS251/slides/chap13c.pdf
-      while (path.curr() != ChildRef(root))
+      while (path.curr() != ChildRef(H{&root}))
       {
         K parent = path.parent();
         bool cur_dir = path.curr_dir();
@@ -574,7 +645,7 @@ namespace snmalloc
     }
 
     // Insert an element at the given path.
-    void insert_path(RBPath path, K value)
+    void insert_path(RBPath& path, K value)
     {
       SNMALLOC_ASSERT(path.curr().is_null());
       path.curr() = value;
@@ -704,7 +775,7 @@ namespace snmalloc
 
     RBPath get_root_path()
     {
-      return RBPath(root);
+      return RBPath(H{&root});
     }
   };
 } // namespace snmalloc

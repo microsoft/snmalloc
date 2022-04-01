@@ -1,34 +1,32 @@
 #pragma once
 
 #ifdef __cpp_concepts
-#  include <cstddef>
+#  include "../ds/address.h"
 #  include "../ds/concept.h"
 #  include "../pal/pal_concept.h"
-#  include "../ds/address.h"
+
+#  include <cstddef>
 namespace snmalloc
 {
-  class MetaEntry;
-
   /**
    * The core of the static pagemap accessor interface: {get,set}_metadata.
    *
-   * get_metadata takes a bool-ean template parameter indicating whether it may
+   * get_metadata takes a boolean template parameter indicating whether it may
    * be accessing memory that is not known to be committed.
    */
   template<typename Meta>
   concept ConceptBackendMeta =
-    requires(
-      address_t addr,
-      size_t sz,
-      const MetaEntry& t)
+    requires(address_t addr, size_t sz, const typename Meta::Entry& t)
   {
-    { Meta::set_metaentry(addr, sz, t) } -> ConceptSame<void>;
+    {
+      Meta::template get_metaentry<true>(addr)
+    }
+    ->ConceptSame<const typename Meta::Entry&>;
 
-    { Meta::template get_metaentry<true>(addr) }
-      -> ConceptSame<const MetaEntry&>;
-
-    { Meta::template get_metaentry<false>(addr) }
-      -> ConceptSame<const MetaEntry&>;
+    {
+      Meta::template get_metaentry<false>(addr)
+    }
+    ->ConceptSame<const typename Meta::Entry&>;
   };
 
   /**
@@ -39,10 +37,27 @@ namespace snmalloc
    * underscore) below, which combines this and the core concept, above.
    */
   template<typename Meta>
-  concept ConceptBackendMeta_Range =
-    requires(address_t addr, size_t sz)
+  concept ConceptBackendMeta_Range = requires(address_t addr, size_t sz)
   {
-    { Meta::register_range(addr, sz) } -> ConceptSame<void>;
+    {
+      Meta::register_range(addr, sz)
+    }
+    ->ConceptSame<void>;
+  };
+
+  template<typename Meta>
+  concept ConceptBuddyRangeMeta =
+    requires(address_t addr, size_t sz, const typename Meta::Entry& t)
+  {
+    {
+      Meta::template get_metaentry_mut<true>(addr)
+    }
+    ->ConceptSame<typename Meta::Entry&>;
+
+    {
+      Meta::template get_metaentry_mut<false>(addr)
+    }
+    ->ConceptSame<typename Meta::Entry&>;
   };
 
   /**
@@ -55,7 +70,7 @@ namespace snmalloc
    */
   template<typename Meta>
   concept ConceptBackendMetaRange =
-    ConceptBackendMeta<Meta> && ConceptBackendMeta_Range<Meta>;
+    ConceptBackendMeta<Meta>&& ConceptBackendMeta_Range<Meta>;
 
   /**
    * The backend also defines domestication (that is, the difference between
@@ -65,16 +80,18 @@ namespace snmalloc
    */
   template<typename Globals>
   concept ConceptBackendDomestication =
-    requires(
-      typename Globals::LocalState* ls,
-      capptr::AllocWild<void> ptr)
+    requires(typename Globals::LocalState* ls, capptr::AllocWild<void> ptr)
+  {
     {
-      { Globals::capptr_domesticate(ls, ptr) }
-        -> ConceptSame<capptr::Alloc<void>>;
+      Globals::capptr_domesticate(ls, ptr)
+    }
+    ->ConceptSame<capptr::Alloc<void>>;
 
-      { Globals::capptr_domesticate(ls, ptr.template as_static<char>()) }
-        -> ConceptSame<capptr::Alloc<char>>;
-    };
+    {
+      Globals::capptr_domesticate(ls, ptr.template as_static<char>())
+    }
+    ->ConceptSame<capptr::Alloc<char>>;
+  };
 
   class CommonConfig;
   struct Flags;
@@ -88,24 +105,33 @@ namespace snmalloc
    *  * have static pagemap accessors via T::Pagemap
    *  * define a T::LocalState type (and alias it as T::Pagemap::LocalState)
    *  * define T::Options of type snmalloc::Flags
-   *  * expose the global allocator pool via T::pool()
+   *  * expose the global allocator pool via T::pool() if pool allocation is
+   * used.
    *
    */
   template<typename Globals>
   concept ConceptBackendGlobals =
-    std::is_base_of<CommonConfig, Globals>::value &&
-    ConceptPAL<typename Globals::Pal> &&
-    ConceptBackendMetaRange<typename Globals::Pagemap> &&
-    requires()
+    std::is_base_of<CommonConfig, Globals>::value&&
+      ConceptPAL<typename Globals::Pal>&&
+        ConceptBackendMetaRange<typename Globals::Pagemap>&& requires()
+  {
+    typename Globals::LocalState;
+
     {
-      typename Globals::LocalState;
-
-      { Globals::Options } -> ConceptSameModRef<const Flags>;
-
+      Globals::Options
+    }
+    ->ConceptSameModRef<const Flags>;
+  }
+  &&(
+    requires() {
+      Globals::Options.CoreAllocIsPoolAllocated == true;
       typename Globals::GlobalPoolState;
-      { Globals::pool() } -> ConceptSame<typename Globals::GlobalPoolState &>;
-
-    };
+      {
+        Globals::pool()
+      }
+      ->ConceptSame<typename Globals::GlobalPoolState&>;
+    } ||
+    requires() { Globals::Options.CoreAllocIsPoolAllocated == false; });
 
   /**
    * The lazy version of the above; please see ds/concept.h and use sparingly.

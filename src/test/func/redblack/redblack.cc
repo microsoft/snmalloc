@@ -13,7 +13,7 @@
 #include "ds/redblacktree.h"
 #include "snmalloc.h"
 
-struct Wrapper
+struct NodeRef
 {
   // The redblack tree is going to be used inside the pagemap,
   // and the redblack tree cannot use all the bits.  Applying an offset
@@ -21,7 +21,33 @@ struct Wrapper
   // the representation.
   static constexpr size_t offset = 10000;
 
-  size_t value = offset << 1;
+  size_t* ptr;
+  constexpr NodeRef(size_t* p) : ptr(p) {}
+  constexpr NodeRef() : ptr(nullptr) {}
+  constexpr NodeRef(const NodeRef& other) : ptr(other.ptr) {}
+  constexpr NodeRef(NodeRef&& other) : ptr(other.ptr) {}
+
+  bool operator!=(const NodeRef& other) const
+  {
+    return ptr != other.ptr;
+  }
+  NodeRef& operator=(const NodeRef& other)
+  {
+    ptr = other.ptr;
+    return *this;
+  }
+  void set(uint16_t val)
+  {
+    *ptr = ((size_t(val) + offset) << 1) + (*ptr & 1);
+  }
+  explicit operator uint16_t()
+  {
+    return uint16_t((*ptr >> 1) - offset);
+  }
+  explicit operator size_t*()
+  {
+    return ptr;
+  }
 };
 
 // Simple representation that is like the pagemap.
@@ -29,8 +55,8 @@ struct Wrapper
 // We shift the fields up to make room for the colour.
 struct node
 {
-  Wrapper left;
-  Wrapper right;
+  size_t left;
+  size_t right;
 };
 
 inline static node array[2048];
@@ -38,40 +64,41 @@ inline static node array[2048];
 class Rep
 {
 public:
-  using key = size_t;
+  using key = uint16_t;
 
   static constexpr key null = 0;
+  static constexpr size_t root{NodeRef::offset << 1};
 
-  using Holder = Wrapper;
-  using Contents = size_t;
+  using Handle = NodeRef;
+  using Contents = uint16_t;
 
-  static void set(Holder* ptr, Contents r)
+  static void set(Handle ptr, Contents r)
   {
-    ptr->value = ((r + Wrapper::offset) << 1) + (ptr->value & 1);
+    ptr.set(r);
   }
 
-  static Contents get(Holder* ptr)
+  static Contents get(Handle ptr)
   {
-    return (ptr->value >> 1) - Wrapper::offset;
+    return static_cast<Contents>(ptr);
   }
 
-  static Holder& ref(bool direction, key k)
+  static Handle ref(bool direction, key k)
   {
     if (direction)
-      return array[k].left;
+      return {&array[k].left};
     else
-      return array[k].right;
+      return {&array[k].right};
   }
 
   static bool is_red(key k)
   {
-    return (array[k].left.value & 1) == 1;
+    return (array[k].left & 1) == 1;
   }
 
   static void set_red(key k, bool new_is_red)
   {
     if (new_is_red != is_red(k))
-      array[k].left.value ^= 1;
+      array[k].left ^= 1;
   }
 
   static bool compare(key k1, key k2)
@@ -87,6 +114,16 @@ public:
   static size_t printable(key k)
   {
     return k;
+  }
+
+  static size_t* printable(NodeRef k)
+  {
+    return static_cast<size_t*>(k);
+  }
+
+  static const char* name()
+  {
+    return "TestRep";
   }
 };
 
@@ -112,9 +149,9 @@ void test(size_t size, unsigned int seed)
       for (auto j = batch; j > 0; j--)
       {
         auto index = 1 + rand.next() % size;
-        if (tree.insert_elem(index))
+        if (tree.insert_elem(Rep::key(index)))
         {
-          entries.push_back(index);
+          entries.push_back(Rep::key(index));
         }
       }
     }

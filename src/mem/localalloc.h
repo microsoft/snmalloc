@@ -59,20 +59,27 @@ namespace snmalloc
    * core allocator must be provided externally by invoking the `init` method
    * on this class *before* any allocation-related methods are called.
    */
-  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
+  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) Backend>
   class LocalAllocator
   {
   public:
-    using StateHandle = SharedStateHandle;
+    using StateHandle = Backend;
 
   private:
-    using CoreAlloc = CoreAllocator<SharedStateHandle>;
+    /**
+     * Define local names for specialised versions of various types that are
+     * specialised for the back-end that we are using.
+     * @{
+     */
+    using CoreAlloc = CoreAllocator<Backend>;
+    using PagemapEntry = typename Backend::Pagemap::Entry;
+    /// }@
 
     // Free list per small size class.  These are used for
     // allocation on the fast path. This part of the code is inspired by
     // mimalloc.
     // Also contains remote deallocation cache.
-    LocalCache local_cache{&SharedStateHandle::unused_remote};
+    LocalCache local_cache{&Backend::unused_remote};
 
     // Underlying allocator for most non-fast path operations.
     CoreAlloc* core_alloc{nullptr};
@@ -116,7 +123,7 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH decltype(auto) lazy_init(Action action, Args... args)
     {
       SNMALLOC_ASSERT(core_alloc == nullptr);
-      if constexpr (!SharedStateHandle::Options.LocalAllocSupportsLazyInit)
+      if constexpr (!Backend::Options.LocalAllocSupportsLazyInit)
       {
         SNMALLOC_CHECK(
           false &&
@@ -129,7 +136,7 @@ namespace snmalloc
       else
       {
         // Initialise the thread local allocator
-        if constexpr (SharedStateHandle::Options.CoreAllocOwnsLocalState)
+        if constexpr (Backend::Options.CoreAllocOwnsLocalState)
         {
           init();
         }
@@ -141,7 +148,7 @@ namespace snmalloc
           // Must be called at least once per thread.
           // A pthread implementation only calls the thread destruction handle
           // if the key has been set.
-          SharedStateHandle::register_clean_up();
+          Backend::register_clean_up();
 
         // Perform underlying operation
         auto r = action(core_alloc, args...);
@@ -180,10 +187,10 @@ namespace snmalloc
       return check_init([&](CoreAlloc* core_alloc) {
         // Grab slab of correct size
         // Set remote as large allocator remote.
-        auto [chunk, meta] = SharedStateHandle::alloc_chunk(
+        auto [chunk, meta] = Backend::alloc_chunk(
           core_alloc->get_backend_local_state(),
           large_size_to_chunk_size(size),
-          FrontendMetaEntry::encode(
+          PagemapEntry::encode(
             core_alloc->public_state(), size_to_sizeclass_full(size)));
         // set up meta data so sizeclass is correct, and hence alloc size, and
         // external pointer.
@@ -197,7 +204,7 @@ namespace snmalloc
 
         if (zero_mem == YesZero && chunk.unsafe_ptr() != nullptr)
         {
-          SharedStateHandle::Pal::template zero<false>(
+          Backend::Pal::template zero<false>(
             chunk.unsafe_ptr(), bits::next_pow2(size));
         }
 
@@ -208,11 +215,10 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     SNMALLOC_FAST_PATH capptr::Alloc<void> small_alloc(size_t size)
     {
-      auto domesticate = [this](freelist::QueuePtr p)
-                           SNMALLOC_FAST_PATH_LAMBDA {
-                             return capptr_domesticate<SharedStateHandle>(
-                               core_alloc->backend_state_ptr(), p);
-                           };
+      auto domesticate = [this](
+                           freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+        return capptr_domesticate<Backend>(core_alloc->backend_state_ptr(), p);
+      };
       auto slowpath = [&](
                         smallsizeclass_t sizeclass,
                         freelist::Iter<>* fl) SNMALLOC_FAST_PATH_LAMBDA {
@@ -236,7 +242,7 @@ namespace snmalloc
           sizeclass);
       };
 
-      return local_cache.template alloc<zero_mem, SharedStateHandle>(
+      return local_cache.template alloc<zero_mem, Backend>(
         domesticate, size, slowpath);
     }
 
@@ -267,10 +273,10 @@ namespace snmalloc
           p.unsafe_ptr(),
           alloc_size(p.unsafe_ptr()));
 #endif
-        const MetaEntry& entry =
-          SharedStateHandle::Pagemap::get_metaentry(address_cast(p));
+        const PagemapEntry& entry =
+          Backend::Pagemap::get_metaentry(address_cast(p));
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-          FrontendMetaEntry::get_remote(entry)->trunc_id(), p, key_global);
+          entry.get_remote()->trunc_id(), p, key_global);
         post_remote_cache();
         return;
       }
@@ -297,13 +303,13 @@ namespace snmalloc
     }
 
     /**
-     * Call `SharedStateHandle::is_initialised()` if it is implemented,
+     * Call `Backend::is_initialised()` if it is implemented,
      * unconditionally returns true otherwise.
      */
     SNMALLOC_FAST_PATH
     bool is_initialised()
     {
-      return call_is_initialised<SharedStateHandle>(nullptr, 0);
+      return call_is_initialised<Backend>(nullptr, 0);
     }
 
     /**
@@ -326,13 +332,13 @@ namespace snmalloc
     {}
 
     /**
-     * Call `SharedStateHandle::ensure_init()` if it is implemented, do
+     * Call `Backend::ensure_init()` if it is implemented, do
      * nothing otherwise.
      */
     SNMALLOC_FAST_PATH
     void ensure_init()
     {
-      call_ensure_init<SharedStateHandle>(nullptr, 0);
+      call_ensure_init<Backend>(nullptr, 0);
     }
 
   public:
@@ -377,7 +383,7 @@ namespace snmalloc
       // Initialise the global allocator structures
       ensure_init();
       // Grab an allocator for this thread.
-      init(AllocPool<SharedStateHandle>::acquire(&(this->local_cache)));
+      init(AllocPool<Backend>::acquire(&(this->local_cache)));
     }
 
     // Return all state in the fast allocator and release the underlying
@@ -397,9 +403,9 @@ namespace snmalloc
         // Detach underlying allocator
         core_alloc->attached_cache = nullptr;
         // Return underlying allocator to the system.
-        if constexpr (SharedStateHandle::Options.CoreAllocOwnsLocalState)
+        if constexpr (Backend::Options.CoreAllocOwnsLocalState)
         {
-          AllocPool<SharedStateHandle>::release(core_alloc);
+          AllocPool<Backend>::release(core_alloc);
         }
 
         // Set up thread local allocator to look like
@@ -408,7 +414,7 @@ namespace snmalloc
 #ifdef SNMALLOC_TRACING
         message<1024>("flush(): core_alloc={}", core_alloc);
 #endif
-        local_cache.remote_allocator = &SharedStateHandle::unused_remote;
+        local_cache.remote_allocator = &Backend::unused_remote;
         local_cache.remote_dealloc_cache.capacity = 0;
       }
     }
@@ -621,14 +627,12 @@ namespace snmalloc
        * well-formedness) of this pointer.  The remainder of the logic will
        * deal with the object's extent.
        */
-      capptr::Alloc<void> p_tame = capptr_domesticate<SharedStateHandle>(
-        core_alloc->backend_state_ptr(), p_wild);
+      capptr::Alloc<void> p_tame =
+        capptr_domesticate<Backend>(core_alloc->backend_state_ptr(), p_wild);
 
-      const MetaEntry& entry =
-        SharedStateHandle::Pagemap::get_metaentry(address_cast(p_tame));
-      if (SNMALLOC_LIKELY(
-            local_cache.remote_allocator ==
-            FrontendMetaEntry::get_remote(entry)))
+      const PagemapEntry& entry =
+        Backend::Pagemap::get_metaentry(address_cast(p_tame));
+      if (SNMALLOC_LIKELY(local_cache.remote_allocator == entry.get_remote()))
       {
 #  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
         dealloc_cheri_checks(p_tame.unsafe_ptr());
@@ -636,11 +640,11 @@ namespace snmalloc
         if (SNMALLOC_LIKELY(CoreAlloc::dealloc_local_object_fast(
               entry, p_tame, local_cache.entropy)))
           return;
-        core_alloc->dealloc_local_object_slow(entry);
+        core_alloc->dealloc_local_object_slow(p_tame, entry);
         return;
       }
 
-      RemoteAllocator* remote = FrontendMetaEntry::get_remote(entry);
+      RemoteAllocator* remote = entry.get_remote();
       if (SNMALLOC_LIKELY(remote != nullptr))
       {
 #  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
@@ -706,7 +710,7 @@ namespace snmalloc
 #else
       // TODO What's the domestication policy here?  At the moment we just
       // probe the pagemap with the raw address, without checks.  There could
-      // be implicit domestication through the `SharedStateHandle::Pagemap` or
+      // be implicit domestication through the `Backend::Pagemap` or
       // we could just leave well enough alone.
 
       // Note that alloc_size should return 0 for nullptr.
@@ -716,10 +720,10 @@ namespace snmalloc
       // To handle this case we require the uninitialised pagemap contain an
       // entry for the first chunk of memory, that states it represents a
       // large object, so we can pull the check for null off the fast path.
-      const MetaEntry& entry =
-        SharedStateHandle::Pagemap::get_metaentry(address_cast(p_raw));
+      const PagemapEntry& entry =
+        Backend::Pagemap::get_metaentry(address_cast(p_raw));
 
-      return sizeclass_full_to_size(FrontendMetaEntry::get_sizeclass(entry));
+      return sizeclass_full_to_size(entry.get_sizeclass());
 #endif
     }
 
@@ -761,11 +765,10 @@ namespace snmalloc
     size_t remaining_bytes(const void* p)
     {
 #ifndef SNMALLOC_PASS_THROUGH
-      const MetaEntry& entry =
-        SharedStateHandle::Pagemap::template get_metaentry<true>(
-          address_cast(p));
+      const PagemapEntry& entry =
+        Backend::Pagemap::template get_metaentry<true>(address_cast(p));
 
-      auto sizeclass = FrontendMetaEntry::get_sizeclass(entry);
+      auto sizeclass = entry.get_sizeclass();
       return snmalloc::remaining_bytes(sizeclass, address_cast(p));
 #else
       return pointer_diff(p, reinterpret_cast<void*>(UINTPTR_MAX));
@@ -774,7 +777,7 @@ namespace snmalloc
 
     bool check_bounds(const void* p, size_t s)
     {
-      if (SNMALLOC_LIKELY(SharedStateHandle::Pagemap::is_initialised()))
+      if (SNMALLOC_LIKELY(Backend::Pagemap::is_initialised()))
       {
         return remaining_bytes(p) >= s;
       }
@@ -790,11 +793,10 @@ namespace snmalloc
     size_t index_in_object(const void* p)
     {
 #ifndef SNMALLOC_PASS_THROUGH
-      const MetaEntry& entry =
-        SharedStateHandle::Pagemap::template get_metaentry<true>(
-          address_cast(p));
+      const PagemapEntry& entry =
+        Backend::Pagemap::template get_metaentry<true>(address_cast(p));
 
-      auto sizeclass = FrontendMetaEntry::get_sizeclass(entry);
+      auto sizeclass = entry.get_sizeclass();
       return snmalloc::index_in_object(sizeclass, address_cast(p));
 #else
       return reinterpret_cast<size_t>(p);

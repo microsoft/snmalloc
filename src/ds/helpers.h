@@ -471,4 +471,10 @@ namespace snmalloc
       return buffer.data();
     }
   };
+
+  /**
+   * Convenience type that has no fields / methods.
+   */
+  struct Empty
+  {};
 } // namespace snmalloc

@@ -21,11 +21,31 @@ namespace snmalloc
   class SeqSet
   {
     /**
+     * This sequence structure is intrusive, in that it requires the use of a
+     * `next` field in the elements it manages, but, unlike some other intrusive
+     * designs, it does not require the use of a `container_of`-like construct,
+     * because its pointers point to the element, not merely the intrusive
+     * member.
+     *
+     * In some cases, the next pointer is provided by a superclass but the list
+     * is templated over the subclass.  The `SeqSet` enforces the invariant that
+     * only instances of the subclass can be added to the list and so can safely
+     * down-cast the type of `.next` to `T*`.  As such, we require only that the
+     * `next` field is a pointer to `T` or some superclass of `T`.
+     * %{
+     */
+    using NextPtr = decltype(std::declval<T>().next);
+    static_assert(
+      std::is_base_of_v<std::remove_pointer_t<NextPtr>, T>,
+      "T->next must be a queue pointer to T");
+    ///@}
+
+    /**
      * Field representation for Fifo behaviour.
      */
     struct FieldFifo
     {
-      T* head{nullptr};
+      NextPtr head{nullptr};
     };
 
     /**
@@ -33,13 +53,9 @@ namespace snmalloc
      */
     struct FieldLifo
     {
-      T* head{nullptr};
-      T** end{&head};
+      NextPtr head{nullptr};
+      NextPtr* end{&head};
     };
-
-    static_assert(
-      std::is_same<decltype(T::next), T*>::value,
-      "T->next must be a queue pointer to T");
 
     /**
      * Field indirection to actual representation.
@@ -90,7 +106,10 @@ namespace snmalloc
         else
           v.head = v.head->next;
       }
-      return result;
+      // This cast is safe if the ->next pointers in all of the objects in the
+      // list are managed by this class because object types are checked on
+      // insertion.
+      return static_cast<T*>(result);
     }
 
     /**
@@ -107,7 +126,7 @@ namespace snmalloc
       if (is_empty())
         return;
 
-      T** prev = &(v.head);
+      NextPtr* prev = &(v.head);
 
       while (true)
       {
@@ -117,11 +136,11 @@ namespace snmalloc
             break;
         }
 
-        T* curr = *prev;
+        NextPtr curr = *prev;
         // Note must read curr->next before calling `f` as `f` is allowed to
         // mutate that field.
-        T* next = curr->next;
-        if (f(curr))
+        NextPtr next = curr->next;
+        if (f(static_cast<T*>(curr)))
         {
           // Remove element;
           *prev = next;
@@ -165,7 +184,7 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH const T* peek()
     {
-      return v.head;
+      return static_cast<T*>(v.head);
     }
   };
 } // namespace snmalloc
