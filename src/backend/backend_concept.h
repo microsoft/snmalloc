@@ -8,9 +8,6 @@
 #  include <cstddef>
 namespace snmalloc
 {
-  template<typename BackendMetadata>
-  class MetaEntry;
-
   /**
    * The core of the static pagemap accessor interface: {get,set}_metadata.
    *
@@ -18,8 +15,8 @@ namespace snmalloc
    * be accessing memory that is not known to be committed.
    */
   template<typename Meta>
-  concept ConceptBackendMeta = requires(
-    address_t addr, size_t sz, const typename Meta::Entry& t)
+  concept ConceptBackendMeta =
+    requires(address_t addr, size_t sz, const typename Meta::Entry& t)
   {
     {
       Meta::template get_metaentry<true>(addr)
@@ -49,8 +46,8 @@ namespace snmalloc
   };
 
   template<typename Meta>
-  concept ConceptBuddyRangeMeta = requires(
-    address_t addr, size_t sz, const typename Meta::Entry& t)
+  concept ConceptBuddyRangeMeta =
+    requires(address_t addr, size_t sz, const typename Meta::Entry& t)
   {
     {
       Meta::template get_metaentry_mut<true>(addr)
@@ -62,7 +59,6 @@ namespace snmalloc
     }
     ->ConceptSame<typename Meta::Entry&>;
   };
-
 
   /**
    * The full pagemap accessor interface, with all of {get,set}_metadata and
@@ -109,7 +105,8 @@ namespace snmalloc
    *  * have static pagemap accessors via T::Pagemap
    *  * define a T::LocalState type (and alias it as T::Pagemap::LocalState)
    *  * define T::Options of type snmalloc::Flags
-   *  * expose the global allocator pool via T::pool() if pool allocation is used.
+   *  * expose the global allocator pool via T::pool() if pool allocation is
+   * used.
    *
    */
   template<typename Globals>
@@ -124,8 +121,9 @@ namespace snmalloc
       Globals::Options
     }
     ->ConceptSameModRef<const Flags>;
-  } && (requires()
-    {
+  }
+  &&(
+    requires() {
       Globals::Options.CoreAllocIsPoolAllocated == true;
       typename Globals::GlobalPoolState;
       {
@@ -133,10 +131,7 @@ namespace snmalloc
       }
       ->ConceptSame<typename Globals::GlobalPoolState&>;
     } ||
-    requires()
-    {
-      Globals::Options.CoreAllocIsPoolAllocated == false;
-    });
+    requires() { Globals::Options.CoreAllocIsPoolAllocated == false; });
 
   /**
    * The lazy version of the above; please see ds/concept.h and use sparingly.

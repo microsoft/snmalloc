@@ -31,16 +31,12 @@ namespace snmalloc
      * is templated over the subclass.  The `SeqSet` enforces the invariant that
      * only instances of the subclass can be added to the list and so can safely
      * down-cast the type of `.next` to `T*`.  As such, we require only that the
-     * `next` field is something that can be converted to a `T*` via a static
-     * cast and that a `T*` can be stored in the field.
+     * `next` field is a pointer to `T` or some superclass of `T`.
      * %{
      */
     using NextPtr = decltype(std::declval<T>().next);
     static_assert(
-      std::is_convertible_v<T*, NextPtr>,
-      "T->next must be a queue pointer to T");
-    static_assert(
-      std::is_convertible_v<NextPtr, T*>,
+      std::is_base_of_v<std::remove_pointer_t<NextPtr>, T>,
       "T->next must be a queue pointer to T");
     ///@}
 
