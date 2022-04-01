@@ -19,9 +19,17 @@ namespace snmalloc
     bits::max<size_t>(CACHELINE_SIZE, SIZECLASS_REP_SIZE) << 1;
 
   /**
-   * Base class for the templated MetaEntry.  This exists to avoid needing a
-   * template parameter to access constants that are independent of the
-   * template parameter.
+   * Base class for the templated FrontendMetaEntry.  This exists to avoid
+   * needing a template parameter to access constants that are independent of
+   * the template parameter and contains all of the state that is agnostic to
+   * the types used for storing per-slab metadata.  This class should never be
+   * instantiated directly (and its protected constructor guarantees that),
+   * only the templated subclass should be use.  The subclass provides
+   * convenient accessors.
+   *
+   * A back end may also subclass `FrontendMetaEntry` to provide other
+   * back-end-specific information.  The front end never directly instantiates
+   * these.
    */
   class MetaEntryBase
   {
@@ -29,8 +37,9 @@ namespace snmalloc
     /**
      * This bit is set in remote_and_sizeclass to discriminate between the case
      * that it is in use by the frontend (0) or by the backend (1).  For the
-     * former case, see mem/metaslab.h; for the latter, see backend/backend.h
-     * and backend/largebuddyrange.h.
+     * former case, see other methods on this and the subclass
+     * `FrontendMetaEntry`; for the latter, see backend/backend.h and
+     * backend/largebuddyrange.h.
      *
      * This value is statically checked by the frontend to ensure that its
      * bit packing does not conflict; see mem/remoteallocator.h
@@ -59,8 +68,8 @@ namespace snmalloc
       (REMOTE_MIN_ALIGN >> 1) == MetaEntryBase::REMOTE_BACKEND_MARKER);
 
     /**
-     * In common cases, the pointer to the metaslab.  See docs/AddressSpace.md
-     * for additional details.
+     * In common cases, the pointer to the slab metadata.  See
+     * docs/AddressSpace.md for additional details.
      *
      * The bottom bit is used to indicate if this is the first chunk in a PAL
      * allocation, that cannot be combined with the preceeding chunk.
@@ -69,7 +78,7 @@ namespace snmalloc
 
     /**
      * In common cases, a bit-packed pointer to the owning allocator (if any),
-     * and the sizeclass of this chunk.  See mem/metaslab.h:MetaEntryRemote for
+     * and the sizeclass of this chunk.  See `encode` for
      * details of this case and docs/AddressSpace.md for further details.
      */
     uintptr_t remote_and_sizeclass{0};
@@ -342,71 +351,24 @@ namespace snmalloc
   };
 
   /**
-   * Entry stored in the pagemap.  See docs/AddressSpace.md for the full
-   * MetaEntry lifecycle.
+   * The FrontendSlabMetadata represent the metadata associated with a single
+   * slab.
    */
-  template<typename BackendMetadata>
-  class MetaEntry : public MetaEntryBase
+  class alignas(CACHELINE_SIZE) FrontendSlabMetadata
   {
   public:
-    constexpr MetaEntry() = default;
-
     /**
-     * Constructor, provides the remote and sizeclass embedded in a single
-     * pointer-sized word.  This format is not guaranteed to be stable and so
-     * the second argument of this must always be the return value from
-     * `get_remote_and_sizeclass`.
+     * Used to link slab metadata together in various other data-structures.
+     * This is intended to be used with `SeqSet` and so may actually hold a
+     * subclass of this class provided by the back end.  The `SeqSet` is
+     * responsible for maintaining that invariant.  While an instance of this
+     * class is in a `SeqSet<T>`, the `next` field should not be assigned to by
+     * anything that doesn't enforce the invariant that `next` stores a `T*`,
+     * where `T` is a subclass of `FrontendSlabMetadata`.
      */
-    SNMALLOC_FAST_PATH
-    MetaEntry(BackendMetadata* meta, uintptr_t remote_and_sizeclass)
-    : MetaEntryBase(
-        unsafe_to_uintptr<BackendMetadata>(meta), remote_and_sizeclass)
-    {
-      SNMALLOC_ASSERT_MSG(
-        (REMOTE_BACKEND_MARKER & remote_and_sizeclass) == 0,
-        "Setting a backend-owned value ({}) via the front-end interface is not "
-        "allowed",
-        remote_and_sizeclass);
-      remote_and_sizeclass &= ~REMOTE_BACKEND_MARKER;
-    }
+    FrontendSlabMetadata* next{nullptr};
 
-    /**
-     * Implicit copying of meta entries is almost certainly a bug and so the
-     * copy constructor is deleted to statically catch these problems.
-     */
-    MetaEntry(const MetaEntry&) = delete;
-
-    /**
-     * Explicit assignment operator, copies the data preserving the boundary bit
-     * in the target if it is set.
-     */
-    MetaEntry& operator=(const MetaEntry& other)
-    {
-      MetaEntryBase::operator=(other);
-      return *this;
-    }
-
-    /**
-     * Return the Metaslab metadata associated with this chunk, guarded by an
-     * assert that this chunk is being used as a slab (i.e., has an associated
-     * owning allocator).
-     */
-    [[nodiscard]] SNMALLOC_FAST_PATH BackendMetadata* get_metaslab() const
-    {
-      SNMALLOC_ASSERT(get_remote() != nullptr);
-      return unsafe_from_uintptr<BackendMetadata>(meta & ~META_BOUNDARY_BIT);
-    }
-  };
-  /**
-   * The Metaslab represent the metadata associated with a single slab.
-   */
-  class alignas(CACHELINE_SIZE) Metaslab
-  {
-  public:
-    // Used to link metaslabs together in various other data-structures.
-    Metaslab* next{nullptr};
-
-    constexpr Metaslab() = default;
+    constexpr FrontendSlabMetadata() = default;
 
     /**
      *  Data-structure for building the free list for this slab.
@@ -453,7 +415,7 @@ namespace snmalloc
     }
 
     /**
-     * Initialise Metaslab for a slab.
+     * Initialise FrontendSlabMetadata for a slab.
      */
     void initialise(smallsizeclass_t sizeclass)
     {
@@ -513,9 +475,9 @@ namespace snmalloc
     }
 
     /**
-     * Try to set this metaslab to sleep.  If the remaining elements are fewer
-     * than the threshold, then it will actually be set to the sleeping state,
-     * and will return true, otherwise it will return false.
+     * Try to set this slab metadata to sleep.  If the remaining elements are
+     * fewer than the threshold, then it will actually be set to the sleeping
+     * state, and will return true, otherwise it will return false.
      */
     SNMALLOC_FAST_PATH bool
     set_sleeping(smallsizeclass_t sizeclass, uint16_t remaining)
@@ -554,18 +516,18 @@ namespace snmalloc
      * Allocates a free list from the meta data.
      *
      * Returns a freshly allocated object of the correct size, and a bool that
-     * specifies if the metaslab should be placed in the queue for that
+     * specifies if the slab metadata should be placed in the queue for that
      * sizeclass.
      *
      * If Randomisation is not used, it will always return false for the second
      * component, but with randomisation, it may only return part of the
-     * available objects for this metaslab.
+     * available objects for this slab metadata.
      */
     template<typename Domesticator>
     static SNMALLOC_FAST_PATH std::pair<freelist::HeadPtr, bool>
     alloc_free_list(
       Domesticator domesticate,
-      Metaslab* meta,
+      FrontendSlabMetadata* meta,
       freelist::Iter<>& fast_free_list,
       LocalEntropy& entropy,
       smallsizeclass_t sizeclass)
@@ -590,6 +552,73 @@ namespace snmalloc
       auto sleeping = meta->set_sleeping(sizeclass, remaining);
 
       return {p, !sleeping};
+    }
+  };
+
+  /**
+   * Entry stored in the pagemap.  See docs/AddressSpace.md for the full
+   * FrontendMetaEntry lifecycle.
+   */
+  template<typename BackendSlabMetadata>
+  class FrontendMetaEntry : public MetaEntryBase
+  {
+    /**
+     * Ensure that the template parameter is valid.
+     */
+    static_assert(
+      std::is_convertible_v<BackendSlabMetadata, FrontendSlabMetadata>,
+      "The front end requires that the back end provides slab metadata that is "
+      "compatible with the front-end's structure");
+
+  public:
+    constexpr FrontendMetaEntry() = default;
+
+    /**
+     * Constructor, provides the remote and sizeclass embedded in a single
+     * pointer-sized word.  This format is not guaranteed to be stable and so
+     * the second argument of this must always be the return value from
+     * `get_remote_and_sizeclass`.
+     */
+    SNMALLOC_FAST_PATH
+    FrontendMetaEntry(BackendSlabMetadata* meta, uintptr_t remote_and_sizeclass)
+    : MetaEntryBase(
+        unsafe_to_uintptr<BackendSlabMetadata>(meta), remote_and_sizeclass)
+    {
+      SNMALLOC_ASSERT_MSG(
+        (REMOTE_BACKEND_MARKER & remote_and_sizeclass) == 0,
+        "Setting a backend-owned value ({}) via the front-end interface is not "
+        "allowed",
+        remote_and_sizeclass);
+      remote_and_sizeclass &= ~REMOTE_BACKEND_MARKER;
+    }
+
+    /**
+     * Implicit copying of meta entries is almost certainly a bug and so the
+     * copy constructor is deleted to statically catch these problems.
+     */
+    FrontendMetaEntry(const FrontendMetaEntry&) = delete;
+
+    /**
+     * Explicit assignment operator, copies the data preserving the boundary bit
+     * in the target if it is set.
+     */
+    FrontendMetaEntry& operator=(const FrontendMetaEntry& other)
+    {
+      MetaEntryBase::operator=(other);
+      return *this;
+    }
+
+    /**
+     * Return the FrontendSlabMetadata metadata associated with this chunk,
+     * guarded by an assert that this chunk is being used as a slab (i.e., has
+     * an associated owning allocator).
+     */
+    [[nodiscard]] SNMALLOC_FAST_PATH BackendSlabMetadata*
+    get_slab_metadata() const
+    {
+      SNMALLOC_ASSERT(get_remote() != nullptr);
+      return unsafe_from_uintptr<BackendSlabMetadata>(
+        meta & ~META_BOUNDARY_BIT);
     }
   };
 

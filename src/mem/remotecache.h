@@ -1,10 +1,10 @@
 #pragma once
 
-#include "../mem/allocconfig.h"
-#include "../mem/freelist.h"
-#include "../mem/metaslab.h"
-#include "../mem/remoteallocator.h"
-#include "../mem/sizeclasstable.h"
+#include "allocconfig.h"
+#include "freelist.h"
+#include "metadata.h"
+#include "remoteallocator.h"
+#include "sizeclasstable.h"
 
 #include <array>
 #include <atomic>
@@ -52,9 +52,8 @@ namespace snmalloc
      *
      * This does not require initialisation to be safely called.
      */
-    template<typename BackendMetadata>
-    SNMALLOC_FAST_PATH bool
-    reserve_space(const MetaEntry<BackendMetadata>& entry)
+    template<typename Entry>
+    SNMALLOC_FAST_PATH bool reserve_space(const Entry& entry)
     {
       auto size =
         static_cast<int64_t>(sizeclass_full_to_size(entry.get_sizeclass()));

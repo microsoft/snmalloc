@@ -3,7 +3,7 @@
 #include "../ds/defines.h"
 #include "allocconfig.h"
 #include "localcache.h"
-#include "metaslab.h"
+#include "metadata.h"
 #include "pool.h"
 #include "remotecache.h"
 #include "sizeclasstable.h"
@@ -54,7 +54,7 @@ namespace snmalloc
     /**
      * Per size class list of active slabs for this allocator.
      */
-    struct MetaslabCache
+    struct SlabMetadataCache
     {
 #ifdef SNMALLOC_CHECK_CLIENT
       SeqSet<BackendSlabMetadata> available;
@@ -410,7 +410,7 @@ namespace snmalloc
     {
       // TODO: Handle message queue on this path?
 
-      auto* meta = entry.get_metaslab();
+      auto* meta = entry.get_slab_metadata();
 
       if (meta->is_large())
       {
@@ -687,7 +687,7 @@ namespace snmalloc
       CapPtr<void, capptr::bounds::Alloc> p,
       LocalEntropy& entropy)
     {
-      auto meta = entry.get_metaslab();
+      auto meta = entry.get_slab_metadata();
 
       SNMALLOC_ASSERT(!meta->is_unused());
 
@@ -895,8 +895,8 @@ namespace snmalloc
     bool debug_is_empty_impl(bool* result)
     {
       auto test = [&result](auto& queue) {
-        queue.filter([&result](auto metaslab) {
-          if (metaslab->needed() != 0)
+        queue.filter([&result](auto slab_metadata) {
+          if (slab_metadata->needed() != 0)
           {
             if (result != nullptr)
               *result = false;

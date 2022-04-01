@@ -146,8 +146,8 @@ int main()
    *
    *   - RemoteAllocator::dequeue domesticating the stub's next pointer (p)
    *
-   *   - Metaslab::alloc_free_list, domesticating the successor object in the
-   *     newly minted freelist::Iter (i.e., the thing that would be allocated
+   *   - FrontendMetaData::alloc_free_list, domesticating the successor object
+   * in the newly minted freelist::Iter (i.e., the thing that would be allocated
    *     after q).
    */
   static constexpr size_t expected_count =

@@ -2,7 +2,7 @@
 
 #include "../mem/allocconfig.h"
 #include "../mem/freelist.h"
-#include "../mem/metaslab.h"
+#include "../mem/metadata.h"
 #include "../mem/sizeclasstable.h"
 
 #include <array>

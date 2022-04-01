@@ -20,7 +20,30 @@ namespace snmalloc
   template<typename T, bool Fifo = false>
   class SeqSet
   {
+    /**
+     * This sequence structure is intrusive, in that it requires the use of a
+     * `next` field in the elements it manages, but, unlike some other intrusive
+     * designs, it does not require the use of a `container_of`-like construct,
+     * because its pointers point to the element, not merely the intrusive
+     * member.
+     *
+     * In some cases, the next pointer is provided by a superclass but the list
+     * is templated over the subclass.  The `SeqSet` enforces the invariant that
+     * only instances of the subclass can be added to the list and so can safely
+     * down-cast the type of `.next` to `T*`.  As such, we require only that the
+     * `next` field is something that can be converted to a `T*` via a static
+     * cast and that a `T*` can be stored in the field.
+     * %{
+     */
     using NextPtr = decltype(std::declval<T>().next);
+    static_assert(
+      std::is_convertible_v<T*, NextPtr>,
+      "T->next must be a queue pointer to T");
+    static_assert(
+      std::is_convertible_v<NextPtr, T*>,
+      "T->next must be a queue pointer to T");
+    ///@}
+
     /**
      * Field representation for Fifo behaviour.
      */
@@ -37,10 +60,6 @@ namespace snmalloc
       NextPtr head{nullptr};
       NextPtr* end{&head};
     };
-
-    static_assert(
-      std::is_convertible_v<T*, decltype(T::next)>,
-      "T->next must be a queue pointer to T");
 
     /**
      * Field indirection to actual representation.

@@ -1,6 +1,6 @@
 #pragma once
 #include "../mem/allocconfig.h"
-#include "../mem/metaslab.h"
+#include "../mem/metadata.h"
 #include "../pal/pal.h"
 #include "commitrange.h"
 #include "commonconfig.h"
@@ -40,7 +40,7 @@ namespace snmalloc
   public:
     using Pal = PAL;
 
-    using SlabMetadata = Metaslab;
+    using SlabMetadata = FrontendSlabMetadata;
 
     class Pagemap
     {
@@ -52,7 +52,7 @@ namespace snmalloc
        * The following class could be replaced by:
        *
        * ```
-       * using Entry = MetaEntry<SlabMetadata>;
+       * using Entry = FrontendMetaEntry<SlabMetadata>;
        * ```
        *
        * The full form here provides an example of how to extend the pagemap
@@ -60,7 +60,7 @@ namespace snmalloc
        * constructs meta entries, it only ever reads them or modifies them in
        * place.
        */
-      class Entry : public MetaEntry<SlabMetadata>
+      class Entry : public FrontendMetaEntry<SlabMetadata>
       {
         /**
          * The private initialising constructor is usable only by this back end.
@@ -81,7 +81,7 @@ namespace snmalloc
          */
         SNMALLOC_FAST_PATH
         Entry(SlabMetadata* meta, uintptr_t ras)
-        : MetaEntry<SlabMetadata>(meta, ras)
+        : FrontendMetaEntry<SlabMetadata>(meta, ras)
         {}
 
         /**
@@ -94,7 +94,7 @@ namespace snmalloc
          */
         Entry& operator=(const Entry& other)
         {
-          MetaEntry<SlabMetadata>::operator=(other);
+          FrontendMetaEntry<SlabMetadata>::operator=(other);
           return *this;
         }
       };
@@ -299,12 +299,12 @@ namespace snmalloc
 
     /**
      * Returns a chunk of memory with alignment and size of `size`, and a
-     * metaslab block.
+     * block containing metadata about the slab.
      *
      * It additionally set the meta-data for this chunk of memory to
      * be
-     *   (remote, sizeclass, metaslab)
-     * where metaslab, is the second element of the pair return.
+     *   (remote, sizeclass, slab_metadata)
+     * where slab_metadata, is the second element of the pair return.
      */
     static std::pair<capptr::Chunk<void>, SlabMetadata*>
     alloc_chunk(LocalState& local_state, size_t size, uintptr_t ras)
@@ -355,19 +355,19 @@ namespace snmalloc
       /*
        * The backend takes possession of these chunks now, by disassociating
        * any existing remote allocator and metadata structure.  If
-       * interrogated, the sizeclass reported by the MetaEntry is 0, which has
-       * size 0.
+       * interrogated, the sizeclass reported by the FrontendMetaEntry is 0,
+       * which has size 0.
        */
       typename Pagemap::Entry t(nullptr, 0);
       t.claim_for_backend();
       SNMALLOC_ASSERT_MSG(
-        Pagemap::get_metaentry(address_cast(alloc)).get_metaslab() ==
+        Pagemap::get_metaentry(address_cast(alloc)).get_slab_metadata() ==
           &slab_metadata,
         "Slab metadata {} passed for address {} does not match the meta entry "
         "{} that is used for that address",
         &slab_metadata,
         address_cast(alloc),
-        Pagemap::get_metaentry(address_cast(alloc)).get_metaslab());
+        Pagemap::get_metaentry(address_cast(alloc)).get_slab_metadata());
       Pagemap::set_metaentry(address_cast(alloc), size, t);
 
       local_state.get_meta_range()->dealloc_range(
