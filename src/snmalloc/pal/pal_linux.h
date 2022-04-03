@@ -6,6 +6,7 @@
 
 #  include <string.h>
 #  include <sys/mman.h>
+#  include <sys/prctl.h>
 #  include <syscall.h>
 
 extern "C" int puts(const char* str);
@@ -38,7 +39,32 @@ namespace snmalloc
     {
       void* p = PALPOSIX<PALLinux>::reserve(size);
       if (p)
+      {
         madvise(p, size, MADV_DONTDUMP);
+#  ifdef SNMALLOC_PAGEID
+#    ifndef PR_SET_VMA
+#      define PR_SET_VMA 0x53564d41
+#      define PR_SET_VMA_ANON_NAME 0
+#    endif
+
+        /**
+         *
+         * If the kernel is set with CONFIG_ANON_VMA_NAME
+         * the reserved pages would appear as follow
+         *
+         * 7fa5f0ceb000-7fa5f0e00000 rw-p 00000000 00:00 0 [anon:snmalloc]
+         * 7fa5f0e00000-7fa5f1800000 rw-p 00000000 00:00 0 [anon:snmalloc]
+         *
+         */
+
+        prctl(
+          PR_SET_VMA,
+          PR_SET_VMA_ANON_NAME,
+          (unsigned long)p,
+          size,
+          (unsigned long)"snmalloc");
+#  endif
+      }
       return p;
     }
 
