@@ -24,6 +24,7 @@ cmake_dependent_option(SNMALLOC_STATIC_LIBRARY "Build static libraries" ON "NOT 
 cmake_dependent_option(SNMALLOC_MEMCPY_BOUNDS "Perform bounds checks on memcpy with heap objects" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_CHECK_LOADS "Perform bounds checks on the source argument to memcpy with heap objects" OFF "SNMALLOC_MEMCPY_BOUNDS" OFF)
 cmake_dependent_option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
+cmake_dependent_option(SNMALLOC_PAGEID "Set an id to memory regions" OFF "NOT SNMALLOC_PAGEID" OFF)
 if (NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   # Pick a sensible default for the thread cleanup mechanism
   if (${CMAKE_SYSTEM_NAME} STREQUAL FreeBSD)
@@ -323,6 +324,8 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
     target_compile_definitions(${name} PRIVATE
       SNMALLOC_CHECK_LOADS=$<IF:$<BOOL:${SNMALLOC_CHECK_LOADS}>,true,false>)
+    target_compile_definitions(${name} PRIVATE
+      SNMALLOC_PAGEID=$<IF:$<BOOL:${SNMALLOC_PAGEID}>,true,false>)
 
     install(TARGETS ${name} EXPORT snmallocConfig)
 
