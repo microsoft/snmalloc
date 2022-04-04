@@ -1,6 +1,5 @@
-#include "../../../snmalloc.h"
-
 #include <iostream>
+#include <snmalloc/snmalloc.h>
 #include <stdlib.h>
 #include <string.h>
 #include <test/setup.h>

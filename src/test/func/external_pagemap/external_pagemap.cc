@@ -9,7 +9,7 @@ int main()
 }
 #else
 #  define SNMALLOC_EXPOSE_PAGEMAP 1
-#  include <override/malloc.cc>
+#  include <snmalloc/override/malloc.cc>
 
 using ExternalChunkmap =
   ExternalGlobalPagemapTemplate<ChunkmapPagemap, snmalloc_chunkmap_global_get>;

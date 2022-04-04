@@ -328,9 +328,9 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
   endfunction()
 
-  set(SHIM_FILES src/override/new.cc)
+  set(SHIM_FILES src/snmalloc/override/new.cc)
   if (SNMALLOC_MEMCPY_BOUNDS)
-    list(APPEND SHIM_FILES src/override/memcpy.cc)
+    list(APPEND SHIM_FILES src/snmalloc/override/memcpy.cc)
   endif ()
 
   if (SNMALLOC_STATIC_LIBRARY)
@@ -346,8 +346,8 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   endif()
 
   if(SNMALLOC_RUST_SUPPORT)
-    add_shim(snmallocshim-rust STATIC src/override/rust.cc)
-    add_shim(snmallocshim-checks-rust STATIC src/override/rust.cc)
+    add_shim(snmallocshim-rust STATIC src/snmalloc/override/rust.cc)
+    add_shim(snmallocshim-checks-rust STATIC src/snmalloc/override/rust.cc)
     target_compile_definitions(snmallocshim-checks-rust PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 
@@ -441,12 +441,12 @@ install(TARGETS snmalloc EXPORT snmallocConfig)
 install(TARGETS EXPORT snmallocConfig DESTINATION ${CMAKE_INSTALL_LIBDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/snmalloc)
 
-install(DIRECTORY src/aal DESTINATION include/snmalloc)
-install(DIRECTORY src/ds DESTINATION include/snmalloc)
-install(DIRECTORY src/override DESTINATION include/snmalloc)
-install(DIRECTORY src/backend DESTINATION include/snmalloc)
-install(DIRECTORY src/mem DESTINATION include/snmalloc)
-install(DIRECTORY src/pal DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/aal DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/ds DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/override DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/backend DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/mem DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/pal DESTINATION include/snmalloc)
 install(FILES
     src/test/measuretime.h
     src/test/opt.h
@@ -455,7 +455,7 @@ install(FILES
     src/test/xoroshiro.h
   DESTINATION include/snmalloc/test
   )
-install(FILES src/snmalloc.h;src/snmalloc_core.h;src/snmalloc_front.h DESTINATION include/snmalloc)
+install(FILES src/snmalloc/snmalloc.h;src/snmalloc/snmalloc_core.h;src/snmalloc/snmalloc_front.h DESTINATION include/snmalloc)
 
 install(EXPORT snmallocConfig
   FILE snmalloc-config.cmake

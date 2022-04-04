@@ -2,13 +2,13 @@
 #  undef SNMALLOC_USE_PTHREAD_DESTRUCTORS
 #endif
 
-#include <snmalloc_core.h>
+#include <snmalloc/snmalloc_core.h>
 #include <test/setup.h>
 
 // Specify using own
 #define SNMALLOC_EXTERNAL_THREAD_ALLOC
 
-#include "backend/globalconfig.h"
+#include <snmalloc/backend/globalconfig.h>
 
 namespace snmalloc
 {
@@ -32,7 +32,7 @@ public:
   }
 };
 
-#include <snmalloc_front.h>
+#include <snmalloc/snmalloc_front.h>
 
 void allocator_thread_init(void)
 {

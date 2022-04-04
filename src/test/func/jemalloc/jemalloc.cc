@@ -9,8 +9,8 @@
 #define SNMALLOC_BOOTSTRAP_ALLOCATOR
 #define SNMALLOC_JEMALLOC3_EXPERIMENTAL
 #define SNMALLOC_JEMALLOC_NONSTANDARD
-#include "../../../override/jemalloc_compat.cc"
-#include "../../../override/malloc.cc"
+#include "../../../snmalloc/override/jemalloc_compat.cc"
+#include "../../../snmalloc/override/malloc.cc"
 
 #if __has_include(<malloc_np.h>)
 #  include <malloc_np.h>

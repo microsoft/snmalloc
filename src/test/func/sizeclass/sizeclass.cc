@@ -1,5 +1,5 @@
 #include <iostream>
-#include <snmalloc.h>
+#include <snmalloc/snmalloc.h>
 #include <test/setup.h>
 
 NOINLINE
