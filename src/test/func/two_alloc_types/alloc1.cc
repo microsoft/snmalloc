@@ -1,4 +1,4 @@
-#define SNMALLOC_TRACING
+//#define SNMALLOC_TRACING
 
 // Redefine the namespace, so we can have two versions.
 #define snmalloc snmalloc_enclave

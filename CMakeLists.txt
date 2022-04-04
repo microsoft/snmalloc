@@ -211,6 +211,8 @@ endif()
 
 target_compile_definitions(snmalloc INTERFACE $<$<BOOL:CONST_QUALIFIED_MALLOC_USABLE_SIZE>:MALLOC_USABLE_SIZE_QUALIFIER=const>)
 
+target_compile_definitions(snmalloc INTERFACE SNMALLOC_TRACING)
+
 # In debug and CI builds, link the backtrace library so that we can get stack
 # traces on errors.
 find_package(Backtrace)

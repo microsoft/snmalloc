@@ -4,6 +4,7 @@
 #include "../pal/pal.h"
 #include "commitrange.h"
 #include "commonconfig.h"
+#include "decayrange.h"
 #include "empty_range.h"
 #include "globalrange.h"
 #include "largebuddyrange.h"
@@ -197,9 +198,10 @@ namespace snmalloc
     using GlobalR = GlobalRange<StatsR>;
 
 #  ifdef SNMALLOC_META_PROTECTED
+    using CommittedRange =
+      DecayRange<CommitRange<GlobalR, DefaultPal>, DefaultPal, Pagemap>;
     // Source for object allocations
-    using ObjectRange =
-      LargeBuddyRange<CommitRange<GlobalR, DefaultPal>, 21, 21, Pagemap>;
+    using ObjectRange = LargeBuddyRange<CommittedRange, 21, 21, Pagemap>;
     // Set up protected range for metadata
     using SubR = CommitRange<SubRange<GlobalR, DefaultPal, 6>, DefaultPal>;
     using MetaRange =
@@ -208,8 +210,10 @@ namespace snmalloc
 #  else
     // Source for object allocations and metadata
     // No separation between the two
-    using ObjectRange = SmallBuddyRange<
-      LargeBuddyRange<CommitRange<GlobalR, DefaultPal>, 21, 21, Pagemap>>;
+    using CommittedRange =
+      DecayRange<CommitRange<GlobalR, DefaultPal>, DefaultPal, Pagemap>;
+    using ObjectRange =
+      SmallBuddyRange<LargeBuddyRange<CommittedRange, 21, 21, Pagemap>>;
     using GlobalMetaRange = GlobalRange<ObjectRange>;
 #  endif
 #endif
