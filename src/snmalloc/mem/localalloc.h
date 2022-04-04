@@ -443,10 +443,10 @@ namespace snmalloc
       {
         // Small allocations are more likely. Improve
         // branch prediction by placing this case first.
-        return capptr_reveal(small_alloc<zero_mem>(size));
+        return assert_zero(capptr_reveal(small_alloc<zero_mem>(size)), size);
       }
 
-      return capptr_reveal(alloc_not_small<zero_mem>(size));
+      return assert_zero(capptr_reveal(alloc_not_small<zero_mem>(size)), size);
 #endif
     }
 

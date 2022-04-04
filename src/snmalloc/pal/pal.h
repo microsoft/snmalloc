@@ -242,4 +242,23 @@ namespace snmalloc
     MessageBuilder<BufferSize> msg_tid{"{}: {}", get_tid(), msg.get_message()};
     Pal::message(msg_tid.get_message());
   }
+
+  inline void* assert_zero(void* p, size_t size)
+  {
+  #if defined(NDEBUG) || !defined(SNMALLOC_TINTS_ZERO)
+    UNUSED(size);
+  #else
+    if (p != nullptr)
+    {
+      uint8_t* cp = static_cast<uint8_t *>(p);
+      for (size_t o = 0; o < size; o++)
+      {
+        if (*(cp + o) != 0) {
+          report_fatal_error("Non-zero in alloc {} + {} {}\n", p, o, size);
+        }
+      }
+    }
+#endif
+    return p;
+  }
 } // namespace snmalloc
