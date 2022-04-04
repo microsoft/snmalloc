@@ -146,6 +146,22 @@ namespace snmalloc
       UNUSED(k, size);
       return true;
     }
+
+    /**
+     * Erases the pointers stored in this node when we are removing it from
+     * the RBTree. Useful so that returned memory does not leak internal
+     * pointers.
+     * @ptr must not be NULL and must not point to a NULL node.
+     */
+    static void clear(Contents p)
+    {
+#ifdef SNMALLOC_CLEAN_POINTERS
+      p->left = nullptr;
+      p->right = nullptr;
+#else
+      UNUSED(p);
+#endif
+    }
   };
 
   struct SmallBuddyRange

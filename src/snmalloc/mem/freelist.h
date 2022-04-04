@@ -185,12 +185,14 @@ namespace snmalloc
 
         /**
          * Clean up this object when removing it from the list. This is
-         * important on CHERI to avoid leaking capabilities. On CHECK_CLIENT
-         * builds it might increase the difficulty to bypass the checks.
+         * important on CHERI to avoid leaking capabilities. On other
+         * architectures it might be desirable to avoid leaking these pointers,
+         * especially if CHECK_CLIENT is on because it might increase the
+         * difficulty to bypass the checks.
          */
         void cleanup()
         {
-#if defined(__CHERI_PURE_CAPABILITY__) || defined(SNMALLOC_CHECK_CLIENT)
+#ifdef SNMALLOC_CLEAN_POINTERS
           this->next_object = nullptr;
 #  ifdef SNMALLOC_CHECK_CLIENT
           this->prev_encoded = 0;

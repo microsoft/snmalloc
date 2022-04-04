@@ -17,6 +17,7 @@ option(BUILD_TESTING "Build test programs as well as shims" ON)
 
 option(SNMALLOC_HEADER_ONLY_LIBRARY "Use snmalloc has a header-only library" OFF)
 # Options that apply globally
+option(SNMALLOC_CLEAN_POINTERS "Zero freelist pointers in allocations before returning to user." OFF)
 option(SNMALLOC_CI_BUILD "Disable features not sensible for CI" OFF)
 option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory on Linux" Off)
 option(SNMALLOC_USE_CXX17 "Build as C++17 for legacy support." OFF)
@@ -221,6 +222,7 @@ function(add_as_define FLAG)
   target_compile_definitions(snmalloc INTERFACE $<$<BOOL:${${FLAG}}>:${FLAG}>)
 endfunction()
 
+add_as_define(SNMALLOC_CLEAN_POINTERS)
 add_as_define(SNMALLOC_QEMU_WORKAROUND)
 add_as_define(SNMALLOC_TRACING)
 add_as_define(SNMALLOC_CI_BUILD)

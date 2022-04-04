@@ -149,6 +149,7 @@ namespace snmalloc
           break;
         // We want this element next, so start it loading.
         Aal::prefetch(next.unsafe_ptr());
+        curr->cleanup();
         if (SNMALLOC_UNLIKELY(!cb(curr)))
         {
           /*
