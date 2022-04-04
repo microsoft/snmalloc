@@ -141,6 +141,22 @@ namespace snmalloc
       UNUSED(k, size);
       return true;
     }
+
+    /**
+     * Erases the pointers stored in this node when we are removing it from
+     * the RBTree. Useful so that returned memory does not leak internal
+     * pointers.
+     * @ptr must not be NULL and must not point to a NULL node.
+     */
+    static void clear(Contents p)
+    {
+#ifdef SNMALLOC_CLEAN_POINTERS
+      p->left = nullptr;
+      p->right = nullptr;
+#else
+      UNUSED(p);
+#endif
+    }
   };
 
   template<typename ParentRange = EmptyRange>
@@ -203,8 +219,6 @@ namespace snmalloc
       auto result = buddy_small.remove_block(size);
       if (result != nullptr)
       {
-        result->left = nullptr;
-        result->right = nullptr;
         return result.template as_reinterpret<void>();
       }
       return refill(size);

@@ -134,6 +134,11 @@ namespace snmalloc
       return k;
     }
 
+    static void clear(Contents k)
+    {
+      UNUSED(k);
+    }
+
     /**
      * Convert the pointer wrapper into something that the snmalloc debug
      * printing code can print.

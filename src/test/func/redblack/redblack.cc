@@ -12,7 +12,8 @@
 #  define SNMALLOC_TRACING
 #endif
 // Redblack tree needs some libraries with trace enabled.
-#include "snmalloc/snmalloc.h"
+#include "snmalloc/ds_core/ds_core.h"
+#include "snmalloc/pal/pal.h"
 
 struct NodeRef
 {
@@ -102,6 +103,17 @@ public:
       array[k].left ^= 1;
   }
 
+  static void clear(key k)
+  {
+    array[k].left = 0;
+    array[k].right = 0;
+  }
+
+  static bool is_clear(key k)
+  {
+    return (array[k].left == 0) && (array[k].right == 0);
+  }
+
   static bool compare(key k1, key k2)
   {
     return k1 > k2;
@@ -167,6 +179,12 @@ void test(size_t size, unsigned int seed)
         if (!tree.remove_elem(elem))
         {
           std::cout << "Failed to remove element: " << elem << std::endl;
+          abort();
+        }
+        if (!Rep::is_clear(elem))
+        {
+          std::cout << "Removed entry is not cleared " << elem << " @ "
+                    << &array[elem] << std::endl;
           abort();
         }
         entries.erase(entries.begin() + static_cast<int>(index));
