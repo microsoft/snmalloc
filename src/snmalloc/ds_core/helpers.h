@@ -439,4 +439,5 @@ namespace snmalloc
    */
   struct Empty
   {};
+
 } // namespace snmalloc

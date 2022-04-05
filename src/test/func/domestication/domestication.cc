@@ -98,7 +98,7 @@ namespace snmalloc
 }
 
 #  define SNMALLOC_NAME_MANGLE(a) test_##a
-#  include "../../../snmalloc/override/malloc.cc"
+#  include <snmalloc/override/malloc.cc>
 
 int main()
 {

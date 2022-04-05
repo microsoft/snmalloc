@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../ds/ds.h"
-#include "../mem/entropy.h"
+#include "../mem/mem.h"
 
 #include <atomic>
 #include <utility>
