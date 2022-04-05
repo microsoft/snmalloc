@@ -8,7 +8,9 @@
 #include <iostream>
 #include <vector>
 
-#define SNMALLOC_TRACING
+#ifndef SNMALLOC_TRACING
+#  define SNMALLOC_TRACING
+#endif
 // Redblack tree needs some libraries with trace enabled.
 #include "snmalloc/snmalloc.h"
 

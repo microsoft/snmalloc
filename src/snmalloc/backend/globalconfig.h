@@ -6,9 +6,6 @@
 
 #  include "../backend/backend.h"
 
-#  ifdef SNMALLOC_TRACING
-#    include <iostream>
-#  endif
 namespace snmalloc
 {
   // Forward reference to thread local cleanup.

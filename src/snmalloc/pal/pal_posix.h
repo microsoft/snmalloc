@@ -1,8 +1,5 @@
 #pragma once
 
-#ifdef SNMALLOC_TRACING
-#  include <iostream>
-#endif
 #include "../aal/aal.h"
 #include "pal_timer_default.h"
 #if defined(SNMALLOC_BACKTRACE_HEADER)

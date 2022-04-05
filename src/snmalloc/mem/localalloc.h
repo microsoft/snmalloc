@@ -18,9 +18,6 @@
 #  include "external_alloc.h"
 #endif
 
-#ifdef SNMALLOC_TRACING
-#  include <iostream>
-#endif
 #include <string.h>
 #include <utility>
 namespace snmalloc

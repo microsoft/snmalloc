@@ -6,49 +6,6 @@
 namespace snmalloc
 {
   template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
-  inline static void aggregate_stats(Stats& stats)
-  {
-    static_assert(
-      SharedStateHandle::Options.CoreAllocIsPoolAllocated,
-      "Global statistics are available only for pool-allocated configurations");
-    auto* alloc = AllocPool<SharedStateHandle>::iterate();
-
-    while (alloc != nullptr)
-    {
-      auto a = alloc->attached_stats();
-      if (a != nullptr)
-        stats.add(*a);
-      stats.add(alloc->stats());
-      alloc = AllocPool<SharedStateHandle>::iterate(alloc);
-    }
-  }
-
-#ifdef USE_SNMALLOC_STATS
-  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
-  inline static void print_all_stats(std::ostream& o, uint64_t dumpid = 0)
-  {
-    static_assert(
-      SharedStateHandle::Options.CoreAllocIsPoolAllocated,
-      "Global statistics are available only for pool-allocated configurations");
-    auto alloc = AllocPool<SharedStateHandle>::iterate();
-
-    while (alloc != nullptr)
-    {
-      auto stats = alloc->stats();
-      if (stats != nullptr)
-        stats->template print<decltype(alloc)>(o, dumpid, alloc->id());
-      alloc = AllocPool<SharedStateHandle>::iterate(alloc);
-    }
-  }
-#else
-  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
-  inline static void print_all_stats(void*& o, uint64_t dumpid = 0)
-  {
-    UNUSED(o, dumpid);
-  }
-#endif
-
-  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
   inline static void cleanup_unused()
   {
 #ifndef SNMALLOC_PASS_THROUGH

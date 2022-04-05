@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../ds/ds.h"
-#include "allocstats.h"
 #include "freelist.h"
 #include "remotecache.h"
 #include "sizeclasstable.h"
@@ -10,8 +9,6 @@
 
 namespace snmalloc
 {
-  using Stats = AllocStats<NUM_SMALL_SIZECLASSES, NUM_LARGE_CLASSES>;
-
   inline static SNMALLOC_FAST_PATH capptr::Alloc<void>
   finish_alloc_no_zero(freelist::HeadPtr p, smallsizeclass_t sizeclass)
   {
@@ -50,10 +47,6 @@ namespace snmalloc
 
     // This is the entropy for a particular thread.
     LocalEntropy entropy;
-
-    // TODO: Minimal stats object for just the stats on this datastructure.
-    // This will be a zero-size structure if stats are not enabled.
-    Stats stats;
 
     // Pointer to the remote allocator message_queue, used to check
     // if a deallocation is local.
@@ -111,8 +104,6 @@ namespace snmalloc
     {
       auto& key = entropy.get_free_list_key();
       smallsizeclass_t sizeclass = size_to_sizeclass(size);
-      stats.alloc_request(size);
-      stats.sizeclass_alloc(sizeclass);
       auto& fl = small_fast_free_lists[sizeclass];
       if (SNMALLOC_LIKELY(!fl.empty()))
       {
