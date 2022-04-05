@@ -157,7 +157,7 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(x != 0); // Calling with 0 is UB on some implementations
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__clang__)
 #  ifdef _WIN64
       return _tzcnt_u64(static_cast<unsigned __int64>(x));
 #  else
