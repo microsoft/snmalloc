@@ -3,7 +3,7 @@
 #  if defined(WIN32)
 #    include <iostream>
 #    include <signal.h>
-#    include <snmalloc/ds/bits.h>
+#    include <snmalloc/ds_core/ds_Core.h>
 #    include <stdlib.h>
 // Has to come after the PAL.
 #    include <DbgHelp.h>

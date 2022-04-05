@@ -11,6 +11,10 @@
 #include <climits>
 #include <cstdint>
 #include <type_traits>
+#if defined(_MSC_VER)
+#  include <intsafe.h>
+#endif
+
 #ifdef pause
 #  undef pause
 #endif
@@ -60,19 +64,25 @@ namespace snmalloc
       SNMALLOC_ASSERT(x != 0); // Calling with 0 is UB on some implementations
 #if defined(_MSC_VER)
 #  ifdef USE_LZCNT
-#    ifdef SNMALLOC_VA_BITS_64
-      return __lzcnt64(x);
-#    else
-      return __lzcnt((uint32_t)x);
-#    endif
+      if constexpr (BITS == 64)
+      {
+        return __lzcnt64(x);
+      }
+      else
+      {
+        return __lzcnt((uint32_t)x);
+      }
 #  else
       unsigned long index;
 
-#    ifdef SNMALLOC_VA_BITS_64
-      _BitScanReverse64(&index, x);
-#    else
-      _BitScanReverse(&index, (unsigned long)x);
-#    endif
+      if constexpr (BITS == 64)
+      {
+        _BitScanReverse64(&index, static_cast<unsigned __int64>(x));
+      }
+      else
+      {
+        _BitScanReverse(&index, static_cast<unsigned long>(x));
+      }
 
       return BITS - index - 1;
 #  endif
@@ -109,26 +119,32 @@ namespace snmalloc
     inline size_t rotr(size_t x, size_t n)
     {
 #if defined(_MSC_VER)
-#  ifdef SNMALLOC_VA_BITS_64
-      return _rotr64(x, (int)n);
-#  else
-      return _rotr((uint32_t)x, (int)n);
-#  endif
+      if constexpr (BITS == 64)
+      {
+        return _rotr64(static_cast<unsigned __int64>(x), static_cast<int>(n));
+      }
+      else
+      {
+        return _rotr(static_cast<unsigned int>(x), static_cast<int>(n));
+      }
 #else
       return rotr_const(x, n);
 #endif
     }
 
+#if defined(_MSC_VER)
     inline size_t rotl(size_t x, size_t n)
     {
-#if defined(_MSC_VER)
-#  ifdef SNMALLOC_VA_BITS_64
-      return _rotl64(x, (int)n);
-#  else
-      return _rotl((uint32_t)x, (int)n);
-#  endif
+      if constexpr (BITS == 64)
+      {
+        return _rotl64(static_cast<unsigned __int64>(x), static_cast<int>(n));
+      }
+      else
+      {
+        return _rotl(static_cast<unsigned int>(x), static_cast<int>(n));
+      }
 #else
-      return rotl_const(x, n);
+    return rotl_const(x, n);
 #endif
     }
 
@@ -154,24 +170,27 @@ namespace snmalloc
       SNMALLOC_ASSERT(x != 0); // Calling with 0 is UB on some implementations
 
 #if defined(_MSC_VER)
-#  ifdef SNMALLOC_VA_BITS_64
-      return _tzcnt_u64(x);
-#  else
-      return _tzcnt_u32((uint32_t)x);
-#  endif
+      if constexpr (BITS == 64)
+      {
+        return _tzcnt_u64(static_cast<unsigned __int64>(x));
+      }
+      else
+      {
+        return _tzcnt_u32(static_cast<unsigned int>(x));
+      }
 #else
-      if constexpr (std::is_same_v<unsigned long, std::size_t>)
-      {
-        return static_cast<size_t>(__builtin_ctzl(x));
-      }
-      else if constexpr (std::is_same_v<unsigned long long, std::size_t>)
-      {
-        return static_cast<size_t>(__builtin_ctzll(x));
-      }
-      else if constexpr (std::is_same_v<unsigned int, std::size_t>)
-      {
-        return static_cast<size_t>(__builtin_ctz(x));
-      }
+    if constexpr (std::is_same_v<unsigned long, std::size_t>)
+    {
+      return static_cast<size_t>(__builtin_ctzl(x));
+    }
+    else if constexpr (std::is_same_v<unsigned long long, std::size_t>)
+    {
+      return static_cast<size_t>(__builtin_ctzll(x));
+    }
+    else if constexpr (std::is_same_v<unsigned int, std::size_t>)
+    {
+      return static_cast<size_t>(__builtin_ctz(x));
+    }
 #endif
     }
 
@@ -199,20 +218,23 @@ namespace snmalloc
       overflow = __builtin_mul_overflow(x, y, &prod);
       return prod;
 #elif defined(_MSC_VER)
-#  if defined(SNMALLOC_VA_BITS_64)
+    if constexpr (BITS == 64)
+    {
       size_t high_prod;
       size_t prod = _umul128(x, y, &high_prod);
       overflow = high_prod != 0;
       return prod;
-#  else
-      size_t prod;
-      overflow = S_OK != UIntMult(x, y, &prod);
+    }
+    else
+    {
+      UINT prod;
+      overflow = S_OK != UIntMult(UINT(x), UINT(y), &prod);
       return prod;
-#  endif
+    }
 #else
-      size_t prod = x * y;
-      overflow = y && (x > ((size_t)-1 / y));
-      return prod;
+    size_t prod = x * y;
+    overflow = y && (x > ((size_t)-1 / y));
+    return prod;
 #endif
     }
 

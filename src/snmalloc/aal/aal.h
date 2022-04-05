@@ -247,10 +247,6 @@ namespace snmalloc
   constexpr static bool aal_supports = (AAL::aal_features & F) == F;
 } // namespace snmalloc
 
-#if defined(_MSC_VER) && defined(SNMALLOC_VA_BITS_32)
-#  include <intsafe.h>
-#endif
-
 #ifdef __POINTER_WIDTH__
 #  if ((__POINTER_WIDTH__ == 64) && !defined(SNMALLOC_VA_BITS_64)) || \
     ((__POINTER_WIDTH__ == 32) && !defined(SNMALLOC_VA_BITS_32))

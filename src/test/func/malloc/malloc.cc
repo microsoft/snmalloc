@@ -17,11 +17,9 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
   bool failed = false;
   EXPECT(
     (errno == err) || (err == SUCCESS),
-    "Expected error: {} ({}) but got {} ({})",
+    "Expected error: {} but got {}",
     err,
-    std::string_view(strerror(err)),
-    errno,
-    std::string_view(strerror(errno)));
+    errno);
   if (null)
   {
     EXPECT(p == nullptr, "Expected null but got {}", p);
