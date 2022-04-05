@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds/ds.h"
+#include "backend_wrappers.h"
 #include "freelist.h"
 #include "metadata.h"
 #include "remoteallocator.h"

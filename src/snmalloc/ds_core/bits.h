@@ -144,7 +144,7 @@ namespace snmalloc
         return _rotl(static_cast<unsigned int>(x), static_cast<int>(n));
       }
 #else
-    return rotl_const(x, n);
+      return rotl_const(x, n);
 #endif
     }
 
@@ -179,18 +179,18 @@ namespace snmalloc
         return _tzcnt_u32(static_cast<unsigned int>(x));
       }
 #else
-    if constexpr (std::is_same_v<unsigned long, std::size_t>)
-    {
-      return static_cast<size_t>(__builtin_ctzl(x));
-    }
-    else if constexpr (std::is_same_v<unsigned long long, std::size_t>)
-    {
-      return static_cast<size_t>(__builtin_ctzll(x));
-    }
-    else if constexpr (std::is_same_v<unsigned int, std::size_t>)
-    {
-      return static_cast<size_t>(__builtin_ctz(x));
-    }
+      if constexpr (std::is_same_v<unsigned long, std::size_t>)
+      {
+        return static_cast<size_t>(__builtin_ctzl(x));
+      }
+      else if constexpr (std::is_same_v<unsigned long long, std::size_t>)
+      {
+        return static_cast<size_t>(__builtin_ctzll(x));
+      }
+      else if constexpr (std::is_same_v<unsigned int, std::size_t>)
+      {
+        return static_cast<size_t>(__builtin_ctz(x));
+      }
 #endif
     }
 
@@ -218,23 +218,23 @@ namespace snmalloc
       overflow = __builtin_mul_overflow(x, y, &prod);
       return prod;
 #elif defined(_MSC_VER)
-    if constexpr (BITS == 64)
-    {
-      size_t high_prod;
-      size_t prod = _umul128(x, y, &high_prod);
-      overflow = high_prod != 0;
-      return prod;
-    }
-    else
-    {
-      UINT prod;
-      overflow = S_OK != UIntMult(UINT(x), UINT(y), &prod);
-      return prod;
-    }
+      if constexpr (BITS == 64)
+      {
+        size_t high_prod;
+        size_t prod = _umul128(x, y, &high_prod);
+        overflow = high_prod != 0;
+        return prod;
+      }
+      else
+      {
+        UINT prod;
+        overflow = S_OK != UIntMult(UINT(x), UINT(y), &prod);
+        return prod;
+      }
 #else
-    size_t prod = x * y;
-    overflow = y && (x > ((size_t)-1 / y));
-    return prod;
+      size_t prod = x * y;
+      overflow = y && (x > ((size_t)-1 / y));
+      return prod;
 #endif
     }
 

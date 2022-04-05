@@ -1,4 +1,5 @@
 #include "backend_concept.h"
+#include "backend_wrappers.h"
 #include "corealloc.h"
 #include "entropy.h"
 #include "external_alloc.h"
