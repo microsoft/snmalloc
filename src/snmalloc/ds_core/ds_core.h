@@ -12,3 +12,5 @@
 #include "defines.h"
 #include "helpers.h"
 #include "ptrwrap.h"
+#include "redblacktree.h"
+#include "seqset.h"

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../ds_core/ds_core.h"
+#include "../aal/aal.h"
 
 /**
  * This file contains an abstraction of ABA protection. This API should be
