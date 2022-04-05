@@ -64,25 +64,19 @@ namespace snmalloc
       SNMALLOC_ASSERT(x != 0); // Calling with 0 is UB on some implementations
 #if defined(_MSC_VER)
 #  ifdef USE_LZCNT
-      if constexpr (BITS == 64)
-      {
-        return __lzcnt64(x);
-      }
-      else
-      {
-        return __lzcnt((uint32_t)x);
-      }
+#    ifdef _WIN64
+      return __lzcnt64(x);
+#    else
+      return __lzcnt((uint32_t)x);
+#    endif
 #  else
       unsigned long index;
 
-      if constexpr (BITS == 64)
-      {
-        _BitScanReverse64(&index, static_cast<unsigned __int64>(x));
-      }
-      else
-      {
-        _BitScanReverse(&index, static_cast<unsigned long>(x));
-      }
+#    ifdef _WIN64
+      _BitScanReverse64(&index, static_cast<unsigned __int64>(x));
+#    else
+      _BitScanReverse(&index, static_cast<unsigned long>(x));
+#    endif
 
       return BITS - index - 1;
 #  endif
@@ -119,14 +113,11 @@ namespace snmalloc
     inline size_t rotr(size_t x, size_t n)
     {
 #if defined(_MSC_VER)
-      if constexpr (BITS == 64)
-      {
-        return _rotr64(static_cast<unsigned __int64>(x), static_cast<int>(n));
-      }
-      else
-      {
-        return _rotr(static_cast<unsigned int>(x), static_cast<int>(n));
-      }
+#  ifdef _WIN64
+      return _rotr64(static_cast<unsigned __int64>(x), static_cast<int>(n));
+#  else
+      return _rotr(static_cast<unsigned int>(x), static_cast<int>(n));
+#  endif
 #else
       return rotr_const(x, n);
 #endif
@@ -135,14 +126,11 @@ namespace snmalloc
     inline size_t rotl(size_t x, size_t n)
     {
 #if defined(_MSC_VER)
-      if constexpr (BITS == 64)
-      {
-        return _rotl64(static_cast<unsigned __int64>(x), static_cast<int>(n));
-      }
-      else
-      {
-        return _rotl(static_cast<unsigned int>(x), static_cast<int>(n));
-      }
+#  ifdef _WIN64
+      return _rotl64(static_cast<unsigned __int64>(x), static_cast<int>(n));
+#  else
+      return _rotl(static_cast<unsigned int>(x), static_cast<int>(n));
+#  endif
 #else
       return rotl_const(x, n);
 #endif
@@ -170,14 +158,11 @@ namespace snmalloc
       SNMALLOC_ASSERT(x != 0); // Calling with 0 is UB on some implementations
 
 #if defined(_MSC_VER)
-      if constexpr (BITS == 64)
-      {
-        return _tzcnt_u64(static_cast<unsigned __int64>(x));
-      }
-      else
-      {
-        return _tzcnt_u32(static_cast<unsigned int>(x));
-      }
+#  ifdef _WIN64
+      return _tzcnt_u64(static_cast<unsigned __int64>(x));
+#  else
+      return _tzcnt_u32(static_cast<unsigned int>(x));
+#  endif
 #else
       if constexpr (std::is_same_v<unsigned long, std::size_t>)
       {
@@ -218,19 +203,16 @@ namespace snmalloc
       overflow = __builtin_mul_overflow(x, y, &prod);
       return prod;
 #elif defined(_MSC_VER)
-      if constexpr (BITS == 64)
-      {
-        size_t high_prod;
-        size_t prod = _umul128(x, y, &high_prod);
-        overflow = high_prod != 0;
-        return prod;
-      }
-      else
-      {
-        UINT prod;
-        overflow = S_OK != UIntMult(UINT(x), UINT(y), &prod);
-        return prod;
-      }
+#  ifdef _WIN64
+      size_t high_prod;
+      size_t prod = _umul128(x, y, &high_prod);
+      overflow = high_prod != 0;
+      return prod;
+#  else
+      UINT prod;
+      overflow = S_OK != UIntMult(UINT(x), UINT(y), &prod);
+      return prod;
+#  endif
 #else
       size_t prod = x * y;
       overflow = y && (x > ((size_t)-1 / y));
