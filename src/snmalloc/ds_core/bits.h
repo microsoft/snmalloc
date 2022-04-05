@@ -132,9 +132,9 @@ namespace snmalloc
 #endif
     }
 
-#if defined(_MSC_VER)
     inline size_t rotl(size_t x, size_t n)
     {
+#if defined(_MSC_VER)
       if constexpr (BITS == 64)
       {
         return _rotl64(static_cast<unsigned __int64>(x), static_cast<int>(n));
