@@ -82,4 +82,4 @@ namespace snmalloc
     return detail::capptr_domesticate<Backend>(ls, p, 0);
   }
 
-}
+} // namespace snmalloc

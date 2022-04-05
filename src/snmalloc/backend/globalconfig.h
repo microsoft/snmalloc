@@ -99,5 +99,5 @@ namespace snmalloc
 namespace snmalloc
 {
   using Alloc = snmalloc::LocalAllocator<snmalloc::Globals>;
-}
+} // namespace snmalloc
 #endif
