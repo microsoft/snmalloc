@@ -34,7 +34,7 @@ The layers above the back end should include only this file, so that there is a 
 External code should include only the following files:
 
  - `snmalloc/snmalloc_core.h` includes everything up to `backend_helpers`.
-   This provides the building blocks required to assembly an snmalloc instance, but does not assume any global configuration.
+   This provides the building blocks required to assemble an snmalloc instance, but does not assume any global configuration.
  - `snmalloc/snmalloc_front.h` assumes a global configuration (either user-provided or the default from `snmalloc/backend/globalconfig.h` and exposes all of the functionality that depends on both.
  - `snmalloc/snmalloc.h` is a convenience wrapper that includes both of the above files.
  - `snmalloc/override/*.cc` can be compiled as-is or included after `snmalloc/snmalloc_core.h` and a custom global allocator definition to provide specific languages' global memory allocator APIs with a custom snmalloc embedding.
