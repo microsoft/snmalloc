@@ -6,10 +6,8 @@
  * but no examples were using multiple levels of pagemap.
  */
 
-#include <backend/pagemap.h>
-#include <ds/bits.h>
 #include <iostream>
-#include <snmalloc.h>
+#include <snmalloc/snmalloc.h>
 #include <test/setup.h>
 
 using namespace snmalloc;

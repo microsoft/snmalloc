@@ -6,7 +6,7 @@
 #undef SNMALLOC_NO_REALLOCARRAY
 #undef SNMALLOC_NO_REALLOCARR
 #define SNMALLOC_BOOTSTRAP_ALLOCATOR
-#include "../../../override/malloc.cc"
+#include <snmalloc/override/malloc.cc>
 
 using namespace snmalloc;
 

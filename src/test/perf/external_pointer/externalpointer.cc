@@ -1,4 +1,4 @@
-#include <snmalloc.h>
+#include <snmalloc/snmalloc.h>
 #include <test/measuretime.h>
 #include <test/setup.h>
 #include <test/xoroshiro.h>

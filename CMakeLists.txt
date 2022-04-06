@@ -12,10 +12,10 @@ include(CMakeDependentOption)
 
 option(SNMALLOC_HEADER_ONLY_LIBRARY "Use snmalloc has a header-only library" OFF)
 # Options that apply globally
-option(USE_SNMALLOC_STATS "Track allocation stats" OFF)
 option(SNMALLOC_CI_BUILD "Disable features not sensible for CI" OFF)
 option(SNMALLOC_QEMU_WORKAROUND "Disable using madvise(DONT_NEED) to zero memory on Linux" Off)
 option(SNMALLOC_USE_CXX17 "Build as C++17 for legacy support." OFF)
+option(SNMALLOC_TRACING "Enable large quantities of debug output." OFF)
 option(SNMALLOC_NO_REALLOCARRAY "Build without reallocarray exported" ON)
 option(SNMALLOC_NO_REALLOCARR "Build without reallocarr exported" ON)
 # Options that apply only if we're not building the header-only library
@@ -198,8 +198,8 @@ function(add_as_define FLAG)
   target_compile_definitions(snmalloc INTERFACE $<$<BOOL:${${FLAG}}>:${FLAG}>)
 endfunction()
 
-add_as_define(USE_SNMALLOC_STATS)
 add_as_define(SNMALLOC_QEMU_WORKAROUND)
+add_as_define(SNMALLOC_TRACING)
 add_as_define(SNMALLOC_CI_BUILD)
 add_as_define(SNMALLOC_PLATFORM_HAS_GETENTROPY)
 if (SNMALLOC_NO_REALLOCARRAY)
@@ -328,9 +328,9 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
   endfunction()
 
-  set(SHIM_FILES src/override/new.cc)
+  set(SHIM_FILES src/snmalloc/override/new.cc)
   if (SNMALLOC_MEMCPY_BOUNDS)
-    list(APPEND SHIM_FILES src/override/memcpy.cc)
+    list(APPEND SHIM_FILES src/snmalloc/override/memcpy.cc)
   endif ()
 
   if (SNMALLOC_STATIC_LIBRARY)
@@ -346,8 +346,8 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   endif()
 
   if(SNMALLOC_RUST_SUPPORT)
-    add_shim(snmallocshim-rust STATIC src/override/rust.cc)
-    add_shim(snmallocshim-checks-rust STATIC src/override/rust.cc)
+    add_shim(snmallocshim-rust STATIC src/snmalloc/override/rust.cc)
+    add_shim(snmallocshim-checks-rust STATIC src/snmalloc/override/rust.cc)
     target_compile_definitions(snmallocshim-checks-rust PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 
@@ -426,9 +426,6 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
             set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
           endif()
         endif()
-        # if (${TEST_CATEGORY} MATCHES "func")
-        #   target_compile_definitions(${TESTNAME} PRIVATE -DUSE_SNMALLOC_STATS)
-        # endif ()
       endforeach()
     endforeach()
   endforeach()
@@ -441,12 +438,12 @@ install(TARGETS snmalloc EXPORT snmallocConfig)
 install(TARGETS EXPORT snmallocConfig DESTINATION ${CMAKE_INSTALL_LIBDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/snmalloc)
 
-install(DIRECTORY src/aal DESTINATION include/snmalloc)
-install(DIRECTORY src/ds DESTINATION include/snmalloc)
-install(DIRECTORY src/override DESTINATION include/snmalloc)
-install(DIRECTORY src/backend DESTINATION include/snmalloc)
-install(DIRECTORY src/mem DESTINATION include/snmalloc)
-install(DIRECTORY src/pal DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/aal DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/ds DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/override DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/backend DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/mem DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/pal DESTINATION include/snmalloc)
 install(FILES
     src/test/measuretime.h
     src/test/opt.h
@@ -455,7 +452,7 @@ install(FILES
     src/test/xoroshiro.h
   DESTINATION include/snmalloc/test
   )
-install(FILES src/snmalloc.h;src/snmalloc_core.h;src/snmalloc_front.h DESTINATION include/snmalloc)
+install(FILES src/snmalloc/snmalloc.h;src/snmalloc/snmalloc_core.h;src/snmalloc/snmalloc_front.h DESTINATION include/snmalloc)
 
 install(EXPORT snmallocConfig
   FILE snmalloc-config.cmake

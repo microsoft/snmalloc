@@ -1,4 +1,4 @@
-#include <snmalloc.h>
+#include <snmalloc/snmalloc.h>
 #include <test/opt.h>
 #include <test/setup.h>
 #include <unordered_set>

@@ -10,8 +10,8 @@ int main()
 
 // #  define SNMALLOC_TRACING
 
-#  include <backend/backend.h>
-#  include <snmalloc_core.h>
+#  include <snmalloc/backend/backend.h>
+#  include <snmalloc/snmalloc_core.h>
 
 // Specify type of allocator
 #  define SNMALLOC_PROVIDE_OWN_CONFIG
@@ -98,7 +98,7 @@ namespace snmalloc
 }
 
 #  define SNMALLOC_NAME_MANGLE(a) test_##a
-#  include "../../../override/malloc.cc"
+#  include <snmalloc/override/malloc.cc>
 
 int main()
 {

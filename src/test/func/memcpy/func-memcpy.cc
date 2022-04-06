@@ -19,14 +19,13 @@ int main()
 #  endif
 #  define SNMALLOC_FAIL_FAST false
 #  define SNMALLOC_STATIC_LIBRARY_PREFIX my_
-#  include "ds/defines.h"
 #  ifndef SNMALLOC_PASS_THROUGH
-#    include "override/malloc.cc"
+#    include "snmalloc/override/malloc.cc"
 #  else
 #    define my_malloc(x) malloc(x)
 #    define my_free(x) free(x)
 #  endif
-#  include "override/memcpy.cc"
+#  include "snmalloc/override/memcpy.cc"
 #  include "test/helpers.h"
 
 #  include <assert.h>

@@ -287,7 +287,7 @@ jobs:
         git diff --exit-code
     - name: Run clang-tidy
       run: |
-        clang-tidy-9  src/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16 -DSNMALLOC_PLATFORM_HAS_GETENTROPY=0 
+        clang-tidy-9  src/snmalloc/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16 -DSNMALLOC_PLATFORM_HAS_GETENTROPY=0
         if [ -f tidy.fail ] ; then
           cat tidy.fail
           exit 1

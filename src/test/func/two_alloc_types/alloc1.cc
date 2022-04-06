@@ -1,10 +1,12 @@
-#define SNMALLOC_TRACING
+#ifndef SNMALLOC_TRACING
+#  define SNMALLOC_TRACING
+#endif
 
 // Redefine the namespace, so we can have two versions.
 #define snmalloc snmalloc_enclave
 
-#include <backend/fixedglobalconfig.h>
-#include <snmalloc_core.h>
+#include <snmalloc/backend/fixedglobalconfig.h>
+#include <snmalloc/snmalloc_core.h>
 
 // Specify type of allocator
 #define SNMALLOC_PROVIDE_OWN_CONFIG
@@ -15,7 +17,7 @@ namespace snmalloc
 }
 
 #define SNMALLOC_NAME_MANGLE(a) enclave_##a
-#include "../../../override/malloc.cc"
+#include <snmalloc/override/malloc.cc>
 
 extern "C" void oe_allocator_init(void* base, void* end)
 {

@@ -1,10 +1,9 @@
 #if defined(SNMALLOC_CI_BUILD)
-#  include <pal/pal.h>
+#  include <snmalloc/pal/pal.h>
 #  if defined(WIN32)
-#    include <ds/bits.h>
 #    include <iostream>
-#    include <pal/pal.h>
 #    include <signal.h>
+#    include <snmalloc/ds_core/ds_Core.h>
 #    include <stdlib.h>
 // Has to come after the PAL.
 #    include <DbgHelp.h>

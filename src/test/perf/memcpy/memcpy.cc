@@ -1,4 +1,4 @@
-#include "mem/memcpy.h"
+#include "snmalloc/global/memcpy.h"
 
 #include <test/measuretime.h>
 #include <test/opt.h>

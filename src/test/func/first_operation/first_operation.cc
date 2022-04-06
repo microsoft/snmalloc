@@ -8,7 +8,7 @@
 #include "test/setup.h"
 
 #include <iostream>
-#include <snmalloc.h>
+#include <snmalloc/snmalloc.h>
 #include <thread>
 
 void alloc1(size_t size)

@@ -1,8 +1,8 @@
-#include "backend/fixedglobalconfig.h"
 #include "test/setup.h"
 
 #include <iostream>
-#include <snmalloc.h>
+#include <snmalloc/backend/fixedglobalconfig.h>
+#include <snmalloc/snmalloc.h>
 
 #ifdef assert
 #  undef assert

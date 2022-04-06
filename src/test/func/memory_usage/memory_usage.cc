@@ -7,8 +7,8 @@
 #include <vector>
 
 #define SNMALLOC_NAME_MANGLE(a) our_##a
-#include "../../../override/malloc-extensions.cc"
-#include "../../../override/malloc.cc"
+#include "../../../snmalloc/override/malloc-extensions.cc"
+#include "../../../snmalloc/override/malloc.cc"
 
 using namespace snmalloc;
 
