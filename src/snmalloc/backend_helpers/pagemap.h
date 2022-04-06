@@ -327,11 +327,11 @@ namespace snmalloc
   };
 
   /**
-   * This is the backend's interface to the page map. It takes a concrete page
-   * map implementation (probably FlatPageMap above) and entry type. It is
-   * friends with the backend passed in as a template parameter so that the
-   * backend can initialise the concrete page map and use set_metaentry which no
-   * one else should use.
+   * This is a generic implementation of the backend's interface to the page
+   * map. It takes a concrete page map implementation (probably FlatPageMap
+   * above) and entry type. It is friends with the backend passed in as a
+   * template parameter so that the backend can initialise the concrete page map
+   * and use set_metaentry which no one else should use.
    */
   template<
     typename Backend,
