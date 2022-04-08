@@ -6,7 +6,6 @@ namespace snmalloc
   class EmptyRange
   {
   public:
-
     static constexpr bool Aligned = true;
 
     static constexpr bool ConcurrencySafe = true;

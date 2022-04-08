@@ -12,7 +12,6 @@ namespace snmalloc
     ParentRange state{};
 
   public:
-
     constexpr PagemapRegisterRange() = default;
 
     static constexpr bool Aligned = ParentRange::Aligned;

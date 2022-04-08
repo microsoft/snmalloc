@@ -16,7 +16,6 @@ namespace snmalloc
     static inline std::atomic<size_t> peak_usage{};
 
   public:
-
     static constexpr bool Aligned = ParentRange::Aligned;
 
     static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;

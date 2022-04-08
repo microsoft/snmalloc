@@ -292,7 +292,6 @@ namespace snmalloc
     }
 
   public:
-
     static constexpr bool Aligned = true;
 
     static constexpr bool ConcurrencySafe = false;

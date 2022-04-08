@@ -20,7 +20,6 @@ namespace snmalloc
     static inline FlagWord spin_lock{};
 
   public:
-
     static constexpr bool Aligned = ParentRange::Aligned;
 
     static constexpr bool ConcurrencySafe = true;

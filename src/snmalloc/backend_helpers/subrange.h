@@ -14,7 +14,6 @@ namespace snmalloc
     ParentRange parent{};
 
   public:
-
     constexpr SubRange() = default;
 
     static constexpr bool Aligned = ParentRange::Aligned;

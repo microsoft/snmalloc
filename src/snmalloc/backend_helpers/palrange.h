@@ -7,7 +7,6 @@ namespace snmalloc
   class PalRange
   {
   public:
-
     static constexpr bool Aligned = pal_supports<AlignedAllocation, PAL>;
 
     // Note we have always assumed the Pals to provide a concurrency safe

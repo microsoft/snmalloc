@@ -179,7 +179,6 @@ namespace snmalloc
     }
 
   public:
-
     static constexpr bool Aligned = true;
     static_assert(ParentRange::Aligned, "ParentRange must be aligned");
 
