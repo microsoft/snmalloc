@@ -11,13 +11,13 @@ namespace snmalloc
   template<typename ParentRange>
   class GlobalRange
   {
-    static inline ParentRange parent{};
+    SNMALLOC_REQUIRE_CONSTINIT static inline ParentRange parent{};
 
     /**
      * This is infrequently used code, a spin lock simplifies the code
      * considerably, and should never be on the fast path.
      */
-    static inline FlagWord spin_lock{};
+    SNMALLOC_REQUIRE_CONSTINIT static inline FlagWord spin_lock{};
 
   public:
     static constexpr bool Aligned = ParentRange::Aligned;
