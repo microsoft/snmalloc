@@ -6,17 +6,6 @@ namespace snmalloc
   class EmptyRange
   {
   public:
-    class State
-    {
-    public:
-      EmptyRange* operator->()
-      {
-        static EmptyRange range{};
-        return &range;
-      }
-
-      constexpr State() = default;
-    };
 
     static constexpr bool Aligned = true;
 

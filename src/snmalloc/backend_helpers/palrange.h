@@ -7,19 +7,6 @@ namespace snmalloc
   class PalRange
   {
   public:
-    class State
-    {
-    public:
-      PalRange* operator->()
-      {
-        // There is no state required for the PalRange
-        // using a global just to satisfy the typing.
-        static PalRange range{};
-        return &range;
-      }
-
-      constexpr State() = default;
-    };
 
     static constexpr bool Aligned = pal_supports<AlignedAllocation, PAL>;
 

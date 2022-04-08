@@ -11,21 +11,9 @@ namespace snmalloc
   template<typename ParentRange, typename PAL, size_t RATIO_BITS>
   class SubRange
   {
-    typename ParentRange::State parent{};
+    ParentRange parent{};
 
   public:
-    class State
-    {
-      SubRange sub_range{};
-
-    public:
-      constexpr State() = default;
-
-      SubRange* operator->()
-      {
-        return &sub_range;
-      }
-    };
 
     constexpr SubRange() = default;
 
@@ -38,7 +26,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(bits::is_pow2(sub_size));
 
       auto full_size = sub_size << RATIO_BITS;
-      auto overblock = parent->alloc_range(full_size);
+      auto overblock = parent.alloc_range(full_size);
       if (overblock == nullptr)
         return nullptr;
 

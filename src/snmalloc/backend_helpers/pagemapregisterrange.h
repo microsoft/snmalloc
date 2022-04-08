@@ -9,21 +9,9 @@ namespace snmalloc
     typename ParentRange>
   class PagemapRegisterRange
   {
-    typename ParentRange::State state{};
+    ParentRange state{};
 
   public:
-    class State
-    {
-      PagemapRegisterRange range;
-
-    public:
-      PagemapRegisterRange* operator->()
-      {
-        return &range;
-      }
-
-      constexpr State() = default;
-    };
 
     constexpr PagemapRegisterRange() = default;
 
@@ -33,7 +21,7 @@ namespace snmalloc
 
     capptr::Chunk<void> alloc_range(size_t size)
     {
-      auto base = state->alloc_range(size);
+      auto base = state.alloc_range(size);
 
       if (base != nullptr)
         Pagemap::register_range(address_cast(base), size);

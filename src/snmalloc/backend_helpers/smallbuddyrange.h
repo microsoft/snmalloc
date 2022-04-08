@@ -145,7 +145,7 @@ namespace snmalloc
   template<typename ParentRange>
   class SmallBuddyRange
   {
-    typename ParentRange::State parent{};
+    ParentRange parent{};
 
     static constexpr size_t MIN_BITS =
       bits::next_pow2_bits_const(sizeof(FreeChunk));
@@ -164,13 +164,13 @@ namespace snmalloc
             buddy_small.add_block(base.as_reinterpret<FreeChunk>(), align)
               .template as_reinterpret<void>();
           if (overflow != nullptr)
-            parent->dealloc_range(overflow, bits::one_at_bit(MIN_CHUNK_BITS));
+            parent.dealloc_range(overflow, bits::one_at_bit(MIN_CHUNK_BITS));
         });
     }
 
     capptr::Chunk<void> refill(size_t size)
     {
-      auto refill = parent->alloc_range(MIN_CHUNK_SIZE);
+      auto refill = parent.alloc_range(MIN_CHUNK_SIZE);
 
       if (refill != nullptr)
         add_range(pointer_offset(refill, size), MIN_CHUNK_SIZE - size);
@@ -179,18 +179,6 @@ namespace snmalloc
     }
 
   public:
-    class State
-    {
-      SmallBuddyRange buddy_range;
-
-    public:
-      SmallBuddyRange* operator->()
-      {
-        return &buddy_range;
-      }
-
-      constexpr State() = default;
-    };
 
     static constexpr bool Aligned = true;
     static_assert(ParentRange::Aligned, "ParentRange must be aligned");
@@ -203,7 +191,7 @@ namespace snmalloc
     {
       if (size >= MIN_CHUNK_SIZE)
       {
-        return parent->alloc_range(size);
+        return parent.alloc_range(size);
       }
 
       auto result = buddy_small.remove_block(size);
@@ -238,7 +226,7 @@ namespace snmalloc
     {
       if (size >= MIN_CHUNK_SIZE)
       {
-        parent->dealloc_range(base, size);
+        parent.dealloc_range(base, size);
         return;
       }
 
