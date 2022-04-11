@@ -108,15 +108,13 @@ namespace snmalloc
 #else
     // Set up source of memory
     using P = PalRange<DefaultPal>;
-    using Base = std::
-      conditional_t<fixed_range, EmptyRange, PagemapRegisterRange<Pagemap, P>>;
+    using Base = std::conditional_t<
+      fixed_range,
+      EmptyRange,
+      PagemapRegisterRange<Pagemap, P, CONSOLIDATE_PAL_ALLOCS>>;
     // Global range of memory
-    using StatsR = StatsRange<LargeBuddyRange<
-      Base,
-      24,
-      bits::BITS - 1,
-      Pagemap,
-      CONSOLIDATE_PAL_ALLOCS>>;
+    using StatsR =
+      StatsRange<LargeBuddyRange<Base, 24, bits::BITS - 1, Pagemap>>;
     using GlobalR = GlobalRange<StatsR>;
 
 #  ifdef SNMALLOC_META_PROTECTED

@@ -169,8 +169,7 @@ namespace snmalloc
     typename ParentRange,
     size_t REFILL_SIZE_BITS,
     size_t MAX_SIZE_BITS,
-    SNMALLOC_CONCEPT(ConceptBuddyRangeMeta) Pagemap,
-    bool Consolidate = true>
+    SNMALLOC_CONCEPT(ConceptBuddyRangeMeta) Pagemap>
   class LargeBuddyRange
   {
     ParentRange parent{};
@@ -218,24 +217,7 @@ namespace snmalloc
     void add_range(capptr::Chunk<void> base, size_t length)
     {
       range_to_pow_2_blocks<MIN_CHUNK_BITS>(
-        base,
-        length,
-        [this](capptr::Chunk<void> base, size_t align, bool first) {
-          if constexpr (!Consolidate)
-          {
-            // Tag first entry so we don't consolidate it.
-            if (first)
-            {
-              auto& entry = Pagemap::get_metaentry_mut(address_cast(base));
-              entry.claim_for_backend();
-              entry.set_boundary();
-            }
-          }
-          else
-          {
-            UNUSED(first);
-          }
-
+        base, length, [this](capptr::Chunk<void> base, size_t align, bool) {
           auto overflow = capptr::Chunk<void>(reinterpret_cast<void*>(
             buddy_large.add_block(base.unsafe_uintptr(), align)));
 
@@ -247,7 +229,6 @@ namespace snmalloc
     {
       if (ParentRange::Aligned)
       {
-        // TODO have to add consolidation blocker for these cases.
         if (size >= REFILL_SIZE)
         {
           return parent.alloc_range(size);

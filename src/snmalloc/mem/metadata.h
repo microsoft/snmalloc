@@ -129,7 +129,8 @@ namespace snmalloc
      */
     [[nodiscard]] bool is_unowned() const
     {
-      return (meta == 0) && (remote_and_sizeclass == 0);
+      return ((meta == 0) || (meta == META_BOUNDARY_BIT)) &&
+        (remote_and_sizeclass == 0);
     }
 
     /**
