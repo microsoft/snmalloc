@@ -202,17 +202,17 @@ namespace snmalloc
 
     struct LocalState
     {
-      typename ObjectRange::State object_range;
+      ObjectRange object_range;
 
 #ifdef SNMALLOC_META_PROTECTED
-      typename MetaRange::State meta_range;
+      MetaRange meta_range;
 
-      typename MetaRange::State& get_meta_range()
+      MetaRange& get_meta_range()
       {
         return meta_range;
       }
 #else
-      typename ObjectRange::State& get_meta_range()
+      ObjectRange& get_meta_range()
       {
         return object_range;
       }
@@ -243,8 +243,8 @@ namespace snmalloc
         capptr::Chunk<void>(heap_base),
         heap_length,
         [&](capptr::Chunk<void> p, size_t sz, bool) {
-          typename GlobalR::State g;
-          g->dealloc_range(p, sz);
+          GlobalR g;
+          g.dealloc_range(p, sz);
         });
     }
 
@@ -266,15 +266,15 @@ namespace snmalloc
       capptr::Chunk<void> p;
       if (local_state != nullptr)
       {
-        p = local_state->get_meta_range()->alloc_range_with_leftover(size);
+        p = local_state->get_meta_range().alloc_range_with_leftover(size);
       }
       else
       {
         static_assert(
           GlobalMetaRange::ConcurrencySafe,
           "Global meta data range needs to be concurrency safe.");
-        typename GlobalMetaRange::State global_state;
-        p = global_state->alloc_range(bits::next_pow2(size));
+        GlobalMetaRange global_state;
+        p = global_state.alloc_range(bits::next_pow2(size));
       }
 
       if (p == nullptr)
@@ -299,7 +299,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
 
       auto meta_cap =
-        local_state.get_meta_range()->alloc_range(sizeof(SlabMetadata));
+        local_state.get_meta_range().alloc_range(sizeof(SlabMetadata));
 
       auto meta = meta_cap.template as_reinterpret<SlabMetadata>().unsafe_ptr();
 
@@ -309,14 +309,14 @@ namespace snmalloc
         return {nullptr, nullptr};
       }
 
-      auto p = local_state.object_range->alloc_range(size);
+      auto p = local_state.object_range.alloc_range(size);
 
 #ifdef SNMALLOC_TRACING
       message<1024>("Alloc chunk: {} ({})", p.unsafe_ptr(), size);
 #endif
       if (p == nullptr)
       {
-        local_state.get_meta_range()->dealloc_range(
+        local_state.get_meta_range().dealloc_range(
           meta_cap, sizeof(SlabMetadata));
         errno = ENOMEM;
 #ifdef SNMALLOC_TRACING
@@ -356,26 +356,26 @@ namespace snmalloc
         Pagemap::get_metaentry(address_cast(alloc)).get_slab_metadata());
       Pagemap::set_metaentry(address_cast(alloc), size, t);
 
-      local_state.get_meta_range()->dealloc_range(
+      local_state.get_meta_range().dealloc_range(
         capptr::Chunk<void>(&slab_metadata), sizeof(SlabMetadata));
 
       // On non-CHERI platforms, we don't need to re-derive to get a pointer to
       // the chunk.  On CHERI platforms this will need to be stored in the
       // SlabMetadata or similar.
       capptr::Chunk<void> chunk{alloc.unsafe_ptr()};
-      local_state.object_range->dealloc_range(chunk, size);
+      local_state.object_range.dealloc_range(chunk, size);
     }
 
     static size_t get_current_usage()
     {
-      typename StatsR::State stats_state;
-      return stats_state->get_current_usage();
+      StatsR stats_state;
+      return stats_state.get_current_usage();
     }
 
     static size_t get_peak_usage()
     {
-      typename StatsR::State stats_state;
-      return stats_state->get_peak_usage();
+      StatsR stats_state;
+      return stats_state.get_peak_usage();
     }
   };
 } // namespace snmalloc

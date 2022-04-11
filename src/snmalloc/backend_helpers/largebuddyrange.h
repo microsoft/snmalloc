@@ -173,7 +173,7 @@ namespace snmalloc
     bool Consolidate = true>
   class LargeBuddyRange
   {
-    typename ParentRange::State parent{};
+    ParentRange parent{};
 
     static constexpr size_t REFILL_SIZE = bits::one_at_bit(REFILL_SIZE_BITS);
 
@@ -192,7 +192,7 @@ namespace snmalloc
     {
       static_assert(
         MAX_SIZE_BITS != (bits::BITS - 1), "Don't set SFINAE parameter");
-      parent->dealloc_range(base, size);
+      parent.dealloc_range(base, size);
     }
 
     void dealloc_overflow(capptr::Chunk<void> overflow)
@@ -201,7 +201,7 @@ namespace snmalloc
       {
         if (overflow != nullptr)
         {
-          parent->dealloc_range(overflow, bits::one_at_bit(MAX_SIZE_BITS));
+          parent.dealloc_range(overflow, bits::one_at_bit(MAX_SIZE_BITS));
         }
       }
       else
@@ -250,10 +250,10 @@ namespace snmalloc
         // TODO have to add consolidation blocker for these cases.
         if (size >= REFILL_SIZE)
         {
-          return parent->alloc_range(size);
+          return parent.alloc_range(size);
         }
 
-        auto refill_range = parent->alloc_range(REFILL_SIZE);
+        auto refill_range = parent.alloc_range(REFILL_SIZE);
         if (refill_range != nullptr)
           add_range(pointer_offset(refill_range, size), REFILL_SIZE - size);
         return refill_range;
@@ -270,7 +270,7 @@ namespace snmalloc
       auto refill_size = bits::max(needed_size, REFILL_SIZE);
       while (needed_size <= refill_size)
       {
-        auto refill = parent->alloc_range(refill_size);
+        auto refill = parent.alloc_range(refill_size);
 
         if (refill != nullptr)
         {
@@ -292,19 +292,6 @@ namespace snmalloc
     }
 
   public:
-    class State
-    {
-      LargeBuddyRange buddy_range;
-
-    public:
-      LargeBuddyRange* operator->()
-      {
-        return &buddy_range;
-      }
-
-      constexpr State() = default;
-    };
-
     static constexpr bool Aligned = true;
 
     static constexpr bool ConcurrencySafe = false;
@@ -319,7 +306,7 @@ namespace snmalloc
       if (size >= (bits::one_at_bit(MAX_SIZE_BITS) - 1))
       {
         if (ParentRange::Aligned)
-          return parent->alloc_range(size);
+          return parent.alloc_range(size);
 
         return nullptr;
       }

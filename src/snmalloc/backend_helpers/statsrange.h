@@ -10,25 +10,12 @@ namespace snmalloc
   template<typename ParentRange>
   class StatsRange
   {
-    typename ParentRange::State parent{};
+    ParentRange parent{};
 
     static inline std::atomic<size_t> current_usage{};
     static inline std::atomic<size_t> peak_usage{};
 
   public:
-    class State
-    {
-      StatsRange stats_range{};
-
-    public:
-      constexpr StatsRange* operator->()
-      {
-        return &stats_range;
-      }
-
-      constexpr State() = default;
-    };
-
     static constexpr bool Aligned = ParentRange::Aligned;
 
     static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
@@ -37,7 +24,7 @@ namespace snmalloc
 
     capptr::Chunk<void> alloc_range(size_t size)
     {
-      auto result = parent->alloc_range(size);
+      auto result = parent.alloc_range(size);
       if (result != nullptr)
       {
         auto prev = current_usage.fetch_add(size);
@@ -54,7 +41,7 @@ namespace snmalloc
     void dealloc_range(capptr::Chunk<void> base, size_t size)
     {
       current_usage -= size;
-      parent->dealloc_range(base, size);
+      parent.dealloc_range(base, size);
     }
 
     size_t get_current_usage()
