@@ -4,6 +4,7 @@
 #include <test/setup.h>
 #include <test/xoroshiro.h>
 #include <unordered_set>
+#include <vector>
 #if ((defined(__linux__) && !defined(__ANDROID__)) || defined(__sun)) && \
   !defined(SNMALLOC_QEMU_WORKAROUND)
 /*
@@ -492,6 +493,28 @@ void test_remaining_bytes()
   }
 }
 
+void test_consolidaton_bug()
+{
+  /**
+   * Check for consolidation of various sizes, but allocating and deallocating,
+   * then requesting larger sizes. See issue #506
+   */
+  auto& alloc = ThreadAlloc::get();
+
+  for (size_t i = 0; i < 27; i++)
+  {
+    std::vector<void*> allocs;
+    for (size_t j = 0; j < 4; j++)
+    {
+      allocs.push_back(alloc.alloc(bits::one_at_bit(i)));
+    }
+    for (auto a : allocs)
+    {
+      alloc.dealloc(a);
+    }
+  }
+}
+
 int main(int argc, char** argv)
 {
   setup();
@@ -531,5 +554,6 @@ int main(int argc, char** argv)
   test_alloc_16M();
   test_calloc_16M();
 #endif
+  test_consolidaton_bug();
   return 0;
 }
