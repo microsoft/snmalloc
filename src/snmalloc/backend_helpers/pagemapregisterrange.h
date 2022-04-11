@@ -6,7 +6,8 @@ namespace snmalloc
 {
   template<
     SNMALLOC_CONCEPT(ConceptBackendMetaRange) Pagemap,
-    typename ParentRange>
+    typename ParentRange,
+    bool CanConsolidate = true>
   class PagemapRegisterRange
   {
     ParentRange state{};
@@ -24,6 +25,13 @@ namespace snmalloc
 
       if (base != nullptr)
         Pagemap::register_range(address_cast(base), size);
+
+      if (!CanConsolidate)
+      {
+        // Mark start of allocation in pagemap.
+        auto& entry = Pagemap::get_metaentry_mut(address_cast(base));
+        entry.set_boundary();
+      }
 
       return base;
     }
