@@ -315,7 +315,7 @@ namespace snmalloc
         count++;
       }
       // Check the list contains all the elements
-      SNMALLOC_ASSERT(
+      SNMALLOC_CHECK(
         (count + more) == snmalloc::sizeclass_to_slab_object_count(sizeclass));
 
       if (more > 0)
@@ -330,7 +330,7 @@ namespace snmalloc
           count++;
         }
       }
-      SNMALLOC_ASSERT(
+      SNMALLOC_CHECK(
         count == snmalloc::sizeclass_to_slab_object_count(sizeclass));
 #endif
       // TODO: This is a capability amplification as we are saying we
