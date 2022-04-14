@@ -730,7 +730,7 @@ namespace snmalloc
         {
           if (&head[i] == end[i])
           {
-            SNMALLOC_ASSERT(length[i] == 0);
+            SNMALLOC_CHECK(length[i] == 0);
             continue;
           }
 
@@ -747,7 +747,7 @@ namespace snmalloc
             prev = signed_prev(address_cast(curr), address_cast(next), key);
             curr = next;
           }
-          SNMALLOC_ASSERT(count == length[i]);
+          SNMALLOC_CHECK(count == length[i]);
         }
 #else
         UNUSED(key);
