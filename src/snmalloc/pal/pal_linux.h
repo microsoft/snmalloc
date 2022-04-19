@@ -35,35 +35,54 @@ namespace snmalloc
      */
     static constexpr int default_mmap_flags = MAP_NORESERVE;
 
-    static void* reserve(size_t size) noexcept
+    /**
+     * Not generalizing this handler purposely as in other platforms
+     * mechanisms could differ greatly.
+     */
+    template<StateMem state_mem>
+    static void pageid(void* p, size_t size) noexcept
     {
-      void* p = PALPOSIX<PALLinux>::reserve(size);
-      if (p)
-      {
-        madvise(p, size, MADV_DONTDUMP);
 #  ifdef SNMALLOC_PAGEID
 #    ifndef PR_SET_VMA
 #      define PR_SET_VMA 0x53564d41
 #      define PR_SET_VMA_ANON_NAME 0
 #    endif
 
-        /**
-         *
-         * If the kernel is set with CONFIG_ANON_VMA_NAME
-         * the reserved pages would appear as follow
-         *
-         * 7fa5f0ceb000-7fa5f0e00000 rw-p 00000000 00:00 0 [anon:snmalloc]
-         * 7fa5f0e00000-7fa5f1800000 rw-p 00000000 00:00 0 [anon:snmalloc]
-         *
-         */
+      /**
+       *
+       * If the kernel is set with CONFIG_ANON_VMA_NAME
+       * the reserved pages would appear as follow
+       *
+       * 7fa5f0ceb000-7fa5f0e00000 rw-p 00000000 00:00 0 [anon:snmalloc
+       * (<type>)] 7fa5f0e00000-7fa5f1800000 rw-p 00000000 00:00 0
+       * [anon:snmalloc (<type>)]
+       *
+       * The 80 buffer limit is specific to this syscall.
+       */
 
-        prctl(
-          PR_SET_VMA,
-          PR_SET_VMA_ANON_NAME,
-          (unsigned long)p,
-          size,
-          (unsigned long)"snmalloc");
+      char buf[80] = {0};
+      PALPOSIX<PALLinux>::pagetype<state_mem>(buf, sizeof(buf));
+
+      prctl(
+        PR_SET_VMA,
+        PR_SET_VMA_ANON_NAME,
+        (unsigned long)p,
+        size,
+        (unsigned long)buf);
+#  else
+      UNUSED(p);
+      UNUSED(size);
 #  endif
+    }
+
+    template<StateMem state_mem = Unused>
+    static void* reserve(size_t size) noexcept
+    {
+      void* p = PALPOSIX<PALLinux>::reserve<state_mem>(size);
+      if (p)
+      {
+        madvise(p, size, MADV_DONTDUMP);
+        pageid<state_mem>(p, size);
       }
       return p;
     }
@@ -131,11 +150,12 @@ namespace snmalloc
     /**
      * Notify platform that we will be using these pages.
      */
-    template<ZeroMem zero_mem>
+    template<ZeroMem zero_mem, StateMem state_mem = Allocated>
     static void notify_using(void* p, size_t size) noexcept
     {
       PALPOSIX<PALLinux>::notify_using<zero_mem>(p, size);
       madvise(p, size, MADV_DODUMP);
+      pageid<state_mem>(p, size);
     }
 
     static uint64_t get_entropy64()

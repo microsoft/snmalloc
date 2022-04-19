@@ -94,6 +94,14 @@ namespace snmalloc
     YesZero
   };
 
+  enum StateMem
+  {
+    Unused,
+    Allocated,
+    Pagemap,
+    Metadata
+  };
+
   /**
    * Default Tag ID for the Apple class
    */
