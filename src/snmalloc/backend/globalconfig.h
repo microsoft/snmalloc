@@ -5,6 +5,7 @@
 #ifndef SNMALLOC_PROVIDE_OWN_CONFIG
 
 #  include "../backend/backend.h"
+#include "strictprovenancebackend.h"
 
 namespace snmalloc
 {
@@ -21,18 +22,23 @@ namespace snmalloc
   }
 #  endif
 
+  using BackendAlloc = std::conditional_t<
+    aal_supports<StrictProvenance, Aal>,
+    StrictProvenanceBackend<Pal>,
+    BackendAllocator<Pal, false>>;
+
   /**
    * The default configuration for a global snmalloc.  This allocates memory
    * from the operating system and expects to manage memory anywhere in the
    * address space.
    */
-  class Globals final : public BackendAllocator<Pal, false>
+  class Globals final : public BackendAlloc
   {
   public:
     using GlobalPoolState = PoolState<CoreAllocator<Globals>>;
 
   private:
-    using Backend = BackendAllocator<Pal, false>;
+    using Backend = BackendAlloc;
 
     SNMALLOC_REQUIRE_CONSTINIT
     inline static GlobalPoolState alloc_pool;
