@@ -165,6 +165,20 @@ namespace snmalloc
     }
   };
 
+  /**
+   * Used to represent a consolidating range of memory.  Uses a buddy allocator
+   * to consolidate adjacent blocks.
+   *
+   * ParentRange - Represents the range to get memory from to fill this range.
+   *
+   * REFILL_SIZE_BITS - Maximum size of a refill, may ask for less during warm
+   * up phase.
+   *
+   * MAX_SIZE_BITS - Maximum size that this range will store.
+   *
+   * Pagemap - How to access the pagemap, which is used to store the red black
+   * tree nodes for the buddy allocators.
+   */
   template<
     typename ParentRange,
     size_t REFILL_SIZE_BITS,
@@ -174,10 +188,20 @@ namespace snmalloc
   {
     ParentRange parent{};
 
+    /**
+     * Maximum size of a refill
+     */
     static constexpr size_t REFILL_SIZE = bits::one_at_bit(REFILL_SIZE_BITS);
 
     /**
+     * The size of memory requested so far.
      *
+     * This is used to determine the refill size.
+     */
+    size_t requested_total = 0;
+
+    /**
+     * Buddy allocator used to represent this range of memory.
      */
     Buddy<BuddyChunkRep<Pagemap>, MIN_CHUNK_BITS, MAX_SIZE_BITS> buddy_large;
 
@@ -229,16 +253,34 @@ namespace snmalloc
     {
       if (ParentRange::Aligned)
       {
-        if (size >= REFILL_SIZE)
-        {
-          return parent.alloc_range(size);
-        }
+        // Use amount currently requested to determine refill size.
+        // This will gradually increase the usage of the parent range.
+        // So small examples can grow local caches slowly, and larger
+        // examples will grow them by the refill size.
+        //
+        // The heuristic is designed to allocate the following sequence for
+        // 16KiB requests 16KiB, 16KiB, 32Kib, 64KiB, ..., REFILL_SIZE/2,
+        // REFILL_SIZE, REFILL_SIZE, ... Hence if this if they are coming from a
+        // contiguous aligned range, then they could be consolidated.  This
+        // depends on the ParentRange behaviour.
+        size_t refill_size =
+          bits::min(REFILL_SIZE, bits::next_pow2(requested_total));
+        refill_size = bits::max(refill_size, size);
 
-        auto refill_range = parent.alloc_range(REFILL_SIZE);
+        auto refill_range = parent.alloc_range(refill_size);
         if (refill_range != nullptr)
-          add_range(pointer_offset(refill_range, size), REFILL_SIZE - size);
+        {
+          requested_total += refill_size;
+          add_range(pointer_offset(refill_range, size), refill_size - size);
+        }
         return refill_range;
       }
+
+      // Note the unaligned parent path does not use
+      // requested_total in the heuristic for the initial size
+      // this is because the request needs to introduce alignment.
+      // Currently the unaligned variant is not used as a local cache.
+      // So the gradual growing of refill_size is not needed.
 
       // Need to overallocate to get the alignment right.
       bool overflow = false;
@@ -255,6 +297,7 @@ namespace snmalloc
 
         if (refill != nullptr)
         {
+          requested_total += refill_size;
           add_range(refill, refill_size);
 
           SNMALLOC_ASSERT(refill_size < bits::one_at_bit(MAX_SIZE_BITS));
