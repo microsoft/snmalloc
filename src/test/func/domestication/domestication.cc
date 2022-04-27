@@ -40,6 +40,7 @@ namespace snmalloc
     {
       Flags opts = {};
       opts.QueueHeadsAreTame = false;
+      opts.HasDomesticate = true;
       return opts;
     }
     ();

@@ -24,7 +24,26 @@ namespace snmalloc
       return alloc_pool;
     }
 
-    static constexpr Flags Options{};
+    /*
+     * The obvious
+     * `static constexpr Flags Options{.HasDomesticate = true};` fails on
+     * Ubuntu 18.04 with an error "sorry, unimplemented: non-trivial
+     * designated initializers not supported".
+     * The following was copied from domestication.cc test with the following
+     * comment:
+     * C++, even as late as C++20, has some really quite strict limitations on
+     * designated initializers.  However, as of C++17, we can have constexpr
+     * lambdas and so can use more of the power of the statement fragment of
+     * C++, and not just its initializer fragment, to initialize a non-prefix
+     * subset of the flags (in any order, at that).
+     */
+    static constexpr Flags Options = []() constexpr
+    {
+      Flags opts = {};
+      opts.HasDomesticate = true;
+      return opts;
+    }
+    ();
 
     // This needs to be a forward reference as the
     // thread local state will need to know about this.

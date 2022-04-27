@@ -86,6 +86,13 @@ namespace snmalloc
      * the queue nodes themselves (which are always considered Wild)?
      */
     bool QueueHeadsAreTame = true;
+
+    /**
+     * Does the backend provide a capptr_domesticate function to sanity check
+     * pointers? If so it will be called when untrusted pointers are consumed
+     * (on dealloc and in freelists) otherwise a no-op version is provided.
+     */
+    bool HasDomesticate = false;
   };
 
   /**
