@@ -36,41 +36,46 @@ namespace snmalloc
   namespace detail
   {
     /**
-     * SFINAE helper, calls capptr_domesticate in the backend if it exists.
+     * SFINAE helper to detect the presence of capptr_domesticate function in
+     * backend. Returns true if there is a function with correct name and type.
      */
     template<
       SNMALLOC_CONCEPT(ConceptBackendDomestication) Backend,
       typename T,
       SNMALLOC_CONCEPT(capptr::ConceptBound) B>
-    SNMALLOC_FAST_PATH_INLINE auto
-    capptr_domesticate(typename Backend::LocalState* ls, CapPtr<T, B> p, int)
-      -> decltype(Backend::capptr_domesticate(ls, p))
+    constexpr SNMALLOC_FAST_PATH_INLINE auto has_domesticate(int)
+      -> std::enable_if_t<
+        std::is_same_v<
+          decltype(Backend::capptr_domesticate(
+            std::declval<typename Backend::LocalState*>(),
+            std::declval<CapPtr<T, B>>())),
+          CapPtr<
+            T,
+            typename B::template with_wildness<
+              capptr::dimension::Wildness::Tame>>>,
+        bool>
     {
-      return Backend::capptr_domesticate(ls, p);
+      return true;
     }
 
     /**
-     * SFINAE helper.  If the back end does not provide special handling for
-     * domestication then assume all wild pointers can be domesticated.
+     * SFINAE helper to detect the presence of capptr_domesticate function in
+     * backend. Returns false in case where above template does not match.
      */
     template<
       SNMALLOC_CONCEPT(ConceptBackendGlobals) Backend,
       typename T,
       SNMALLOC_CONCEPT(capptr::ConceptBound) B>
-    SNMALLOC_FAST_PATH_INLINE auto
-    capptr_domesticate(typename Backend::LocalState*, CapPtr<T, B> p, long)
+    constexpr SNMALLOC_FAST_PATH_INLINE bool has_domesticate(long)
     {
-      return CapPtr<
-        T,
-        typename B::template with_wildness<capptr::dimension::Wildness::Tame>>(
-        p.unsafe_ptr());
+      return false;
     }
   } // namespace detail
 
   /**
-   * Wrapper that calls `Backend::capptr_domesticate` if and only if it is
-   * implemented.  If it is not implemented then this assumes that any wild
-   * pointer can be domesticated.
+   * Wrapper that calls `Backend::capptr_domesticate` if and only if
+   * Backend::Options.HasDomesticate is true. If it is not implemented then
+   * this assumes that any wild pointer can be domesticated.
    */
   template<
     SNMALLOC_CONCEPT(ConceptBackendGlobals) Backend,
@@ -79,7 +84,28 @@ namespace snmalloc
   SNMALLOC_FAST_PATH_INLINE auto
   capptr_domesticate(typename Backend::LocalState* ls, CapPtr<T, B> p)
   {
-    return detail::capptr_domesticate<Backend>(ls, p, 0);
-  }
+    static_assert(
+      !detail::has_domesticate<Backend, T, B>(0) ||
+        (detail::has_domesticate<Backend, T, B>(0) &&
+         Backend::Options.HasDomesticate),
+      "Back end provides domesticate function but opts out of using it ");
 
+    static_assert(
+      detail::has_domesticate<Backend, T, B>(0) ||
+        !(detail::has_domesticate<Backend, T, B>(0) &&
+          Backend::Options.HasDomesticate),
+      "Back end does not provide capptr_domesticate and requests its use");
+    if constexpr (Backend::Options.HasDomesticate)
+    {
+      return Backend::capptr_domesticate(ls, p);
+    }
+    else
+    {
+      UNUSED(ls);
+      return CapPtr<
+        T,
+        typename B::template with_wildness<capptr::dimension::Wildness::Tame>>(
+        p.unsafe_ptr());
+    }
+  }
 } // namespace snmalloc
