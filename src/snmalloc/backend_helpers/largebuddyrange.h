@@ -183,7 +183,8 @@ namespace snmalloc
     typename ParentRange,
     size_t REFILL_SIZE_BITS,
     size_t MAX_SIZE_BITS,
-    SNMALLOC_CONCEPT(ConceptBuddyRangeMeta) Pagemap>
+    SNMALLOC_CONCEPT(ConceptBuddyRangeMeta) Pagemap,
+    size_t MIN_REFILL_SIZE_BITS = 0>
   class LargeBuddyRange
   {
     ParentRange parent{};
@@ -192,6 +193,11 @@ namespace snmalloc
      * Maximum size of a refill
      */
     static constexpr size_t REFILL_SIZE = bits::one_at_bit(REFILL_SIZE_BITS);
+
+    /**
+     * Minimum size of a refill
+     */
+    static constexpr size_t MIN_REFILL_SIZE = bits::one_at_bit(MIN_REFILL_SIZE_BITS);
 
     /**
      * The size of memory requested so far.
@@ -265,6 +271,7 @@ namespace snmalloc
         // depends on the ParentRange behaviour.
         size_t refill_size =
           bits::min(REFILL_SIZE, bits::next_pow2(requested_total));
+        refill_size = bits::max(refill_size, MIN_REFILL_SIZE);
         refill_size = bits::max(refill_size, size);
 
         auto refill_range = parent.alloc_range(refill_size);
