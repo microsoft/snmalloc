@@ -97,15 +97,6 @@ namespace snmalloc
     static constexpr bool CONSOLIDATE_PAL_ALLOCS = true;
 #endif
 
-#if defined(OPEN_ENCLAVE)
-    // Single global buddy allocator is used on open enclave due to
-    // the limited address space.
-    using StatsR = StatsRange<SmallBuddyRange<
-      LargeBuddyRange<EmptyRange, bits::BITS - 1, bits::BITS - 1, Pagemap>>>;
-    using GlobalR = GlobalRange<StatsR>;
-    using ObjectRange = GlobalR;
-    using GlobalMetaRange = ObjectRange;
-#else
     // Set up source of memory
     using P = PalRange<DefaultPal>;
     using Base = std::conditional_t<
@@ -117,7 +108,7 @@ namespace snmalloc
       StatsRange<LargeBuddyRange<Base, 24, bits::BITS - 1, Pagemap>>;
     using GlobalR = GlobalRange<StatsR>;
 
-#  ifdef SNMALLOC_META_PROTECTED
+#ifdef SNMALLOC_META_PROTECTED
     // Source for object allocations
     using ObjectRange =
       LargeBuddyRange<CommitRange<GlobalR, DefaultPal>, 21, 21, Pagemap>;
@@ -126,13 +117,12 @@ namespace snmalloc
     using MetaRange =
       SmallBuddyRange<LargeBuddyRange<SubR, 21 - 6, bits::BITS - 1, Pagemap>>;
     using GlobalMetaRange = GlobalRange<MetaRange>;
-#  else
+#else
     // Source for object allocations and metadata
     // No separation between the two
     using ObjectRange = SmallBuddyRange<
       LargeBuddyRange<CommitRange<GlobalR, DefaultPal>, 21, 21, Pagemap>>;
     using GlobalMetaRange = GlobalRange<ObjectRange>;
-#  endif
 #endif
 
     struct LocalState
