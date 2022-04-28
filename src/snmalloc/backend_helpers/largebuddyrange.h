@@ -178,8 +178,9 @@ namespace snmalloc
    *
    * Pagemap - How to access the pagemap, which is used to store the red black
    * tree nodes for the buddy allocators.
-   * 
-   * MIN_REFILL_SIZE_BITS - The minimum size that the ParentRange can be asked for
+   *
+   * MIN_REFILL_SIZE_BITS - The minimum size that the ParentRange can be asked
+   * for
    */
   template<
     typename ParentRange,
@@ -199,7 +200,8 @@ namespace snmalloc
     /**
      * Minimum size of a refill
      */
-    static constexpr size_t MIN_REFILL_SIZE = bits::one_at_bit(MIN_REFILL_SIZE_BITS);
+    static constexpr size_t MIN_REFILL_SIZE =
+      bits::one_at_bit(MIN_REFILL_SIZE_BITS);
 
     /**
      * The size of memory requested so far.
