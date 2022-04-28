@@ -586,58 +586,6 @@ namespace snmalloc
     }
 #endif
 
-    SNMALLOC_FAST_PATH CapPtr<void, capptr::bounds::Alloc> reversion_alloc(
-      capptr::Alloc<void> p_tame, const MetaslabMetaEntry& entry) {
-      CapPtr<void, capptr::bounds::Alloc> rederived_ptr;
-      size_t len = sizeclass_full_to_size(entry.get_sizeclass());
-      /*
-        * Attempt to set bounds of p to size of sizeclass. Assuming p is
-        * derived from a correctly bounded pointer allocated by snmalloc this
-        * will result in an error if either:
-        * 1) p does not point to the start of the allocation (non-zero offset)
-        * 2) the bounds of p do not encompass the entire allocation, as they
-        *    should have when returned by alloc.
-        * The error will either be a trap or a cleared tag depending on the
-        * architecture. If the tag is clared this will be detected by
-        * camcdecversion below.
-        */
-      capptr::Alloc<void> p_tame2 = Aal::capptr_bound<void, capptr::bounds::Alloc>(p_tame, len); // XXX use of p_wild here
-      /*
-        * Derive a pointer from chunk_ptr with address of p. This provides the
-        * the authority to perform camcdecversion and storeversion. getaddr
-        * / setaddr might be a more natural way to do this but we already have
-        * pointer_diff / pointer_offset and this should work.
-        */
-      auto chunk_ptr = entry.get_metaslab()->meta_common.chunk;
-      size_t p_offset = pointer_diff(chunk_ptr, p_tame2);
-      chunk_ptr = pointer_offset(chunk_ptr, p_offset);
-      auto bounded_chunk_ptr = Aal::capptr_bound<void, capptr::bounds::AllocFull>(chunk_ptr, len);
-      /**
-       * Attempt to atomically decrement the version of the first granule of
-       * the allocation.
-       */
-      AmoDecResult amoDecResult = Aal::capptr_tint_amo_dec(bounded_chunk_ptr, p_tame2);
-      switch (amoDecResult) {
-        case AmoDecResult::Reuse: {
-          // Camocdecversion succeeded
-          tint_t old_ver = Aal::capptr_tint_get(p_tame2);
-          tint_t new_ver = old_ver - 1;
-          auto reversioned_ptr = capptr_tint_region<true>(bounded_chunk_ptr, len, new_ver);
-          rederived_ptr = capptr_to_user_address_control(reversioned_ptr);
-          break;
-        }
-        case AmoDecResult::Quarantine: {
-          // XXX instant revoke!
-          auto reversioned_ptr = capptr_tint_region<false>(bounded_chunk_ptr, len, 15);
-          rederived_ptr = capptr_to_user_address_control(reversioned_ptr);
-          break;
-        }
-        case AmoDecResult::Fail:
-          Pal::error("Version mismatch on dealloc: double free?");
-      }
-      return rederived_ptr;
-    }
-
     SNMALLOC_FAST_PATH void dealloc(void* p_raw)
     {
 #ifdef SNMALLOC_PASS_THROUGH
@@ -688,7 +636,7 @@ namespace snmalloc
         Backend::Pagemap::get_metaentry(address_cast(p_tame));
       if (SNMALLOC_LIKELY(local_cache.remote_allocator == entry.get_remote()))
       {
-        auto rederived_ptr = reversion_alloc(p_tame, entry);
+        auto rederived_ptr = reversion_alloc<Backend>(p_tame, entry);
 #  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
         dealloc_cheri_checks(p_tame.unsafe_ptr()); // XXX
 #  endif
@@ -702,7 +650,7 @@ namespace snmalloc
       RemoteAllocator* remote = entry.get_remote();
       if (SNMALLOC_LIKELY(remote != nullptr))
       {
-        auto rederived_ptr = reversion_alloc(p_tame, entry);
+        auto rederived_ptr = reversion_alloc<Backend>(p_tame, entry);
 
 #  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
         dealloc_cheri_checks(p_tame.unsafe_ptr());

@@ -93,6 +93,13 @@ namespace snmalloc
      * (on dealloc and in freelists) otherwise a no-op version is provided.
      */
     bool HasDomesticate = false;
+
+    /**
+     * Does the backend provide a alloc_reversion function to revoke
+     * allocations? If so it will be called on dealloc, otherwise a no-op
+     * implementation is provided.
+     */
+    bool HasReversion = false;
   };
 
   /**

@@ -27,6 +27,7 @@ namespace snmalloc
     class PageMapEntry;
     using Pal = PAL;
     using SlabMetadata = FrontendSlabMetadata;
+    static constexpr Flags Options{};
 
   private:
     using ConcretePagemap =

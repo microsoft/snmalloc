@@ -106,4 +106,64 @@ namespace snmalloc
         p.unsafe_ptr());
     }
   }
+
+  namespace detail
+  {
+    /**
+     * SFINAE helper to detect the presence of reversion_alloc function in
+     * backend. Returns true if there is a function with correct name and type.
+     */
+    template<SNMALLOC_CONCEPT(ConceptBackendGlobals) Backend>
+    constexpr SNMALLOC_FAST_PATH_INLINE auto has_reversion(int)
+      -> std::enable_if_t<
+        std::is_same_v<
+          decltype(Backend::reversion_alloc(
+            std::declval<typename capptr::Alloc<void>>(),
+            std::declval<const typename Backend::Pagemap::Entry&>())),
+          capptr::Alloc<void>>,
+        bool>
+    {
+      return true;
+    }
+
+    /**
+     * SFINAE helper to detect the presence of reversion_alloc function in
+     * backend. Returns false in case where above template does not match.
+     */
+    template<SNMALLOC_CONCEPT(ConceptBackendGlobals) Backend>
+    constexpr SNMALLOC_FAST_PATH_INLINE bool has_reversion(long)
+    {
+      return false;
+    }
+  } // namespace detail
+
+  /**
+   * Wrapper that calls `Backend::reversion_alloc` if and only if
+   * Backend::Options.HasReversion is true. If it is not implemented then
+   * this provides a no-op version.
+   */
+  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) Backend>
+  SNMALLOC_FAST_PATH_INLINE auto reversion_alloc(
+    capptr::Alloc<void> p_tame, const typename Backend::Pagemap::Entry& entry)
+  {
+    static_assert(
+      !detail::has_reversion<Backend>(0) || Backend::Options.HasReversion,
+      "Back end provides reversion function but opts out of using it ");
+    static_assert(
+      detail::has_reversion<Backend>(0) || !Backend::Options.HasReversion,
+      "Back end does not provide reversion_alloc and requests its use");
+    if constexpr (Backend::Options.HasReversion)
+    {
+      return Backend::reversion_alloc(p_tame, entry);
+    }
+    else
+    {
+      UNUSED(entry);
+#ifdef SNMALLOC_TINTS_ZERO
+      size_t len = sizeclass_full_to_size(entry.get_sizeclass());
+      Backend::Pal::zero(p_tame.unsafe_ptr(), len);
+#endif
+      return p_tame;
+    }
+  }
 } // namespace snmalloc

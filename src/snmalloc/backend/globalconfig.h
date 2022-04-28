@@ -55,8 +55,6 @@ namespace snmalloc
       return alloc_pool;
     }
 
-    static constexpr Flags Options{};
-
     // Performs initialisation for this configuration
     // of allocators.  Needs to be idempotent,
     // and concurrency safe.

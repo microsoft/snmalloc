@@ -21,6 +21,14 @@ namespace snmalloc
   class StrictProvenanceBackend : public CommonConfig
   {
   public:
+    static constexpr Flags Options = []() constexpr
+    {
+      Flags opts = {};
+      opts.HasReversion = true;
+      return opts;
+    }
+    ();
+
     using Pal = PAL;
     class SlabMetadata : public FrontendSlabMetadata
     {
@@ -259,15 +267,17 @@ namespace snmalloc
         &slab_metadata,
         address_cast(alloc),
         Pagemap::get_metaentry(address_cast(alloc)).get_slab_metadata());
+      SNMALLOC_ASSERT(address_cast(slab_metadata.chunk_ptr) == address_cast(alloc));
       Pagemap::set_metaentry(address_cast(alloc), size, t);
+
+      // On CHERI platforms, we free the pointer for the chunk that we
+      // earlier stashed in the slab_metadata, otherwise the bounds my be too
+      // small. Be careful to read it here before deallocating the metadata!
+      auto p = slab_metadata.chunk_ptr;
 
       local_state.get_meta_range().dealloc_range(
         capptr::Chunk<void>(&slab_metadata), sizeof(SlabMetadata));
 
-      // On CHERI platforms, we need to re-derive to get a pointer to
-      // the chunk.
-      auto diff = pointer_diff(slab_metadata.chunk_ptr, alloc);
-      auto p = pointer_offset(slab_metadata.chunk_ptr, diff);
       local_state.object_range.dealloc_range(p, size);
     }
 
@@ -281,6 +291,58 @@ namespace snmalloc
     {
       Stats stats_state;
       return stats_state.get_peak_usage();
+    }
+
+    static SNMALLOC_FAST_PATH capptr::Alloc<void> reversion_alloc(
+    capptr::Alloc<void> p_tame, const typename Pagemap::Entry& entry) {
+      CapPtr<void, capptr::bounds::Alloc> rederived_ptr;
+      size_t len = sizeclass_full_to_size(entry.get_sizeclass());
+      /*
+        * Attempt to set bounds of p to size of sizeclass. Assuming p is
+        * derived from a correctly bounded pointer allocated by snmalloc this
+        * will result in an error if either:
+        * 1) p does not point to the start of the allocation (non-zero offset)
+        * 2) the bounds of p do not encompass the entire allocation, as they
+        *    should have when returned by alloc.
+        * The error will either be a trap or a cleared tag depending on the
+        * architecture. If the tag is clared this will be detected by
+        * camcdecversion below.
+        */
+      capptr::Alloc<void> p_tame2 = Aal::capptr_bound<void, capptr::bounds::Alloc>(p_tame, len); // XXX use of p_wild here
+      /*
+        * Derive a pointer from chunk_ptr with address of p. This provides the
+        * the authority to perform camcdecversion and storeversion. getaddr
+        * / setaddr might be a more natural way to do this but we already have
+        * pointer_diff / pointer_offset and this should work.
+        */
+      auto chunk_ptr = entry.get_slab_metadata()->chunk_ptr;
+      size_t p_offset = pointer_diff(chunk_ptr, p_tame2);
+      chunk_ptr = pointer_offset(chunk_ptr, p_offset);
+      auto bounded_chunk_ptr = Aal::capptr_bound<void, capptr::bounds::AllocFull>(chunk_ptr, len);
+      /**
+       * Attempt to atomically decrement the version of the first granule of
+       * the allocation.
+       */
+      AmoDecResult amoDecResult = Aal::capptr_tint_amo_dec(bounded_chunk_ptr, p_tame2);
+      switch (amoDecResult) {
+        case AmoDecResult::Reuse: {
+          // Camocdecversion succeeded
+          tint_t old_ver = Aal::capptr_tint_get(p_tame2);
+          tint_t new_ver = old_ver - 1;
+          auto reversioned_ptr = capptr_tint_region<true>(bounded_chunk_ptr, len, new_ver);
+          rederived_ptr = capptr_to_user_address_control(reversioned_ptr);
+          break;
+        }
+        case AmoDecResult::Quarantine: {
+          // XXX instant revoke!
+          auto reversioned_ptr = capptr_tint_region<false>(bounded_chunk_ptr, len, 15);
+          rederived_ptr = capptr_to_user_address_control(reversioned_ptr);
+          break;
+        }
+        case AmoDecResult::Fail:
+          Pal::error("Version mismatch on dealloc: double free?");
+      }
+      return rederived_ptr;
     }
   };
 } // namespace snmalloc
