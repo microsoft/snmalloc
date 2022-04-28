@@ -97,42 +97,45 @@ namespace snmalloc
     static constexpr bool CONSOLIDATE_PAL_ALLOCS = true;
 #endif
 
-#if defined(OPEN_ENCLAVE)
-    // Single global buddy allocator is used on open enclave due to
-    // the limited address space.
-    using StatsR = StatsRange<SmallBuddyRange<
-      LargeBuddyRange<EmptyRange, bits::BITS - 1, bits::BITS - 1, Pagemap>>>;
-    using GlobalR = GlobalRange<StatsR>;
-    using ObjectRange = GlobalR;
-    using GlobalMetaRange = ObjectRange;
-#else
     // Set up source of memory
-    using P = PalRange<DefaultPal>;
+    using P = PalRange<PAL>;
     using Base = std::conditional_t<
       fixed_range,
       EmptyRange,
       PagemapRegisterRange<Pagemap, P, CONSOLIDATE_PAL_ALLOCS>>;
+
+    static constexpr size_t MinBaseSizeBits()
+    {
+      if constexpr (pal_supports<AlignedAllocation, PAL>)
+      {
+        return bits::next_pow2_bits_const(PAL::minimum_alloc_size);
+      }
+      else
+      {
+        return MIN_CHUNK_BITS;
+      }
+    }
+
     // Global range of memory
-    using StatsR =
-      StatsRange<LargeBuddyRange<Base, 24, bits::BITS - 1, Pagemap>>;
+    using StatsR = StatsRange<
+      LargeBuddyRange<Base, 24, bits::BITS - 1, Pagemap, MinBaseSizeBits()>>;
     using GlobalR = GlobalRange<StatsR>;
 
-#  ifdef SNMALLOC_META_PROTECTED
+#ifdef SNMALLOC_META_PROTECTED
     // Source for object allocations
     using ObjectRange =
-      LargeBuddyRange<CommitRange<GlobalR, DefaultPal>, 21, 21, Pagemap>;
+      LargeBuddyRange<CommitRange<GlobalR, PAL>, 21, 21, Pagemap>;
     // Set up protected range for metadata
-    using SubR = CommitRange<SubRange<GlobalR, DefaultPal, 6>, DefaultPal>;
+    using SubR = CommitRange<SubRange<GlobalR, PAL, 6>, PAL>;
     using MetaRange =
       SmallBuddyRange<LargeBuddyRange<SubR, 21 - 6, bits::BITS - 1, Pagemap>>;
     using GlobalMetaRange = GlobalRange<MetaRange>;
-#  else
+#else
     // Source for object allocations and metadata
     // No separation between the two
     using ObjectRange = SmallBuddyRange<
-      LargeBuddyRange<CommitRange<GlobalR, DefaultPal>, 21, 21, Pagemap>>;
+      LargeBuddyRange<CommitRange<GlobalR, PAL>, 21, 21, Pagemap>>;
     using GlobalMetaRange = GlobalRange<ObjectRange>;
-#  endif
 #endif
 
     struct LocalState
