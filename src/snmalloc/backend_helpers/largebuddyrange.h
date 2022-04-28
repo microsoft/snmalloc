@@ -178,6 +178,8 @@ namespace snmalloc
    *
    * Pagemap - How to access the pagemap, which is used to store the red black
    * tree nodes for the buddy allocators.
+   * 
+   * MIN_REFILL_SIZE_BITS - The minimum size that the ParentRange can be asked for
    */
   template<
     typename ParentRange,
@@ -269,10 +271,10 @@ namespace snmalloc
         // REFILL_SIZE, REFILL_SIZE, ... Hence if this if they are coming from a
         // contiguous aligned range, then they could be consolidated.  This
         // depends on the ParentRange behaviour.
-        size_t refill_size =
-          bits::min(REFILL_SIZE, bits::next_pow2(requested_total));
+        size_t refill_size = bits::min(REFILL_SIZE, requested_total);
         refill_size = bits::max(refill_size, MIN_REFILL_SIZE);
         refill_size = bits::max(refill_size, size);
+        refill_size = bits::next_pow2(refill_size);
 
         auto refill_range = parent.alloc_range(refill_size);
         if (refill_range != nullptr)
