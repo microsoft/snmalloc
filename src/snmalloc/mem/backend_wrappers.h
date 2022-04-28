@@ -86,14 +86,12 @@ namespace snmalloc
   {
     static_assert(
       !detail::has_domesticate<Backend, T, B>(0) ||
-        (detail::has_domesticate<Backend, T, B>(0) &&
-         Backend::Options.HasDomesticate),
+        Backend::Options.HasDomesticate,
       "Back end provides domesticate function but opts out of using it ");
 
     static_assert(
       detail::has_domesticate<Backend, T, B>(0) ||
-        !(detail::has_domesticate<Backend, T, B>(0) &&
-          Backend::Options.HasDomesticate),
+        !Backend::Options.HasDomesticate,
       "Back end does not provide capptr_domesticate and requests its use");
     if constexpr (Backend::Options.HasDomesticate)
     {
