@@ -29,12 +29,23 @@ scenarios that can be problematic for other allocators:
 Both of these can cause massive reductions in performance of other allocators, but 
 do not for snmalloc.
 
-Comprehensive details about snmalloc's design can be found in the
-[accompanying paper](snmalloc.pdf), and differences between the paper and the
-current implementation are [described here](difference.md).
-Since writing the paper, the performance of snmalloc has improved considerably.
+The implementation of snmalloc has involved significantly since the [initial paper](snmalloc.pdf).
+The mechanism for returning memory to remote threads has remained, but most of the meta-data layout has changed.
+We recommend you read [docs/security](./docs/security/README.md) to find out about the current design, and 
+if you want to dive into the code (./docs/AddressSpace.md) provides a good overview of the allocation and deallocation paths.
 
 [![snmalloc CI](https://github.com/microsoft/snmalloc/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/microsoft/snmalloc/actions/workflows/main.yml)
+
+# Hardening
+
+There is a hardened version of snmalloc, it contains
+
+*  Randomisation of the allocations relative locations,
+*  Most meta-data is stored separately from allocations, and is proected with guard pages,
+*  All in-band meta-data is protected with a novel encoding that can detect corruption, and
+*  Provides a `memcpy` that automatically checks the bounds relative to the underlying malloc.
+
+A more comprehensive write up is in [docs/security](./docs/security/README.md).
 
 # Further documentation
 
