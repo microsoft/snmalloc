@@ -117,24 +117,39 @@ namespace snmalloc
     }
 
     // Global range of memory
-    using StatsR = StatsRange<
+    using GlobalR = GlobalRange<
       LargeBuddyRange<Base, 24, bits::BITS - 1, Pagemap, MinBaseSizeBits()>>;
-    using GlobalR = GlobalRange<StatsR>;
 
 #ifdef SNMALLOC_META_PROTECTED
+    // Introduce two global ranges, so we don't mix Object and Meta
+    using CentralObectRange = GlobalRange<
+      LargeBuddyRange<GlobalR, 24, bits::BITS - 1, Pagemap, MinBaseSizeBits()>>;
+    using CentralMetaRange = GlobalRange<LargeBuddyRange<
+      SubRange<GlobalR, PAL, 6>, // Use SubRange to introduce guard pages.
+      24,
+      bits::BITS - 1,
+      Pagemap,
+      MinBaseSizeBits()>>;
+
     // Source for object allocations
-    using ObjectRange =
-      LargeBuddyRange<CommitRange<GlobalR, PAL>, 21, 21, Pagemap>;
-    // Set up protected range for metadata
-    using SubR = CommitRange<SubRange<GlobalR, PAL, 6>, PAL>;
-    using MetaRange =
-      SmallBuddyRange<LargeBuddyRange<SubR, 21 - 6, bits::BITS - 1, Pagemap>>;
-    using GlobalMetaRange = GlobalRange<MetaRange>;
+    using StatsObject = StatsRange<CommitRange<CentralObectRange, PAL>>;
+    using ObjectRange = LargeBuddyRange<StatsObject, 21, 21, Pagemap>;
+    using StatsR = StatsObject;
+
+    using StatsRMeta = StatsRange<CommitRange<CentralMetaRange, PAL>>;
+
+    using MetaRange = SmallBuddyRange<
+      LargeBuddyRange<StatsRMeta, 21 - 6, bits::BITS - 1, Pagemap>>;
+    // Create global range that can service small meta-data requests.
+    // Don't want to add this to the CentralMetaRange to move Commit outside the
+    // lock on the common case.
+    using GlobalMetaRange = GlobalRange<SmallBuddyRange<StatsRMeta>>;
 #else
     // Source for object allocations and metadata
     // No separation between the two
+    using StatsR = StatsRange<GlobalR>;
     using ObjectRange = SmallBuddyRange<
-      LargeBuddyRange<CommitRange<GlobalR, PAL>, 21, 21, Pagemap>>;
+      LargeBuddyRange<CommitRange<StatsR, PAL>, 21, 21, Pagemap>>;
     using GlobalMetaRange = GlobalRange<ObjectRange>;
 #endif
 
@@ -307,13 +322,23 @@ namespace snmalloc
     static size_t get_current_usage()
     {
       StatsR stats_state;
-      return stats_state.get_current_usage();
+      auto result = stats_state.get_current_usage();
+#ifdef SNMALLOC_PROTECT_METADATA
+      StatsRMeta stats_state_meta;
+      result += stats_state_meta.get_current_usage();
+#endif
+      return result;
     }
 
     static size_t get_peak_usage()
     {
       StatsR stats_state;
-      return stats_state.get_peak_usage();
+      auto result = stats_state.get_peak_usage();
+#ifdef SNMALLOC_PROTECT_METADATA
+      StatsRMeta stats_state_meta;
+      result += stats_state_meta.get_peak_usage();
+#endif
+      return result;
     }
   };
 } // namespace snmalloc
