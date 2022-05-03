@@ -244,7 +244,7 @@ function(add_warning_flags name)
     $<$<CXX_COMPILER_ID:Clang>:-Wsign-conversion -Wconversion>)
   target_link_options(${name} PRIVATE 
     $<$<BOOL:${SNMALLOC_LINKER_SUPPORT_NO_ALLOW_SHLIB_UNDEF}>:-Wl,--no-undefined>
-    $<$<CXX_COMPILER_ID:MSVC>:$<${ci_or_debug}:/DEBUG>>)
+    $<$<PLATFORM_ID:Windows>:$<${ci_or_debug}:/DEBUG>>)
 endfunction()
 
 
