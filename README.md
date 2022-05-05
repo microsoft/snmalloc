@@ -41,7 +41,7 @@ if you want to dive into the code (./docs/AddressSpace.md) provides a good overv
 There is a hardened version of snmalloc, it contains
 
 *  Randomisation of the allocations' relative locations,
-*  Most meta-data is stored separately from allocations, and is proected with guard pages,
+*  Most meta-data is stored separately from allocations, and is protected with guard pages,
 *  All in-band meta-data is protected with a novel encoding that can detect corruption, and
 *  Provides a `memcpy` that automatically checks the bounds relative to the underlying malloc.
 
