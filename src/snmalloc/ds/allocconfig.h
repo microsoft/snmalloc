@@ -13,33 +13,6 @@ namespace snmalloc
 #endif
     ;
 
-  enum DecommitStrategy
-  {
-    /**
-     * Never decommit memory.
-     */
-    DecommitNone,
-    /**
-     * Decommit superslabs when they are entirely empty.
-     */
-    DecommitSuper,
-    /**
-     * Decommit superslabs only when we are informed of memory pressure by the
-     * OS, do not decommit anything in normal operation.
-     */
-    DecommitSuperLazy
-  };
-
-  static constexpr DecommitStrategy decommit_strategy =
-#ifdef USE_DECOMMIT_STRATEGY
-    USE_DECOMMIT_STRATEGY
-#elif defined(_WIN32) && !defined(OPEN_ENCLAVE)
-    DecommitSuperLazy
-#else
-    DecommitSuper
-#endif
-    ;
-
   // The remaining values are derived, not configurable.
   static constexpr size_t POINTER_BITS =
     bits::next_pow2_bits_const(sizeof(uintptr_t));
