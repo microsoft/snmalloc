@@ -54,4 +54,22 @@ namespace snmalloc
       return peak_usage.load();
     }
   };
+
+  template<typename StatsR1, typename StatsR2>
+  class StatsCombiner
+  {
+    StatsR1 r1{};
+    StatsR2 r2{};
+
+  public:
+    size_t get_current_usage()
+    {
+      return r1.get_current_usage() + r2.get_current_usage();
+    }
+
+    size_t get_peak_usage()
+    {
+      return r1.get_peak_usage() + r2.get_peak_usage();
+    }
+  };
 } // namespace snmalloc
