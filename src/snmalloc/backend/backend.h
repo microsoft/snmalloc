@@ -134,22 +134,22 @@ namespace snmalloc
     // Source for object allocations
     using StatsObject = StatsRange<CommitRange<CentralObectRange, PAL>>;
     using ObjectRange = LargeBuddyRange<StatsObject, 21, 21, Pagemap>;
-    using StatsR = StatsObject;
 
-    using StatsRMeta = StatsRange<CommitRange<CentralMetaRange, PAL>>;
+    using StatsMeta = StatsRange<CommitRange<CentralMetaRange, PAL>>;
 
     using MetaRange = SmallBuddyRange<
-      LargeBuddyRange<StatsRMeta, 21 - 6, bits::BITS - 1, Pagemap>>;
+      LargeBuddyRange<StatsMeta, 21 - 6, bits::BITS - 1, Pagemap>>;
     // Create global range that can service small meta-data requests.
     // Don't want to add this to the CentralMetaRange to move Commit outside the
     // lock on the common case.
-    using GlobalMetaRange = GlobalRange<SmallBuddyRange<StatsRMeta>>;
+    using GlobalMetaRange = GlobalRange<SmallBuddyRange<StatsMeta>>;
+    using Stats = StatsCombiner<StatsObject, StatsMeta>;
 #else
     // Source for object allocations and metadata
     // No separation between the two
-    using StatsR = StatsRange<GlobalR>;
+    using Stats = StatsRange<GlobalR>;
     using ObjectRange = SmallBuddyRange<
-      LargeBuddyRange<CommitRange<StatsR, PAL>, 21, 21, Pagemap>>;
+      LargeBuddyRange<CommitRange<Stats, PAL>, 21, 21, Pagemap>>;
     using GlobalMetaRange = GlobalRange<ObjectRange>;
 #endif
 
@@ -321,24 +321,14 @@ namespace snmalloc
 
     static size_t get_current_usage()
     {
-      StatsR stats_state;
-      auto result = stats_state.get_current_usage();
-#ifdef SNMALLOC_PROTECT_METADATA
-      StatsRMeta stats_state_meta;
-      result += stats_state_meta.get_current_usage();
-#endif
-      return result;
+      Stats stats_state;
+      return stats_state.get_current_usage();
     }
 
     static size_t get_peak_usage()
     {
-      StatsR stats_state;
-      auto result = stats_state.get_peak_usage();
-#ifdef SNMALLOC_PROTECT_METADATA
-      StatsRMeta stats_state_meta;
-      result += stats_state_meta.get_peak_usage();
-#endif
-      return result;
+      Stats stats_state;
+      return stats_state.get_peak_usage();
     }
   };
 } // namespace snmalloc
