@@ -5,13 +5,15 @@ We did some analysis of the Microsoft Security Response Center data to look at t
 Of the operations that OOB writes that were categorised as leading to remote code execution (RCE), 1/3 of them had a block copy operation like memcpy as the initial source of corruption.
 This makes any mitigation to `memcpy` extremely high-value.
 
-Now, if a `memcpy` crosses a boundary of a `malloc` allocation, then we have a well-defined error in the semantics of the program.  No sensible program should do this.
+Now, if a `memcpy` crosses a boundary of a `malloc` allocation, then we have a well-defined error in the semantics of the program.
+No sensible program should do this.
 So let's see how we detect this with snmalloc.
 
 
 ## What is `memcpy`?
 
-So `memcpy(src, dst, len)` copies `len` bytes from `src` to `dst`.  For this to be valid, we can check: 
+So `memcpy(src, dst, len)` copies `len` bytes from `src` to `dst`.
+For this to be valid, we can check: 
 ```
   if (src is managed by snmalloc)
     check(remaining_bytes(src) >= len)
@@ -24,18 +26,24 @@ By default, for release checks we only check the `dst` is big enough.
 
 ##  How can we implement `remaining_bytes`?
 
-In the previous [page](./VariableSizedChunks.md), we discussed how we enable variable sized slabs.  Let's consider how that representation enables us to quickly find the start/end of any object.
+In the previous [page](./VariableSizedChunks.md), we discussed how we enable variable sized slabs.
+Let's consider how that representation enables us to quickly find the start/end of any object.
 
-All slabs are naturally aligned powers of two.  That is if `x` is the start of a slab of size `2^n`, then `x % (2^n) == 0`.  This means that a single mask can be used to find the offset into a slab.  As the objects are layed out continguously, we can also get the offset in the object with a modulus operations, that is, `remaining_bytes(p)` is effectively:
+All slabs are naturally aligned powers of two.
+That is if `x` is the start of a slab of size `2^n`, then `x % (2^n) == 0`.
+This means that a single mask can be used to find the offset into a slab.
+As the objects are layed out continguously, we can also get the offset in the object with a modulus operations, that is, `remaining_bytes(p)` is effectively:
 ```
     object_size - ((p % slab_size) % object_size)
 ```
 
-Well as any one will tell you division/modulus on a fast path is a non-starter. The first modulus is easy to deal with, we can replace `% slab_size` with a bit-wise mask.  However, as `object_size` can be non-power of two values, we need to work a little harder.
+Well as any one will tell you division/modulus on a fast path is a non-starter. The first modulus is easy to deal with, we can replace `% slab_size` with a bit-wise mask.
+However, as `object_size` can be non-power of two values, we need to work a little harder.
 
 ##  Reciprocal division to the rescue
 
-Now, when you have a finite domain you can switch divisions into a multiply and shift.  Effectively you pre-calculate `c = (((2^n) - 1)/size) + 1`, and then you can represent the division as `x / size` by 
+Now, when you have a finite domain you can switch divisions into a multiply and shift.
+Effectively you pre-calculate `c = (((2^n) - 1)/size) + 1`, and then you can represent the division as `x / size` by 
 ```
   (x * c) >> n
 ```
@@ -53,17 +61,23 @@ and thus `remaining_bytes(x)` is:
 
 There is a great article that explains this in more detail by [Daniel Lemire](https://lemire.me/blog/2019/02/20/more-fun-with-fast-remainders-when-the-divisor-is-a-constant/).
 
-Making sure you have everything correct is tricky, but thankfully computers are fast enough to check all possilities. In snmalloc, we test for all possible slab offsets and all object sizes that our optimised result is equivalent to the original modulus.
+Making sure you have everything correct is tricky, but thankfully computers are fast enough to check all possilities.
+In snmalloc, we test for all possible slab offsets and all object sizes that our optimised result is equivalent to the original modulus.
 
 We build the set of constants per sizeclass using `constexpr`, which enables us to determine the end of an object in a handful of instructions.
 
 ## Non-snmalloc memory.
 
-The `memcpy` function is not just called on memory that is received from `malloc`.  This means we need our lookup to work on all memory, and in the case where it is not managed by `snmalloc` to assume it is correct.  We ensure that the `0` value in the chunk map is interpreted as an object covering the whole of the address space.  This works for compatibility.
+The `memcpy` function is not just called on memory that is received from `malloc`.
+This means we need our lookup to work on all memory, and in the case where it is not managed by `snmalloc` to assume it is correct.
+We ensure that the `0` value in the chunk map is interpreted as an object covering the whole of the address space.
+This works for compatibility.
 
-To achieve this nicely, we map 0 to a slab that covers the whole of address space, and consider there to be single object in this space. This works by setting the reciprocal constant to 0, and then the division term is always zero.
+To achieve this nicely, we map 0 to a slab that covers the whole of address space, and consider there to be single object in this space.
+This works by setting the reciprocal constant to 0, and then the division term is always zero.
 
-There is a second complication: `memcpy` can be called before `snmalloc` has been initialised. So we need a check for this case.
+There is a second complication: `memcpy` can be called before `snmalloc` has been initialised.
+So we need a check for this case.
 
 ## Finished Assembly
 
@@ -100,28 +114,37 @@ ERROR:
 
 ## Performance
 
-We measured the overhead of adding checks to various sizes of `memcpy`s.  We did 
-a batch of 1000 `memcpy`s, and measured the time with and without checks.  The benchmark code can be found here: [Benchmark Code](...)
+We measured the overhead of adding checks to various sizes of `memcpy`s.
+We did 
+a batch of 1000 `memcpy`s, and measured the time with and without checks.
+The benchmark code can be found here: [Benchmark Code](...)
 
 ![Performance graphs](./data/memcpy_perf.png)
 
 As you can see, the overhead for small copies can be significant 60% on a single byte `memcpy`, but the overhead rapidly drops and is mostly in the noise once you hit 128 bytes.
 
-When we actually apply this to more realistic examples, we can see a small overhead, which for many examples is not significant. We compared snmalloc (`libsnmallocshim.so`) to snmalloc with just the checks enabled for bounds of the destination of the `memcpy` (`libsnmallocshim-checks-memcpy-only`) on the applications contained in mimalloc-bench. The results of this comparison are in the following graph:
+When we actually apply this to more realistic examples, we can see a small overhead, which for many examples is not significant.
+We compared snmalloc (`libsnmallocshim.so`) to snmalloc with just the checks enabled for bounds of the destination of the `memcpy` (`libsnmallocshim-checks-memcpy-only`) on the applications contained in mimalloc-bench.
+The results of this comparison are in the following graph:
 
 ![Performance Graphs](./data/perfgraph-memcpy-only.png)
 
-The worst regression is for `redis` with a 2-3% regression relative to snmalloc running without memcpy checks.  However, given that we this benchmark runs 20% faster than jemalloc, we believe the feature is able to be switched on for production workloads.
+The worst regression is for `redis` with a 2-3% regression relative to snmalloc running without memcpy checks.
+However, given that we this benchmark runs 20% faster than jemalloc, we believe the feature is able to be switched on for production workloads.
 
 ## Conclusion
 
-We have an efficient check we can add to any block memory operation to prevent corruption.  The cost on small allocations will be higher due to the number of arithmetic instructions, but as the objects grow the overhead diminishes.  The memory overhead for adding checks is almost zero as all the dynamic meta-data was already required by snmalloc to understand the memory layout, and the small cost for lookup tables in the binary is negligible.
+We have an efficient check we can add to any block memory operation to prevent corruption.
+The cost on small allocations will be higher due to the number of arithmetic instructions, but as the objects grow the overhead diminishes.
+The memory overhead for adding checks is almost zero as all the dynamic meta-data was already required by snmalloc to understand the memory layout, and the small cost for lookup tables in the binary is negligible.
 
-The idea can easily be applied to other block operations in libc, we have just done `memcpy` as a proof of concept.  If the feature is tightly coupled with libc, then an initialisation check could also be removed improving the performance.
+The idea can easily be applied to other block operations in libc, we have just done `memcpy` as a proof of concept.
+If the feature is tightly coupled with libc, then an initialisation check could also be removed improving the performance.
 
 [Next, we look at how to defend the internal structures of snmalloc against corruption due to memory safety violations.](./FreelistProtection.md)
 
 
 # Thanks
 
-The research behind this has involved a lot of discussions with a lot of people.  We are particularly grateful to Andrew Paverd, Joe Bialek, Matt Miller, Mike Macelletti, Rohit Mothe, Saar Amar and Swamy Nagaraju for countless discussions on guarded memcpy, its possible implementations and applications.
+The research behind this has involved a lot of discussions with a lot of people.
+We are particularly grateful to Andrew Paverd, Joe Bialek, Matt Miller, Mike Macelletti, Rohit Mothe, Saar Amar and Swamy Nagaraju for countless discussions on guarded memcpy, its possible implementations and applications.

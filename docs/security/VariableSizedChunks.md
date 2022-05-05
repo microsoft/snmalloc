@@ -10,13 +10,17 @@ Large allocations are served directly by the chunk allocator and small allocatio
 
 ## What is a slab?
 
-A slab is a naturally aligned, power-of-two sized chunk split into a series of allocations of exactly the same size.  For instance, a 16KiB slab could be split into 341 48-byte allocations with 16 bytes that are unused at the end.
+A slab is a naturally aligned, power-of-two sized chunk split into a series of allocations of exactly the same size.
+For instance, a 16KiB slab could be split into 341 48-byte allocations with 16 bytes that are unused at the end.
 
 ## What size should a slab be?
 
-Finding a new slab is inherently going to be a slower path than just allocating an object.  So we want a slab size that means all our common allocations can fit multiple times onto a slab.  But making larger slabs means that we can potentially waste a lot of space for small allocations.
+Finding a new slab is inherently going to be a slower path than just allocating an object.
+So we want a slab size that means all our common allocations can fit multiple times onto a slab.
+But making larger slabs means that we can potentially waste a lot of space for small allocations.
 
-In our redesign of snmalloc, we allow multiple slab sizes so that we can ensure a minimum number of allocations on a slab.  The rest of the article will describe how we achieve this, while efficiently accessing the meta-data associated to a slab.
+In our redesign of snmalloc, we allow multiple slab sizes so that we can ensure a minimum number of allocations on a slab.
+The rest of the article will describe how we achieve this, while efficiently accessing the meta-data associated to a slab.
 
 ## Finding meta-data quickly
 
@@ -25,7 +29,10 @@ There are two common approaches in allocators,
 * At some specified aligned position relative to a current pointer
 * In a global map
 
-Most allocators use some combination of both.  In the original, snmalloc design we had a concept of superslab, where the first part represented the meta-data for all the slabs contained in the superslab.  A superslab was initially 16MiB, with the first 64KiB treated specially as it contained meta-data.  There was then a global map to specify if memory was a superslab or not, that global map kept a byte per 16MiB of address space.
+Most allocators use some combination of both.
+In the original, snmalloc design we had a concept of superslab, where the first part represented the meta-data for all the slabs contained in the superslab.
+A superslab was initially 16MiB, with the first 64KiB treated specially as it contained meta-data.
+There was then a global map to specify if memory was a superslab or not, that global map kept a byte per 16MiB of address space.
 
 This worked well for fixed sizes of slabs, but the granularity was hard coded.
 
@@ -37,12 +44,15 @@ In snmalloc 0.6.0, we are using a two level global map. Each entry in the top-le
 * which allocator is responsible for this memory
 * a pointer to additional meta-data
 
-The final entry is a pointer to the second level of the map.  The second level entry can be shared.
-This representation allows multiple 16KiB chunks of memory to have the same meta-data.  For instance:
+The final entry is a pointer to the second level of the map.
+The second level entry can be shared.
+This representation allows multiple 16KiB chunks of memory to have the same meta-data.
+For instance:
 
 ![ChunkMap](./data/ChunkMap.png)
 
-This illustrates how a 32KiB slab, a 64KiB slab, and a 16KiB slab would be represented.  The first (yellow) has two contiguous entries in the chunk map, and the second (blue) has four contiguous entries in the chunk map, and the final (green) has a single entry in the chunk map.
+This illustrates how a 32KiB slab, a 64KiB slab, and a 16KiB slab would be represented.
+The first (yellow) has two contiguous entries in the chunk map, and the second (blue) has four contiguous entries in the chunk map, and the final (green) has a single entry in the chunk map.
 
 This representation means we can find the meta-data for any allocation in a handful of instructions, and we do not need any branching on the particular size of the slab.
 
@@ -79,4 +89,6 @@ The following annotated asm snippet covers the fast path for deallocation:
     ret
 ```
 
-As you can see this representation gives a very compact code sequence for deallocation that handles multiple slab sizes.  It also means the majority of meta-data can be stored away from the memory space it is describing.  [Next, we discuss how we can capitalise on this meta-data representation to provide an efficient checked memcpy.](./GuardedMemcpy.md)
+As you can see this representation gives a very compact code sequence for deallocation that handles multiple slab sizes.
+It also means the majority of meta-data can be stored away from the memory space it is describing.
+[Next, we discuss how we can capitalise on this meta-data representation to provide an efficient checked memcpy.](./GuardedMemcpy.md)
