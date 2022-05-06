@@ -117,9 +117,8 @@ ERROR:
 ## Performance
 
 We measured the overhead of adding checks to various sizes of `memcpy`s.
-We did 
-a batch of 1000 `memcpy`s, and measured the time with and without checks.
-The benchmark code can be found here: [Benchmark Code](...)
+We did a batch of 1000 `memcpy`s, and measured the time with and without checks.
+The benchmark code can be found here: [Benchmark Code](../../src/test/perf/memcpy/)
 
 ![Performance graphs](./data/memcpy_perf.png)
 

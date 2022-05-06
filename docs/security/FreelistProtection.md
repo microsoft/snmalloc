@@ -80,7 +80,8 @@ Here we show the assembly for taking from a per-slab free list, which is integra
     lea    rcx,[size_table]                    # | 
     movzx  edx,BYTE PTR [rax+rcx*1]            # | 
     mov    rdi,rdx                             #+Caclulate index into free lists
-    shl    rdi,0x4                             #+|
+    shl    rdi,0x4                             #+| (without checks this is a shift by
+                                               # |  0x3, and can be fused into an lea)
     mov    r8,QWORD PTR [rip+0xab9b]           # Find thread local allocator state
     mov    rcx,QWORD PTR fs:0x0                # |
     add    rcx,r8                              # |
