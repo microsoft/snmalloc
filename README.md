@@ -29,7 +29,7 @@ scenarios that can be problematic for other allocators:
 Both of these can cause massive reductions in performance of other allocators, but 
 do not for snmalloc.
 
-The implementation of snmalloc has involved significantly since the [initial paper](snmalloc.pdf).
+The implementation of snmalloc has evolved significantly since the [initial paper](snmalloc.pdf).
 The mechanism for returning memory to remote threads has remained, but most of the meta-data layout has changed.
 We recommend you read [docs/security](./docs/security/README.md) to find out about the current design, and 
 if you want to dive into the code (./docs/AddressSpace.md) provides a good overview of the allocation and deallocation paths.

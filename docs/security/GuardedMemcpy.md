@@ -29,7 +29,8 @@ By default, for release checks we only check the `dst` is big enough.
 In the previous [page](./VariableSizedChunks.md), we discussed how we enable variable sized slabs.
 Let's consider how that representation enables us to quickly find the start/end of any object.
 
-All slabs are naturally aligned powers of two.
+All slab sizes are powers of two, and a given slab's lowest address will be naturally aligned for the slab's size.
+(For brevity, slabs are sometimes said to be "naturally aligned (at) powers of two".)
 That is if `x` is the start of a slab of size `2^n`, then `x % (2^n) == 0`.
 This means that a single mask can be used to find the offset into a slab.
 As the objects are layed out continguously, we can also get the offset in the object with a modulus operations, that is, `remaining_bytes(p)` is effectively:
@@ -37,17 +38,18 @@ As the objects are layed out continguously, we can also get the offset in the ob
     object_size - ((p % slab_size) % object_size)
 ```
 
-Well as any one will tell you division/modulus on a fast path is a non-starter. The first modulus is easy to deal with, we can replace `% slab_size` with a bit-wise mask.
-However, as `object_size` can be non-power of two values, we need to work a little harder.
+Well, as anyone will tell you, division/modulus on a fast path is a non-starter.
+The first modulus is easy to deal with, we can replace `% slab_size` with a bit-wise mask.
+However, as `object_size` can be non-power-of-two values, we need to work a little harder.
 
 ##  Reciprocal division to the rescue
 
-Now, when you have a finite domain you can switch divisions into a multiply and shift.
-Effectively you pre-calculate `c = (((2^n) - 1)/size) + 1`, and then you can represent the division as `x / size` by 
+When you have a finite domain, you can lower divisions into a multiply and shift.
+By pre-calculating `c = (((2^n) - 1)/size) + 1`, the division `x / size` can instead be computed by
 ```
   (x * c) >> n
 ```
-Now the choice of `n` has to be done carefully for the possible values of `x`, but with a large enough `n` we can make this work for all slab offsets and sizes.
+The choice of `n` has to be done carefully for the possible values of `x`, but with a large enough `n` we can make this work for all slab offsets and sizes.
 
 Now from division, we can calculate the modulus, by multiplying the result of the division
 by the size, and then subtracting the result from the original value:
@@ -62,7 +64,7 @@ and thus `remaining_bytes(x)` is:
 There is a great article that explains this in more detail by [Daniel Lemire](https://lemire.me/blog/2019/02/20/more-fun-with-fast-remainders-when-the-divisor-is-a-constant/).
 
 Making sure you have everything correct is tricky, but thankfully computers are fast enough to check all possilities.
-In snmalloc, we test for all possible slab offsets and all object sizes that our optimised result is equivalent to the original modulus.
+In snmalloc, we have a test program that verifies, for all possible slab offsets and all object sizes, that our optimised result is equivalent to the original modulus.
 
 We build the set of constants per sizeclass using `constexpr`, which enables us to determine the end of an object in a handful of instructions.
 
@@ -121,7 +123,7 @@ The benchmark code can be found here: [Benchmark Code](...)
 
 ![Performance graphs](./data/memcpy_perf.png)
 
-As you can see, the overhead for small copies can be significant 60% on a single byte `memcpy`, but the overhead rapidly drops and is mostly in the noise once you hit 128 bytes.
+As you can see, the overhead for small copies can be significant (60% on a single byte `memcpy`), but the overhead rapidly drops and is mostly in the noise once you hit 128 bytes.
 
 When we actually apply this to more realistic examples, we can see a small overhead, which for many examples is not significant.
 We compared snmalloc (`libsnmallocshim.so`) to snmalloc with just the checks enabled for bounds of the destination of the `memcpy` (`libsnmallocshim-checks-memcpy-only`) on the applications contained in mimalloc-bench.

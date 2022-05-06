@@ -24,7 +24,8 @@ The rest of the article will describe how we achieve this, while efficiently acc
 
 ## Finding meta-data quickly
 
-There are two common approaches in allocators,
+Allocators must map allocations to associated meta-data.
+There are two common approaches for locating this associated meta-data:
 
 * At some specified aligned position relative to a current pointer
 * In a global map
@@ -38,14 +39,15 @@ This worked well for fixed sizes of slabs, but the granularity was hard coded.
 
 ## Chunk map representation
 
-In snmalloc 0.6.0, we are using a two level global map. Each entry in the top-level of the global map contains
+In snmalloc 0.6.0, we are using a two-level global map.
+The top-level entries each contain two pointers (with other fields and flags bit-packed into known-zero bits).
+For a region of memory being used as a slab, its top-level entry contains
 
 * sizeclass of memory in the chunk (it may be either part of a large allocation, or a slab of small allocations)
 * which allocator is responsible for this memory
-* a pointer to additional meta-data
+* a pointer to the associated second-level entry of the map.
+  A given second level entry may be pointed to by each of a contiguous span of one or more top-level entries.
 
-The final entry is a pointer to the second level of the map.
-The second level entry can be shared.
 This representation allows multiple 16KiB chunks of memory to have the same meta-data.
 For instance:
 
@@ -54,7 +56,8 @@ For instance:
 This illustrates how a 32KiB slab, a 64KiB slab, and a 16KiB slab would be represented.
 The first (yellow) has two contiguous entries in the chunk map, and the second (blue) has four contiguous entries in the chunk map, and the final (green) has a single entry in the chunk map.
 
-This representation means we can find the meta-data for any allocation in a handful of instructions, and we do not need any branching on the particular size of the slab.
+This representation means we can find the meta-data for any slab in a handful of instructions.
+(Unlike the original design, this does not need any branching on the particular size of the slab.)
 
 ```C++
   SlabMetadata* get_slab_metadata(address_t addr)
@@ -64,7 +67,7 @@ This representation means we can find the meta-data for any allocation in a hand
 ```
 
 By having a shared `SlabMetadata` across all the entries for the slab, we can have a single free list that covers the whole slab.
-This is super important as it means our fast path for deallocation can handle deallocations for multiple slab sizes without branching, while having the granularity that particular size requires.
+This is quite important as it means our fast path for deallocation can handle deallocations for multiple slab sizes without branching, while having the granularity that particular size requires.
 
 The following annotated asm snippet covers the fast path for deallocation:
 ```x86asm

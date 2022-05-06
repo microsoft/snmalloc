@@ -14,11 +14,11 @@ But there is one super important bit that still remains: free lists.
 ##  What are free lists?
 
 Many allocators chain together unused allocations into a linked list.
-This is super efficient as it doesn't require meta-data proportional to the number of allocations on a slab.
+This is remarkably space efficient, as it doesn't require meta-data proportional to the number of allocations on a slab.
 The disused objects can be used in either a linked stack or queue.
-However, the key problem is neither randomisation or guard pages can be used to protect this data.
+However, the key problem is neither randomisation or guard pages can be used to protect this _in-band_ meta-data.
 
-In snmalloc, we are using a new technique for protecting this data.
+In snmalloc, we have introduced a novel technique for protecting this data.
 
 ## Protecting a free queue.
 
@@ -26,26 +26,22 @@ The idea is remarkably simple: a doubly linked list is far harder to corrupt tha
 ```
    x.next.prev == x
 ```
-In every kind of free list in snmalloc, we now use something a kin to this:
-```
-  f(x.next).prev == g(x, f(x.next))
-```
-Here `f` is an [involution](https://en.wikipedia.org/wiki/Involution_(mathematics)) such as XORing a randomly choosen value:
+In every kind of free list in snmalloc, we encode both the forward and backward pointers in our lists.
+For the forward direction, we use an [involution](https://en.wikipedia.org/wiki/Involution_(mathematics)), `f`, such as XORing a randomly choosen value:
 ```
   f(a) = a XOR k0
 ```
-This means we don't store the `next` pointer in a way that an attacker can easily read.
-The `g` function is a little more complex
+For the backward direction, we use a more complex, two-argument function
 ```
   g(a, b) = (a XOR k1) * (b XOR k2)
 ```
 where `k1` and `k2` are two randomly chosen 64 bit values.
-This gives a value that is hard to forge that encodes the back edge relationship.
+The encoded back pointer of the node after `x` in the list is `g(x, f(x.next))`, which gives a value that is hard to forge and still encodes the back edge relationship.
 
 As we build the list, we add this value to the disused object, and when we consume the free list later, we check the value is correct.
 Importantly, the order of construction and consumption have to be the same, which means we can only use queues, and not stacks.
 
-The checks give us a way to detect that the list has not been mutated.
+The checks give us a way to detect that the list has not been corrupted.
 In particular, use-after-free or out-of-bounds writes to either the `next` or `prev` value are highly likely to be detected later.
 
 ## Double free protection
@@ -56,12 +52,12 @@ The following animation shows the effect of a double free:
 
 ![Double free protection example](./data/doublefreeprotection.gif)
 
-This is a weak protection as it is lazy, only when the object is reused will snmalloc raise an error, so a `malloc` can fail due to double free, but we are only aiming to make exploits harder; this is not a bug finding tool.
+This is a weak protection as it is lazy, in that only when the object is reused will snmalloc raise an error, so a `malloc` can fail due to double free, but we are only aiming to make exploits harder; this is not a bug finding tool.
 
 
 ## Where do we use this?
 
-Everywhere, we link disused objects, so (1) per slab free queue and (2) free queues for returning allocations to other threads.
+Everywhere we link disused objects, so (1) per-slab free queues and (2) per-allocator message queues for returning freed allocations to other threads.
 Originally, snmalloc used queues for returning memory to other threads.
 We had to refactor the per slab free lists to be queues rather than stacks, but that is fairly straightforward.
 The code for the free lists can be found here:
@@ -74,7 +70,7 @@ The idea could easily be applied to other allocators, and we're happy to discuss
 
 So let's look at what costs we incur from this.
 There are bits that are added to both creating the queues, and taking elements from the queues.
-Here we show the assembly for taking from the queue, which is integrated into the fast path of allocation:
+Here we show the assembly for taking from a per-slab free list, which is integrated into the fast path of allocation:
 ```x86asm
 <malloc(unsigned long)>:
     lea    rax,[rdi-0x1]                       # Check for small size class
@@ -110,7 +106,7 @@ Here we show the assembly for taking from the queue, which is integrated into th
     mov    QWORD PTR [rcx],rdx                 #+Store signed_prev for next entry.
     ret
 ```
-The additions specific to handling the checks are marked with `+`.
+The extra instructions specific to handling the checks are marked with `+`.
 As you can see the fast path is about twice the length of the fast path without protection, but only adds a single branch to the fast path, one multiplication, five additional loads, and one store.
 The loads only involve one additional cache line for key material.
 Overall, the cost is surprisingly low.
@@ -124,4 +120,4 @@ This approach provides a strong defense against corruption of the free lists use
 This means all inline meta-data has corruption detection.
 The check is remarkably simple for building double free detection, and has far lower memory overhead compared to using an allocation bitmap.
 
-[Next we show hot to randomise the layout of memory in snmalloc, and thus make it harder to guess relative address of a pair of allocations.](./Randomisation.md)
+[Next we show how to randomise the layout of memory in snmalloc, and thus make it harder to guess relative address of a pair of allocations.](./Randomisation.md)

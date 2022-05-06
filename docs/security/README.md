@@ -26,14 +26,14 @@ Firstly, [jemalloc](https://github.com/jemalloc/jemalloc) v5.2.1 (labelled `je`)
 The precise hardening features in these allocators is different to snmalloc, hence the performance is not directly comparable.
 We present them to show the hardenings snmalloc hit a lower performance penalty.
 
-To really understand the performance security trade-off you need to understand the hardening features we have implemented. We have a series of short explanations to explains these mechanisms, and what protections we get:
+To really understand the performance security trade-off, you need to understand the hardening features we have implemented. We have a series of short explanations to explain these mechanisms, and what protections we get:
 
 * [Enabling variable sized slabs](./VariableSizedChunks.md)
 * [Enabling guarded `memcpy`](./GuardedMemcpy.md)
 * [Protecting free lists from user corruption](./FreelistProtection.md)
 * [Randomisation of allocations](./Randomisation.md)
 
-To try out the hardening features of snmalloc on Elf platforms (e.g. Linux, BSD) you can simple [build](../BUILDING.md) and then preload with:
+To try out the hardening features of snmalloc on Elf platforms (e.g. Linux, BSD) you can simply [build](../BUILDING.md) and then preload with:
 ```
 LD_PRELOAD=[snmalloc_build]/libsnmalloc-checks.so ./my_app
 ```
