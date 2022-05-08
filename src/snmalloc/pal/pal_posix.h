@@ -163,6 +163,9 @@ namespace snmalloc
      */
     static void message(const char* const str) noexcept
     {
+      // We don't want logging to affect the errno behaviour of the program.
+      auto hold = KeepErrno();
+
       void* nl = const_cast<char*>("\n");
       struct iovec iov[] = {{const_cast<char*>(str), strlen(str)}, {nl, 1}};
       UNUSED(writev(STDERR_FILENO, iov, sizeof(iov) / sizeof(struct iovec)));
