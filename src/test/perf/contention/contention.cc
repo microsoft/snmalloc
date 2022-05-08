@@ -83,7 +83,16 @@ void test_tasks_f(size_t id)
     size_t size = 16 + (r.next() % 1024);
     size_t* res = (size_t*)(use_malloc ? malloc(size) : a.alloc(size));
 
-    *res = size;
+    if (res != nullptr)
+    {
+      *res = size;
+    }
+    else
+    {
+      std::cout << "Failed to allocate " << size << " bytes" << std::endl;
+      abort();
+    }
+
     size_t* out =
       contention[n % swapsize].exchange(res, std::memory_order_acq_rel);
 
@@ -100,6 +109,8 @@ void test_tasks_f(size_t id)
 
 void test_tasks(size_t num_tasks, size_t count, size_t size)
 {
+  std::cout << "Sequential setup" << std::endl;
+
   auto& a = ThreadAlloc::get();
 
   contention = new std::atomic<size_t*>[size];
@@ -120,6 +131,7 @@ void test_tasks(size_t num_tasks, size_t count, size_t size)
   Stats s0;
   current_alloc_pool()->aggregate_stats(s0);
 #endif
+  std::cout << "Begin parallel test:" << std::endl;
 
   {
     ParallelTest<test_tasks_f> test(num_tasks);
