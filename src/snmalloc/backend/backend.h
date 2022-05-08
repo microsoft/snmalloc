@@ -117,23 +117,33 @@ namespace snmalloc
     }
 
     // Global range of memory
-    using GlobalR = GlobalRange<
-      LargeBuddyRange<Base, 24, bits::BITS - 1, Pagemap, MinBaseSizeBits()>>;
+    using GlobalR = GlobalRange<LogRange<
+      2,
+      LargeBuddyRange<Base, 24, bits::BITS - 1, Pagemap, MinBaseSizeBits()>>>;
 
 #ifdef SNMALLOC_META_PROTECTED
     // Introduce two global ranges, so we don't mix Object and Meta
-    using CentralObectRange = GlobalRange<
-      LargeBuddyRange<GlobalR, 24, bits::BITS - 1, Pagemap, MinBaseSizeBits()>>;
-    using CentralMetaRange = GlobalRange<LargeBuddyRange<
-      SubRange<GlobalR, PAL, 6>, // Use SubRange to introduce guard pages.
-      24,
-      bits::BITS - 1,
-      Pagemap,
-      MinBaseSizeBits()>>;
+    using CentralObjectRange = GlobalRange<LogRange<
+      3,
+      LargeBuddyRange<
+        GlobalR,
+        24,
+        bits::BITS - 1,
+        Pagemap,
+        MinBaseSizeBits()>>>;
+    using CentralMetaRange = GlobalRange<LogRange<
+      4,
+      LargeBuddyRange<
+        SubRange<GlobalR, PAL, 6>, // Use SubRange to introduce guard pages.
+        24,
+        bits::BITS - 1,
+        Pagemap,
+        MinBaseSizeBits()>>>;
 
     // Source for object allocations
-    using StatsObject = StatsRange<CommitRange<CentralObectRange, PAL>>;
-    using ObjectRange = LargeBuddyRange<StatsObject, 21, 21, Pagemap>;
+    using StatsObject = StatsRange<CommitRange<CentralObjectRange, PAL>>;
+    using ObjectRange =
+      LogRange<5, LargeBuddyRange<StatsObject, 21, 21, Pagemap>>;
 
     using StatsMeta = StatsRange<CommitRange<CentralMetaRange, PAL>>;
 
