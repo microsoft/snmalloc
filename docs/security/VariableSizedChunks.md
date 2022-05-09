@@ -31,7 +31,7 @@ There are two common approaches for locating this associated meta-data:
 * In a global map
 
 Most allocators use some combination of both.
-In the original, snmalloc design we had a concept of superslab, where the first part represented the meta-data for all the slabs contained in the superslab.
+In the original snmalloc design we had a concept of superslab, where the first part represented the meta-data for all the slabs contained in the superslab.
 A superslab was initially 16MiB, with the first 64KiB treated specially as it contained meta-data.
 There was then a global map to specify if memory was a superslab or not, that global map kept a byte per 16MiB of address space.
 

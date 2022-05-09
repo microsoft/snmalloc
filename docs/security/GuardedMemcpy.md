@@ -2,7 +2,7 @@
 
 Out of bounds errors are a serious problem for systems.
 We did some analysis of the Microsoft Security Response Center data to look at the out-of-bounds heap corruption, and found a common culprit: `memcpy`.
-Of the operations that OOB writes that were categorised as leading to remote code execution (RCE), 1/3 of them had a block copy operation like memcpy as the initial source of corruption.
+Of the OOB writes that were categorised as leading to remote code execution (RCE), 1/3 of them had a block copy operation like memcpy as the initial source of corruption.
 This makes any mitigation to `memcpy` extremely high-value.
 
 Now, if a `memcpy` crosses a boundary of a `malloc` allocation, then we have a well-defined error in the semantics of the program.

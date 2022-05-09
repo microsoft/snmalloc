@@ -7,7 +7,7 @@ First, we had been discussing with the Microsoft Security Response various resea
 Saar Amar had been categorising exploits and what features an allocator should have.
 As part of this, we both realised the existing structures of snmalloc made certain things hard to harden, but more interesting we had some ideas for stuff that could advance the state of the art.
 
-Secondly, we had been experimenting with adding support to snmalloc for CHERI.
+Secondly, we had been experimenting with adding support to snmalloc for [CHERI](http://www.chericpu.org).
 This support illustrated many places where snmalloc (like most allocators) does pointer tricks that go against the grain of CHERI.
 There were refactorings that would make CHERI support much more natural, but those refactorings were quite involved.
 Fortunately, they were the very refactorings we needed for the other allocator hardening research we wanted to conduct.
