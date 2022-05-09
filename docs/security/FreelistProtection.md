@@ -5,10 +5,16 @@ If you can corrupt the allocator's meta-data, then you can take a control gadget
 There are various approaches to protecting allocator meta-data, the most common are:
 
 * make the allocator meta-data hard to find through randomisation
+* use completely separate ranges of memory for meta-data and allocations
 * surround meta-data with guard pages
 * add some level of encryption/checksuming
 
-With the refactoring of the page table ([described earlier](./VariableSizedChunks.md)), we can put all the slab meta-data at hard to find places with randomisation and add guard pages around it.
+With the refactoring of the page table ([described earlier](./VariableSizedChunks.md)), we can put all the slab meta-data in completely separate regions of memory to the allocations.
+We maintain this separation over time, and never allow memory that has been used for allocations to become meta-data and vice versa.
+Within the meta-data regions, we add randomisation to make the data hard to find, and add large guard regions around the meta-data.
+By using completely separate regions of memory for allocations and meta-data we ensure that no dangling allocation can refer to current meta-data.
+This is particularly important for CHERI as it means a UAF can be used to corrupt allocator meta-data.
+
 But there is one super important bit that still remains: free lists.
 
 ##  What are free lists?
