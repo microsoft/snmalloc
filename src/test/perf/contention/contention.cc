@@ -90,7 +90,7 @@ void test_tasks_f(size_t id)
     else
     {
       std::cout << "Failed to allocate " << size << " bytes" << std::endl;
-      abort();
+      // Continue as this is not an important failure.
     }
 
     size_t* out =
