@@ -675,16 +675,32 @@ namespace snmalloc
 #endif
     }
 
+    void check_size(void* p, size_t size)
+    {
+#ifdef SNMALLOC_CHECK_CLIENT
+      size = size == 0 ? 1 : size;
+      auto sc = size_to_sizeclass_full(size);
+      auto pm_sc =
+        Backend::Pagemap::get_metaentry(address_cast(p)).get_sizeclass();
+      auto rsize = sizeclass_full_to_size(sc);
+      auto pm_size = sizeclass_full_to_size(pm_sc);
+      snmalloc_check_client(
+        sc == pm_sc, "Dealloc rounded size mismatch: {} != {}", rsize, pm_size);
+#else
+      UNUSED(p, size);
+#endif
+    }
+
     SNMALLOC_FAST_PATH void dealloc(void* p, size_t s)
     {
-      UNUSED(s);
+      check_size(p, s);
       dealloc(p);
     }
 
     template<size_t size>
     SNMALLOC_FAST_PATH void dealloc(void* p)
     {
-      UNUSED(size);
+      check_size(p, size);
       dealloc(p);
     }
 

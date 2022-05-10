@@ -120,6 +120,11 @@ namespace snmalloc
     {
       return value == 0;
     }
+
+    constexpr bool operator==(sizeclass_t other)
+    {
+      return value == other.value;
+    }
   };
 
   using sizeclass_compress_t = uint8_t;
