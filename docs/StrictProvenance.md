@@ -89,7 +89,7 @@ For `malloc()` in particular, it is enormously beneficial to be able to impose b
 (*Temporal* concerns still apply, in that live allocations can overlap prior, now-dead allocations.
 Stochastic defenses are employed within `snmalloc` and deterministic defenses are ongoing research at MSR.)
 
-Borrowing terminology from CHERI, we speak of the **authority** (to a subset of the address space) held by a pointer and will justify actions in terms of this authority.
+Borrowing terminology from CHERI, we speak of the **authority** (to a subset of the address space) held by a pointer and will justify actions in terms of this authority.[^mmu-perms]
 While many kinds of authority can be envisioned, herein we will mean either
 
 * *spatial* authority to read/write/execute within a single *interval* within the address space, or
