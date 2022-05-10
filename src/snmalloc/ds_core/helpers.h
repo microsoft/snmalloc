@@ -385,6 +385,18 @@ namespace snmalloc
       append(static_cast<unsigned long long>(x));
     }
 
+#if defined(__CHERI_PURE_CAPABILITY__)
+    /**
+     * XXX on CHERI we need this but on other platforms it causes an error
+     * because uintptr_t is an alias for unsigned long which is already
+     * defined above. Should perhaps use some enable_if trickery.
+     */
+    void append(uintptr_t x)
+    {
+      append(reinterpret_cast<void *>(x));
+    }
+#endif
+
   public:
     /**
      * Constructor.  Takes a format string and the arguments to output.
