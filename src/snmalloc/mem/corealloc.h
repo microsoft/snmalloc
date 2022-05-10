@@ -893,14 +893,17 @@ namespace snmalloc
      */
     bool debug_is_empty_impl(bool* result)
     {
-      auto test = [&result](auto& queue) {
-        queue.filter([&result](auto slab_metadata) {
+      auto test = [&result](auto& queue, smallsizeclass_t size_class) {
+        queue.filter([&result, size_class](auto slab_metadata) {
           if (slab_metadata->needed() != 0)
           {
             if (result != nullptr)
               *result = false;
             else
-              error("debug_is_empty: found non-empty allocator");
+              report_fatal_error(
+                "debug_is_empty: found non-empty allocator: size={} ({})",
+                sizeclass_to_size(size_class),
+                size_class);
           }
           return false;
         });
@@ -908,9 +911,11 @@ namespace snmalloc
 
       bool sent_something = flush(true);
 
+      smallsizeclass_t size_class = 0;
       for (auto& alloc_class : alloc_classes)
       {
-        test(alloc_class.available);
+        test(alloc_class.available, size_class);
+        size_class++;
       }
 
       // Place the static stub message on the queue.
