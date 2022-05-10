@@ -89,7 +89,7 @@ For `malloc()` in particular, it is enormously beneficial to be able to impose b
 (*Temporal* concerns still apply, in that live allocations can overlap prior, now-dead allocations.
 Stochastic defenses are employed within `snmalloc` and deterministic defenses are ongoing research at MSR.)
 
-Borrowing terminology from CHERI, we speak of the **authority** (to a subset of the address space) held by a pointer and will justify actions in terms of this authority.
+Borrowing terminology from CHERI, we speak of the **authority** (to a subset of the address space) held by a pointer and will justify actions in terms of this authority.[^mmu-perms]
 While many kinds of authority can be envisioned, herein we will mean either
 
 * *spatial* authority to read/write/execute within a single *interval* within the address space, or
@@ -203,14 +203,14 @@ The annotation `Bout` is *computed* as a function of `Bin`.
 
 # Endnotes
 
-[^mmu-perms] Pointer authority generally *intersects* with MMU-based authorization.
+[^mmu-perms]: Pointer authority generally *intersects* with MMU-based authorization.
 For example, software using a pointer with both write and execute authority will still find that it cannot write to pages considered read-only by the MMU nor will it be able to execute non-executable pages.
 Generally speaking, `snmalloc` requires only read-write access to memory it manages and merely passes through other permissions, with the exception of *vmmap*, which it removes from any pointer it returns.
 
-[^amplifier-state] As we are largely following the fat pointer model and its evolution into CHERI capabilities, we achieve amplification through a *stateful*, *software* mechanism, rather than an architectural mechanism.
+[^amplifier-state]: As we are largely following the fat pointer model and its evolution into CHERI capabilities, we achieve amplification through a *stateful*, *software* mechanism, rather than an architectural mechanism.
 Specifically, the amplification mechanism will retain a superset of any authority it may be asked to reconstruct.
 There have, in times past, been capability systems with architectural amplification (e.g., HYDRA's type-directed amplification), but we believe that future systems are unlikely to adopt this latter approach, necessitating the changes we propose below.
 
-[^bounds-precision] `StrictProvenance` architectures have historically differed in the precision with which authority can be represented.
+[^bounds-precision]: `StrictProvenance` architectures have historically differed in the precision with which authority can be represented.
 Notably, it may not be possible to achieve byte-granular authority boundaries at every size scale.
 In the case of CHERI specifically, `snmalloc`'s size classes and its alignment policies are already much coarser than existing architectural requirements for representable authority on all existing implementations.
