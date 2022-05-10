@@ -32,7 +32,7 @@ do not for snmalloc.
 The implementation of snmalloc has evolved significantly since the [initial paper](snmalloc.pdf).
 The mechanism for returning memory to remote threads has remained, but most of the meta-data layout has changed.
 We recommend you read [docs/security](./docs/security/README.md) to find out about the current design, and 
-if you want to dive into the code (./docs/AddressSpace.md) provides a good overview of the allocation and deallocation paths.
+if you want to dive into the code [docs/AddressSpace.md](./docs/AddressSpace.md) provides a good overview of the allocation and deallocation paths.
 
 [![snmalloc CI](https://github.com/microsoft/snmalloc/actions/workflows/main.yml/badge.svg?branch=master)](https://github.com/microsoft/snmalloc/actions/workflows/main.yml)
 
