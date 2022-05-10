@@ -166,39 +166,6 @@ namespace snmalloc
 
 namespace snmalloc
 {
-  template<typename... Args>
-  SNMALLOC_FAST_PATH_INLINE void UNUSED(Args&&...)
-  {}
-
-  inline SNMALLOC_FAST_PATH void check_client_error(const char* const str)
-  {
-    //[[clang::musttail]]
-    return snmalloc::error(str);
-  }
-
-  inline SNMALLOC_FAST_PATH void
-  check_client_impl(bool test, const char* const str)
-  {
-    if (SNMALLOC_UNLIKELY(!test))
-    {
-      if constexpr (DEBUG)
-      {
-        UNUSED(str);
-        SNMALLOC_FAST_FAIL();
-      }
-      else
-      {
-        check_client_error(str);
-      }
-    }
-  }
-
-#ifdef SNMALLOC_CHECK_CLIENT
-  static constexpr bool CHECK_CLIENT = true;
-#else
-  static constexpr bool CHECK_CLIENT = false;
-#endif
-
   /**
    * Forward declaration so that this can be called before the pal header is
    * included.
@@ -212,11 +179,47 @@ namespace snmalloc
    */
   template<size_t BufferSize = 1024, typename... Args>
   inline void message(Args... args);
+
+  template<typename... Args>
+  SNMALLOC_FAST_PATH_INLINE void UNUSED(Args&&...)
+  {}
+
+  template<typename... Args>
+  inline SNMALLOC_FAST_PATH void
+  check_client_error(const char* const str, Args... args)
+  {
+    //[[clang::musttail]]
+    return snmalloc::report_fatal_error(str, args...);
+  }
+
+  template<typename... Args>
+  inline SNMALLOC_FAST_PATH void
+  check_client_impl(bool test, const char* const str, Args... args)
+  {
+    if (SNMALLOC_UNLIKELY(!test))
+    {
+      if constexpr (!DEBUG)
+      {
+        UNUSED(str, args...);
+        SNMALLOC_FAST_FAIL();
+      }
+      else
+      {
+        check_client_error(str, args...);
+      }
+    }
+  }
+
+#ifdef SNMALLOC_CHECK_CLIENT
+  static constexpr bool CHECK_CLIENT = true;
+#else
+  static constexpr bool CHECK_CLIENT = false;
+#endif
 } // namespace snmalloc
 
 #ifdef SNMALLOC_CHECK_CLIENT
-#  define snmalloc_check_client(test, str) \
-    snmalloc::check_client_impl(test, str)
+#  define snmalloc_check_client(test, str, ...) \
+    snmalloc::check_client_impl(test, str, ##__VA_ARGS__)
 #else
-#  define snmalloc_check_client(test, str)
+#  define snmalloc_check_client(test, str, ...)
 #endif
