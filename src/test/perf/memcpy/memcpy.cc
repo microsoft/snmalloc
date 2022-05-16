@@ -90,7 +90,12 @@ void memcpy_unchecked(void* dst, const void* src, size_t size)
 NOINLINE
 void memcpy_platform_checked(void* dst, const void* src, size_t size)
 {
-  check_bounds(dst, size, "");
+  if (SNMALLOC_UNLIKELY(!check_bounds(dst, size)))
+  {
+    report_fatal_bounds_error(dst, size, "");
+    return;
+  }
+
   memcpy(dst, src, size);
 }
 

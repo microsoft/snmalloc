@@ -320,10 +320,15 @@ namespace snmalloc
     if constexpr (Checked)
     {
       // Check the bounds of the arguments.
-      check_bounds(
-        dst, len, "memcpy with destination out of bounds of heap allocation");
-      check_bounds<CheckDirection::Read, CheckReads>(
-        src, len, "memcpy with source out of bounds of heap allocation");
+      if constexpr (CheckReads)
+      {
+        if (SNMALLOC_UNLIKELY(!check_bounds(src, len)))
+          return report_fatal_bounds_error(
+            src, len, "memcpy with source out of bounds of heap allocation");
+      }
+      if (SNMALLOC_UNLIKELY(!check_bounds(dst, len)))
+        return report_fatal_bounds_error(
+          dst, len, "memcpy with destination out of bounds of heap allocation");
     }
 
     Arch::copy(dst, src, len);
