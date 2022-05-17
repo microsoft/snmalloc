@@ -1,5 +1,6 @@
 #pragma once
 #include "../mem/mem.h"
+#include "empty_range.h"
 
 namespace snmalloc
 {
@@ -8,12 +9,18 @@ namespace snmalloc
    * 2^RATIO_BITS.  Will not return a the block at the start or
    * the end of the large allocation.
    */
-  template<typename ParentRange, typename PAL, size_t RATIO_BITS>
+  template<typename PAL, size_t RATIO_BITS, typename ParentRange = EmptyRange>
   class SubRange
   {
     ParentRange parent{};
 
   public:
+    /**
+     * We use a nested Apply type to enable a Pipe operation.
+     */
+    template<typename ParentRange2>
+    using Apply = SubRange<PAL, RATIO_BITS, ParentRange2>;
+
     constexpr SubRange() = default;
 
     static constexpr bool Aligned = ParentRange::Aligned;

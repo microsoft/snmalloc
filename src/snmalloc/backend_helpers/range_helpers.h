@@ -34,4 +34,24 @@ namespace snmalloc
       length -= align;
     }
   }
+
+  template<typename... Args>
+  struct PipeImpl;
+
+  template<typename Only>
+  struct PipeImpl<Only>
+  {
+    using result = Only;
+  };
+
+  template<typename First, typename Fun, typename... Rest>
+  struct PipeImpl<First, Fun, Rest...>
+  {
+  public:
+    using result =
+      typename PipeImpl<typename Fun::template Apply<First>, Rest...>::result;
+  };
+
+  template<typename... Args>
+  using Pipe = typename PipeImpl<Args...>::result;
 } // namespace snmalloc

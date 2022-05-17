@@ -1,15 +1,18 @@
 #pragma once
-
 #include "../pal/pal.h"
+#include "empty_range.h"
 
 namespace snmalloc
 {
-  template<typename ParentRange, typename PAL>
+  template<typename PAL, typename ParentRange = EmptyRange>
   class CommitRange
   {
     ParentRange parent{};
 
   public:
+    template<typename ParentRange2>
+    using Apply = CommitRange<PAL, ParentRange2>;
+
     static constexpr bool Aligned = ParentRange::Aligned;
 
     static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
