@@ -38,7 +38,7 @@ namespace snmalloc
   /**
    * Forward definition to allow multiple template specialisations.
    *
-   * This struct is used to recursively compose ranges. 
+   * This struct is used to recursively compose ranges.
    */
   template<typename... Args>
   struct PipeImpl;
