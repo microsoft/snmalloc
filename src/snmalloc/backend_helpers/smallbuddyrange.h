@@ -181,7 +181,7 @@ namespace snmalloc
 
   public:
     /**
-     * We use a nested type Apply to enable a Pipe operation.
+     * We use a nested Apply type to enable a Pipe operation.
      */
     template<typename ParentRange2>
     using Apply = SmallBuddyRange<ParentRange2>;

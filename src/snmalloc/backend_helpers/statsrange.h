@@ -18,6 +18,9 @@ namespace snmalloc
     static inline std::atomic<size_t> peak_usage{};
 
   public:
+    /**
+     * We use a nested Apply type to enable a Pipe operation.
+     */
     template<typename ParentRange2>
     using Apply = StatsRange<ParentRange2>;
 

@@ -14,6 +14,9 @@ namespace snmalloc
     ParentRange state{};
 
   public:
+    /**
+     * We use a nested Apply type to enable a Pipe operation.
+     */
     template<typename ParentRange2>
     using Apply = PagemapRegisterRange<Pagemap, CanConsolidate, ParentRange2>;
 

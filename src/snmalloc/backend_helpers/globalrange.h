@@ -21,6 +21,9 @@ namespace snmalloc
     SNMALLOC_REQUIRE_CONSTINIT static inline FlagWord spin_lock{};
 
   public:
+    /**
+     * We use a nested Apply type to enable a Pipe operation.
+     */
     template<typename ParentRange2>
     using Apply = GlobalRange<ParentRange2>;
 
