@@ -3,6 +3,7 @@
 #include "../ds/ds.h"
 #include "../mem/mem.h"
 #include "buddy.h"
+#include "empty_range.h"
 #include "range_helpers.h"
 
 #include <string>
@@ -183,11 +184,11 @@ namespace snmalloc
    * for
    */
   template<
-    typename ParentRange,
     size_t REFILL_SIZE_BITS,
     size_t MAX_SIZE_BITS,
     SNMALLOC_CONCEPT(ConceptBuddyRangeMeta) Pagemap,
-    size_t MIN_REFILL_SIZE_BITS = 0>
+    size_t MIN_REFILL_SIZE_BITS = 0,
+    typename ParentRange = EmptyRange>
   class LargeBuddyRange
   {
     ParentRange parent{};
@@ -327,6 +328,17 @@ namespace snmalloc
     }
 
   public:
+    /**
+     * We use a nested Apply type to enable a Pipe operation.
+     */
+    template<typename ParentRange2>
+    using Apply = LargeBuddyRange<
+      REFILL_SIZE_BITS,
+      MAX_SIZE_BITS,
+      Pagemap,
+      MIN_REFILL_SIZE_BITS,
+      ParentRange2>;
+
     static constexpr bool Aligned = true;
 
     static constexpr bool ConcurrencySafe = false;

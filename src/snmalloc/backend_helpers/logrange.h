@@ -1,5 +1,7 @@
 #pragma once
 
+#include "empty_range.h"
+
 namespace snmalloc
 {
   /**
@@ -8,12 +10,18 @@ namespace snmalloc
    *
    * ParentRange is what the range is logging calls to.
    */
-  template<size_t RangeName, typename ParentRange>
+  template<size_t RangeName, typename ParentRange = EmptyRange>
   class LogRange
   {
     ParentRange parent{};
 
   public:
+    /**
+     * We use a nested Apply type to enable a Pipe operation.
+     */
+    template<typename ParentRange2>
+    using Apply = LogRange<RangeName, ParentRange2>;
+
     static constexpr bool Aligned = ParentRange::Aligned;
 
     static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "empty_range.h"
+
 #include <atomic>
 
 namespace snmalloc
@@ -7,7 +9,7 @@ namespace snmalloc
   /**
    * Used to measure memory usage.
    */
-  template<typename ParentRange>
+  template<typename ParentRange = EmptyRange>
   class StatsRange
   {
     ParentRange parent{};
@@ -16,6 +18,12 @@ namespace snmalloc
     static inline std::atomic<size_t> peak_usage{};
 
   public:
+    /**
+     * We use a nested Apply type to enable a Pipe operation.
+     */
+    template<typename ParentRange2>
+    using Apply = StatsRange<ParentRange2>;
+
     static constexpr bool Aligned = ParentRange::Aligned;
 
     static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;

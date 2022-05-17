@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../pal/pal.h"
+#include "empty_range.h"
 #include "range_helpers.h"
 
 namespace snmalloc
@@ -142,7 +143,7 @@ namespace snmalloc
     }
   };
 
-  template<typename ParentRange>
+  template<typename ParentRange = EmptyRange>
   class SmallBuddyRange
   {
     ParentRange parent{};
@@ -179,6 +180,12 @@ namespace snmalloc
     }
 
   public:
+    /**
+     * We use a nested Apply type to enable a Pipe operation.
+     */
+    template<typename ParentRange2>
+    using Apply = SmallBuddyRange<ParentRange2>;
+
     static constexpr bool Aligned = true;
     static_assert(ParentRange::Aligned, "ParentRange must be aligned");
 

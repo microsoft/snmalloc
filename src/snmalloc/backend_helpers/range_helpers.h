@@ -34,4 +34,39 @@ namespace snmalloc
       length -= align;
     }
   }
+
+  /**
+   * Forward definition to allow multiple template specialisations.
+   *
+   * This struct is used to recursively compose ranges.
+   */
+  template<typename... Args>
+  struct PipeImpl;
+
+  /**
+   * Base case of one range that needs nothing.
+   */
+  template<typename Only>
+  struct PipeImpl<Only>
+  {
+    using result = Only;
+  };
+
+  /**
+   * Recursive case of applying a base range as an argument to the
+   * next, and then using that as the new base range.
+   */
+  template<typename First, typename Fun, typename... Rest>
+  struct PipeImpl<First, Fun, Rest...>
+  {
+  public:
+    using result =
+      typename PipeImpl<typename Fun::template Apply<First>, Rest...>::result;
+  };
+
+  /**
+   * Nice type so the caller doesn't need to call result explicitly.
+   */
+  template<typename... Args>
+  using Pipe = typename PipeImpl<Args...>::result;
 } // namespace snmalloc

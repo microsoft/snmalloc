@@ -1,18 +1,25 @@
 #pragma once
 
 #include "../pal/pal.h"
+#include "empty_range.h"
 
 namespace snmalloc
 {
   template<
     SNMALLOC_CONCEPT(ConceptBackendMetaRange) Pagemap,
-    typename ParentRange,
-    bool CanConsolidate = true>
+    bool CanConsolidate = true,
+    typename ParentRange = EmptyRange>
   class PagemapRegisterRange
   {
     ParentRange state{};
 
   public:
+    /**
+     * We use a nested Apply type to enable a Pipe operation.
+     */
+    template<typename ParentRange2>
+    using Apply = PagemapRegisterRange<Pagemap, CanConsolidate, ParentRange2>;
+
     constexpr PagemapRegisterRange() = default;
 
     static constexpr bool Aligned = ParentRange::Aligned;

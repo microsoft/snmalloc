@@ -98,11 +98,12 @@ namespace snmalloc
 #endif
 
     // Set up source of memory
-    using P = PalRange<PAL>;
     using Base = std::conditional_t<
       fixed_range,
       EmptyRange,
-      PagemapRegisterRange<Pagemap, P, CONSOLIDATE_PAL_ALLOCS>>;
+      Pipe<
+        PalRange<Pal>,
+        PagemapRegisterRange<Pagemap, CONSOLIDATE_PAL_ALLOCS>>>;
 
     static constexpr size_t MinBaseSizeBits()
     {
@@ -117,50 +118,56 @@ namespace snmalloc
     }
 
     // Global range of memory
-    using GlobalR = GlobalRange<LogRange<
-      2,
-      LargeBuddyRange<Base, 24, bits::BITS - 1, Pagemap, MinBaseSizeBits()>>>;
+    using GlobalR = Pipe<
+      Base,
+      LargeBuddyRange<24, bits::BITS - 1, Pagemap, MinBaseSizeBits()>,
+      LogRange<2>,
+      GlobalRange<>>;
 
 #ifdef SNMALLOC_META_PROTECTED
     // Introduce two global ranges, so we don't mix Object and Meta
-    using CentralObjectRange = GlobalRange<LogRange<
-      3,
-      LargeBuddyRange<
-        GlobalR,
-        24,
-        bits::BITS - 1,
-        Pagemap,
-        MinBaseSizeBits()>>>;
-    using CentralMetaRange = GlobalRange<LogRange<
-      4,
-      LargeBuddyRange<
-        SubRange<GlobalR, PAL, 6>, // Use SubRange to introduce guard pages.
-        24,
-        bits::BITS - 1,
-        Pagemap,
-        MinBaseSizeBits()>>>;
+    using CentralObjectRange = Pipe<
+      GlobalR,
+      LargeBuddyRange<24, bits::BITS - 1, Pagemap, MinBaseSizeBits()>,
+      LogRange<3>,
+      GlobalRange<>>;
+
+    using CentralMetaRange = Pipe<
+      GlobalR,
+      SubRange<PAL, 6>, // Use SubRange to introduce guard pages.
+      LargeBuddyRange<24, bits::BITS - 1, Pagemap, MinBaseSizeBits()>,
+      LogRange<4>,
+      GlobalRange<>>;
 
     // Source for object allocations
-    using StatsObject = StatsRange<CommitRange<CentralObjectRange, PAL>>;
+    using StatsObject =
+      Pipe<CentralObjectRange, CommitRange<PAL>, StatsRange<>>;
+
     using ObjectRange =
-      LogRange<5, LargeBuddyRange<StatsObject, 21, 21, Pagemap>>;
+      Pipe<StatsObject, LargeBuddyRange<21, 21, Pagemap>, LogRange<5>>;
 
-    using StatsMeta = StatsRange<CommitRange<CentralMetaRange, PAL>>;
+    using StatsMeta = Pipe<CentralMetaRange, CommitRange<PAL>, StatsRange<>>;
 
-    using MetaRange = SmallBuddyRange<
-      LargeBuddyRange<StatsMeta, 21 - 6, bits::BITS - 1, Pagemap>>;
+    using MetaRange = Pipe<
+      StatsMeta,
+      LargeBuddyRange<21 - 6, bits::BITS - 1, Pagemap>,
+      SmallBuddyRange<>>;
+
     // Create global range that can service small meta-data requests.
     // Don't want to add this to the CentralMetaRange to move Commit outside the
     // lock on the common case.
-    using GlobalMetaRange = GlobalRange<SmallBuddyRange<StatsMeta>>;
+    using GlobalMetaRange = Pipe<StatsMeta, SmallBuddyRange<>, GlobalRange<>>;
     using Stats = StatsCombiner<StatsObject, StatsMeta>;
 #else
     // Source for object allocations and metadata
     // No separation between the two
-    using Stats = StatsRange<GlobalR>;
-    using ObjectRange = SmallBuddyRange<
-      LargeBuddyRange<CommitRange<Stats, PAL>, 21, 21, Pagemap>>;
-    using GlobalMetaRange = GlobalRange<ObjectRange>;
+    using Stats = Pipe<GlobalR, StatsRange<>>;
+    using ObjectRange = Pipe<
+      Stats,
+      CommitRange<PAL>,
+      LargeBuddyRange<21, 21, Pagemap>,
+      SmallBuddyRange<>>;
+    using GlobalMetaRange = Pipe<ObjectRange, GlobalRange<>>;
 #endif
 
     struct LocalState
