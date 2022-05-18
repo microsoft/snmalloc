@@ -20,7 +20,6 @@ namespace snmalloc
     using SlabMetadata = typename Backend::SlabMetadata;
 
   private:
-
     inline static GlobalPoolState alloc_pool;
 
   public:

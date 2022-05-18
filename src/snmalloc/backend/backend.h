@@ -35,11 +35,8 @@ namespace snmalloc
       FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, PAL, fixed_range>;
 
   public:
-    using Pagemap = BasicPagemap<
-      PAL,
-      ConcretePagemap,
-      PageMapEntry,
-      fixed_range>;
+    using Pagemap =
+      BasicPagemap<PAL, ConcretePagemap, PageMapEntry, fixed_range>;
 
 #if defined(_WIN32) || defined(__CHERI_PURE_CAPABILITY__)
     static constexpr bool CONSOLIDATE_PAL_ALLOCS = false;

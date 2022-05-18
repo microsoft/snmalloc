@@ -212,10 +212,10 @@ namespace snmalloc
     template<ZeroMem zero_mem>
     SNMALLOC_FAST_PATH capptr::Alloc<void> small_alloc(size_t size)
     {
-      auto domesticate = [this](
-                           freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
-        return capptr_domesticate<Config>(core_alloc->backend_state_ptr(), p);
-      };
+      auto domesticate =
+        [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+          return capptr_domesticate<Config>(core_alloc->backend_state_ptr(), p);
+        };
       auto slowpath = [&](
                         smallsizeclass_t sizeclass,
                         freelist::Iter<>* fl) SNMALLOC_FAST_PATH_LAMBDA {

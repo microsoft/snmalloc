@@ -109,7 +109,7 @@ namespace snmalloc
   template<typename Globals>
   concept ConceptBackendGlobals =
     std::is_base_of<CommonConfig, Globals>::value&&
-      ConceptPAL<typename Globals::Pal>&& requires() 
+      ConceptPAL<typename Globals::Pal>&& requires()
   {
     typename Globals::LocalState;
 

@@ -27,8 +27,8 @@ namespace snmalloc
     using Pagemap = typename Backend::Pagemap;
     using LocalState = typename Backend::LocalState;
     using SlabMetadata = typename Backend::SlabMetadata;
-  private:
 
+  private:
     SNMALLOC_REQUIRE_CONSTINIT
     inline static GlobalPoolState alloc_pool;
 

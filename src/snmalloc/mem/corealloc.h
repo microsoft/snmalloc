@@ -423,7 +423,8 @@ namespace snmalloc
         UNUSED(size);
 #endif
 
-        Config::Backend::dealloc_chunk(get_backend_local_state(), *meta, p, size);
+        Config::Backend::dealloc_chunk(
+          get_backend_local_state(), *meta, p, size);
 
         return;
       }
