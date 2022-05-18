@@ -19,12 +19,17 @@ namespace snmalloc
 {
   class CustomGlobals : public CommonConfig
   {
+    using ConcretePagemap =
+      FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, Pal, false>;
+
   public:
+    using Pagemap =
+      BasicPagemap<Pal, ConcretePagemap, PageMapEntry, false>;
+
     using GlobalPoolState = PoolState<CoreAllocator<CustomGlobals>>;
 
     using Pal = Pal;
-    using Backend = BackendAllocator<Pal, false, PageMapEntry>;
-    using Pagemap = typename Backend::Pagemap;
+    using Backend = BackendAllocator<Pal, false, PageMapEntry, Pagemap>;
     using LocalState = typename Backend::LocalState;
     using SlabMetadata = typename Backend::SlabMetadata;
 
@@ -107,7 +112,7 @@ namespace snmalloc
 
 int main()
 {
-  snmalloc::CustomGlobals::Backend::init(); // init pagemap
+  snmalloc::CustomGlobals::Pagemap::concretePagemap.init(); // init pagemap
   snmalloc::CustomGlobals::domesticate_count = 0;
 
   LocalEntropy entropy;

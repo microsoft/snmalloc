@@ -10,12 +10,17 @@ namespace snmalloc
   template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
   class FixedGlobals final : public CommonConfig
   {
+    using ConcretePagemap =
+      FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, PAL, true>;
+
+    using Pagemap =
+      BasicPagemap<PAL, ConcretePagemap, PageMapEntry, true>;
+
   public:
     using GlobalPoolState = PoolState<CoreAllocator<FixedGlobals>>;
-
-    using Backend = BackendAllocator<PAL, true, PageMapEntry>;
+      
+    using Backend = BackendAllocator<PAL, true, PageMapEntry, Pagemap>;
     using Pal = Pal;
-    using Pagemap = typename Backend::Pagemap;
     using LocalState = typename Backend::LocalState;
     using SlabMetadata = typename Backend::SlabMetadata;
 
@@ -62,7 +67,13 @@ namespace snmalloc
     init(typename Backend::LocalState* local_state, void* base, size_t length)
     {
       UNUSED(local_state);
-      Backend::init(base, length);
+
+      auto [heap_base, heap_length] =
+        Pagemap::concretePagemap.init(base, length);
+
+      Pagemap::register_range(address_cast(heap_base), heap_length);
+
+      Backend::init(heap_base, heap_length);
     }
 
     /* Verify that a pointer points into the region managed by this config */
@@ -79,7 +90,7 @@ namespace snmalloc
 
       UNUSED(ls);
       auto address = address_cast(p);
-      auto [base, length] = Backend::Pagemap::get_bounds();
+      auto [base, length] = Pagemap::get_bounds();
       if ((address - base > (length - sz)) || (length < sz))
       {
         return nullptr;

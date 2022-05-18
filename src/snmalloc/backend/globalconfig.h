@@ -31,9 +31,14 @@ namespace snmalloc
   public:
     using GlobalPoolState = PoolState<CoreAllocator<Globals>>;
 
-    using Backend = BackendAllocator<Pal, false, PageMapEntry>;
+    using ConcretePagemap =
+      FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, Pal, false>;
+
+    using Pagemap =
+      BasicPagemap<Pal, ConcretePagemap, PageMapEntry, false>;
+
+    using Backend = BackendAllocator<Pal, false, PageMapEntry, Pagemap>;
     using Pal = Pal;
-    using Pagemap = typename Backend::Pagemap;
     using LocalState = typename Backend::LocalState;
     using SlabMetadata = typename Backend::SlabMetadata;
 
@@ -74,7 +79,7 @@ namespace snmalloc
       key_global = FreeListKey(entropy.get_free_list_key());
 
       // Need to initialise pagemap.
-      Backend::init();
+      Pagemap::concretePagemap.init();
 
 #  ifdef USE_SNMALLOC_STATS
       atexit(snmalloc::print_stats);

@@ -23,21 +23,15 @@ namespace snmalloc
   template<
     SNMALLOC_CONCEPT(ConceptPAL) PAL,
     bool fixed_range,
-    typename PageMapEntry>
+    typename PageMapEntry,
+    typename Pagemap>
   class BackendAllocator
   {
   public:
     using Pal = PAL;
     using SlabMetadata = FrontendSlabMetadata;
 
-  private:
-    using ConcretePagemap =
-      FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, PAL, fixed_range>;
-
   public:
-    using Pagemap =
-      BasicPagemap<PAL, ConcretePagemap, PageMapEntry, fixed_range>;
-
 #if defined(_WIN32) || defined(__CHERI_PURE_CAPABILITY__)
     static constexpr bool CONSOLIDATE_PAL_ALLOCS = false;
 #else
@@ -138,22 +132,9 @@ namespace snmalloc
 
   public:
     template<bool fixed_range_ = fixed_range>
-    static std::enable_if_t<!fixed_range_> init()
+    static std::enable_if_t<fixed_range_> init(void* heap_base, size_t heap_length)
     {
       static_assert(fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
-
-      Pagemap::concretePagemap.init();
-    }
-
-    template<bool fixed_range_ = fixed_range>
-    static std::enable_if_t<fixed_range_> init(void* base, size_t length)
-    {
-      static_assert(fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
-
-      auto [heap_base, heap_length] =
-        Pagemap::concretePagemap.init(base, length);
-
-      Pagemap::register_range(address_cast(heap_base), heap_length);
 
       // Push memory into the global range.
       range_to_pow_2_blocks<MIN_CHUNK_BITS>(

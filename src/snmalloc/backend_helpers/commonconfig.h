@@ -130,7 +130,7 @@ namespace snmalloc
       /**
        * The private initialising constructor is usable only by this back end.
        */
-      template<SNMALLOC_CONCEPT(ConceptPAL) A1, bool A2, typename A3>
+      template<SNMALLOC_CONCEPT(ConceptPAL) A1, bool A2, typename A3, typename A4>
       friend class BackendAllocator;
 
       /**

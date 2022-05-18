@@ -493,7 +493,7 @@ namespace snmalloc
 #endif
 
         auto& entry =
-          Config::Pagemap::template get_metaentry(snmalloc::address_cast(msg));
+          Config::Backend::template get_metaentry(snmalloc::address_cast(msg));
 
         handle_dealloc_remote(entry, msg.as_void(), need_post);
 
@@ -675,7 +675,7 @@ namespace snmalloc
       // PagemapEntry-s seen here are expected to have meaningful Remote
       // pointers
       auto& entry =
-        Config::Pagemap::template get_metaentry(snmalloc::address_cast(p));
+        Config::Backend::template get_metaentry(snmalloc::address_cast(p));
       if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p, entropy)))
         return;
 
