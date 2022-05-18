@@ -13,7 +13,7 @@ namespace snmalloc
   public:
     using GlobalPoolState = PoolState<CoreAllocator<FixedGlobals>>;
 
-    using Backend = BackendAllocator<PAL, true>;
+    using Backend = BackendAllocator<PAL, true, PageMapEntry>;
     using Pal = Pal;
     using Pagemap = typename Backend::Pagemap;
     using LocalState = typename Backend::LocalState;

@@ -23,7 +23,7 @@ namespace snmalloc
     using GlobalPoolState = PoolState<CoreAllocator<CustomGlobals>>;
 
     using Pal = Pal;
-    using Backend = BackendAllocator<Pal, false>;
+    using Backend = BackendAllocator<Pal, false, PageMapEntry>;
     using Pagemap = typename Backend::Pagemap;
     using LocalState = typename Backend::LocalState;
     using SlabMetadata = typename Backend::SlabMetadata;

@@ -20,11 +20,13 @@ namespace snmalloc
    * This class implements the standard backend for handling allocations.
    * It abstracts page table management and address space management.
    */
-  template<SNMALLOC_CONCEPT(ConceptPAL) PAL, bool fixed_range>
+  template<
+    SNMALLOC_CONCEPT(ConceptPAL) PAL,
+    bool fixed_range,
+    typename PageMapEntry>
   class BackendAllocator
   {
   public:
-    class PageMapEntry;
     using Pal = PAL;
     using SlabMetadata = FrontendSlabMetadata;
 
@@ -33,57 +35,6 @@ namespace snmalloc
       FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, PAL, fixed_range>;
 
   public:
-    /**
-     * Example of type stored in the pagemap.
-     * The following class could be replaced by:
-     *
-     * ```
-     * using PageMapEntry = FrontendMetaEntry<SlabMetadata>;
-     * ```
-     *
-     * The full form here provides an example of how to extend the pagemap
-     * entries.  It also guarantees that the front end never directly
-     * constructs meta entries, it only ever reads them or modifies them in
-     * place.
-     */
-    class PageMapEntry : public FrontendMetaEntry<SlabMetadata>
-    {
-      /**
-       * The private initialising constructor is usable only by this back end.
-       */
-      friend class BackendAllocator;
-
-      /**
-       * The private default constructor is usable only by the pagemap.
-       */
-      friend ConcretePagemap;
-
-      /**
-       * The only constructor that creates newly initialised meta entries.
-       * This is callable only by the back end.  The front end may copy,
-       * query, and update these entries, but it may not create them
-       * directly.  This contract allows the back end to store any arbitrary
-       * metadata in meta entries when they are first constructed.
-       */
-      SNMALLOC_FAST_PATH
-      PageMapEntry(SlabMetadata* meta, uintptr_t ras)
-      : FrontendMetaEntry<SlabMetadata>(meta, ras)
-      {}
-
-      /**
-       * Copy assignment is used only by the pagemap.
-       */
-      PageMapEntry& operator=(const PageMapEntry& other)
-      {
-        FrontendMetaEntry<SlabMetadata>::operator=(other);
-        return *this;
-      }
-
-      /**
-       * Default constructor.  This must be callable from the pagemap.
-       */
-      SNMALLOC_FAST_PATH PageMapEntry() = default;
-    };
     using Pagemap = BasicPagemap<
       BackendAllocator,
       PAL,
