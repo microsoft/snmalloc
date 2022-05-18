@@ -130,7 +130,13 @@ namespace snmalloc
       /**
        * The private initialising constructor is usable only by this back end.
        */
-      template<SNMALLOC_CONCEPT(ConceptPAL) A1, bool A2, typename A3, typename A4>
+      template<
+        SNMALLOC_CONCEPT(ConceptPAL) A1,
+        typename A2,
+        typename A3,
+        typename A4,
+        typename A5,
+        typename A6>
       friend class BackendAllocator;
 
       /**
@@ -171,5 +177,17 @@ namespace snmalloc
     };
   };
 
+  template<typename PAL>
+  static constexpr size_t MinBaseSizeBits()
+  {
+    if constexpr (pal_supports<AlignedAllocation, PAL>)
+    {
+      return bits::next_pow2_bits_const(PAL::minimum_alloc_size);
+    }
+    else
+    {
+      return MIN_CHUNK_BITS;
+    }
+  }
 } // namespace snmalloc
 #include "../mem/remotecache.h"

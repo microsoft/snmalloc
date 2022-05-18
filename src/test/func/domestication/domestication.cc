@@ -23,14 +23,50 @@ namespace snmalloc
       FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, Pal, false>;
 
   public:
-    using Pagemap =
-      BasicPagemap<Pal, ConcretePagemap, PageMapEntry, false>;
+    using Pagemap = BasicPagemap<Pal, ConcretePagemap, PageMapEntry, false>;
+  
+  private:
+    using Base = Pipe<PalRange<Pal>, PagemapRegisterRange<Pagemap, false>>;
+
+    // Global range of memory
+    using GlobalR = Pipe<
+      Base,
+      LargeBuddyRange<24, bits::BITS - 1, Pagemap, MinBaseSizeBits<Pal>()>,
+      LogRange<2>,
+      GlobalRange<>>;
+
+    // Source for object allocations and metadata
+    // No separation between the two
+    using Stats = Pipe<GlobalR, StatsRange<>>;
+    using ObjectRange = Pipe<
+      Stats,
+      CommitRange<Pal>,
+      LargeBuddyRange<21, 21, Pagemap>,
+      SmallBuddyRange<>>;
+    using GlobalMetaRange = Pipe<ObjectRange, GlobalRange<>>;
+
+  public:
+    struct LocalState
+    {
+      ObjectRange object_range;
+
+      ObjectRange& get_meta_range()
+      {
+        return object_range;
+      }
+    };
 
     using GlobalPoolState = PoolState<CoreAllocator<CustomGlobals>>;
 
     using Pal = Pal;
-    using Backend = BackendAllocator<Pal, false, PageMapEntry, Pagemap>;
-    using LocalState = typename Backend::LocalState;
+    using Backend = BackendAllocator<
+      Pal,
+      PageMapEntry,
+      Pagemap,
+      LocalState,
+      GlobalMetaRange,
+      Stats>;
+
     using SlabMetadata = typename Backend::SlabMetadata;
 
   private:
@@ -74,7 +110,7 @@ namespace snmalloc
     static CapPtr<
       T,
       typename B::template with_wildness<capptr::dimension::Wildness::Tame>>
-    capptr_domesticate(typename Backend::LocalState*, CapPtr<T, B> p)
+    capptr_domesticate(LocalState*, CapPtr<T, B> p)
     {
       domesticate_count++;
 

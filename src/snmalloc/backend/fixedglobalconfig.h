@@ -16,12 +16,38 @@ namespace snmalloc
     using Pagemap =
       BasicPagemap<PAL, ConcretePagemap, PageMapEntry, true>;
 
+    // Global range of memory
+    using GlobalR = Pipe<
+      EmptyRange,
+      LargeBuddyRange<24, bits::BITS - 1, Pagemap>,
+      LogRange<2>,
+      GlobalRange<>>;
+
+    // Source for object allocations and metadata
+    // No separation between the two
+    using Stats = Pipe<GlobalR, StatsRange<>>;
+    using ObjectRange = Pipe<
+      Stats,
+      CommitRange<PAL>,
+      LargeBuddyRange<21, 21, Pagemap>,
+      SmallBuddyRange<>>;
+    using GlobalMetaRange = Pipe<ObjectRange, GlobalRange<>>;
+
   public:
+    struct LocalState
+    {
+      ObjectRange object_range;
+
+      ObjectRange& get_meta_range()
+      {
+        return object_range;
+      }
+    };
+
     using GlobalPoolState = PoolState<CoreAllocator<FixedGlobals>>;
       
-    using Backend = BackendAllocator<PAL, true, PageMapEntry, Pagemap>;
-    using Pal = Pal;
-    using LocalState = typename Backend::LocalState;
+    using Backend = BackendAllocator<PAL, PageMapEntry, Pagemap, LocalState, GlobalMetaRange, Stats>;
+    using Pal = PAL;
     using SlabMetadata = typename Backend::SlabMetadata;
 
   private:
@@ -64,7 +90,7 @@ namespace snmalloc
     }
 
     static void
-    init(typename Backend::LocalState* local_state, void* base, size_t length)
+    init(LocalState* local_state, void* base, size_t length)
     {
       UNUSED(local_state);
 
@@ -73,7 +99,14 @@ namespace snmalloc
 
       Pagemap::register_range(address_cast(heap_base), heap_length);
 
-      Backend::init(heap_base, heap_length);
+      // Push memory into the global range.
+      range_to_pow_2_blocks<MIN_CHUNK_BITS>(
+        capptr::Chunk<void>(heap_base),
+        heap_length,
+        [&](capptr::Chunk<void> p, size_t sz, bool) {
+          GlobalR g;
+          g.dealloc_range(p, sz);
+        });
     }
 
     /* Verify that a pointer points into the region managed by this config */
@@ -81,7 +114,7 @@ namespace snmalloc
     static SNMALLOC_FAST_PATH CapPtr<
       T,
       typename B::template with_wildness<capptr::dimension::Wildness::Tame>>
-    capptr_domesticate(typename Backend::LocalState* ls, CapPtr<T, B> p)
+    capptr_domesticate(LocalState* ls, CapPtr<T, B> p)
     {
       static_assert(B::wildness == capptr::dimension::Wildness::Wild);
 

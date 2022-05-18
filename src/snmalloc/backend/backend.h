@@ -22,9 +22,11 @@ namespace snmalloc
    */
   template<
     SNMALLOC_CONCEPT(ConceptPAL) PAL,
-    bool fixed_range,
     typename PageMapEntry,
-    typename Pagemap>
+    typename Pagemap,
+    typename LocalState,
+    typename GlobalMetaRange,
+    typename Stats>
   class BackendAllocator
   {
   public:
@@ -32,120 +34,6 @@ namespace snmalloc
     using SlabMetadata = FrontendSlabMetadata;
 
   public:
-#if defined(_WIN32) || defined(__CHERI_PURE_CAPABILITY__)
-    static constexpr bool CONSOLIDATE_PAL_ALLOCS = false;
-#else
-    static constexpr bool CONSOLIDATE_PAL_ALLOCS = true;
-#endif
-
-    // Set up source of memory
-    using Base = std::conditional_t<
-      fixed_range,
-      EmptyRange,
-      Pipe<
-        PalRange<Pal>,
-        PagemapRegisterRange<Pagemap, CONSOLIDATE_PAL_ALLOCS>>>;
-
-    static constexpr size_t MinBaseSizeBits()
-    {
-      if constexpr (pal_supports<AlignedAllocation, PAL>)
-      {
-        return bits::next_pow2_bits_const(PAL::minimum_alloc_size);
-      }
-      else
-      {
-        return MIN_CHUNK_BITS;
-      }
-    }
-
-    // Global range of memory
-    using GlobalR = Pipe<
-      Base,
-      LargeBuddyRange<24, bits::BITS - 1, Pagemap, MinBaseSizeBits()>,
-      LogRange<2>,
-      GlobalRange<>>;
-
-#ifdef SNMALLOC_META_PROTECTED
-    // Introduce two global ranges, so we don't mix Object and Meta
-    using CentralObjectRange = Pipe<
-      GlobalR,
-      LargeBuddyRange<24, bits::BITS - 1, Pagemap, MinBaseSizeBits()>,
-      LogRange<3>,
-      GlobalRange<>>;
-
-    using CentralMetaRange = Pipe<
-      GlobalR,
-      SubRange<PAL, 6>, // Use SubRange to introduce guard pages.
-      LargeBuddyRange<24, bits::BITS - 1, Pagemap, MinBaseSizeBits()>,
-      LogRange<4>,
-      GlobalRange<>>;
-
-    // Source for object allocations
-    using StatsObject =
-      Pipe<CentralObjectRange, CommitRange<PAL>, StatsRange<>>;
-
-    using ObjectRange =
-      Pipe<StatsObject, LargeBuddyRange<21, 21, Pagemap>, LogRange<5>>;
-
-    using StatsMeta = Pipe<CentralMetaRange, CommitRange<PAL>, StatsRange<>>;
-
-    using MetaRange = Pipe<
-      StatsMeta,
-      LargeBuddyRange<21 - 6, bits::BITS - 1, Pagemap>,
-      SmallBuddyRange<>>;
-
-    // Create global range that can service small meta-data requests.
-    // Don't want to add this to the CentralMetaRange to move Commit outside the
-    // lock on the common case.
-    using GlobalMetaRange = Pipe<StatsMeta, SmallBuddyRange<>, GlobalRange<>>;
-    using Stats = StatsCombiner<StatsObject, StatsMeta>;
-#else
-    // Source for object allocations and metadata
-    // No separation between the two
-    using Stats = Pipe<GlobalR, StatsRange<>>;
-    using ObjectRange = Pipe<
-      Stats,
-      CommitRange<PAL>,
-      LargeBuddyRange<21, 21, Pagemap>,
-      SmallBuddyRange<>>;
-    using GlobalMetaRange = Pipe<ObjectRange, GlobalRange<>>;
-#endif
-
-    struct LocalState
-    {
-      ObjectRange object_range;
-
-#ifdef SNMALLOC_META_PROTECTED
-      MetaRange meta_range;
-
-      MetaRange& get_meta_range()
-      {
-        return meta_range;
-      }
-#else
-      ObjectRange& get_meta_range()
-      {
-        return object_range;
-      }
-#endif
-    };
-
-  public:
-    template<bool fixed_range_ = fixed_range>
-    static std::enable_if_t<fixed_range_> init(void* heap_base, size_t heap_length)
-    {
-      static_assert(fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
-
-      // Push memory into the global range.
-      range_to_pow_2_blocks<MIN_CHUNK_BITS>(
-        capptr::Chunk<void>(heap_base),
-        heap_length,
-        [&](capptr::Chunk<void> p, size_t sz, bool) {
-          GlobalR g;
-          g.dealloc_range(p, sz);
-        });
-    }
-
     /**
      * Provide a block of meta-data with size and align.
      *

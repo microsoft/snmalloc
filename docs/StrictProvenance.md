@@ -189,7 +189,7 @@ In future architectures, this is increasingly likely to be a no-op.
 
 ## Backend-Provided Operations
 
-* `CapPtr<T, Bout> capptr_domesticate(Backend::LocalState *, CapPtr<T, Bin> ptr)` allows the backend to test whether `ptr` is sensible, by some definition thereof.
+* `CapPtr<T, Bout> capptr_domesticate(LocalState *, CapPtr<T, Bin> ptr)` allows the backend to test whether `ptr` is sensible, by some definition thereof.
 The annotation `Bout` is *computed* as a function of `Bin`.
 `Bin` is required to be `Wild`, and `Bout` is `Tame` but otherwise identical.
 
