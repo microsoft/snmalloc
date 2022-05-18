@@ -40,14 +40,14 @@ namespace snmalloc
      * backend. Returns true if there is a function with correct name and type.
      */
     template<
-      SNMALLOC_CONCEPT(ConceptBackendDomestication) Backend,
+      SNMALLOC_CONCEPT(ConceptBackendDomestication) Config,
       typename T,
       SNMALLOC_CONCEPT(capptr::ConceptBound) B>
     constexpr SNMALLOC_FAST_PATH_INLINE auto has_domesticate(int)
       -> std::enable_if_t<
         std::is_same_v<
-          decltype(Backend::capptr_domesticate(
-            std::declval<typename Backend::LocalState*>(),
+          decltype(Config::capptr_domesticate(
+            std::declval<typename Config::LocalState*>(),
             std::declval<CapPtr<T, B>>())),
           CapPtr<
             T,
@@ -63,7 +63,7 @@ namespace snmalloc
      * backend. Returns false in case where above template does not match.
      */
     template<
-      SNMALLOC_CONCEPT(ConceptBackendGlobals) Backend,
+      SNMALLOC_CONCEPT(ConceptBackendGlobals) Config,
       typename T,
       SNMALLOC_CONCEPT(capptr::ConceptBound) B>
     constexpr SNMALLOC_FAST_PATH_INLINE bool has_domesticate(long)
@@ -73,29 +73,29 @@ namespace snmalloc
   } // namespace detail
 
   /**
-   * Wrapper that calls `Backend::capptr_domesticate` if and only if
-   * Backend::Options.HasDomesticate is true. If it is not implemented then
+   * Wrapper that calls `Config::capptr_domesticate` if and only if
+   * Config::Options.HasDomesticate is true. If it is not implemented then
    * this assumes that any wild pointer can be domesticated.
    */
   template<
-    SNMALLOC_CONCEPT(ConceptBackendGlobals) Backend,
+    SNMALLOC_CONCEPT(ConceptBackendGlobals) Config,
     typename T,
     SNMALLOC_CONCEPT(capptr::ConceptBound) B>
   SNMALLOC_FAST_PATH_INLINE auto
-  capptr_domesticate(typename Backend::LocalState* ls, CapPtr<T, B> p)
+  capptr_domesticate(typename Config::LocalState* ls, CapPtr<T, B> p)
   {
     static_assert(
-      !detail::has_domesticate<Backend, T, B>(0) ||
-        Backend::Options.HasDomesticate,
+      !detail::has_domesticate<Config, T, B>(0) ||
+        Config::Options.HasDomesticate,
       "Back end provides domesticate function but opts out of using it ");
 
     static_assert(
-      detail::has_domesticate<Backend, T, B>(0) ||
-        !Backend::Options.HasDomesticate,
+      detail::has_domesticate<Config, T, B>(0) ||
+        !Config::Options.HasDomesticate,
       "Back end does not provide capptr_domesticate and requests its use");
-    if constexpr (Backend::Options.HasDomesticate)
+    if constexpr (Config::Options.HasDomesticate)
     {
-      return Backend::capptr_domesticate(ls, p);
+      return Config::capptr_domesticate(ls, p);
     }
     else
     {

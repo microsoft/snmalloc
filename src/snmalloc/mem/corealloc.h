@@ -32,10 +32,10 @@ namespace snmalloc
    *   provided externally, then it must be set explicitly with
    *   `init_message_queue`.
    */
-  template<SNMALLOC_CONCEPT(ConceptBackendGlobalsLazy) Backend>
+  template<SNMALLOC_CONCEPT(ConceptBackendGlobalsLazy) Config>
   class CoreAllocator : public std::conditional_t<
-                          Backend::Options.CoreAllocIsPoolAllocated,
-                          Pooled<CoreAllocator<Backend>>,
+                          Config::Options.CoreAllocIsPoolAllocated,
+                          Pooled<CoreAllocator<Config>>,
                           Empty>
   {
     template<SNMALLOC_CONCEPT(ConceptBackendGlobals)>
@@ -46,8 +46,8 @@ namespace snmalloc
      * specialised for the back-end that we are using.
      * @{
      */
-    using BackendSlabMetadata = typename Backend::SlabMetadata;
-    using PagemapEntry = typename Backend::Pagemap::Entry;
+    using BackendSlabMetadata = typename Config::SlabMetadata;
+    using PagemapEntry = typename Config::Pagemap::Entry;
     /// }@
 
     /**
@@ -77,7 +77,7 @@ namespace snmalloc
      * allocator
      */
     std::conditional_t<
-      Backend::Options.IsQueueInline,
+      Config::Options.IsQueueInline,
       RemoteAllocator,
       RemoteAllocator*>
       remote_alloc;
@@ -85,7 +85,7 @@ namespace snmalloc
     /**
      * The type used local state.  This is defined by the back end.
      */
-    using LocalState = typename Backend::LocalState;
+    using LocalState = typename Config::LocalState;
 
     /**
      * A local area of address space managed by this allocator.
@@ -94,7 +94,7 @@ namespace snmalloc
      * externally.
      */
     std::conditional_t<
-      Backend::Options.CoreAllocOwnsLocalState,
+      Config::Options.CoreAllocOwnsLocalState,
       LocalState,
       LocalState*>
       backend_state;
@@ -108,7 +108,7 @@ namespace snmalloc
     /**
      * Ticker to query the clock regularly at a lower cost.
      */
-    Ticker<typename Backend::Pal> ticker;
+    Ticker<typename Config::Pal> ticker;
 
     /**
      * The message queue needs to be accessible from other threads
@@ -118,7 +118,7 @@ namespace snmalloc
      */
     auto* public_state()
     {
-      if constexpr (Backend::Options.IsQueueInline)
+      if constexpr (Config::Options.IsQueueInline)
       {
         return &remote_alloc;
       }
@@ -133,7 +133,7 @@ namespace snmalloc
      */
     LocalState* backend_state_ptr()
     {
-      if constexpr (Backend::Options.CoreAllocOwnsLocalState)
+      if constexpr (Config::Options.CoreAllocOwnsLocalState)
       {
         return &backend_state;
       }
@@ -195,10 +195,10 @@ namespace snmalloc
       SNMALLOC_ASSERT(attached_cache != nullptr);
       auto domesticate =
         [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
-          return capptr_domesticate<Backend>(backend_state_ptr(), p);
+          return capptr_domesticate<Config>(backend_state_ptr(), p);
         };
       // Use attached cache, and fill it if it is empty.
-      return attached_cache->template alloc<NoZero, Backend>(
+      return attached_cache->template alloc<NoZero, Config>(
         domesticate,
         size,
         [&](smallsizeclass_t sizeclass, freelist::Iter<>* fl) {
@@ -300,7 +300,7 @@ namespace snmalloc
       auto local_state = backend_state_ptr();
       auto domesticate = [local_state](freelist::QueuePtr p)
                            SNMALLOC_FAST_PATH_LAMBDA {
-                             return capptr_domesticate<Backend>(local_state, p);
+                             return capptr_domesticate<Config>(local_state, p);
                            };
       capptr::Alloc<void> p =
         finish_alloc_no_zero(fl.take(key, domesticate), sizeclass);
@@ -363,7 +363,7 @@ namespace snmalloc
       alloc_classes[sizeclass].available.filter([this, sizeclass](auto* meta) {
         auto domesticate =
           [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
-            auto res = capptr_domesticate<Backend>(backend_state_ptr(), p);
+            auto res = capptr_domesticate<Config>(backend_state_ptr(), p);
 #ifdef SNMALLOC_TRACING
             if (res.unsafe_ptr() != p.unsafe_ptr())
               printf(
@@ -388,7 +388,7 @@ namespace snmalloc
         // don't touch the cache lines at this point in snmalloc_check_client.
         auto start = clear_slab(meta, sizeclass);
 
-        Backend::dealloc_chunk(
+        Config::dealloc_chunk(
           get_backend_local_state(),
           *meta,
           start,
@@ -423,7 +423,7 @@ namespace snmalloc
         UNUSED(size);
 #endif
 
-        Backend::dealloc_chunk(get_backend_local_state(), *meta, p, size);
+        Config::dealloc_chunk(get_backend_local_state(), *meta, p, size);
 
         return;
       }
@@ -483,7 +483,7 @@ namespace snmalloc
       auto local_state = backend_state_ptr();
       auto domesticate = [local_state](freelist::QueuePtr p)
                            SNMALLOC_FAST_PATH_LAMBDA {
-                             return capptr_domesticate<Backend>(local_state, p);
+                             return capptr_domesticate<Config>(local_state, p);
                            };
       auto cb = [this,
                  &need_post](freelist::HeadPtr msg) SNMALLOC_FAST_PATH_LAMBDA {
@@ -492,14 +492,14 @@ namespace snmalloc
 #endif
 
         auto& entry =
-          Backend::Pagemap::template get_metaentry(snmalloc::address_cast(msg));
+          Config::Pagemap::template get_metaentry(snmalloc::address_cast(msg));
 
         handle_dealloc_remote(entry, msg.as_void(), need_post);
 
         return true;
       };
 
-      if constexpr (Backend::Options.QueueHeadsAreTame)
+      if constexpr (Config::Options.QueueHeadsAreTame)
       {
         /*
          * The front of the queue has already been validated; just change the
@@ -571,12 +571,12 @@ namespace snmalloc
       // Entropy must be first, so that all data-structures can use the key
       // it generates.
       // This must occur before any freelists are constructed.
-      entropy.init<typename Backend::Pal>();
+      entropy.init<typename Config::Pal>();
 
       // Ignoring stats for now.
       //      stats().start();
 
-      if constexpr (Backend::Options.IsQueueInline)
+      if constexpr (Config::Options.IsQueueInline)
       {
         init_message_queue();
         message_queue().invariant();
@@ -606,8 +606,8 @@ namespace snmalloc
      * SFINAE disabled if the allocator does not own the local state.
      */
     template<
-      typename Config = Backend,
-      typename = std::enable_if_t<Config::Options.CoreAllocOwnsLocalState>>
+      typename Config_ = Config,
+      typename = std::enable_if_t<Config_::Options.CoreAllocOwnsLocalState>>
     CoreAllocator(LocalCache* cache) : attached_cache(cache)
     {
       init();
@@ -618,8 +618,8 @@ namespace snmalloc
      * state. SFINAE disabled if the allocator does own the local state.
      */
     template<
-      typename Config = Backend,
-      typename = std::enable_if_t<!Config::Options.CoreAllocOwnsLocalState>>
+      typename Config_ = Config,
+      typename = std::enable_if_t<!Config_::Options.CoreAllocOwnsLocalState>>
     CoreAllocator(LocalCache* cache, LocalState* backend = nullptr)
     : backend_state(backend), attached_cache(cache)
     {
@@ -630,7 +630,7 @@ namespace snmalloc
      * If the message queue is not inline, provide it.  This will then
      * configure the message queue for use.
      */
-    template<bool InlineQueue = Backend::Options.IsQueueInline>
+    template<bool InlineQueue = Config::Options.IsQueueInline>
     std::enable_if_t<!InlineQueue> init_message_queue(RemoteAllocator* q)
     {
       remote_alloc = q;
@@ -649,7 +649,7 @@ namespace snmalloc
       // stats().remote_post();  // TODO queue not in line!
       bool sent_something =
         attached_cache->remote_dealloc_cache
-          .post<sizeof(CoreAllocator), Backend>(
+          .post<sizeof(CoreAllocator), Config>(
             backend_state_ptr(), public_state()->trunc_id(), key_global);
 
       return sent_something;
@@ -674,7 +674,7 @@ namespace snmalloc
       // PagemapEntry-s seen here are expected to have meaningful Remote
       // pointers
       auto& entry =
-        Backend::Pagemap::template get_metaentry(snmalloc::address_cast(p));
+        Config::Pagemap::template get_metaentry(snmalloc::address_cast(p));
       if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p, entropy)))
         return;
 
@@ -735,7 +735,7 @@ namespace snmalloc
 
         auto domesticate =
           [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
-            return capptr_domesticate<Backend>(backend_state_ptr(), p);
+            return capptr_domesticate<Config>(backend_state_ptr(), p);
           };
         auto [p, still_active] = BackendSlabMetadata::alloc_free_list(
           domesticate, meta, fast_free_list, entropy, sizeclass);
@@ -746,7 +746,7 @@ namespace snmalloc
           sl.insert(meta);
         }
 
-        auto r = finish_alloc<zero_mem, Backend>(p, sizeclass);
+        auto r = finish_alloc<zero_mem, Config>(p, sizeclass);
         return ticker.check_tick(r);
       }
       return small_alloc_slow<zero_mem>(sizeclass, fast_free_list);
@@ -759,7 +759,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH
     LocalState& get_backend_local_state()
     {
-      if constexpr (Backend::Options.CoreAllocOwnsLocalState)
+      if constexpr (Config::Options.CoreAllocOwnsLocalState)
       {
         return backend_state;
       }
@@ -783,7 +783,7 @@ namespace snmalloc
       message<1024>("small_alloc_slow rsize={} slab size={}", rsize, slab_size);
 #endif
 
-      auto [slab, meta] = Backend::alloc_chunk(
+      auto [slab, meta] = Config::alloc_chunk(
         get_backend_local_state(),
         slab_size,
         PagemapEntry::encode(
@@ -802,7 +802,7 @@ namespace snmalloc
 
       auto domesticate =
         [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
-          return capptr_domesticate<Backend>(backend_state_ptr(), p);
+          return capptr_domesticate<Config>(backend_state_ptr(), p);
         };
       auto [p, still_active] = BackendSlabMetadata::alloc_free_list(
         domesticate, meta, fast_free_list, entropy, sizeclass);
@@ -813,7 +813,7 @@ namespace snmalloc
         alloc_classes[sizeclass].available.insert(meta);
       }
 
-      auto r = finish_alloc<zero_mem, Backend>(p, sizeclass);
+      auto r = finish_alloc<zero_mem, Config>(p, sizeclass);
       return ticker.check_tick(r);
     }
 
@@ -828,7 +828,7 @@ namespace snmalloc
       auto local_state = backend_state_ptr();
       auto domesticate = [local_state](freelist::QueuePtr p)
                            SNMALLOC_FAST_PATH_LAMBDA {
-                             return capptr_domesticate<Backend>(local_state, p);
+                             return capptr_domesticate<Config>(local_state, p);
                            };
 
       if (destroy_queue)
@@ -841,7 +841,7 @@ namespace snmalloc
           bool need_post = true; // Always going to post, so ignore.
           auto n_tame = p_tame->atomic_read_next(key_global, domesticate);
           const PagemapEntry& entry =
-            Backend::Pagemap::get_metaentry(snmalloc::address_cast(p_tame));
+            Config::Pagemap::get_metaentry(snmalloc::address_cast(p_tame));
           handle_dealloc_remote(entry, p_tame.as_void(), need_post);
           p_tame = n_tame;
         }
@@ -854,7 +854,7 @@ namespace snmalloc
           handle_message_queue([]() {});
       }
 
-      auto posted = attached_cache->flush<sizeof(CoreAllocator), Backend>(
+      auto posted = attached_cache->flush<sizeof(CoreAllocator), Config>(
         backend_state_ptr(),
         [&](capptr::Alloc<void> p) { dealloc_local_object(p); });
 
@@ -966,6 +966,6 @@ namespace snmalloc
   /**
    * Use this alias to access the pool of allocators throughout snmalloc.
    */
-  template<typename Backend>
-  using AllocPool = Pool<CoreAllocator<Backend>, Backend, Backend::pool>;
+  template<typename Config>
+  using AllocPool = Pool<CoreAllocator<Config>, Config, Config::pool>;
 } // namespace snmalloc
