@@ -134,9 +134,7 @@ namespace snmalloc
         SNMALLOC_CONCEPT(ConceptPAL) A1,
         typename A2,
         typename A3,
-        typename A4,
-        typename A5,
-        typename A6>
+        typename A4>
       friend class BackendAllocator;
 
       /**

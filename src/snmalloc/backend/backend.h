@@ -24,11 +24,12 @@ namespace snmalloc
     SNMALLOC_CONCEPT(ConceptPAL) PAL,
     typename PageMapEntry,
     typename Pagemap,
-    typename LocalState,
-    typename GlobalMetaRange,
-    typename Stats>
+    typename LocalState>
   class BackendAllocator
   {
+    using GlobalMetaRange = typename LocalState::GlobalMetaRange;
+    using Stats = typename LocalState::Stats;
+
   public:
     using Pal = PAL;
     using SlabMetadata = FrontendSlabMetadata;

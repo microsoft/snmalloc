@@ -48,6 +48,10 @@ namespace snmalloc
   public:
     struct LocalState
     {
+      using Stats = Stats;
+
+      using GlobalMetaRange = GlobalMetaRange;
+
       ObjectRange object_range;
 
       ObjectRange& get_meta_range()
@@ -63,9 +67,7 @@ namespace snmalloc
       Pal,
       PageMapEntry,
       Pagemap,
-      LocalState,
-      GlobalMetaRange,
-      Stats>;
+      LocalState>;
 
     using SlabMetadata = typename Backend::SlabMetadata;
 

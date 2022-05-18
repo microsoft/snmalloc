@@ -120,15 +120,17 @@ namespace snmalloc
         return object_range;
       }
 #  endif
+
+      using Stats = Stats;
+
+      using GlobalMetaRange = GlobalMetaRange;
     };
 
     using Backend = BackendAllocator<
       Pal,
       PageMapEntry,
       Pagemap,
-      LocalState,
-      GlobalMetaRange,
-      Stats>;
+      LocalState>;
     using Pal = Pal;
     using SlabMetadata = typename Backend::SlabMetadata;
 
