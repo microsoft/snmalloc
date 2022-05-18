@@ -100,7 +100,6 @@ namespace snmalloc
    *
    *  * inherit from CommonConfig (see commonconfig.h)
    *  * specify which PAL is in use via T::Pal
-   *  * have static pagemap accessors via T::Pagemap
    *  * define a T::LocalState type (and alias it as T::Pagemap::LocalState)
    *  * define T::Options of type snmalloc::Flags
    *  * expose the global allocator pool via T::pool() if pool allocation is
@@ -110,8 +109,7 @@ namespace snmalloc
   template<typename Globals>
   concept ConceptBackendGlobals =
     std::is_base_of<CommonConfig, Globals>::value&&
-      ConceptPAL<typename Globals::Pal>&&
-        ConceptBackendMetaRange<typename Globals::Pagemap>&& requires()
+      ConceptPAL<typename Globals::Pal>&& requires() 
   {
     typename Globals::LocalState;
 

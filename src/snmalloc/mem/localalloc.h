@@ -69,7 +69,7 @@ namespace snmalloc
      * @{
      */
     using CoreAlloc = CoreAllocator<Config>;
-    using PagemapEntry = typename Config::Pagemap::Entry;
+    using PagemapEntry = typename Config::PageMapEntry;
     /// }@
 
     // Free list per small size class.  These are used for
@@ -271,7 +271,7 @@ namespace snmalloc
           alloc_size(p.unsafe_ptr()));
 #endif
         const PagemapEntry& entry =
-          Config::Pagemap::get_metaentry(address_cast(p));
+          Config::Backend::template get_metaentry(address_cast(p));
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
           entry.get_remote()->trunc_id(), p, key_global);
         post_remote_cache();
@@ -628,7 +628,7 @@ namespace snmalloc
         capptr_domesticate<Config>(core_alloc->backend_state_ptr(), p_wild);
 
       const PagemapEntry& entry =
-        Config::Pagemap::get_metaentry(address_cast(p_tame));
+        Config::Backend::get_metaentry(address_cast(p_tame));
       if (SNMALLOC_LIKELY(local_cache.remote_allocator == entry.get_remote()))
       {
 #  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
@@ -681,7 +681,7 @@ namespace snmalloc
       size = size == 0 ? 1 : size;
       auto sc = size_to_sizeclass_full(size);
       auto pm_sc =
-        Config::Pagemap::get_metaentry(address_cast(p)).get_sizeclass();
+        Config::Backend::get_metaentry(address_cast(p)).get_sizeclass();
       auto rsize = sizeclass_full_to_size(sc);
       auto pm_size = sizeclass_full_to_size(pm_sc);
       snmalloc_check_client(
@@ -734,7 +734,7 @@ namespace snmalloc
       // entry for the first chunk of memory, that states it represents a
       // large object, so we can pull the check for null off the fast path.
       const PagemapEntry& entry =
-        Config::Pagemap::get_metaentry(address_cast(p_raw));
+        Config::Backend::template get_metaentry(address_cast(p_raw));
 
       return sizeclass_full_to_size(entry.get_sizeclass());
 #endif
@@ -779,7 +779,7 @@ namespace snmalloc
     {
 #ifndef SNMALLOC_PASS_THROUGH
       const PagemapEntry& entry =
-        Config::Pagemap::template get_metaentry<true>(address_cast(p));
+        Config::Backend::template get_metaentry<true>(address_cast(p));
 
       auto sizeclass = entry.get_sizeclass();
       return snmalloc::remaining_bytes(sizeclass, address_cast(p));
@@ -790,7 +790,7 @@ namespace snmalloc
 
     bool check_bounds(const void* p, size_t s)
     {
-      if (SNMALLOC_LIKELY(Config::Pagemap::is_initialised()))
+      if (SNMALLOC_LIKELY(Config::is_initialised()))
       {
         return remaining_bytes(p) >= s;
       }
@@ -807,7 +807,7 @@ namespace snmalloc
     {
 #ifndef SNMALLOC_PASS_THROUGH
       const PagemapEntry& entry =
-        Config::Pagemap::template get_metaentry<true>(address_cast(p));
+        Config::Backend::template get_metaentry<true>(address_cast(p));
 
       auto sizeclass = entry.get_sizeclass();
       return snmalloc::index_in_object(sizeclass, address_cast(p));

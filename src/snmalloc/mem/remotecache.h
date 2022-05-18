@@ -104,7 +104,7 @@ namespace snmalloc
           {
             auto [first, last] = list[i].extract_segment(key);
             const auto& entry =
-              Config::Pagemap::get_metaentry(address_cast(first));
+              Config::Backend::get_metaentry(address_cast(first));
             auto remote = entry.get_remote();
             // If the allocator is not correctly aligned, then the bit that is
             // set implies this is used by the backend, and we should not be
@@ -143,7 +143,7 @@ namespace snmalloc
           // Use the next N bits to spread out remote deallocs in our own
           // slot.
           auto r = resend.take(key, domesticate);
-          const auto& entry = Config::Pagemap::get_metaentry(address_cast(r));
+          const auto& entry = Config::Backend::get_metaentry(address_cast(r));
           auto i = entry.get_remote()->trunc_id();
           size_t slot = get_slot<allocator_size>(i, post_round);
           list[slot].add(r, key);

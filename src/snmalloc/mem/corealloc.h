@@ -47,7 +47,7 @@ namespace snmalloc
      * @{
      */
     using BackendSlabMetadata = typename Config::SlabMetadata;
-    using PagemapEntry = typename Config::Pagemap::Entry;
+    using PagemapEntry = typename Config::PageMapEntry;
     /// }@
 
     /**
@@ -841,7 +841,7 @@ namespace snmalloc
           bool need_post = true; // Always going to post, so ignore.
           auto n_tame = p_tame->atomic_read_next(key_global, domesticate);
           const PagemapEntry& entry =
-            Config::Pagemap::get_metaentry(snmalloc::address_cast(p_tame));
+            Config::Backend::get_metaentry(snmalloc::address_cast(p_tame));
           handle_dealloc_remote(entry, p_tame.as_void(), need_post);
           p_tame = n_tame;
         }

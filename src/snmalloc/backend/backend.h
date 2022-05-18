@@ -36,7 +36,6 @@ namespace snmalloc
 
   public:
     using Pagemap = BasicPagemap<
-      BackendAllocator,
       PAL,
       ConcretePagemap,
       PageMapEntry,
@@ -285,6 +284,12 @@ namespace snmalloc
       // SlabMetadata or similar.
       capptr::Chunk<void> chunk{alloc.unsafe_ptr()};
       local_state.object_range.dealloc_range(chunk, size);
+    }
+
+    template<bool potentially_out_of_range = false>
+    SNMALLOC_FAST_PATH static const PageMapEntry& get_metaentry(address_t p)
+    {
+      return Pagemap::template get_metaentry<potentially_out_of_range>(p);
     }
 
     static size_t get_current_usage()
