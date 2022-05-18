@@ -26,13 +26,18 @@ namespace snmalloc
    * from the operating system and expects to manage memory anywhere in the
    * address space.
    */
-  class Globals final : public BackendAllocator<Pal, false>
+  class Globals final : public CommonConfig
   {
   public:
     using GlobalPoolState = PoolState<CoreAllocator<Globals>>;
 
-  private:
     using Backend = BackendAllocator<Pal, false>;
+    using Pal = Pal;
+    using Pagemap = typename Backend::Pagemap;
+    using LocalState = typename Backend::LocalState;
+    using SlabMetadata = typename Backend::SlabMetadata;
+
+  private:
 
     SNMALLOC_REQUIRE_CONSTINIT
     inline static GlobalPoolState alloc_pool;

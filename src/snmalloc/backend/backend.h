@@ -21,7 +21,7 @@ namespace snmalloc
    * It abstracts page table management and address space management.
    */
   template<SNMALLOC_CONCEPT(ConceptPAL) PAL, bool fixed_range>
-  class BackendAllocator : public CommonConfig
+  class BackendAllocator
   {
   public:
     class PageMapEntry;

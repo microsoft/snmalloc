@@ -132,7 +132,7 @@ namespace snmalloc
       }
 
       auto raw =
-        SharedStateHandle::template alloc_meta_data<T>(nullptr, sizeof(T));
+        SharedStateHandle::Backend::template alloc_meta_data<T>(nullptr, sizeof(T));
 
       if (raw == nullptr)
       {

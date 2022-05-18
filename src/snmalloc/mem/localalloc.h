@@ -184,7 +184,7 @@ namespace snmalloc
       return check_init([&](CoreAlloc* core_alloc) {
         // Grab slab of correct size
         // Set remote as large allocator remote.
-        auto [chunk, meta] = Config::alloc_chunk(
+        auto [chunk, meta] = Config::Backend::alloc_chunk(
           core_alloc->get_backend_local_state(),
           large_size_to_chunk_size(size),
           PagemapEntry::encode(

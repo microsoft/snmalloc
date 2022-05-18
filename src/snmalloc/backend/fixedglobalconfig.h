@@ -8,13 +8,18 @@ namespace snmalloc
    * A single fixed address range allocator configuration
    */
   template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
-  class FixedGlobals final : public BackendAllocator<PAL, true>
+  class FixedGlobals final : public CommonConfig
   {
   public:
     using GlobalPoolState = PoolState<CoreAllocator<FixedGlobals>>;
 
-  private:
     using Backend = BackendAllocator<PAL, true>;
+    using Pal = Pal;
+    using Pagemap = typename Backend::Pagemap;
+    using LocalState = typename Backend::LocalState;
+    using SlabMetadata = typename Backend::SlabMetadata;
+
+  private:
 
     inline static GlobalPoolState alloc_pool;
 

@@ -17,13 +17,17 @@ int main()
 #  define SNMALLOC_PROVIDE_OWN_CONFIG
 namespace snmalloc
 {
-  class CustomGlobals : public BackendAllocator<Pal, false>
+  class CustomGlobals : public CommonConfig
   {
   public:
     using GlobalPoolState = PoolState<CoreAllocator<CustomGlobals>>;
 
-  private:
+    using Pal = Pal;
     using Backend = BackendAllocator<Pal, false>;
+    using Pagemap = typename Backend::Pagemap;
+    using LocalState = typename Backend::LocalState;
+    using SlabMetadata = typename Backend::SlabMetadata;
+  private:
 
     SNMALLOC_REQUIRE_CONSTINIT
     inline static GlobalPoolState alloc_pool;
@@ -103,7 +107,7 @@ namespace snmalloc
 
 int main()
 {
-  snmalloc::CustomGlobals::init(); // init pagemap
+  snmalloc::CustomGlobals::Backend::init(); // init pagemap
   snmalloc::CustomGlobals::domesticate_count = 0;
 
   LocalEntropy entropy;

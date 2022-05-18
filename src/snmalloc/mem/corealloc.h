@@ -388,7 +388,7 @@ namespace snmalloc
         // don't touch the cache lines at this point in snmalloc_check_client.
         auto start = clear_slab(meta, sizeclass);
 
-        Config::dealloc_chunk(
+        Config::Backend::dealloc_chunk(
           get_backend_local_state(),
           *meta,
           start,
@@ -423,7 +423,7 @@ namespace snmalloc
         UNUSED(size);
 #endif
 
-        Config::dealloc_chunk(get_backend_local_state(), *meta, p, size);
+        Config::Backend::dealloc_chunk(get_backend_local_state(), *meta, p, size);
 
         return;
       }
@@ -783,7 +783,7 @@ namespace snmalloc
       message<1024>("small_alloc_slow rsize={} slab size={}", rsize, slab_size);
 #endif
 
-      auto [slab, meta] = Config::alloc_chunk(
+      auto [slab, meta] = Config::Backend::alloc_chunk(
         get_backend_local_state(),
         slab_size,
         PagemapEntry::encode(
