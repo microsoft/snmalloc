@@ -82,7 +82,7 @@ namespace snmalloc
 
   public:
     /**
-     * Returns the Ancestor with the correct type.
+     * Returns the outermost Ancestor with the correct type.
      *
      * Fails to compile is that ancestor does not exist.
      */
