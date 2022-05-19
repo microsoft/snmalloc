@@ -1,19 +1,6 @@
 #pragma once
 #include "../backend_helpers/backend_helpers.h"
 
-#if defined(SNMALLOC_CHECK_CLIENT) && !defined(OPEN_ENCLAVE)
-/**
- * Protect meta data blocks by allocating separate from chunks for
- * user allocations. This involves leaving gaps in address space.
- * This is less efficient, so should only be applied for the checked
- * build.
- *
- * On Open Enclave the address space is limited, so we disable this
- * feature.
- */
-#  define SNMALLOC_META_PROTECTED
-#endif
-
 namespace snmalloc
 {
   /**

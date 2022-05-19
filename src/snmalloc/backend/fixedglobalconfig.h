@@ -1,6 +1,7 @@
 #pragma once
 
-#include "../backend/backend.h"
+#include "../backend_helpers/backend_helpers.h"
+#include "standard_range.h"
 
 namespace snmalloc
 {
@@ -16,37 +17,8 @@ namespace snmalloc
     using Pagemap =
       BasicPagemap<PAL, ConcretePagemap, PageMapEntry, true>;
 
-    // Global range of memory
-    using GlobalR = Pipe<
-      EmptyRange,
-      LargeBuddyRange<24, bits::BITS - 1, Pagemap>,
-      LogRange<2>,
-      GlobalRange<>>;
-
-    // Source for object allocations and metadata
-    // No separation between the two
-    using Stats = Pipe<GlobalR, StatsRange<>>;
-    using ObjectRange = Pipe<
-      Stats,
-      CommitRange<PAL>,
-      LargeBuddyRange<21, 21, Pagemap>,
-      SmallBuddyRange<>>;
-    using GlobalMetaRange = Pipe<ObjectRange, GlobalRange<>>;
-
   public:
-    struct LocalState
-    {
-      using Stats = Stats;
-
-      using GlobalMetaRange = GlobalMetaRange;
-
-      ObjectRange object_range;
-
-      ObjectRange& get_meta_range()
-      {
-        return object_range;
-      }
-    };
+    using LocalState = StandardLocalState<PAL, Pagemap>;
 
     using GlobalPoolState = PoolState<CoreAllocator<FixedGlobals>>;
       
@@ -108,7 +80,7 @@ namespace snmalloc
         capptr::Chunk<void>(heap_base),
         heap_length,
         [&](capptr::Chunk<void> p, size_t sz, bool) {
-          GlobalR g;
+          typename LocalState::GlobalR g;
           g.dealloc_range(p, sz);
         });
     }

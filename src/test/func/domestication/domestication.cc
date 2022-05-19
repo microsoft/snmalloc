@@ -11,6 +11,7 @@ int main()
 // #  define SNMALLOC_TRACING
 
 #  include <snmalloc/backend/backend.h>
+#  include <snmalloc/backend/standard_range.h>
 #  include <snmalloc/snmalloc_core.h>
 
 // Specify type of allocator
@@ -24,50 +25,17 @@ namespace snmalloc
 
   public:
     using Pagemap = BasicPagemap<Pal, ConcretePagemap, PageMapEntry, false>;
-  
-  private:
-    using Base = Pipe<PalRange<Pal>, PagemapRegisterRange<Pagemap, false>>;
-
-    // Global range of memory
-    using GlobalR = Pipe<
-      Base,
-      LargeBuddyRange<24, bits::BITS - 1, Pagemap, MinBaseSizeBits<Pal>()>,
-      LogRange<2>,
-      GlobalRange<>>;
-
-    // Source for object allocations and metadata
-    // No separation between the two
-    using Stats = Pipe<GlobalR, StatsRange<>>;
-    using ObjectRange = Pipe<
-      Stats,
-      CommitRange<Pal>,
-      LargeBuddyRange<21, 21, Pagemap>,
-      SmallBuddyRange<>>;
-    using GlobalMetaRange = Pipe<ObjectRange, GlobalRange<>>;
 
   public:
-    struct LocalState
-    {
-      using Stats = Stats;
-
-      using GlobalMetaRange = GlobalMetaRange;
-
-      ObjectRange object_range;
-
-      ObjectRange& get_meta_range()
-      {
-        return object_range;
-      }
-    };
+    using LocalState = StandardLocalState<
+      Pal,
+      Pagemap,
+      Pipe<PalRange<Pal>, PagemapRegisterRange<Pagemap, false>>>;
 
     using GlobalPoolState = PoolState<CoreAllocator<CustomGlobals>>;
 
     using Pal = Pal;
-    using Backend = BackendAllocator<
-      Pal,
-      PageMapEntry,
-      Pagemap,
-      LocalState>;
+    using Backend = BackendAllocator<Pal, PageMapEntry, Pagemap, LocalState>;
 
     using SlabMetadata = typename Backend::SlabMetadata;
 
