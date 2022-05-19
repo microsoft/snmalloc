@@ -318,7 +318,7 @@ namespace snmalloc
     }
 
     // Check the bounds of the arguments.
-    if (SNMALLOC_UNLIKELY(!check_bounds<Checked && ReadsChecked>(src, len)))
+    if (SNMALLOC_UNLIKELY(!check_bounds<(Checked && ReadsChecked)>(src, len)))
       return report_fatal_bounds_error(
         src, len, "memcpy with source out of bounds of heap allocation");
     if (SNMALLOC_UNLIKELY(!check_bounds<Checked>(dst, len)))
