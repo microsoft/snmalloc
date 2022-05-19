@@ -37,35 +37,33 @@
 
 namespace snmalloc
 {
-#if !defined(OPEN_ENCLAVE)
   using DefaultPal =
-#  if defined(SNMALLOC_MEMORY_PROVIDER)
+#if defined(SNMALLOC_MEMORY_PROVIDER)
     PALPlainMixin<SNMALLOC_MEMORY_PROVIDER>;
-#  elif defined(OPEN_ENCLAVE)
+#elif defined(OPEN_ENCLAVE)
     PALOpenEnclave;
-#  elif defined(_WIN32)
+#elif defined(_WIN32)
     PALWindows;
-#  elif defined(__APPLE__)
+#elif defined(__APPLE__)
     PALApple<>;
-#  elif defined(__linux__)
+#elif defined(__linux__)
     PALLinux;
-#  elif defined(FreeBSD_KERNEL)
+#elif defined(FreeBSD_KERNEL)
     PALFreeBSDKernel;
-#  elif defined(__FreeBSD__)
+#elif defined(__FreeBSD__)
     PALFreeBSD;
-#  elif defined(__HAIKU__)
+#elif defined(__HAIKU__)
     PALHaiku;
-#  elif defined(__NetBSD__)
+#elif defined(__NetBSD__)
     PALNetBSD;
-#  elif defined(__OpenBSD__)
+#elif defined(__OpenBSD__)
     PALOpenBSD;
-#  elif defined(__sun)
+#elif defined(__sun)
     PALSolaris;
-#  elif defined(__DragonFly__)
+#elif defined(__DragonFly__)
     PALDragonfly;
-#  else
-#    error Unsupported platform
-#  endif
+#else
+#  error Unsupported platform
 #endif
 
   [[noreturn]] SNMALLOC_SLOW_PATH inline void error(const char* const str)
