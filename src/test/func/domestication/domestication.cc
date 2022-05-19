@@ -20,6 +20,10 @@ namespace snmalloc
 {
   class CustomGlobals : public CommonConfig
   {
+  public:
+    using Pal = DefaultPal;
+
+  private:
     using ConcretePagemap =
       FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, Pal, false>;
 
@@ -34,7 +38,6 @@ namespace snmalloc
 
     using GlobalPoolState = PoolState<CoreAllocator<CustomGlobals>>;
 
-    using Pal = Pal;
     using Backend = BackendAllocator<Pal, PageMapEntry, Pagemap, LocalState>;
 
     using SlabMetadata = typename Backend::SlabMetadata;
@@ -122,7 +125,7 @@ int main()
   snmalloc::CustomGlobals::domesticate_count = 0;
 
   LocalEntropy entropy;
-  entropy.init<Pal>();
+  entropy.init<DefaultPal>();
   key_global = FreeListKey(entropy.get_free_list_key());
 
   auto alloc1 = new Alloc();

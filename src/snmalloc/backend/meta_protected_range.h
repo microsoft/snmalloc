@@ -27,17 +27,17 @@ namespace snmalloc
       LargeBuddyRange<24, bits::BITS - 1, Pagemap>,
       LogRange<3>,
       GlobalRange<>,
-      CommitRange<Pal>,
+      CommitRange<PAL>,
       StatsRange<>>;
 
     // Centralised source of meta-range
     using CentralMetaRange = Pipe<
       GlobalR,
-      SubRange<Pal, 6>, // Use SubRange to introduce guard pages.
+      SubRange<PAL, 6>, // Use SubRange to introduce guard pages.
       LargeBuddyRange<24, bits::BITS - 1, Pagemap>,
       LogRange<4>,
       GlobalRange<>,
-      CommitRange<Pal>,
+      CommitRange<PAL>,
       StatsRange<>>;
 
     // Local caching of object range

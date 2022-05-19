@@ -37,9 +37,13 @@
 
 namespace snmalloc
 {
-#if !defined(OPEN_ENCLAVE) || defined(OPEN_ENCLAVE_SIMULATION)
+#if !defined(OPEN_ENCLAVE)
   using DefaultPal =
-#  if defined(_WIN32)
+#  if defined(SNMALLOC_MEMORY_PROVIDER)
+    PALPlainMixin<SNMALLOC_MEMORY_PROVIDER>;
+#  elif defined(OPEN_ENCLAVE)
+    PALOpenEnclave;
+#  elif defined(_WIN32)
     PALWindows;
 #  elif defined(__APPLE__)
     PALApple<>;
@@ -64,22 +68,13 @@ namespace snmalloc
 #  endif
 #endif
 
-  using Pal =
-#if defined(SNMALLOC_MEMORY_PROVIDER)
-    PALPlainMixin<SNMALLOC_MEMORY_PROVIDER>;
-#elif defined(OPEN_ENCLAVE)
-    PALOpenEnclave;
-#else
-    DefaultPal;
-#endif
-
   [[noreturn]] SNMALLOC_SLOW_PATH inline void error(const char* const str)
   {
-    Pal::error(str);
+    DefaultPal::error(str);
   }
 
   // Used to keep Superslab metadata committed.
-  static constexpr size_t OS_PAGE_SIZE = Pal::page_size;
+  static constexpr size_t OS_PAGE_SIZE = DefaultPal::page_size;
 
   /**
    * Perform platform-specific adjustment of return pointers.
@@ -88,7 +83,7 @@ namespace snmalloc
    * disruption to PALs for platforms that do not support StrictProvenance AALs.
    */
   template<
-    typename PAL = Pal,
+    typename PAL = DefaultPal,
     typename AAL = Aal,
     typename T,
     SNMALLOC_CONCEPT(capptr::ConceptBound) B>
@@ -101,7 +96,7 @@ namespace snmalloc
   }
 
   template<
-    typename PAL = Pal,
+    typename PAL = DefaultPal,
     typename AAL = Aal,
     typename T,
     SNMALLOC_CONCEPT(capptr::ConceptBound) B>
@@ -177,7 +172,7 @@ namespace snmalloc
   [[noreturn]] inline void report_fatal_error(Args... args)
   {
     MessageBuilder<BufferSize> msg{std::forward<Args>(args)...};
-    Pal::error(msg.get_message());
+    DefaultPal::error(msg.get_message());
   }
 
   static inline size_t get_tid()
@@ -197,6 +192,6 @@ namespace snmalloc
   {
     MessageBuilder<BufferSize> msg{std::forward<Args>(args)...};
     MessageBuilder<BufferSize> msg_tid{"{}: {}", get_tid(), msg.get_message()};
-    Pal::message(msg_tid.get_message());
+    DefaultPal::message(msg_tid.get_message());
   }
 } // namespace snmalloc

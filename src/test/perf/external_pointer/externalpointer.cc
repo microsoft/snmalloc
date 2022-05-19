@@ -19,7 +19,7 @@ namespace test
     {
       size_t rand = (size_t)r.next();
       size_t offset = bits::clz(rand);
-      if constexpr (Pal::address_bits > 32)
+      if constexpr (DefaultPal::address_bits > 32)
       {
         if (offset > 30)
           offset = 30;

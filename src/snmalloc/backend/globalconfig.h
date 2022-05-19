@@ -34,6 +34,7 @@ namespace snmalloc
   class Globals final : public CommonConfig
   {
   public:
+    using Pal = DefaultPal;
     using GlobalPoolState = PoolState<CoreAllocator<Globals>>;
 
   private:
@@ -60,7 +61,6 @@ namespace snmalloc
 #  endif
 
     using Backend = BackendAllocator<Pal, PageMapEntry, Pagemap, LocalState>;
-    using Pal = typename snmalloc::Pal;
     using SlabMetadata = typename Backend::SlabMetadata;
 
   private:
