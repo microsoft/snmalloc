@@ -60,7 +60,7 @@ namespace snmalloc
 #  endif
 
     using Backend = BackendAllocator<Pal, PageMapEntry, Pagemap, LocalState>;
-    using Pal = Pal;
+    using Pal = snmalloc::Pal;
     using SlabMetadata = typename Backend::SlabMetadata;
 
   private:
