@@ -96,6 +96,7 @@ namespace snmalloc
     }
     else
     {
+      UNUSED(ptr, len);
       return true;
     }
   }
