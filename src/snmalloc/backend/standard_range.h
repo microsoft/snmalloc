@@ -6,13 +6,17 @@
 
 namespace snmalloc
 {
-  template<typename PAL, typename Pagemap, typename Base = EmptyRange>
+  template<
+    typename PAL,
+    typename Pagemap,
+    typename Base = EmptyRange,
+    size_t MinSizeBits = MinBaseSizeBits<PAL>()>
   struct StandardLocalState
   {
     // Global range of memory, expose this so can be filled by init.
     using GlobalR = Pipe<
       Base,
-      LargeBuddyRange<24, bits::BITS - 1, Pagemap>,
+      LargeBuddyRange<24, bits::BITS - 1, Pagemap, MinSizeBits>,
       LogRange<2>,
       GlobalRange<>>;
 
