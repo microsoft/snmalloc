@@ -64,7 +64,7 @@ void print_stack_trace()
 void _cdecl error(int signal)
 {
   snmalloc::UNUSED(signal);
-  snmalloc::Pal::message("*****ABORT******");
+  snmalloc::DefaultPal::message("*****ABORT******");
 
   print_stack_trace();
 
@@ -75,7 +75,7 @@ LONG WINAPI VectoredHandler(struct _EXCEPTION_POINTERS* ExceptionInfo)
 {
   snmalloc::UNUSED(ExceptionInfo);
 
-  snmalloc::Pal::message("*****UNHANDLED EXCEPTION******");
+  snmalloc::DefaultPal::message("*****UNHANDLED EXCEPTION******");
 
   print_stack_trace();
 
