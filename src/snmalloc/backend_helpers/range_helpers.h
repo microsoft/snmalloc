@@ -84,7 +84,7 @@ namespace snmalloc
     /**
      * Returns the outermost Ancestor with the correct type.
      *
-     * Fails to compile is that ancestor does not exist.
+     * Fails to compile if no such ancestor exists.
      */
     template<typename Anc>
     Anc* ancestor()
