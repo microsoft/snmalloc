@@ -211,13 +211,16 @@ endif()
 
 target_compile_definitions(snmalloc INTERFACE $<$<BOOL:CONST_QUALIFIED_MALLOC_USABLE_SIZE>:MALLOC_USABLE_SIZE_QUALIFIER=const>)
 
-# Link the backtrace library so that we can get stack
+# In debug and CI builds, link the backtrace library so that we can get stack
 # traces on errors.
 find_package(Backtrace)
 if(${Backtrace_FOUND})
-  target_compile_definitions(snmalloc INTERFACE SNMALLOC_BACKTRACE_HEADER="${Backtrace_HEADER}")
-  target_link_libraries(snmalloc INTERFACE ${Backtrace_LIBRARIES})
-  target_include_directories(snmalloc INTERFACE ${Backtrace_INCLUDE_DIRS})
+  target_compile_definitions(snmalloc INTERFACE
+    $<${ci_or_debug}:SNMALLOC_BACKTRACE_HEADER="${Backtrace_HEADER}">)
+  target_link_libraries(snmalloc INTERFACE
+    $<${ci_or_debug}:${Backtrace_LIBRARIES}>)
+  target_include_directories(snmalloc INTERFACE
+    $<${ci_or_debug}:${Backtrace_INCLUDE_DIRS}>)
 endif()
 
 if(MSVC)
