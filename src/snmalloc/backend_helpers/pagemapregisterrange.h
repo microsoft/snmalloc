@@ -2,6 +2,7 @@
 
 #include "../pal/pal.h"
 #include "empty_range.h"
+#include "range_helpers.h"
 
 namespace snmalloc
 {
@@ -9,9 +10,9 @@ namespace snmalloc
     SNMALLOC_CONCEPT(ConceptBackendMetaRange) Pagemap,
     bool CanConsolidate = true,
     typename ParentRange = EmptyRange>
-  class PagemapRegisterRange
+  class PagemapRegisterRange : public ContainsParent<ParentRange>
   {
-    ParentRange state{};
+    using ContainsParent<ParentRange>::parent;
 
   public:
     /**
@@ -28,7 +29,7 @@ namespace snmalloc
 
     capptr::Chunk<void> alloc_range(size_t size)
     {
-      auto base = state.alloc_range(size);
+      auto base = parent.alloc_range(size);
 
       if (base != nullptr)
         Pagemap::register_range(address_cast(base), size);

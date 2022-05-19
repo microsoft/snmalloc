@@ -1,6 +1,7 @@
 #pragma once
 
 #include "empty_range.h"
+#include "range_helpers.h"
 
 namespace snmalloc
 {
@@ -11,9 +12,9 @@ namespace snmalloc
    * ParentRange is what the range is logging calls to.
    */
   template<size_t RangeName, typename ParentRange = EmptyRange>
-  class LogRange
+  class LogRange : public ContainsParent<ParentRange>
   {
-    ParentRange parent{};
+    using ContainsParent<ParentRange>::parent;
 
   public:
     /**

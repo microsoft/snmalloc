@@ -10,9 +10,9 @@ namespace snmalloc
    * and protects access with a lock.
    */
   template<typename ParentRange = EmptyRange>
-  class GlobalRange
+  class GlobalRange : public StaticParent<ParentRange>
   {
-    SNMALLOC_REQUIRE_CONSTINIT static inline ParentRange parent{};
+    using StaticParent<ParentRange>::parent;
 
     /**
      * This is infrequently used code, a spin lock simplifies the code
