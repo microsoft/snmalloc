@@ -189,9 +189,9 @@ namespace snmalloc
     SNMALLOC_CONCEPT(ConceptBuddyRangeMeta) Pagemap,
     size_t MIN_REFILL_SIZE_BITS = 0,
     typename ParentRange = EmptyRange>
-  class LargeBuddyRange
+  class LargeBuddyRange : public ContainsParent<ParentRange>
   {
-    ParentRange parent{};
+    using ContainsParent<ParentRange>::parent;
 
     /**
      * Maximum size of a refill

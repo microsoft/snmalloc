@@ -144,9 +144,9 @@ namespace snmalloc
   };
 
   template<typename ParentRange = EmptyRange>
-  class SmallBuddyRange
+  class SmallBuddyRange : public ContainsParent<ParentRange>
   {
-    ParentRange parent{};
+    using ContainsParent<ParentRange>::parent;
 
     static constexpr size_t MIN_BITS =
       bits::next_pow2_bits_const(sizeof(FreeChunk));

@@ -1,13 +1,14 @@
 #pragma once
 #include "../pal/pal.h"
 #include "empty_range.h"
+#include "range_helpers.h"
 
 namespace snmalloc
 {
   template<typename PAL, typename ParentRange = EmptyRange>
-  class CommitRange
+  class CommitRange : public ContainsParent<ParentRange>
   {
-    ParentRange parent{};
+    using ContainsParent<ParentRange>::parent;
 
   public:
     /**

@@ -69,4 +69,65 @@ namespace snmalloc
    */
   template<typename... Args>
   using Pipe = typename PipeImpl<Args...>::result;
+
+  /**
+   * Helper class for allowing a range to be navigated to find an
+   * ancestor of a specific type. The parent is an instance field.
+   */
+  template<typename Parent>
+  class ContainsParent
+  {
+  protected:
+    Parent parent{};
+
+  public:
+    /**
+     * Returns the outermost Ancestor with the correct type.
+     *
+     * Fails to compile if no such ancestor exists.
+     */
+    template<typename Anc>
+    Anc* ancestor()
+    {
+      if constexpr (std::is_same_v<Anc, Parent>)
+      {
+        return &parent;
+      }
+      else
+      {
+        return parent.template ancestor<Anc>();
+      }
+    }
+  };
+
+  /**
+   * Helper class for allowing a range to be navigated to find an
+   * ancestor of a specific type. The parent is a static field.
+   */
+  template<typename Parent>
+  class StaticParent
+  {
+  protected:
+    SNMALLOC_REQUIRE_CONSTINIT inline static Parent parent{};
+
+  public:
+    /**
+     * Returns the outermost Ancestor with the correct type.
+     *
+     * Fails to compile if no such ancestor exists.
+     */
+    template<typename Anc>
+    Anc* ancestor()
+    {
+      if constexpr (std::is_same_v<Anc, Parent>)
+      {
+        return &parent;
+      }
+      else
+      {
+        return parent.template ancestor<Anc>();
+      }
+    }
+  };
+
 } // namespace snmalloc

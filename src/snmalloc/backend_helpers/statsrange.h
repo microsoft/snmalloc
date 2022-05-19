@@ -1,6 +1,7 @@
 #pragma once
 
 #include "empty_range.h"
+#include "range_helpers.h"
 
 #include <atomic>
 
@@ -10,9 +11,9 @@ namespace snmalloc
    * Used to measure memory usage.
    */
   template<typename ParentRange = EmptyRange>
-  class StatsRange
+  class StatsRange : public ContainsParent<ParentRange>
   {
-    ParentRange parent{};
+    using ContainsParent<ParentRange>::parent;
 
     static inline std::atomic<size_t> current_usage{};
     static inline std::atomic<size_t> peak_usage{};

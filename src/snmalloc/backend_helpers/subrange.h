@@ -10,9 +10,9 @@ namespace snmalloc
    * the end of the large allocation.
    */
   template<typename PAL, size_t RATIO_BITS, typename ParentRange = EmptyRange>
-  class SubRange
+  class SubRange : public ContainsParent<ParentRange>
   {
-    ParentRange parent{};
+    using ContainsParent<ParentRange>::parent;
 
   public:
     /**
