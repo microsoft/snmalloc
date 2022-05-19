@@ -14,14 +14,13 @@ namespace snmalloc
     using ConcretePagemap =
       FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, PAL, true>;
 
-    using Pagemap =
-      BasicPagemap<PAL, ConcretePagemap, PageMapEntry, true>;
+    using Pagemap = BasicPagemap<PAL, ConcretePagemap, PageMapEntry, true>;
 
   public:
     using LocalState = StandardLocalState<PAL, Pagemap>;
 
     using GlobalPoolState = PoolState<CoreAllocator<FixedGlobals>>;
-      
+
     using Backend = BackendAllocator<PAL, PageMapEntry, Pagemap, LocalState>;
     using Pal = PAL;
     using SlabMetadata = typename Backend::SlabMetadata;
@@ -65,8 +64,7 @@ namespace snmalloc
       snmalloc::register_clean_up();
     }
 
-    static void
-    init(LocalState* local_state, void* base, size_t length)
+    static void init(LocalState* local_state, void* base, size_t length)
     {
       UNUSED(local_state);
 
