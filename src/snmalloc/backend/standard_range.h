@@ -40,4 +40,4 @@ namespace snmalloc
       return object_range;
     }
   };
-}
+} // namespace snmalloc

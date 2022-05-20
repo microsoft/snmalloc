@@ -68,4 +68,4 @@ namespace snmalloc
     using GlobalMetaRange =
       Pipe<CentralMetaRange, SmallBuddyRange<>, GlobalRange<>>;
   };
-}
+} // namespace snmalloc
