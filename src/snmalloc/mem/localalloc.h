@@ -199,7 +199,7 @@ namespace snmalloc
         if (meta != nullptr)
           meta->initialise_large();
 
-#ifndef SNMALLOC_TINTS_ZERO
+#if !defined(SNMALLOC_TINTS_ZERO)
         // There is no need to zero if capptr_tint_region will do it anyway
         if (zero_mem == YesZero && chunk.unsafe_ptr() != nullptr)
         {
