@@ -27,9 +27,17 @@ namespace snmalloc
   void register_clean_up();
 
   /**
-   * The default configuration for a global snmalloc.  This allocates memory
-   * from the operating system and expects to manage memory anywhere in the
-   * address space.
+   * The default configuration for a global snmalloc.  It contains all the
+   * datastructures to manage the memory from the OS.  It had several internal
+   * public types for various aspects of the code.
+   * The most notable are:
+   *
+   *   Backend - Manages the memory
+   *   LocalState - the per-thread/per-allocator state that may perform local
+   *     caching of reserved memory.
+   *
+   * The Configuration sets up a Pagemap for the backend to use, and the state
+   * required to build new allocators (GlobalPoolState).
    */
   class Globals final : public CommonConfig
   {
@@ -43,13 +51,13 @@ namespace snmalloc
 
     using Pagemap = BasicPagemap<Pal, ConcretePagemap, PageMapEntry, false>;
 
-   /**
-    * This specifies where this configurations sources memory from.
-    *
-    * Takes account of any platform specific constraints like whether
-    * mmap/virtual alloc calls can be consolidated.
-    * @{
-    */
+    /**
+     * This specifies where this configurations sources memory from.
+     *
+     * Takes account of any platform specific constraints like whether
+     * mmap/virtual alloc calls can be consolidated.
+     * @{
+     */
 #  if defined(_WIN32) || defined(__CHERI_PURE_CAPABILITY__)
     static constexpr bool CONSOLIDATE_PAL_ALLOCS = false;
 #  else

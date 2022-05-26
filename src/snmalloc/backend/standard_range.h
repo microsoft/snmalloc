@@ -3,16 +3,17 @@
 #pragma once
 
 #include "../backend/backend.h"
+#include "base_constants.h"
 
 namespace snmalloc
 {
   /**
    * Default configuration that does not provide any meta-data protection.
-   * 
+   *
    * PAL is the underlying PAL that is used to Commit memory ranges.
-   * 
+   *
    * Base is where memory is sourced from.
-   * 
+   *
    * MinSizeBits is the minimum request size that can be passed to Base.
    * On Windows this 16 as VirtualAlloc cannot reserve less than 64KiB.
    * Alternative configurations might make this 2MiB so that huge pages
@@ -23,12 +24,16 @@ namespace snmalloc
     typename Pagemap,
     typename Base = EmptyRange,
     size_t MinSizeBits = MinBaseSizeBits<PAL>()>
-  struct StandardLocalState
+  struct StandardLocalState : BaseLocalStateConstants
   {
     // Global range of memory, expose this so can be filled by init.
     using GlobalR = Pipe<
       Base,
-      LargeBuddyRange<24, bits::BITS - 1, Pagemap, MinSizeBits>,
+      LargeBuddyRange<
+        GlobalCacheSizeBits,
+        bits::BITS - 1,
+        Pagemap,
+        MinSizeBits>,
       LogRange<2>,
       GlobalRange<>>;
 
@@ -38,8 +43,10 @@ namespace snmalloc
   private:
     // Source for object allocations and metadata
     // Use buddy allocators to cache locally.
-    using ObjectRange =
-      Pipe<Stats, LargeBuddyRange<21, 21, Pagemap>, SmallBuddyRange<>>;
+    using ObjectRange = Pipe<
+      Stats,
+      LargeBuddyRange<LocalCacheSizeBits, LocalCacheSizeBits, Pagemap>,
+      SmallBuddyRange<>>;
 
   public:
     // Expose a global range for the initial allocation of meta-data.

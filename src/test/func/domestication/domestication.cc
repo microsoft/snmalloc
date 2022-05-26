@@ -141,8 +141,7 @@ int main()
   // Clobber the linkage but not the back pointer
   snmalloc::CustomConfig::domesticate_patch_location =
     static_cast<uintptr_t*>(p);
-  snmalloc::CustomConfig::domesticate_patch_value =
-    *static_cast<uintptr_t*>(p);
+  snmalloc::CustomConfig::domesticate_patch_value = *static_cast<uintptr_t*>(p);
   memset(p, 0xA5, sizeof(void*));
 
   snmalloc::CustomConfig::domesticate_trace = true;
