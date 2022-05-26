@@ -11,6 +11,10 @@ namespace snmalloc
   template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
   class FixedGlobals final : public CommonConfig
   {
+  public:
+    using PageMapEntry = DefaultPageMapEntry;
+
+  private:
     using ConcretePagemap =
       FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, PAL, true>;
 

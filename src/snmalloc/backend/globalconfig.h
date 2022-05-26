@@ -5,6 +5,7 @@
 #ifndef SNMALLOC_PROVIDE_OWN_CONFIG
 
 #  include "../backend/backend.h"
+#  include "../backend_helpers/backend_helpers.h"
 #  include "meta_protected_range.h"
 #  include "standard_range.h"
 
@@ -44,6 +45,7 @@ namespace snmalloc
   public:
     using Pal = DefaultPal;
     using GlobalPoolState = PoolState<CoreAllocator<Globals>>;
+    using PageMapEntry = DefaultPageMapEntry;
 
   private:
     using ConcretePagemap =

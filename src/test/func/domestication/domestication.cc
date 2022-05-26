@@ -12,6 +12,7 @@ int main()
 
 #  include <snmalloc/backend/backend.h>
 #  include <snmalloc/backend/standard_range.h>
+#  include <snmalloc/backend_helpers/backend_helpers.h>
 #  include <snmalloc/snmalloc_core.h>
 
 // Specify type of allocator
@@ -22,6 +23,7 @@ namespace snmalloc
   {
   public:
     using Pal = DefaultPal;
+    using PageMapEntry = DefaultPageMapEntry;
 
   private:
     using ConcretePagemap =

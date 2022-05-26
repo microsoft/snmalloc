@@ -2,6 +2,7 @@
 #include "buddy.h"
 #include "commitrange.h"
 #include "commonconfig.h"
+#include "defaultpagemapentry.h"
 #include "empty_range.h"
 #include "globalrange.h"
 #include "largebuddyrange.h"
