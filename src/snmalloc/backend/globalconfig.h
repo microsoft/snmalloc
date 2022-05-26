@@ -43,6 +43,13 @@ namespace snmalloc
 
     using Pagemap = BasicPagemap<Pal, ConcretePagemap, PageMapEntry, false>;
 
+   /**
+    * This specifies where this configurations sources memory from.
+    *
+    * Takes account of any platform specific constraints like whether
+    * mmap/virtual alloc calls can be consolidated.
+    * @{
+    */
 #  if defined(_WIN32) || defined(__CHERI_PURE_CAPABILITY__)
     static constexpr bool CONSOLIDATE_PAL_ALLOCS = false;
 #  else
@@ -52,14 +59,22 @@ namespace snmalloc
     using Base = Pipe<
       PalRange<Pal>,
       PagemapRegisterRange<Pagemap, CONSOLIDATE_PAL_ALLOCS>>;
-
+    /**
+     * @}
+     */
   public:
+    /**
+     * Use one of the default range configurations
+     */
 #  ifdef SNMALLOC_META_PROTECTED
     using LocalState = MetaProtectedRangeLocalState<Pal, Pagemap, Base>;
 #  else
     using LocalState = StandardLocalState<Pal, Pagemap, Base>;
 #  endif
 
+    /**
+     * Use the default backend.
+     */
     using Backend = BackendAllocator<Pal, PageMapEntry, Pagemap, LocalState>;
     using SlabMetadata = typename Backend::SlabMetadata;
 
@@ -67,13 +82,22 @@ namespace snmalloc
     SNMALLOC_REQUIRE_CONSTINIT
     inline static GlobalPoolState alloc_pool;
 
+    /**
+     * Specifies if the Configuration has been initialised.
+     */
     SNMALLOC_REQUIRE_CONSTINIT
     inline static std::atomic<bool> initialised{false};
 
+    /**
+     * Used to prevent two threads attempting to initialise the configuration
+     */
     SNMALLOC_REQUIRE_CONSTINIT
     inline static FlagWord initialisation_lock{};
 
   public:
+    /**
+     * Provides the state to create new allocators.
+     */
     static GlobalPoolState& pool()
     {
       return alloc_pool;
@@ -119,11 +143,10 @@ namespace snmalloc
       snmalloc::register_clean_up();
     }
   };
-} // namespace snmalloc
 
-// The default configuration for snmalloc
-namespace snmalloc
-{
+  /**
+   * Create allocator type for this configuration.
+   */
   using Alloc = snmalloc::LocalAllocator<snmalloc::Globals>;
 } // namespace snmalloc
 #endif
