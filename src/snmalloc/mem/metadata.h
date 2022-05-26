@@ -581,6 +581,8 @@ namespace snmalloc
       "compatible with the front-end's structure");
 
   public:
+    using SlabMetadata = BackendSlabMetadata;
+
     constexpr FrontendMetaEntry() = default;
 
     /**

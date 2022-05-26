@@ -19,7 +19,7 @@ namespace snmalloc
 
   public:
     using Pal = PAL;
-    using SlabMetadata = FrontendSlabMetadata;
+    using SlabMetadata = typename PageMapEntry::SlabMetadata;
 
   public:
     /**
