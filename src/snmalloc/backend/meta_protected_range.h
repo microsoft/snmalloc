@@ -4,6 +4,22 @@
 
 namespace snmalloc
 {
+  /**
+   * Range that carefully ensures meta-data and object data cannot be in
+   * the same memory range. Once memory has is used for either meta-data
+   * or object data it can never be recycled to the other.
+   * 
+   * This configuration also includes guard pages and randomisation.
+   * 
+   * PAL is the underlying PAL that is used to Commit memory ranges.
+   * 
+   * Base is where memory is sourced from.
+   * 
+   * MinSizeBits is the minimum request size that can be passed to Base.
+   * On Windows this 16 as VirtualAlloc cannot reserve less than 64KiB.
+   * Alternative configurations might make this 2MiB so that huge pages
+   * can be used.
+   */
   template<
     typename PAL,
     typename Pagemap,
