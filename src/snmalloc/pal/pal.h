@@ -39,7 +39,7 @@ namespace snmalloc
 {
   using DefaultPal =
 #if defined(SNMALLOC_MEMORY_PROVIDER)
-    PALPlainMixin<SNMALLOC_MEMORY_PROVIDER>;
+    SNMALLOC_MEMORY_PROVIDER;
 #elif defined(OPEN_ENCLAVE)
     PALOpenEnclave;
 #elif defined(_WIN32)
