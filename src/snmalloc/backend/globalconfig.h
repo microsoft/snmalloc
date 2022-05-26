@@ -76,7 +76,6 @@ namespace snmalloc
      * Use the default backend.
      */
     using Backend = BackendAllocator<Pal, PageMapEntry, Pagemap, LocalState>;
-    using SlabMetadata = typename Backend::SlabMetadata;
 
   private:
     SNMALLOC_REQUIRE_CONSTINIT

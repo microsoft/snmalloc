@@ -46,7 +46,7 @@ namespace snmalloc
      * specialised for the back-end that we are using.
      * @{
      */
-    using BackendSlabMetadata = typename Config::SlabMetadata;
+    using BackendSlabMetadata = typename Config::Backend::SlabMetadata;
     using PagemapEntry = typename Config::PageMapEntry;
     /// }@
 
