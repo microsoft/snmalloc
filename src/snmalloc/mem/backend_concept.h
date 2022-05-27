@@ -12,63 +12,70 @@ namespace snmalloc
    * get_metadata takes a boolean template parameter indicating whether it may
    * be accessing memory that is not known to be committed.
    */
-  template<typename Meta>
-  concept ConceptPagemapMeta =
-    requires(address_t addr, size_t sz, const typename Meta::Entry& t)
+  template<typename Pagemap>
+  concept IsReadablePagemap =
+    requires(address_t addr, size_t sz, const typename Pagemap::Entry& t)
   {
     {
-      Meta::template get_metaentry<true>(addr)
-    }
-    ->ConceptSame<const typename Meta::Entry&>;
+      Pagemap::template get_metaentry<true>(addr)
+      } -> ConceptSame<const typename Pagemap::Entry&>;
 
     {
-      Meta::template get_metaentry<false>(addr)
-    }
-    ->ConceptSame<const typename Meta::Entry&>;
+      Pagemap::template get_metaentry<false>(addr)
+      } -> ConceptSame<const typename Pagemap::Entry&>;
+  };
+
+  /**
+   * The core of the static pagemap accessor interface: {get,set}_metadata.
+   *
+   * get_metadata_mut takes a boolean template parameter indicating whether it
+   * may be accessing memory that is not known to be committed.
+   *
+   * set_metadata updates the entry in the pagemap.
+   */
+  template<typename Pagemap>
+  concept IsWritablePagemap = IsReadablePagemap<Pagemap> &&
+    requires(address_t addr, size_t sz, const typename Pagemap::Entry& t)
+  {
+    {
+      Pagemap::template get_metaentry_mut<true>(addr)
+      } -> ConceptSame<typename Pagemap::Entry&>;
+
+    {
+      Pagemap::template get_metaentry_mut<false>(addr)
+      } -> ConceptSame<typename Pagemap::Entry&>;
+
+    {
+      Pagemap::set_metaentry(addr, sz, t)
+      } -> ConceptSame<void>;
   };
 
   /**
    * The pagemap can also be told to commit backing storage for a range of
    * addresses.  This is broken out to a separate concept so that we can
    * annotate which functions expect to do this vs. which merely use the core
-   * interface above.  In practice, use ConceptPagemapMetaRange (without the
-   * underscore) below, which combines this and the core concept, above.
+   * interface above.  In practice, use IsWritablePagemapWithRegister below,
+   * which combines this and the core concept, above.
    */
-  template<typename Meta>
-  concept ConceptPagemapMeta_Range = requires(address_t addr, size_t sz)
+  template<typename Pagemap>
+  concept IsPagemapWithRegister = requires(address_t addr, size_t sz)
   {
     {
-      Meta::register_range(addr, sz)
-    }
-    ->ConceptSame<void>;
-  };
-
-  template<typename Meta>
-  concept ConceptPagemapMetaBuddy =
-    requires(address_t addr, size_t sz, const typename Meta::Entry& t)
-  {
-    {
-      Meta::template get_metaentry_mut<true>(addr)
-    }
-    ->ConceptSame<typename Meta::Entry&>;
-
-    {
-      Meta::template get_metaentry_mut<false>(addr)
-    }
-    ->ConceptSame<typename Meta::Entry&>;
+      Pagemap::register_range(addr, sz)
+      } -> ConceptSame<void>;
   };
 
   /**
    * The full pagemap accessor interface, with all of {get,set}_metadata and
    * register_range.  Use this to annotate callers that need the full interface
-   * and use ConceptPagemapMeta for callers that merely need {get,set}_metadata,
+   * and use IsReadablePagemap for callers that merely need {get,set}_metadata,
    * but note that the difference is just for humans and not compilers (since
    * concept checking is lower bounding and does not constrain the templatized
    * code to use only those affordances given by the concept).
    */
-  template<typename Meta>
-  concept ConceptPagemapMetaRange =
-    ConceptPagemapMeta<Meta>&& ConceptPagemapMeta_Range<Meta>;
+  template<typename Pagemap>
+  concept IsWritablePagemapWithRegister =
+    IsReadablePagemap<Pagemap> && IsPagemapWithRegister<Pagemap>;
 
   /**
    * The configuration also defines domestication (that is, the difference
@@ -76,23 +83,47 @@ namespace snmalloc
    * for testing a Wild pointer and either returning nullptr or the original
    * pointer, now Tame.
    */
-  template<typename StandardConfig>
-  concept ConceptConfigDomestication = requires(
-    typename StandardConfig::LocalState* ls, capptr::AllocWild<void> ptr)
+  template<typename Config>
+  concept IsConfigDomestication =
+    requires(typename Config::LocalState* ls, capptr::AllocWild<void> ptr)
   {
     {
-      StandardConfig::capptr_domesticate(ls, ptr)
-    }
-    ->ConceptSame<capptr::Alloc<void>>;
+      Config::capptr_domesticate(ls, ptr)
+      } -> ConceptSame<capptr::Alloc<void>>;
 
     {
-      StandardConfig::capptr_domesticate(ls, ptr.template as_static<char>())
-    }
-    ->ConceptSame<capptr::Alloc<char>>;
+      Config::capptr_domesticate(ls, ptr.template as_static<char>())
+      } -> ConceptSame<capptr::Alloc<char>>;
   };
 
   class CommonConfig;
   struct Flags;
+
+  template<typename LocalState, typename Backend>
+  concept IsBackend =
+    requires(LocalState& local_state, size_t size, uintptr_t ras)
+  {
+    {
+      Backend::alloc_chunk(local_state, size, ras)
+      } -> ConceptSame<
+        std::pair<capptr::Chunk<void>, typename Backend::SlabMetadata*>>;
+
+
+  } && requires(LocalState* local_state, size_t size)
+  {
+    {
+      Backend::template alloc_meta_data<void*>(local_state, size)
+    } -> ConceptSame<capptr::Chunk<void>>;
+  } && requires(
+      LocalState& local_state,
+      typename Backend::SlabMetadata& slab_metadata,
+      capptr::Alloc<void> alloc,
+      size_t size)
+    {
+      {
+        Backend::dealloc_chunk(local_state, slab_metadata, alloc, size)
+      } -> ConceptSame<void>;
+    };
 
   /**
    * Config objects of type T must obey a number of constraints.  They
@@ -106,34 +137,33 @@ namespace snmalloc
    * used.
    *
    */
-  template<typename StandardConfig>
-  concept ConceptConfig = std::is_base_of<CommonConfig, StandardConfig>::value&&
-    ConceptPAL<typename StandardConfig::Pal>&& requires()
+  template<typename Config>
+  concept IsConfig = std::is_base_of<CommonConfig, Config>::value &&
+    ConceptPAL<typename Config::Pal> &&
+    IsBackend<typename Config::LocalState, typename Config::Backend> && requires()
   {
-    typename StandardConfig::LocalState;
+    typename Config::LocalState;
+    typename Config::Backend;
 
     {
-      StandardConfig::Options
-    }
-    ->ConceptSameModRef<const Flags>;
-  }
-  &&(
+      Config::Options
+      } -> ConceptSameModRef<const Flags>;
+  } &&(
     requires() {
-      StandardConfig::Options.CoreAllocIsPoolAllocated == true;
-      typename StandardConfig::GlobalPoolState;
+      Config::Options.CoreAllocIsPoolAllocated == true;
+      typename Config::GlobalPoolState;
       {
-        StandardConfig::pool()
-      }
-      ->ConceptSame<typename StandardConfig::GlobalPoolState&>;
+        Config::pool()
+        } -> ConceptSame<typename Config::GlobalPoolState&>;
     } ||
-    requires() { StandardConfig::Options.CoreAllocIsPoolAllocated == false; });
+    requires() { Config::Options.CoreAllocIsPoolAllocated == false; });
 
   /**
-   * The lazy version of the above; please see ds/concept.h and use sparingly.
+   * The lazy version of the above; please see ds_core/concept.h and use
+   * sparingly.
    */
-  template<typename StandardConfig>
-  concept ConceptConfigLazy =
-    !is_type_complete_v<StandardConfig> || ConceptConfig<StandardConfig>;
+  template<typename Config>
+  concept IsConfigLazy = !is_type_complete_v<Config> || IsConfig<Config>;
 
 } // namespace snmalloc
 

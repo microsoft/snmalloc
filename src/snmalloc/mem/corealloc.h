@@ -32,13 +32,13 @@ namespace snmalloc
    *   provided externally, then it must be set explicitly with
    *   `init_message_queue`.
    */
-  template<SNMALLOC_CONCEPT(ConceptConfigLazy) Config>
+  template<SNMALLOC_CONCEPT(IsConfigLazy) Config>
   class CoreAllocator : public std::conditional_t<
                           Config::Options.CoreAllocIsPoolAllocated,
                           Pooled<CoreAllocator<Config>>,
                           Empty>
   {
-    template<SNMALLOC_CONCEPT(ConceptConfig)>
+    template<SNMALLOC_CONCEPT(IsConfig)>
     friend class LocalAllocator;
 
     /**

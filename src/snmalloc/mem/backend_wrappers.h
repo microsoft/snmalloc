@@ -40,7 +40,7 @@ namespace snmalloc
      * backend. Returns true if there is a function with correct name and type.
      */
     template<
-      SNMALLOC_CONCEPT(ConceptConfigDomestication) Config,
+      SNMALLOC_CONCEPT(IsConfigDomestication) Config,
       typename T,
       SNMALLOC_CONCEPT(capptr::ConceptBound) B>
     constexpr SNMALLOC_FAST_PATH_INLINE auto has_domesticate(int)
@@ -63,7 +63,7 @@ namespace snmalloc
      * backend. Returns false in case where above template does not match.
      */
     template<
-      SNMALLOC_CONCEPT(ConceptConfig) Config,
+      SNMALLOC_CONCEPT(IsConfig) Config,
       typename T,
       SNMALLOC_CONCEPT(capptr::ConceptBound) B>
     constexpr SNMALLOC_FAST_PATH_INLINE bool has_domesticate(long)
@@ -78,7 +78,7 @@ namespace snmalloc
    * this assumes that any wild pointer can be domesticated.
    */
   template<
-    SNMALLOC_CONCEPT(ConceptConfig) Config,
+    SNMALLOC_CONCEPT(IsConfig) Config,
     typename T,
     SNMALLOC_CONCEPT(capptr::ConceptBound) B>
   SNMALLOC_FAST_PATH_INLINE auto

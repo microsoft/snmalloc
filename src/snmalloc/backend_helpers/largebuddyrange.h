@@ -13,7 +13,7 @@ namespace snmalloc
   /**
    * Class for using the pagemap entries for the buddy allocator.
    */
-  template<SNMALLOC_CONCEPT(ConceptPagemapMetaBuddy) Pagemap>
+  template<SNMALLOC_CONCEPT(IsWritablePagemap) Pagemap>
   class BuddyChunkRep
   {
   public:
@@ -186,7 +186,7 @@ namespace snmalloc
   template<
     size_t REFILL_SIZE_BITS,
     size_t MAX_SIZE_BITS,
-    SNMALLOC_CONCEPT(ConceptPagemapMetaBuddy) Pagemap,
+    SNMALLOC_CONCEPT(IsWritablePagemap) Pagemap,
     size_t MIN_REFILL_SIZE_BITS = 0,
     typename ParentRange = EmptyRange>
   class LargeBuddyRange : public ContainsParent<ParentRange>

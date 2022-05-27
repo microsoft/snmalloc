@@ -5,7 +5,7 @@
 
 namespace snmalloc
 {
-  template<SNMALLOC_CONCEPT(ConceptConfig) Config>
+  template<SNMALLOC_CONCEPT(IsConfig) Config>
   inline static void cleanup_unused()
   {
 #ifndef SNMALLOC_PASS_THROUGH
@@ -39,7 +39,7 @@ namespace snmalloc
     allocators are empty. If you don't pass a pointer to a bool, then will
     raise an error all the allocators are not empty.
    */
-  template<SNMALLOC_CONCEPT(ConceptConfig) Config>
+  template<SNMALLOC_CONCEPT(IsConfig) Config>
   inline static void debug_check_empty(bool* result = nullptr)
   {
 #ifndef SNMALLOC_PASS_THROUGH
@@ -108,7 +108,7 @@ namespace snmalloc
 #endif
   }
 
-  template<SNMALLOC_CONCEPT(ConceptConfig) Config>
+  template<SNMALLOC_CONCEPT(IsConfig) Config>
   inline static void debug_in_use(size_t count)
   {
     static_assert(

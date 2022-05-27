@@ -22,7 +22,7 @@ namespace snmalloc
   {
     template<
       typename TT,
-      SNMALLOC_CONCEPT(ConceptConfig) Config,
+      SNMALLOC_CONCEPT(IsConfig) Config,
       PoolState<TT>& get_state()>
     friend class Pool;
 
@@ -41,7 +41,7 @@ namespace snmalloc
    * SingletonPoolState::pool is the default provider for the PoolState within
    * the Pool class.
    */
-  template<typename T, SNMALLOC_CONCEPT(ConceptConfig) Config>
+  template<typename T, SNMALLOC_CONCEPT(IsConfig) Config>
   class SingletonPoolState
   {
     /**
@@ -112,7 +112,7 @@ namespace snmalloc
    */
   template<
     typename T,
-    SNMALLOC_CONCEPT(ConceptConfig) Config,
+    SNMALLOC_CONCEPT(IsConfig) Config,
     PoolState<T>& get_state() = SingletonPoolState<T, Config>::pool>
   class Pool
   {
