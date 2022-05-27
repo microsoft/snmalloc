@@ -13,7 +13,7 @@ namespace snmalloc
    * be accessing memory that is not known to be committed.
    */
   template<typename Meta>
-  concept ConceptBackendMeta =
+  concept ConceptPagemapMeta =
     requires(address_t addr, size_t sz, const typename Meta::Entry& t)
   {
     {
@@ -31,11 +31,11 @@ namespace snmalloc
    * The pagemap can also be told to commit backing storage for a range of
    * addresses.  This is broken out to a separate concept so that we can
    * annotate which functions expect to do this vs. which merely use the core
-   * interface above.  In practice, use ConceptBackendMetaRange (without the
+   * interface above.  In practice, use ConceptPagemapMetaRange (without the
    * underscore) below, which combines this and the core concept, above.
    */
   template<typename Meta>
-  concept ConceptBackendMeta_Range = requires(address_t addr, size_t sz)
+  concept ConceptPagemapMeta_Range = requires(address_t addr, size_t sz)
   {
     {
       Meta::register_range(addr, sz)
@@ -44,7 +44,7 @@ namespace snmalloc
   };
 
   template<typename Meta>
-  concept ConceptBuddyRangeMeta =
+  concept ConceptPagemapMetaBuddy =
     requires(address_t addr, size_t sz, const typename Meta::Entry& t)
   {
     {
@@ -61,24 +61,24 @@ namespace snmalloc
   /**
    * The full pagemap accessor interface, with all of {get,set}_metadata and
    * register_range.  Use this to annotate callers that need the full interface
-   * and use ConceptBackendMeta for callers that merely need {get,set}_metadata,
+   * and use ConceptPagemapMeta for callers that merely need {get,set}_metadata,
    * but note that the difference is just for humans and not compilers (since
    * concept checking is lower bounding and does not constrain the templatized
    * code to use only those affordances given by the concept).
    */
   template<typename Meta>
-  concept ConceptBackendMetaRange =
-    ConceptBackendMeta<Meta>&& ConceptBackendMeta_Range<Meta>;
+  concept ConceptPagemapMetaRange =
+    ConceptPagemapMeta<Meta>&& ConceptPagemapMeta_Range<Meta>;
 
   /**
-   * The backend also defines domestication (that is, the difference between
-   * Tame and Wild CapPtr bounds).  It exports the intended affordance for
-   * testing a Wild pointer and either returning nullptr or the original
+   * The configuration also defines domestication (that is, the difference
+   * between Tame and Wild CapPtr bounds).  It exports the intended affordance
+   * for testing a Wild pointer and either returning nullptr or the original
    * pointer, now Tame.
    */
   template<typename StandardConfig>
-  concept ConceptBackendDomestication =
-    requires(typename StandardConfig::LocalState* ls, capptr::AllocWild<void> ptr)
+  concept ConceptConfigDomestication = requires(
+    typename StandardConfig::LocalState* ls, capptr::AllocWild<void> ptr)
   {
     {
       StandardConfig::capptr_domesticate(ls, ptr)
@@ -95,7 +95,7 @@ namespace snmalloc
   struct Flags;
 
   /**
-   * Backend global objects of type T must obey a number of constraints.  They
+   * Config objects of type T must obey a number of constraints.  They
    * must...
    *
    *  * inherit from CommonConfig (see commonconfig.h)
@@ -107,9 +107,8 @@ namespace snmalloc
    *
    */
   template<typename StandardConfig>
-  concept ConceptBackendGlobals =
-    std::is_base_of<CommonConfig, StandardConfig>::value&&
-      ConceptPAL<typename StandardConfig::Pal>&& requires()
+  concept ConceptConfig = std::is_base_of<CommonConfig, StandardConfig>::value&&
+    ConceptPAL<typename StandardConfig::Pal>&& requires()
   {
     typename StandardConfig::LocalState;
 
@@ -133,8 +132,8 @@ namespace snmalloc
    * The lazy version of the above; please see ds/concept.h and use sparingly.
    */
   template<typename StandardConfig>
-  concept ConceptBackendGlobalsLazy =
-    !is_type_complete_v<StandardConfig> || ConceptBackendGlobals<StandardConfig>;
+  concept ConceptConfigLazy =
+    !is_type_complete_v<StandardConfig> || ConceptConfig<StandardConfig>;
 
 } // namespace snmalloc
 

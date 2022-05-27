@@ -56,7 +56,7 @@ namespace snmalloc
    * core allocator must be provided externally by invoking the `init` method
    * on this class *before* any allocation-related methods are called.
    */
-  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) Config_>
+  template<SNMALLOC_CONCEPT(ConceptConfig) Config_>
   class LocalAllocator
   {
   public:

@@ -7,7 +7,7 @@
 namespace snmalloc
 {
   template<
-    SNMALLOC_CONCEPT(ConceptBackendMetaRange) Pagemap,
+    SNMALLOC_CONCEPT(ConceptPagemapMetaRange) Pagemap,
     bool CanConsolidate = true,
     typename ParentRange = EmptyRange>
   class PagemapRegisterRange : public ContainsParent<ParentRange>

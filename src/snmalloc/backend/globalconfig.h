@@ -43,6 +43,7 @@ namespace snmalloc
   class StandardConfig final : public CommonConfig
   {
     using GlobalPoolState = PoolState<CoreAllocator<StandardConfig>>;
+
   public:
     using Pal = DefaultPal;
     using PagemapEntry = DefaultPagemapEntry;

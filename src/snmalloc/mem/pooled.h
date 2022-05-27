@@ -14,7 +14,7 @@ namespace snmalloc
   public:
     template<
       typename TT,
-      SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle,
+      SNMALLOC_CONCEPT(ConceptConfig) Config,
       PoolState<TT>& get_state()>
     friend class Pool;
     template<class a, Construction c>

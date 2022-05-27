@@ -19,15 +19,14 @@ namespace snmalloc
     return p.as_void();
   }
 
-  template<ZeroMem zero_mem, typename SharedStateHandle>
+  template<ZeroMem zero_mem, typename Config>
   inline static SNMALLOC_FAST_PATH capptr::Alloc<void>
   finish_alloc(freelist::HeadPtr p, smallsizeclass_t sizeclass)
   {
     auto r = finish_alloc_no_zero(p, sizeclass);
 
     if constexpr (zero_mem == YesZero)
-      SharedStateHandle::Pal::zero(
-        r.unsafe_ptr(), sizeclass_to_size(sizeclass));
+      Config::Pal::zero(r.unsafe_ptr(), sizeclass_to_size(sizeclass));
 
     // TODO: Should this be zeroing the free Object state, in the non-zeroing
     // case?
@@ -64,18 +63,14 @@ namespace snmalloc
     /**
      * Return all the free lists to the allocator.  Used during thread teardown.
      */
-    template<
-      size_t allocator_size,
-      typename SharedStateHandle,
-      typename DeallocFun>
-    bool flush(
-      typename SharedStateHandle::LocalState* local_state, DeallocFun dealloc)
+    template<size_t allocator_size, typename Config, typename DeallocFun>
+    bool flush(typename Config::LocalState* local_state, DeallocFun dealloc)
     {
       auto& key = entropy.get_free_list_key();
-      auto domesticate =
-        [local_state](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
-          return capptr_domesticate<SharedStateHandle>(local_state, p);
-        };
+      auto domesticate = [local_state](freelist::QueuePtr p)
+                           SNMALLOC_FAST_PATH_LAMBDA {
+                             return capptr_domesticate<Config>(local_state, p);
+                           };
 
       for (size_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
       {
@@ -90,13 +85,13 @@ namespace snmalloc
         }
       }
 
-      return remote_dealloc_cache.post<allocator_size, SharedStateHandle>(
+      return remote_dealloc_cache.post<allocator_size, Config>(
         local_state, remote_allocator->trunc_id(), key_global);
     }
 
     template<
       ZeroMem zero_mem,
-      typename SharedStateHandle,
+      typename Config,
       typename Slowpath,
       typename Domesticator>
     SNMALLOC_FAST_PATH capptr::Alloc<void>
@@ -108,7 +103,7 @@ namespace snmalloc
       if (SNMALLOC_LIKELY(!fl.empty()))
       {
         auto p = fl.take(key, domesticate);
-        return finish_alloc<zero_mem, SharedStateHandle>(p, sizeclass);
+        return finish_alloc<zero_mem, Config>(p, sizeclass);
       }
       return slowpath(sizeclass, &fl);
     }
