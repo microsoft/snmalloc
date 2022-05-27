@@ -23,14 +23,14 @@ namespace snmalloc
   {
   public:
     using Pal = DefaultPal;
-    using PageMapEntry = DefaultPageMapEntry;
+    using PagemapEntry = DefaultPagemapEntry;
 
   private:
     using ConcretePagemap =
-      FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, Pal, false>;
+      FlatPagemap<MIN_CHUNK_BITS, PagemapEntry, Pal, false>;
 
   public:
-    using Pagemap = BasicPagemap<Pal, ConcretePagemap, PageMapEntry, false>;
+    using Pagemap = BasicPagemap<Pal, ConcretePagemap, PagemapEntry, false>;
 
   public:
     using LocalState = StandardLocalState<
@@ -40,7 +40,7 @@ namespace snmalloc
 
     using GlobalPoolState = PoolState<CoreAllocator<CustomConfig>>;
 
-    using Backend = BackendAllocator<Pal, PageMapEntry, Pagemap, LocalState>;
+    using Backend = BackendAllocator<Pal, PagemapEntry, Pagemap, LocalState>;
 
   private:
     SNMALLOC_REQUIRE_CONSTINIT

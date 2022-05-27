@@ -9,7 +9,7 @@ namespace snmalloc
    */
   template<
     SNMALLOC_CONCEPT(ConceptPAL) PAL,
-    typename PageMapEntry,
+    typename PagemapEntry,
     typename Pagemap,
     typename LocalState>
   class BackendAllocator
@@ -19,7 +19,7 @@ namespace snmalloc
 
   public:
     using Pal = PAL;
-    using SlabMetadata = typename PageMapEntry::SlabMetadata;
+    using SlabMetadata = typename PagemapEntry::SlabMetadata;
 
   public:
     /**
@@ -141,7 +141,7 @@ namespace snmalloc
     }
 
     template<bool potentially_out_of_range = false>
-    SNMALLOC_FAST_PATH static const PageMapEntry& get_metaentry(address_t p)
+    SNMALLOC_FAST_PATH static const PagemapEntry& get_metaentry(address_t p)
     {
       return Pagemap::template get_metaentry<potentially_out_of_range>(p);
     }

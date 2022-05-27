@@ -12,20 +12,20 @@ namespace snmalloc
   class FixedRangeConfig final : public CommonConfig
   {
   public:
-    using PageMapEntry = DefaultPageMapEntry;
+    using PagemapEntry = DefaultPagemapEntry;
 
   private:
     using ConcretePagemap =
-      FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, PAL, true>;
+      FlatPagemap<MIN_CHUNK_BITS, PagemapEntry, PAL, true>;
 
-    using Pagemap = BasicPagemap<PAL, ConcretePagemap, PageMapEntry, true>;
+    using Pagemap = BasicPagemap<PAL, ConcretePagemap, PagemapEntry, true>;
 
   public:
     using LocalState = StandardLocalState<PAL, Pagemap>;
 
     using GlobalPoolState = PoolState<CoreAllocator<FixedRangeConfig>>;
 
-    using Backend = BackendAllocator<PAL, PageMapEntry, Pagemap, LocalState>;
+    using Backend = BackendAllocator<PAL, PagemapEntry, Pagemap, LocalState>;
     using Pal = PAL;
 
   private:

@@ -42,16 +42,16 @@ namespace snmalloc
    */
   class StandardConfig final : public CommonConfig
   {
+    using GlobalPoolState = PoolState<CoreAllocator<StandardConfig>>;
   public:
     using Pal = DefaultPal;
-    using GlobalPoolState = PoolState<CoreAllocator<StandardConfig>>;
-    using PageMapEntry = DefaultPageMapEntry;
+    using PagemapEntry = DefaultPagemapEntry;
 
   private:
     using ConcretePagemap =
-      FlatPagemap<MIN_CHUNK_BITS, PageMapEntry, Pal, false>;
+      FlatPagemap<MIN_CHUNK_BITS, PagemapEntry, Pal, false>;
 
-    using Pagemap = BasicPagemap<Pal, ConcretePagemap, PageMapEntry, false>;
+    using Pagemap = BasicPagemap<Pal, ConcretePagemap, PagemapEntry, false>;
 
     /**
      * This specifies where this configurations sources memory from.
@@ -85,7 +85,7 @@ namespace snmalloc
     /**
      * Use the default backend.
      */
-    using Backend = BackendAllocator<Pal, PageMapEntry, Pagemap, LocalState>;
+    using Backend = BackendAllocator<Pal, PagemapEntry, Pagemap, LocalState>;
 
   private:
     SNMALLOC_REQUIRE_CONSTINIT

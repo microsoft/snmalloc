@@ -69,7 +69,7 @@ namespace snmalloc
      * @{
      */
     using CoreAlloc = CoreAllocator<Config>;
-    using PagemapEntry = typename Config::PageMapEntry;
+    using PagemapEntry = typename Config::PagemapEntry;
     /// }@
 
     // Free list per small size class.  These are used for

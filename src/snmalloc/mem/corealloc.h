@@ -47,7 +47,7 @@ namespace snmalloc
      * @{
      */
     using BackendSlabMetadata = typename Config::Backend::SlabMetadata;
-    using PagemapEntry = typename Config::PageMapEntry;
+    using PagemapEntry = typename Config::PagemapEntry;
     /// }@
 
     /**

@@ -78,7 +78,7 @@ Exciting, no?
 
 ### Decoding a MetaEntry
 
-The centerpiece of `snmalloc`'s metadata is its `PageMap`, which associates each "chunk" of the address space (~16KiB; see `MIN_CHUNK_BITS`) with a `MetaEntry`.
+The centerpiece of `snmalloc`'s metadata is its `Pagemap`, which associates each "chunk" of the address space (~16KiB; see `MIN_CHUNK_BITS`) with a `MetaEntry`.
 A `MetaEntry` is a pair of pointers, suggestively named `meta` and `remote_and_sizeclass`.
 In more detail, `MetaEntry`s are better represented by Sigma and Pi types, all packed into two pointer-sized words in ways that preserve pointer provenance on CHERI.
 
