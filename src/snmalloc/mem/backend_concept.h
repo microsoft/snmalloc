@@ -99,7 +99,7 @@ namespace snmalloc
   class CommonConfig;
   struct Flags;
 
-  template<typename LocalState, typename Backend>
+  template<typename LocalState, typename PagemapEntry, typename Backend>
   concept IsBackend =
     requires(LocalState& local_state, size_t size, uintptr_t ras)
   {
@@ -107,63 +107,76 @@ namespace snmalloc
       Backend::alloc_chunk(local_state, size, ras)
       } -> ConceptSame<
         std::pair<capptr::Chunk<void>, typename Backend::SlabMetadata*>>;
-
-
-  } && requires(LocalState* local_state, size_t size)
+  }
+  &&requires(LocalState* local_state, size_t size)
   {
     {
       Backend::template alloc_meta_data<void*>(local_state, size)
-    } -> ConceptSame<capptr::Chunk<void>>;
-  } && requires(
-      LocalState& local_state,
-      typename Backend::SlabMetadata& slab_metadata,
-      capptr::Alloc<void> alloc,
-      size_t size)
-    {
-      {
-        Backend::dealloc_chunk(local_state, slab_metadata, alloc, size)
-      } -> ConceptSame<void>;
-    };
-
-  /**
-   * Config objects of type T must obey a number of constraints.  They
-   * must...
-   *
-   *  * inherit from CommonConfig (see commonconfig.h)
-   *  * specify which PAL is in use via T::Pal
-   *  * define a T::LocalState type (and alias it as T::Pagemap::LocalState)
-   *  * define T::Options of type snmalloc::Flags
-   *  * expose the global allocator pool via T::pool() if pool allocation is
-   * used.
-   *
-   */
-  template<typename Config>
-  concept IsConfig = std::is_base_of<CommonConfig, Config>::value &&
-    ConceptPAL<typename Config::Pal> &&
-    IsBackend<typename Config::LocalState, typename Config::Backend> && requires()
+      } -> ConceptSame<capptr::Chunk<void>>;
+  }
+  &&requires(
+    LocalState& local_state,
+    typename Backend::SlabMetadata& slab_metadata,
+    capptr::Alloc<void> alloc,
+    size_t size)
   {
-    typename Config::LocalState;
-    typename Config::Backend;
+    {
+      Backend::dealloc_chunk(local_state, slab_metadata, alloc, size)
+      } -> ConceptSame<void>;
+  }
+  &&requires(address_t p)
+  {
+    {
+      Backend::template get_metaentry<true>(p)
+      } -> ConceptSame<const PagemapEntry&>;
 
     {
-      Config::Options
-      } -> ConceptSameModRef<const Flags>;
-  } &&(
-    requires() {
-      Config::Options.CoreAllocIsPoolAllocated == true;
-      typename Config::GlobalPoolState;
-      {
-        Config::pool()
-        } -> ConceptSame<typename Config::GlobalPoolState&>;
-    } ||
-    requires() { Config::Options.CoreAllocIsPoolAllocated == false; });
+      Backend::template get_metaentry<false>(p)
+      } -> ConceptSame<const PagemapEntry&>;
+  };
 
-  /**
-   * The lazy version of the above; please see ds_core/concept.h and use
-   * sparingly.
-   */
-  template<typename Config>
-  concept IsConfigLazy = !is_type_complete_v<Config> || IsConfig<Config>;
+/**
+ * Config objects of type T must obey a number of constraints.  They
+ * must...
+ *
+ *  * inherit from CommonConfig (see commonconfig.h)
+ *  * specify which PAL is in use via T::Pal
+ *  * define a T::LocalState type (and alias it as T::Pagemap::LocalState)
+ *  * define T::Options of type snmalloc::Flags
+ *  * expose the global allocator pool via T::pool() if pool allocation is
+ * used.
+ *
+ */
+template<typename Config>
+concept IsConfig = std::is_base_of<CommonConfig, Config>::value &&
+  ConceptPAL<typename Config::Pal> && IsBackend<
+    typename Config::LocalState,
+    typename Config::PagemapEntry,
+    typename Config::Backend> && requires()
+{
+  typename Config::LocalState;
+  typename Config::Backend;
+  typename Config::PagemapEntry;
+
+  {
+    Config::Options
+    } -> ConceptSameModRef<const Flags>;
+} &&(
+  requires() {
+    Config::Options.CoreAllocIsPoolAllocated == true;
+    typename Config::GlobalPoolState;
+    {
+      Config::pool()
+      } -> ConceptSame<typename Config::GlobalPoolState&>;
+  } ||
+  requires() { Config::Options.CoreAllocIsPoolAllocated == false; });
+
+/**
+ * The lazy version of the above; please see ds_core/concept.h and use
+ * sparingly.
+ */
+template<typename Config>
+concept IsConfigLazy = !is_type_complete_v<Config> || IsConfig<Config>;
 
 } // namespace snmalloc
 
