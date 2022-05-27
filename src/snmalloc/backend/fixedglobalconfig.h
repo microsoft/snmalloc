@@ -9,7 +9,7 @@ namespace snmalloc
    * A single fixed address range allocator configuration
    */
   template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
-  class FixedGlobals final : public CommonConfig
+  class FixedRangeConfig final : public CommonConfig
   {
   public:
     using PageMapEntry = DefaultPageMapEntry;
@@ -23,7 +23,7 @@ namespace snmalloc
   public:
     using LocalState = StandardLocalState<PAL, Pagemap>;
 
-    using GlobalPoolState = PoolState<CoreAllocator<FixedGlobals>>;
+    using GlobalPoolState = PoolState<CoreAllocator<FixedRangeConfig>>;
 
     using Backend = BackendAllocator<PAL, PageMapEntry, Pagemap, LocalState>;
     using Pal = PAL;

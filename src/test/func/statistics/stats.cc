@@ -8,7 +8,7 @@ int main()
 
   auto r = a.alloc(16);
 
-  snmalloc::debug_check_empty<snmalloc::Globals>(&result);
+  snmalloc::debug_check_empty<snmalloc::StandardConfig>(&result);
   if (result != false)
   {
     abort();
@@ -16,7 +16,7 @@ int main()
 
   a.dealloc(r);
 
-  snmalloc::debug_check_empty<snmalloc::Globals>(&result);
+  snmalloc::debug_check_empty<snmalloc::StandardConfig>(&result);
   if (result != true)
   {
     abort();
@@ -24,7 +24,7 @@ int main()
 
   r = a.alloc(16);
 
-  snmalloc::debug_check_empty<snmalloc::Globals>(&result);
+  snmalloc::debug_check_empty<snmalloc::StandardConfig>(&result);
   if (result != false)
   {
     abort();
@@ -32,7 +32,7 @@ int main()
 
   a.dealloc(r);
 
-  snmalloc::debug_check_empty<snmalloc::Globals>(&result);
+  snmalloc::debug_check_empty<snmalloc::StandardConfig>(&result);
   if (result != true)
   {
     abort();

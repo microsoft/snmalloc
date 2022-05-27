@@ -76,17 +76,17 @@ namespace snmalloc
    * testing a Wild pointer and either returning nullptr or the original
    * pointer, now Tame.
    */
-  template<typename Globals>
+  template<typename StandardConfig>
   concept ConceptBackendDomestication =
-    requires(typename Globals::LocalState* ls, capptr::AllocWild<void> ptr)
+    requires(typename StandardConfig::LocalState* ls, capptr::AllocWild<void> ptr)
   {
     {
-      Globals::capptr_domesticate(ls, ptr)
+      StandardConfig::capptr_domesticate(ls, ptr)
     }
     ->ConceptSame<capptr::Alloc<void>>;
 
     {
-      Globals::capptr_domesticate(ls, ptr.template as_static<char>())
+      StandardConfig::capptr_domesticate(ls, ptr.template as_static<char>())
     }
     ->ConceptSame<capptr::Alloc<char>>;
   };
@@ -106,35 +106,35 @@ namespace snmalloc
    * used.
    *
    */
-  template<typename Globals>
+  template<typename StandardConfig>
   concept ConceptBackendGlobals =
-    std::is_base_of<CommonConfig, Globals>::value&&
-      ConceptPAL<typename Globals::Pal>&& requires()
+    std::is_base_of<CommonConfig, StandardConfig>::value&&
+      ConceptPAL<typename StandardConfig::Pal>&& requires()
   {
-    typename Globals::LocalState;
+    typename StandardConfig::LocalState;
 
     {
-      Globals::Options
+      StandardConfig::Options
     }
     ->ConceptSameModRef<const Flags>;
   }
   &&(
     requires() {
-      Globals::Options.CoreAllocIsPoolAllocated == true;
-      typename Globals::GlobalPoolState;
+      StandardConfig::Options.CoreAllocIsPoolAllocated == true;
+      typename StandardConfig::GlobalPoolState;
       {
-        Globals::pool()
+        StandardConfig::pool()
       }
-      ->ConceptSame<typename Globals::GlobalPoolState&>;
+      ->ConceptSame<typename StandardConfig::GlobalPoolState&>;
     } ||
-    requires() { Globals::Options.CoreAllocIsPoolAllocated == false; });
+    requires() { StandardConfig::Options.CoreAllocIsPoolAllocated == false; });
 
   /**
    * The lazy version of the above; please see ds/concept.h and use sparingly.
    */
-  template<typename Globals>
+  template<typename StandardConfig>
   concept ConceptBackendGlobalsLazy =
-    !is_type_complete_v<Globals> || ConceptBackendGlobals<Globals>;
+    !is_type_complete_v<StandardConfig> || ConceptBackendGlobals<StandardConfig>;
 
 } // namespace snmalloc
 

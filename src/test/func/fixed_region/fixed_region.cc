@@ -11,7 +11,7 @@
 
 using namespace snmalloc;
 
-using CustomGlobals = FixedGlobals<PALNoAlloc<DefaultPal>>;
+using CustomGlobals = FixedRangeConfig<PALNoAlloc<DefaultPal>>;
 using FixedAlloc = LocalAllocator<CustomGlobals>;
 
 int main()

@@ -48,6 +48,6 @@ extern "C" SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(rust_realloc)(
 extern "C" SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(rust_statistics)(
   size_t* current_memory_usage, size_t* peak_memory_usage)
 {
-  *current_memory_usage = Globals::Backend::get_current_usage();
-  *peak_memory_usage = Globals::Backend::get_peak_usage();
+  *current_memory_usage = StandardConfig::Backend::get_current_usage();
+  *peak_memory_usage = StandardConfig::Backend::get_peak_usage();
 }

@@ -47,7 +47,7 @@ namespace test
       alloc.dealloc(objects[i]);
     }
 
-    snmalloc::debug_check_empty<Globals>();
+    snmalloc::debug_check_empty<StandardConfig>();
   }
 
   void test_external_pointer(xoroshiro::p128r64& r)

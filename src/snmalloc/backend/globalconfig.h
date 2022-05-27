@@ -40,11 +40,11 @@ namespace snmalloc
    * The Configuration sets up a Pagemap for the backend to use, and the state
    * required to build new allocators (GlobalPoolState).
    */
-  class Globals final : public CommonConfig
+  class StandardConfig final : public CommonConfig
   {
   public:
     using Pal = DefaultPal;
-    using GlobalPoolState = PoolState<CoreAllocator<Globals>>;
+    using GlobalPoolState = PoolState<CoreAllocator<StandardConfig>>;
     using PageMapEntry = DefaultPageMapEntry;
 
   private:
@@ -156,6 +156,6 @@ namespace snmalloc
   /**
    * Create allocator type for this configuration.
    */
-  using Alloc = snmalloc::LocalAllocator<snmalloc::Globals>;
+  using Alloc = snmalloc::LocalAllocator<snmalloc::StandardConfig>;
 } // namespace snmalloc
 #endif

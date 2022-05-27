@@ -12,7 +12,7 @@ struct PoolAEntry : Pooled<PoolAEntry>
   PoolAEntry() : field(1){};
 };
 
-using PoolA = Pool<PoolAEntry, Alloc::StateHandle>;
+using PoolA = Pool<PoolAEntry, Alloc::Config>;
 
 struct PoolBEntry : Pooled<PoolBEntry>
 {
@@ -22,14 +22,14 @@ struct PoolBEntry : Pooled<PoolBEntry>
   PoolBEntry(int f) : field(f){};
 };
 
-using PoolB = Pool<PoolBEntry, Alloc::StateHandle>;
+using PoolB = Pool<PoolBEntry, Alloc::Config>;
 
 void test_alloc()
 {
   auto ptr = PoolA::acquire();
   SNMALLOC_CHECK(ptr != nullptr);
   // Pool allocations should not be visible to debug_check_empty.
-  snmalloc::debug_check_empty<Alloc::StateHandle>();
+  snmalloc::debug_check_empty<Alloc::Config>();
   PoolA::release(ptr);
 }
 
