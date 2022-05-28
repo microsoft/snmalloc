@@ -18,11 +18,13 @@ namespace snmalloc
   {
     {
       Pagemap::template get_metaentry<true>(addr)
-      } -> ConceptSame<const typename Pagemap::Entry&>;
+    }
+    ->ConceptSame<const typename Pagemap::Entry&>;
 
     {
       Pagemap::template get_metaentry<false>(addr)
-      } -> ConceptSame<const typename Pagemap::Entry&>;
+    }
+    ->ConceptSame<const typename Pagemap::Entry&>;
   };
 
   /**
@@ -34,20 +36,23 @@ namespace snmalloc
    * set_metadata updates the entry in the pagemap.
    */
   template<typename Pagemap>
-  concept IsWritablePagemap = IsReadablePagemap<Pagemap> &&
-    requires(address_t addr, size_t sz, const typename Pagemap::Entry& t)
+  concept IsWritablePagemap = IsReadablePagemap<Pagemap>&& requires(
+    address_t addr, size_t sz, const typename Pagemap::Entry& t)
   {
     {
       Pagemap::template get_metaentry_mut<true>(addr)
-      } -> ConceptSame<typename Pagemap::Entry&>;
+    }
+    ->ConceptSame<typename Pagemap::Entry&>;
 
     {
       Pagemap::template get_metaentry_mut<false>(addr)
-      } -> ConceptSame<typename Pagemap::Entry&>;
+    }
+    ->ConceptSame<typename Pagemap::Entry&>;
 
     {
       Pagemap::set_metaentry(addr, sz, t)
-      } -> ConceptSame<void>;
+    }
+    ->ConceptSame<void>;
   };
 
   /**
@@ -62,7 +67,8 @@ namespace snmalloc
   {
     {
       Pagemap::register_range(addr, sz)
-      } -> ConceptSame<void>;
+    }
+    ->ConceptSame<void>;
   };
 
   /**
@@ -75,7 +81,7 @@ namespace snmalloc
    */
   template<typename Pagemap>
   concept IsWritablePagemapWithRegister =
-    IsReadablePagemap<Pagemap> && IsPagemapWithRegister<Pagemap>;
+    IsReadablePagemap<Pagemap>&& IsPagemapWithRegister<Pagemap>;
 
   /**
    * The configuration also defines domestication (that is, the difference
@@ -89,11 +95,13 @@ namespace snmalloc
   {
     {
       Config::capptr_domesticate(ls, ptr)
-      } -> ConceptSame<capptr::Alloc<void>>;
+    }
+    ->ConceptSame<capptr::Alloc<void>>;
 
     {
       Config::capptr_domesticate(ls, ptr.template as_static<char>())
-      } -> ConceptSame<capptr::Alloc<char>>;
+    }
+    ->ConceptSame<capptr::Alloc<char>>;
   };
 
   class CommonConfig;
@@ -105,14 +113,16 @@ namespace snmalloc
   {
     {
       Backend::alloc_chunk(local_state, size, ras)
-      } -> ConceptSame<
-        std::pair<capptr::Chunk<void>, typename Backend::SlabMetadata*>>;
+    }
+    ->ConceptSame<
+      std::pair<capptr::Chunk<void>, typename Backend::SlabMetadata*>>;
   }
   &&requires(LocalState* local_state, size_t size)
   {
     {
       Backend::template alloc_meta_data<void*>(local_state, size)
-      } -> ConceptSame<capptr::Chunk<void>>;
+    }
+    ->ConceptSame<capptr::Chunk<void>>;
   }
   &&requires(
     LocalState& local_state,
@@ -122,61 +132,67 @@ namespace snmalloc
   {
     {
       Backend::dealloc_chunk(local_state, slab_metadata, alloc, size)
-      } -> ConceptSame<void>;
+    }
+    ->ConceptSame<void>;
   }
   &&requires(address_t p)
   {
     {
       Backend::template get_metaentry<true>(p)
-      } -> ConceptSame<const PagemapEntry&>;
+    }
+    ->ConceptSame<const PagemapEntry&>;
 
     {
       Backend::template get_metaentry<false>(p)
-      } -> ConceptSame<const PagemapEntry&>;
+    }
+    ->ConceptSame<const PagemapEntry&>;
   };
 
-/**
- * Config objects of type T must obey a number of constraints.  They
- * must...
- *
- *  * inherit from CommonConfig (see commonconfig.h)
- *  * specify which PAL is in use via T::Pal
- *  * define a T::LocalState type (and alias it as T::Pagemap::LocalState)
- *  * define T::Options of type snmalloc::Flags
- *  * expose the global allocator pool via T::pool() if pool allocation is
- * used.
- *
- */
-template<typename Config>
-concept IsConfig = std::is_base_of<CommonConfig, Config>::value &&
-  ConceptPAL<typename Config::Pal> && IsBackend<
-    typename Config::LocalState,
-    typename Config::PagemapEntry,
-    typename Config::Backend> && requires()
-{
-  typename Config::LocalState;
-  typename Config::Backend;
-  typename Config::PagemapEntry;
-
+  /**
+   * Config objects of type T must obey a number of constraints.  They
+   * must...
+   *
+   *  * inherit from CommonConfig (see commonconfig.h)
+   *  * specify which PAL is in use via T::Pal
+   *  * define a T::LocalState type (and alias it as T::Pagemap::LocalState)
+   *  * define T::Options of type snmalloc::Flags
+   *  * expose the global allocator pool via T::pool() if pool allocation is
+   * used.
+   *
+   */
+  template<typename Config>
+  concept IsConfig = std::is_base_of<CommonConfig, Config>::value&&
+    ConceptPAL<typename Config::Pal>&& IsBackend<
+      typename Config::LocalState,
+      typename Config::PagemapEntry,
+      typename Config::Backend>&& requires()
   {
-    Config::Options
-    } -> ConceptSameModRef<const Flags>;
-} &&(
-  requires() {
-    Config::Options.CoreAllocIsPoolAllocated == true;
-    typename Config::GlobalPoolState;
-    {
-      Config::pool()
-      } -> ConceptSame<typename Config::GlobalPoolState&>;
-  } ||
-  requires() { Config::Options.CoreAllocIsPoolAllocated == false; });
+    typename Config::LocalState;
+    typename Config::Backend;
+    typename Config::PagemapEntry;
 
-/**
- * The lazy version of the above; please see ds_core/concept.h and use
- * sparingly.
- */
-template<typename Config>
-concept IsConfigLazy = !is_type_complete_v<Config> || IsConfig<Config>;
+    {
+      Config::Options
+    }
+    ->ConceptSameModRef<const Flags>;
+  }
+  &&(
+    requires() {
+      Config::Options.CoreAllocIsPoolAllocated == true;
+      typename Config::GlobalPoolState;
+      {
+        Config::pool()
+      }
+      ->ConceptSame<typename Config::GlobalPoolState&>;
+    } ||
+    requires() { Config::Options.CoreAllocIsPoolAllocated == false; });
+
+  /**
+   * The lazy version of the above; please see ds_core/concept.h and use
+   * sparingly.
+   */
+  template<typename Config>
+  concept IsConfigLazy = !is_type_complete_v<Config> || IsConfig<Config>;
 
 } // namespace snmalloc
 
