@@ -67,6 +67,11 @@ namespace snmalloc
          * Bounded to one or more particular chunk granules
          */
         Chunk,
+        /**
+         * Unbounded return from the kernel.  These correspond, on CHERI
+         * platforms, to kernel-side address space reservations.
+         */
+        Arena
       };
 
       /**
@@ -154,6 +159,11 @@ namespace snmalloc
           (S == dimension::Spatial::Alloc &&
            AS == dimension::AddressSpaceControl::User),
         "Wild pointers must be annotated as tightly bounded");
+      static_assert(
+        (S != dimension::Spatial::Arena) ||
+          (W == dimension::Wildness::Tame &&
+           AS == dimension::AddressSpaceControl::Full),
+        "Arena pointers must be restricted spatially before other dimensions");
     };
 
     // clang-format off
@@ -180,8 +190,16 @@ namespace snmalloc
     namespace bounds
     {
       /**
-       * Internal access to a Chunk of memory.  These flow between the ASM and
-       * the slab allocators, for example.
+       * Internal access to an entire Arena.  These exist only in the backend.
+       */
+      using Arena = bound<
+        dimension::Spatial::Arena,
+        dimension::AddressSpaceControl::Full,
+        dimension::Wildness::Tame>;
+
+      /**
+       * Internal access to a Chunk of memory.  These flow across the boundary
+       * between back- and front-ends, for example.
        */
       using Chunk = bound<
         dimension::Spatial::Chunk,
@@ -242,15 +260,7 @@ namespace snmalloc
         return false;
       }
 
-      switch (BI::spatial)
-      {
-        using namespace capptr::dimension;
-        case Spatial::Chunk:
-          return true;
-
-        case Spatial::Alloc:
-          return BO::spatial == Spatial::Alloc;
-      }
+      return BO::spatial <= BI::spatial;
     }
   } // namespace capptr
 
@@ -354,6 +364,9 @@ namespace snmalloc
     /*
      * Aliases for CapPtr<> types with particular bounds.
      */
+
+    template<typename T>
+    using Arena = CapPtr<T, bounds::Arena>;
 
     template<typename T>
     using Chunk = CapPtr<T, bounds::Chunk>;
