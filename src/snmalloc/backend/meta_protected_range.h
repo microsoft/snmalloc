@@ -40,6 +40,12 @@ namespace snmalloc
       LogRange<2>,
       GlobalRange<>>;
 
+    static constexpr size_t page_size_bits =
+      bits::next_pow2_bits_const(PAL::page_size);
+
+    static constexpr size_t max_page_chunk_size_bits =
+      bits::max(page_size_bits, MIN_CHUNK_BITS);
+
     // Central source of object-range, does not pass back to GlobalR as
     // that would allow flows from Objects to Meta-data, and thus UAF
     // would be able to corrupt meta-data.
@@ -61,16 +67,31 @@ namespace snmalloc
       GlobalR,
       SubRange<PAL, SubRangeRatioBits>, // Use SubRange to introduce guard
                                         // pages.
-      LargeBuddyRange<GlobalCacheSizeBits, bits::BITS - 1, Pagemap>,
+      LargeBuddyRange<
+        GlobalCacheSizeBits,
+        bits::BITS - 1,
+        Pagemap,
+        page_size_bits>,
+      CommitRange<PAL>,
+      // In case of huge pages, we don't want to give each thread its own huge
+      // page, so commit in the global range.
+      LargeBuddyRange<
+        max_page_chunk_size_bits,
+        max_page_chunk_size_bits,
+        Pagemap,
+        page_size_bits>,
       LogRange<4>,
       GlobalRange<>,
-      CommitRange<PAL>,
       StatsRange<>>;
 
     // Local caching of object range
     using ObjectRange = Pipe<
       CentralObjectRange,
-      LargeBuddyRange<LocalCacheSizeBits, LocalCacheSizeBits, Pagemap>,
+      LargeBuddyRange<
+        LocalCacheSizeBits,
+        LocalCacheSizeBits,
+        Pagemap,
+        page_size_bits>,
       LogRange<5>>;
 
     // Local caching of meta-data range

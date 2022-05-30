@@ -41,11 +41,18 @@ namespace snmalloc
     using Stats = Pipe<GlobalR, CommitRange<PAL>, StatsRange<>>;
 
   private:
+    static constexpr size_t page_size_bits =
+      bits::next_pow2_bits_const(PAL::page_size);
+
     // Source for object allocations and metadata
     // Use buddy allocators to cache locally.
     using ObjectRange = Pipe<
       Stats,
-      LargeBuddyRange<LocalCacheSizeBits, LocalCacheSizeBits, Pagemap>,
+      LargeBuddyRange<
+        LocalCacheSizeBits,
+        LocalCacheSizeBits,
+        Pagemap,
+        page_size_bits>,
       SmallBuddyRange<>>;
 
   public:
