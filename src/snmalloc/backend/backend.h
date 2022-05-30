@@ -5,7 +5,8 @@ namespace snmalloc
 {
   /**
    * This class implements the standard backend for handling allocations.
-   * It abstracts page table management and address space management.
+   * It is parameterised by its page table management (Pagemap) and
+   * address space management (LocalState).
    */
   template<
     SNMALLOC_CONCEPT(ConceptPAL) PAL,
@@ -106,6 +107,15 @@ namespace snmalloc
       return {p, meta};
     }
 
+    /**
+     * Deallocate a chunk of memory of size `size` and base `alloc`.
+     * The `slab_metadata` is the meta-data block associated with this
+     * chunk.  The backend can recalculate this, but as the callee will
+     * already have it, we take it for possibly more optimal code.
+     *
+     * LocalState contains all the information about the various ranges
+     * that are used by the backend to manage the address space.
+     */
     static void dealloc_chunk(
       LocalState& local_state,
       SlabMetadata& slab_metadata,

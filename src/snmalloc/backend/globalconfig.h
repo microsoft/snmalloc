@@ -33,9 +33,10 @@ namespace snmalloc
    * public types for various aspects of the code.
    * The most notable are:
    *
-   *   Backend - Manages the memory
+   *   Backend - Manages the memory coming from the platform.
    *   LocalState - the per-thread/per-allocator state that may perform local
-   *     caching of reserved memory.
+   *     caching of reserved memory. This also specifies the various Range types
+   *     used to manage the memory.
    *
    * The Configuration sets up a Pagemap for the backend to use, and the state
    * required to build new allocators (GlobalPoolState).
