@@ -5,7 +5,7 @@ namespace snmalloc
 {
   /**
    * This class implements the standard backend for handling allocations.
-   * It is parameterised by its page table management (Pagemap) and
+   * It is parameterised by its Pagemap management and
    * address space management (LocalState).
    */
   template<
