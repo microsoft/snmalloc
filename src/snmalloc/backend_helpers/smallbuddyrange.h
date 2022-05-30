@@ -143,100 +143,97 @@ namespace snmalloc
     }
   };
 
-  template<typename ParentRange = EmptyRange>
-  class SmallBuddyRange : public ContainsParent<ParentRange>
+  struct SmallBuddyRange
   {
-    using ContainsParent<ParentRange>::parent;
-
-    static constexpr size_t MIN_BITS =
-      bits::next_pow2_bits_const(sizeof(FreeChunk));
-
-    Buddy<BuddyInplaceRep, MIN_BITS, MIN_CHUNK_BITS> buddy_small;
-
-    /**
-     * Add a range of memory to the address space.
-     * Divides blocks into power of two sizes with natural alignment
-     */
-    void add_range(capptr::Chunk<void> base, size_t length)
+    template<typename ParentRange = EmptyRange>
+    class Type : public ContainsParent<ParentRange>
     {
-      range_to_pow_2_blocks<MIN_BITS>(
-        base, length, [this](capptr::Chunk<void> base, size_t align, bool) {
-          capptr::Chunk<void> overflow =
-            buddy_small.add_block(base.as_reinterpret<FreeChunk>(), align)
-              .template as_reinterpret<void>();
-          if (overflow != nullptr)
-            parent.dealloc_range(overflow, bits::one_at_bit(MIN_CHUNK_BITS));
-        });
-    }
+      using ContainsParent<ParentRange>::parent;
 
-    capptr::Chunk<void> refill(size_t size)
-    {
-      auto refill = parent.alloc_range(MIN_CHUNK_SIZE);
+      static constexpr size_t MIN_BITS =
+        bits::next_pow2_bits_const(sizeof(FreeChunk));
 
-      if (refill != nullptr)
-        add_range(pointer_offset(refill, size), MIN_CHUNK_SIZE - size);
+      Buddy<BuddyInplaceRep, MIN_BITS, MIN_CHUNK_BITS> buddy_small;
 
-      return refill;
-    }
-
-  public:
-    /**
-     * We use a nested Apply type to enable a Pipe operation.
-     */
-    template<typename ParentRange2>
-    using Apply = SmallBuddyRange<ParentRange2>;
-
-    static constexpr bool Aligned = true;
-    static_assert(ParentRange::Aligned, "ParentRange must be aligned");
-
-    static constexpr bool ConcurrencySafe = false;
-
-    constexpr SmallBuddyRange() = default;
-
-    capptr::Chunk<void> alloc_range(size_t size)
-    {
-      if (size >= MIN_CHUNK_SIZE)
+      /**
+       * Add a range of memory to the address space.
+       * Divides blocks into power of two sizes with natural alignment
+       */
+      void add_range(capptr::Chunk<void> base, size_t length)
       {
-        return parent.alloc_range(size);
+        range_to_pow_2_blocks<MIN_BITS>(
+          base, length, [this](capptr::Chunk<void> base, size_t align, bool) {
+            capptr::Chunk<void> overflow =
+              buddy_small.add_block(base.as_reinterpret<FreeChunk>(), align)
+                .template as_reinterpret<void>();
+            if (overflow != nullptr)
+              parent.dealloc_range(overflow, bits::one_at_bit(MIN_CHUNK_BITS));
+          });
       }
 
-      auto result = buddy_small.remove_block(size);
-      if (result != nullptr)
+      capptr::Chunk<void> refill(size_t size)
       {
-        result->left = nullptr;
-        result->right = nullptr;
+        auto refill = parent.alloc_range(MIN_CHUNK_SIZE);
+
+        if (refill != nullptr)
+          add_range(pointer_offset(refill, size), MIN_CHUNK_SIZE - size);
+
+        return refill;
+      }
+
+    public:
+      static constexpr bool Aligned = true;
+      static_assert(ParentRange::Aligned, "ParentRange must be aligned");
+
+      static constexpr bool ConcurrencySafe = false;
+
+      constexpr Type() = default;
+
+      capptr::Chunk<void> alloc_range(size_t size)
+      {
+        if (size >= MIN_CHUNK_SIZE)
+        {
+          return parent.alloc_range(size);
+        }
+
+        auto result = buddy_small.remove_block(size);
+        if (result != nullptr)
+        {
+          result->left = nullptr;
+          result->right = nullptr;
+          return result.template as_reinterpret<void>();
+        }
+        return refill(size);
+      }
+
+      capptr::Chunk<void> alloc_range_with_leftover(size_t size)
+      {
+        SNMALLOC_ASSERT(size <= MIN_CHUNK_SIZE);
+
+        auto rsize = bits::next_pow2(size);
+
+        auto result = alloc_range(rsize);
+
+        if (result == nullptr)
+          return nullptr;
+
+        auto remnant = pointer_offset(result, size);
+
+        add_range(remnant, rsize - size);
+
         return result.template as_reinterpret<void>();
       }
-      return refill(size);
-    }
 
-    capptr::Chunk<void> alloc_range_with_leftover(size_t size)
-    {
-      SNMALLOC_ASSERT(size <= MIN_CHUNK_SIZE);
-
-      auto rsize = bits::next_pow2(size);
-
-      auto result = alloc_range(rsize);
-
-      if (result == nullptr)
-        return nullptr;
-
-      auto remnant = pointer_offset(result, size);
-
-      add_range(remnant, rsize - size);
-
-      return result.template as_reinterpret<void>();
-    }
-
-    void dealloc_range(capptr::Chunk<void> base, size_t size)
-    {
-      if (size >= MIN_CHUNK_SIZE)
+      void dealloc_range(capptr::Chunk<void> base, size_t size)
       {
-        parent.dealloc_range(base, size);
-        return;
-      }
+        if (size >= MIN_CHUNK_SIZE)
+        {
+          parent.dealloc_range(base, size);
+          return;
+        }
 
-      add_range(base, size);
-    }
+        add_range(base, size);
+      }
+    };
   };
 } // namespace snmalloc

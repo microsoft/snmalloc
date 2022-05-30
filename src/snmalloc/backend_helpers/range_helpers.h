@@ -61,7 +61,7 @@ namespace snmalloc
   {
   public:
     using result =
-      typename PipeImpl<typename Fun::template Apply<First>, Rest...>::result;
+      typename PipeImpl<typename Fun::template Type<First>, Rest...>::result;
   };
 
   /**

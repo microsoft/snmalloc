@@ -38,7 +38,7 @@ namespace snmalloc
         Pagemap,
         MinSizeBits>,
       LogRange<2>,
-      GlobalRange<>>;
+      GlobalRange>;
 
     static constexpr size_t page_size_bits =
       bits::next_pow2_bits_const(PAL::page_size);
@@ -53,9 +53,9 @@ namespace snmalloc
       GlobalR,
       LargeBuddyRange<GlobalCacheSizeBits, bits::BITS - 1, Pagemap>,
       LogRange<3>,
-      GlobalRange<>,
+      GlobalRange,
       CommitRange<PAL>,
-      StatsRange<>>;
+      StatsRange>;
 
     // Controls the padding around the meta-data range.
     // The larger the padding range the more randomisation that
@@ -81,8 +81,8 @@ namespace snmalloc
         Pagemap,
         page_size_bits>,
       LogRange<4>,
-      GlobalRange<>,
-      StatsRange<>>;
+      GlobalRange,
+      StatsRange>;
 
     // Local caching of object range
     using ObjectRange = Pipe<
@@ -101,7 +101,7 @@ namespace snmalloc
         LocalCacheSizeBits - SubRangeRatioBits,
         bits::BITS - 1,
         Pagemap>,
-      SmallBuddyRange<>>;
+      SmallBuddyRange>;
 
   public:
     using Stats = StatsCombiner<CentralObjectRange, CentralMetaRange>;
@@ -119,6 +119,6 @@ namespace snmalloc
     // Don't want to add the SmallBuddyRange to the CentralMetaRange as that
     // would require committing memory inside the main global lock.
     using GlobalMetaRange =
-      Pipe<CentralMetaRange, SmallBuddyRange<>, GlobalRange<>>;
+      Pipe<CentralMetaRange, SmallBuddyRange, GlobalRange>;
   };
 } // namespace snmalloc
