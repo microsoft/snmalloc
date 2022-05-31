@@ -9,7 +9,7 @@ namespace snmalloc
    * The following class could be replaced by:
    *
    * ```
-   * using DefaultPagemapEntry = FrontendMetaEntry<SlabMetadata>;
+   * using DefaultPagemapEntry = FrontendMetaEntry<FrontendSlabMetadata>;
    * ```
    *
    * The full form here provides an example of how to extend the pagemap
@@ -17,7 +17,8 @@ namespace snmalloc
    * constructs meta entries, it only ever reads them or modifies them in
    * place.
    */
-  class DefaultPagemapEntry : public FrontendMetaEntry<FrontendSlabMetadata>
+  template<typename SlabMetadata>
+  class DefaultPagemapEntryT : public FrontendMetaEntry<SlabMetadata>
   {
     /**
      * The private initialising constructor is usable only by this back end.
@@ -43,22 +44,25 @@ namespace snmalloc
      * metadata in meta entries when they are first constructed.
      */
     SNMALLOC_FAST_PATH
-    DefaultPagemapEntry(FrontendSlabMetadata* meta, uintptr_t ras)
-    : FrontendMetaEntry<FrontendSlabMetadata>(meta, ras)
+    DefaultPagemapEntryT(SlabMetadata* meta, uintptr_t ras)
+    : FrontendMetaEntry<SlabMetadata>(meta, ras)
     {}
 
     /**
      * Copy assignment is used only by the pagemap.
      */
-    DefaultPagemapEntry& operator=(const DefaultPagemapEntry& other)
+    DefaultPagemapEntryT& operator=(const DefaultPagemapEntryT& other)
     {
-      FrontendMetaEntry<FrontendSlabMetadata>::operator=(other);
+      FrontendMetaEntry<SlabMetadata>::operator=(other);
       return *this;
     }
 
     /**
      * Default constructor.  This must be callable from the pagemap.
      */
-    SNMALLOC_FAST_PATH DefaultPagemapEntry() = default;
+    SNMALLOC_FAST_PATH DefaultPagemapEntryT() = default;
   };
+
+  using DefaultPagemapEntry = DefaultPagemapEntryT<FrontendSlabMetadata>;
+
 } // namespace snmalloc
