@@ -177,7 +177,8 @@ namespace snmalloc
   inline void message(Args... args)
   {
     MessageBuilder<BufferSize> msg{std::forward<Args>(args)...};
-    MessageBuilder<BufferSize> msg_tid{"{}: {}", DefaultPal::get_tid(), msg.get_message()};
+    MessageBuilder<BufferSize> msg_tid{
+      "{}: {}", DefaultPal::get_tid(), msg.get_message()};
     DefaultPal::message(msg_tid.get_message());
   }
 } // namespace snmalloc
