@@ -4,8 +4,11 @@
 
 namespace snmalloc
 {
-  template<size_t MIN_BITS, typename F>
-  void range_to_pow_2_blocks(capptr::Chunk<void> base, size_t length, F f)
+  template<
+    size_t MIN_BITS,
+    SNMALLOC_CONCEPT(capptr::ConceptBound) B,
+    typename F>
+  void range_to_pow_2_blocks(CapPtr<void, B> base, size_t length, F f)
   {
     auto end = pointer_offset(base, length);
     base = pointer_align_up(base, bits::one_at_bit(MIN_BITS));
