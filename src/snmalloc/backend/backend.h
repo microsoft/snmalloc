@@ -84,7 +84,7 @@ namespace snmalloc
         return {nullptr, nullptr};
       }
 
-      auto p = local_state.object_range.alloc_range(size);
+      auto p = local_state.get_object_range()->alloc_range(size);
 
 #ifdef SNMALLOC_TRACING
       message<1024>("Alloc chunk: {} ({})", p.unsafe_ptr(), size);
@@ -146,7 +146,7 @@ namespace snmalloc
       // the chunk.  On CHERI platforms this will need to be stored in the
       // SlabMetadata or similar.
       auto chunk = capptr::Chunk<void>::unsafe_from(alloc.unsafe_ptr());
-      local_state.object_range.dealloc_range(chunk, size);
+      local_state.get_object_range()->dealloc_range(chunk, size);
     }
 
     template<bool potentially_out_of_range = false>

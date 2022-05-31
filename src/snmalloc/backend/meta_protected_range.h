@@ -103,12 +103,17 @@ namespace snmalloc
         Pagemap>,
       SmallBuddyRange>;
 
-  public:
-    using Stats = StatsCombiner<CentralObjectRange, CentralMetaRange>;
-
     ObjectRange object_range;
 
     MetaRange meta_range;
+
+  public:
+    using Stats = StatsCombiner<CentralObjectRange, CentralMetaRange>;
+
+    ObjectRange* get_object_range()
+    {
+      return &object_range;
+    }
 
     MetaRange& get_meta_range()
     {
