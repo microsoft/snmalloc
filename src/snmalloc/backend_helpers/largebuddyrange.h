@@ -231,14 +231,14 @@ namespace snmalloc
        */
       template<bool exists = MAX_SIZE_BITS != (bits::BITS - 1)>
       std::enable_if_t<exists>
-      parent_dealloc_range(capptr::Chunk<void> base, size_t size)
+      parent_dealloc_range(capptr::Arena<void> base, size_t size)
       {
         static_assert(
           MAX_SIZE_BITS != (bits::BITS - 1), "Don't set SFINAE parameter");
         parent.dealloc_range(base, size);
       }
 
-      void dealloc_overflow(capptr::Chunk<void> overflow)
+      void dealloc_overflow(capptr::Arena<void> overflow)
       {
         if constexpr (MAX_SIZE_BITS != (bits::BITS - 1))
         {
@@ -258,19 +258,19 @@ namespace snmalloc
        * Add a range of memory to the address space.
        * Divides blocks into power of two sizes with natural alignment
        */
-      void add_range(capptr::Chunk<void> base, size_t length)
+      void add_range(capptr::Arena<void> base, size_t length)
       {
         range_to_pow_2_blocks<MIN_CHUNK_BITS>(
-          base, length, [this](capptr::Chunk<void> base, size_t align, bool) {
+          base, length, [this](capptr::Arena<void> base, size_t align, bool) {
             auto overflow =
-              capptr::Chunk<void>::unsafe_from(reinterpret_cast<void*>(
+              capptr::Arena<void>::unsafe_from(reinterpret_cast<void*>(
                 buddy_large.add_block(base.unsafe_uintptr(), align)));
 
             dealloc_overflow(overflow);
           });
       }
 
-      capptr::Chunk<void> refill(size_t size)
+      capptr::Arena<void> refill(size_t size)
       {
         if (ParentRange::Aligned)
         {
@@ -342,11 +342,14 @@ namespace snmalloc
 
       static constexpr bool ConcurrencySafe = false;
 
-      using ChunkBounds = capptr::bounds::Chunk;
+      /* The large buddy allocator always deals in Arena-bounded pointers. */
+      using ChunkBounds = capptr::bounds::Arena;
+      static_assert(
+        std::is_same_v<typename ParentRange::ChunkBounds, ChunkBounds>);
 
       constexpr Type() = default;
 
-      capptr::Chunk<void> alloc_range(size_t size)
+      capptr::Arena<void> alloc_range(size_t size)
       {
         SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
         SNMALLOC_ASSERT(bits::is_pow2(size));
@@ -359,7 +362,7 @@ namespace snmalloc
           return nullptr;
         }
 
-        auto result = capptr::Chunk<void>::unsafe_from(
+        auto result = capptr::Arena<void>::unsafe_from(
           reinterpret_cast<void*>(buddy_large.remove_block(size)));
 
         if (result != nullptr)
@@ -368,7 +371,7 @@ namespace snmalloc
         return refill(size);
       }
 
-      void dealloc_range(capptr::Chunk<void> base, size_t size)
+      void dealloc_range(capptr::Arena<void> base, size_t size)
       {
         SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
         SNMALLOC_ASSERT(bits::is_pow2(size));
@@ -383,7 +386,7 @@ namespace snmalloc
         }
 
         auto overflow =
-          capptr::Chunk<void>::unsafe_from(reinterpret_cast<void*>(
+          capptr::Arena<void>::unsafe_from(reinterpret_cast<void*>(
             buddy_large.add_block(base.unsafe_uintptr(), size)));
         dealloc_overflow(overflow);
       }
