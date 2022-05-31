@@ -193,6 +193,12 @@ namespace snmalloc
   {
     using ContainsParent<ParentRange>::parent;
 
+    static_assert(
+      REFILL_SIZE_BITS <= MAX_SIZE_BITS, "REFILL_SIZE_BITS > MAX_SIZE_BITS");
+    static_assert(
+      MIN_REFILL_SIZE_BITS <= REFILL_SIZE_BITS,
+      "MIN_REFILL_SIZE_BITS > REFILL_SIZE_BITS");
+
     /**
      * Maximum size of a refill
      */

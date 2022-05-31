@@ -26,8 +26,7 @@ namespace snmalloc
   static constexpr size_t MIN_ALLOC_BITS = bits::ctz_const(MIN_ALLOC_SIZE);
 
   // Minimum slab size.
-  static constexpr size_t MIN_CHUNK_BITS = bits::max(
-    static_cast<size_t>(14), bits::next_pow2_bits_const(OS_PAGE_SIZE));
+  static constexpr size_t MIN_CHUNK_BITS = static_cast<size_t>(14);
   static constexpr size_t MIN_CHUNK_SIZE = bits::one_at_bit(MIN_CHUNK_BITS);
 
   // Minimum number of objects on a slab
@@ -41,6 +40,10 @@ namespace snmalloc
   static constexpr size_t MAX_SMALL_SIZECLASS_BITS = 16;
   static constexpr size_t MAX_SMALL_SIZECLASS_SIZE =
     bits::one_at_bit(MAX_SMALL_SIZECLASS_BITS);
+
+  static_assert(
+    MAX_SMALL_SIZECLASS_SIZE >= MIN_CHUNK_SIZE,
+    "Large sizes need to be representable by as a multiple of MIN_CHUNK_SIZE");
 
   // Number of slots for remote deallocation.
   static constexpr size_t REMOTE_SLOT_BITS = 8;
