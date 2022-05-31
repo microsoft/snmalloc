@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pal_noalloc.h"
+#include "pal_tid_default.h"
 
 #ifdef OPEN_ENCLAVE
 extern "C" void* oe_memset_s(void* p, size_t p_size, int c, size_t size);
@@ -25,7 +26,7 @@ namespace snmalloc
 
   using OpenEnclaveBasePAL = PALNoAlloc<OpenEnclaveErrorHandler>;
 
-  class PALOpenEnclave : public OpenEnclaveBasePAL
+  class PALOpenEnclave : public OpenEnclaveBasePAL, public PalTidDefault
   {
   public:
     /**
