@@ -3,7 +3,7 @@
 
 namespace snmalloc
 {
-  template<SNMALLOC_CONCEPT(capptr::ConceptBound) B = capptr::bounds::Chunk>
+  template<SNMALLOC_CONCEPT(capptr::ConceptBound) B = capptr::bounds::Arena>
   class EmptyRange
   {
   public:

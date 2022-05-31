@@ -78,9 +78,9 @@ namespace snmalloc
 
       // Push memory into the global range.
       range_to_pow_2_blocks<MIN_CHUNK_BITS>(
-        capptr::Chunk<void>::unsafe_from(heap_base),
+        capptr::Arena<void>::unsafe_from(heap_base),
         heap_length,
-        [&](capptr::Chunk<void> p, size_t sz, bool) {
+        [&](capptr::Arena<void> p, size_t sz, bool) {
           typename LocalState::GlobalR g;
           g.dealloc_range(p, sz);
         });

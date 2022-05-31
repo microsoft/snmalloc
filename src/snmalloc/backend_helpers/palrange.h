@@ -14,11 +14,11 @@ namespace snmalloc
     // need to be changed.
     static constexpr bool ConcurrencySafe = true;
 
-    using ChunkBounds = capptr::bounds::Chunk;
+    using ChunkBounds = capptr::bounds::Arena;
 
     constexpr PalRange() = default;
 
-    capptr::Chunk<void> alloc_range(size_t size)
+    capptr::Arena<void> alloc_range(size_t size)
     {
       if (bits::next_pow2_bits(size) >= bits::BITS - 1)
       {
@@ -28,7 +28,7 @@ namespace snmalloc
       if constexpr (pal_supports<AlignedAllocation, PAL>)
       {
         SNMALLOC_ASSERT(size >= PAL::minimum_alloc_size);
-        auto result = capptr::Chunk<void>::unsafe_from(
+        auto result = capptr::Arena<void>::unsafe_from(
           PAL::template reserve_aligned<false>(size));
 
 #ifdef SNMALLOC_TRACING
@@ -38,7 +38,7 @@ namespace snmalloc
       }
       else
       {
-        auto result = capptr::Chunk<void>::unsafe_from(PAL::reserve(size));
+        auto result = capptr::Arena<void>::unsafe_from(PAL::reserve(size));
 
 #ifdef SNMALLOC_TRACING
         message<1024>("Pal range alloc: {} ({})", result.unsafe_ptr(), size);

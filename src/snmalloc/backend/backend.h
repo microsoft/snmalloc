@@ -35,10 +35,10 @@ namespace snmalloc
      * does not avail itself of this degree of freedom.
      */
     template<typename T>
-    static capptr::Chunk<void>
+    static capptr::Arena<void>
     alloc_meta_data(LocalState* local_state, size_t size)
     {
-      capptr::Chunk<void> p;
+      capptr::Arena<void> p;
       if (local_state != nullptr)
       {
         p = local_state->get_meta_range().alloc_range_with_leftover(size);
@@ -84,7 +84,7 @@ namespace snmalloc
         return {nullptr, nullptr};
       }
 
-      auto p = local_state.get_object_range()->alloc_range(size);
+      capptr::Arena<void> p = local_state.get_object_range()->alloc_range(size);
 
 #ifdef SNMALLOC_TRACING
       message<1024>("Alloc chunk: {} ({})", p.unsafe_ptr(), size);
@@ -140,13 +140,13 @@ namespace snmalloc
       Pagemap::set_metaentry(address_cast(alloc), size, t);
 
       local_state.get_meta_range().dealloc_range(
-        capptr::Chunk<void>::unsafe_from(&slab_metadata), sizeof(SlabMetadata));
+        capptr::Arena<void>::unsafe_from(&slab_metadata), sizeof(SlabMetadata));
 
       // On non-CHERI platforms, we don't need to re-derive to get a pointer to
       // the chunk.  On CHERI platforms this will need to be stored in the
       // SlabMetadata or similar.
-      auto chunk = capptr::Chunk<void>::unsafe_from(alloc.unsafe_ptr());
-      local_state.get_object_range()->dealloc_range(chunk, size);
+      auto arena = capptr::Arena<void>::unsafe_from(alloc.unsafe_ptr());
+      local_state.get_object_range()->dealloc_range(arena, size);
     }
 
     template<bool potentially_out_of_range = false>
