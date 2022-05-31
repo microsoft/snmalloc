@@ -28,12 +28,13 @@ are listed at
 - `native-cpu`: Optimize `snmalloc` for the native CPU of the host machine. (this is not a default behavior
   since `0.2.14`)
 - `qemu`: Workaround `madvise` problem of QEMU environment
-- `stats`: Enable statistics
+- ~~`stats`: Enable statistics~~ (removed since 0.3.0)
 - `local_dynamic_tls`: Workaround cannot allocate memory in static tls block
 - `build_cc`: Use of cc crate instead of cmake (cmake still default) as builder (more platform agnostic)
 - ~~`usecxx20`: Enable C++20 standard if available~~ (removed since 0.3.0)
 - `usecxx17`: Use C++17 standard
-- `check`: Enable extra checks to improve security
+- `check`: Enable extra checks to improve security, see upstream [security docs](https://github.com/microsoft/snmalloc/tree/main/docs/security).
+  Note that the `memcpy` protection is not enabled in Rust.
 - `win8compat`: Improve compatibility for old Windows platforms (removing usages of `VirtualAlloc2` and other new APIs)
 
 **To get the crates compiled, you need to choose either `1mib` or `16mib` to determine the chunk configuration**
@@ -43,7 +44,7 @@ To use `snmalloc-rs` add it as a dependency:
 ```toml
 # Cargo.toml
 [dependencies]
-snmalloc-rs = "0.3.0-beta.1"
+snmalloc-rs = "0.3.0"
 ```
 
 To set `SnMalloc` as the global allocator add this to your project:
@@ -77,9 +78,13 @@ target.
 
 ## Changelog
 
+### 0.3.0
+
+- Release to support snmalloc 0.6.0.
+
 ### 0.3.0-beta.1
 
-- Beta release to support snmalloc 2
+- Beta release to support snmalloc ~~2~~ 0.6.0
 
 ### 0.2.28
 

@@ -1,6 +1,6 @@
 [package]
 name = "snmalloc-rs"
-version = "0.3.0-beta.1+f1be609"
+version = "0.3.0"
 authors = ["schrodingerzhu <i@zhuyi.fan>"]
 edition = "2021"
 license = "MIT"
@@ -16,13 +16,12 @@ readme = "README.md"
 members = ["snmalloc-sys" ]
 
 [dependencies]
-snmalloc-sys = {version = "0.3.0-beta.1", path = "snmalloc-sys", default-features = false }
+snmalloc-sys = {version = "0.3.0", path = "snmalloc-sys", default-features = false }
 
 [features]
 default = ["snmalloc-sys/build_cmake"]
 build_cc = ["snmalloc-sys/build_cc"]
 qemu = ["snmalloc-sys/qemu"]
-stats = ["snmalloc-sys/stats"]
 debug = ["snmalloc-sys/debug"]
 android-lld = ["snmalloc-sys/android-lld"]
 native-cpu = ["snmalloc-sys/native-cpu"]

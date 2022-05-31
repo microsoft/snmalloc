@@ -1,6 +1,6 @@
 [package]
 name = "snmalloc-sys"
-version = "0.3.0-beta.1+f1be609"
+version = "0.3.0"
 authors = ["schrodingerzhu <i@zhuyi.fan>"]
 edition = "2021"
 license = "MIT"
@@ -21,7 +21,6 @@ default = ["build_cmake"]
 build_cc = ["cc"]
 build_cmake = ["cmake"]
 qemu = []
-stats = []
 debug = []
 android-lld = []
 native-cpu = []

@@ -1,5 +1,10 @@
 ## Changelog
 
+### 0.3.0 
+- Release to follow upstream 0.6.0
+- **upstream** Major redesign of the code to improve performance and 
+  enable a mode that provides strong checks against corruption.
+
 ### 0.3.0-beta.1
 
 - Beta release to support snmalloc 2

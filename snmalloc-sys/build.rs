@@ -103,10 +103,6 @@ fn main() {
         build.flag_if_supported("-march=native");
     }
 
-    if cfg!(feature = "stats") {
-        build.define("USE_SNMALLOC_STATS", "ON");
-    }
-
     if cfg!(feature = "qemu") {
         build.define("SNMALLOC_QEMU_WORKAROUND", "ON");
     }
