@@ -204,10 +204,7 @@ namespace snmalloc
 
       CapPtr<void, ChunkBounds> alloc_range(size_t size)
       {
-        if (size >= MIN_CHUNK_SIZE)
-        {
-          return parent.alloc_range(size);
-        }
+        SNMALLOC_ASSERT(size < MIN_CHUNK_SIZE);
 
         auto result = buddy_small.remove_block(size);
         if (result != nullptr)
@@ -221,7 +218,7 @@ namespace snmalloc
 
       CapPtr<void, ChunkBounds> alloc_range_with_leftover(size_t size)
       {
-        SNMALLOC_ASSERT(size <= MIN_CHUNK_SIZE);
+        SNMALLOC_ASSERT(size < MIN_CHUNK_SIZE);
 
         auto rsize = bits::next_pow2(size);
 
@@ -239,11 +236,7 @@ namespace snmalloc
 
       void dealloc_range(CapPtr<void, ChunkBounds> base, size_t size)
       {
-        if (size >= MIN_CHUNK_SIZE)
-        {
-          parent.dealloc_range(base, size);
-          return;
-        }
+        SNMALLOC_ASSERT(size < MIN_CHUNK_SIZE);
 
         add_range(base, size);
       }
