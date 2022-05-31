@@ -11,20 +11,38 @@ int main()
 // #  define SNMALLOC_TRACING
 
 #  include <snmalloc/backend/backend.h>
+#  include <snmalloc/backend/standard_range.h>
+#  include <snmalloc/backend_helpers/backend_helpers.h>
 #  include <snmalloc/snmalloc_core.h>
 
 // Specify type of allocator
 #  define SNMALLOC_PROVIDE_OWN_CONFIG
 namespace snmalloc
 {
-  class CustomGlobals : public BackendAllocator<Pal, false>
+  class CustomConfig : public CommonConfig
   {
   public:
-    using GlobalPoolState = PoolState<CoreAllocator<CustomGlobals>>;
+    using Pal = DefaultPal;
+    using PagemapEntry = DefaultPagemapEntry;
 
   private:
-    using Backend = BackendAllocator<Pal, false>;
+    using ConcretePagemap =
+      FlatPagemap<MIN_CHUNK_BITS, PagemapEntry, Pal, false>;
 
+  public:
+    using Pagemap = BasicPagemap<Pal, ConcretePagemap, PagemapEntry, false>;
+
+  public:
+    using LocalState = StandardLocalState<
+      Pal,
+      Pagemap,
+      Pipe<PalRange<Pal>, PagemapRegisterRange<Pagemap, false>>>;
+
+    using GlobalPoolState = PoolState<CoreAllocator<CustomConfig>>;
+
+    using Backend = BackendAllocator<Pal, PagemapEntry, Pagemap, LocalState>;
+
+  private:
     SNMALLOC_REQUIRE_CONSTINIT
     inline static GlobalPoolState alloc_pool;
 
@@ -65,7 +83,7 @@ namespace snmalloc
     static CapPtr<
       T,
       typename B::template with_wildness<capptr::dimension::Wildness::Tame>>
-    capptr_domesticate(typename Backend::LocalState*, CapPtr<T, B> p)
+    capptr_domesticate(LocalState*, CapPtr<T, B> p)
     {
       domesticate_count++;
 
@@ -85,7 +103,7 @@ namespace snmalloc
       {
         std::cout << "Patching over corruption" << std::endl;
         *domesticate_patch_location = domesticate_patch_value;
-        snmalloc::CustomGlobals::domesticate_patch_location = nullptr;
+        snmalloc::CustomConfig::domesticate_patch_location = nullptr;
       }
 
       return CapPtr<
@@ -95,7 +113,7 @@ namespace snmalloc
     }
   };
 
-  using Alloc = LocalAllocator<CustomGlobals>;
+  using Alloc = LocalAllocator<CustomConfig>;
 }
 
 #  define SNMALLOC_NAME_MANGLE(a) test_##a
@@ -103,11 +121,11 @@ namespace snmalloc
 
 int main()
 {
-  snmalloc::CustomGlobals::init(); // init pagemap
-  snmalloc::CustomGlobals::domesticate_count = 0;
+  snmalloc::CustomConfig::Pagemap::concretePagemap.init(); // init pagemap
+  snmalloc::CustomConfig::domesticate_count = 0;
 
   LocalEntropy entropy;
-  entropy.init<Pal>();
+  entropy.init<DefaultPal>();
   key_global = FreeListKey(entropy.get_free_list_key());
 
   auto alloc1 = new Alloc();
@@ -123,21 +141,20 @@ int main()
   alloc2->flush();
 
   // Clobber the linkage but not the back pointer
-  snmalloc::CustomGlobals::domesticate_patch_location =
+  snmalloc::CustomConfig::domesticate_patch_location =
     static_cast<uintptr_t*>(p);
-  snmalloc::CustomGlobals::domesticate_patch_value =
-    *static_cast<uintptr_t*>(p);
+  snmalloc::CustomConfig::domesticate_patch_value = *static_cast<uintptr_t*>(p);
   memset(p, 0xA5, sizeof(void*));
 
-  snmalloc::CustomGlobals::domesticate_trace = true;
-  snmalloc::CustomGlobals::domesticate_count = 0;
+  snmalloc::CustomConfig::domesticate_trace = true;
+  snmalloc::CustomConfig::domesticate_count = 0;
 
   // Open a new slab, so that slow path will pick up the message queue.  That
   // means this should be a sizeclass we've not used before, even internally.
   auto q = alloc1->alloc(512);
   std::cout << "Allocated q " << q << std::endl;
 
-  snmalloc::CustomGlobals::domesticate_trace = false;
+  snmalloc::CustomConfig::domesticate_trace = false;
 
   /*
    * Expected domestication calls in the above message passing:
@@ -152,8 +169,8 @@ int main()
    *     after q).
    */
   static constexpr size_t expected_count =
-    snmalloc::CustomGlobals::Options.QueueHeadsAreTame ? 2 : 3;
-  SNMALLOC_CHECK(snmalloc::CustomGlobals::domesticate_count == expected_count);
+    snmalloc::CustomConfig::Options.QueueHeadsAreTame ? 2 : 3;
+  SNMALLOC_CHECK(snmalloc::CustomConfig::domesticate_count == expected_count);
 
   // Prevent the allocators from going out of scope during the above test
   alloc1->flush();

@@ -12,7 +12,7 @@
 
 namespace snmalloc
 {
-  using Alloc = snmalloc::LocalAllocator<snmalloc::Globals>;
+  using Alloc = snmalloc::LocalAllocator<snmalloc::StandardConfig>;
 }
 
 using namespace snmalloc;

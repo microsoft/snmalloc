@@ -19,7 +19,7 @@ namespace test
     {
       size_t rand = (size_t)r.next();
       size_t offset = bits::clz(rand);
-      if constexpr (Pal::address_bits > 32)
+      if constexpr (DefaultPal::address_bits > 32)
       {
         if (offset > 30)
           offset = 30;
@@ -47,7 +47,7 @@ namespace test
       alloc.dealloc(objects[i]);
     }
 
-    snmalloc::debug_check_empty<Globals>();
+    snmalloc::debug_check_empty<StandardConfig>();
   }
 
   void test_external_pointer(xoroshiro::p128r64& r)

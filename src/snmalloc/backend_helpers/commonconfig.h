@@ -113,5 +113,17 @@ namespace snmalloc
     inline static RemoteAllocator unused_remote;
   };
 
+  template<typename PAL>
+  static constexpr size_t MinBaseSizeBits()
+  {
+    if constexpr (pal_supports<AlignedAllocation, PAL>)
+    {
+      return bits::next_pow2_bits_const(PAL::minimum_alloc_size);
+    }
+    else
+    {
+      return MIN_CHUNK_BITS;
+    }
+  }
 } // namespace snmalloc
 #include "../mem/remotecache.h"

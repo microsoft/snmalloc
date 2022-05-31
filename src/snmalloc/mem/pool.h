@@ -22,7 +22,7 @@ namespace snmalloc
   {
     template<
       typename TT,
-      SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle,
+      SNMALLOC_CONCEPT(IsConfig) Config,
       PoolState<TT>& get_state()>
     friend class Pool;
 
@@ -41,9 +41,7 @@ namespace snmalloc
    * SingletonPoolState::pool is the default provider for the PoolState within
    * the Pool class.
    */
-  template<
-    typename T,
-    SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
+  template<typename T, SNMALLOC_CONCEPT(IsConfig) Config>
   class SingletonPoolState
   {
     /**
@@ -55,8 +53,8 @@ namespace snmalloc
       -> decltype(SharedStateHandle_::ensure_init())
     {
       static_assert(
-        std::is_same<SharedStateHandle, SharedStateHandle_>::value,
-        "SFINAE parameter, should only be used with SharedStateHandle");
+        std::is_same<Config, SharedStateHandle_>::value,
+        "SFINAE parameter, should only be used with Config");
       SharedStateHandle_::ensure_init();
     }
 
@@ -68,17 +66,17 @@ namespace snmalloc
     SNMALLOC_FAST_PATH static auto call_ensure_init(SharedStateHandle_*, long)
     {
       static_assert(
-        std::is_same<SharedStateHandle, SharedStateHandle_>::value,
-        "SFINAE parameter, should only be used with SharedStateHandle");
+        std::is_same<Config, SharedStateHandle_>::value,
+        "SFINAE parameter, should only be used with Config");
     }
 
     /**
-     * Call `SharedStateHandle::ensure_init()` if it is implemented, do nothing
+     * Call `Config::ensure_init()` if it is implemented, do nothing
      * otherwise.
      */
     SNMALLOC_FAST_PATH static void ensure_init()
     {
-      call_ensure_init<SharedStateHandle>(nullptr, 0);
+      call_ensure_init<Config>(nullptr, 0);
     }
 
     static void make_pool(PoolState<T>*) noexcept
@@ -114,8 +112,8 @@ namespace snmalloc
    */
   template<
     typename T,
-    SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle,
-    PoolState<T>& get_state() = SingletonPoolState<T, SharedStateHandle>::pool>
+    SNMALLOC_CONCEPT(IsConfig) Config,
+    PoolState<T>& get_state() = SingletonPoolState<T, Config>::pool>
   class Pool
   {
   public:
@@ -132,12 +130,11 @@ namespace snmalloc
       }
 
       auto raw =
-        SharedStateHandle::template alloc_meta_data<T>(nullptr, sizeof(T));
+        Config::Backend::template alloc_meta_data<T>(nullptr, sizeof(T));
 
       if (raw == nullptr)
       {
-        SharedStateHandle::Pal::error(
-          "Failed to initialise thread local allocator.");
+        Config::Pal::error("Failed to initialise thread local allocator.");
       }
 
       p = new (raw.unsafe_ptr()) T(std::forward<Args>(args)...);

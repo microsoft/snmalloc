@@ -12,7 +12,7 @@
 #define SNMALLOC_PROVIDE_OWN_CONFIG
 namespace snmalloc
 {
-  using CustomGlobals = FixedGlobals<PALNoAlloc<DefaultPal>>;
+  using CustomGlobals = FixedRangeConfig<PALNoAlloc<DefaultPal>>;
   using Alloc = LocalAllocator<CustomGlobals>;
 }
 

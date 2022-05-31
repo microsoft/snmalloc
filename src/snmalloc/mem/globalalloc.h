@@ -5,18 +5,18 @@
 
 namespace snmalloc
 {
-  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
+  template<SNMALLOC_CONCEPT(IsConfig) Config>
   inline static void cleanup_unused()
   {
 #ifndef SNMALLOC_PASS_THROUGH
     static_assert(
-      SharedStateHandle::Options.CoreAllocIsPoolAllocated,
+      Config::Options.CoreAllocIsPoolAllocated,
       "Global cleanup is available only for pool-allocated configurations");
     // Call this periodically to free and coalesce memory allocated by
     // allocators that are not currently in use by any thread.
     // One atomic operation to extract the stack, another to restore it.
     // Handling the message queue for each stack is non-atomic.
-    auto* first = AllocPool<SharedStateHandle>::extract();
+    auto* first = AllocPool<Config>::extract();
     auto* alloc = first;
     decltype(alloc) last;
 
@@ -26,10 +26,10 @@ namespace snmalloc
       {
         alloc->flush();
         last = alloc;
-        alloc = AllocPool<SharedStateHandle>::extract(alloc);
+        alloc = AllocPool<Config>::extract(alloc);
       }
 
-      AllocPool<SharedStateHandle>::restore(first, last);
+      AllocPool<Config>::restore(first, last);
     }
 #endif
   }
@@ -39,16 +39,16 @@ namespace snmalloc
     allocators are empty. If you don't pass a pointer to a bool, then will
     raise an error all the allocators are not empty.
    */
-  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
+  template<SNMALLOC_CONCEPT(IsConfig) Config>
   inline static void debug_check_empty(bool* result = nullptr)
   {
 #ifndef SNMALLOC_PASS_THROUGH
     static_assert(
-      SharedStateHandle::Options.CoreAllocIsPoolAllocated,
+      Config::Options.CoreAllocIsPoolAllocated,
       "Global status is available only for pool-allocated configurations");
     // This is a debugging function. It checks that all memory from all
     // allocators has been freed.
-    auto* alloc = AllocPool<SharedStateHandle>::iterate();
+    auto* alloc = AllocPool<Config>::iterate();
 
 #  ifdef SNMALLOC_TRACING
     message<1024>("debug check empty: first {}", alloc);
@@ -62,7 +62,7 @@ namespace snmalloc
       message<1024>("debug_check_empty: Check all allocators!");
 #  endif
       done = true;
-      alloc = AllocPool<SharedStateHandle>::iterate();
+      alloc = AllocPool<Config>::iterate();
       okay = true;
 
       while (alloc != nullptr)
@@ -83,7 +83,7 @@ namespace snmalloc
 #  ifdef SNMALLOC_TRACING
         message<1024>("debug check empty: okay = {}", okay);
 #  endif
-        alloc = AllocPool<SharedStateHandle>::iterate(alloc);
+        alloc = AllocPool<Config>::iterate(alloc);
       }
     }
 
@@ -96,11 +96,11 @@ namespace snmalloc
     // Redo check so abort is on allocator with allocation left.
     if (!okay)
     {
-      alloc = AllocPool<SharedStateHandle>::iterate();
+      alloc = AllocPool<Config>::iterate();
       while (alloc != nullptr)
       {
         alloc->debug_is_empty(nullptr);
-        alloc = AllocPool<SharedStateHandle>::iterate(alloc);
+        alloc = AllocPool<Config>::iterate(alloc);
       }
     }
 #else
@@ -108,13 +108,13 @@ namespace snmalloc
 #endif
   }
 
-  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
+  template<SNMALLOC_CONCEPT(IsConfig) Config>
   inline static void debug_in_use(size_t count)
   {
     static_assert(
-      SharedStateHandle::Options.CoreAllocIsPoolAllocated,
+      Config::Options.CoreAllocIsPoolAllocated,
       "Global status is available only for pool-allocated configurations");
-    auto alloc = AllocPool<SharedStateHandle>::iterate();
+    auto alloc = AllocPool<Config>::iterate();
     while (alloc != nullptr)
     {
       if (alloc->debug_is_in_use())
@@ -125,7 +125,7 @@ namespace snmalloc
         }
         count--;
       }
-      alloc = AllocPool<SharedStateHandle>::iterate(alloc);
+      alloc = AllocPool<Config>::iterate(alloc);
 
       if (count != 0)
       {

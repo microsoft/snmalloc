@@ -4,46 +4,111 @@
 // `snmalloc.h` or consume the global allocation APIs.
 #ifndef SNMALLOC_PROVIDE_OWN_CONFIG
 
-#  include "../backend/backend.h"
+#  include "../backend_helpers/backend_helpers.h"
+#  include "backend.h"
+#  include "meta_protected_range.h"
+#  include "standard_range.h"
+
+#  if defined(SNMALLOC_CHECK_CLIENT) && !defined(OPEN_ENCLAVE)
+/**
+ * Protect meta data blocks by allocating separate from chunks for
+ * user allocations. This involves leaving gaps in address space.
+ * This is less efficient, so should only be applied for the checked
+ * build.
+ *
+ * On Open Enclave the address space is limited, so we disable this
+ * feature.
+ */
+#    define SNMALLOC_META_PROTECTED
+#  endif
 
 namespace snmalloc
 {
   // Forward reference to thread local cleanup.
   void register_clean_up();
 
-#  ifdef USE_SNMALLOC_STATS
-  inline static void print_stats()
-  {
-    printf("No Stats yet!");
-    // Stats s;
-    // current_alloc_pool()->aggregate_stats(s);
-    // s.print<Alloc>(std::cout);
-  }
-#  endif
-
   /**
-   * The default configuration for a global snmalloc.  This allocates memory
-   * from the operating system and expects to manage memory anywhere in the
-   * address space.
+   * The default configuration for a global snmalloc.  It contains all the
+   * datastructures to manage the memory from the OS.  It had several internal
+   * public types for various aspects of the code.
+   * The most notable are:
+   *
+   *   Backend - Manages the memory coming from the platform.
+   *   LocalState - the per-thread/per-allocator state that may perform local
+   *     caching of reserved memory. This also specifies the various Range types
+   *     used to manage the memory.
+   *
+   * The Configuration sets up a Pagemap for the backend to use, and the state
+   * required to build new allocators (GlobalPoolState).
    */
-  class Globals final : public BackendAllocator<Pal, false>
+  class StandardConfig final : public CommonConfig
   {
+    using GlobalPoolState = PoolState<CoreAllocator<StandardConfig>>;
+
   public:
-    using GlobalPoolState = PoolState<CoreAllocator<Globals>>;
+    using Pal = DefaultPal;
+    using PagemapEntry = DefaultPagemapEntry;
 
   private:
-    using Backend = BackendAllocator<Pal, false>;
+    using ConcretePagemap =
+      FlatPagemap<MIN_CHUNK_BITS, PagemapEntry, Pal, false>;
 
+    using Pagemap = BasicPagemap<Pal, ConcretePagemap, PagemapEntry, false>;
+
+    /**
+     * This specifies where this configurations sources memory from.
+     *
+     * Takes account of any platform specific constraints like whether
+     * mmap/virtual alloc calls can be consolidated.
+     * @{
+     */
+#  if defined(_WIN32) || defined(__CHERI_PURE_CAPABILITY__)
+    static constexpr bool CONSOLIDATE_PAL_ALLOCS = false;
+#  else
+    static constexpr bool CONSOLIDATE_PAL_ALLOCS = true;
+#  endif
+
+    using Base = Pipe<
+      PalRange<Pal>,
+      PagemapRegisterRange<Pagemap, CONSOLIDATE_PAL_ALLOCS>>;
+    /**
+     * @}
+     */
+  public:
+    /**
+     * Use one of the default range configurations
+     */
+#  ifdef SNMALLOC_META_PROTECTED
+    using LocalState = MetaProtectedRangeLocalState<Pal, Pagemap, Base>;
+#  else
+    using LocalState = StandardLocalState<Pal, Pagemap, Base>;
+#  endif
+
+    /**
+     * Use the default backend.
+     */
+    using Backend = BackendAllocator<Pal, PagemapEntry, Pagemap, LocalState>;
+
+  private:
     SNMALLOC_REQUIRE_CONSTINIT
     inline static GlobalPoolState alloc_pool;
 
+    /**
+     * Specifies if the Configuration has been initialised.
+     */
     SNMALLOC_REQUIRE_CONSTINIT
     inline static std::atomic<bool> initialised{false};
 
+    /**
+     * Used to prevent two threads attempting to initialise the configuration
+     */
     SNMALLOC_REQUIRE_CONSTINIT
     inline static FlagWord initialisation_lock{};
 
   public:
+    /**
+     * Provides the state to create new allocators.
+     */
     static GlobalPoolState& pool()
     {
       return alloc_pool;
@@ -70,11 +135,7 @@ namespace snmalloc
       key_global = FreeListKey(entropy.get_free_list_key());
 
       // Need to initialise pagemap.
-      Backend::init();
-
-#  ifdef USE_SNMALLOC_STATS
-      atexit(snmalloc::print_stats);
-#  endif
+      Pagemap::concretePagemap.init();
 
       initialised = true;
     }
@@ -93,11 +154,10 @@ namespace snmalloc
       snmalloc::register_clean_up();
     }
   };
-} // namespace snmalloc
 
-// The default configuration for snmalloc
-namespace snmalloc
-{
-  using Alloc = snmalloc::LocalAllocator<snmalloc::Globals>;
+  /**
+   * Create allocator type for this configuration.
+   */
+  using Alloc = snmalloc::LocalAllocator<snmalloc::StandardConfig>;
 } // namespace snmalloc
 #endif

@@ -328,16 +328,15 @@ namespace snmalloc
 
   /**
    * This is a generic implementation of the backend's interface to the page
-   * map. It takes a concrete page map implementation (probably FlatPageMap
+   * map. It takes a concrete page map implementation (probably FlatPagemap
    * above) and entry type. It is friends with the backend passed in as a
    * template parameter so that the backend can initialise the concrete page map
    * and use set_metaentry which no one else should use.
    */
   template<
-    typename Backend,
     typename PAL,
     typename ConcreteMap,
-    typename PageMapEntry,
+    typename PagemapEntry,
     bool fixed_range>
   class BasicPagemap
   {
@@ -345,10 +344,7 @@ namespace snmalloc
     /**
      * Export the type stored in the pagemap.
      */
-    using Entry = PageMapEntry;
-
-  private:
-    friend Backend;
+    using Entry = PagemapEntry;
 
     /**
      * Instance of the concrete pagemap, accessible to the backend so that
@@ -369,7 +365,6 @@ namespace snmalloc
       }
     }
 
-  public:
     /**
      * Get the metadata associated with a chunk.
      *
