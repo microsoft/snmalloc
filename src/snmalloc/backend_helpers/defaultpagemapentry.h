@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../mem/mem.h"
+#include "cheri_slabmetadata_mixin.h"
 
 namespace snmalloc
 {
@@ -63,6 +64,9 @@ namespace snmalloc
     SNMALLOC_FAST_PATH DefaultPagemapEntryT() = default;
   };
 
-  using DefaultPagemapEntry = DefaultPagemapEntryT<FrontendSlabMetadata>;
+  using DefaultPagemapEntry = DefaultPagemapEntryT<std::conditional_t<
+    backend_strict_provenance,
+    StrictProvenanceSlabMetadataMixin<FrontendSlabMetadata>,
+    LaxProvenanceSlabMetadataMixin<FrontendSlabMetadata>>>;
 
 } // namespace snmalloc
