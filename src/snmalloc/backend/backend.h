@@ -22,6 +22,10 @@ namespace snmalloc
     using Pal = PAL;
     using SlabMetadata = typename PagemapEntry::SlabMetadata;
 
+#ifdef __cpp_concepts
+    static_assert(IsSlabMeta_Arena<SlabMetadata>);
+#endif
+
   public:
     /**
      * Provide a block of meta-data with size and align.
@@ -100,6 +104,7 @@ namespace snmalloc
         return {nullptr, nullptr};
       }
 
+      meta->arena_set(p);
       typename Pagemap::Entry t(meta, ras);
       Pagemap::set_metaentry(address_cast(p), size, t);
 
@@ -139,13 +144,16 @@ namespace snmalloc
         Pagemap::get_metaentry(address_cast(alloc)).get_slab_metadata());
       Pagemap::set_metaentry(address_cast(alloc), size, t);
 
+      /*
+       * On CHERI, the passed alloc has had its bounds narrowed to just the
+       * Chunk, and so we retrieve the Arena-bounded cap for use in the
+       * remainder of the backend.
+       */
+      capptr::Arena<void> arena = slab_metadata.arena_get(alloc);
+
       local_state.get_meta_range().dealloc_range(
         capptr::Arena<void>::unsafe_from(&slab_metadata), sizeof(SlabMetadata));
 
-      // On non-CHERI platforms, we don't need to re-derive to get a pointer to
-      // the chunk.  On CHERI platforms this will need to be stored in the
-      // SlabMetadata or similar.
-      auto arena = capptr::Arena<void>::unsafe_from(alloc.unsafe_ptr());
       local_state.get_object_range()->dealloc_range(arena, size);
     }
 
