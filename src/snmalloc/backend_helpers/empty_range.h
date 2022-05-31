@@ -3,6 +3,7 @@
 
 namespace snmalloc
 {
+  template<SNMALLOC_CONCEPT(capptr::ConceptBound) B = capptr::bounds::Chunk>
   class EmptyRange
   {
   public:
@@ -10,9 +11,11 @@ namespace snmalloc
 
     static constexpr bool ConcurrencySafe = true;
 
+    using ChunkBounds = B;
+
     constexpr EmptyRange() = default;
 
-    capptr::Chunk<void> alloc_range(size_t)
+    CapPtr<void, ChunkBounds> alloc_range(size_t)
     {
       return nullptr;
     }

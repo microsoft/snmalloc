@@ -208,7 +208,7 @@ namespace snmalloc
       bits::one_at_bit(MIN_REFILL_SIZE_BITS);
 
   public:
-    template<typename ParentRange = EmptyRange>
+    template<typename ParentRange = EmptyRange<>>
     class Type : public ContainsParent<ParentRange>
     {
       using ContainsParent<ParentRange>::parent;
@@ -340,6 +340,8 @@ namespace snmalloc
       static constexpr bool Aligned = true;
 
       static constexpr bool ConcurrencySafe = false;
+
+      using ChunkBounds = capptr::bounds::Chunk;
 
       constexpr Type() = default;
 

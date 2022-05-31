@@ -12,7 +12,7 @@ namespace snmalloc
    */
   struct StatsRange
   {
-    template<typename ParentRange = EmptyRange>
+    template<typename ParentRange = EmptyRange<>>
     class Type : public ContainsParent<ParentRange>
     {
       using ContainsParent<ParentRange>::parent;
@@ -25,9 +25,11 @@ namespace snmalloc
 
       static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
 
+      using ChunkBounds = typename ParentRange::ChunkBounds;
+
       constexpr Type() = default;
 
-      capptr::Chunk<void> alloc_range(size_t size)
+      CapPtr<void, ChunkBounds> alloc_range(size_t size)
       {
         auto result = parent.alloc_range(size);
         if (result != nullptr)
@@ -43,7 +45,7 @@ namespace snmalloc
         return result;
       }
 
-      void dealloc_range(capptr::Chunk<void> base, size_t size)
+      void dealloc_range(CapPtr<void, ChunkBounds> base, size_t size)
       {
         current_usage -= size;
         parent.dealloc_range(base, size);

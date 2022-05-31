@@ -22,7 +22,7 @@ namespace snmalloc
   template<
     typename PAL,
     typename Pagemap,
-    typename Base = EmptyRange,
+    typename Base = EmptyRange<>,
     size_t MinSizeBits = MinBaseSizeBits<PAL>()>
   struct StandardLocalState : BaseLocalStateConstants
   {
