@@ -97,14 +97,13 @@ namespace snmalloc
 #ifdef SNMALLOC_TRACING
         message<1024>("Out of memory");
 #endif
-        return {p, nullptr};
+        return {nullptr, nullptr};
       }
 
       typename Pagemap::Entry t(meta, ras);
       Pagemap::set_metaentry(address_cast(p), size, t);
 
-      p = Aal::capptr_bound<void, capptr::bounds::Chunk>(p, size);
-      return {p, meta};
+      return {Aal::capptr_bound<void, capptr::bounds::Chunk>(p, size), meta};
     }
 
     /**
