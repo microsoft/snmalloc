@@ -44,23 +44,31 @@ namespace snmalloc
     static constexpr size_t page_size_bits =
       bits::next_pow2_bits_const(PAL::page_size);
 
+  public:
     // Source for object allocations and metadata
     // Use buddy allocators to cache locally.
-    using ObjectRange = Pipe<
+    using LargeObjectRange = Pipe<
       Stats,
       LargeBuddyRange<
         LocalCacheSizeBits,
         LocalCacheSizeBits,
         Pagemap,
-        page_size_bits>,
-      SmallBuddyRange>;
+        page_size_bits>>;
+
+  private:
+    using ObjectRange = Pipe<LargeObjectRange, SmallBuddyRange>;
+
+    ObjectRange object_range;
 
   public:
     // Expose a global range for the initial allocation of meta-data.
     using GlobalMetaRange = Pipe<ObjectRange, GlobalRange>;
 
     // Where we get user allocations from.
-    ObjectRange object_range;
+    LargeObjectRange* get_object_range()
+    {
+      return object_range.template ancestor<LargeObjectRange>();
+    }
 
     // Where we get meta-data allocations from.
     ObjectRange& get_meta_range()
