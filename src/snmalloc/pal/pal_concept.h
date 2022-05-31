@@ -77,6 +77,19 @@ namespace snmalloc
   };
 
   /**
+   * The Pal must provide a thread id for debugging.  It should not return
+   * 0, as that is used as not an tid in some places.
+   */
+  template<typename PAL>
+  concept ConceptPAL_tid = requires()
+  {
+    {
+      PAL::get_tid()
+    }
+    noexcept->ConceptSame<size_t>;
+  };
+
+  /**
    * Absent any feature flags, the PAL must support a crude primitive allocator
    */
   template<typename PAL>
@@ -138,7 +151,7 @@ namespace snmalloc
   template<typename PAL>
   concept ConceptPAL = ConceptPAL_static_features<PAL>&&
                          ConceptPAL_static_sizes<PAL>&& ConceptPAL_error<PAL>&&
-                           ConceptPAL_memops<PAL> &&
+                           ConceptPAL_memops<PAL> &&  ConceptPAL_tid<PAL> &&
     (!pal_supports<Entropy, PAL> ||
      ConceptPAL_get_entropy64<
        PAL>)&&(!pal_supports<LowMemoryNotification, PAL> ||

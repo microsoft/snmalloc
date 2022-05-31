@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../aal/aal.h"
+#include "../pal/pal.h"
 
 #include <atomic>
 #include <functional>
@@ -32,7 +33,7 @@ namespace snmalloc
      */
     void set_owner()
     {
-      SNMALLOC_ASSERT(nullptr == owner);
+      SNMALLOC_ASSERT(0 == owner);
       owner = get_thread_identity();
     }
 
@@ -43,7 +44,7 @@ namespace snmalloc
     void clear_owner()
     {
       SNMALLOC_ASSERT(get_thread_identity() == owner);
-      owner = nullptr;
+      owner = 0;
     }
 
     /**
@@ -56,24 +57,20 @@ namespace snmalloc
     }
 
   private:
-    using ThreadIdentity = int const*;
-
+    using ThreadIdentity = size_t;
     /**
      * @brief owner
-     * We use a pointer to TLS field as the thread identity.
-     * std::thread::id can be another solution but it does not
-     * support `constexpr` initialisation on some platforms.
+     * We use the Pal to provide the ThreadIdentity.
      */
-    std::atomic<ThreadIdentity> owner = nullptr;
+    std::atomic<ThreadIdentity> owner = 0;
 
     /**
      * @brief get_thread_identity
      * @return The identity of current thread.
      */
-    inline ThreadIdentity get_thread_identity()
+    static size_t get_thread_identity()
     {
-      static thread_local int SNMALLOC_THREAD_IDENTITY = 0;
-      return &SNMALLOC_THREAD_IDENTITY;
+      return DefaultPal::get_tid();
     }
   };
 
