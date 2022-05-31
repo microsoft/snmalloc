@@ -14,7 +14,7 @@ namespace snmalloc
   template<size_t RangeName>
   struct LogRange
   {
-    template<typename ParentRange = EmptyRange>
+    template<typename ParentRange = EmptyRange<>>
     class Type : public ContainsParent<ParentRange>
     {
       using ContainsParent<ParentRange>::parent;
@@ -24,9 +24,11 @@ namespace snmalloc
 
       static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
 
+      using ChunkBounds = typename ParentRange::ChunkBounds;
+
       constexpr Type() = default;
 
-      capptr::Chunk<void> alloc_range(size_t size)
+      CapPtr<void, ChunkBounds> alloc_range(size_t size)
       {
 #ifdef SNMALLOC_TRACING
         message<1024>("Call alloc_range({}) on {}", size, RangeName);
@@ -39,7 +41,7 @@ namespace snmalloc
         return range;
       }
 
-      void dealloc_range(capptr::Chunk<void> base, size_t size)
+      void dealloc_range(CapPtr<void, ChunkBounds> base, size_t size)
       {
 #ifdef SNMALLOC_TRACING
         message<1024>(

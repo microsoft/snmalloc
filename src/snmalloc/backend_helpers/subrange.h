@@ -12,7 +12,7 @@ namespace snmalloc
   template<typename PAL, size_t RATIO_BITS>
   struct SubRange
   {
-    template<typename ParentRange = EmptyRange>
+    template<typename ParentRange = EmptyRange<>>
     class Type : public ContainsParent<ParentRange>
     {
       using ContainsParent<ParentRange>::parent;
@@ -24,7 +24,9 @@ namespace snmalloc
 
       static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
 
-      capptr::Chunk<void> alloc_range(size_t sub_size)
+      using ChunkBounds = typename ParentRange::ChunkBounds;
+
+      CapPtr<void, ChunkBounds> alloc_range(size_t sub_size)
       {
         SNMALLOC_ASSERT(bits::is_pow2(sub_size));
 

@@ -14,6 +14,8 @@ namespace snmalloc
     // need to be changed.
     static constexpr bool ConcurrencySafe = true;
 
+    using ChunkBounds = capptr::bounds::Chunk;
+
     constexpr PalRange() = default;
 
     capptr::Chunk<void> alloc_range(size_t size)

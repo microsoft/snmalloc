@@ -145,7 +145,7 @@ namespace snmalloc
 
   struct SmallBuddyRange
   {
-    template<typename ParentRange = EmptyRange>
+    template<typename ParentRange = EmptyRange<>>
     class Type : public ContainsParent<ParentRange>
     {
       using ContainsParent<ParentRange>::parent;
@@ -186,6 +186,8 @@ namespace snmalloc
       static_assert(ParentRange::Aligned, "ParentRange must be aligned");
 
       static constexpr bool ConcurrencySafe = false;
+
+      using ChunkBounds = capptr::bounds::Chunk;
 
       constexpr Type() = default;
 

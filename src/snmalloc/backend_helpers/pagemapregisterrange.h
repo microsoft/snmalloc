@@ -11,7 +11,7 @@ namespace snmalloc
     bool CanConsolidate = true>
   struct PagemapRegisterRange
   {
-    template<typename ParentRange = EmptyRange>
+    template<typename ParentRange = EmptyRange<>>
     class Type : public ContainsParent<ParentRange>
     {
       using ContainsParent<ParentRange>::parent;
@@ -23,7 +23,9 @@ namespace snmalloc
 
       static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
 
-      capptr::Chunk<void> alloc_range(size_t size)
+      using ChunkBounds = typename ParentRange::ChunkBounds;
+
+      CapPtr<void, ChunkBounds> alloc_range(size_t size)
       {
         auto base = parent.alloc_range(size);
 

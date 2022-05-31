@@ -18,9 +18,14 @@ namespace snmalloc
 
       static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
 
+      using ChunkBounds = typename ParentRange::ChunkBounds;
+      static_assert(
+        ChunkBounds::address_space_control ==
+        capptr::dimension::AddressSpaceControl::Full);
+
       constexpr Type() = default;
 
-      capptr::Chunk<void> alloc_range(size_t size)
+      CapPtr<void, ChunkBounds> alloc_range(size_t size)
       {
         SNMALLOC_ASSERT_MSG(
           (size % PAL::page_size) == 0,
@@ -33,7 +38,7 @@ namespace snmalloc
         return range;
       }
 
-      void dealloc_range(capptr::Chunk<void> base, size_t size)
+      void dealloc_range(CapPtr<void, ChunkBounds> base, size_t size)
       {
         SNMALLOC_ASSERT_MSG(
           (size % PAL::page_size) == 0,

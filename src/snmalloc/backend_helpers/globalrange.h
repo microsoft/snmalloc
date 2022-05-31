@@ -11,7 +11,7 @@ namespace snmalloc
    */
   struct GlobalRange
   {
-    template<typename ParentRange = EmptyRange>
+    template<typename ParentRange = EmptyRange<>>
     class Type : public StaticParent<ParentRange>
     {
       using StaticParent<ParentRange>::parent;
@@ -27,15 +27,17 @@ namespace snmalloc
 
       static constexpr bool ConcurrencySafe = true;
 
+      using ChunkBounds = typename ParentRange::ChunkBounds;
+
       constexpr Type() = default;
 
-      capptr::Chunk<void> alloc_range(size_t size)
+      CapPtr<void, ChunkBounds> alloc_range(size_t size)
       {
         FlagLock lock(spin_lock);
         return parent.alloc_range(size);
       }
 
-      void dealloc_range(capptr::Chunk<void> base, size_t size)
+      void dealloc_range(CapPtr<void, ChunkBounds> base, size_t size)
       {
         FlagLock lock(spin_lock);
         parent.dealloc_range(base, size);
