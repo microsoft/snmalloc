@@ -41,3 +41,5 @@ jobs:
       run: cargo test --all --features check
     - name: Run tests build_cc
       run: cargo test --all --features "build_cc usecxx17"
+    - name: Run tests build_cc
+      run: cargo test --all --features native-cpu
