@@ -6,8 +6,8 @@ fn main() {
         (false, "-O3", "/O2", "/RELEASE")
     };
     let mut build = cc::Build::new();
-    build.include("snmalloc/src");
-    build.file("snmalloc/src/override/rust.cc".to_string());
+    build.include("snmalloc/src/snmalloc");
+    build.file("snmalloc/src/snmalloc/override/rust.cc".to_string());
     build.flag_if_supported("/O2");
     build.flag_if_supported("/Zi");
     build.flag_if_supported("/nologo");
