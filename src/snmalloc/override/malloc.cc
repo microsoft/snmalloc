@@ -61,6 +61,12 @@ extern "C"
     return ThreadAlloc::get().alloc_size(ptr);
   }
 
+  SNMALLOC_EXPORT
+  size_t SNMALLOC_NAME_MANGLE(malloc_good_size)(size_t size)
+  {
+    return round_size(size);
+  }
+
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(realloc)(void* ptr, size_t size)
   {
     auto& a = ThreadAlloc::get();

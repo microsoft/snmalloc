@@ -32,7 +32,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
     failed = true;
   }
   const auto alloc_size = our_malloc_usable_size(p);
-  auto expected_size = round_size(size);
+  auto expected_size = our_malloc_good_size(size);
 #ifdef SNMALLOC_PASS_THROUGH
   // Calling system allocator may allocate a larger block than
   // snmalloc. Note, we have called the system allocator with
