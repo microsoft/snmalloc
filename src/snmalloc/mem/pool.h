@@ -29,7 +29,7 @@ namespace snmalloc
   private:
     MPMCStack<T, PreZeroed> stack;
     FlagWord lock{};
-    T* list{nullptr};
+    capptr::Alloc<T> list{nullptr};
 
   public:
     constexpr PoolState() = default;
@@ -121,12 +121,12 @@ namespace snmalloc
     static T* acquire(Args&&... args)
     {
       PoolState<T>& pool = get_state();
-      T* p = pool.stack.pop();
+      auto p = capptr::Alloc<T>::unsafe_from(pool.stack.pop());
 
       if (p != nullptr)
       {
         p->set_in_use();
-        return p;
+        return p.unsafe_ptr();
       }
 
       auto raw =
@@ -137,14 +137,18 @@ namespace snmalloc
         Config::Pal::error("Failed to initialise thread local allocator.");
       }
 
-      p = new (raw.unsafe_ptr()) T(std::forward<Args>(args)...);
+      p = capptr_to_user_address_control(
+        Aal::capptr_bound<T, capptr::bounds::AllocFull>(
+          capptr::Arena<T>::unsafe_from(new (raw.unsafe_ptr())
+                                          T(std::forward<Args>(args)...)),
+          sizeof(T)));
 
       FlagLock f(pool.lock);
       p->list_next = pool.list;
       pool.list = p;
 
       p->set_in_use();
-      return p;
+      return p.unsafe_ptr();
     }
 
     /**
@@ -185,9 +189,9 @@ namespace snmalloc
     static T* iterate(T* p = nullptr)
     {
       if (p == nullptr)
-        return get_state().list;
+        return get_state().list.unsafe_ptr();
 
-      return p->list_next;
+      return p->list_next.unsafe_ptr();
     }
   };
 } // namespace snmalloc

@@ -23,7 +23,7 @@ namespace snmalloc
     /// Used by the pool for chaining together entries when not in use.
     std::atomic<T*> next{nullptr};
     /// Used by the pool to keep the list of all entries ever created.
-    T* list_next;
+    capptr::Alloc<T> list_next;
     std::atomic_flag in_use = ATOMIC_FLAG_INIT;
 
   public:
