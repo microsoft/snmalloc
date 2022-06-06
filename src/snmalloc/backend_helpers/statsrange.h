@@ -10,58 +10,55 @@ namespace snmalloc
   /**
    * Used to measure memory usage.
    */
-  template<typename ParentRange = EmptyRange>
-  class StatsRange : public ContainsParent<ParentRange>
+  struct StatsRange
   {
-    using ContainsParent<ParentRange>::parent;
-
-    static inline std::atomic<size_t> current_usage{};
-    static inline std::atomic<size_t> peak_usage{};
-
-  public:
-    /**
-     * We use a nested Apply type to enable a Pipe operation.
-     */
-    template<typename ParentRange2>
-    using Apply = StatsRange<ParentRange2>;
-
-    static constexpr bool Aligned = ParentRange::Aligned;
-
-    static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
-
-    constexpr StatsRange() = default;
-
-    capptr::Chunk<void> alloc_range(size_t size)
+    template<typename ParentRange = EmptyRange>
+    class Type : public ContainsParent<ParentRange>
     {
-      auto result = parent.alloc_range(size);
-      if (result != nullptr)
+      using ContainsParent<ParentRange>::parent;
+
+      static inline std::atomic<size_t> current_usage{};
+      static inline std::atomic<size_t> peak_usage{};
+
+    public:
+      static constexpr bool Aligned = ParentRange::Aligned;
+
+      static constexpr bool ConcurrencySafe = ParentRange::ConcurrencySafe;
+
+      constexpr Type() = default;
+
+      capptr::Chunk<void> alloc_range(size_t size)
       {
-        auto prev = current_usage.fetch_add(size);
-        auto curr = peak_usage.load();
-        while (curr < prev + size)
+        auto result = parent.alloc_range(size);
+        if (result != nullptr)
         {
-          if (peak_usage.compare_exchange_weak(curr, prev + size))
-            break;
+          auto prev = current_usage.fetch_add(size);
+          auto curr = peak_usage.load();
+          while (curr < prev + size)
+          {
+            if (peak_usage.compare_exchange_weak(curr, prev + size))
+              break;
+          }
         }
+        return result;
       }
-      return result;
-    }
 
-    void dealloc_range(capptr::Chunk<void> base, size_t size)
-    {
-      current_usage -= size;
-      parent.dealloc_range(base, size);
-    }
+      void dealloc_range(capptr::Chunk<void> base, size_t size)
+      {
+        current_usage -= size;
+        parent.dealloc_range(base, size);
+      }
 
-    size_t get_current_usage()
-    {
-      return current_usage.load();
-    }
+      size_t get_current_usage()
+      {
+        return current_usage.load();
+      }
 
-    size_t get_peak_usage()
-    {
-      return peak_usage.load();
-    }
+      size_t get_peak_usage()
+      {
+        return peak_usage.load();
+      }
+    };
   };
 
   template<typename StatsR1, typename StatsR2>

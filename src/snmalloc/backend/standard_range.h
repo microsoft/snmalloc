@@ -35,10 +35,10 @@ namespace snmalloc
         Pagemap,
         MinSizeBits>,
       LogRange<2>,
-      GlobalRange<>>;
+      GlobalRange>;
 
     // Track stats of the committed memory
-    using Stats = Pipe<GlobalR, CommitRange<PAL>, StatsRange<>>;
+    using Stats = Pipe<GlobalR, CommitRange<PAL>, StatsRange>;
 
   private:
     static constexpr size_t page_size_bits =
@@ -53,11 +53,11 @@ namespace snmalloc
         LocalCacheSizeBits,
         Pagemap,
         page_size_bits>,
-      SmallBuddyRange<>>;
+      SmallBuddyRange>;
 
   public:
     // Expose a global range for the initial allocation of meta-data.
-    using GlobalMetaRange = Pipe<ObjectRange, GlobalRange<>>;
+    using GlobalMetaRange = Pipe<ObjectRange, GlobalRange>;
 
     // Where we get user allocations from.
     ObjectRange object_range;

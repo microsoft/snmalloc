@@ -187,12 +187,9 @@ namespace snmalloc
     size_t REFILL_SIZE_BITS,
     size_t MAX_SIZE_BITS,
     SNMALLOC_CONCEPT(IsWritablePagemap) Pagemap,
-    size_t MIN_REFILL_SIZE_BITS = 0,
-    typename ParentRange = EmptyRange>
-  class LargeBuddyRange : public ContainsParent<ParentRange>
+    size_t MIN_REFILL_SIZE_BITS = 0>
+  class LargeBuddyRange
   {
-    using ContainsParent<ParentRange>::parent;
-
     static_assert(
       REFILL_SIZE_BITS <= MAX_SIZE_BITS, "REFILL_SIZE_BITS > MAX_SIZE_BITS");
     static_assert(
@@ -210,186 +207,182 @@ namespace snmalloc
     static constexpr size_t MIN_REFILL_SIZE =
       bits::one_at_bit(MIN_REFILL_SIZE_BITS);
 
-    /**
-     * The size of memory requested so far.
-     *
-     * This is used to determine the refill size.
-     */
-    size_t requested_total = 0;
-
-    /**
-     * Buddy allocator used to represent this range of memory.
-     */
-    Buddy<BuddyChunkRep<Pagemap>, MIN_CHUNK_BITS, MAX_SIZE_BITS> buddy_large;
-
-    /**
-     * The parent might not support deallocation if this buddy allocator covers
-     * the whole range.  Uses template insanity to make this work.
-     */
-    template<bool exists = MAX_SIZE_BITS != (bits::BITS - 1)>
-    std::enable_if_t<exists>
-    parent_dealloc_range(capptr::Chunk<void> base, size_t size)
-    {
-      static_assert(
-        MAX_SIZE_BITS != (bits::BITS - 1), "Don't set SFINAE parameter");
-      parent.dealloc_range(base, size);
-    }
-
-    void dealloc_overflow(capptr::Chunk<void> overflow)
-    {
-      if constexpr (MAX_SIZE_BITS != (bits::BITS - 1))
-      {
-        if (overflow != nullptr)
-        {
-          parent.dealloc_range(overflow, bits::one_at_bit(MAX_SIZE_BITS));
-        }
-      }
-      else
-      {
-        if (overflow != nullptr)
-          abort();
-      }
-    }
-
-    /**
-     * Add a range of memory to the address space.
-     * Divides blocks into power of two sizes with natural alignment
-     */
-    void add_range(capptr::Chunk<void> base, size_t length)
-    {
-      range_to_pow_2_blocks<MIN_CHUNK_BITS>(
-        base, length, [this](capptr::Chunk<void> base, size_t align, bool) {
-          auto overflow = capptr::Chunk<void>(reinterpret_cast<void*>(
-            buddy_large.add_block(base.unsafe_uintptr(), align)));
-
-          dealloc_overflow(overflow);
-        });
-    }
-
-    capptr::Chunk<void> refill(size_t size)
-    {
-      if (ParentRange::Aligned)
-      {
-        // Use amount currently requested to determine refill size.
-        // This will gradually increase the usage of the parent range.
-        // So small examples can grow local caches slowly, and larger
-        // examples will grow them by the refill size.
-        //
-        // The heuristic is designed to allocate the following sequence for
-        // 16KiB requests 16KiB, 16KiB, 32Kib, 64KiB, ..., REFILL_SIZE/2,
-        // REFILL_SIZE, REFILL_SIZE, ... Hence if this if they are coming from a
-        // contiguous aligned range, then they could be consolidated.  This
-        // depends on the ParentRange behaviour.
-        size_t refill_size = bits::min(REFILL_SIZE, requested_total);
-        refill_size = bits::max(refill_size, MIN_REFILL_SIZE);
-        refill_size = bits::max(refill_size, size);
-        refill_size = bits::next_pow2(refill_size);
-
-        auto refill_range = parent.alloc_range(refill_size);
-        if (refill_range != nullptr)
-        {
-          requested_total += refill_size;
-          add_range(pointer_offset(refill_range, size), refill_size - size);
-        }
-        return refill_range;
-      }
-
-      // Note the unaligned parent path does not use
-      // requested_total in the heuristic for the initial size
-      // this is because the request needs to introduce alignment.
-      // Currently the unaligned variant is not used as a local cache.
-      // So the gradual growing of refill_size is not needed.
-
-      // Need to overallocate to get the alignment right.
-      bool overflow = false;
-      size_t needed_size = bits::umul(size, 2, overflow);
-      if (overflow)
-      {
-        return nullptr;
-      }
-
-      auto refill_size = bits::max(needed_size, REFILL_SIZE);
-      while (needed_size <= refill_size)
-      {
-        auto refill = parent.alloc_range(refill_size);
-
-        if (refill != nullptr)
-        {
-          requested_total += refill_size;
-          add_range(refill, refill_size);
-
-          SNMALLOC_ASSERT(refill_size < bits::one_at_bit(MAX_SIZE_BITS));
-          static_assert(
-            (REFILL_SIZE < bits::one_at_bit(MAX_SIZE_BITS)) ||
-              ParentRange::Aligned,
-            "Required to prevent overflow.");
-
-          return alloc_range(size);
-        }
-
-        refill_size >>= 1;
-      }
-
-      return nullptr;
-    }
-
   public:
-    /**
-     * We use a nested Apply type to enable a Pipe operation.
-     */
-    template<typename ParentRange2>
-    using Apply = LargeBuddyRange<
-      REFILL_SIZE_BITS,
-      MAX_SIZE_BITS,
-      Pagemap,
-      MIN_REFILL_SIZE_BITS,
-      ParentRange2>;
-
-    static constexpr bool Aligned = true;
-
-    static constexpr bool ConcurrencySafe = false;
-
-    constexpr LargeBuddyRange() = default;
-
-    capptr::Chunk<void> alloc_range(size_t size)
+    template<typename ParentRange = EmptyRange>
+    class Type : public ContainsParent<ParentRange>
     {
-      SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
-      SNMALLOC_ASSERT(bits::is_pow2(size));
+      using ContainsParent<ParentRange>::parent;
 
-      if (size >= (bits::one_at_bit(MAX_SIZE_BITS) - 1))
+      /**
+       * The size of memory requested so far.
+       *
+       * This is used to determine the refill size.
+       */
+      size_t requested_total = 0;
+
+      /**
+       * Buddy allocator used to represent this range of memory.
+       */
+      Buddy<BuddyChunkRep<Pagemap>, MIN_CHUNK_BITS, MAX_SIZE_BITS> buddy_large;
+
+      /**
+       * The parent might not support deallocation if this buddy allocator
+       * covers the whole range.  Uses template insanity to make this work.
+       */
+      template<bool exists = MAX_SIZE_BITS != (bits::BITS - 1)>
+      std::enable_if_t<exists>
+      parent_dealloc_range(capptr::Chunk<void> base, size_t size)
+      {
+        static_assert(
+          MAX_SIZE_BITS != (bits::BITS - 1), "Don't set SFINAE parameter");
+        parent.dealloc_range(base, size);
+      }
+
+      void dealloc_overflow(capptr::Chunk<void> overflow)
+      {
+        if constexpr (MAX_SIZE_BITS != (bits::BITS - 1))
+        {
+          if (overflow != nullptr)
+          {
+            parent.dealloc_range(overflow, bits::one_at_bit(MAX_SIZE_BITS));
+          }
+        }
+        else
+        {
+          if (overflow != nullptr)
+            abort();
+        }
+      }
+
+      /**
+       * Add a range of memory to the address space.
+       * Divides blocks into power of two sizes with natural alignment
+       */
+      void add_range(capptr::Chunk<void> base, size_t length)
+      {
+        range_to_pow_2_blocks<MIN_CHUNK_BITS>(
+          base, length, [this](capptr::Chunk<void> base, size_t align, bool) {
+            auto overflow = capptr::Chunk<void>(reinterpret_cast<void*>(
+              buddy_large.add_block(base.unsafe_uintptr(), align)));
+
+            dealloc_overflow(overflow);
+          });
+      }
+
+      capptr::Chunk<void> refill(size_t size)
       {
         if (ParentRange::Aligned)
-          return parent.alloc_range(size);
+        {
+          // Use amount currently requested to determine refill size.
+          // This will gradually increase the usage of the parent range.
+          // So small examples can grow local caches slowly, and larger
+          // examples will grow them by the refill size.
+          //
+          // The heuristic is designed to allocate the following sequence for
+          // 16KiB requests 16KiB, 16KiB, 32Kib, 64KiB, ..., REFILL_SIZE/2,
+          // REFILL_SIZE, REFILL_SIZE, ... Hence if this if they are coming from
+          // a contiguous aligned range, then they could be consolidated.  This
+          // depends on the ParentRange behaviour.
+          size_t refill_size = bits::min(REFILL_SIZE, requested_total);
+          refill_size = bits::max(refill_size, MIN_REFILL_SIZE);
+          refill_size = bits::max(refill_size, size);
+          refill_size = bits::next_pow2(refill_size);
+
+          auto refill_range = parent.alloc_range(refill_size);
+          if (refill_range != nullptr)
+          {
+            requested_total += refill_size;
+            add_range(pointer_offset(refill_range, size), refill_size - size);
+          }
+          return refill_range;
+        }
+
+        // Note the unaligned parent path does not use
+        // requested_total in the heuristic for the initial size
+        // this is because the request needs to introduce alignment.
+        // Currently the unaligned variant is not used as a local cache.
+        // So the gradual growing of refill_size is not needed.
+
+        // Need to overallocate to get the alignment right.
+        bool overflow = false;
+        size_t needed_size = bits::umul(size, 2, overflow);
+        if (overflow)
+        {
+          return nullptr;
+        }
+
+        auto refill_size = bits::max(needed_size, REFILL_SIZE);
+        while (needed_size <= refill_size)
+        {
+          auto refill = parent.alloc_range(refill_size);
+
+          if (refill != nullptr)
+          {
+            requested_total += refill_size;
+            add_range(refill, refill_size);
+
+            SNMALLOC_ASSERT(refill_size < bits::one_at_bit(MAX_SIZE_BITS));
+            static_assert(
+              (REFILL_SIZE < bits::one_at_bit(MAX_SIZE_BITS)) ||
+                ParentRange::Aligned,
+              "Required to prevent overflow.");
+
+            return alloc_range(size);
+          }
+
+          refill_size >>= 1;
+        }
 
         return nullptr;
       }
 
-      auto result = capptr::Chunk<void>(
-        reinterpret_cast<void*>(buddy_large.remove_block(size)));
+    public:
+      static constexpr bool Aligned = true;
 
-      if (result != nullptr)
-        return result;
+      static constexpr bool ConcurrencySafe = false;
 
-      return refill(size);
-    }
+      constexpr Type() = default;
 
-    void dealloc_range(capptr::Chunk<void> base, size_t size)
-    {
-      SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
-      SNMALLOC_ASSERT(bits::is_pow2(size));
-
-      if constexpr (MAX_SIZE_BITS != (bits::BITS - 1))
+      capptr::Chunk<void> alloc_range(size_t size)
       {
+        SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
+        SNMALLOC_ASSERT(bits::is_pow2(size));
+
         if (size >= (bits::one_at_bit(MAX_SIZE_BITS) - 1))
         {
-          parent_dealloc_range(base, size);
-          return;
+          if (ParentRange::Aligned)
+            return parent.alloc_range(size);
+
+          return nullptr;
         }
+
+        auto result = capptr::Chunk<void>(
+          reinterpret_cast<void*>(buddy_large.remove_block(size)));
+
+        if (result != nullptr)
+          return result;
+
+        return refill(size);
       }
 
-      auto overflow = capptr::Chunk<void>(reinterpret_cast<void*>(
-        buddy_large.add_block(base.unsafe_uintptr(), size)));
-      dealloc_overflow(overflow);
-    }
+      void dealloc_range(capptr::Chunk<void> base, size_t size)
+      {
+        SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
+        SNMALLOC_ASSERT(bits::is_pow2(size));
+
+        if constexpr (MAX_SIZE_BITS != (bits::BITS - 1))
+        {
+          if (size >= (bits::one_at_bit(MAX_SIZE_BITS) - 1))
+          {
+            parent_dealloc_range(base, size);
+            return;
+          }
+        }
+
+        auto overflow = capptr::Chunk<void>(reinterpret_cast<void*>(
+          buddy_large.add_block(base.unsafe_uintptr(), size)));
+        dealloc_overflow(overflow);
+      }
+    };
   };
 } // namespace snmalloc
