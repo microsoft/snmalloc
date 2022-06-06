@@ -140,12 +140,12 @@ namespace snmalloc
       Pagemap::set_metaentry(address_cast(alloc), size, t);
 
       local_state.get_meta_range().dealloc_range(
-        capptr::Chunk<void>(&slab_metadata), sizeof(SlabMetadata));
+        capptr::Chunk<void>::unsafe_from(&slab_metadata), sizeof(SlabMetadata));
 
       // On non-CHERI platforms, we don't need to re-derive to get a pointer to
       // the chunk.  On CHERI platforms this will need to be stored in the
       // SlabMetadata or similar.
-      capptr::Chunk<void> chunk{alloc.unsafe_ptr()};
+      auto chunk = capptr::Chunk<void>::unsafe_from(alloc.unsafe_ptr());
       local_state.object_range.dealloc_range(chunk, size);
     }
 

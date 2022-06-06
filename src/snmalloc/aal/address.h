@@ -34,7 +34,8 @@ namespace snmalloc
   inline CapPtr<void, bounds>
   pointer_offset(CapPtr<T, bounds> base, size_t diff)
   {
-    return CapPtr<void, bounds>(pointer_offset(base.unsafe_ptr(), diff));
+    return CapPtr<void, bounds>::unsafe_from(
+      pointer_offset(base.unsafe_ptr(), diff));
   }
 
   /**
@@ -51,7 +52,8 @@ namespace snmalloc
   inline CapPtr<void, bounds>
   pointer_offset_signed(CapPtr<T, bounds> base, ptrdiff_t diff)
   {
-    return CapPtr<void, bounds>(pointer_offset_signed(base.unsafe_ptr(), diff));
+    return CapPtr<void, bounds>::unsafe_from(
+      pointer_offset_signed(base.unsafe_ptr(), diff));
   }
 
   /**
@@ -137,7 +139,8 @@ namespace snmalloc
     SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
   inline CapPtr<T, bounds> pointer_align_down(CapPtr<void, bounds> p)
   {
-    return CapPtr<T, bounds>(pointer_align_down<alignment, T>(p.unsafe_ptr()));
+    return CapPtr<T, bounds>::unsafe_from(
+      pointer_align_down<alignment, T>(p.unsafe_ptr()));
   }
 
   template<size_t alignment>
@@ -174,7 +177,8 @@ namespace snmalloc
     SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
   inline CapPtr<T, bounds> pointer_align_up(CapPtr<void, bounds> p)
   {
-    return CapPtr<T, bounds>(pointer_align_up<alignment, T>(p.unsafe_ptr()));
+    return CapPtr<T, bounds>::unsafe_from(
+      pointer_align_up<alignment, T>(p.unsafe_ptr()));
   }
 
   template<size_t alignment>
@@ -204,7 +208,8 @@ namespace snmalloc
   inline CapPtr<T, bounds>
   pointer_align_down(CapPtr<void, bounds> p, size_t alignment)
   {
-    return CapPtr<T, bounds>(pointer_align_down<T>(p.unsafe_ptr(), alignment));
+    return CapPtr<T, bounds>::unsafe_from(
+      pointer_align_down<T>(p.unsafe_ptr(), alignment));
   }
 
   /**
@@ -228,7 +233,8 @@ namespace snmalloc
   inline CapPtr<T, bounds>
   pointer_align_up(CapPtr<void, bounds> p, size_t alignment)
   {
-    return CapPtr<T, bounds>(pointer_align_up<T>(p.unsafe_ptr(), alignment));
+    return CapPtr<T, bounds>::unsafe_from(
+      pointer_align_up<T>(p.unsafe_ptr(), alignment));
   }
 
   /**

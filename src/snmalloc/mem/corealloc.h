@@ -506,10 +506,10 @@ namespace snmalloc
          * The front of the queue has already been validated; just change the
          * annotating type.
          */
-        auto domesticate_first = [](freelist::QueuePtr p)
-                                   SNMALLOC_FAST_PATH_LAMBDA {
-                                     return freelist::HeadPtr(p.unsafe_ptr());
-                                   };
+        auto domesticate_first =
+          [](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+            return freelist::HeadPtr::unsafe_from(p.unsafe_ptr());
+          };
         message_queue().dequeue(key_global, domesticate_first, domesticate, cb);
       }
       else

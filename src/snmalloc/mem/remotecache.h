@@ -115,7 +115,7 @@ namespace snmalloc
             if constexpr (Config::Options.QueueHeadsAreTame)
             {
               auto domesticate_nop = [](freelist::QueuePtr p) {
-                return freelist::HeadPtr(p.unsafe_ptr());
+                return freelist::HeadPtr::unsafe_from(p.unsafe_ptr());
               };
               remote->enqueue(first, last, key, domesticate_nop);
             }

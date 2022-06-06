@@ -86,7 +86,7 @@ namespace snmalloc
       }
 
       void* pb = __builtin_cheri_bounds_set_exact(a.unsafe_ptr(), size);
-      return CapPtr<T, BOut>(static_cast<T*>(pb));
+      return CapPtr<T, BOut>::unsafe_from(static_cast<T*>(pb));
     }
   };
 } // namespace snmalloc

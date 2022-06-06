@@ -33,7 +33,7 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT((address_cast(r) & MASK) == 0);
       if (r == nullptr)
-        *ptr = capptr::Chunk<FreeChunk>(
+        *ptr = capptr::Chunk<FreeChunk>::unsafe_from(
           reinterpret_cast<FreeChunk*>((*ptr).unsafe_uintptr() & MASK));
       else
         // Preserve lower bit.
@@ -71,7 +71,8 @@ namespace snmalloc
         if (new_is_red)
         {
           if (old_addr == nullptr)
-            *r = capptr::Chunk<FreeChunk>(reinterpret_cast<FreeChunk*>(MASK));
+            *r = capptr::Chunk<FreeChunk>::unsafe_from(
+              reinterpret_cast<FreeChunk*>(MASK));
           else
             *r = pointer_offset(old_addr, MASK).template as_static<FreeChunk>();
         }

@@ -270,7 +270,8 @@ namespace snmalloc
       inline static BQueuePtr<BQueue> encode_next(
         address_t curr, BHeadPtr<BView, BQueue> next, const FreeListKey& key)
       {
-        return BQueuePtr<BQueue>(code_next(curr, next.unsafe_ptr(), key));
+        return BQueuePtr<BQueue>::unsafe_from(
+          code_next(curr, next.unsafe_ptr(), key));
       }
 
       /**
@@ -294,7 +295,8 @@ namespace snmalloc
       inline static BHeadPtr<BView, BQueue> decode_next(
         address_t curr, BHeadPtr<BView, BQueue> next, const FreeListKey& key)
       {
-        return BHeadPtr<BView, BQueue>(code_next(curr, next.unsafe_ptr(), key));
+        return BHeadPtr<BView, BQueue>::unsafe_from(
+          code_next(curr, next.unsafe_ptr(), key));
       }
 
       template<
@@ -543,7 +545,7 @@ namespace snmalloc
 
       Object::BHeadPtr<BView, BQueue> cast_head(uint32_t ix)
       {
-        return Object::BHeadPtr<BView, BQueue>(
+        return Object::BHeadPtr<BView, BQueue>::unsafe_from(
           static_cast<Object::T<BQueue>*>(head[ix]));
       }
 
@@ -715,8 +717,8 @@ namespace snmalloc
         // this is doing a CONTAINING_RECORD like cast to get back
         // to the actual object.  This isn't true if the builder is
         // empty, but you are not allowed to call this in the empty case.
-        auto last =
-          Object::BHeadPtr<BView, BQueue>(Object::from_next_ptr(cast_end(0)));
+        auto last = Object::BHeadPtr<BView, BQueue>::unsafe_from(
+          Object::from_next_ptr(cast_end(0)));
         init();
         return {first, last};
       }

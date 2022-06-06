@@ -283,6 +283,7 @@ namespace snmalloc
 
     constexpr SNMALLOC_FAST_PATH CapPtr() : CapPtr(nullptr) {}
 
+  private:
     /**
      * all other constructions must be explicit
      *
@@ -302,13 +303,25 @@ namespace snmalloc
 #  pragma warning(pop)
 #endif
 
+  public:
+    /**
+     * The CapPtr constructor is not sufficiently intimidating, given that it
+     * can be used to break annotation correctness.  Expose it with a better
+     * name.
+     */
+    static constexpr SNMALLOC_FAST_PATH CapPtr unsafe_from(T* p)
+    {
+      return CapPtr<T, bounds>(p);
+    }
+
     /**
      * Allow static_cast<>-s that preserve bounds but vary the target type.
      */
     template<typename U>
     [[nodiscard]] SNMALLOC_FAST_PATH CapPtr<U, bounds> as_static() const
     {
-      return CapPtr<U, bounds>(static_cast<U*>(this->unsafe_capptr));
+      return CapPtr<U, bounds>::unsafe_from(
+        static_cast<U*>(this->unsafe_capptr));
     }
 
     [[nodiscard]] SNMALLOC_FAST_PATH CapPtr<void, bounds> as_void() const
@@ -322,7 +335,8 @@ namespace snmalloc
     template<typename U>
     [[nodiscard]] SNMALLOC_FAST_PATH CapPtr<U, bounds> as_reinterpret() const
     {
-      return CapPtr<U, bounds>(reinterpret_cast<U*>(this->unsafe_capptr));
+      return CapPtr<U, bounds>::unsafe_from(
+        reinterpret_cast<U*>(this->unsafe_capptr));
     }
 
     SNMALLOC_FAST_PATH bool operator==(const CapPtr& rhs) const
@@ -396,7 +410,7 @@ namespace snmalloc
   inline SNMALLOC_FAST_PATH capptr::Alloc<T>
   capptr_chunk_is_alloc(capptr::ChunkUser<T> p)
   {
-    return capptr::Alloc<T>(p.unsafe_ptr());
+    return capptr::Alloc<T>::unsafe_from(p.unsafe_ptr());
   }
 
   /**
@@ -426,7 +440,7 @@ namespace snmalloc
   static inline SNMALLOC_FAST_PATH capptr::AllocWild<void>
   capptr_from_client(void* p)
   {
-    return capptr::AllocWild<void>(p);
+    return capptr::AllocWild<void>::unsafe_from(p);
   }
 
   /**
@@ -440,8 +454,8 @@ namespace snmalloc
   {
     return CapPtr<
       T,
-      typename B::template with_wildness<capptr::dimension::Wildness::Wild>>(
-      p.unsafe_ptr());
+      typename B::template with_wildness<capptr::dimension::Wildness::Wild>>::
+      unsafe_from(p.unsafe_ptr());
   }
 
   /**
@@ -490,7 +504,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH CapPtr<T, bounds>
     load(std::memory_order order = std::memory_order_seq_cst) noexcept
     {
-      return CapPtr<T, bounds>(this->unsafe_capptr.load(order));
+      return CapPtr<T, bounds>::unsafe_from(this->unsafe_capptr.load(order));
     }
 
     SNMALLOC_FAST_PATH void store(
@@ -504,7 +518,7 @@ namespace snmalloc
       CapPtr<T, bounds> desired,
       std::memory_order order = std::memory_order_seq_cst) noexcept
     {
-      return CapPtr<T, bounds>(
+      return CapPtr<T, bounds>::unsafe_from(
         this->unsafe_capptr.exchange(desired.unsafe_ptr(), order));
     }
 

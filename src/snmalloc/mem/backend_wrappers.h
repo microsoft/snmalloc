@@ -102,8 +102,8 @@ namespace snmalloc
       UNUSED(ls);
       return CapPtr<
         T,
-        typename B::template with_wildness<capptr::dimension::Wildness::Tame>>(
-        p.unsafe_ptr());
+        typename B::template with_wildness<capptr::dimension::Wildness::Tame>>::
+        unsafe_from(p.unsafe_ptr());
     }
   }
 } // namespace snmalloc
