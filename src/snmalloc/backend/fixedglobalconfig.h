@@ -78,7 +78,7 @@ namespace snmalloc
 
       // Push memory into the global range.
       range_to_pow_2_blocks<MIN_CHUNK_BITS>(
-        capptr::Chunk<void>(heap_base),
+        capptr::Chunk<void>::unsafe_from(heap_base),
         heap_length,
         [&](capptr::Chunk<void> p, size_t sz, bool) {
           typename LocalState::GlobalR g;
@@ -108,8 +108,8 @@ namespace snmalloc
 
       return CapPtr<
         T,
-        typename B::template with_wildness<capptr::dimension::Wildness::Tame>>(
-        p.unsafe_ptr());
+        typename B::template with_wildness<capptr::dimension::Wildness::Tame>>::
+        unsafe_from(p.unsafe_ptr());
     }
   };
 }

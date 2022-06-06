@@ -212,7 +212,8 @@ namespace snmalloc
         "capptr_bound must preserve non-spatial CapPtr dimensions");
 
       UNUSED(size);
-      return CapPtr<T, BOut>(a.template as_static<T>().unsafe_ptr());
+      return CapPtr<T, BOut>::unsafe_from(
+        a.template as_static<T>().unsafe_ptr());
     }
   };
 } // namespace snmalloc

@@ -262,8 +262,9 @@ namespace snmalloc
       {
         range_to_pow_2_blocks<MIN_CHUNK_BITS>(
           base, length, [this](capptr::Chunk<void> base, size_t align, bool) {
-            auto overflow = capptr::Chunk<void>(reinterpret_cast<void*>(
-              buddy_large.add_block(base.unsafe_uintptr(), align)));
+            auto overflow =
+              capptr::Chunk<void>::unsafe_from(reinterpret_cast<void*>(
+                buddy_large.add_block(base.unsafe_uintptr(), align)));
 
             dealloc_overflow(overflow);
           });
@@ -358,7 +359,7 @@ namespace snmalloc
           return nullptr;
         }
 
-        auto result = capptr::Chunk<void>(
+        auto result = capptr::Chunk<void>::unsafe_from(
           reinterpret_cast<void*>(buddy_large.remove_block(size)));
 
         if (result != nullptr)
@@ -381,8 +382,9 @@ namespace snmalloc
           }
         }
 
-        auto overflow = capptr::Chunk<void>(reinterpret_cast<void*>(
-          buddy_large.add_block(base.unsafe_uintptr(), size)));
+        auto overflow =
+          capptr::Chunk<void>::unsafe_from(reinterpret_cast<void*>(
+            buddy_large.add_block(base.unsafe_uintptr(), size)));
         dealloc_overflow(overflow);
       }
     };

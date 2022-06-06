@@ -135,7 +135,7 @@ namespace snmalloc
           return nullptr;
         }
       }
-      return CapPtr<T, capptr::user_address_control_type<B>>(
+      return CapPtr<T, capptr::user_address_control_type<B>>::unsafe_from(
         __builtin_cheri_perms_and(
           p.unsafe_ptr(), ~static_cast<unsigned int>(CHERI_PERM_SW_VMEM)));
     }

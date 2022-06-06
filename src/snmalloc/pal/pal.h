@@ -90,7 +90,8 @@ namespace snmalloc
     CapPtr<T, capptr::user_address_control_type<B>>>
   capptr_to_user_address_control(CapPtr<T, B> p)
   {
-    return CapPtr<T, capptr::user_address_control_type<B>>(p.unsafe_ptr());
+    return CapPtr<T, capptr::user_address_control_type<B>>::unsafe_from(
+      p.unsafe_ptr());
   }
 
   template<
