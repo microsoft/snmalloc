@@ -1,5 +1,9 @@
 ## Changelog
 
+### 0.3.1 
+- Fixes `build_cc` feature (broken in 0.3.0 release).
+- Fixes `native-cpu` feature (broken in 0.3.0 release).
+
 ### 0.3.0 
 - Release to follow upstream 0.6.0
 - **upstream** Major redesign of the code to improve performance and 
