@@ -55,6 +55,14 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
     INFO("Cheri size is {}, but required to be {}.", cheri_size, alloc_size);
     failed = true;
   }
+#  if defined(CHERI_PERM_SW_VMEM)
+  const auto cheri_perms = __builtin_cheri_perms_get(p);
+  if (cheri_perms & CHERI_PERM_SW_VMEM)
+  {
+    INFO("Cheri permissions include VMEM authority");
+    failed = true;
+  }
+#  endif
   if (p != nullptr)
   {
     /*
