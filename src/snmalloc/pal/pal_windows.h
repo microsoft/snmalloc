@@ -200,6 +200,7 @@ namespace snmalloc
     }
 #  endif
 
+    template<StateMem state_mem = Unused>
     static void* reserve(size_t size) noexcept
     {
       void* ret = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);

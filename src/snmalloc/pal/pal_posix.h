@@ -226,7 +226,7 @@ namespace snmalloc
      * are also zeroing the pages in which case we call the platform's `zero`
      * function, or we have initially mapped the pages as PROT_NONE.
      */
-    template<ZeroMem zero_mem>
+    template<ZeroMem zero_mem, StateMem state_mem = Allocated>
     static void notify_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(
@@ -321,6 +321,7 @@ namespace snmalloc
      * POSIX does not define a portable interface for specifying alignment
      * greater than a page.
      */
+    template<StateMem state_mem = Unused>
     static void* reserve(size_t size) noexcept
     {
       // If enforcing access, map pages initially as None, and then
@@ -432,6 +433,21 @@ namespace snmalloc
       }
 
       error("Failed to get system randomness");
+    }
+
+    template<StateMem state_mem>
+    static void pagetype(char* buf, size_t len)
+    {
+      ssize_t sz;
+      if constexpr (state_mem == Unused)
+        sz = snprintf(buf, len, "snmalloc (Unused)");
+      else if constexpr (state_mem == Allocated)
+        sz = snprintf(buf, len, "snmalloc (Allocated)");
+      else if constexpr (state_mem == Pagemap)
+        sz = snprintf(buf, len, "snmalloc (Pagemap)");
+      else if constexpr (state_mem == Metadata)
+        sz = snprintf(buf, len, "snmalloc (Metadata)");
+      buf[sz] = 0;
     }
   };
 } // namespace snmalloc
