@@ -78,6 +78,11 @@ target.
 
 ## Changelog
 
+### 0.3.1 
+
+- Fixes `build_cc` feature (broken in 0.3.0 release).
+- Fixes `native-cpu` feature (broken in 0.3.0 release).
+
 ### 0.3.0
 
 - Release to support snmalloc 0.6.0.
@@ -91,14 +96,5 @@ target.
 - Deprecation of `cache-friendly`
 - Use exposed `alloc_zeroed` from `snmalloc`
 - **upstream** changes of remote communication, corruption detection and compilation flag detection.
-
-### 0.2.27
-
-- Reduction of libc dependency
-- **upstream** Windows 7 and windows 8 compatibility added
-- **upstream** Option to use C++20 standards if available
-- **upstream** Preparations of cherification (heavy refactors of the structure)
-- **upstream** Cold routine annotations
-
 
 for older versions, see [CHANGELOG](CHANGELOG.md) 
