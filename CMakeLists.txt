@@ -18,6 +18,7 @@ option(SNMALLOC_USE_CXX17 "Build as C++17 for legacy support." OFF)
 option(SNMALLOC_TRACING "Enable large quantities of debug output." OFF)
 option(SNMALLOC_NO_REALLOCARRAY "Build without reallocarray exported" ON)
 option(SNMALLOC_NO_REALLOCARR "Build without reallocarr exported" ON)
+option(SNMALLOC_LINK_ICF "Link with Identical Code Folding" ON)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_STATIC_LIBRARY "Build static libraries" ON "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
@@ -318,7 +319,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
         endif()
       endif()
       # Remove all the duplicate new/malloc and free/delete definitions
-      target_link_options(${name} PRIVATE $<$<BOOL:${LLD_WORKS}>:-Wl,--icf=all -fuse-ld=lld>)
+      target_link_options(${name} PRIVATE $<$<BOOL:${LLD_WORKS}>:$<$<BOOL:${SNMALLOC_LINK_ICF}>:-Wl,--icf=all> -fuse-ld=lld>)
     endif()
 
     target_compile_definitions(${name} PRIVATE
