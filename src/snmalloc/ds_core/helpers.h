@@ -279,6 +279,30 @@ namespace snmalloc
       }
     }
 
+    /*
+     * TODO: This is not quite the right thing we want to check, but it
+     * suffices on all currently-supported platforms and CHERI.  We'd rather
+     * compare UINTPTR_WIDTH and ULLONG_WIDTH, I think, but those don't
+     * exist until C's FP Ext 1 TS (merged into C2x).
+     */
+#ifdef __CHERI_PURE_CAPABILITY__
+    /**
+     * Append an intptr_t to the buffer as a hex string
+     */
+    void append(intptr_t v)
+    {
+      append(reinterpret_cast<void*>(v));
+    }
+
+    /**
+     * Append a uintptr_t to the buffer as a hex string
+     */
+    void append(uintptr_t v)
+    {
+      append(reinterpret_cast<void*>(v));
+    }
+#endif
+
     /**
      * Append a raw pointer to the buffer as a hex string.
      */
