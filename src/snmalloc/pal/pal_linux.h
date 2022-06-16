@@ -40,6 +40,19 @@ namespace snmalloc
      */
     static constexpr int default_mmap_flags = MAP_NORESERVE;
 
+    /**
+     * MADV_FREE is only available since Linux 4.5.
+     *
+     * Fallback to MADV_DONTNEED on older kernels
+     */
+    static constexpr int madvise_free_flags =
+#  ifdef SNMALLOC_HAS_LINUX_RANDOM_H
+      MADV_FREE
+#  else
+      MADV_DONTNEED
+#  endif
+      ;
+
     static void* reserve(size_t size) noexcept
     {
       void* p = PALPOSIX<PALLinux>::reserve(size);
@@ -113,15 +126,7 @@ namespace snmalloc
         memset(p, 0x5a, size);
 
       madvise(p, size, MADV_DONTDUMP);
-      madvise(
-        p,
-        size,
-#  if defined(MADV_FREE)
-        MADV_FREE
-#  else
-        MADV_DONTNEED
-#  endif
-      );
+      madvise(p, size, madvise_free_flags);
 
       if constexpr (PalEnforceAccess)
       {
