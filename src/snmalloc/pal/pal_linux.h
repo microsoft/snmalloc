@@ -8,6 +8,9 @@
 #  include <sys/mman.h>
 #  include <sys/prctl.h>
 #  include <syscall.h>
+#  if !defined(GRND_NONBLOCK) && __has_include(<linux/random.h>)
+#    include <linux/random.h>
+#  endif
 
 extern "C" int puts(const char* str);
 
@@ -108,7 +111,15 @@ namespace snmalloc
         memset(p, 0x5a, size);
 
       madvise(p, size, MADV_DONTDUMP);
-      madvise(p, size, MADV_FREE);
+      madvise(
+        p,
+        size,
+#  if defined(MADV_FREE)
+        MADV_FREE
+#  else
+        MADV_DONTNEED
+#  endif
+      );
 
       if constexpr (PalEnforceAccess)
       {
