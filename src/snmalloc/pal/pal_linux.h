@@ -8,7 +8,9 @@
 #  include <sys/mman.h>
 #  include <sys/prctl.h>
 #  include <syscall.h>
-#  if !defined(GRND_NONBLOCK) && __has_include(<linux/random.h>)
+// __has_include does not reliably determine if we actually have linux/random.h
+// available
+#  if defined(SNMALLOC_HAS_LINUX_RANDOM_H)
 #    include <linux/random.h>
 #  endif
 
