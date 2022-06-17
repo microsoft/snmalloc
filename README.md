@@ -78,6 +78,10 @@ target.
 
 ## Changelog
 
+### 0.3.2
+
+- Tracking upstream to enable old Linux variants.
+
 ### 0.3.1 
 
 - Fixes `build_cc` feature (broken in 0.3.0 release).
