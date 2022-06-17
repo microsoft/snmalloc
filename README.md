@@ -78,6 +78,9 @@ target.
 
 ## Changelog
 
+### 0.3.3
+- Tracking upstream to fix Linux PAL typo.
+
 ### 0.3.2
 
 - Tracking upstream to enable old Linux variants.
@@ -94,11 +97,3 @@ target.
 ### 0.3.0-beta.1
 
 - Beta release to support snmalloc ~~2~~ 0.6.0
-
-### 0.2.28
-
-- Deprecation of `cache-friendly`
-- Use exposed `alloc_zeroed` from `snmalloc`
-- **upstream** changes of remote communication, corruption detection and compilation flag detection.
-
-for older versions, see [CHANGELOG](CHANGELOG.md) 
