@@ -1,5 +1,8 @@
 ## Changelog
 
+### 0.3.3
+- Tracking upstream to fix Linux PAL typo.
+
 ### 0.3.2
 - Tracking upstream to enable old Linux variants.
 
