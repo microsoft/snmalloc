@@ -46,7 +46,7 @@ namespace snmalloc
      * Fallback to MADV_DONTNEED on older kernels
      */
     static constexpr int madvise_free_flags =
-#  ifdef SNMALLOC_HAS_LINUX_RANDOM_H
+#  if defined(MADV_FREE)
       MADV_FREE
 #  else
       MADV_DONTNEED
