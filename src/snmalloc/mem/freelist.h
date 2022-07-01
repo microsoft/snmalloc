@@ -57,8 +57,7 @@ namespace snmalloc
     {
     public:
       template<
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue =
-          capptr::bounds::AllocWild>
+        SNMALLOC_CONCEPT(capptr::IsBound) BQueue = capptr::bounds::AllocWild>
       class T;
 
       /**
@@ -67,13 +66,13 @@ namespace snmalloc
        * place.  Give it a shorter name (Object::BQueuePtr<BQueue>) for
        * convenience.
        */
-      template<SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
+      template<SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       using BQueuePtr = CapPtr<Object::T<BQueue>, BQueue>;
 
       /**
        * As with BQueuePtr, but atomic.
        */
-      template<SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
+      template<SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       using BAtomicQueuePtr = AtomicCapPtr<Object::T<BQueue>, BQueue>;
 
       /**
@@ -83,16 +82,16 @@ namespace snmalloc
        * looks a little nicer than "CapPtr<freelist::Object::T<BQueue>, BView>".
        */
       template<
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BView,
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
+        SNMALLOC_CONCEPT(capptr::IsBound) BView,
+        SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       using BHeadPtr = CapPtr<Object::T<BQueue>, BView>;
 
       /**
        * As with BHeadPtr, but atomic.
        */
       template<
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BView,
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
+        SNMALLOC_CONCEPT(capptr::IsBound) BView,
+        SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       using BAtomicHeadPtr = AtomicCapPtr<Object::T<BQueue>, BView>;
 
       /**
@@ -112,14 +111,14 @@ namespace snmalloc
        * require size to be threaded through, but would provide more OOB
        * detection.
        */
-      template<SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
+      template<SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       class T
       {
         template<
           bool,
           bool,
-          SNMALLOC_CONCEPT(capptr::ConceptBound),
-          SNMALLOC_CONCEPT(capptr::ConceptBound)>
+          SNMALLOC_CONCEPT(capptr::IsBound),
+          SNMALLOC_CONCEPT(capptr::IsBound)>
         friend class Builder;
 
         friend class Object;
@@ -139,7 +138,7 @@ namespace snmalloc
 
       public:
         template<
-          SNMALLOC_CONCEPT(capptr::ConceptBound) BView = typename BQueue::
+          SNMALLOC_CONCEPT(capptr::IsBound) BView = typename BQueue::
             template with_wildness<capptr::dimension::Wildness::Tame>,
           typename Domesticator>
         BHeadPtr<BView, BQueue>
@@ -164,7 +163,7 @@ namespace snmalloc
          * Read the next pointer
          */
         template<
-          SNMALLOC_CONCEPT(capptr::ConceptBound) BView = typename BQueue::
+          SNMALLOC_CONCEPT(capptr::IsBound) BView = typename BQueue::
             template with_wildness<capptr::dimension::Wildness::Tame>,
           typename Domesticator>
         BHeadPtr<BView, BQueue>
@@ -203,8 +202,8 @@ namespace snmalloc
 
       // Note the inverted template argument order, since BView is inferable.
       template<
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue,
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BView>
+        SNMALLOC_CONCEPT(capptr::IsBound) BQueue,
+        SNMALLOC_CONCEPT(capptr::IsBound) BView>
       static BHeadPtr<BView, BQueue> make(CapPtr<void, BView> p)
       {
         return p.template as_static<Object::T<BQueue>>();
@@ -213,7 +212,7 @@ namespace snmalloc
       /**
        * A container-of operation to convert &f->next_object to f
        */
-      template<SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
+      template<SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       static Object::T<BQueue>*
       from_next_ptr(CapPtr<Object::T<BQueue>, BQueue>* ptr)
       {
@@ -225,7 +224,7 @@ namespace snmalloc
       /**
        * Involutive encryption with raw pointers
        */
-      template<SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
+      template<SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       inline static Object::T<BQueue>*
       code_next(address_t curr, Object::T<BQueue>* next, const FreeListKey& key)
       {
@@ -265,8 +264,8 @@ namespace snmalloc
        * is likely (but not necessarily) Wild.
        */
       template<
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BView,
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
+        SNMALLOC_CONCEPT(capptr::IsBound) BView,
+        SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       inline static BQueuePtr<BQueue> encode_next(
         address_t curr, BHeadPtr<BView, BQueue> next, const FreeListKey& key)
       {
@@ -290,8 +289,8 @@ namespace snmalloc
        * encapsulated within Object and we do not capture any of it statically.
        */
       template<
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BView,
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
+        SNMALLOC_CONCEPT(capptr::IsBound) BView,
+        SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       inline static BHeadPtr<BView, BQueue> decode_next(
         address_t curr, BHeadPtr<BView, BQueue> next, const FreeListKey& key)
       {
@@ -300,8 +299,8 @@ namespace snmalloc
       }
 
       template<
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BView,
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
+        SNMALLOC_CONCEPT(capptr::IsBound) BView,
+        SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       static void assert_view_queue_bounds()
       {
         static_assert(
@@ -326,8 +325,8 @@ namespace snmalloc
        * next->next_object is nullptr).
        */
       template<
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BView,
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
+        SNMALLOC_CONCEPT(capptr::IsBound) BView,
+        SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       static BQueuePtr<BQueue>* store_next(
         BQueuePtr<BQueue>* curr,
         BHeadPtr<BView, BQueue> next,
@@ -345,7 +344,7 @@ namespace snmalloc
         return &(next->next_object);
       }
 
-      template<SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
+      template<SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       static void store_null(BQueuePtr<BQueue>* curr, const FreeListKey& key)
       {
         *curr =
@@ -358,8 +357,8 @@ namespace snmalloc
        * Uses the atomic view of next, so can be used in the message queues.
        */
       template<
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BView,
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
+        SNMALLOC_CONCEPT(capptr::IsBound) BView,
+        SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       static void atomic_store_next(
         BHeadPtr<BView, BQueue> curr,
         BHeadPtr<BView, BQueue> next,
@@ -381,8 +380,8 @@ namespace snmalloc
       }
 
       template<
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BView,
-        SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue>
+        SNMALLOC_CONCEPT(capptr::IsBound) BView,
+        SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       static void
       atomic_store_null(BHeadPtr<BView, BQueue> curr, const FreeListKey& key)
       {
@@ -428,8 +427,8 @@ namespace snmalloc
      * Checks signing of pointers
      */
     template<
-      SNMALLOC_CONCEPT(capptr::ConceptBound) BView = capptr::bounds::Alloc,
-      SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue = capptr::bounds::AllocWild>
+      SNMALLOC_CONCEPT(capptr::IsBound) BView = capptr::bounds::Alloc,
+      SNMALLOC_CONCEPT(capptr::IsBound) BQueue = capptr::bounds::AllocWild>
     class Iter
     {
       Object::BHeadPtr<BView, BQueue> curr{nullptr};
@@ -508,8 +507,8 @@ namespace snmalloc
     template<
       bool RANDOM,
       bool INIT = true,
-      SNMALLOC_CONCEPT(capptr::ConceptBound) BView = capptr::bounds::Alloc,
-      SNMALLOC_CONCEPT(capptr::ConceptBound) BQueue = capptr::bounds::AllocWild>
+      SNMALLOC_CONCEPT(capptr::IsBound) BView = capptr::bounds::Alloc,
+      SNMALLOC_CONCEPT(capptr::IsBound) BQueue = capptr::bounds::AllocWild>
     class Builder
     {
       static constexpr size_t LENGTH = RANDOM ? 2 : 1;

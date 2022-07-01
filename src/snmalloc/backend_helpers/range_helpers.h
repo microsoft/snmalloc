@@ -4,10 +4,7 @@
 
 namespace snmalloc
 {
-  template<
-    size_t MIN_BITS,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) B,
-    typename F>
+  template<size_t MIN_BITS, SNMALLOC_CONCEPT(capptr::IsBound) B, typename F>
   void range_to_pow_2_blocks(CapPtr<void, B> base, size_t length, F f)
   {
     auto end = pointer_offset(base, length);

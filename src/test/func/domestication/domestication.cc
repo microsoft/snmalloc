@@ -79,7 +79,7 @@ namespace snmalloc
     static inline uintptr_t domesticate_patch_value;
 
     /* Verify that a pointer points into the region managed by this config */
-    template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    template<typename T, SNMALLOC_CONCEPT(capptr::IsBound) B>
     static CapPtr<
       T,
       typename B::template with_wildness<capptr::dimension::Wildness::Tame>>

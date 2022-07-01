@@ -30,7 +30,7 @@ namespace snmalloc
       unsafe_to_uintptr<T>(base) + static_cast<uintptr_t>(diff));
   }
 
-  template<SNMALLOC_CONCEPT(capptr::ConceptBound) bounds, typename T>
+  template<SNMALLOC_CONCEPT(capptr::IsBound) bounds, typename T>
   inline CapPtr<void, bounds>
   pointer_offset(CapPtr<T, bounds> base, size_t diff)
   {
@@ -48,7 +48,7 @@ namespace snmalloc
     return reinterpret_cast<U*>(reinterpret_cast<char*>(base) + diff);
   }
 
-  template<SNMALLOC_CONCEPT(capptr::ConceptBound) bounds, typename T>
+  template<SNMALLOC_CONCEPT(capptr::IsBound) bounds, typename T>
   inline CapPtr<void, bounds>
   pointer_offset_signed(CapPtr<T, bounds> base, ptrdiff_t diff)
   {
@@ -72,7 +72,7 @@ namespace snmalloc
    * as per above, and uses the wrapper types in its own definition, e.g., of
    * capptr_bound.
    */
-  template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
+  template<typename T, SNMALLOC_CONCEPT(capptr::IsBound) bounds>
   inline SNMALLOC_FAST_PATH address_t address_cast(CapPtr<T, bounds> a)
   {
     return address_cast(a.unsafe_ptr());
@@ -136,7 +136,7 @@ namespace snmalloc
   template<
     size_t alignment,
     typename T,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
+    SNMALLOC_CONCEPT(capptr::IsBound) bounds>
   inline CapPtr<T, bounds> pointer_align_down(CapPtr<void, bounds> p)
   {
     return CapPtr<T, bounds>::unsafe_from(
@@ -174,7 +174,7 @@ namespace snmalloc
   template<
     size_t alignment,
     typename T = void,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
+    SNMALLOC_CONCEPT(capptr::IsBound) bounds>
   inline CapPtr<T, bounds> pointer_align_up(CapPtr<void, bounds> p)
   {
     return CapPtr<T, bounds>::unsafe_from(
@@ -204,7 +204,7 @@ namespace snmalloc
 #endif
   }
 
-  template<typename T = void, SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
+  template<typename T = void, SNMALLOC_CONCEPT(capptr::IsBound) bounds>
   inline CapPtr<T, bounds>
   pointer_align_down(CapPtr<void, bounds> p, size_t alignment)
   {
@@ -229,7 +229,7 @@ namespace snmalloc
 #endif
   }
 
-  template<typename T = void, SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
+  template<typename T = void, SNMALLOC_CONCEPT(capptr::IsBound) bounds>
   inline CapPtr<T, bounds>
   pointer_align_up(CapPtr<void, bounds> p, size_t alignment)
   {
@@ -252,8 +252,8 @@ namespace snmalloc
   template<
     typename T = void,
     typename U = void,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) Tbounds,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) Ubounds>
+    SNMALLOC_CONCEPT(capptr::IsBound) Tbounds,
+    SNMALLOC_CONCEPT(capptr::IsBound) Ubounds>
   inline size_t pointer_diff(CapPtr<T, Tbounds> base, CapPtr<U, Ubounds> cursor)
   {
     return pointer_diff(base.unsafe_ptr(), cursor.unsafe_ptr());
@@ -272,8 +272,8 @@ namespace snmalloc
   template<
     typename T = void,
     typename U = void,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) Tbounds,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) Ubounds>
+    SNMALLOC_CONCEPT(capptr::IsBound) Tbounds,
+    SNMALLOC_CONCEPT(capptr::IsBound) Ubounds>
   inline ptrdiff_t
   pointer_diff_signed(CapPtr<T, Tbounds> base, CapPtr<U, Ubounds> cursor)
   {
