@@ -9,7 +9,7 @@ namespace snmalloc
    * address space management (LocalState).
    */
   template<
-    SNMALLOC_CONCEPT(ConceptPAL) PAL,
+    SNMALLOC_CONCEPT(IsPAL) PAL,
     typename PagemapEntry,
     typename Pagemap,
     typename LocalState>
