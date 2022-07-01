@@ -162,7 +162,7 @@ namespace snmalloc
    */
   template<typename Config>
   concept IsConfig = std::is_base_of<CommonConfig, Config>::value&&
-    ConceptPAL<typename Config::Pal>&& IsBackend<
+    IsPAL<typename Config::Pal>&& IsBackend<
       typename Config::LocalState,
       typename Config::PagemapEntry,
       typename Config::Backend>&& requires()

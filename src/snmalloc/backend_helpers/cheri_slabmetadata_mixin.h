@@ -18,11 +18,7 @@ namespace snmalloc
   template<typename SlabMetadata>
   class StrictProvenanceSlabMetadataMixin : public SlabMetadata
   {
-    template<
-      SNMALLOC_CONCEPT(ConceptPAL) A1,
-      typename A2,
-      typename A3,
-      typename A4>
+    template<SNMALLOC_CONCEPT(IsPAL) A1, typename A2, typename A3, typename A4>
     friend class BackendAllocator;
 
     capptr::Arena<void> arena;

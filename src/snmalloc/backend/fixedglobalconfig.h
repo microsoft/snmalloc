@@ -8,7 +8,7 @@ namespace snmalloc
   /**
    * A single fixed address range allocator configuration
    */
-  template<SNMALLOC_CONCEPT(ConceptPAL) PAL>
+  template<SNMALLOC_CONCEPT(IsPAL) PAL>
   class FixedRangeConfig final : public CommonConfig
   {
   public:
