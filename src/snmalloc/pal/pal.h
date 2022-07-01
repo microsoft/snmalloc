@@ -84,7 +84,7 @@ namespace snmalloc
     typename PAL = DefaultPal,
     typename AAL = Aal,
     typename T,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    SNMALLOC_CONCEPT(capptr::IsBound) B>
   static inline typename std::enable_if_t<
     !aal_supports<StrictProvenance, AAL>,
     CapPtr<T, capptr::user_address_control_type<B>>>
@@ -98,7 +98,7 @@ namespace snmalloc
     typename PAL = DefaultPal,
     typename AAL = Aal,
     typename T,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    SNMALLOC_CONCEPT(capptr::IsBound) B>
   static SNMALLOC_FAST_PATH typename std::enable_if_t<
     aal_supports<StrictProvenance, AAL>,
     CapPtr<T, capptr::user_address_control_type<B>>>
@@ -119,7 +119,7 @@ namespace snmalloc
     typename PAL,
     bool page_aligned = false,
     typename T,
-    SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    SNMALLOC_CONCEPT(capptr::IsBound) B>
   static SNMALLOC_FAST_PATH void pal_zero(CapPtr<T, B> p, size_t sz)
   {
     static_assert(

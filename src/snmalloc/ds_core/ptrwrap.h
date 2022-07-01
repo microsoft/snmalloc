@@ -175,7 +175,7 @@ namespace snmalloc
      * with that spelling.  Both seem happy with this formulation.
      */
     template<typename T>
-    concept ConceptBound =
+    concept IsBound =
       ConceptSame<decltype(T::spatial), const dimension::Spatial> &&
       ConceptSame<decltype(T::address_space_control),
         const dimension::AddressSpaceControl> &&
@@ -236,7 +236,7 @@ namespace snmalloc
      * annotation.  This is used by the PAL's capptr_to_user_address_control
      * function to compute its return value's annotation.
      */
-    template<SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    template<SNMALLOC_CONCEPT(capptr::IsBound) B>
     using user_address_control_type =
       typename B::template with_address_space_control<
         dimension::AddressSpaceControl::User>;
@@ -246,8 +246,8 @@ namespace snmalloc
      * Chunk and ChunkD are considered eqivalent here.
      */
     template<
-      SNMALLOC_CONCEPT(capptr::ConceptBound) BI,
-      SNMALLOC_CONCEPT(capptr::ConceptBound) BO>
+      SNMALLOC_CONCEPT(capptr::IsBound) BI,
+      SNMALLOC_CONCEPT(capptr::IsBound) BO>
     SNMALLOC_CONSTEVAL bool is_spatial_refinement()
     {
       if (BI::address_space_control != BO::address_space_control)
@@ -268,7 +268,7 @@ namespace snmalloc
    * A pointer annotated with a "phantom type parameter" carrying a static
    * summary of its StrictProvenance metadata.
    */
-  template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
+  template<typename T, SNMALLOC_CONCEPT(capptr::IsBound) bounds>
   class CapPtr
   {
     T* unsafe_capptr;
@@ -446,7 +446,7 @@ namespace snmalloc
   /**
    * It's safe to mark any CapPtr as Wild.
    */
-  template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+  template<typename T, SNMALLOC_CONCEPT(capptr::IsBound) B>
   static inline SNMALLOC_FAST_PATH CapPtr<
     T,
     typename B::template with_wildness<capptr::dimension::Wildness::Wild>>
@@ -467,7 +467,7 @@ namespace snmalloc
    * annotations around an un-annotated std::atomic<T*>, to appease C++, yet
    * will expose or consume only CapPtr<T> with the same bounds annotation.
    */
-  template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
+  template<typename T, SNMALLOC_CONCEPT(capptr::IsBound) bounds>
   class AtomicCapPtr
   {
     std::atomic<T*> unsafe_capptr;

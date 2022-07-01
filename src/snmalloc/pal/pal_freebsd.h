@@ -124,7 +124,7 @@ namespace snmalloc
      * manage the address space it references by clearing the SW_VMEM
      * permission bit.
      */
-    template<typename T, SNMALLOC_CONCEPT(capptr::ConceptBound) B>
+    template<typename T, SNMALLOC_CONCEPT(capptr::IsBound) B>
     static SNMALLOC_FAST_PATH CapPtr<T, capptr::user_address_control_type<B>>
     capptr_to_user_address_control(CapPtr<T, B> p)
     {

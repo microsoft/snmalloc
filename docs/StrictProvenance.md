@@ -175,7 +175,7 @@ We introduce a multi-dimensional space of bounds.  The facets are `enum class`-e
 * `Wildness` captures whether the pointer has been checked to belong to this allocator.
 
 These `dimension`s are composited using a `capptr::bound<>` type that we use as `B` in `CapPtr<T, B>`.
-This is enforced (loosely) using the `ConceptBound` C++20 concept.
+This is enforced (loosely) using the `IsBound` C++20 concept.
 
 The namespace `snmalloc::capptr::bounds` contains particular points in the space of `capptr::bound<>` types:
 

@@ -10,7 +10,7 @@ namespace snmalloc
    * struct for representing the redblack nodes
    * directly inside the meta data.
    */
-  template<SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
+  template<SNMALLOC_CONCEPT(capptr::IsBound) bounds>
   struct FreeChunk
   {
     CapPtr<FreeChunk, bounds> left;
@@ -20,7 +20,7 @@ namespace snmalloc
   /**
    * Class for using the allocations own space to store in the RBTree.
    */
-  template<SNMALLOC_CONCEPT(capptr::ConceptBound) bounds>
+  template<SNMALLOC_CONCEPT(capptr::IsBound) bounds>
   class BuddyInplaceRep
   {
   public:
