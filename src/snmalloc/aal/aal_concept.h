@@ -14,7 +14,7 @@ namespace snmalloc
    * machine word size, and an upper bound on the address space size
    */
   template<typename AAL>
-  concept ConceptAAL_static_members = requires()
+  concept IsAAL_static_members = requires()
   {
     typename std::integral_constant<uint64_t, AAL::aal_features>;
     typename std::integral_constant<int, AAL::aal_name>;
@@ -26,7 +26,7 @@ namespace snmalloc
    * AALs provide a prefetch operation.
    */
   template<typename AAL>
-  concept ConceptAAL_prefetch = requires(void* ptr)
+  concept IsAAL_prefetch = requires(void* ptr)
   {
     {
       AAL::prefetch(ptr)
@@ -38,7 +38,7 @@ namespace snmalloc
    * AALs provide a notion of high-precision timing.
    */
   template<typename AAL>
-  concept ConceptAAL_tick = requires()
+  concept IsAAL_tick = requires()
   {
     {
       AAL::tick()
@@ -47,7 +47,7 @@ namespace snmalloc
   };
 
   template<typename AAL>
-  concept ConceptAAL_capptr_methods =
+  concept IsAAL_capptr_methods =
     requires(capptr::Chunk<void> auth, capptr::AllocFull<void> ret, size_t sz)
   {
     /**
@@ -62,9 +62,8 @@ namespace snmalloc
   };
 
   template<typename AAL>
-  concept ConceptAAL =
-    ConceptAAL_static_members<AAL>&& ConceptAAL_prefetch<AAL>&&
-      ConceptAAL_tick<AAL>&& ConceptAAL_capptr_methods<AAL>;
+  concept IsAAL = IsAAL_static_members<AAL>&& IsAAL_prefetch<AAL>&&
+    IsAAL_tick<AAL>&& IsAAL_capptr_methods<AAL>;
 
 } // namespace snmalloc
 #endif
