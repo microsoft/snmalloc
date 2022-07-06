@@ -424,16 +424,6 @@ namespace snmalloc
   }
 
   /**
-   * Like capptr_reveal, but sometimes we do mean to reveal wild pointers
-   * (specifically in external_pointer, where we're revealing something
-   * architecturally derived from a user pointer).
-   */
-  inline SNMALLOC_FAST_PATH void* capptr_reveal_wild(capptr::AllocWild<void> p)
-  {
-    return p.unsafe_ptr();
-  }
-
-  /**
    * Given a void* from the client, it's fine to call it AllocWild.
    * Roughly dual to capptr_reveal().
    */

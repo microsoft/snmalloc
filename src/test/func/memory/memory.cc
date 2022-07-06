@@ -476,7 +476,7 @@ void test_remaining_bytes()
     char* p = (char*)alloc.alloc(size);
     for (size_t offset = 0; offset < size; offset++)
     {
-      auto rem = alloc.remaining_bytes(p + offset);
+      auto rem = alloc.remaining_bytes(address_cast(pointer_offset(p, offset)));
       if (rem != (size - offset))
       {
         printf(
