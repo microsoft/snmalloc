@@ -244,7 +244,7 @@ namespace snmalloc
   using Aal = AAL_Generic<AAL_NoStrictProvenance<AAL_Arch>>;
 #endif
 
-  template<AalFeatures F, SNMALLOC_CONCEPT(ConceptAAL) AAL = Aal>
+  template<AalFeatures F, SNMALLOC_CONCEPT(IsAAL) AAL = Aal>
   constexpr static bool aal_supports = (AAL::aal_features & F) == F;
 
   /*
