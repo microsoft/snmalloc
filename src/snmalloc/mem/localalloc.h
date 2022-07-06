@@ -750,22 +750,31 @@ namespace snmalloc
     template<Boundary location = Start>
     void* external_pointer(void* p)
     {
-      // Note that each case uses `pointer_offset`, so that on
-      // CHERI it is monotone with respect to the capability.
-      // Note that the returned pointer could be outside the CHERI
-      // bounds of `p`, and thus not something that can be followed.
+      /*
+       * Note that:
+       * * each case uses `pointer_offset`, so that on CHERI, our behaviour is
+       *   monotone with respect to the capability `p`.
+       *
+       * * the returned pointer could be outside the CHERI bounds of `p`, and
+       *   thus not something that can be followed.
+       *
+       * * we don't use capptr_from_client()/capptr_reveal(), to avoid the
+       *   syntactic clutter.  By inspection, `p` flows only to address_cast
+       *   and pointer_offset, and so there's no risk that we follow or act
+       *   to amplify the rights carried by `p`.
+       */
       if constexpr (location == Start)
       {
-        size_t index = index_in_object(p);
+        size_t index = index_in_object(address_cast(p));
         return pointer_offset(p, 0 - index);
       }
       else if constexpr (location == End)
       {
-        return pointer_offset(p, remaining_bytes(p) - 1);
+        return pointer_offset(p, remaining_bytes(address_cast(p)) - 1);
       }
       else
       {
-        return pointer_offset(p, remaining_bytes(p));
+        return pointer_offset(p, remaining_bytes(address_cast(p)));
       }
     }
 
@@ -775,16 +784,17 @@ namespace snmalloc
      * auto p = (char*)malloc(size)
      * remaining_bytes(p + n) == size - n     provided n < size
      */
-    size_t remaining_bytes(const void* p)
+    size_t remaining_bytes(address_t p)
     {
 #ifndef SNMALLOC_PASS_THROUGH
       const PagemapEntry& entry =
-        Config::Backend::template get_metaentry<true>(address_cast(p));
+        Config::Backend::template get_metaentry<true>(p);
 
       auto sizeclass = entry.get_sizeclass();
-      return snmalloc::remaining_bytes(sizeclass, address_cast(p));
+      return snmalloc::remaining_bytes(sizeclass, p);
 #else
-      return pointer_diff(p, reinterpret_cast<void*>(UINTPTR_MAX));
+      return reinterpret_cast<size_t>(
+        std::numeric_limits<decltype(p)>::max() - p);
 #endif
     }
 
@@ -792,7 +802,7 @@ namespace snmalloc
     {
       if (SNMALLOC_LIKELY(Config::is_initialised()))
       {
-        return remaining_bytes(p) >= s;
+        return remaining_bytes(address_cast(p)) >= s;
       }
       return true;
     }
@@ -803,14 +813,14 @@ namespace snmalloc
      * auto p = (char*)malloc(size)
      * index_in_object(p + n) == n     provided n < size
      */
-    size_t index_in_object(const void* p)
+    size_t index_in_object(address_t p)
     {
 #ifndef SNMALLOC_PASS_THROUGH
       const PagemapEntry& entry =
-        Config::Backend::template get_metaentry<true>(address_cast(p));
+        Config::Backend::template get_metaentry<true>(p);
 
       auto sizeclass = entry.get_sizeclass();
-      return snmalloc::index_in_object(sizeclass, address_cast(p));
+      return snmalloc::index_in_object(sizeclass, p);
 #else
       return reinterpret_cast<size_t>(p);
 #endif
