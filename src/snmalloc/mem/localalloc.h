@@ -2,8 +2,8 @@
 
 #if defined(_MSC_VER)
 #  define ALLOCATOR __declspec(allocator) __declspec(restrict)
-#elif defined(__GNUC__)
-#  define ALLOCATOR __attribute__((__malloc__))
+#elif __has_attribute(malloc)
+#  define ALLOCATOR __attribute__((malloc))
 #else
 #  define ALLOCATOR
 #endif
