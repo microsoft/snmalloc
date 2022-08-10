@@ -629,6 +629,7 @@ namespace snmalloc
 
       const PagemapEntry& entry =
         Config::Backend::get_metaentry(address_cast(p_tame));
+
       if (SNMALLOC_LIKELY(local_cache.remote_allocator == entry.get_remote()))
       {
 #  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
@@ -647,6 +648,11 @@ namespace snmalloc
 #  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
         dealloc_cheri_checks(p_tame.unsafe_ptr());
 #  endif
+
+        // Detect double free of large allocations here.
+        snmalloc_check_client(
+          !entry.is_backend_owned(), "Memory corruption detected");
+
         // Check if we have space for the remote deallocation
         if (local_cache.remote_dealloc_cache.reserve_space(entry))
         {
