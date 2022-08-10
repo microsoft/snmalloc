@@ -5,7 +5,7 @@ snmalloc uses a CMake build system and can be built on many platforms.
 
 # Building on Windows
 
-The Windows build currently depends on at least Visual Studio.
+The Windows build currently depends on at least Visual Studio 2019.
 Both the 2019 and 2022 are regularly tested.
 To build with Visual Studio:
 
