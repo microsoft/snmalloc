@@ -178,7 +178,11 @@ namespace snmalloc
         // Deal with alloc zero of with a small object here.
         // Alternative semantics giving nullptr is also allowed by the
         // standard.
+#ifdef SNMALLOC_CHECK_CLIENT
+        return nullptr;
+#else
         return small_alloc<NoZero>(1);
+#endif
       }
 
       return check_init([&](CoreAlloc* core_alloc) {
