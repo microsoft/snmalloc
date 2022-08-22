@@ -41,7 +41,7 @@
 #  define PLATFORM_IS_RISCV
 #endif
 
-#if defined (__loongarch__)
+#if defined(__loongarch__)
 #  define PLATFORM_IS_LOONGARCH
 #endif
 
