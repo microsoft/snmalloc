@@ -159,8 +159,7 @@ namespace snmalloc
       std::max(sizeof(uint64_t), sizeof(void*));
 
     /**
-     * Hook for architecture-specific optimisations.  Does nothing in the
-     * default case.
+     * Hook for architecture-specific optimisations.
      */
     static SNMALLOC_FAST_PATH_INLINE void
     copy(void* dst, const void* src, size_t len)
@@ -171,6 +170,135 @@ namespace snmalloc
         small_copies<LargestRegisterSize>(dst, src, len);
       }
       // Otherwise do a simple bulk copy loop.
+      else
+      {
+        block_copy<LargestRegisterSize>(dst, src, len);
+        copy_end<LargestRegisterSize>(dst, src, len);
+      }
+    }
+  };
+
+  /**
+   * StrictProvenance architectures are prickly about their pointers.  In
+   * particular, they may not permit misaligned loads and stores of
+   * pointer-sized data, even if they can have non-pointers in their
+   * pointer registers.  On the other hand, pointers might be hiding anywhere
+   * they are architecturally permitted!
+   */
+  struct GenericStrictProvenance
+  {
+    static_assert(bits::is_pow2(sizeof(void*)));
+    /*
+     * It's not entirely clear what we would do if this were not the case.
+     * Best not think too hard about it now.
+     */
+    static_assert(alignof(void*) == sizeof(void*));
+
+    static constexpr size_t LargestRegisterSize = 16;
+
+    static SNMALLOC_FAST_PATH_INLINE void
+    copy(void* dst, const void* src, size_t len)
+    {
+      /*
+       * As a function of misalignment relative to pointers, how big do we need
+       * to be such that the span could contain an aligned pointer?  We'd need
+       * to be big enough to contain the pointer and would need an additional
+       * however many bytes it would take to get us up to alignment.  That is,
+       * (sizeof(void*) - src_misalign) except in the case that src_misalign is
+       * 0, when the answer is 0, which we can get with some bit-twiddling.
+       *
+       * Below that threshold, just use a jump table to move bytes around.
+       */
+      if (
+        len < sizeof(void*) +
+          (static_cast<size_t>(-static_cast<ptrdiff_t>(address_cast(src))) &
+           (alignof(void*) - 1)))
+      {
+        small_copies<2 * sizeof(void*) - 1, LargestRegisterSize>(dst, src, len);
+      }
+      /*
+       * Equally-misaligned segments could be holding pointers internally,
+       * assuming they're sufficiently large.  In this case, perform unaligned
+       * operations at the top and bottom of the range.  This check also
+       * suffices to include the case where both segments are
+       * alignof(void*)-aligned.
+       */
+      else if (
+        address_misalignment<alignof(void*)>(address_cast(src)) ==
+        address_misalignment<alignof(void*)>(address_cast(dst)))
+      {
+        /*
+         * Find the buffers' ends.  Do this before the unaligned_start so that
+         * there are fewer dependencies in the instruction stream; it would be
+         * functionally equivalent to do so below.
+         */
+        auto dep = pointer_offset(dst, len);
+        auto sep = pointer_offset(src, len);
+
+        /*
+         * Come up to alignof(void*)-alignment using a jump table.  This
+         * operation will move no pointers, since it serves to get us up to
+         * alignof(void*).  Recall that unaligned_start takes its arguments by
+         * reference, so they will be aligned hereafter.
+         */
+        unaligned_start<alignof(void*), sizeof(long)>(dst, src, len);
+
+        /*
+         * Move aligned pointer *pairs* for as long as we can (possibly none).
+         * This generates load-pair/store-pair operations where we have them,
+         * and should be benign where we don't, looking like just a bit of loop
+         * unrolling with two loads and stores.
+         */
+        {
+          struct Ptr2
+          {
+            void* p[2];
+          };
+          if (sizeof(Ptr2) <= len)
+          {
+            auto dp = static_cast<Ptr2*>(dst);
+            auto sp = static_cast<const Ptr2*>(src);
+            for (size_t i = 0; i <= len - sizeof(Ptr2); i += sizeof(Ptr2))
+            {
+              *dp++ = *sp++;
+            }
+          }
+        }
+
+        /*
+         * After that copy loop, there can be at most one pointer-aligned and
+         * -sized region left.  If there is one, copy it.
+         */
+        len = len & (2 * sizeof(void*) - 1);
+        if (sizeof(void*) <= len)
+        {
+          ptrdiff_t o = -static_cast<ptrdiff_t>(sizeof(void*));
+          auto dp =
+            pointer_align_down<alignof(void*)>(pointer_offset_signed(dep, o));
+          auto sp =
+            pointer_align_down<alignof(void*)>(pointer_offset_signed(sep, o));
+          *static_cast<void**>(dp) = *static_cast<void* const*>(sp);
+        }
+
+        /*
+         * There are up to sizeof(void*)-1 bytes left at the end, aligned at
+         * alignof(void*).  Figure out where and how many...
+         */
+        len = len & (sizeof(void*) - 1);
+        dst = pointer_align_down<alignof(void*)>(dep);
+        src = pointer_align_down<alignof(void*)>(sep);
+        /*
+         * ... and use a jump table at the end, too.  If we did the copy_end
+         * overlapping store backwards trick, we'd risk damaging the capability
+         * in the cell behind us.
+         */
+        small_copies<sizeof(void*), sizeof(long)>(dst, src, len);
+      }
+      /*
+       * Otherwise, we cannot use pointer-width operations because one of
+       * the load or store is going to be misaligned and so will trap.
+       * So, same dance, but with integer registers only.
+       */
       else
       {
         block_copy<LargestRegisterSize>(dst, src, len);
@@ -288,7 +416,10 @@ namespace snmalloc
 #elif defined(__powerpc64__)
     PPC64Arch
 #else
-    GenericArch
+    std::conditional_t<
+      aal_supports<StrictProvenance>,
+      GenericStrictProvenance,
+      GenericArch>
 #endif
     ;
 
