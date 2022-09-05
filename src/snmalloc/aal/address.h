@@ -280,4 +280,14 @@ namespace snmalloc
     return pointer_diff_signed(base.unsafe_ptr(), cursor.unsafe_ptr());
   }
 
+  /**
+   * Compute the degree to which an address is misaligned relative to some
+   * putative alignment.
+   */
+  template<size_t alignment>
+  inline size_t address_misalignment(address_t a)
+  {
+    return static_cast<size_t>(a - pointer_align_down<alignment>(a));
+  }
+
 } // namespace snmalloc
