@@ -146,6 +146,119 @@ int main()
      */
   }
 
+  /*
+   * Verify that our memcpy implementation successfully copies capabilities
+   * even when it is given a region that is not capability-aligned.
+   */
+  message("Checking memcpy behaviors");
+  {
+    static constexpr size_t ncaps = 16;
+
+    int* icaps[ncaps];
+
+    for (size_t i = 0; i < ncaps; i++)
+    {
+      icaps[i] = (int*)&icaps[i];
+      SNMALLOC_CHECK(__builtin_cheri_tag_get(icaps[i]));
+    }
+
+    int* ocaps[ncaps];
+
+    /*
+     * While it may seem trivial, check the both-aligned case, both for one
+     * and for many capabilities.
+     */
+    bzero(ocaps, sizeof(ocaps));
+    snmalloc::memcpy<false>(ocaps, icaps, sizeof(void*));
+    SNMALLOC_CHECK(__builtin_cheri_tag_get(ocaps[0]));
+    SNMALLOC_CHECK(__builtin_cheri_equal_exact(icaps[0], ocaps[0]));
+
+    bzero(ocaps, sizeof(ocaps));
+    snmalloc::memcpy<false>(ocaps, icaps, sizeof(icaps));
+    for (size_t i = 0; i < ncaps; i++)
+    {
+      SNMALLOC_CHECK(__builtin_cheri_tag_get(ocaps[i]));
+      SNMALLOC_CHECK(__builtin_cheri_equal_exact(icaps[i], ocaps[i]));
+    }
+
+    /*
+     * When both input and output are equally misaligned, we should preserve
+     * caps that aren't sheared by the copy.  The size of this copy is also
+     * "unnatural", which should guarantee that any memcpy implementation that
+     * tries the overlapping-misaligned-sizeof(long)-at-the-end dance corrupts
+     * the penultimate capability by overwriting it with (identical) data.
+     *
+     * Probe a misaligned copy of bytes followed by a zero or more pointers
+     * followed by bytes.
+     */
+    for (size_t pre = 1; pre < sizeof(int*); pre++)
+    {
+      for (size_t post = 0; post < sizeof(int*); post++)
+      {
+        for (size_t ptrs = 0; ptrs < ncaps - 2; ptrs++)
+        {
+          bzero(ocaps, sizeof(ocaps));
+
+          snmalloc::memcpy<false>(
+            pointer_offset(ocaps, pre),
+            pointer_offset(icaps, pre),
+            (ptrs + 1) * sizeof(int*) - pre + post);
+
+          /* prefix */
+          SNMALLOC_CHECK(
+            memcmp(
+              pointer_offset(icaps, pre),
+              pointer_offset(ocaps, pre),
+              sizeof(int*) - pre) == 0);
+          /* pointer */
+          for (size_t p = 0; p < ptrs; p++)
+          {
+            SNMALLOC_CHECK(__builtin_cheri_tag_get(ocaps[1 + p]));
+            SNMALLOC_CHECK(
+              __builtin_cheri_equal_exact(icaps[1 + p], ocaps[1 + p]));
+          }
+          /* suffix */
+          SNMALLOC_CHECK(memcmp(&icaps[1 + ptrs], &ocaps[1 + ptrs], post) == 0);
+        }
+      }
+    }
+
+    /*
+     * If the alignments are different, then the bytes should get copied but
+     * the tags should be cleared.
+     */
+    for (size_t sa = 0; sa < sizeof(int*); sa++)
+    {
+      for (size_t da = 0; da < sizeof(int*); da++)
+      {
+        static constexpr size_t n = 4;
+
+        if (sa == da)
+        {
+          continue;
+        }
+
+        bzero(ocaps, n * sizeof(int*));
+
+        snmalloc::memcpy<false>(
+          pointer_offset(ocaps, da),
+          pointer_offset(icaps, sa),
+          n * sizeof(int*) - da - sa);
+
+        for (size_t i = 0; i < n; i++)
+        {
+          SNMALLOC_CHECK(__builtin_cheri_tag_get(ocaps[i]) == 0);
+        }
+
+        SNMALLOC_CHECK(
+          memcmp(
+            pointer_offset(icaps, sa),
+            pointer_offset(ocaps, da),
+            n * sizeof(int*) - da - sa) == 0);
+      }
+    }
+  }
+
   message("CHERI checks OK");
   return 0;
 }
