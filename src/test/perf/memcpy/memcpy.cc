@@ -106,14 +106,17 @@ int main(int argc, char** argv)
   bool full_test = opt.has("--full_test");
 
   //  size_t size = 0;
-  auto mc1 = [](void* dst, const void* src, size_t len) {
+  auto mc_platform_checked = [](void* dst, const void* src, size_t len) {
     memcpy_platform_checked(dst, src, len);
   };
-  auto mc2 = [](void* dst, const void* src, size_t len) {
+  auto mc_sn = [](void* dst, const void* src, size_t len) {
     memcpy_unchecked(dst, src, len);
   };
-  auto mc3 = [](void* dst, const void* src, size_t len) {
+  auto mc_platform = [](void* dst, const void* src, size_t len) {
     memcpy(dst, src, len);
+  };
+  auto mc_sn_checked = [](void* dst, const void* src, size_t len) {
+    memcpy_checked(dst, src, len);
   };
 
   std::vector<size_t> sizes;
@@ -142,11 +145,10 @@ int main(int argc, char** argv)
     sizes.push_back(size + 5);
   }
 
-  std::vector<std::pair<size_t, std::chrono::nanoseconds>> stats_checked;
-  std::vector<std::pair<size_t, std::chrono::nanoseconds>> stats_unchecked;
-  std::vector<std::pair<size_t, std::chrono::nanoseconds>> stats_platform;
+  std::vector<std::pair<size_t, std::chrono::nanoseconds>> stats_sn,
+    stats_sn_checked, stats_platform, stats_platform_checked;
 
-  printf("size, checked, unchecked, platform\n");
+  printf("size, sn, sn-checked, platform, platform-checked\n");
 
   size_t repeats = full_test ? 80 : 1;
 
@@ -154,21 +156,25 @@ int main(int argc, char** argv)
   {
     for (auto copy_size : sizes)
     {
-      test(copy_size, mc1, stats_checked);
-      test(copy_size, mc2, stats_unchecked);
-      test(copy_size, mc3, stats_platform);
+      test(copy_size, mc_platform_checked, stats_platform_checked);
+      test(copy_size, mc_sn, stats_sn);
+      test(copy_size, mc_platform, stats_platform);
+      test(copy_size, mc_sn_checked, stats_sn_checked);
     }
-    for (size_t i = 0; i < stats_checked.size(); i++)
+    for (size_t i = 0; i < stats_sn.size(); i++)
     {
-      auto& s1 = stats_checked[i];
-      auto& s2 = stats_unchecked[i];
+      auto& s1 = stats_sn[i];
+      auto& s2 = stats_sn_checked[i];
       auto& s3 = stats_platform[i];
+      auto& s4 = stats_platform_checked[i];
       std::cout << s1.first << ", " << s1.second.count() << ", "
-                << s2.second.count() << ", " << s3.second.count() << std::endl;
+                << s2.second.count() << ", " << s3.second.count() << ", "
+                << s4.second.count() << std::endl;
     }
-    stats_checked.clear();
-    stats_unchecked.clear();
+    stats_sn.clear();
+    stats_sn_checked.clear();
     stats_platform.clear();
+    stats_platform_checked.clear();
   }
 #else
   snmalloc::UNUSED(opt);
