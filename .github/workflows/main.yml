@@ -294,7 +294,7 @@ jobs:
         fi
 
   all-checks:
-    needs: [unixlike, qemu-crossbuild, windows, format]
+    needs: [unixlike, qemu-crossbuild, windows, format, sanitizer]
     runs-on: ubuntu-latest
     steps:
     - name: Dummy step
