@@ -113,9 +113,9 @@ jobs:
   sanitizer:
     strategy:
       matrix:
-        # Build each combination of OS and release/debug variants
+        # Build just release variant as Debug is too slow.
         os: [ "ubuntu-latest"]
-        build-type: [ Release, Debug ]
+        build-type: [ Release ]
         include:
           - os: "ubuntu-latest"
             continue-on-error: # Don't class as an error if this fails, until we have a more reliablity.
@@ -294,7 +294,7 @@ jobs:
         fi
 
   all-checks:
-    needs: [unixlike, qemu-crossbuild, windows, format]
+    needs: [unixlike, qemu-crossbuild, windows, format, sanitizer]
     runs-on: ubuntu-latest
     steps:
     - name: Dummy step
