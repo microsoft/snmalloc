@@ -259,6 +259,21 @@ int main()
     }
   }
 
+  message("Verify sizeclass representability");
+  {
+    for (size_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
+    {
+      size_t sz = sizeclass_full_to_size(sizeclass_t::from_small_class(sc));
+      SNMALLOC_CHECK(sz == Aal::capptr_size_round(sz));
+    }
+
+    for (size_t sc = 0; sc < bits::BITS; sc++)
+    {
+      size_t sz = sizeclass_full_to_size(sizeclass_t::from_large_class(sc));
+      SNMALLOC_CHECK(sz == Aal::capptr_size_round(sz));
+    }
+  }
+
   message("CHERI checks OK");
   return 0;
 }
