@@ -86,6 +86,10 @@ namespace snmalloc
       }
 
       void* pb = __builtin_cheri_bounds_set_exact(a.unsafe_ptr(), size);
+
+      SNMALLOC_ASSERT(
+        __builtin_cheri_tag_get(pb) && "capptr_bound exactness failed.");
+
       return CapPtr<T, BOut>::unsafe_from(static_cast<T*>(pb));
     }
 
