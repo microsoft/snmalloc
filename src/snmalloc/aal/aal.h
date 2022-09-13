@@ -215,6 +215,11 @@ namespace snmalloc
       return CapPtr<T, BOut>::unsafe_from(
         a.template as_static<T>().unsafe_ptr());
     }
+
+    static SNMALLOC_FAST_PATH size_t capptr_size_round(size_t sz) noexcept
+    {
+      return sz;
+    }
   };
 } // namespace snmalloc
 
