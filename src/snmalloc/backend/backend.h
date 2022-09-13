@@ -43,6 +43,10 @@ namespace snmalloc
     alloc_meta_data(LocalState* local_state, size_t size)
     {
       capptr::Arena<void> p;
+
+      // Meta-data does not use our sizeclass machinery, so have Aal round up
+      size = Aal::capptr_size_round(size);
+
       if (local_state != nullptr)
       {
         p = local_state->get_meta_range().alloc_range_with_leftover(size);

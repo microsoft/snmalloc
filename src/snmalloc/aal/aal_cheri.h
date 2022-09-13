@@ -88,5 +88,29 @@ namespace snmalloc
       void* pb = __builtin_cheri_bounds_set_exact(a.unsafe_ptr(), size);
       return CapPtr<T, BOut>::unsafe_from(static_cast<T*>(pb));
     }
+
+    static SNMALLOC_FAST_PATH size_t capptr_size_round(size_t sz) noexcept
+    {
+      /*
+       * Round up sz to the next representable value for the target
+       * architecture's choice of CHERI Concentrate T/B mantissa width.
+       *
+       * On Morello specifically, this intrinsic will (soon, as of this text
+       * being written) expand to a multi-instruction sequence to work around a
+       * bug in which sz values satisfying $\exists_E sz = ((1 << 12) - 1) <<
+       * (E + 3)$ are incorrectly increased.  If for some reason this ends up
+       * being at all hot, there will also be a
+       * __builtin_morello_round_representable_length_inexact, which will just
+       * return too big of a size for those values (by rounding up to $1 << (E
+       * + 15)$).  While technically incorrect, this behavior is probably fine
+       * for snmalloc: we already slot metadata allocations into NAPOT holes
+       * and then return any unused space at the top, so the over-reach would,
+       * at the worst, just prevent said return, and our sizeclasses never run
+       * into this issue.  That is, we're clear to use the __builtin_morello_*
+       * intrinsic if the multi-instruction sequence proves slow.  See
+       * https://git.morello-project.org/morello/llvm-project/-/merge_requests/199
+       */
+      return __builtin_cheri_round_representable_length(sz);
+    }
   };
 } // namespace snmalloc
