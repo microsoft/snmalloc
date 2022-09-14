@@ -39,7 +39,7 @@ namespace snmalloc
      * does not avail itself of this degree of freedom.
      */
     template<typename T>
-    static capptr::Arena<void>
+    static capptr::Alloc<void>
     alloc_meta_data(LocalState* local_state, size_t size)
     {
       capptr::Arena<void> p;
@@ -61,9 +61,13 @@ namespace snmalloc
       }
 
       if (p == nullptr)
+      {
         errno = ENOMEM;
+        return nullptr;
+      }
 
-      return p;
+      return capptr_to_user_address_control(
+        Aal::capptr_bound<void, capptr::bounds::AllocFull>(p, size));
     }
 
     /**

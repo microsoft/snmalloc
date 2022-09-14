@@ -137,11 +137,8 @@ namespace snmalloc
         Config::Pal::error("Failed to initialise thread local allocator.");
       }
 
-      p = capptr_to_user_address_control(
-        Aal::capptr_bound<T, capptr::bounds::AllocFull>(
-          capptr::Arena<T>::unsafe_from(new (raw.unsafe_ptr())
-                                          T(std::forward<Args>(args)...)),
-          sizeof(T)));
+      p = capptr::Alloc<T>::unsafe_from(new (raw.unsafe_ptr())
+                                          T(std::forward<Args>(args)...));
 
       FlagLock f(pool.lock);
       p->list_next = pool.list;
