@@ -174,13 +174,22 @@ namespace snmalloc
           base,
           length,
           [this](CapPtr<void, ChunkBounds> base, size_t align, bool) {
-            CapPtr<void, ChunkBounds> overflow =
-              buddy_small
-                .add_block(
-                  base.template as_reinterpret<FreeChunk<ChunkBounds>>(), align)
-                .template as_reinterpret<void>();
-            if (overflow != nullptr)
-              parent.dealloc_range(overflow, bits::one_at_bit(MIN_CHUNK_BITS));
+            if (align < MIN_CHUNK_SIZE)
+            {
+              CapPtr<void, ChunkBounds> overflow =
+                buddy_small
+                  .add_block(
+                    base.template as_reinterpret<FreeChunk<ChunkBounds>>(),
+                    align)
+                  .template as_reinterpret<void>();
+              if (overflow != nullptr)
+                parent.dealloc_range(
+                  overflow, bits::one_at_bit(MIN_CHUNK_BITS));
+            }
+            else
+            {
+              parent.dealloc_range(base, align);
+            }
           });
       }
 
@@ -204,7 +213,8 @@ namespace snmalloc
 
       CapPtr<void, ChunkBounds> alloc_range(size_t size)
       {
-        SNMALLOC_ASSERT(size < MIN_CHUNK_SIZE);
+        if (size >= MIN_CHUNK_SIZE)
+          return parent.alloc_range(size);
 
         auto result = buddy_small.remove_block(size);
         if (result != nullptr)
@@ -218,8 +228,6 @@ namespace snmalloc
 
       CapPtr<void, ChunkBounds> alloc_range_with_leftover(size_t size)
       {
-        SNMALLOC_ASSERT(size < MIN_CHUNK_SIZE);
-
         auto rsize = bits::next_pow2(size);
 
         auto result = alloc_range(rsize);
@@ -236,8 +244,6 @@ namespace snmalloc
 
       void dealloc_range(CapPtr<void, ChunkBounds> base, size_t size)
       {
-        SNMALLOC_ASSERT(size < MIN_CHUNK_SIZE);
-
         add_range(base, size);
       }
     };
