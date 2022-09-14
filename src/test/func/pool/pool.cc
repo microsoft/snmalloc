@@ -1,3 +1,5 @@
+#include <array>
+#include <iostream>
 #include <snmalloc/snmalloc.h>
 #include <test/opt.h>
 #include <test/setup.h>
@@ -23,6 +25,23 @@ struct PoolBEntry : Pooled<PoolBEntry>
 };
 
 using PoolB = Pool<PoolBEntry, Alloc::Config>;
+
+struct PoolLargeEntry : Pooled<PoolLargeEntry>
+{
+  std::array<int, 2'000'000> payload;
+
+  PoolLargeEntry()
+  {
+    printf(".");
+    fflush(stdout);
+    payload[0] = 1;
+    printf("first %d\n", payload[0]);
+    payload[1'999'999] = 1;
+    printf("last %d\n", payload[1'999'999]);
+  };
+};
+
+using PoolLarge = Pool<PoolLargeEntry, Alloc::Config>;
 
 void test_alloc()
 {
@@ -116,6 +135,18 @@ void test_iterator()
   PoolA::release(after_iteration_ptr);
 }
 
+void test_large()
+{
+  printf(".");
+  fflush(stdout);
+  PoolLargeEntry* p = PoolLarge::acquire();
+  printf(".");
+  fflush(stdout);
+  PoolLarge::release(p);
+  printf(".");
+  fflush(stdout);
+}
+
 int main(int argc, char** argv)
 {
   setup();
@@ -128,10 +159,18 @@ int main(int argc, char** argv)
 #endif
 
   test_alloc();
+  std::cout << "test_alloc passed" << std::endl;
   test_constructor();
+  std::cout << "test_constructor passed" << std::endl;
   test_alloc_many();
+  std::cout << "test_alloc_many passed" << std::endl;
   test_double_alloc();
+  std::cout << "test_double_alloc passed" << std::endl;
   test_different_alloc();
+  std::cout << "test_different_alloc passed" << std::endl;
   test_iterator();
+  std::cout << "test_iterator passed" << std::endl;
+  test_large();
+  std::cout << "test_large passed" << std::endl;
   return 0;
 }
