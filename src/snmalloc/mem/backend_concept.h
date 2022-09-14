@@ -122,7 +122,7 @@ namespace snmalloc
     {
       Backend::template alloc_meta_data<void*>(local_state, size)
     }
-    ->ConceptSame<capptr::Arena<void>>;
+    ->ConceptSame<capptr::Alloc<void>>;
   }
   &&requires(
     LocalState& local_state,
