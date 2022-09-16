@@ -104,17 +104,23 @@ void test_pagemap(bool bounded)
 
   if (bounded)
   {
+    std::cout << "Checking heap" << std::endl;
     // Check we have not corrupted the heap.
     for (address_t ptr = low; ptr < high; ptr++)
     {
       auto* p = (char*)ptr;
       if (*p != 0x23)
+      {
+        printf("Heap and pagemap have collided at %p", p);
         abort();
-      // Overwrite with a different pattern.
-      *p = 0x56;
+      }
     }
+
+    // Store a different pattern in heap.
+    memset((void*)low, 0x23, high - low);
   }
 
+  std::cout << "Checking pagemap contents" << std::endl;
   value = 1;
   for (address_t ptr = low; ptr < high;
        ptr += bits::one_at_bit(GRANULARITY_BITS + 3))
