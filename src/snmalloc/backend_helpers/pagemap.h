@@ -117,31 +117,35 @@ namespace snmalloc
 #endif
       SNMALLOC_ASSERT(s != 0);
       // TODO take account of pagemap size in the calculation of how big it
-      // needs to be.
+      // needs to be.  The following code creates a pagemap that covers the
+      // pagemap as well as the left over. This is not ideal, and we should
+      // really calculate the division with 
+      //
+      //  bits::one_at_bit(GRANULARITY_BITS) + sizeof(T)
+      //
+      // There are awkward corner cases for the alignment of the start and
+      // the end that are hard to calculate. So this is not currently done. 
 
-      // Align the start and end.  We won't store for the very ends as they
-      // are not aligned to a chunk boundary.
-      auto heap_base = pointer_align_up(b, bits::one_at_bit(GRANULARITY_BITS));
-      auto end = pointer_align_down(
+      // Calculate range in pagemap that is associated to this space.
+      // Over calculate to cover any unaligned parts at either end.
+      auto b_align = pointer_align_down(b, bits::one_at_bit(GRANULARITY_BITS));
+      auto end = pointer_align_up(
         pointer_offset(b, s), bits::one_at_bit(GRANULARITY_BITS));
-      size = pointer_diff(heap_base, end);
 
-      // Put pagemap at start of range.
-      // TODO CHERI capability bound here!
+      // Setup the pagemap.
+      base = address_cast(b_align);
+      size = pointer_diff(b_align, end);
       body = static_cast<T*>(b);
       body_opt = body;
-      // Advance by size of pagemap.
-      // Note that base needs to be aligned to GRANULARITY for the rest of the
-      // code to work
-      // TODO CHERI capability bound here!
-      heap_base = pointer_align_up(
-        pointer_offset(b, (size >> SHIFT) * sizeof(T)),
-        bits::one_at_bit(GRANULARITY_BITS));
-      base = address_cast(heap_base);
-      SNMALLOC_ASSERT(
-        base == bits::align_up(base, bits::one_at_bit(GRANULARITY_BITS)));
 
-      return {heap_base, pointer_diff(heap_base, end)};
+      // Calculate size of pagemap.
+      auto pagemap_size = (size >> SHIFT) * sizeof(T);
+
+      // Advance by size of pagemap.
+      // TODO CHERI capability bound here!
+      auto heap_base = pointer_offset(b, pagemap_size);
+
+      return {heap_base, s - pagemap_size};
     }
 
     /**
