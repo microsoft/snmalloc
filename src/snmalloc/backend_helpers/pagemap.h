@@ -17,6 +17,7 @@ namespace snmalloc
   {
   private:
     static constexpr size_t SHIFT = GRANULARITY_BITS;
+    static constexpr size_t GRANULARITY = bits::one_at_bit(GRANULARITY_BITS);
 
     /**
      * Before init is called will contain a single entry
@@ -121,20 +122,18 @@ namespace snmalloc
       // pagemap as well as the left over. This is not ideal, and we should
       // really calculate the division with
       //
-      //  bits::one_at_bit(GRANULARITY_BITS) + sizeof(T)
+      //  GRANULARITY + sizeof(T)
       //
       // There are awkward corner cases for the alignment of the start and
       // the end that are hard to calculate. So this is not currently done.
 
       // Calculate range in pagemap that is associated to this space.
       // Over calculate to cover any unaligned parts at either end.
-      auto b_align = pointer_align_down(b, bits::one_at_bit(GRANULARITY_BITS));
-      auto end = pointer_align_up(
-        pointer_offset(b, s), bits::one_at_bit(GRANULARITY_BITS));
+      base = bits::align_down(address_cast(b), GRANULARITY);
+      auto end = bits::align_up(address_cast(b) + s, GRANULARITY);
+      size = end - base;
 
       // Setup the pagemap.
-      base = address_cast(b_align);
-      size = pointer_diff(b_align, end);
       body = static_cast<T*>(b);
       body_opt = body;
 
@@ -152,6 +151,12 @@ namespace snmalloc
       static_assert(
         sizeof(T) < (1 << SHIFT),
         "Pagemap entry too large relative to granularity");
+
+      if (pagemap_size > s)
+      {
+        // The pagemap is larger than the available space.
+        error("Pagemap is larger than the available space.");
+      }
 
       return {heap_base, s - pagemap_size};
     }
