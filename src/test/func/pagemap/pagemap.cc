@@ -66,7 +66,7 @@ void test_pagemap(bool bounded)
   if (bounded)
   {
     auto size = bits::one_at_bit(29);
-    auto base = DefaultPal::reserve(size);
+    base = DefaultPal::reserve(size);
     DefaultPal::notify_using<NoZero>(base, size);
     std::cout << "Fixed base: " << base << " (" << size << ") "
               << " end: " << pointer_offset(base, size) << std::endl;
