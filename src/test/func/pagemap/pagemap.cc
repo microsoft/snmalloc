@@ -74,6 +74,8 @@ void test_pagemap(bool bounded)
               << " end: " << pointer_offset(heap_base, heap_size) << std::endl;
     low = address_cast(heap_base);
     high = low + heap_size;
+    // Store a pattern in heap.
+    memset((void*)low, 0x23, high - low);
   }
   else
   {
@@ -99,6 +101,20 @@ void test_pagemap(bool bounded)
 
   // Check pattern is correctly stored
   std::cout << std::endl;
+
+  if (bounded)
+  {
+    // Check we have not corrupted the heap.
+    for (address_t ptr = low; ptr < high; ptr++)
+    {
+      auto* p = (char*)ptr;
+      if (*p != 0x23)
+        abort();
+      // Overwrite with a different pattern.
+      *p = 0x56;
+    }
+  }
+
   value = 1;
   for (address_t ptr = low; ptr < high;
        ptr += bits::one_at_bit(GRANULARITY_BITS + 3))
