@@ -88,7 +88,7 @@ void test_pagemap(bool bounded)
 
   // Store a pattern into page map
   T value = 1;
-  for (address_t ptr = low; ptr < high;
+  for (uintptr_t ptr = low; ptr < high;
        ptr += bits::one_at_bit(GRANULARITY_BITS + 3))
   {
     set(bounded, ptr, value);
@@ -106,7 +106,7 @@ void test_pagemap(bool bounded)
   {
     std::cout << "Checking heap" << std::endl;
     // Check we have not corrupted the heap.
-    for (address_t ptr = low; ptr < high; ptr++)
+    for (uintptr_t ptr = low; ptr < high; ptr++)
     {
       if (((ptr - low) % (1ULL << 26)) == 0)
         std::cout << "." << std::flush;
