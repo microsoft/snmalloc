@@ -108,6 +108,8 @@ void test_pagemap(bool bounded)
     // Check we have not corrupted the heap.
     for (address_t ptr = low; ptr < high; ptr++)
     {
+      if (((ptr - low) % (1ULL << 26)) == 0)
+        std::cout << "." << std::flush;
       auto* p = (char*)ptr;
       if (*p != 0x23)
       {
@@ -116,6 +118,8 @@ void test_pagemap(bool bounded)
       }
     }
 
+    std::cout << std::endl;
+    std::cout << "Storing new pattern" << std::endl;
     // Store a different pattern in heap.
     memset((void*)low, 0x23, high - low);
   }
