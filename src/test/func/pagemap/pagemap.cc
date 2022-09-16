@@ -55,8 +55,9 @@ void set(bool bounded, address_t address, T new_value)
 
 void test_pagemap(bool bounded)
 {
-  uintptr_t low = bits::one_at_bit(23);
-  uintptr_t high = bits::one_at_bit(29);
+  address_t low = bits::one_at_bit(23);
+  address_t high = bits::one_at_bit(29);
+  void* base = nullptr;
 
   // Nullptr needs to work before initialisation
   CHECK_GET(bounded, 0, T());
@@ -73,9 +74,10 @@ void test_pagemap(bool bounded)
     std::cout << "Heap base:  " << heap_base << " (" << heap_size << ") "
               << " end: " << pointer_offset(heap_base, heap_size) << std::endl;
     low = address_cast(heap_base);
+    base = heap_base;
     high = low + heap_size;
     // Store a pattern in heap.
-    memset((void*)low, 0x23, high - low);
+    memset(base, 0x23, high - low);
   }
   else
   {
@@ -88,7 +90,7 @@ void test_pagemap(bool bounded)
 
   // Store a pattern into page map
   T value = 1;
-  for (uintptr_t ptr = low; ptr < high;
+  for (address_t ptr = low; ptr < high;
        ptr += bits::one_at_bit(GRANULARITY_BITS + 3))
   {
     set(bounded, ptr, value);
@@ -106,11 +108,11 @@ void test_pagemap(bool bounded)
   {
     std::cout << "Checking heap" << std::endl;
     // Check we have not corrupted the heap.
-    for (uintptr_t ptr = low; ptr < high; ptr++)
+    for (size_t offset = 0; offset < high - low; offset++)
     {
-      if (((ptr - low) % (1ULL << 26)) == 0)
+      if ((offset % (1ULL << 26)) == 0)
         std::cout << "." << std::flush;
-      auto* p = (char*)ptr;
+      auto* p = ((char*)base) + offset;
       if (*p != 0x23)
       {
         printf("Heap and pagemap have collided at %p", p);
@@ -121,7 +123,7 @@ void test_pagemap(bool bounded)
     std::cout << std::endl;
     std::cout << "Storing new pattern" << std::endl;
     // Store a different pattern in heap.
-    memset((void*)low, 0x23, high - low);
+    memset(base, 0x23, high - low);
   }
 
   std::cout << "Checking pagemap contents" << std::endl;
