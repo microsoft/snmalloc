@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         # Build each combination of OS and release/debug variants
-        os: [ "ubuntu-latest", "ubuntu-18.04", "macos-11", "macos-10.15", "freebsd-12.2", "freebsd-13.0" ]
+        os: [ "ubuntu-latest", "ubuntu-18.04", "macos-11", "macos-12", "freebsd-12.2", "freebsd-13.0" ]
         build-type: [ Release, Debug ]
         # Extra cmake flags.  GitHub Actions matrix overloads `include` to mean
         # 'add extra things to a job' and 'add jobs'.  You can add extra things
@@ -40,7 +40,7 @@ jobs:
             # 2to3 exists.  As a quick hack, delete it first.  This should be
             # removed once the homebrew install is fixed.
             dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
-          - os: "macos-10.15"
+          - os: "macos-12"
             dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
           # Skip the tests for the FreeBSD release builds
           # Also build-test the checked memcpy implementation while doing these.
