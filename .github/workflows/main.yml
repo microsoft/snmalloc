@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         # Build each combination of OS and release/debug variants
-        os: [ "ubuntu-latest", "ubuntu-18.04", "macos-11", "macos-10.15", "freebsd-12.2", "freebsd-13.0" ]
+        os: [ "ubuntu-latest", "ubuntu-18.04", "macos-11", "macos-12", "freebsd-12.2", "freebsd-13.0" ]
         build-type: [ Release, Debug ]
         # Extra cmake flags.  GitHub Actions matrix overloads `include` to mean
         # 'add extra things to a job' and 'add jobs'.  You can add extra things
