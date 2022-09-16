@@ -56,7 +56,7 @@ void set(bool bounded, address_t address, T new_value)
 void test_pagemap(bool bounded)
 {
   uintptr_t low = bits::one_at_bit(23);
-  uintptr_t high = bits::one_at_bit(30);
+  uintptr_t high = bits::one_at_bit(29);
 
   // Nullptr needs to work before initialisation
   CHECK_GET(bounded, 0, T());
@@ -64,7 +64,7 @@ void test_pagemap(bool bounded)
   // Initialise the pagemap
   if (bounded)
   {
-    auto size = bits::one_at_bit(30);
+    auto size = bits::one_at_bit(29);
     auto base = DefaultPal::reserve(size);
     DefaultPal::notify_using<NoZero>(base, size);
     std::cout << "Fixed base: " << base << " (" << size << ") "
