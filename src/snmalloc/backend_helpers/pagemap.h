@@ -145,8 +145,8 @@ namespace snmalloc
       // TODO CHERI capability bound here!
       auto heap_base = pointer_offset(b, pagemap_size);
 
-      // The following assert prevents the corner case where the pagemap occupies
-      // the entire address space, and this 
+      // The following assert prevents the corner case where the pagemap
+      // occupies the entire address space, and this
       //     s - pagemap_size
       // can underflow.
       static_assert(
