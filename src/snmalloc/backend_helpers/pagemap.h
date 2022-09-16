@@ -119,12 +119,12 @@ namespace snmalloc
       // TODO take account of pagemap size in the calculation of how big it
       // needs to be.  The following code creates a pagemap that covers the
       // pagemap as well as the left over. This is not ideal, and we should
-      // really calculate the division with 
+      // really calculate the division with
       //
       //  bits::one_at_bit(GRANULARITY_BITS) + sizeof(T)
       //
       // There are awkward corner cases for the alignment of the start and
-      // the end that are hard to calculate. So this is not currently done. 
+      // the end that are hard to calculate. So this is not currently done.
 
       // Calculate range in pagemap that is associated to this space.
       // Over calculate to cover any unaligned parts at either end.
