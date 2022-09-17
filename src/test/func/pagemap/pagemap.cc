@@ -56,7 +56,8 @@ void set(bool bounded, address_t address, T new_value)
 void test_pagemap(bool bounded)
 {
   address_t low = bits::one_at_bit(23);
-  address_t high = bits::one_at_bit(30);
+  address_t high = bits::one_at_bit(29);
+  void* base = nullptr;
 
   // Nullptr needs to work before initialisation
   CHECK_GET(bounded, 0, T());
@@ -64,8 +65,8 @@ void test_pagemap(bool bounded)
   // Initialise the pagemap
   if (bounded)
   {
-    auto size = bits::one_at_bit(30);
-    auto base = DefaultPal::reserve(size);
+    auto size = bits::one_at_bit(29);
+    base = DefaultPal::reserve(size);
     DefaultPal::notify_using<NoZero>(base, size);
     std::cout << "Fixed base: " << base << " (" << size << ") "
               << " end: " << pointer_offset(base, size) << std::endl;
@@ -73,7 +74,10 @@ void test_pagemap(bool bounded)
     std::cout << "Heap base:  " << heap_base << " (" << heap_size << ") "
               << " end: " << pointer_offset(heap_base, heap_size) << std::endl;
     low = address_cast(heap_base);
+    base = heap_base;
     high = low + heap_size;
+    // Store a pattern in heap.
+    memset(base, 0x23, high - low);
   }
   else
   {
@@ -99,6 +103,30 @@ void test_pagemap(bool bounded)
 
   // Check pattern is correctly stored
   std::cout << std::endl;
+
+  if (bounded)
+  {
+    std::cout << "Checking heap" << std::endl;
+    // Check we have not corrupted the heap.
+    for (size_t offset = 0; offset < high - low; offset++)
+    {
+      if ((offset % (1ULL << 26)) == 0)
+        std::cout << "." << std::flush;
+      auto* p = ((char*)base) + offset;
+      if (*p != 0x23)
+      {
+        printf("Heap and pagemap have collided at %p", p);
+        abort();
+      }
+    }
+
+    std::cout << std::endl;
+    std::cout << "Storing new pattern" << std::endl;
+    // Store a different pattern in heap.
+    memset(base, 0x23, high - low);
+  }
+
+  std::cout << "Checking pagemap contents" << std::endl;
   value = 1;
   for (address_t ptr = low; ptr < high;
        ptr += bits::one_at_bit(GRANULARITY_BITS + 3))
