@@ -57,6 +57,8 @@ namespace snmalloc
      */
     void register_range(address_t p, size_t length)
     {
+      SNMALLOC_ASSERT(is_initialised());
+
       // Calculate range in pagemap that is associated to this space.
       auto first = &body[p >> SHIFT];
       auto last = &body[(p + length + bits::one_at_bit(SHIFT) - 1) >> SHIFT];
@@ -95,6 +97,8 @@ namespace snmalloc
     template<bool has_bounds_ = has_bounds>
     std::enable_if_t<!has_bounds_> init(T* address)
     {
+      SNMALLOC_ASSERT(is_initialised());
+
       static_assert(
         has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
       body = address;
@@ -110,6 +114,8 @@ namespace snmalloc
     std::enable_if_t<has_bounds_, std::pair<void*, size_t>>
     init(void* b, size_t s)
     {
+      SNMALLOC_ASSERT(is_initialised());
+
       static_assert(
         has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
 #ifdef SNMALLOC_TRACING
@@ -150,6 +156,8 @@ namespace snmalloc
     template<bool has_bounds_ = has_bounds>
     std::enable_if_t<!has_bounds_> init()
     {
+      SNMALLOC_ASSERT(!is_initialised());
+
       static_assert(
         has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
       static constexpr size_t REQUIRED_SIZE = required_size();
@@ -205,6 +213,8 @@ namespace snmalloc
     template<bool has_bounds_ = has_bounds>
     std::enable_if_t<has_bounds_, std::pair<address_t, size_t>> get_bounds()
     {
+      SNMALLOC_ASSERT(is_initialised());
+
       static_assert(
         has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
 
@@ -216,6 +226,8 @@ namespace snmalloc
      */
     [[nodiscard]] constexpr size_t num_entries() const
     {
+      SNMALLOC_ASSERT(is_initialised());
+
       if constexpr (has_bounds)
       {
         return size >> GRANULARITY_BITS;
@@ -235,6 +247,8 @@ namespace snmalloc
     template<bool potentially_out_of_range>
     T& get_mut(address_t p)
     {
+      SNMALLOC_ASSERT(is_initialised());
+
       if constexpr (potentially_out_of_range)
       {
         if (SNMALLOC_UNLIKELY(body_opt == nullptr))
@@ -284,6 +298,7 @@ namespace snmalloc
     template<bool potentially_out_of_range>
     const T& get(address_t p)
     {
+      SNMALLOC_ASSERT(is_initialised());
       return get_mut<potentially_out_of_range>(p);
     }
 
@@ -301,6 +316,7 @@ namespace snmalloc
      */
     [[nodiscard]] address_t get_address(const T& t) const
     {
+      SNMALLOC_ASSERT(is_initialised());
       address_t entry_offset = address_cast(&t) - address_cast(body);
       address_t entry_index = entry_offset / sizeof(T);
       SNMALLOC_ASSERT(
@@ -310,6 +326,7 @@ namespace snmalloc
 
     void set(address_t p, const T& t)
     {
+      SNMALLOC_ASSERT(is_initialised());
 #ifdef SNMALLOC_TRACING
       message<1024>("Pagemap.Set {}", p);
 #endif
