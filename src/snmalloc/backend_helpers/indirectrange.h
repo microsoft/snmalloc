@@ -8,8 +8,9 @@ namespace snmalloc
   /**
    * Stores a references to the parent range so that it can be shared
    * without `static` scope.
-   * 
-   * This could be used to allow multiple allocators on a single region of memory.
+   *
+   * This could be used to allow multiple allocators on a single region of
+   * memory.
    */
   struct IndirectRange
   {
