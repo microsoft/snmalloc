@@ -97,7 +97,7 @@ namespace snmalloc
     template<bool has_bounds_ = has_bounds>
     std::enable_if_t<!has_bounds_> init(T* address)
     {
-      SNMALLOC_ASSERT(is_initialised());
+      SNMALLOC_ASSERT(!is_initialised());
 
       static_assert(
         has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
@@ -247,13 +247,13 @@ namespace snmalloc
     template<bool potentially_out_of_range>
     T& get_mut(address_t p)
     {
-      SNMALLOC_ASSERT(is_initialised());
-
       if constexpr (potentially_out_of_range)
       {
         if (SNMALLOC_UNLIKELY(body_opt == nullptr))
           return const_cast<T&>(default_value);
       }
+
+      SNMALLOC_ASSERT(is_initialised() || p == 0);
 
       if constexpr (has_bounds)
       {
@@ -298,7 +298,6 @@ namespace snmalloc
     template<bool potentially_out_of_range>
     const T& get(address_t p)
     {
-      SNMALLOC_ASSERT(is_initialised());
       return get_mut<potentially_out_of_range>(p);
     }
 
