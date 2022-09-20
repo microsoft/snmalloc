@@ -114,7 +114,7 @@ namespace snmalloc
     std::enable_if_t<has_bounds_, std::pair<void*, size_t>>
     init(void* b, size_t s)
     {
-      SNMALLOC_ASSERT(is_initialised());
+      SNMALLOC_ASSERT(!is_initialised());
 
       static_assert(
         has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
