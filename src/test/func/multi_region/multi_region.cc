@@ -93,10 +93,15 @@ public:
 
 private:
 public:
-  static constexpr Flags Options{
-    .CoreAllocOwnsLocalState = false,
-    .CoreAllocIsPoolAllocated = false,
-    .LocalAllocSupportsLazyInit = false};
+
+    constexpr static snmalloc::Flags Options{
+      .IsQueueInline = true,
+      .CoreAllocOwnsLocalState = false,
+      .CoreAllocIsPoolAllocated = false,
+      .LocalAllocSupportsLazyInit = false,
+      .QueueHeadsAreTame = true,
+      .HasDomesticate = true,
+    };
 
   static void register_clean_up() {}
 };
