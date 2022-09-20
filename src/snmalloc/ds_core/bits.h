@@ -96,14 +96,14 @@ namespace snmalloc
 #endif
     }
 
-    inline constexpr size_t rotr_const(size_t x, size_t n)
+    constexpr size_t rotr_const(size_t x, size_t n)
     {
       size_t nn = n & (BITS - 1);
       return (x >> nn) |
         (x << ((static_cast<size_t>(-static_cast<int>(nn))) & (BITS - 1)));
     }
 
-    inline constexpr size_t rotl_const(size_t x, size_t n)
+    constexpr size_t rotl_const(size_t x, size_t n)
     {
       size_t nn = n & (BITS - 1);
       return (x << nn) |
@@ -260,12 +260,12 @@ namespace snmalloc
       return one_at_bit(BITS - (clz_const(x + 1) + 1));
     }
 
-    inline constexpr size_t next_pow2_bits_const(size_t x)
+    constexpr size_t next_pow2_bits_const(size_t x)
     {
       return BITS - clz_const(x - 1);
     }
 
-    inline constexpr SNMALLOC_FAST_PATH size_t
+    constexpr SNMALLOC_FAST_PATH size_t
     align_down(size_t value, size_t alignment)
     {
       SNMALLOC_ASSERT(is_pow2(alignment));
@@ -275,7 +275,7 @@ namespace snmalloc
       return value;
     }
 
-    inline constexpr SNMALLOC_FAST_PATH size_t
+    constexpr SNMALLOC_FAST_PATH size_t
     align_up(size_t value, size_t alignment)
     {
       SNMALLOC_ASSERT(is_pow2(alignment));
@@ -331,7 +331,7 @@ namespace snmalloc
     }
 
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
-    constexpr static size_t to_exp_mant_const(size_t value)
+    constexpr size_t to_exp_mant_const(size_t value)
     {
       constexpr size_t LEADING_BIT = one_at_bit(MANTISSA_BITS + LOW_BITS) >> 1;
       constexpr size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
@@ -347,7 +347,7 @@ namespace snmalloc
     }
 
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
-    constexpr static size_t from_exp_mant(size_t m_e)
+    constexpr size_t from_exp_mant(size_t m_e)
     {
       if (MANTISSA_BITS > 0)
       {
@@ -371,7 +371,7 @@ namespace snmalloc
      * We write our own to reduce the code that potentially needs reviewing.
      */
     template<typename T>
-    constexpr inline T min(T t1, T t2)
+    constexpr T min(T t1, T t2)
     {
       return t1 < t2 ? t1 : t2;
     }
@@ -383,7 +383,7 @@ namespace snmalloc
      * We write our own to reduce the code that potentially needs reviewing.
      */
     template<typename T>
-    constexpr inline T max(T t1, T t2)
+    constexpr T max(T t1, T t2)
     {
       return t1 > t2 ? t1 : t2;
     }

@@ -250,7 +250,7 @@ namespace snmalloc
 #endif
 
   template<AalFeatures F, SNMALLOC_CONCEPT(IsAAL) AAL = Aal>
-  constexpr static bool aal_supports = (AAL::aal_features & F) == F;
+  constexpr bool aal_supports = (AAL::aal_features & F) == F;
 
   /*
    * The backend's leading-order response to StrictProvenance is entirely

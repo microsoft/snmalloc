@@ -43,7 +43,7 @@ namespace snmalloc
       SNMALLOC_CONCEPT(IsConfigDomestication) Config,
       typename T,
       SNMALLOC_CONCEPT(capptr::IsBound) B>
-    constexpr SNMALLOC_FAST_PATH_INLINE auto has_domesticate(int)
+    constexpr SNMALLOC_FAST_PATH auto has_domesticate(int)
       -> std::enable_if_t<
         std::is_same_v<
           decltype(Config::capptr_domesticate(
@@ -66,7 +66,7 @@ namespace snmalloc
       SNMALLOC_CONCEPT(IsConfig) Config,
       typename T,
       SNMALLOC_CONCEPT(capptr::IsBound) B>
-    constexpr SNMALLOC_FAST_PATH_INLINE bool has_domesticate(long)
+    constexpr SNMALLOC_FAST_PATH bool has_domesticate(long)
     {
       return false;
     }
@@ -81,7 +81,7 @@ namespace snmalloc
     SNMALLOC_CONCEPT(IsConfig) Config,
     typename T,
     SNMALLOC_CONCEPT(capptr::IsBound) B>
-  SNMALLOC_FAST_PATH_INLINE auto
+  constexpr SNMALLOC_FAST_PATH auto
   capptr_domesticate(typename Config::LocalState* ls, CapPtr<T, B> p)
   {
     static_assert(

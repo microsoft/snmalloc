@@ -103,5 +103,5 @@ namespace snmalloc
    * Query whether the PAL supports a specific feature.
    */
   template<PalFeatures F, typename PAL>
-  constexpr static bool pal_supports = (PAL::pal_features & F) == F;
+  static constexpr bool pal_supports = (PAL::pal_features & F) == F;
 } // namespace snmalloc

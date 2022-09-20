@@ -18,7 +18,7 @@ namespace snmalloc
   using smallsizeclass_t = size_t;
   using chunksizeclass_t = size_t;
 
-  constexpr static inline smallsizeclass_t size_to_sizeclass_const(size_t size)
+  static constexpr smallsizeclass_t size_to_sizeclass_const(size_t size)
   {
     // Don't use sizeclasses that are not a multiple of the alignment.
     // For example, 24 byte allocations can be
@@ -31,22 +31,22 @@ namespace snmalloc
     return sc;
   }
 
-  static constexpr size_t NUM_SMALL_SIZECLASSES =
+  constexpr size_t NUM_SMALL_SIZECLASSES =
     size_to_sizeclass_const(MAX_SMALL_SIZECLASS_SIZE);
 
   // Large classes range from [MAX_SMALL_SIZECLASS_SIZE, ADDRESS_SPACE).
-  static constexpr size_t NUM_LARGE_CLASSES =
+  constexpr size_t NUM_LARGE_CLASSES =
     DefaultPal::address_bits - MAX_SMALL_SIZECLASS_BITS;
 
   // How many bits are required to represent either a large or a small
   // sizeclass.
-  static constexpr size_t TAG_SIZECLASS_BITS = bits::max<size_t>(
+  constexpr size_t TAG_SIZECLASS_BITS = bits::max<size_t>(
     bits::next_pow2_bits_const(NUM_SMALL_SIZECLASSES + 1),
     bits::next_pow2_bits_const(NUM_LARGE_CLASSES + 1));
 
   // Number of bits required to represent a tagged sizeclass that can be
   // either small or large.
-  static constexpr size_t SIZECLASS_REP_SIZE =
+  constexpr size_t SIZECLASS_REP_SIZE =
     bits::one_at_bit(TAG_SIZECLASS_BITS + 1);
 
   /**
@@ -66,7 +66,7 @@ namespace snmalloc
   public:
     constexpr sizeclass_t() = default;
 
-    constexpr static sizeclass_t from_small_class(smallsizeclass_t sc)
+    static constexpr sizeclass_t from_small_class(smallsizeclass_t sc)
     {
       SNMALLOC_ASSERT(sc < TAG);
       // Note could use `+` or `|`.  Using `+` as will combine nicely with array
@@ -78,13 +78,13 @@ namespace snmalloc
      * Takes the number of leading zero bits from the actual large size-1.
      * See size_to_sizeclass_full
      */
-    constexpr static sizeclass_t from_large_class(size_t large_class)
+    static constexpr sizeclass_t from_large_class(size_t large_class)
     {
       SNMALLOC_ASSERT(large_class < TAG);
       return {large_class};
     }
 
-    constexpr static sizeclass_t from_raw(size_t raw)
+    static constexpr sizeclass_t from_raw(size_t raw)
     {
       return {raw};
     }
@@ -129,7 +129,7 @@ namespace snmalloc
 
   using sizeclass_compress_t = uint8_t;
 
-  inline SNMALLOC_FAST_PATH static size_t
+  constexpr SNMALLOC_FAST_PATH static size_t
   aligned_size(size_t alignment, size_t size)
   {
     // Client responsible for checking alignment is not zero
@@ -270,26 +270,26 @@ namespace snmalloc
     }
   };
 
-  static inline constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
+  constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
 
-  static constexpr size_t DIV_MULT_SHIFT = sizeclass_metadata.DIV_MULT_SHIFT;
+  constexpr size_t DIV_MULT_SHIFT = sizeclass_metadata.DIV_MULT_SHIFT;
 
-  constexpr static inline size_t sizeclass_to_size(smallsizeclass_t sizeclass)
+  constexpr size_t sizeclass_to_size(smallsizeclass_t sizeclass)
   {
     return sizeclass_metadata.fast_small(sizeclass).size;
   }
 
-  static inline size_t sizeclass_full_to_size(sizeclass_t sizeclass)
+  constexpr size_t sizeclass_full_to_size(sizeclass_t sizeclass)
   {
     return sizeclass_metadata.fast(sizeclass).size;
   }
 
-  inline static size_t sizeclass_full_to_slab_size(sizeclass_t sizeclass)
+  constexpr size_t sizeclass_full_to_slab_size(sizeclass_t sizeclass)
   {
     return sizeclass_metadata.fast(sizeclass).slab_mask + 1;
   }
 
-  inline static size_t sizeclass_to_slab_size(smallsizeclass_t sizeclass)
+  constexpr size_t sizeclass_to_slab_size(smallsizeclass_t sizeclass)
   {
     return sizeclass_metadata.fast_small(sizeclass).slab_mask + 1;
   }
@@ -301,7 +301,7 @@ namespace snmalloc
    *
    * It also increases entropy, when we have randomisation.
    */
-  inline uint16_t threshold_for_waking_slab(smallsizeclass_t sizeclass)
+  constexpr uint16_t threshold_for_waking_slab(smallsizeclass_t sizeclass)
   {
     return sizeclass_metadata.slow(sizeclass_t::from_small_class(sizeclass))
       .waking;
@@ -314,7 +314,7 @@ namespace snmalloc
     return bits::next_pow2_bits(ssize) - MIN_CHUNK_BITS;
   }
 
-  inline static size_t slab_sizeclass_to_size(chunksizeclass_t sizeclass)
+  constexpr size_t slab_sizeclass_to_size(chunksizeclass_t sizeclass)
   {
     return bits::one_at_bit(MIN_CHUNK_BITS + sizeclass);
   }
@@ -323,20 +323,20 @@ namespace snmalloc
    * For large allocations, the metaentry stores the raw log_2 of the size,
    * which must be shifted into the index space of slab_sizeclass-es.
    */
-  inline static size_t
+  constexpr size_t
   metaentry_chunk_sizeclass_to_slab_sizeclass(chunksizeclass_t sizeclass)
   {
     return sizeclass - MIN_CHUNK_BITS;
   }
 
-  inline constexpr static uint16_t
+  constexpr uint16_t
   sizeclass_to_slab_object_count(smallsizeclass_t sizeclass)
   {
     return sizeclass_metadata.slow(sizeclass_t::from_small_class(sizeclass))
       .capacity;
   }
 
-  inline static address_t start_of_object(sizeclass_t sc, address_t addr)
+  constexpr address_t start_of_object(sizeclass_t sc, address_t addr)
   {
     auto meta = sizeclass_metadata.fast(sc);
     address_t slab_start = addr & ~meta.slab_mask;
@@ -365,17 +365,17 @@ namespace snmalloc
     }
   }
 
-  inline static size_t index_in_object(sizeclass_t sc, address_t addr)
+  constexpr size_t index_in_object(sizeclass_t sc, address_t addr)
   {
     return addr - start_of_object(sc, addr);
   }
 
-  inline static size_t remaining_bytes(sizeclass_t sc, address_t addr)
+  constexpr size_t remaining_bytes(sizeclass_t sc, address_t addr)
   {
     return sizeclass_metadata.fast(sc).size - index_in_object(sc, addr);
   }
 
-  inline static bool is_start_of_object(sizeclass_t sc, address_t addr)
+  constexpr bool is_start_of_object(sizeclass_t sc, address_t addr)
   {
     size_t offset = addr & (sizeclass_full_to_slab_size(sc) - 1);
 
@@ -405,16 +405,16 @@ namespace snmalloc
     return bits::next_pow2_bits(size) - MIN_CHUNK_BITS;
   }
 
-  constexpr static SNMALLOC_PURE size_t sizeclass_lookup_index(const size_t s)
+  constexpr SNMALLOC_PURE size_t sizeclass_lookup_index(const size_t s)
   {
     // We subtract and shift to reduce the size of the table, i.e. we don't have
     // to store a value for every size.
     return (s - 1) >> MIN_ALLOC_BITS;
   }
 
-  static inline smallsizeclass_t size_to_sizeclass(size_t size)
+  constexpr smallsizeclass_t size_to_sizeclass(size_t size)
   {
-    constexpr static size_t sizeclass_lookup_size =
+    constexpr size_t sizeclass_lookup_size =
       sizeclass_lookup_index(MAX_SMALL_SIZECLASS_SIZE);
 
     /**
@@ -444,7 +444,7 @@ namespace snmalloc
       }
     };
 
-    static constexpr SizeClassLookup sizeclass_lookup = SizeClassLookup();
+    constexpr SizeClassLookup sizeclass_lookup = SizeClassLookup();
 
     auto index = sizeclass_lookup_index(size);
     if (index < sizeclass_lookup_size)
