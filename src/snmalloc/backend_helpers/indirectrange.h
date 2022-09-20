@@ -24,7 +24,7 @@ namespace snmalloc
 
       static_assert(
         ParentRange::ConcurrencySafe,
-        "StaticRange requires a concurrency safe parent.");
+        "IndirectRange requires a concurrency safe parent.");
 
       static constexpr bool ConcurrencySafe = true;
 
