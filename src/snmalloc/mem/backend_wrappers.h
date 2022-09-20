@@ -80,7 +80,7 @@ namespace snmalloc
     SNMALLOC_CONCEPT(IsConfig) Config,
     typename T,
     SNMALLOC_CONCEPT(capptr::IsBound) B>
-  constexpr SNMALLOC_FAST_PATH auto
+  SNMALLOC_FAST_PATH_INLINE auto
   capptr_domesticate(typename Config::LocalState* ls, CapPtr<T, B> p)
   {
     static_assert(
