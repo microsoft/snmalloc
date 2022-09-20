@@ -275,8 +275,7 @@ namespace snmalloc
       return value;
     }
 
-    constexpr SNMALLOC_FAST_PATH size_t
-    align_up(size_t value, size_t alignment)
+    constexpr SNMALLOC_FAST_PATH size_t align_up(size_t value, size_t alignment)
     {
       SNMALLOC_ASSERT(is_pow2(alignment));
 

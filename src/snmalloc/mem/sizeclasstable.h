@@ -329,8 +329,7 @@ namespace snmalloc
     return sizeclass - MIN_CHUNK_BITS;
   }
 
-  constexpr uint16_t
-  sizeclass_to_slab_object_count(smallsizeclass_t sizeclass)
+  constexpr uint16_t sizeclass_to_slab_object_count(smallsizeclass_t sizeclass)
   {
     return sizeclass_metadata.slow(sizeclass_t::from_small_class(sizeclass))
       .capacity;
