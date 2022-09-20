@@ -5,6 +5,7 @@
 #include "defaultpagemapentry.h"
 #include "empty_range.h"
 #include "globalrange.h"
+#include "indirectrange.h"
 #include "largebuddyrange.h"
 #include "logrange.h"
 #include "pagemap.h"
