@@ -132,7 +132,7 @@ namespace snmalloc
 
   /**
    * Helper class for allowing a range to be navigated to find an
-   * ancestor of a specific type. The parent is a pointer to a range
+   * ancestor of a specific type. The parent is a pointer to a range;
    * this allows the parent to be shared.
    */
   template<typename Parent>
