@@ -100,7 +100,7 @@ public:
       .CoreAllocIsPoolAllocated = false,
       .LocalAllocSupportsLazyInit = false,
       .QueueHeadsAreTame = true,
-      .HasDomesticate = true,
+      .HasDomesticate = false,
     };
 
   static void register_clean_up() {}
