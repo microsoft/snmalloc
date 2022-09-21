@@ -15,14 +15,14 @@ namespace snmalloc
    * this as a field of the global object:
    *
    * ```c++
-   * constexpr static snmalloc::Flags Options{};
+   * static constexpr snmalloc::Flags Options{};
    * ```
    *
    * A global configuration that wished to use out-of-line message queues but
    * accept the defaults for everything else would instead do this:
    *
    * ```c++
-   *     constexpr static snmalloc::Flags Options{.IsQueueInline = false};
+   *     static constexpr snmalloc::Flags Options{.IsQueueInline = false};
    * ```
    *
    * To maintain backwards source compatibility in future versions, any new
