@@ -154,6 +154,8 @@ extern "C"
     }
 
     sz = bits::min(sz, a.alloc_size(*ptr));
+
+    SNMALLOC_ASSUME(*ptr != nullptr || sz == 0);
     // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
     // otherwise.
     if (sz != 0)
