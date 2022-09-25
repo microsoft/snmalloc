@@ -24,8 +24,11 @@ namespace snmalloc
     /**
      * Bitmap of AalFeature flags
      */
-    static constexpr uint64_t aal_features =
-      IntegerPointers | NoCpuCycleCounters;
+    static constexpr uint64_t aal_features = IntegerPointers
+#if defined(SNMALLOC_VA_BITS_32) || !defined(__APPLE__)
+      | NoCpuCycleCounters
+#endif
+      ;
 
     static constexpr enum AalName aal_name = ARM;
 
@@ -56,6 +59,15 @@ namespace snmalloc
       __asm__ volatile("pld\t[%0]" : "=r"(ptr));
 #endif
     }
+
+#if defined(SNMALLOC_VA_BITS_64) && defined(__APPLE__)
+    static inline uint64_t tick() noexcept
+    {
+      uint64_t t;
+      __asm__ volatile("mrs %0, cntvct_el0" : "=r"(t));
+      return t;
+    }
+#endif
   };
 
   using AAL_Arch = AAL_arm;
