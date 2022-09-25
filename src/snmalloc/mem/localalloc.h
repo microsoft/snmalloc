@@ -1,7 +1,9 @@
 #pragma once
 
-#ifdef _MSC_VER
-#  define ALLOCATOR __declspec(allocator)
+#if defined(_MSC_VER)
+#  define ALLOCATOR __declspec(allocator) __declspec(restrict)
+#elif __has_attribute(malloc)
+#  define ALLOCATOR __attribute__((malloc))
 #else
 #  define ALLOCATOR
 #endif
