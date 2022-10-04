@@ -190,5 +190,37 @@ namespace snmalloc
 
       return p->list_next.unsafe_ptr();
     }
+
+    /**
+     * Put the stack in a consistent order.  This is helpful for systematic testing based
+     * systems. It is not thread safe, and the call should ensure nothing else is happening
+     * on the pool when this is called.
+     */
+    static void sort()
+    {
+      // Marker is used to signify free elements.
+      auto marker = reinterpret_cast<T*>(1);
+
+      // Extract all the elements and mark them as free.
+      T* curr = extract();
+      T* prev = nullptr;
+      while (curr != nullptr)
+      {
+        prev = curr;
+        curr = extract(curr);
+        prev->next = marker;
+      }
+
+      // Build a list of the free elements in the correct order.
+      curr = iterate();
+      while (curr != nullptr)
+      {
+        if (curr->next == marker)
+        {
+          get_state().stack.push(curr);
+        }
+        curr = iterate(curr);
+      }
+    }
   };
 } // namespace snmalloc
