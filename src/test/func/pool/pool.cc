@@ -44,7 +44,7 @@ struct PoolLargeEntry : Pooled<PoolLargeEntry>
 using PoolLarge = Pool<PoolLargeEntry, Alloc::Config>;
 
 template<bool order>
-struct PoolSortEntry: Pooled<PoolSortEntry<order>>
+struct PoolSortEntry : Pooled<PoolSortEntry<order>>
 {
   int field;
 
@@ -180,7 +180,7 @@ void test_sort()
   // so it is the same as if they had been allocated in that order.
   auto a1 = PoolSort<order>::acquire(1);
   auto a2 = PoolSort<order>::acquire(1);
-  
+
   auto position1 = position(a1);
   auto position2 = position(a2);
 

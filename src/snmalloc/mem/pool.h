@@ -192,9 +192,9 @@ namespace snmalloc
     }
 
     /**
-     * Put the stack in a consistent order.  This is helpful for systematic testing based
-     * systems. It is not thread safe, and the call should ensure nothing else is happening
-     * on the pool when this is called.
+     * Put the stack in a consistent order.  This is helpful for systematic
+     * testing based systems. It is not thread safe, and the call should ensure
+     * nothing else is happening on the pool when this is called.
      */
     static void sort()
     {
