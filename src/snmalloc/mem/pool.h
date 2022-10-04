@@ -193,8 +193,9 @@ namespace snmalloc
 
     /**
      * Put the stack in a consistent order.  This is helpful for systematic
-     * testing based systems. It is not thread safe, and the call should ensure
-     * nothing else is happening on the pool when this is called.
+     * testing based systems. It is not thread safe, and the caller should
+     * ensure no other thread can be performing a `sort` concurrently with this
+     * call.
      */
     static void sort()
     {
@@ -208,10 +209,14 @@ namespace snmalloc
       {
         prev = curr;
         curr = extract(curr);
+        // Assignment must occur after extract, otherwise extract would read the
+        // marker
         prev->next = marker;
       }
 
       // Build a list of the free elements in the correct order.
+      // This is the opposite order to the list of all elements
+      // so that iterate works correctly.
       curr = iterate();
       while (curr != nullptr)
       {
