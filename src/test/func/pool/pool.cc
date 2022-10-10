@@ -43,6 +43,17 @@ struct PoolLargeEntry : Pooled<PoolLargeEntry>
 
 using PoolLarge = Pool<PoolLargeEntry, Alloc::Config>;
 
+template<bool order>
+struct PoolSortEntry : Pooled<PoolSortEntry<order>>
+{
+  int field;
+
+  PoolSortEntry(int f) : field(f){};
+};
+
+template<bool order>
+using PoolSort = Pool<PoolSortEntry<order>, Alloc::Config>;
+
 void test_alloc()
 {
   auto ptr = PoolA::acquire();
@@ -147,6 +158,56 @@ void test_large()
   fflush(stdout);
 }
 
+/**
+ * This test confirms that the pool is sorted consistently with
+ * respect to the iterator after a call to sort.
+ */
+template<bool order>
+void test_sort()
+{
+  auto position = [](PoolSortEntry<order>* ptr) {
+    size_t i = 0;
+    auto curr = PoolSort<order>::iterate();
+    while (ptr != curr)
+    {
+      curr = PoolSort<order>::iterate(curr);
+      ++i;
+    }
+    return i;
+  };
+
+  // This test checks that `sort` puts the elements in the right order,
+  // so it is the same as if they had been allocated in that order.
+  auto a1 = PoolSort<order>::acquire(1);
+  auto a2 = PoolSort<order>::acquire(1);
+
+  auto position1 = position(a1);
+  auto position2 = position(a2);
+
+  // Release in either order.
+  if (order)
+  {
+    PoolSort<order>::release(a1);
+    PoolSort<order>::release(a2);
+  }
+  else
+  {
+    PoolSort<order>::release(a2);
+    PoolSort<order>::release(a1);
+  }
+
+  PoolSort<order>::sort();
+
+  auto b1 = PoolSort<order>::acquire(1);
+  auto b2 = PoolSort<order>::acquire(1);
+
+  SNMALLOC_CHECK(position1 == position(b1));
+  SNMALLOC_CHECK(position2 == position(b2));
+
+  PoolSort<order>::release(b1);
+  PoolSort<order>::release(b2);
+}
+
 int main(int argc, char** argv)
 {
   setup();
@@ -172,5 +233,9 @@ int main(int argc, char** argv)
   std::cout << "test_iterator passed" << std::endl;
   test_large();
   std::cout << "test_large passed" << std::endl;
+  test_sort<false>();
+  std::cout << "test_sort<false> passed" << std::endl;
+  test_sort<true>();
+  std::cout << "test_sort<true> passed" << std::endl;
   return 0;
 }
