@@ -361,22 +361,36 @@ namespace snmalloc
   };
 
   /**
+   * FrontendSlabMetadata_Trait
+   *
+   * Used for static checks of inheritance as FrontendSlabMetadata is templated.
+   */
+  class FrontendSlabMetadata_Trait
+  {
+  private:
+    template<typename BackendType>
+    friend class FrontendSlabMetadata;
+
+    // Can only be constructed by FrontendSlabMetadata
+    FrontendSlabMetadata_Trait() = default;
+  };
+
+  /**
    * The FrontendSlabMetadata represent the metadata associated with a single
    * slab.
    */
+  template<typename BackendType>
   class alignas(CACHELINE_SIZE) FrontendSlabMetadata
+  : public FrontendSlabMetadata_Trait
   {
   public:
     /**
      * Used to link slab metadata together in various other data-structures.
-     * This is intended to be used with `SeqSet` and so may actually hold a
-     * subclass of this class provided by the back end.  The `SeqSet` is
-     * responsible for maintaining that invariant.  While an instance of this
-     * class is in a `SeqSet<T>`, the `next` field should not be assigned to by
-     * anything that doesn't enforce the invariant that `next` stores a `T*`,
-     * where `T` is a subclass of `FrontendSlabMetadata`.
+     * This is used with `SeqSet` and so may actually hold a subclass of this
+     * class provided by the back end.  The `SeqSet` is responsible for
+     * maintaining that invariant.
      */
-    FrontendSlabMetadata* next{nullptr};
+    typename SeqSet<BackendType>::Node node;
 
     constexpr FrontendSlabMetadata() = default;
 
@@ -429,6 +443,9 @@ namespace snmalloc
      */
     void initialise(smallsizeclass_t sizeclass)
     {
+      static_assert(
+        std::is_base_of<FrontendSlabMetadata_Trait, BackendType>::value,
+        "Template should be a subclass of FrontendSlabMetadata");
       free_queue.init();
       // Set up meta data as if the entire slab has been turned into a free
       // list. This means we don't have to check for special cases where we have
@@ -576,7 +593,7 @@ namespace snmalloc
      * Ensure that the template parameter is valid.
      */
     static_assert(
-      std::is_convertible_v<BackendSlabMetadata, FrontendSlabMetadata>,
+      std::is_convertible_v<BackendSlabMetadata, FrontendSlabMetadata_Trait>,
       "The front end requires that the back end provides slab metadata that is "
       "compatible with the front-end's structure");
 

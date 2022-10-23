@@ -60,9 +60,19 @@ namespace snmalloc
     SNMALLOC_FAST_PATH DefaultPagemapEntryT() = default;
   };
 
+  class StrictProvenanceSlabMetadata
+  : public StrictProvenanceSlabMetadataMixin<
+      FrontendSlabMetadata<StrictProvenanceSlabMetadata>>
+  {};
+
+  class LaxProvenanceSlabMetadata
+  : public LaxProvenanceSlabMetadataMixin<
+      FrontendSlabMetadata<LaxProvenanceSlabMetadata>>
+  {};
+
   using DefaultPagemapEntry = DefaultPagemapEntryT<std::conditional_t<
     backend_strict_provenance,
-    StrictProvenanceSlabMetadataMixin<FrontendSlabMetadata>,
-    LaxProvenanceSlabMetadataMixin<FrontendSlabMetadata>>>;
+    StrictProvenanceSlabMetadata,
+    LaxProvenanceSlabMetadata>>;
 
 } // namespace snmalloc
