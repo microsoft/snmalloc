@@ -1,17 +1,16 @@
 #pragma once
 
-#include "../ds_core/ds_core.h"
 #include "../aal/aal.h"
+#include "../ds_core/ds_core.h"
 
 #include <cstdint>
 #include <type_traits>
 
 namespace snmalloc
 {
-
   /**
    * Simple sequential set of T.
-   * 
+   *
    * Implemented as a doubly linked cyclic list.
    * Linked using the T::node field.
    *
@@ -64,7 +63,8 @@ namespace snmalloc
      */
     T* containing(Node* n)
     {
-      return pointer_offset_signed<T>(n, -static_cast<ptrdiff_t>(offsetof(T, node)));
+      return pointer_offset_signed<T>(
+        n, -static_cast<ptrdiff_t>(offsetof(T, node)));
     }
 
     /**
