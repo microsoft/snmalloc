@@ -25,6 +25,8 @@ namespace snmalloc
 #ifdef __cpp_concepts
     static_assert(IsSlabMeta_Arena<SlabMetadata>);
 #endif
+    static constexpr size_t SizeofMetadata =
+      bits::next_pow2_const(sizeof(SlabMetadata));
 
   public:
     /**
@@ -85,8 +87,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
 
-      auto meta_cap = local_state.get_meta_range().alloc_range(
-        bits::next_pow2(sizeof(SlabMetadata)));
+      auto meta_cap = local_state.get_meta_range().alloc_range(SizeofMetadata);
 
       auto meta = meta_cap.template as_reinterpret<SlabMetadata>().unsafe_ptr();
 
@@ -103,8 +104,7 @@ namespace snmalloc
 #endif
       if (p == nullptr)
       {
-        local_state.get_meta_range().dealloc_range(
-          meta_cap, sizeof(SlabMetadata));
+        local_state.get_meta_range().dealloc_range(meta_cap, SizeofMetadata);
         errno = ENOMEM;
 #ifdef SNMALLOC_TRACING
         message<1024>("Out of memory");
@@ -160,7 +160,7 @@ namespace snmalloc
       capptr::Arena<void> arena = slab_metadata.arena_get(alloc);
 
       local_state.get_meta_range().dealloc_range(
-        capptr::Arena<void>::unsafe_from(&slab_metadata), sizeof(SlabMetadata));
+        capptr::Arena<void>::unsafe_from(&slab_metadata), SizeofMetadata);
 
       local_state.get_object_range()->dealloc_range(arena, size);
     }
