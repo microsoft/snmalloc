@@ -76,7 +76,11 @@ namespace snmalloc
      */
     Node* get_node(T* t)
     {
+#ifdef __CHERI_PURE_CAPABILITY__
+      return &__builtin_no_change_bounds(t->node);
+#else
       return &(t->node);
+#endif
     }
 
     /**
