@@ -85,8 +85,8 @@ namespace snmalloc
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
 
-      auto meta_cap =
-        local_state.get_meta_range().alloc_range(bits::next_pow2(sizeof(SlabMetadata)));
+      auto meta_cap = local_state.get_meta_range().alloc_range(
+        bits::next_pow2(sizeof(SlabMetadata)));
 
       auto meta = meta_cap.template as_reinterpret<SlabMetadata>().unsafe_ptr();
 
