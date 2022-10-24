@@ -380,8 +380,7 @@ namespace snmalloc
    * slab.
    */
   template<typename BackendType>
-  class alignas(CACHELINE_SIZE) FrontendSlabMetadata
-  : public FrontendSlabMetadata_Trait
+  class FrontendSlabMetadata : public FrontendSlabMetadata_Trait
   {
   public:
     /**
