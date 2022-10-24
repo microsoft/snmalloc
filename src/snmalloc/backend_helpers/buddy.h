@@ -19,6 +19,7 @@ namespace snmalloc
 
     size_t to_index(size_t size)
     {
+      SNMALLOC_ASSERT(size != 0);
       auto log = snmalloc::bits::next_pow2_bits(size);
       SNMALLOC_ASSERT(log >= MIN_SIZE_BITS);
       SNMALLOC_ASSERT(log < MAX_SIZE_BITS);
