@@ -20,6 +20,7 @@ namespace snmalloc
     size_t to_index(size_t size)
     {
       SNMALLOC_ASSERT(size != 0);
+      SNMALLOC_ASSERT(bits::is_pow2(size));
       auto log = snmalloc::bits::next_pow2_bits(size);
       SNMALLOC_ASSERT_MSG(log >= MIN_SIZE_BITS, "Size too big: {} log {}.", size, log);
       SNMALLOC_ASSERT_MSG(log < MAX_SIZE_BITS, "Size too small: {} log {}.", size, log);
