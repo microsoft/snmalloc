@@ -63,8 +63,12 @@ namespace snmalloc
      */
     T* containing(Node* n)
     {
-      return pointer_offset_signed<T>(
-        n, -static_cast<ptrdiff_t>(offsetof(T, node)));
+      // We could use -static_cast<ptrdiff_t>(offsetof(T, node)) here but CHERI
+      // compiler complains. So we restrict to first entries only.
+
+      static_assert(offsetof(T, node) == 0);
+
+      return pointer_offset<T>(n, 0);
     }
 
     /**
