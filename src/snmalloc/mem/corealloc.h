@@ -62,6 +62,12 @@ namespace snmalloc
     } alloc_classes[NUM_SMALL_SIZECLASSES]{};
 
     /**
+     * The set of all slabs and large allocations
+     * from this allocator that are full or almost full.
+     */
+    SeqSet<BackendSlabMetadata> laden{};
+
+    /**
      * Local entropy source and current version of keys for
      * this thread
      */
@@ -420,6 +426,9 @@ namespace snmalloc
         UNUSED(size);
 #endif
 
+        // Remove from set of fully used slabs.
+        meta->node.remove();
+
         Config::Backend::dealloc_chunk(
           get_backend_local_state(), *meta, p, size);
 
@@ -435,6 +444,9 @@ namespace snmalloc
 
         //  Wake slab up.
         meta->set_not_sleeping(sizeclass);
+
+        // Remove from set of fully used slabs.
+        meta->node.remove();
 
         alloc_classes[sizeclass].available.insert(meta);
         alloc_classes[sizeclass].length++;
@@ -744,6 +756,10 @@ namespace snmalloc
           alloc_classes[sizeclass].length++;
           sl.insert(meta);
         }
+        else
+        {
+          laden.insert(meta);
+        }
 
         auto r = finish_alloc<zero_mem, Config>(p, sizeclass);
         return ticker.check_tick(r);
@@ -811,6 +827,10 @@ namespace snmalloc
         alloc_classes[sizeclass].length++;
         alloc_classes[sizeclass].available.insert(meta);
       }
+      else
+      {
+        laden.insert(meta);
+      }
 
       auto r = finish_alloc<zero_mem, Config>(p, sizeclass);
       return ticker.check_tick(r);
@@ -864,6 +884,15 @@ namespace snmalloc
         dealloc_local_slabs<true>(sizeclass);
       }
 
+      laden.iterate([this, domesticate](BackendSlabMetadata* meta)
+                           SNMALLOC_FAST_PATH_LAMBDA {
+                             if (!meta->is_large())
+                             {
+                               meta->free_queue.validate(
+                                 entropy.get_free_list_key(), domesticate);
+                             }
+                           });
+
       return posted;
     }
 
@@ -914,6 +943,14 @@ namespace snmalloc
       {
         test(alloc_class.available, size_class);
         size_class++;
+      }
+
+      if (!laden.is_empty())
+      {
+        if (result != nullptr)
+          *result = false;
+        else
+          report_fatal_error("debug_is_empty: found non-empty allocator");
       }
 
       // Place the static stub message on the queue.

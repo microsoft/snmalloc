@@ -199,7 +199,10 @@ namespace snmalloc
 
         // Initialise meta data for a successful large allocation.
         if (meta != nullptr)
+        {
           meta->initialise_large();
+          core_alloc->laden.insert(meta);
+        }
 
         if (zero_mem == YesZero && chunk.unsafe_ptr() != nullptr)
         {
