@@ -244,6 +244,7 @@ namespace snmalloc
 
       void dealloc_range(CapPtr<void, ChunkBounds> base, size_t size)
       {
+        SNMALLOC_ASSERT(bits::is_pow2(size));
         add_range(base, size);
       }
     };

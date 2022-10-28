@@ -55,16 +55,11 @@ namespace snmalloc
      */
     struct SlabMetadataCache
     {
-#ifdef SNMALLOC_CHECK_CLIENT
-      SeqSet<BackendSlabMetadata> available;
-#else
-      // This is slightly faster in some cases,
-      // but makes memory reuse more predictable.
-      SeqSet<BackendSlabMetadata, true> available;
-#endif
+      SeqSet<BackendSlabMetadata> available{};
+
       uint16_t unused = 0;
       uint16_t length = 0;
-    } alloc_classes[NUM_SMALL_SIZECLASSES];
+    } alloc_classes[NUM_SMALL_SIZECLASSES]{};
 
     /**
      * Local entropy source and current version of keys for
@@ -360,7 +355,7 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void dealloc_local_slabs(smallsizeclass_t sizeclass)
     {
       // Return unused slabs of sizeclass_t back to global allocator
-      alloc_classes[sizeclass].available.filter([this, sizeclass](auto* meta) {
+      alloc_classes[sizeclass].available.iterate([this, sizeclass](auto* meta) {
         auto domesticate =
           [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
             auto res = capptr_domesticate<Config>(backend_state_ptr(), p);
@@ -378,11 +373,15 @@ namespace snmalloc
           {
             meta->free_queue.validate(entropy.get_free_list_key(), domesticate);
           }
-          return false;
+          return;
         }
 
         alloc_classes[sizeclass].length--;
         alloc_classes[sizeclass].unused--;
+
+        // Remove from the list.  This must be done before dealloc chunk
+        // as that may corrupt the node.
+        meta->node.remove();
 
         // TODO delay the clear to the next user of the slab, or teardown so
         // don't touch the cache lines at this point in snmalloc_check_client.
@@ -393,8 +392,6 @@ namespace snmalloc
           *meta,
           start,
           sizeclass_to_slab_size(sizeclass));
-
-        return true;
       });
     }
 
@@ -727,8 +724,9 @@ namespace snmalloc
               return small_alloc_slow<zero_mem>(sizeclass, fast_free_list);
         }
 #endif
-
-        auto meta = sl.pop();
+        // If CHECK_CLIENT, we use FIFO operations on the list. This reduces
+        // perf slightly, but increases randomness.
+        auto meta = sl.template pop<!CHECK_CLIENT>();
         // Drop length of sl, and empty count if it was empty.
         alloc_classes[sizeclass].length--;
         if (meta->needed() == 0)
@@ -895,7 +893,7 @@ namespace snmalloc
     bool debug_is_empty_impl(bool* result)
     {
       auto test = [&result](auto& queue, smallsizeclass_t size_class) {
-        queue.filter([&result, size_class](auto slab_metadata) {
+        queue.iterate([&result, size_class](auto slab_metadata) {
           if (slab_metadata->needed() != 0)
           {
             if (result != nullptr)
@@ -906,7 +904,6 @@ namespace snmalloc
                 sizeclass_to_size(size_class),
                 size_class);
           }
-          return false;
         });
       };
 

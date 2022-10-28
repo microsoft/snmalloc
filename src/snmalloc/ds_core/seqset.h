@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../aal/aal.h"
 #include "../ds_core/ds_core.h"
 
 #include <cstdint>
@@ -10,72 +11,88 @@ namespace snmalloc
   /**
    * Simple sequential set of T.
    *
-   * Linked using the T::next field.
+   * Implemented as a doubly linked cyclic list.
+   * Linked using the T::node field.
    *
    * Can be used in either Fifo or Lifo mode, which is
-   * specified by template parameter.
+   * specified by template parameter to `pop`.
    */
-  template<typename T, bool Fifo = false>
+  template<typename T>
   class SeqSet
   {
+  public:
     /**
-     * This sequence structure is intrusive, in that it requires the use of a
-     * `next` field in the elements it manages, but, unlike some other intrusive
-     * designs, it does not require the use of a `container_of`-like construct,
-     * because its pointers point to the element, not merely the intrusive
-     * member.
-     *
-     * In some cases, the next pointer is provided by a superclass but the list
-     * is templated over the subclass.  The `SeqSet` enforces the invariant that
-     * only instances of the subclass can be added to the list and so can safely
-     * down-cast the type of `.next` to `T*`.  As such, we require only that the
-     * `next` field is a pointer to `T` or some superclass of `T`.
-     * %{
+     * The doubly linked Node.
      */
-    using NextPtr = decltype(std::declval<T>().next);
-    static_assert(
-      std::is_base_of_v<std::remove_pointer_t<NextPtr>, T>,
-      "T->next must be a queue pointer to T");
-    ///@}
-
-    /**
-     * Field representation for Fifo behaviour.
-     */
-    struct FieldFifo
+    class Node
     {
-      NextPtr head{nullptr};
+      Node* next;
+      Node* prev;
+
+      friend class SeqSet;
+
+      constexpr Node(Node* next, Node* prev) : next(next), prev(prev) {}
+
+    public:
+      void invariant()
+      {
+        SNMALLOC_ASSERT(next != nullptr);
+        SNMALLOC_ASSERT(prev != nullptr);
+        SNMALLOC_ASSERT(next->prev == this);
+        SNMALLOC_ASSERT(prev->next == this);
+      }
+
+      void remove()
+      {
+        invariant();
+        next->invariant();
+        prev->invariant();
+        next->prev = prev;
+        prev->next = next;
+        next->invariant();
+        prev->invariant();
+      }
     };
 
-    /**
-     * Field representation for Lifo behaviour.
-     */
-    struct FieldLifo
-    {
-      NextPtr head{nullptr};
-      NextPtr* end{&head};
-    };
+  private:
+    // Cyclic doubly linked list (initially empty)
+    Node head{&head, &head};
 
     /**
-     * Field indirection to actual representation.
-     * Different numbers of fields are required for the
-     * two behaviours.
+     * Returns the containing object.
      */
-    std::conditional_t<Fifo, FieldFifo, FieldLifo> v;
+    T* containing(Node* n)
+    {
+      // We could use -static_cast<ptrdiff_t>(offsetof(T, node)) here but CHERI
+      // compiler complains. So we restrict to first entries only.
+
+      static_assert(offsetof(T, node) == 0);
+
+      return pointer_offset<T>(n, 0);
+    }
+
+    /**
+     * Gets the doubly linked node for the object.
+     */
+    Node* get_node(T* t)
+    {
+#ifdef __CHERI_PURE_CAPABILITY__
+      return &__builtin_no_change_bounds(t->node);
+#else
+      return &(t->node);
+#endif
+    }
 
     /**
      * Check for empty
      */
     SNMALLOC_FAST_PATH bool is_empty()
     {
-      if constexpr (Fifo)
-      {
-        return v.head == nullptr;
-      }
-      else
-      {
-        SNMALLOC_ASSERT(v.end != nullptr);
-        return &(v.head) == v.end;
-      }
+      static_assert(
+        std::is_same_v<Node, decltype(std::declval<T>().node)>,
+        "T->node must be Node for T");
+      head.invariant();
+      return head.next == &head;
     }
 
   public:
@@ -89,74 +106,60 @@ namespace snmalloc
      *
      * Assumes queue is non-empty
      */
-    SNMALLOC_FAST_PATH T* pop()
+    SNMALLOC_FAST_PATH T* pop_front()
     {
+      head.invariant();
       SNMALLOC_ASSERT(!this->is_empty());
-      auto result = v.head;
-      if constexpr (Fifo)
-      {
-        v.head = result->next;
-      }
-      else
-      {
-        if (&(v.head->next) == v.end)
-          v.end = &(v.head);
-        else
-          v.head = v.head->next;
-      }
-      // This cast is safe if the ->next pointers in all of the objects in the
-      // list are managed by this class because object types are checked on
-      // insertion.
-      return static_cast<T*>(result);
+      auto node = head.next;
+      node->remove();
+      auto result = containing(node);
+      head.invariant();
+      return result;
     }
 
     /**
-     * Filter
+     * Remove an element from the queue
      *
-     * Removes all elements that f returns true for.
-     * If f returns true, then filter is not allowed to look at the
-     * object again, and f is responsible for its lifetime.
+     * Assumes queue is non-empty
+     */
+    SNMALLOC_FAST_PATH T* pop_back()
+    {
+      head.invariant();
+      SNMALLOC_ASSERT(!this->is_empty());
+      auto node = head.prev;
+      node->remove();
+      auto result = containing(node);
+      head.invariant();
+      return result;
+    }
+
+    template<bool is_fifo>
+    SNMALLOC_FAST_PATH T* pop()
+    {
+      head.invariant();
+      if constexpr (is_fifo)
+        return pop_front();
+      else
+        return pop_back();
+    }
+
+    /**
+     * Applies `f` to all the elements in the set.
+     *
+     * `f` is allowed to remove the element from the set.
      */
     template<typename Fn>
-    SNMALLOC_FAST_PATH void filter(Fn&& f)
+    SNMALLOC_FAST_PATH void iterate(Fn&& f)
     {
-      // Check for empty case.
-      if (is_empty())
-        return;
+      auto curr = head.next;
+      curr->invariant();
 
-      NextPtr* prev = &(v.head);
-
-      while (true)
+      while (curr != &head)
       {
-        if constexpr (Fifo)
-        {
-          if (*prev == nullptr)
-            break;
-        }
-
-        NextPtr curr = *prev;
-        // Note must read curr->next before calling `f` as `f` is allowed to
-        // mutate that field.
-        NextPtr next = curr->next;
-        if (f(static_cast<T*>(curr)))
-        {
-          // Remove element;
-          *prev = next;
-        }
-        else
-        {
-          // Keep element
-          prev = &(curr->next);
-        }
-        if constexpr (!Fifo)
-        {
-          if (&(curr->next) == v.end)
-            break;
-        }
-      }
-      if constexpr (!Fifo)
-      {
-        v.end = prev;
+        // Read next first, as f may remove curr.
+        auto next = curr->next;
+        f(containing(curr));
+        curr = next;
       }
     }
 
@@ -165,16 +168,16 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH void insert(T* item)
     {
-      if constexpr (Fifo)
-      {
-        item->next = v.head;
-        v.head = item;
-      }
-      else
-      {
-        *(v.end) = item;
-        v.end = &(item->next);
-      }
+      auto n = get_node(item);
+
+      n->next = head.next;
+      head.next->prev = n;
+
+      n->prev = &head;
+      head.next = n;
+
+      n->invariant();
+      head.invariant();
     }
 
     /**
@@ -182,7 +185,7 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH const T* peek()
     {
-      return static_cast<T*>(v.head);
+      return containing(head.next);
     }
   };
 } // namespace snmalloc
