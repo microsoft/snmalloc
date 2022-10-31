@@ -200,7 +200,8 @@ namespace snmalloc
         // Initialise meta data for a successful large allocation.
         if (meta != nullptr)
         {
-          meta->initialise_large();
+          meta->initialise_large(
+            address_cast(chunk), local_cache.entropy.get_free_list_key());
           core_alloc->laden.insert(meta);
         }
 

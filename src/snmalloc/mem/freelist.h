@@ -116,7 +116,6 @@ namespace snmalloc
       {
         template<
           bool,
-          bool,
           SNMALLOC_CONCEPT(capptr::IsBound),
           SNMALLOC_CONCEPT(capptr::IsBound)>
         friend class Builder;
@@ -220,7 +219,6 @@ namespace snmalloc
         return reinterpret_cast<Object::T<BQueue>*>(ptr);
       }
 
-    private:
       /**
        * Involutive encryption with raw pointers
        */
@@ -247,7 +245,6 @@ namespace snmalloc
         }
       }
 
-    public:
       /**
        * Encode next.  We perform two convenient little bits of type-level
        * sleight of hand here:
@@ -506,7 +503,6 @@ namespace snmalloc
      */
     template<
       bool RANDOM,
-      bool INIT = true,
       SNMALLOC_CONCEPT(capptr::IsBound) BView = capptr::bounds::Alloc,
       SNMALLOC_CONCEPT(capptr::IsBound) BQueue = capptr::bounds::AllocWild>
     class Builder
@@ -542,7 +538,7 @@ namespace snmalloc
         end[ix] = reinterpret_cast<void**>(p);
       }
 
-      Object::BHeadPtr<BView, BQueue> cast_head(uint32_t ix)
+      Object::BHeadPtr<BView, BQueue> cast_head(uint32_t ix) const
       {
         return Object::BHeadPtr<BView, BQueue>::unsafe_from(
           static_cast<Object::T<BQueue>*>(head[ix]));
@@ -551,13 +547,7 @@ namespace snmalloc
       std::array<uint16_t, RANDOM ? 2 : 0> length{};
 
     public:
-      constexpr Builder()
-      {
-        if (INIT)
-        {
-          init();
-        }
-      }
+      constexpr Builder() {}
 
       /**
        * Checks if the builder contains any elements.
@@ -630,7 +620,7 @@ namespace snmalloc
        * encoded.
        */
       Object::BHeadPtr<BView, BQueue>
-      read_head(uint32_t index, const FreeListKey& key)
+      read_head(uint32_t index, const FreeListKey& key) const
       {
         return Object::decode_next(
           address_cast(&head[index]), cast_head(index), key);
@@ -688,7 +678,7 @@ namespace snmalloc
       /**
        * Set the builder to a not building state.
        */
-      constexpr void init()
+      constexpr void init(address_t slab, const FreeListKey& key)
       {
         for (size_t i = 0; i < LENGTH; i++)
         {
@@ -697,6 +687,16 @@ namespace snmalloc
           {
             length[i] = 0;
           }
+
+          // Head is not live when a building is initialised.
+          // We use this slot to store a pointer into the slab for the
+          // allocations. This then establishes the invariant that head is
+          // always (a possibly encoded) pointer into the slab, and thus
+          // the Freelist builder always knows which block it is referring too.
+          head[i] = Object::code_next(
+            address_cast(&head[i]),
+            reinterpret_cast<Object::T<BQueue>*>(slab),
+            key);
         }
       }
 
@@ -718,7 +718,7 @@ namespace snmalloc
         // empty, but you are not allowed to call this in the empty case.
         auto last = Object::BHeadPtr<BView, BQueue>::unsafe_from(
           Object::from_next_ptr(cast_end(0)));
-        init();
+        init(address_cast(head[0]), key);
         return {first, last};
       }
 

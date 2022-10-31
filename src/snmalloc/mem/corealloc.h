@@ -810,7 +810,8 @@ namespace snmalloc
       }
 
       // Set meta slab to empty.
-      meta->initialise(sizeclass);
+      meta->initialise(
+        sizeclass, address_cast(slab), entropy.get_free_list_key());
 
       // Build a free list for the slab
       alloc_new_list(slab, meta, rsize, slab_size, entropy);
@@ -912,7 +913,7 @@ namespace snmalloc
       c->remote_allocator = public_state();
 
       // Set up remote cache.
-      c->remote_dealloc_cache.init();
+      c->remote_dealloc_cache.init(entropy.get_free_list_key());
     }
 
     /**
@@ -921,36 +922,46 @@ namespace snmalloc
      */
     bool debug_is_empty_impl(bool* result)
     {
-      auto test = [&result](auto& queue, smallsizeclass_t size_class) {
-        queue.iterate([&result, size_class](auto slab_metadata) {
+      auto& key = entropy.get_free_list_key();
+
+      auto error = [&result, &key](auto slab_metadata) {
+
+        auto slab_interior = slab_metadata->get_slab_interior(key);
+        const PagemapEntry& entry =
+          Config::Backend::get_metaentry(slab_interior);
+        auto size_class = entry.get_sizeclass();
+        auto slab_size = sizeclass_full_to_slab_size(size_class);
+        auto slab_start = bits::align_down(slab_interior, slab_size);
+
+        if (result != nullptr)
+          *result = false;
+        else
+          report_fatal_error(
+            "debug_is_empty: found non-empty allocator: size={} on "
+            "slab_start {}",
+            sizeclass_full_to_size(size_class),
+            slab_start);
+      };
+
+      auto test = [&error](auto& queue) {
+        queue.iterate([&error](auto slab_metadata) {
           if (slab_metadata->needed() != 0)
           {
-            if (result != nullptr)
-              *result = false;
-            else
-              report_fatal_error(
-                "debug_is_empty: found non-empty allocator: size={} ({})",
-                sizeclass_to_size(size_class),
-                size_class);
+            error(slab_metadata);
           }
         });
       };
 
       bool sent_something = flush(true);
 
-      smallsizeclass_t size_class = 0;
       for (auto& alloc_class : alloc_classes)
       {
-        test(alloc_class.available, size_class);
-        size_class++;
+        test(alloc_class.available);
       }
 
       if (!laden.is_empty())
       {
-        if (result != nullptr)
-          *result = false;
-        else
-          report_fatal_error("debug_is_empty: found non-empty allocator");
+        error(laden.peek());
       }
 
       // Place the static stub message on the queue.
