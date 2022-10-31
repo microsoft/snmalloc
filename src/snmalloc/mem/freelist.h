@@ -528,7 +528,7 @@ namespace snmalloc
       // This enables branch free enqueuing.
       std::array<void**, LENGTH> end{nullptr};
 
-      Object::BQueuePtr<BQueue>* cast_end(uint32_t ix)
+      [[nodiscard]] Object::BQueuePtr<BQueue>* cast_end(uint32_t ix) const
       {
         return reinterpret_cast<Object::BQueuePtr<BQueue>*>(end[ix]);
       }
@@ -538,7 +538,7 @@ namespace snmalloc
         end[ix] = reinterpret_cast<void**>(p);
       }
 
-      Object::BHeadPtr<BView, BQueue> cast_head(uint32_t ix) const
+      [[nodiscard]] Object::BHeadPtr<BView, BQueue> cast_head(uint32_t ix) const
       {
         return Object::BHeadPtr<BView, BQueue>::unsafe_from(
           static_cast<Object::T<BQueue>*>(head[ix]));
@@ -619,7 +619,7 @@ namespace snmalloc
        * and is thus subject to encoding if the next_object pointers
        * encoded.
        */
-      Object::BHeadPtr<BView, BQueue>
+      [[nodiscard]] Object::BHeadPtr<BView, BQueue>
       read_head(uint32_t index, const FreeListKey& key) const
       {
         return Object::decode_next(
