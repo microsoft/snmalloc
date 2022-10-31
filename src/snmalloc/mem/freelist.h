@@ -547,7 +547,7 @@ namespace snmalloc
       std::array<uint16_t, RANDOM ? 2 : 0> length{};
 
     public:
-      constexpr Builder() {}
+      constexpr Builder() = default;
 
       /**
        * Checks if the builder contains any elements.
