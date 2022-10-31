@@ -885,14 +885,13 @@ namespace snmalloc
         dealloc_local_slabs<true>(sizeclass);
       }
 
-      laden.iterate([this, domesticate](BackendSlabMetadata* meta)
-                           SNMALLOC_FAST_PATH_LAMBDA {
-                             if (!meta->is_large())
-                             {
-                               meta->free_queue.validate(
-                                 entropy.get_free_list_key(), domesticate);
-                             }
-                           });
+      laden.iterate([this, domesticate](
+                      BackendSlabMetadata* meta) SNMALLOC_FAST_PATH_LAMBDA {
+        if (!meta->is_large())
+        {
+          meta->free_queue.validate(entropy.get_free_list_key(), domesticate);
+        }
+      });
 
       return posted;
     }
@@ -925,7 +924,6 @@ namespace snmalloc
       auto& key = entropy.get_free_list_key();
 
       auto error = [&result, &key](auto slab_metadata) {
-
         auto slab_interior = slab_metadata->get_slab_interior(key);
         const PagemapEntry& entry =
           Config::Backend::get_metaentry(slab_interior);
