@@ -9,6 +9,35 @@
 namespace snmalloc
 {
   /**
+   * This file implements the classic MCS Queue Lock
+   *
+   * This does not require any allocation and can thus be
+   * used very early in snmalloc.
+   *
+   * Mellor-Crummey, J.M., Scott, M.L.: Algorithms for scalable synchronization
+   * on shared-memory multiprocessors.
+   * https://www.cs.rochester.edu/~scott/papers/1991_TOCS_synch.pdf
+   */
+
+  struct WaitNode
+  {
+    std::atomic<bool> flag{false};
+    std::atomic<WaitNode*> next{nullptr};
+
+    constexpr WaitNode() = default;
+
+    /**
+     * Remove all the move and copy operations. This
+     * structure is address taken, and used in the queue
+     * of waiters. It is not safe to move or copy it.
+     */
+    WaitNode(const WaitNode&) = delete;
+    WaitNode& operator=(const WaitNode&) = delete;
+    WaitNode(WaitNode&&) = delete;
+    WaitNode& operator=(WaitNode&&) = delete;
+  };
+
+  /**
    * @brief The DebugFlagWord struct
    * Wrapper for std::atomic_flag so that we can examine
    * the re-entrancy problem at debug mode.
@@ -18,16 +47,13 @@ namespace snmalloc
     using ThreadIdentity = DefaultPal::ThreadIdentity;
 
     /**
-     * @brief flag
-     * The underlying atomic field.
+     * @brief waiters
+     * The underlying atomic field containing linked list of
+     * waiting threads' nodes.
      */
-    std::atomic_bool flag{false};
+    std::atomic<WaitNode*> waiters{nullptr};
 
     constexpr DebugFlagWord() = default;
-
-    template<typename... Args>
-    constexpr DebugFlagWord(Args&&... args) : flag(std::forward<Args>(args)...)
-    {}
 
     /**
      * @brief set_owner
@@ -83,14 +109,9 @@ namespace snmalloc
    */
   struct ReleaseFlagWord
   {
-    std::atomic_bool flag{false};
+    std::atomic<WaitNode*> waiters{nullptr};
 
     constexpr ReleaseFlagWord() = default;
-
-    template<typename... Args>
-    constexpr ReleaseFlagWord(Args&&... args)
-    : flag(std::forward<Args>(args)...)
-    {}
 
     void set_owner() {}
     void clear_owner() {}
@@ -106,23 +127,18 @@ namespace snmalloc
   class FlagLock
   {
   private:
+    WaitNode node{};
     FlagWord& lock;
 
   public:
     FlagLock(FlagWord& lock) : lock(lock)
     {
-      while (lock.flag.exchange(true, std::memory_order_acquire))
+      auto prev = lock.waiters.exchange(&node, std::memory_order_acquire);
+      if (prev != nullptr)
       {
-        // assert_not_owned_by_current_thread is only called when the first
-        // acquiring is failed; which means the lock is already held somewhere
-        // else.
-        lock.assert_not_owned_by_current_thread();
-        // This loop is better for spin-waiting because it won't issue
-        // expensive write operation (xchg for example).
-        while (lock.flag.load(std::memory_order_relaxed))
-        {
+        prev->next.store(&node, std::memory_order_release);
+        while (!(node.flag.load(std::memory_order_acquire)))
           Aal::pause();
-        }
       }
       lock.set_owner();
     }
@@ -130,7 +146,17 @@ namespace snmalloc
     ~FlagLock()
     {
       lock.clear_owner();
-      lock.flag.store(false, std::memory_order_release);
+      if (node.next.load(std::memory_order_relaxed) == nullptr)
+      {
+        auto expected = &node;
+        if (lock.waiters.compare_exchange_strong(
+              expected, nullptr, std::memory_order_release))
+          return;
+        while (node.next.load(std::memory_order_acquire) == nullptr)
+          Aal::pause();
+      }
+      node.next.load(std::memory_order_relaxed)
+        ->flag.store(true, std::memory_order_release);
     }
   };
 } // namespace snmalloc
