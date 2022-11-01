@@ -28,8 +28,7 @@ namespace snmalloc
 
   private:
     MPMCStack<T, PreZeroed> stack;
-    FlagWord lock{};
-    capptr::Alloc<T> list{nullptr};
+    std::atomic<capptr::Alloc<T>> list{nullptr};
 
   public:
     constexpr PoolState() = default;
@@ -140,11 +139,17 @@ namespace snmalloc
       p = capptr::Alloc<T>::unsafe_from(new (raw.unsafe_ptr())
                                           T(std::forward<Args>(args)...));
 
-      FlagLock f(pool.lock);
-      p->list_next = pool.list;
-      pool.list = p;
-
       p->set_in_use();
+
+      // Self loop so iterate might see the same entry multiple times.
+      p->list_next = p;
+
+      // Make this the head
+      auto old_head = pool.list.exchange(p);
+
+      // Set a correct next pointer
+      p->list_next = old_head;
+
       return p.unsafe_ptr();
     }
 
@@ -186,7 +191,7 @@ namespace snmalloc
     static T* iterate(T* p = nullptr)
     {
       if (p == nullptr)
-        return get_state().list.unsafe_ptr();
+        return get_state().list.load().unsafe_ptr();
 
       return p->list_next.unsafe_ptr();
     }
