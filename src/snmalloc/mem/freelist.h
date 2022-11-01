@@ -678,7 +678,7 @@ namespace snmalloc
       /**
        * Set the builder to a not building state.
        */
-      constexpr void init(address_t slab, const FreeListKey& key)
+      constexpr void init(void* slab, const FreeListKey& key)
       {
         for (size_t i = 0; i < LENGTH; i++)
         {
@@ -718,7 +718,7 @@ namespace snmalloc
         // empty, but you are not allowed to call this in the empty case.
         auto last = Object::BHeadPtr<BView, BQueue>::unsafe_from(
           Object::from_next_ptr(cast_end(0)));
-        init(address_cast(head[0]), key);
+        init(head[0], key);
         return {first, last};
       }
 

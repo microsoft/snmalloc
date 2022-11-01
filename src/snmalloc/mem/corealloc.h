@@ -811,7 +811,7 @@ namespace snmalloc
 
       // Set meta slab to empty.
       meta->initialise(
-        sizeclass, address_cast(slab), entropy.get_free_list_key());
+        sizeclass, slab.unsafe_ptr(), entropy.get_free_list_key());
 
       // Build a free list for the slab
       alloc_new_list(slab, meta, rsize, slab_size, entropy);
