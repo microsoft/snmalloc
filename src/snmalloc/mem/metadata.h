@@ -440,8 +440,8 @@ namespace snmalloc
     /**
      * Initialise FrontendSlabMetadata for a slab.
      */
-    void initialise(
-      smallsizeclass_t sizeclass, void* slab, const FreeListKey& key)
+    void
+    initialise(smallsizeclass_t sizeclass, void* slab, const FreeListKey& key)
     {
       static_assert(
         std::is_base_of<FrontendSlabMetadata_Trait, BackendType>::value,
