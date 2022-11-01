@@ -583,7 +583,7 @@ namespace snmalloc
 
     // Returns a pointer to somewhere in the slab. May not be the
     // start of the slab.
-    address_t get_slab_interior(const FreeListKey& key) const
+    [[nodiscard]] address_t get_slab_interior(const FreeListKey& key) const
     {
       return address_cast(free_queue.read_head(0, key));
     }
