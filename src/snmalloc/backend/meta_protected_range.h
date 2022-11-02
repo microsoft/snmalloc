@@ -62,8 +62,9 @@ namespace snmalloc
     // can be used.
     static constexpr size_t SubRangeRatioBits = 6;
 
+  public:
     // Centralised source of meta-range
-    using CentralMetaRange = Pipe<
+    using GlobalMetaRange = Pipe<
       GlobalR,
       SubRange<PAL, SubRangeRatioBits>, // Use SubRange to introduce guard
                                         // pages.
@@ -84,6 +85,7 @@ namespace snmalloc
       GlobalRange,
       StatsRange>;
 
+  private:
     // Local caching of object range
     using ObjectRange = Pipe<
       CentralObjectRange,
@@ -96,7 +98,7 @@ namespace snmalloc
 
     // Local caching of meta-data range
     using MetaRange = Pipe<
-      CentralMetaRange,
+      GlobalMetaRange,
       LargeBuddyRange<
         LocalCacheSizeBits - SubRangeRatioBits,
         bits::BITS - 1,
@@ -108,7 +110,7 @@ namespace snmalloc
     MetaRange meta_range;
 
   public:
-    using Stats = StatsCombiner<CentralObjectRange, CentralMetaRange>;
+    using Stats = StatsCombiner<CentralObjectRange, GlobalMetaRange>;
 
     ObjectRange* get_object_range()
     {
@@ -119,11 +121,5 @@ namespace snmalloc
     {
       return meta_range;
     }
-
-    // Create global range that can service small meta-data requests.
-    // Don't want to add the SmallBuddyRange to the CentralMetaRange as that
-    // would require committing memory inside the main global lock.
-    using GlobalMetaRange =
-      Pipe<CentralMetaRange, SmallBuddyRange, GlobalRange>;
   };
 } // namespace snmalloc

@@ -62,7 +62,7 @@ namespace snmalloc
 
   public:
     // Expose a global range for the initial allocation of meta-data.
-    using GlobalMetaRange = Pipe<ObjectRange, GlobalRange>;
+    using GlobalMetaRange = Stats;
 
     /**
      * Where we turn for allocations of user chunks.

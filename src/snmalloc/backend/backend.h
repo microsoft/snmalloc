@@ -57,7 +57,8 @@ namespace snmalloc
           GlobalMetaRange::ConcurrencySafe,
           "Global meta data range needs to be concurrency safe.");
         GlobalMetaRange global_state;
-        p = global_state.alloc_range(bits::next_pow2(size));
+        auto rsize = bits::max(bits::next_pow2(size), MIN_CHUNK_SIZE);
+        p = global_state.alloc_range(rsize);
       }
 
       if (p == nullptr)
