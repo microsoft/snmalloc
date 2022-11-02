@@ -155,6 +155,7 @@ namespace snmalloc
               signed_prev(address_cast(this), address_cast(n_tame), key));
           }
 #endif
+          Aal::prefetch(&(n_tame->next_object));
           return n_tame;
         }
 
