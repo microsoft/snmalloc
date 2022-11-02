@@ -133,7 +133,7 @@ namespace snmalloc
   public:
     FlagLock(FlagWord& lock) : lock(lock)
     {
-      auto prev = lock.waiters.exchange(&node, std::memory_order_acquire);
+      WaitNode* prev = lock.waiters.exchange(&node, std::memory_order_acq_rel);
       if (prev != nullptr)
       {
         prev->next.store(&node, std::memory_order_release);
@@ -152,10 +152,10 @@ namespace snmalloc
         if (lock.waiters.compare_exchange_strong(
               expected, nullptr, std::memory_order_release))
           return;
-        while (node.next.load(std::memory_order_acquire) == nullptr)
+        while (node.next.load(std::memory_order_relaxed) == nullptr)
           Aal::pause();
       }
-      node.next.load(std::memory_order_relaxed)
+      node.next.load(std::memory_order_acquire)
         ->flag.store(true, std::memory_order_release);
     }
   };
