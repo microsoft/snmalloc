@@ -16,6 +16,7 @@ namespace snmalloc
   class Buddy
   {
     std::array<RBTree<Rep>, MAX_SIZE_BITS - MIN_SIZE_BITS> trees;
+    size_t empty_above = 0;
 
     size_t to_index(size_t size)
     {
@@ -37,6 +38,16 @@ namespace snmalloc
       UNUSED(addr, size);
     }
 
+    void invariant()
+    {
+#ifndef NDEBUG
+      for (size_t i = empty_above; i < trees.size(); i++)
+      {
+        SNMALLOC_ASSERT(trees[i].is_empty());
+      }
+#endif
+    }
+
   public:
     constexpr Buddy() = default;
     /**
@@ -52,6 +63,7 @@ namespace snmalloc
     typename Rep::Contents add_block(typename Rep::Contents addr, size_t size)
     {
       auto idx = to_index(size);
+      empty_above = bits::max(empty_above, idx + 1);
 
       validate_block(addr, size);
 
@@ -74,8 +86,11 @@ namespace snmalloc
           size *= 2;
           addr = Rep::align_down(addr, size);
           if (size == bits::one_at_bit(MAX_SIZE_BITS))
+          {
+            invariant();
             // Too big for this buddy allocator.
             return addr;
+          }
           return add_block(addr, size);
         }
 
@@ -87,6 +102,7 @@ namespace snmalloc
         trees[idx].find(path, addr);
       }
       trees[idx].insert_path(path, addr);
+      invariant();
       return Rep::null;
     }
 
@@ -97,7 +113,10 @@ namespace snmalloc
      */
     typename Rep::Contents remove_block(size_t size)
     {
+      invariant();
       auto idx = to_index(size);
+      if (idx >= empty_above)
+        return Rep::null;
 
       auto addr = trees[idx].remove_min();
       if (addr != Rep::null)
@@ -112,7 +131,11 @@ namespace snmalloc
 
       auto bigger = remove_block(size * 2);
       if (bigger == Rep::null)
+      {
+        empty_above = idx;
+        invariant();
         return Rep::null;
+      }
 
       auto second = Rep::offset(bigger, size);
 
