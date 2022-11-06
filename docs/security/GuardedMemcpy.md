@@ -12,7 +12,7 @@ So let's see how we detect this with snmalloc.
 
 ## What is `memcpy`?
 
-So `memcpy(src, dst, len)` copies `len` bytes from `src` to `dst`.
+So `memcpy(dst, src, len)` copies `len` bytes from `src` to `dst`.
 For this to be valid, we can check: 
 ```
   if (src is managed by snmalloc)
