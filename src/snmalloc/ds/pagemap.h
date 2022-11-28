@@ -48,6 +48,8 @@ namespace snmalloc
     size_t size{0};
 
   public:
+    using EntryType = T;
+
     /**
      * Ensure this range of pagemap is accessible
      */
