@@ -63,10 +63,10 @@ namespace snmalloc
    * which combines this and the core concept, above.
    */
   template<typename Pagemap>
-  concept IsPagemapWithRegister = requires(address_t addr, size_t sz)
+  concept IsPagemapWithRegister = requires(capptr::Arena<void> p, size_t sz)
   {
     {
-      Pagemap::register_range(addr, sz)
+      Pagemap::register_range(p, sz)
     }
     ->ConceptSame<void>;
   };

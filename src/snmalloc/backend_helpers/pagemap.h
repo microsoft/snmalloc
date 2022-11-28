@@ -32,6 +32,21 @@ namespace snmalloc
       std::is_same_v<PagemapEntry, typename ConcreteMap::EntryType>,
       "BasicPagemap's PagemapEntry and ConcreteMap disagree!");
 
+    static_assert(
+      std::is_base_of_v<MetaEntryBase, PagemapEntry>,
+      "BasicPagemap's PagemapEntry type is not a MetaEntryBase");
+
+    /**
+     * Prevent snmalloc's backend ranges from consolidating across adjacent OS
+     * allocations on platforms (e.g., Windows or StrictProvenance) where
+     * that's required.
+     */
+#if defined(_WIN32) || defined(__CHERI_PURE_CAPABILITY__)
+    static constexpr bool CONSOLIDATE_PAL_ALLOCS = false;
+#else
+    static constexpr bool CONSOLIDATE_PAL_ALLOCS = true;
+#endif
+
     /**
      * Instance of the concrete pagemap, accessible to the backend so that
      * it can call the init method whose type dependent on fixed_range.
@@ -78,10 +93,19 @@ namespace snmalloc
     /**
      * Register a range in the pagemap as in-use, requiring it to allow writing
      * to the underlying memory.
+     *
+     * Mark the MetaEntry at the bottom of the range as a boundary, preventing
+     * consolidation with a lower range, unless CONSOLIDATE_PAL_ALLOCS.
      */
-    static void register_range(address_t p, size_t sz)
+    static void register_range(capptr::Arena<void> p, size_t sz)
     {
-      concretePagemap.register_range(p, sz);
+      concretePagemap.register_range(address_cast(p), sz);
+      if constexpr (!CONSOLIDATE_PAL_ALLOCS)
+      {
+        // Mark start of allocation in pagemap.
+        auto& entry = get_metaentry_mut(address_cast(p));
+        entry.set_boundary();
+      }
     }
 
     /**
