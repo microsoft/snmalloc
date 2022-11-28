@@ -36,7 +36,7 @@ namespace snmalloc
     using LocalState = StandardLocalState<
       Pal,
       Pagemap,
-      Pipe<PalRange<Pal>, PagemapRegisterRange<Pagemap, false>>>;
+      Pipe<PalRange<Pal>, PagemapRegisterRange<Pagemap>>>;
 
     using GlobalPoolState = PoolState<CoreAllocator<CustomConfig>>;
 

@@ -1,14 +1,13 @@
 #pragma once
 
+#include "../mem/metadata.h"
 #include "../pal/pal.h"
 #include "empty_range.h"
 #include "range_helpers.h"
 
 namespace snmalloc
 {
-  template<
-    SNMALLOC_CONCEPT(IsWritablePagemapWithRegister) Pagemap,
-    bool CanConsolidate = true>
+  template<SNMALLOC_CONCEPT(IsPagemapWithRegister) Pagemap>
   struct PagemapRegisterRange
   {
     template<typename ParentRange = EmptyRange<>>
@@ -30,13 +29,8 @@ namespace snmalloc
         auto base = parent.alloc_range(size);
 
         if (base != nullptr)
-          Pagemap::register_range(address_cast(base), size);
-
-        if (!CanConsolidate)
         {
-          // Mark start of allocation in pagemap.
-          auto& entry = Pagemap::get_metaentry_mut(address_cast(base));
-          entry.set_boundary();
+          Pagemap::register_range(base, size);
         }
 
         return base;

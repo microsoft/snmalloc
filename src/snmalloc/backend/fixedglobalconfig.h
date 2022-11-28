@@ -74,7 +74,9 @@ namespace snmalloc
       auto [heap_base, heap_length] =
         Pagemap::concretePagemap.init(base, length);
 
-      Pagemap::register_range(address_cast(heap_base), heap_length);
+      auto heap_arena = capptr::Arena<void>::unsafe_from(heap_base);
+
+      Pagemap::register_range(heap_arena, heap_length);
 
       // Push memory into the global range.
       range_to_pow_2_blocks<MIN_CHUNK_BITS>(

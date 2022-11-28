@@ -62,15 +62,9 @@ namespace snmalloc
      * mmap/virtual alloc calls can be consolidated.
      * @{
      */
-#  if defined(_WIN32) || defined(__CHERI_PURE_CAPABILITY__)
-    static constexpr bool CONSOLIDATE_PAL_ALLOCS = false;
-#  else
-    static constexpr bool CONSOLIDATE_PAL_ALLOCS = true;
-#  endif
 
-    using Base = Pipe<
-      PalRange<Pal>,
-      PagemapRegisterRange<Pagemap, CONSOLIDATE_PAL_ALLOCS>>;
+    using Base = Pipe<PalRange<Pal>, PagemapRegisterRange<Pagemap>>;
+
     /**
      * @}
      */
