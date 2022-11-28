@@ -28,6 +28,10 @@ namespace snmalloc
      */
     using Entry = PagemapEntry;
 
+    static_assert(
+      std::is_same_v<PagemapEntry, typename ConcreteMap::EntryType>,
+      "BasicPagemap's PagemapEntry and ConcreteMap disagree!");
+
     /**
      * Instance of the concrete pagemap, accessible to the backend so that
      * it can call the init method whose type dependent on fixed_range.
