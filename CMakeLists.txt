@@ -9,6 +9,7 @@ endif()
 include(CheckCXXCompilerFlag)
 include(CheckCXXSourceCompiles)
 include(CheckIncludeFileCXX)
+include(CheckIPOSupported)
 include(CMakeDependentOption)
 
 option(SNMALLOC_HEADER_ONLY_LIBRARY "Use snmalloc has a header-only library" OFF)
@@ -40,6 +41,7 @@ if (NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   set_property(CACHE SNMALLOC_CLEANUP PROPERTY STRINGS THREAD_CLEANUP PTHREAD_DESTRUCTORS CXX11_DESTRUCTORS)
 
   set(SNMALLOC_STATIC_LIBRARY_PREFIX "sn_" CACHE STRING "Static library function prefix")
+  set(SNMALLOC_COMPILER_SUPPORT_IPO FALSE)
 else ()
   unset(SNMALLOC_STATIC_LIBRARY_PREFIX CACHE)
   unset(SNMALLOC_CLEANUP CACHE)
@@ -202,6 +204,13 @@ if(SNMALLOC_COMPILER_SUPPORT_MCX16)
   target_compile_options(snmalloc INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-mcx16>)
 endif()
 
+if (NOT SNMALLOC_HEADER_ONLY_LIBRARY)
+  check_ipo_supported(RESULT HAS_IPO)
+  if (HAS_IPO)
+    set(SNMALLOC_COMPILER_SUPPORT_IPO TRUE)
+  endif()
+endif()
+
 # Helper function that conditionally defines a macro for the build target if
 # the CMake variable of the same name is set.
 function(add_as_define FLAG)
@@ -293,7 +302,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   function(add_shim name type)
     add_library(${name} ${type} ${ARGN})
     target_link_libraries(${name} snmalloc)
-    set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+    set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden INTERPROCEDURAL_OPTIMIZATION ${SNMALLOC_COMPILER_SUPPORT_IPO})
     target_compile_definitions(${name} PRIVATE "SNMALLOC_USE_${SNMALLOC_CLEANUP}")
 
     add_warning_flags(${name})
