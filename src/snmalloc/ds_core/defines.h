@@ -109,6 +109,16 @@ namespace snmalloc
 #define TOSTRING(expr) TOSTRING2(expr)
 #define TOSTRING2(expr) #expr
 
+#if (defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 11) || \
+  (defined(__clang__) && __clang_major__ >= 15)
+#  include <source_location>
+#  define SNMALLOC_CURRENT_LINE std::source_location::current().line()
+#  define SNMALLOC_CURRENT_FILE std::source_location::current().file_name()
+#else
+#  define SNMALLOC_CURRENT_LINE TOSTRING(__LINE__)
+#  define SNMALLOC_CURRENT_FILE __FILE__
+#endif
+
 #ifdef NDEBUG
 #  define SNMALLOC_ASSERT_MSG(...) \
     {}
@@ -121,8 +131,8 @@ namespace snmalloc
         snmalloc::report_fatal_error( \
           "assert fail: {} in {} on {} " fmt "\n", \
           #expr, \
-          __FILE__, \
-          TOSTRING(__LINE__), \
+          SNMALLOC_CURRENT_FILE, \
+          SNMALLOC_CURRENT_LINE, \
           ##__VA_ARGS__); \
       } \
     } while (0)
@@ -137,8 +147,8 @@ namespace snmalloc
       snmalloc::report_fatal_error( \
         "Check fail: {} in {} on {} " fmt "\n", \
         #expr, \
-        __FILE__, \
-        TOSTRING(__LINE__), \
+        SNMALLOC_CURRENT_FILE, \
+        SNMALLOC_CURRENT_LINE, \
         ##__VA_ARGS__); \
     } \
   } while (0)
