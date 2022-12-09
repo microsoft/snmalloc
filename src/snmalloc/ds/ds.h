@@ -9,4 +9,5 @@
 #include "entropy.h"
 #include "flaglock.h"
 #include "mpmcstack.h"
+#include "pagemap.h"
 #include "singleton.h"
