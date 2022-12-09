@@ -216,6 +216,19 @@ namespace snmalloc
         a.template as_static<T>().unsafe_ptr());
     }
 
+    template<
+      typename T,
+      SNMALLOC_CONCEPT(capptr::IsBound) BOut,
+      SNMALLOC_CONCEPT(capptr::IsBound) BIn,
+      typename U = T>
+    static SNMALLOC_FAST_PATH CapPtr<T, BOut>
+    capptr_rebound(CapPtr<T, BOut> a, CapPtr<U, BIn> b) noexcept
+    {
+      UNUSED(a);
+      return CapPtr<T, BOut>::unsafe_from(
+        b.template as_static<T>().unsafe_ptr());
+    }
+
     static SNMALLOC_FAST_PATH size_t capptr_size_round(size_t sz) noexcept
     {
       return sz;

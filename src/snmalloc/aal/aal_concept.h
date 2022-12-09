@@ -61,6 +61,15 @@ namespace snmalloc
     noexcept->ConceptSame<capptr::Chunk<void>>;
 
     /**
+     * "Amplify" by copying the address of one pointer into one of higher
+     * privilege.  The resulting pointer differs from auth only in address.
+     */
+    {
+      AAL::capptr_rebound(auth, ret)
+    }
+    noexcept->ConceptSame<capptr::Chunk<void>>;
+
+    /**
      * Round up an allocation size to a size this architecture can represent.
      * While there may also, in general, be alignment requirements for
      * representability, in snmalloc so far we have not had reason to consider
