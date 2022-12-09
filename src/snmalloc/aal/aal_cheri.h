@@ -93,6 +93,18 @@ namespace snmalloc
       return CapPtr<T, BOut>::unsafe_from(static_cast<T*>(pb));
     }
 
+    template<
+      typename T,
+      SNMALLOC_CONCEPT(capptr::IsBound) BOut,
+      SNMALLOC_CONCEPT(capptr::IsBound) BIn,
+      typename U = T>
+    static SNMALLOC_FAST_PATH CapPtr<T, BOut>
+    capptr_rebound(CapPtr<T, BOut> a, CapPtr<U, BIn> b) noexcept
+    {
+      return CapPtr<T, BOut>::unsafe_from(static_cast<T*>(
+        __builtin_cheri_address_set(a.unsafe_ptr(), address_cast(b))));
+    }
+
     static SNMALLOC_FAST_PATH size_t capptr_size_round(size_t sz) noexcept
     {
       /*
