@@ -23,9 +23,6 @@ namespace snmalloc
     using Pal = PAL;
     using SlabMetadata = typename PagemapEntry::SlabMetadata;
 
-#ifdef __cpp_concepts
-    static_assert(IsSlabMeta_Arena<SlabMetadata>);
-#endif
     static constexpr size_t SizeofMetadata =
       bits::next_pow2_const(sizeof(SlabMetadata));
 
@@ -113,7 +110,6 @@ namespace snmalloc
         return {nullptr, nullptr};
       }
 
-      meta->arena_set(p);
       typename Pagemap::Entry t(meta, ras);
       Pagemap::set_metaentry(address_cast(p), size, t);
 
@@ -158,7 +154,7 @@ namespace snmalloc
        * Chunk, and so we retrieve the Arena-bounded cap for use in the
        * remainder of the backend.
        */
-      capptr::Arena<void> arena = slab_metadata.arena_get(alloc);
+      capptr::Arena<void> arena = Authmap::amplify(alloc);
 
       local_state.get_meta_range().dealloc_range(
         capptr::Arena<void>::unsafe_from(&slab_metadata), SizeofMetadata);
