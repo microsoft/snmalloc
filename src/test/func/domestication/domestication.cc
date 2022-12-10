@@ -32,15 +32,23 @@ namespace snmalloc
   public:
     using Pagemap = BasicPagemap<Pal, ConcretePagemap, PagemapEntry, false>;
 
+    using ConcreteAuthmap =
+      FlatPagemap<MinBaseSizeBits<Pal>(), capptr::Arena<void>, Pal, false>;
+
+    using Authmap = DefaultAuthmap<ConcreteAuthmap>;
+
   public:
-    using LocalState = StandardLocalState<
-      Pal,
-      Pagemap,
-      Pipe<PalRange<Pal>, PagemapRegisterRange<Pagemap>>>;
+    using Base = Pipe<
+      PalRange<Pal>,
+      PagemapRegisterRange<Pagemap>,
+      PagemapRegisterRange<Authmap>>;
+
+    using LocalState = StandardLocalState<Pal, Pagemap, Base>;
 
     using GlobalPoolState = PoolState<CoreAllocator<CustomConfig>>;
 
-    using Backend = BackendAllocator<Pal, PagemapEntry, Pagemap, LocalState>;
+    using Backend =
+      BackendAllocator<Pal, PagemapEntry, Pagemap, Authmap, LocalState>;
 
   private:
     SNMALLOC_REQUIRE_CONSTINIT
@@ -128,6 +136,7 @@ int main()
 #  endif
 
   snmalloc::CustomConfig::Pagemap::concretePagemap.init<pagemap_randomize>();
+  snmalloc::CustomConfig::Authmap::init();
   snmalloc::CustomConfig::domesticate_count = 0;
 
   LocalEntropy entropy;

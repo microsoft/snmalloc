@@ -55,15 +55,22 @@ namespace snmalloc
 
     using Pagemap = BasicPagemap<Pal, ConcretePagemap, PagemapEntry, false>;
 
+    using ConcreteAuthmap =
+      FlatPagemap<MinBaseSizeBits<Pal>(), capptr::Arena<void>, Pal, false>;
+
+    using Authmap = DefaultAuthmap<ConcreteAuthmap>;
+
     /**
-     * This specifies where this configurations sources memory from.
-     *
-     * Takes account of any platform specific constraints like whether
-     * mmap/virtual alloc calls can be consolidated.
+     * This specifies where this configurations sources memory from and the
+     * pagemap (and authmap) that maintain metadata about underlying OS
+     * allocations.
      * @{
      */
 
-    using Base = Pipe<PalRange<Pal>, PagemapRegisterRange<Pagemap>>;
+    using Base = Pipe<
+      PalRange<Pal>,
+      PagemapRegisterRange<Pagemap>,
+      PagemapRegisterRange<Authmap>>;
 
     /**
      * @}
@@ -81,7 +88,8 @@ namespace snmalloc
     /**
      * Use the default backend.
      */
-    using Backend = BackendAllocator<Pal, PagemapEntry, Pagemap, LocalState>;
+    using Backend =
+      BackendAllocator<Pal, PagemapEntry, Pagemap, Authmap, LocalState>;
 
   private:
     SNMALLOC_REQUIRE_CONSTINIT
@@ -138,6 +146,11 @@ namespace snmalloc
 #  endif
 
       Pagemap::concretePagemap.template init<pagemap_randomize>();
+
+      if constexpr (aal_supports<StrictProvenance>)
+      {
+        Authmap::init();
+      }
 
       initialised = true;
     }

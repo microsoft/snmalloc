@@ -12,6 +12,7 @@ namespace snmalloc
     SNMALLOC_CONCEPT(IsPAL) PAL,
     typename PagemapEntry,
     typename Pagemap,
+    typename Authmap,
     typename LocalState>
   class BackendAllocator
   {
