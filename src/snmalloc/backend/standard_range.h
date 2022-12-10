@@ -64,13 +64,22 @@ namespace snmalloc
     // Expose a global range for the initial allocation of meta-data.
     using GlobalMetaRange = Pipe<ObjectRange, GlobalRange>;
 
-    // Where we get user allocations from.
+    /**
+     * Where we turn for allocations of user chunks.
+     *
+     * Reach over the SmallBuddyRange that's at the near end of the ObjectRange
+     * pipe, rather than having that range adapter dynamically branch to its
+     * parent.
+     */
     LargeObjectRange* get_object_range()
     {
       return object_range.template ancestor<LargeObjectRange>();
     }
 
-    // Where we get meta-data allocations from.
+    /**
+     * The backend has its own need for small objects without using the
+     * frontend allocators; this range manages those.
+     */
     ObjectRange& get_meta_range()
     {
       // Use the object range to service meta-data requests.
