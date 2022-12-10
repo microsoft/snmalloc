@@ -81,7 +81,7 @@ namespace snmalloc
    */
   template<typename Pagemap>
   concept IsWritablePagemapWithRegister =
-    IsReadablePagemap<Pagemap>&& IsPagemapWithRegister<Pagemap>;
+    IsWritablePagemap<Pagemap>&& IsPagemapWithRegister<Pagemap>;
 
   /**
    * The configuration also defines domestication (that is, the difference
