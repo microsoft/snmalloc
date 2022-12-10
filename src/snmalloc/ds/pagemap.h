@@ -250,10 +250,13 @@ namespace snmalloc
     }
 
     /**
+     *
+     * Get a non-constant reference to the slot of this pagemap corresponding
+     * to a particular address.
+     *
      * If the location has not been used before, then
-     * `potentially_out_of_range` should be set to true.
-     * This will ensure there is a location for the
-     * read/write.
+     * `potentially_out_of_range` should be set to true.  This will ensure
+     * there is memory backing the returned reference.
      */
     template<bool potentially_out_of_range>
     T& get_mut(address_t p)
@@ -301,10 +304,12 @@ namespace snmalloc
     }
 
     /**
+     * Get a constant reference to the slot of this pagemap corresponding to a
+     * particular address.
+     *
      * If the location has not been used before, then
-     * `potentially_out_of_range` should be set to true.
-     * This will ensure there is a location for the
-     * read/write.
+     * `potentially_out_of_range` should be set to true.  This will ensure
+     * there is memory backing any reads through the returned reference.
      */
     template<bool potentially_out_of_range>
     const T& get(address_t p)
