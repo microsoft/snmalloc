@@ -9,10 +9,11 @@ namespace snmalloc
   template<size_t GRANULARITY_BITS, typename T, typename PAL, bool has_bounds>
   class FlatPagemap
   {
-  private:
+  public:
     static constexpr size_t SHIFT = GRANULARITY_BITS;
     static constexpr size_t GRANULARITY = bits::one_at_bit(GRANULARITY_BITS);
 
+  private:
     /**
      * Before init is called will contain a single entry
      * that is the default value.  This is needed so that
