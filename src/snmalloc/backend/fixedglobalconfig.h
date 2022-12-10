@@ -20,12 +20,25 @@ namespace snmalloc
 
     using Pagemap = BasicPagemap<PAL, ConcretePagemap, PagemapEntry, true>;
 
+    struct Authmap
+    {
+      static inline capptr::Arena<void> arena;
+
+      template<bool potentially_out_of_range = false>
+      static SNMALLOC_FAST_PATH capptr::Arena<void>
+      amplify(capptr::Alloc<void> c)
+      {
+        return Aal::capptr_rebound(arena, c);
+      }
+    };
+
   public:
     using LocalState = StandardLocalState<PAL, Pagemap>;
 
     using GlobalPoolState = PoolState<CoreAllocator<FixedRangeConfig>>;
 
-    using Backend = BackendAllocator<PAL, PagemapEntry, Pagemap, LocalState>;
+    using Backend =
+      BackendAllocator<PAL, PagemapEntry, Pagemap, Authmap, LocalState>;
     using Pal = PAL;
 
   private:
@@ -74,9 +87,9 @@ namespace snmalloc
       auto [heap_base, heap_length] =
         Pagemap::concretePagemap.init(base, length);
 
-      auto heap_arena = capptr::Arena<void>::unsafe_from(heap_base);
+      Authmap::arena = capptr::Arena<void>::unsafe_from(heap_base);
 
-      Pagemap::register_range(heap_arena, heap_length);
+      Pagemap::register_range(Authmap::arena, heap_length);
 
       // Push memory into the global range.
       range_to_pow_2_blocks<MIN_CHUNK_BITS>(
