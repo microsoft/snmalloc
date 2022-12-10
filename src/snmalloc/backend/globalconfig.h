@@ -134,8 +134,16 @@ namespace snmalloc
       // Initialise key for remote deallocation lists
       key_global = FreeListKey(entropy.get_free_list_key());
 
-      // Need to initialise pagemap.
-      Pagemap::concretePagemap.init();
+      // Need to initialise pagemap.  If SNMALLOC_CHECK_CLIENT is set and this
+      // isn't a StrictProvenance architecture, randomize its table's location
+      // within a significantly larger address space allocation.
+#  if defined(SNMALLOC_CHECK_CLIENT)
+      static constexpr bool pagemap_randomize = !aal_supports<StrictProvenance>;
+#  else
+      static constexpr bool pagemap_randomize = false;
+#  endif
+
+      Pagemap::concretePagemap.template init<pagemap_randomize>();
 
       initialised = true;
     }

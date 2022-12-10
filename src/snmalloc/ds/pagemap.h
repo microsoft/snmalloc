@@ -167,7 +167,7 @@ namespace snmalloc
     /**
      * Initialise the pagemap without bounds.
      */
-    template<bool has_bounds_ = has_bounds>
+    template<bool randomize_position, bool has_bounds_ = has_bounds>
     std::enable_if_t<!has_bounds_> init()
     {
       SNMALLOC_ASSERT(!is_initialised());
@@ -176,14 +176,11 @@ namespace snmalloc
         has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
       static constexpr size_t REQUIRED_SIZE = required_size();
 
-#ifdef SNMALLOC_CHECK_CLIENT
       // Allocate a power of two extra to allow the placement of the
-      // pagemap be difficult to guess.
-      size_t additional_size = bits::next_pow2(REQUIRED_SIZE) * 4;
+      // pagemap be difficult to guess if randomize_position set.
+      size_t additional_size =
+        randomize_position ? bits::next_pow2(REQUIRED_SIZE) * 4 : 0;
       size_t request_size = REQUIRED_SIZE + additional_size;
-#else
-      size_t request_size = REQUIRED_SIZE;
-#endif
 
       auto new_body_untyped = PAL::reserve(request_size);
 
@@ -192,26 +189,32 @@ namespace snmalloc
         PAL::error("Failed to initialise snmalloc.");
       }
 
-#ifdef SNMALLOC_CHECK_CLIENT
-      // Begin pagemap at random offset within the additionally allocated space.
-      static_assert(bits::is_pow2(sizeof(T)), "Next line assumes this.");
-      size_t offset = get_entropy64<PAL>() & (additional_size - sizeof(T));
-      auto new_body = pointer_offset<T>(new_body_untyped, offset);
+      T* new_body;
 
-      if constexpr (pal_supports<LazyCommit, PAL>)
+      if constexpr (randomize_position)
       {
-        void* start_page = pointer_align_down<OS_PAGE_SIZE>(new_body);
-        void* end_page = pointer_align_up<OS_PAGE_SIZE>(
-          pointer_offset(new_body, REQUIRED_SIZE));
-        // Only commit readonly memory for this range, if the platform supports
-        // lazy commit.  Otherwise, this would be a lot of memory to have
-        // mapped.
-        PAL::notify_using_readonly(
-          start_page, pointer_diff(start_page, end_page));
+        // Begin pagemap at random offset within the additionally allocated
+        // space.
+        static_assert(bits::is_pow2(sizeof(T)), "Next line assumes this.");
+        size_t offset = get_entropy64<PAL>() & (additional_size - sizeof(T));
+        new_body = pointer_offset<T>(new_body_untyped, offset);
+
+        if constexpr (pal_supports<LazyCommit, PAL>)
+        {
+          void* start_page = pointer_align_down<OS_PAGE_SIZE>(new_body);
+          void* end_page = pointer_align_up<OS_PAGE_SIZE>(
+            pointer_offset(new_body, REQUIRED_SIZE));
+          // Only commit readonly memory for this range, if the platform
+          // supports lazy commit.  Otherwise, this would be a lot of memory to
+          // have mapped.
+          PAL::notify_using_readonly(
+            start_page, pointer_diff(start_page, end_page));
+        }
       }
-#else
-      auto new_body = static_cast<T*>(new_body_untyped);
-#endif
+      else
+      {
+        new_body = static_cast<T*>(new_body_untyped);
+      }
       // Ensure bottom page is committed
       // ASSUME: new memory is zeroed.
       PAL::template notify_using<NoZero>(

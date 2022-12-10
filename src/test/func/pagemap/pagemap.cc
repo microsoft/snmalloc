@@ -81,7 +81,13 @@ void test_pagemap(bool bounded)
   }
   else
   {
-    pagemap_test_unbound.init();
+#if defined(SNMALLOC_CHECK_CLIENT)
+    static constexpr bool pagemap_randomize = !aal_supports<StrictProvenance>;
+#else
+    static constexpr bool pagemap_randomize = false;
+#endif
+
+    pagemap_test_unbound.init<pagemap_randomize>();
     pagemap_test_unbound.register_range(low, high - low);
   }
 
