@@ -7,6 +7,9 @@ namespace snmalloc
 {
   /**
    * Protect the ParentRange with a spin lock.
+   *
+   * Accesses via the ancestor() mechanism will bypass the lock and so
+   * should be used only where the resulting data races are acceptable.
    */
   struct LockRange
   {
