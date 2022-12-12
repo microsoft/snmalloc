@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         # Build each combination of OS and release/debug variants
-        os: [ "ubuntu-latest", "ubuntu-18.04", "macos-11", "macos-12", "freebsd-12.2", "freebsd-13.0" ]
+        os: [ "ubuntu-latest", "ubuntu-18.04", "ubuntu-20.04", "macos-11", "macos-12", "freebsd-12.2", "freebsd-13.0" ]
         build-type: [ Release, Debug ]
         # Extra cmake flags.  GitHub Actions matrix overloads `include` to mean
         # 'add extra things to a job' and 'add jobs'.  You can add extra things
@@ -32,7 +32,9 @@ jobs:
           - os: "ubuntu-18.04"
             dependencies: "sudo apt install ninja-build"
             cmake-flags: "-DSNMALLOC_USE_CXX17=ON"
-          - os: "ubuntu-latest"
+          - os: "ubuntu-20.04"
+            dependencies: "sudo apt install ninja-build"
+          - os: "ubuntu-latest" # 22.04 at time of writing
             dependencies: "sudo apt install ninja-build"
           - os: "macos-11"
             # The homebrew packages are broken at the moment and error out
@@ -61,20 +63,33 @@ jobs:
             extra-cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
             dependencies: "sudo apt install ninja-build"
           # Extra build to check using pthread library for destructing local state.
-          - os: "ubuntu-20.04"
-            variant: "Ubuntu 20.04 clang-10 (with pthread destructors)."
+          - os: "ubuntu-latest"
+            variant: "with pthread destructors"
             dependencies: "sudo apt install ninja-build"
             build-type: Debug
             self-host: true
-            extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On -DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10"
+            extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On"
           # Add an extra element to the matrix that does a build with clang 12
           # but doesn't run tests.
           - os: "freebsd-13.0"
             variant: Clang 12 (Build only)
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++12"
             build-only: yes
+          # Check that we can build specifically with libstdc++
+          - os: "ubuntu-latest"
+            variant: "libstdc++ (Build only)"
+            dependencies: "sudo apt install ninja-build"
+            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
+            build-only: yes
+          # Replay some of the above tests with clang-10 specifically
           - os: "ubuntu-20.04"
-            variant: "Ubuntu 20.04 Clang 10 libstdc++ (Build only)"
+            variant: "clang-10 (with pthread destructors)."
+            dependencies: "sudo apt install ninja-build"
+            build-type: Debug
+            self-host: true
+            extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On -DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10"
+          - os: "ubuntu-20.04"
+            variant: "clang-10 libstdc++ (Build only)"
             dependencies: "sudo apt install ninja-build"
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10 -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
             build-only: yes
@@ -114,12 +129,17 @@ jobs:
     strategy:
       matrix:
         # Build just release variant as Debug is too slow.
-        os: [ "ubuntu-20.04"]
         build-type: [ Release ]
         include:
+          - os: "ubuntu-latest"
+            continue-on-error: # Don't class as an error if this fails, until we have a more reliablity.
+            variant: "libc++ (TSan + UBSan)"
+            dependencies: "sudo apt install ninja-build"
+            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-stdlib=\"libc++ -g\" -DSNMALLOC_SANITIZER=undefined,thread"
+          # Also test specifically with clang-10 (on ubuntu-20.04)
           - os: "ubuntu-20.04"
             continue-on-error: # Don't class as an error if this fails, until we have a more reliablity.
-            variant: Clang 10 libc++ (TSan + UBSan)
+            variant: "clang-10 libc++ (TSan + UBSan)"
             dependencies: "sudo apt install ninja-build"
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_CXX_FLAGS=-stdlib=\"libc++ -g\" -DSNMALLOC_SANITIZER=undefined,thread"
       # Don't abort runners if a single one fails
