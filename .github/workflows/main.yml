@@ -61,8 +61,8 @@ jobs:
             extra-cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
             dependencies: "sudo apt install ninja-build"
           # Extra build to check using pthread library for destructing local state.
-          - os: "ubuntu-latest"
-            variant: "Ubuntu (with pthread destructors)."
+          - os: "ubuntu-20.04"
+            variant: "Ubuntu 20.04 clang-10 (with pthread destructors)."
             dependencies: "sudo apt install ninja-build"
             build-type: Debug
             self-host: true
@@ -73,8 +73,8 @@ jobs:
             variant: Clang 12 (Build only)
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++12"
             build-only: yes
-          - os: "ubuntu-latest"
-            variant: Clang 10 libstdc++ (Build only)
+          - os: "ubuntu-20.04"
+            variant: "Ubuntu 20.04 Clang 10 libstdc++ (Build only)"
             dependencies: "sudo apt install ninja-build"
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10 -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
             build-only: yes
@@ -114,10 +114,10 @@ jobs:
     strategy:
       matrix:
         # Build just release variant as Debug is too slow.
-        os: [ "ubuntu-latest"]
+        os: [ "ubuntu-20.04"]
         build-type: [ Release ]
         include:
-          - os: "ubuntu-latest"
+          - os: "ubuntu-20.04"
             continue-on-error: # Don't class as an error if this fails, until we have a more reliablity.
             variant: Clang 10 libc++ (TSan + UBSan)
             dependencies: "sudo apt install ninja-build"
