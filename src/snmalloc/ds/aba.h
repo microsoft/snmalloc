@@ -141,7 +141,7 @@ namespace snmalloc
   class ABA
   {
     std::atomic<T*> ptr = nullptr;
-    std::atomic_flag lock = ATOMIC_FLAG_INIT;
+    std::atomic<bool> lock{false};
 
   public:
     // This method is used in Verona
@@ -154,7 +154,7 @@ namespace snmalloc
 
     Cmp read()
     {
-      while (lock.test_and_set(std::memory_order_acquire))
+      while (lock.exchange(true, std::memory_order_acquire))
         Aal::pause();
 
 #  if !defined(NDEBUG) && !defined(SNMALLOC_DISABLE_ABA_VERIFY)
@@ -184,7 +184,7 @@ namespace snmalloc
 
       ~Cmp()
       {
-        parent->lock.clear(std::memory_order_release);
+        parent->lock.store(false, std::memory_order_release);
 #  if !defined(NDEBUG) && !defined(SNMALLOC_DISABLE_ABA_VERIFY)
         operation_in_flight = false;
 #  endif
