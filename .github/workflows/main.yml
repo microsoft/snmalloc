@@ -150,16 +150,20 @@ jobs:
             triple: arm-linux-gnueabihf
             rtld: ld-linux-armhf.so.3
             ld-flavour: lld
+            host-os: ubuntu-latest
           - name: arm64
             system-processor: aarch64
             triple: aarch64-linux-gnu
             rtld: ld-linux-aarch64.so.1
             ld-flavour: lld
+            host-os: ubuntu-latest
           - name: ppc64el
             system-processor: powerpc64le
             triple: powerpc64le-linux-gnu
             rtld: ld64.so.2
             ld-flavour: lld
+            # See https://github.com/microsoft/snmalloc/issues/576
+            host-os: ubuntu-20.04
           - name: riscv64
             system-processor: riscv64
             triple: riscv64-linux-gnu
@@ -167,9 +171,10 @@ jobs:
             extra-packages: binutils-riscv64-linux-gnu
             ld-flavour: bfd
             ld: /usr/bin/riscv64-linux-gnu-ld.bfd
+            host-os: ubuntu-latest
       # Don't abort runners if a single one fails
       fail-fast: false
-    runs-on: ubuntu-latest
+    runs-on: ${{matrix.host-os}}
     name: ${{matrix.build-type}} cross-build for ${{ matrix.arch.triple }}
     steps:
     - uses: actions/checkout@v2
