@@ -3,9 +3,9 @@ set(CMAKE_SYSTEM_PROCESSOR $ENV{ARCH})
 
 set(triple $ENV{TRIPLE})
 
-set(CMAKE_C_COMPILER clang-13)
+set(CMAKE_C_COMPILER clang-$ENV{SNMALLOC_CI_CLANG_VERSION})
 set(CMAKE_C_COMPILER_TARGET ${triple})
-set(CMAKE_CXX_COMPILER clang++-13)
+set(CMAKE_CXX_COMPILER clang++-$ENV{SNMALLOC_CI_CLANG_VERSION})
 set(CMAKE_CXX_COMPILER_TARGET ${triple})
 
 set(CROSS_LINKER_FLAGS "-fuse-ld=${SNMALLOC_LINKER_FLAVOUR} -Wl,--dynamic-linker=/usr/${triple}/lib/$ENV{RTLD_NAME},-rpath,/usr/${triple}/lib")
