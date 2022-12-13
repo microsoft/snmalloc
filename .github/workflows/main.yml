@@ -198,27 +198,39 @@ jobs:
     name: ${{matrix.build-type}} cross-build for ${{ matrix.arch.triple }}
     steps:
     - uses: actions/checkout@v2
-    - name: Install cross-compile toolchain and QEMU
+    - name: "Install cross-compile toolchain and QEMU (ubuntu-20.04)"
       # Install the dependencies and clang 13.  Earlier versions of clang don't
       # find the multilib things for this week's Ubuntu filesystem layout.
+      if: matrix.arch.host-os == 'ubuntu-20.04'
       run: |
         wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
         sudo add-apt-repository "deb http://apt.llvm.org/focal/     llvm-toolchain-focal-13  main"
         sudo apt update
         sudo apt install libstdc++-9-dev-${{ matrix.arch.name }}-cross qemu-user ninja-build clang-13 lld-13
         sudo apt install ${{matrix.arch.extra-packages}}
-        # The default PowerPC qemu configuration uses the wrong page size.
-        # Wrap it in a script that fixes this.
+    - name: "Install cross-compile toolchain and QEMU (ubuntu-latest)"
+      if: matrix.arch.host-os == 'ubuntu-latest'
+      run: |
+        sudo apt update
+        sudo apt install libstdc++-12-dev-${{ matrix.arch.name }}-cross qemu-user ninja-build
+        sudo apt install ${{matrix.arch.extra-packages}}
+    - name: Reconfigure for PowerPC64LE
+      if: startsWith(matrix.arch.triple, 'powerpc64le')
+      # The default PowerPC qemu configuration uses the wrong page size.
+      # Wrap it in a script that fixes this.
+      run: |
         sudo update-binfmts --disable qemu-ppc64le
         sudo sh -c 'echo ":qemu-ppc64le:M:0:\x7f\x45\x4c\x46\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x15\x00:\xff\xff\xff\xff\xff\xff\xff\xfc\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\x00:`pwd`/ppc64.sh:" > /proc/sys/fs/binfmt_misc/register'
         echo '#!/bin/sh' > ppc64.sh
         echo '/usr/bin/qemu-ppc64le -p 65536 $@' >> ppc64.sh
         chmod +x ppc64.sh
     - name: Configure
+      env:
+        SNMALLOC_CI_CLANG_VERSION: ${{ (matrix.arch.host-os == 'ubuntu-latest') && 14 || 13 }}
+        RTLD_NAME: ${{ matrix.arch.rtld }}
+        ARCH: ${{ matrix.arch.system-processor }}
+        TRIPLE: ${{ matrix.arch.triple}}
       run: >
-        RTLD_NAME=${{ matrix.arch.rtld }}
-        ARCH=${{ matrix.arch.system-processor }}
-        TRIPLE=${{ matrix.arch.triple}}
         cmake
         -B ${{github.workspace}}/build
         -DCMAKE_BUILD_TYPE=${{matrix.build-type}}
@@ -232,6 +244,10 @@ jobs:
     - name: Build
       working-directory: ${{github.workspace}}/build
       run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+    # For debugging: verify that we've actually cross-compiled.
+    - name: Run `file` for inspection
+      working-directory: ${{github.workspace}}/build
+      run: file func*
     # Run the tests, skipping the -malloc and perf- tests (perf doesn't make
     # sense in an emulator and the pass-through malloc is slightly flaky in
     # QEMU)
