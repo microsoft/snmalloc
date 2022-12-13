@@ -194,7 +194,7 @@ jobs:
             host-os: ubuntu-latest
       # Don't abort runners if a single one fails
       fail-fast: false
-    runs-on: ${{matrix.host-os}}
+    runs-on: ${{matrix.arch.host-os}}
     name: ${{matrix.build-type}} cross-build for ${{ matrix.arch.triple }}
     steps:
     - uses: actions/checkout@v2
