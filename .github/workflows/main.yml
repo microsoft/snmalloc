@@ -253,7 +253,7 @@ jobs:
     # QEMU)
     - name: Test
       working-directory: ${{github.workspace}}/build
-      run: ctest --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+      run: ctest -j 2 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
       timeout-minutes: 30
 
   windows:
