@@ -26,7 +26,26 @@ namespace snmalloc
   static constexpr size_t MIN_ALLOC_BITS = bits::ctz_const(MIN_ALLOC_SIZE);
 
   // Minimum slab size.
+#if defined(SNMALLOC_QEMU_WORKAROUND) && defined(SNMALLOC_VA_BITS_64)
+  /*
+   * QEMU user-mode, up through and including v7.2.0-rc4, the latest tag at the
+   * time of this writing, does not use a tree of any sort to store its opinion
+   * of the address space, allocating an amount of memory linear in the size of
+   * any created map, not the number of pages actually used.  This is
+   * exacerbated in and after qemu v6 (or, more specifically, d9c58585), which
+   * grew the proportionality constant.
+   *
+   * In any case, for our CI jobs, then, use a larger minimum chunk size (that
+   * is, pagemap granularity) than by default to reduce the size of the
+   * pagemap.  We can't raise this *too* much, lest we hit constexpr step
+   * limits in the sizeclasstable magic!  17 bits seems to be the sweet spot
+   * and means that any of our tests can run in a little under 2 GiB of RSS
+   * even on QEMU versions after v6.
+   */
+  static constexpr size_t MIN_CHUNK_BITS = static_cast<size_t>(17);
+#else
   static constexpr size_t MIN_CHUNK_BITS = static_cast<size_t>(14);
+#endif
   static constexpr size_t MIN_CHUNK_SIZE = bits::one_at_bit(MIN_CHUNK_BITS);
 
   // Minimum number of objects on a slab
@@ -37,7 +56,18 @@ namespace snmalloc
 #endif
 
   // Maximum size of an object that uses sizeclasses.
+#if defined(SNMALLOC_QEMU_WORKAROUND) && defined(SNMALLOC_VA_BITS_64)
+  /*
+   * As a consequence of our significantly larger minimum chunk size, we need
+   * to raise the threshold for what constitutes a large object (which must
+   * be a multiple of the minimum chunk size).  Extend the space of small
+   * objects up enough to match yet preserve the notion that there exist small
+   * objects larger than MIN_CHUNK_SIZE.
+   */
+  static constexpr size_t MAX_SMALL_SIZECLASS_BITS = 19;
+#else
   static constexpr size_t MAX_SMALL_SIZECLASS_BITS = 16;
+#endif
   static constexpr size_t MAX_SMALL_SIZECLASS_SIZE =
     bits::one_at_bit(MAX_SMALL_SIZECLASS_BITS);
 
