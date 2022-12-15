@@ -12,6 +12,9 @@ include(CheckIncludeFileCXX)
 include(CheckIPOSupported)
 include(CMakeDependentOption)
 
+# Name chosen for compatibility with CTest.
+option(BUILD_TESTING "Build test programs as well as shims" ON)
+
 option(SNMALLOC_HEADER_ONLY_LIBRARY "Use snmalloc has a header-only library" OFF)
 # Options that apply globally
 option(SNMALLOC_CI_BUILD "Disable features not sensible for CI" OFF)
@@ -373,10 +376,15 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     target_compile_definitions(snmallocshim-checks-rust PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 
-  enable_testing()
-
   set(TESTDIR ${CMAKE_CURRENT_SOURCE_DIR}/src/test)
-  subdirlist(TEST_CATEGORIES ${TESTDIR})
+
+  if(BUILD_TESTING)
+    enable_testing()
+    subdirlist(TEST_CATEGORIES ${TESTDIR})
+  else()
+    set(TEST_CATEGORIES "")
+  endif()
+
   list(REVERSE TEST_CATEGORIES)
   if (${SNMALLOC_CLEANUP} STREQUAL THREAD_CLEANUP)
     set(TEST_CLEANUP PTHREAD_DESTRUCTORS)
