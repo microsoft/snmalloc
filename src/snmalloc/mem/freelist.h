@@ -695,7 +695,7 @@ namespace snmalloc
           // the Freelist builder always knows which block it is referring too.
           head[i] = Object::code_next(
             address_cast(&head[i]),
-            reinterpret_cast<Object::T<BQueue>*>(slab),
+            useless_ptr_from_addr<Object::T<BQueue>>(address_cast(slab)),
             key);
         }
       }

@@ -290,4 +290,13 @@ namespace snmalloc
     return static_cast<size_t>(a - pointer_align_down<alignment>(a));
   }
 
+  /**
+   * Convert an address_t to a pointer.  The returned pointer should never be followed.
+   * On CHERI following this pointer will result in a capability violation.
+   */
+  template<typename T>
+  SNMALLOC_FAST_PATH_INLINE T* useless_ptr_from_addr(address_t p)
+  {
+    return reinterpret_cast<T*>(p);
+  }
 } // namespace snmalloc
