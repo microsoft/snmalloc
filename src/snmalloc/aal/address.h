@@ -291,8 +291,9 @@ namespace snmalloc
   }
 
   /**
-   * Convert an address_t to a pointer.  The returned pointer should never be followed.
-   * On CHERI following this pointer will result in a capability violation.
+   * Convert an address_t to a pointer.  The returned pointer should never be
+   * followed. On CHERI following this pointer will result in a capability
+   * violation.
    */
   template<typename T>
   SNMALLOC_FAST_PATH_INLINE T* useless_ptr_from_addr(address_t p)
