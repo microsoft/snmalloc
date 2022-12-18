@@ -927,6 +927,7 @@ namespace snmalloc
         auto slab_interior = slab_metadata->get_slab_interior(key);
         const PagemapEntry& entry =
           Config::Backend::get_metaentry(slab_interior);
+        SNMALLOC_ASSERT(slab_metadata == entry.get_slab_metadata());
         auto size_class = entry.get_sizeclass();
         auto slab_size = sizeclass_full_to_slab_size(size_class);
         auto slab_start = bits::align_down(slab_interior, slab_size);
