@@ -59,8 +59,8 @@ void debug_check_empty_2()
   snmalloc::Alloc& a = snmalloc::ThreadAlloc::get();
   bool result;
   std::vector<void*> allocs;
-  // 2GB of allocations
-  size_t count = 2048 * 1024 * 1024 / size;
+  // 1GB of allocations
+  size_t count = 1024 * 1024 * 1024 / size;
 
   for (size_t i = 0; i < count; i++)
   {
