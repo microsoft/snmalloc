@@ -62,6 +62,12 @@ namespace snmalloc
     } alloc_classes[NUM_SMALL_SIZECLASSES]{};
 
     /**
+     * The set of all slabs and large allocations
+     * from this allocator that are full or almost full.
+     */
+    SeqSet<BackendSlabMetadata> laden{};
+
+    /**
      * Local entropy source and current version of keys for
      * this thread
      */
@@ -420,6 +426,9 @@ namespace snmalloc
         UNUSED(size);
 #endif
 
+        // Remove from set of fully used slabs.
+        meta->node.remove();
+
         Config::Backend::dealloc_chunk(
           get_backend_local_state(), *meta, p, size);
 
@@ -435,6 +444,9 @@ namespace snmalloc
 
         //  Wake slab up.
         meta->set_not_sleeping(sizeclass);
+
+        // Remove from set of fully used slabs.
+        meta->node.remove();
 
         alloc_classes[sizeclass].available.insert(meta);
         alloc_classes[sizeclass].length++;
@@ -744,6 +756,10 @@ namespace snmalloc
           alloc_classes[sizeclass].length++;
           sl.insert(meta);
         }
+        else
+        {
+          laden.insert(meta);
+        }
 
         auto r = finish_alloc<zero_mem, Config>(p, sizeclass);
         return ticker.check_tick(r);
@@ -794,7 +810,8 @@ namespace snmalloc
       }
 
       // Set meta slab to empty.
-      meta->initialise(sizeclass);
+      meta->initialise(
+        sizeclass, address_cast(slab), entropy.get_free_list_key());
 
       // Build a free list for the slab
       alloc_new_list(slab, meta, rsize, slab_size, entropy);
@@ -810,6 +827,10 @@ namespace snmalloc
       {
         alloc_classes[sizeclass].length++;
         alloc_classes[sizeclass].available.insert(meta);
+      }
+      else
+      {
+        laden.insert(meta);
       }
 
       auto r = finish_alloc<zero_mem, Config>(p, sizeclass);
@@ -864,6 +885,14 @@ namespace snmalloc
         dealloc_local_slabs<true>(sizeclass);
       }
 
+      laden.iterate([this, domesticate](
+                      BackendSlabMetadata* meta) SNMALLOC_FAST_PATH_LAMBDA {
+        if (!meta->is_large())
+        {
+          meta->free_queue.validate(entropy.get_free_list_key(), domesticate);
+        }
+      });
+
       return posted;
     }
 
@@ -883,7 +912,7 @@ namespace snmalloc
       c->remote_allocator = public_state();
 
       // Set up remote cache.
-      c->remote_dealloc_cache.init();
+      c->remote_dealloc_cache.init(entropy.get_free_list_key());
     }
 
     /**
@@ -892,28 +921,46 @@ namespace snmalloc
      */
     bool debug_is_empty_impl(bool* result)
     {
-      auto test = [&result](auto& queue, smallsizeclass_t size_class) {
-        queue.iterate([&result, size_class](auto slab_metadata) {
+      auto& key = entropy.get_free_list_key();
+
+      auto error = [&result, &key](auto slab_metadata) {
+        auto slab_interior = slab_metadata->get_slab_interior(key);
+        const PagemapEntry& entry =
+          Config::Backend::get_metaentry(slab_interior);
+        SNMALLOC_ASSERT(slab_metadata == entry.get_slab_metadata());
+        auto size_class = entry.get_sizeclass();
+        auto slab_size = sizeclass_full_to_slab_size(size_class);
+        auto slab_start = bits::align_down(slab_interior, slab_size);
+
+        if (result != nullptr)
+          *result = false;
+        else
+          report_fatal_error(
+            "debug_is_empty: found non-empty allocator: size={} on "
+            "slab_start {}",
+            sizeclass_full_to_size(size_class),
+            slab_start);
+      };
+
+      auto test = [&error](auto& queue) {
+        queue.iterate([&error](auto slab_metadata) {
           if (slab_metadata->needed() != 0)
           {
-            if (result != nullptr)
-              *result = false;
-            else
-              report_fatal_error(
-                "debug_is_empty: found non-empty allocator: size={} ({})",
-                sizeclass_to_size(size_class),
-                size_class);
+            error(slab_metadata);
           }
         });
       };
 
       bool sent_something = flush(true);
 
-      smallsizeclass_t size_class = 0;
       for (auto& alloc_class : alloc_classes)
       {
-        test(alloc_class.available, size_class);
-        size_class++;
+        test(alloc_class.available);
+      }
+
+      if (!laden.is_empty())
+      {
+        error(laden.peek());
       }
 
       // Place the static stub message on the queue.

@@ -83,6 +83,12 @@ namespace snmalloc
 #endif
     }
 
+  public:
+    /**
+     * Empty queue
+     */
+    constexpr SeqSet() = default;
+
     /**
      * Check for empty
      */
@@ -94,12 +100,6 @@ namespace snmalloc
       head.invariant();
       return head.next == &head;
     }
-
-  public:
-    /**
-     * Empty queue
-     */
-    constexpr SeqSet() = default;
 
     /**
      * Remove an element from the queue

@@ -17,7 +17,7 @@ namespace snmalloc
    */
   struct RemoteDeallocCache
   {
-    std::array<freelist::Builder<false, false>, REMOTE_SLOTS> list;
+    std::array<freelist::Builder<false>, REMOTE_SLOTS> list;
 
     /**
      * The total amount of memory we are waiting for before we will dispatch
@@ -165,14 +165,16 @@ namespace snmalloc
      * Must be called before anything else to ensure actually initialised
      * not just zero init.
      */
-    void init()
+    void init(const FreeListKey& key)
     {
 #ifndef NDEBUG
       initialised = true;
 #endif
       for (auto& l : list)
       {
-        l.init();
+        // We do not need to initialise with a particular slab, so pass
+        // a null address.
+        l.init(0, key);
       }
       capacity = REMOTE_CACHE;
     }
