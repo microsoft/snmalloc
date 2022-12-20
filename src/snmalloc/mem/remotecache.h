@@ -173,8 +173,8 @@ namespace snmalloc
       for (auto& l : list)
       {
         // We do not need to initialise with a particular slab, so pass
-        // a nullptr.
-        l.init(nullptr, key);
+        // a null address.
+        l.init(0, key);
       }
       capacity = REMOTE_CACHE;
     }

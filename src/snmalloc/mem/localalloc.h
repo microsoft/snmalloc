@@ -201,7 +201,7 @@ namespace snmalloc
         if (meta != nullptr)
         {
           meta->initialise_large(
-            chunk.unsafe_ptr(), local_cache.entropy.get_free_list_key());
+            address_cast(chunk), local_cache.entropy.get_free_list_key());
           core_alloc->laden.insert(meta);
         }
 

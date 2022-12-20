@@ -298,6 +298,6 @@ namespace snmalloc
   template<typename T>
   SNMALLOC_FAST_PATH_INLINE T* useless_ptr_from_addr(address_t p)
   {
-    return reinterpret_cast<T*>(p);
+    return reinterpret_cast<T*>(static_cast<uintptr_t>(p));
   }
 } // namespace snmalloc

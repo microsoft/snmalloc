@@ -63,7 +63,7 @@ void debug_check_empty_2()
 
   for (size_t i = 0; i < count; i++)
   {
-    auto r = a.alloc(128);
+    auto r = a.alloc(size);
     allocs.push_back(r);
     snmalloc::debug_check_empty<snmalloc::StandardConfig>(&result);
     if (result != false)

@@ -440,8 +440,8 @@ namespace snmalloc
     /**
      * Initialise FrontendSlabMetadata for a slab.
      */
-    void
-    initialise(smallsizeclass_t sizeclass, void* slab, const FreeListKey& key)
+    void initialise(
+      smallsizeclass_t sizeclass, address_t slab, const FreeListKey& key)
     {
       static_assert(
         std::is_base_of<FrontendSlabMetadata_Trait, BackendType>::value,
@@ -462,7 +462,7 @@ namespace snmalloc
      *
      * Set needed so immediately moves to slow path.
      */
-    void initialise_large(void* slab, const FreeListKey& key)
+    void initialise_large(address_t slab, const FreeListKey& key)
     {
       // We will push to this just to make the fast path clean.
       free_queue.init(slab, key);
