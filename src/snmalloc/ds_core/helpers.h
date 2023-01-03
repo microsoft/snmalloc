@@ -322,7 +322,7 @@ namespace snmalloc
         append_char('-');
         s = 0 - s;
       }
-      std::array<char, 20> buf;
+      std::array<char, 20> buf{{0}};
       const char digits[] = "0123456789";
       for (long i = long(buf.size() - 1); i >= 0; i--)
       {
@@ -352,7 +352,7 @@ namespace snmalloc
     {
       append_char('0');
       append_char('x');
-      std::array<char, 16> buf;
+      std::array<char, 16> buf{{0}};
       const char hexdigits[] = "0123456789abcdef";
       // Length of string including null terminator
       static_assert(sizeof(hexdigits) == 0x11);
