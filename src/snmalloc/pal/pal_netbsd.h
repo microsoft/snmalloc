@@ -4,6 +4,7 @@
 #  include "pal_bsd_aligned.h"
 
 #  include <fcntl.h>
+#  include <sys/syscall.h>
 
 /**
  * We skip the pthread cancellation checkpoints by reaching directly
@@ -42,12 +43,20 @@ namespace snmalloc
       PALBSD_Aligned::pal_features | Entropy;
 
     /**
-     * Temporary solution while waiting getrandom support for the next release
+     * Temporary solution for NetBSD < 10
      * random_device seems unimplemented in clang for this platform
+     * otherwise using getrandom
      */
     static uint64_t get_entropy64()
     {
+#  if defined(SYS_getrandom)
+      uint64_t result;
+      if (getrandom(&result, sizeof(result), 0) != sizeof(result))
+        error("Failed to get system randomness");
+      return result;
+#  else
       return PALPOSIX::dev_urandom();
+#  endif
     }
   };
 } // namespace snmalloc
