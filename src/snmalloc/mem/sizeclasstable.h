@@ -411,40 +411,40 @@ namespace snmalloc
     return (s - 1) >> MIN_ALLOC_BITS;
   }
 
-  constexpr smallsizeclass_t size_to_sizeclass(size_t size)
+  constexpr size_t sizeclass_lookup_size =
+    sizeclass_lookup_index(MAX_SMALL_SIZECLASS_SIZE);
+
+  /**
+   * This struct is used to statically initialise a table for looking up
+   * the correct sizeclass.
+   */
+  struct SizeClassLookup
   {
-    constexpr size_t sizeclass_lookup_size =
-      sizeclass_lookup_index(MAX_SMALL_SIZECLASS_SIZE);
+    sizeclass_compress_t table[sizeclass_lookup_size] = {{}};
 
-    /**
-     * This struct is used to statically initialise a table for looking up
-     * the correct sizeclass.
-     */
-    struct SizeClassLookup
+    constexpr SizeClassLookup()
     {
-      sizeclass_compress_t table[sizeclass_lookup_size] = {{}};
-
-      constexpr SizeClassLookup()
+      size_t curr = 1;
+      for (sizeclass_compress_t sizeclass = 0;
+           sizeclass < NUM_SMALL_SIZECLASSES;
+           sizeclass++)
       {
-        size_t curr = 1;
-        for (sizeclass_compress_t sizeclass = 0;
-             sizeclass < NUM_SMALL_SIZECLASSES;
-             sizeclass++)
+        for (; curr <= sizeclass_metadata.fast_small(sizeclass).size;
+             curr += 1 << MIN_ALLOC_BITS)
         {
-          for (; curr <= sizeclass_metadata.fast_small(sizeclass).size;
-               curr += 1 << MIN_ALLOC_BITS)
-          {
-            auto i = sizeclass_lookup_index(curr);
-            if (i == sizeclass_lookup_size)
-              break;
-            table[i] = sizeclass;
-          }
+          auto i = sizeclass_lookup_index(curr);
+          if (i == sizeclass_lookup_size)
+            break;
+          table[i] = sizeclass;
         }
       }
-    };
+    }
+  };
 
-    constexpr SizeClassLookup sizeclass_lookup = SizeClassLookup();
+  constexpr SizeClassLookup sizeclass_lookup = SizeClassLookup();
 
+  constexpr smallsizeclass_t size_to_sizeclass(size_t size)
+  {
     auto index = sizeclass_lookup_index(size);
     if (index < sizeclass_lookup_size)
     {
