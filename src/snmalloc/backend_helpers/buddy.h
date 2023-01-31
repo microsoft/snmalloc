@@ -16,7 +16,8 @@ namespace snmalloc
   class Buddy
   {
     std::array<RBTree<Rep>, MAX_SIZE_BITS - MIN_SIZE_BITS> trees;
-    size_t empty_above = 0;
+    // All RBtrees at or above this index should be empty.
+    size_t empty_at_or_above = 0;
 
     size_t to_index(size_t size)
     {
@@ -41,7 +42,7 @@ namespace snmalloc
     void invariant()
     {
 #ifndef NDEBUG
-      for (size_t i = empty_above; i < trees.size(); i++)
+      for (size_t i = empty_at_or_above; i < trees.size(); i++)
       {
         SNMALLOC_ASSERT(trees[i].is_empty());
       }
@@ -63,7 +64,7 @@ namespace snmalloc
     typename Rep::Contents add_block(typename Rep::Contents addr, size_t size)
     {
       auto idx = to_index(size);
-      empty_above = bits::max(empty_above, idx + 1);
+      empty_at_or_above = bits::max(empty_at_or_above, idx + 1);
 
       validate_block(addr, size);
 
@@ -87,6 +88,8 @@ namespace snmalloc
           addr = Rep::align_down(addr, size);
           if (size == bits::one_at_bit(MAX_SIZE_BITS))
           {
+            // Invariant should be checked on all non-tail return paths.
+            // Holds trivially here with current design.
             invariant();
             // Too big for this buddy allocator.
             return addr;
@@ -115,7 +118,7 @@ namespace snmalloc
     {
       invariant();
       auto idx = to_index(size);
-      if (idx >= empty_above)
+      if (idx >= empty_at_or_above)
         return Rep::null;
 
       auto addr = trees[idx].remove_min();
@@ -132,7 +135,7 @@ namespace snmalloc
       auto bigger = remove_block(size * 2);
       if (bigger == Rep::null)
       {
-        empty_above = idx;
+        empty_at_or_above = idx;
         invariant();
         return Rep::null;
       }
