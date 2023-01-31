@@ -71,3 +71,51 @@ void operator delete[](void* p, std::nothrow_t&)
 {
   ThreadAlloc::get().dealloc(p);
 }
+
+void* operator new(size_t size, std::align_val_t val)
+{
+  size = aligned_size(size, size_t(val));
+  return ThreadAlloc::get().alloc(size);
+}
+
+void* operator new[](size_t size, std::align_val_t val)
+{
+  size = aligned_size(size, size_t(val));
+  return ThreadAlloc::get().alloc(size);
+}
+
+void* operator new(size_t size, std::align_val_t val, std::nothrow_t&)
+{
+  size = aligned_size(size, size_t(val));
+  return ThreadAlloc::get().alloc(size);
+}
+
+void* operator new[](size_t size, std::align_val_t val, std::nothrow_t&)
+{
+  size = aligned_size(size, size_t(val));
+  return ThreadAlloc::get().alloc(size);
+}
+
+void operator delete(void* p, std::align_val_t)EXCEPTSPEC
+{
+  ThreadAlloc::get().dealloc(p);
+}
+
+void operator delete[](void* p, std::align_val_t) EXCEPTSPEC
+{
+  ThreadAlloc::get().dealloc(p);
+}
+
+void operator delete(void* p, size_t size, std::align_val_t val)EXCEPTSPEC
+{
+  size = aligned_size(size, size_t(val));
+  ThreadAlloc::get().dealloc(p, size);
+}
+
+void operator delete[](void* p, size_t size, std::align_val_t val) EXCEPTSPEC
+{
+  if (p == nullptr)
+    return;
+  size = aligned_size(size, size_t(val));
+  ThreadAlloc::get().dealloc(p, size);
+}
