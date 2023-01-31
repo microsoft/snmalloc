@@ -59,7 +59,7 @@ namespace snmalloc
         GlobalMetaRange global_state;
         // This assert is not necessary for correctness, but if
         // this is not true, we will be wasting a lot of space.
-        SNMALLOC_ASSERT(size >= (MIN_CHUNK_SIZE / 4));
+        SNMALLOC_ASSERT(size >= (MIN_CHUNK_SIZE / 16));
         auto rsize = bits::max(bits::next_pow2(size), MIN_CHUNK_SIZE);
         p = global_state.alloc_range(rsize);
       }
