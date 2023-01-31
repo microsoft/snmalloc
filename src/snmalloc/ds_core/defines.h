@@ -225,6 +225,12 @@ namespace snmalloc
 #else
   static constexpr bool CHECK_CLIENT = false;
 #endif
+
+#ifdef SNMALLOC_CLEAN_POINTERS
+  static constexpr bool CLEAN_POINTERS = true;
+#else
+  static constexpr bool CLEAN_POINTERS = false;
+#endif
 } // namespace snmalloc
 
 #ifdef SNMALLOC_CHECK_CLIENT

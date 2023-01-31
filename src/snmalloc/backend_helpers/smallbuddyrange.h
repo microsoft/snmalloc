@@ -155,12 +155,15 @@ namespace snmalloc
      */
     static void clear(Contents p)
     {
-#ifdef SNMALLOC_CLEAN_POINTERS
-      p->left = nullptr;
-      p->right = nullptr;
-#else
-      UNUSED(p);
-#endif
+      if constexpr (CLEAN_POINTERS)
+      {
+        p->left = nullptr;
+        p->right = nullptr;
+      }
+      else
+      {
+        UNUSED(p);
+      }
     }
   };
 

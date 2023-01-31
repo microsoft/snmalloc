@@ -192,12 +192,14 @@ namespace snmalloc
          */
         void cleanup()
         {
-#ifdef SNMALLOC_CLEAN_POINTERS
-          this->next_object = nullptr;
-#  ifdef SNMALLOC_CHECK_CLIENT
-          this->prev_encoded = 0;
-#  endif
-#endif
+          if constexpr (CLEAN_POINTERS)
+          {
+            this->next_object = nullptr;
+            if constexpr (CHECK_CLIENT)
+            {
+              this->prev_encoded = 0;
+            }
+          }
         }
       };
 
