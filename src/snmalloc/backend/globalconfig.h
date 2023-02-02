@@ -9,19 +9,6 @@
 #  include "meta_protected_range.h"
 #  include "standard_range.h"
 
-#  if defined(SNMALLOC_CHECK_CLIENT) && !defined(OPEN_ENCLAVE)
-/**
- * Protect meta data blocks by allocating separate from chunks for
- * user allocations. This involves leaving gaps in address space.
- * This is less efficient, so should only be applied for the checked
- * build.
- *
- * On Open Enclave the address space is limited, so we disable this
- * feature.
- */
-#    define SNMALLOC_META_PROTECTED
-#  endif
-
 namespace snmalloc
 {
   // Forward reference to thread local cleanup.
@@ -79,11 +66,10 @@ namespace snmalloc
     /**
      * Use one of the default range configurations
      */
-#  ifdef SNMALLOC_META_PROTECTED
-    using LocalState = MetaProtectedRangeLocalState<Pal, Pagemap, Base>;
-#  else
-    using LocalState = StandardLocalState<Pal, Pagemap, Base>;
-#  endif
+    using LocalState = std::conditional_t<
+      mitigations(metadata_protection),
+      MetaProtectedRangeLocalState<Pal, Pagemap, Base>,
+      StandardLocalState<Pal, Pagemap, Base>>;
 
     /**
      * Use the default backend.
@@ -136,14 +122,11 @@ namespace snmalloc
       // Initialise key for remote deallocation lists
       key_global = FreeListKey(entropy.get_free_list_key());
 
-      // Need to initialise pagemap.  If SNMALLOC_CHECK_CLIENT is set and this
-      // isn't a StrictProvenance architecture, randomize its table's location
-      // within a significantly larger address space allocation.
-#  if defined(SNMALLOC_CHECK_CLIENT)
-      static constexpr bool pagemap_randomize = !aal_supports<StrictProvenance>;
-#  else
-      static constexpr bool pagemap_randomize = false;
-#  endif
+      // Need to randomise pagemap location. If requested and not a
+      // StrictProvenance architecture, randomize its table's location within a
+      // significantly larger address space allocation.
+      static constexpr bool pagemap_randomize =
+        mitigations(random_pagemap) && !aal_supports<StrictProvenance>;
 
       Pagemap::concretePagemap.template init<pagemap_randomize>();
 

@@ -11,6 +11,7 @@
 #include "concept.h"
 #include "defines.h"
 #include "helpers.h"
+#include "mitigations.h"
 #include "ptrwrap.h"
 #include "redblacktree.h"
 #include "seqset.h"

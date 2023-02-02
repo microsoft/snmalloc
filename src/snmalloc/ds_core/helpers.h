@@ -37,7 +37,7 @@ namespace snmalloc
     }
   };
 
-#ifdef SNMALLOC_CHECK_CLIENT
+#ifdef SNMALLOC_CHECK_CLIENT // TODO is this used/helpful?
   template<size_t length, typename T>
   class ModArray
   {

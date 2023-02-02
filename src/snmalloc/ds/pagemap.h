@@ -213,6 +213,10 @@ namespace snmalloc
       }
       else
       {
+        if constexpr (pal_supports<LazyCommit, PAL>)
+        {
+          PAL::notify_using_readonly(new_body_untyped, REQUIRED_SIZE);
+        }
         new_body = static_cast<T*>(new_body_untyped);
       }
       // Ensure bottom page is committed

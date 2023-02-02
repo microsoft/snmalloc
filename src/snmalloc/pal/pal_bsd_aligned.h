@@ -38,8 +38,9 @@ namespace snmalloc
 
       int log2align = static_cast<int>(bits::next_pow2_bits(size));
 
-      auto prot =
-        state_using || !PalEnforceAccess ? PROT_READ | PROT_WRITE : PROT_NONE;
+      auto prot = state_using || !mitigations(pal_enforce_access) ?
+        PROT_READ | PROT_WRITE :
+        PROT_NONE;
 
       void* p = mmap(
         nullptr,
