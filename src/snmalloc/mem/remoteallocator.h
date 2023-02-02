@@ -76,11 +76,11 @@ namespace snmalloc
       return fnt;
     }
 
-    inline bool is_empty()
+    template<typename Domesticator_head>
+    inline bool
+    can_dequeue(const FreeListKey& key, Domesticator_head domesticate_head)
     {
-      freelist::QueuePtr bk = back.load(std::memory_order_relaxed);
-
-      return bk == front;
+      return nullptr == domesticate_head(front)->read_next(key, domesticate_head);
     }
 
     /**
