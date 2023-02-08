@@ -12,11 +12,11 @@ on:
   workflow_dispatch:
 
 jobs:
-  unixlike:
+  linux:
     strategy:
       matrix:
         # Build each combination of OS and release/debug variants
-        os: [ "ubuntu-latest", "ubuntu-18.04", "ubuntu-20.04", "macos-11", "macos-12", "freebsd-12.2", "freebsd-13.0" ]
+        os: [ "ubuntu-latest", "ubuntu-18.04", "ubuntu-20.04", "macos-11", "macos-12" ]
         build-type: [ Release, Debug ]
         # Extra cmake flags.  GitHub Actions matrix overloads `include` to mean
         # 'add extra things to a job' and 'add jobs'.  You can add extra things
@@ -44,17 +44,6 @@ jobs:
             dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
           - os: "macos-12"
             dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
-          # Skip the tests for the FreeBSD release builds
-          # Also build-test the checked memcpy implementation while doing these.
-          # It is run-tested on Linux and should be the same everywhere.
-          - os: "freebsd-13.0"
-            build-type: Release
-            build-only: yes
-            cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
-          - os: "freebsd-12.2"
-            build-type: Debug
-            build-only: yes
-            cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
           # Add the self-host build, using the bounds-checked memcpy in
           # maximally paranoid mode (checking loads and stores)
           - os: "ubuntu-latest"
@@ -69,12 +58,6 @@ jobs:
             build-type: Debug
             self-host: true
             extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On"
-          # Add an extra element to the matrix that does a build with clang 12
-          # but doesn't run tests.
-          - os: "freebsd-13.0"
-            variant: Clang 12 (Build only)
-            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++12"
-            build-only: yes
           # Check that we can build specifically with libstdc++
           - os: "ubuntu-latest"
             variant: "libstdc++ (Build only)"
@@ -98,7 +81,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.variant }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Install build dependencies
       run: ${{ matrix.dependencies }}
     - name: Configure CMake
@@ -125,6 +108,56 @@ jobs:
         ninja clean
         LD_PRELOAD=/usr/local/lib/libsnmallocshim-checks.so ninja
 
+  # GitHub doesn't natively support *BSD, but we can run them in VMs on Mac /
+  # Linux runners
+  bsd:
+    strategy:
+      matrix:
+        # Build each combination of OS, version, and release/debug variants
+        # FreeBSD and OpenBSD run on xhyve, netbsd needs qemu
+        os:
+          - name: freebsd
+            version: '13.1'
+            host: macos-12
+            dependencies: pkg ins -y cmake ninja
+            enabled: true
+          - name: freebsd
+            version: '12.4'
+            host: macos-12
+            dependencies: pkg ins -y cmake ninja
+            enabled: true
+          # Tests are failing on OpenBSD, so disable for now.
+          #- name: openbsd
+          #  version: '7.2'
+          #  host: macos-12
+          #  dependencies: pkg_add -I cmake ninja
+          # NetBSD fails to produce any output in 25 minutes, so disable for now.
+          #- name: netbsd
+          #  version: '9.2'
+          #  host: ubuntu-latest
+          #  dependencies: pkgin -y install cmake ninja
+        build-type: [ Release, Debug ]
+      # Don't abort runners if a single one fails
+      fail-fast: false
+    # Kill these jobs if they take too long.
+    timeout-minutes: 25
+    runs-on: ${{ matrix.os.host }}
+    name: ${{ matrix.os.name }}-${{ matrix.os.version}} ${{ matrix.build-type }}
+    steps:
+    - uses: actions/checkout@v3
+    - uses: cross-platform-actions/action@v0.10.0
+      with:
+        operating_system: ${{ matrix.os.name }}
+        architecture: x86-64
+        version: ${{ matrix.os.version}}
+        shell: bash
+        run: |
+          sudo ${{ matrix.os.dependencies }}
+          cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja 
+          cd ${{github.workspace}}/build
+          NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+          ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+
   sanitizer:
     strategy:
       matrix:
@@ -147,7 +180,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.variant }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Install build dependencies
       run: ${{ matrix.dependencies }}
     - name: Configure CMake
@@ -197,7 +230,7 @@ jobs:
     runs-on: ${{matrix.arch.host-os}}
     name: ${{matrix.build-type}} cross-build for ${{ matrix.arch.triple }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: "Install cross-compile toolchain and QEMU (ubuntu-20.04)"
       # Install the dependencies and clang 13.  Earlier versions of clang don't
       # find the multilib things for this week's Ubuntu filesystem layout.
@@ -295,7 +328,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: ${{ matrix.os }} ${{ matrix.arch }} ${{ matrix.build-type }} ${{ matrix.toolchain }} ${{ matrix.variant }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Configure CMake
       run: |
         cmake -B ${{github.workspace}}/build -A ${{ matrix.arch }} ${{ matrix.toolchain }} ${{ matrix.extra-cmake-flags }} -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On
@@ -314,7 +347,7 @@ jobs:
     runs-on: ubuntu-18.04
     # We don't need to do the build for this job, but we need to configure it to get the clang-format target
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DSNMALLOC_USE_CXX17=ON
     - name: Install clang-tidy
@@ -335,7 +368,7 @@ jobs:
         fi
 
   all-checks:
-    needs: [unixlike, qemu-crossbuild, windows, format, sanitizer]
+    needs: [linux, bsd, qemu-crossbuild, windows, format, sanitizer]
     runs-on: ubuntu-latest
     steps:
     - name: Dummy step
