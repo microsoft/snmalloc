@@ -288,7 +288,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
   if(NOT (DEFINED SNMALLOC_LINKER_FLAVOUR) OR ("${SNMALLOC_LINKER_FLAVOUR}" MATCHES "^$"))
     # Linker not specified externally; probe to see if we can make lld work
-    set(CMAKE_REQUIRED_LINK_OPTIONS -fuse-ld=lld)
+    set(CMAKE_REQUIRED_LINK_OPTIONS -fuse-ld=lld -Wl,--icf=all)
     check_cxx_source_compiles("int main() { return 1; }" LLD_WORKS)
     if (LLD_WORKS)
       message(STATUS "Using LLD to link snmalloc shims")
