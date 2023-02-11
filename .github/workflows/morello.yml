@@ -9,6 +9,20 @@ on:
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+    inputs:
+      bootenv_label:
+        description: "Morello host environment"
+        type: string
+        required: true
+        default: "benchmark"
+
+      runqueue_label:
+        description: "Morello runner queue (production or test scripts?)"
+        required: true
+        type: choice
+        options:
+          - "msr-morello"
+          - "msr-morello-test"
 
 jobs:
   # UNIX-like, but with some needed TLC for the moment, so not folded in to the main unixlike CI.
@@ -49,7 +63,11 @@ jobs:
     #     ${{ (matrix.os == 'morello' && fromJSON('["self-hosted", "msr-morello", "benchmark"]'))
     #         || matrix.os }}
     # to dispatch dynamically.
-    runs-on: ["self-hosted", "msr-morello", "benchmark"]
+    runs-on: >-
+      ${{ fromJSON(format(
+        '[ "self-hosted", "{0}", "{1}" ]',
+        inputs.runqueue_label || 'msr-morello',
+        inputs.bootenv_label || 'benchmark' )) }}
     name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.caps }}
     steps:
     - uses: actions/checkout@v2
