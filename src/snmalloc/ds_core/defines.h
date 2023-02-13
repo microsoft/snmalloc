@@ -109,8 +109,7 @@ namespace snmalloc
 #define TOSTRING(expr) TOSTRING2(expr)
 #define TOSTRING2(expr) #expr
 
-#if (defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 11) || \
-  (defined(__clang__) && __clang_major__ >= 15)
+#ifdef __cpp_lib_source_location
 #  include <source_location>
 #  define SNMALLOC_CURRENT_LINE std::source_location::current().line()
 #  define SNMALLOC_CURRENT_FILE std::source_location::current().file_name()
