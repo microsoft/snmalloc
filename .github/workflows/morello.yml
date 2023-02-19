@@ -38,8 +38,8 @@ jobs:
         include:
           - os: "morello"
             caps: Hybrid
-            dependencies: |
-              pkg64 install -y llvm-localbase cmake ninja
+            dependencies: >-
+              llvm-localbase cmake ninja
             cmake-flags: >
               -DCMAKE_CXX_COMPILER=/usr/local64/bin/clang++
               -DCMAKE_C_COMPILER=/usr/local64/bin/clang
@@ -47,8 +47,8 @@ jobs:
               -DCMAKE_C_FLAGS='-march=morello -Xclang -morello-vararg=new'
           - os: "morello"
             caps: Purecap
-            dependencies: |
-              pkg64 install -y llvm-localbase cmake ninja
+            dependencies: >-
+              llvm-localbase cmake ninja
             cmake-flags: >
               -DCMAKE_CXX_COMPILER=/usr/local64/bin/clang++
               -DCMAKE_C_COMPILER=/usr/local64/bin/clang
@@ -72,7 +72,8 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Install build dependencies
-      run: ${{ matrix.dependencies }}
+      run: |
+        su -l root -c "pkg64 install -y ${{ matrix.dependencies }}"
     - name: Log environment details
       run: |
         uname -a
