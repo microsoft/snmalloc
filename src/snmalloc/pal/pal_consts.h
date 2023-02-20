@@ -21,7 +21,8 @@ namespace snmalloc
    * read/write, for added excitement).  For the moment, just force this down on
    * CHERI.
    */
-#if defined(SNMALLOC_CHECK_CLIENT) && !defined(__CHERI_PURE_CAPABILITY__) && !defined(__NetBSD__)
+#if defined(SNMALLOC_CHECK_CLIENT) && !defined(__CHERI_PURE_CAPABILITY__) && \
+  !defined(__NetBSD__)
   static constexpr bool PalEnforceAccess = true;
 #else
   static constexpr bool PalEnforceAccess = false;
