@@ -1,8 +1,7 @@
 name: snmalloc CI for Morello
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the master branch
+  # Triggers the workflow on push or pull request events but only for the main branch
   push:
     branches: [ main ]
   pull_request:
@@ -10,6 +9,20 @@ on:
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
+    inputs:
+      bootenv_label:
+        description: "Morello host environment"
+        type: string
+        required: true
+        default: "benchmark"
+
+      runqueue_label:
+        description: "Morello runner queue (production or test scripts?)"
+        required: true
+        type: choice
+        options:
+          - "msr-morello"
+          - "msr-morello-test"
 
 jobs:
   # UNIX-like, but with some needed TLC for the moment, so not folded in to the main unixlike CI.
@@ -25,8 +38,8 @@ jobs:
         include:
           - os: "morello"
             caps: Hybrid
-            dependencies: |
-              pkg64 install -y llvm-localbase cmake ninja
+            dependencies: >-
+              llvm-localbase cmake ninja
             cmake-flags: >
               -DCMAKE_CXX_COMPILER=/usr/local64/bin/clang++
               -DCMAKE_C_COMPILER=/usr/local64/bin/clang
@@ -34,33 +47,37 @@ jobs:
               -DCMAKE_C_FLAGS='-march=morello -Xclang -morello-vararg=new'
           - os: "morello"
             caps: Purecap
-            dependencies: |
-              pkg64 install -y llvm-localbase cmake ninja
+            dependencies: >-
+              llvm-localbase cmake ninja
             cmake-flags: >
               -DCMAKE_CXX_COMPILER=/usr/local64/bin/clang++
               -DCMAKE_C_COMPILER=/usr/local64/bin/clang
               -DCMAKE_CXX_FLAGS='-march=morello -mabi=purecap -Xclang -morello-vararg=new'
               -DCMAKE_C_FLAGS='-march=morello -mabi=purecap -Xclang -morello-vararg=new'
-              -DSNMALLOC_LINK_ICF=OFF
-            # SNMALLOC_LINK_ICF=OFF until the fix for
-            # https://git.morello-project.org/morello/llvm-project/-/issues/51 , namely
-            # https://git.morello-project.org/morello/llvm-project/-/commit/f41cb9104e0793de87d98b38acb274b2e3266091
-            # lands in a package or a release.  That's probably the Fall 2022 release.
       # Don't abort runners if a single one fails
       fail-fast: false
     # Morello needs special handling to get picked up by our self-hosted runners
     # When/if we do integrate this back into the unixlike matrix above, we could
     # say something like::
     #   runs-on: >-
-    #     ${{ (matrix.os == 'morello' && fromJSON('["self-hosted", "msr-morello", "2022.05-benchmark"]'))
+    #     ${{ (matrix.os == 'morello' && fromJSON('["self-hosted", "msr-morello", "benchmark"]'))
     #         || matrix.os }}
     # to dispatch dynamically.
-    runs-on: ["self-hosted", "msr-morello", "2022.05-benchmark"]
+    runs-on: >-
+      ${{ fromJSON(format(
+        '[ "self-hosted", "{0}", "{1}" ]',
+        inputs.runqueue_label || 'msr-morello',
+        inputs.bootenv_label || 'benchmark' )) }}
     name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.caps }}
     steps:
     - uses: actions/checkout@v2
     - name: Install build dependencies
-      run: ${{ matrix.dependencies }}
+      run: |
+        su -l root -c "pkg64 install -y ${{ matrix.dependencies }}"
+    - name: Log environment details
+      run: |
+        uname -a
+        mount
     - name: Configure CMake
       run: >
         cmake
@@ -70,24 +87,16 @@ jobs:
         ${{ matrix.extra-cmake-flags }}
       # Build with a nice ninja status line
     - name: Build
-      # https://github.com/ChristopherHX/github-act-runner seemingly ignores working-directory,
-      # but everyone agrees that we start in ${{github.workspace}} by default, so just cd into
-      # the build directory ourselves.  See
-      #   https://docs.github.com/en/actions/learn-github-actions/contexts#github-context
-      #   https://github.com/ChristopherHX/github-act-runner/issues/61
-      # working-directory: ${{github.workspace}}/build
+      working-directory: ${{github.workspace}}/build
       run: |
-        cd build
         NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
     - name: Test file size of binaries is sane
-      # working-directory: ${{github.workspace}}/build
+      working-directory: ${{github.workspace}}/build
       run: |
-        cd build
         ls -l func-first_operation-fast ; [ $(ls -l func-first_operation-fast | awk '{ print $5}') -lt 10000000 ]
       # If the tests are enabled for this job, run them
     - name: Test
       if: ${{ matrix.build-only != 'yes' }}
-      # working-directory: ${{github.workspace}}/build
+      working-directory: ${{github.workspace}}/build
       run: |
-        cd build
         ctest --output-on-failure -j 4 -C ${{ matrix.build-type }} --timeout 400
