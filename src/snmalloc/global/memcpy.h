@@ -494,7 +494,7 @@ namespace snmalloc
       return report_fatal_bounds_error(
         dst, len, "memmove with destination out of bounds of heap allocation");
 
-    if (dst > src)
+    if ((address_cast(dst) - address_cast(src)) < len)
     {
       // slow 'safe' reverse copy, we avoid optimised rollouts
       // to cope with typical memmove use cases, moving

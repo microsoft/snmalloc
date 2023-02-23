@@ -160,11 +160,11 @@ void check_bounds(size_t size, size_t out_of_bounds)
   my_free(d);
 }
 
-void check_overlaps(size_t size)
+void check_overlaps1()
 {
-  START_TEST("memmove overlaps, size {}", size);
+  size_t size = 16;
+  START_TEST("memmove overlaps1");
   auto* s = static_cast<unsigned int*>(my_malloc(size * sizeof(unsigned int)));
-  auto sz = size / 2;
   for (size_t i = 0; i < size; ++i)
   {
     s[i] = static_cast<unsigned int>(i);
@@ -177,16 +177,29 @@ void check_overlaps(size_t size)
   my_memmove(ptr, s, size * sizeof(s[0]));
   EXPECT(ptr == s, "overlap error: {} {}", ptr, s);
   my_free(s);
-  s = static_cast<unsigned int*>(my_malloc(size * sizeof(unsigned int)));
+}
+
+template<bool after>
+void check_overlaps2(size_t size)
+{
+  START_TEST("memmove overlaps2, size {}", size);
+  auto sz = size / 2;
+  auto offset = size / 2;
+  auto* s = static_cast<unsigned int*>(my_malloc(size * sizeof(unsigned int)));
   for (size_t i = 0; i < size; ++i)
   {
     s[i] = static_cast<unsigned int>(i);
   }
-  ptr = s + sz;
-  my_memmove(ptr, s, sz * sizeof(unsigned int));
-  for (size_t i = 0; i < sz; ++i)
+  auto dst = after ? s + offset : s;
+  auto src = after ? s : s + offset;
+  size_t i = after ? 0 : offset;
+  size_t u = 0;
+  my_memmove(dst, src, sz * sizeof(unsigned int));
+  while (u < sz)
   {
-    EXPECT(ptr[i] == s[i], "overlap error: {} {}", ptr[i], s[i]);
+    EXPECT(dst[u] == i, "overlap error: {} {}", dst[u], i);
+    u++;
+    i++;
   }
   my_free(s);
 }
@@ -223,9 +236,12 @@ int main()
     check_size<true>(x);
   }
 
-  for (size_t x = 8; x < 256; x += 8)
+  check_overlaps1();
+
+  for (size_t x = 8; x < 256; x += 64)
   {
-    check_overlaps(x);
+    check_overlaps2<false>(x);
+    check_overlaps2<true>(x);
   }
 }
 #endif
