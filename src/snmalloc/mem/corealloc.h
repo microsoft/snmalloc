@@ -291,7 +291,7 @@ namespace snmalloc
       bumpptr = slab_end;
     }
 
-    capptr::Alloc<void>
+    capptr::Arena<void>
     clear_slab(BackendSlabMetadata* meta, smallsizeclass_t sizeclass)
     {
       auto& key = entropy.get_free_list_key();
@@ -334,10 +334,16 @@ namespace snmalloc
       SNMALLOC_CHECK(
         count == snmalloc::sizeclass_to_slab_object_count(sizeclass));
 #endif
-      // TODO: This is a capability amplification as we are saying we
-      // have the whole chunk.
-      auto start_of_slab = pointer_align_down<void>(
-        p, snmalloc::sizeclass_to_slab_size(sizeclass));
+      /*
+       * The backend is going to want to have access to the entire Arena, so
+       * that it may merge Chunk-s.  Go ahead and amplify here, even though,
+       * logically, we're communicating about a particular Chunk; there's no
+       * point in narrowing bounds just for the backend to immediately amplify
+       * again.
+       */
+      capptr::Arena<void> start_of_slab = pointer_align_down<void>(
+        Config::Backend::amplify(p),
+        snmalloc::sizeclass_to_slab_size(sizeclass));
 
 #if defined(__CHERI_PURE_CAPABILITY__) && !defined(SNMALLOC_CHECK_CLIENT)
       // Zero the whole slab. For CHERI we at least need to clear the freelist
@@ -429,8 +435,17 @@ namespace snmalloc
         // Remove from set of fully used slabs.
         meta->node.remove();
 
+        /*
+         * Because this is a large allocation, we know that the Alloc-bounded
+         * pointer is equally suitable as a ChunkUser-bounded pointer (we must
+         * have gone through capptr_chunk_is_alloc en route to giving out the
+         * pointer to the user, so we could justifiably go back the other way).
+         * However, the backend is going to want to operate in terms of Arena-
+         * bounded pointers anyway, so just do the full amplification here.
+         */
+        capptr::Arena<void> p_arena = Config::Backend::amplify(p);
         Config::Backend::dealloc_chunk(
-          get_backend_local_state(), *meta, p, size);
+          get_backend_local_state(), *meta, p_arena, size);
 
         return;
       }

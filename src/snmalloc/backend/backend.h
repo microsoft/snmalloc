@@ -128,7 +128,7 @@ namespace snmalloc
     static void dealloc_chunk(
       LocalState& local_state,
       SlabMetadata& slab_metadata,
-      capptr::Alloc<void> alloc,
+      capptr::Arena<void> alloc,
       size_t size)
     {
       /*
@@ -149,17 +149,10 @@ namespace snmalloc
         Pagemap::get_metaentry(address_cast(alloc)).get_slab_metadata());
       Pagemap::set_metaentry(address_cast(alloc), size, t);
 
-      /*
-       * On CHERI, the passed alloc has had its bounds narrowed to just the
-       * Chunk, and so we retrieve the Arena-bounded cap for use in the
-       * remainder of the backend.
-       */
-      capptr::Arena<void> arena = Authmap::amplify(alloc);
-
       local_state.get_meta_range().dealloc_range(
         capptr::Arena<void>::unsafe_from(&slab_metadata), SizeofMetadata);
 
-      local_state.get_object_range()->dealloc_range(arena, size);
+      local_state.get_object_range()->dealloc_range(alloc, size);
     }
 
     template<bool potentially_out_of_range = false>

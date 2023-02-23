@@ -127,7 +127,7 @@ namespace snmalloc
   &&requires(
     LocalState& local_state,
     typename Backend::SlabMetadata& slab_metadata,
-    capptr::Alloc<void> alloc,
+    capptr::Arena<void> alloc,
     size_t size)
   {
     {
