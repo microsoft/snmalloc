@@ -227,4 +227,22 @@ extern "C"
     return SNMALLOC_NAME_MANGLE(memalign)(
       OS_PAGE_SIZE, (size + OS_PAGE_SIZE - 1) & ~(OS_PAGE_SIZE - 1));
   }
+
+#if __has_include(<features.h>)
+#  include <features.h>
+#endif
+#if defined(__GLIBC__) && !defined(SNMALLOC_PASS_THROUGH)
+  // glibc uses these hooks to replace malloc.
+  // This is required when RTL_DEEPBIND is used and the library is
+  // LD_PRELOADed.
+  // See https://github.com/microsoft/snmalloc/issues/595
+  SNMALLOC_EXPORT void (*SNMALLOC_NAME_MANGLE(__free_hook))(void* ptr) =
+    &SNMALLOC_NAME_MANGLE(free);
+  SNMALLOC_EXPORT void* (*SNMALLOC_NAME_MANGLE(__malloc_hook))(size_t size) =
+    &SNMALLOC_NAME_MANGLE(malloc);
+  SNMALLOC_EXPORT void* (*SNMALLOC_NAME_MANGLE(__realloc_hook))(
+    void* ptr, size_t size) = &SNMALLOC_NAME_MANGLE(realloc);
+  SNMALLOC_EXPORT void* (*SNMALLOC_NAME_MANGLE(__memalign_hook))(
+    size_t alignment, size_t size) = &SNMALLOC_NAME_MANGLE(memalign);
+#endif
 }
