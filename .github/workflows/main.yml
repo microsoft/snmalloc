@@ -177,36 +177,38 @@ jobs:
           NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
           ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
 
-  openbsd:
-    strategy:
-      matrix:
-        # Build each combination of OS, version, and release/debug variants
-        os:
-          - version: '7.2'
-            dependencies: pkg_add -I cmake ninja
-        build-type: [ Release, Debug ]
-      # Don't abort runners if a single one fails
-      fail-fast: false
-    # Kill these jobs if they take too long.
-    timeout-minutes: 25
-    runs-on: macos-latest
-    name: OpenBSD-${{ matrix.os.version}} ${{ matrix.build-type }}
-    steps:
-    - uses: actions/checkout@v3
-    - uses: vmactions/openbsd-vm@v0
-      with:
-        release: ${{ matrix.os.version}}
-        usesh: true
-        mem: 8192
-        copyback: false
-        prepare: |
-          ${{ matrix.os.dependencies }}
-        run: |
-          set -e
-          cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja
-          cd ${{github.workspace}}/build
-          NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-          ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+  ## Without overcommit, or explicit commit the current implementation cannot be made to work on openbsd.
+  ## We could add a layered pagemap for openbsd, that would address the requirements. 
+  # openbsd:
+  #   strategy:
+  #     matrix:
+  #       # Build each combination of OS, version, and release/debug variants
+  #       os:
+  #         - version: '7.2'
+  #           dependencies: pkg_add -I cmake ninja
+  #       build-type: [ Release, Debug ]
+  #     # Don't abort runners if a single one fails
+  #     fail-fast: false
+  #   # Kill these jobs if they take too long.
+  #   timeout-minutes: 25
+  #   runs-on: macos-latest
+  #   name: OpenBSD-${{ matrix.os.version}} ${{ matrix.build-type }}
+  #   steps:
+  #   - uses: actions/checkout@v3
+  #   - uses: vmactions/openbsd-vm@v0
+  #     with:
+  #       release: ${{ matrix.os.version}}
+  #       usesh: true
+  #       mem: 8192
+  #       copyback: false
+  #       prepare: |
+  #         ${{ matrix.os.dependencies }}
+  #       run: |
+  #         set -e
+  #         cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja
+  #         cd ${{github.workspace}}/build
+  #         NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+  #         ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
 
   sanitizer:
     strategy:
