@@ -174,7 +174,7 @@ namespace snmalloc
       }
       else
       {
-#if __has_builtin(__builtin_readcyclecounter) && \
+#if __has_builtin(__builtin_readcyclecounter) && !defined(__APPLE__) && \
   !defined(SNMALLOC_NO_AAL_BUILTINS)
         return __builtin_readcyclecounter();
 #else
