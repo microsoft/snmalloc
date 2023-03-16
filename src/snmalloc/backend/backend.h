@@ -57,9 +57,14 @@ namespace snmalloc
           GlobalMetaRange::ConcurrencySafe,
           "Global meta data range needs to be concurrency safe.");
         GlobalMetaRange global_state;
+        // TODO - this cannot be uncommented currently due to some use cases.
+        //   We should allow the Pool to use the allocator or the backend for 
+        //   other scenarios.  E.g. the Pool is used by Verona-rt where an 
+        //   allocator has already been created. See #603
+        //   
         // This assert is not necessary for correctness, but if
         // this is not true, we will be wasting a lot of space.
-        SNMALLOC_ASSERT(size >= (MIN_CHUNK_SIZE / 16));
+        // SNMALLOC_ASSERT_MSG(size >= (MIN_CHUNK_SIZE / 16), "Size request will waste space (size = {})\n", size);
         auto rsize = bits::max(bits::next_pow2(size), MIN_CHUNK_SIZE);
         p = global_state.alloc_range(rsize);
       }
