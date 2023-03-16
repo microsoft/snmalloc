@@ -80,7 +80,7 @@ namespace snmalloc
     inline bool
     can_dequeue(const FreeListKey& key, Domesticator_head domesticate_head)
     {
-      return nullptr == domesticate_head(front)->read_next(key, domesticate_head);
+      return domesticate_head(front)->read_next(key, domesticate_head) == nullptr;
     }
 
     /**
