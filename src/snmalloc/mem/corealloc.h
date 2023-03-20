@@ -170,41 +170,11 @@ namespace snmalloc
 
     /**
      * The message queue has non-trivial initialisation as it needs to
-     * be non-empty, so we prime it with a single allocation.
+     * be non-empty, so we prime it with a fake allocation.
      */
     void init_message_queue()
     {
-      // Manufacture an allocation to prime the queue
-      // Using an actual allocation removes a conditional from a critical path.
-      auto dummy = capptr::Alloc<void>(small_alloc_one(MIN_ALLOC_SIZE))
-                     .template as_static<freelist::Object::T<>>();
-      if (dummy == nullptr)
-      {
-        error("Critical error: Out-of-memory during initialisation.");
-      }
-      message_queue().init(dummy);
-    }
-
-    /**
-     * There are a few internal corner cases where we need to allocate
-     * a small object.  These are not on the fast path,
-     *   - Allocating stub in the message queue
-     * Note this is not performance critical as very infrequently called.
-     */
-    capptr::Alloc<void> small_alloc_one(size_t size)
-    {
-      SNMALLOC_ASSERT(attached_cache != nullptr);
-      auto domesticate =
-        [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
-          return capptr_domesticate<Config>(backend_state_ptr(), p);
-        };
-      // Use attached cache, and fill it if it is empty.
-      return attached_cache->template alloc<NoZero, Config>(
-        domesticate,
-        size,
-        [&](smallsizeclass_t sizeclass, freelist::Iter<>* fl) {
-          return small_alloc<NoZero>(sizeclass, *fl);
-        });
+      message_queue().init();
     }
 
     static SNMALLOC_FAST_PATH void alloc_new_list(
