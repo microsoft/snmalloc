@@ -14,7 +14,7 @@ namespace snmalloc
   /**
    * Perform arithmetic on a uintptr_t.
    */
-  inline uintptr_t pointer_offset(uintptr_t base, size_t diff)
+  SNMALLOC_FAST_PATH inline uintptr_t pointer_offset(uintptr_t base, size_t diff)
   {
     return base + diff;
   }
@@ -23,7 +23,7 @@ namespace snmalloc
    * Perform pointer arithmetic and return the adjusted pointer.
    */
   template<typename U = void, typename T>
-  inline U* pointer_offset(T* base, size_t diff)
+  SNMALLOC_FAST_PATH inline U* pointer_offset(T* base, size_t diff)
   {
     SNMALLOC_ASSERT(base != nullptr); /* Avoid UB */
     return unsafe_from_uintptr<U>(
@@ -32,7 +32,7 @@ namespace snmalloc
 
   template<SNMALLOC_CONCEPT(capptr::IsBound) bounds, typename T>
   inline CapPtr<void, bounds>
-  pointer_offset(CapPtr<T, bounds> base, size_t diff)
+  SNMALLOC_FAST_PATH pointer_offset(CapPtr<T, bounds> base, size_t diff)
   {
     return CapPtr<void, bounds>::unsafe_from(
       pointer_offset(base.unsafe_ptr(), diff));
@@ -42,7 +42,7 @@ namespace snmalloc
    * Perform pointer arithmetic and return the adjusted pointer.
    */
   template<typename U = void, typename T>
-  inline U* pointer_offset_signed(T* base, ptrdiff_t diff)
+  SNMALLOC_FAST_PATH inline U* pointer_offset_signed(T* base, ptrdiff_t diff)
   {
     SNMALLOC_ASSERT(base != nullptr); /* Avoid UB */
     return reinterpret_cast<U*>(reinterpret_cast<char*>(base) + diff);
@@ -50,7 +50,7 @@ namespace snmalloc
 
   template<SNMALLOC_CONCEPT(capptr::IsBound) bounds, typename T>
   inline CapPtr<void, bounds>
-  pointer_offset_signed(CapPtr<T, bounds> base, ptrdiff_t diff)
+  SNMALLOC_FAST_PATH pointer_offset_signed(CapPtr<T, bounds> base, ptrdiff_t diff)
   {
     return CapPtr<void, bounds>::unsafe_from(
       pointer_offset_signed(base.unsafe_ptr(), diff));
@@ -60,7 +60,7 @@ namespace snmalloc
    * Cast from a pointer type to an address.
    */
   template<typename T>
-  inline SNMALLOC_FAST_PATH address_t address_cast(T* ptr)
+  SNMALLOC_FAST_PATH inline SNMALLOC_FAST_PATH address_t address_cast(T* ptr)
   {
     return reinterpret_cast<address_t>(ptr);
   }
@@ -73,12 +73,12 @@ namespace snmalloc
    * capptr_bound.
    */
   template<typename T, SNMALLOC_CONCEPT(capptr::IsBound) bounds>
-  inline SNMALLOC_FAST_PATH address_t address_cast(CapPtr<T, bounds> a)
+  SNMALLOC_FAST_PATH inline SNMALLOC_FAST_PATH address_t address_cast(CapPtr<T, bounds> a)
   {
     return address_cast(a.unsafe_ptr());
   }
 
-  inline SNMALLOC_FAST_PATH address_t address_cast(uintptr_t a)
+  SNMALLOC_FAST_PATH inline SNMALLOC_FAST_PATH address_t address_cast(uintptr_t a)
   {
     return static_cast<address_t>(a);
   }
