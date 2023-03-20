@@ -16,7 +16,7 @@ namespace snmalloc
 
     // Find the minimum set of maximally aligned blocks in this range.
     // Each block's alignment and size are equal.
-    while (length >= sizeof(void*))
+    while (length >= bits::one_at_bit(MIN_BITS))
     {
       size_t base_align_bits = bits::ctz(address_cast(base));
       size_t length_align_bits = (bits::BITS - 1) - bits::clz(length);
