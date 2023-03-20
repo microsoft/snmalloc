@@ -107,21 +107,9 @@ namespace snmalloc
     SNMALLOC_REQUIRE_CONSTINIT
     inline static FlagWord initialisation_lock{};
 
-  public:
-    /**
-     * Provides the state to create new allocators.
-     */
-    static GlobalPoolState& pool()
-    {
-      return alloc_pool;
-    }
-
-    static constexpr Flags Options{};
-
     // Performs initialisation for this configuration
-    // of allocators.  Needs to be idempotent,
-    // and concurrency safe.
-    static void ensure_init()
+    // of allocators.
+    SNMALLOC_SLOW_PATH static void ensure_init_slow()
     {
       FlagLock lock{initialisation_lock};
 #  ifdef SNMALLOC_TRACING
@@ -152,7 +140,29 @@ namespace snmalloc
         Authmap::init();
       }
 
-      initialised = true;
+      initialised.store(true, std::memory_order_release);
+    }
+
+  public:
+    /**
+     * Provides the state to create new allocators.
+     */
+    static GlobalPoolState& pool()
+    {
+      return alloc_pool;
+    }
+
+    static constexpr Flags Options{};
+
+    // Performs initialisation for this configuration
+    // of allocators.  Needs to be idempotent,
+    // and concurrency safe.
+    SNMALLOC_FAST_PATH static void ensure_init()
+    {
+      if (SNMALLOC_LIKELY(initialised.load(std::memory_order_acquire)))
+        return;
+
+      ensure_init_slow();
     }
 
     static bool is_initialised()
