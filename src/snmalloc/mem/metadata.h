@@ -396,11 +396,8 @@ namespace snmalloc
     /**
      *  Data-structure for building the free list for this slab.
      */
-#ifdef SNMALLOC_CHECK_CLIENT
-    freelist::Builder<true> free_queue;
-#else
-    freelist::Builder<false> free_queue;
-#endif
+    SNMALLOC_NO_UNIQUE_ADDRESS freelist::Builder<mitigations(random_preserve)>
+      free_queue;
 
     /**
      * The number of deallocation required until we hit a slow path. This
@@ -566,11 +563,10 @@ namespace snmalloc
       auto p = tmp_fl.take(key, domesticate);
       fast_free_list = tmp_fl;
 
-#ifdef SNMALLOC_CHECK_CLIENT
-      entropy.refresh_bits();
-#else
-      UNUSED(entropy);
-#endif
+      if constexpr (mitigations(random_preserve))
+        entropy.refresh_bits();
+      else
+        UNUSED(entropy);
 
       // This marks the slab as sleeping, and sets a wakeup
       // when sufficient deallocations have occurred to this slab.

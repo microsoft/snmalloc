@@ -467,9 +467,9 @@ namespace snmalloc
      * point where we know, from the pagemap, or by explicitly testing, that the
      * pointer under test is not nullptr.
      */
-#if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
-    SNMALLOC_SLOW_PATH void dealloc_cheri_checks(void* p)
+    SNMALLOC_FAST_PATH void dealloc_cheri_checks(void* p)
     {
+#if defined(__CHERI_PURE_CAPABILITY__)
       /*
        * Enforce the use of an unsealed capability.
        *
@@ -477,7 +477,9 @@ namespace snmalloc
        * elide this test in that world.
        */
       snmalloc_check_client(
-        !__builtin_cheri_sealed_get(p), "Sealed capability in deallocation");
+        mitigations(cheri_checks),
+        !__builtin_cheri_sealed_get(p),
+        "Sealed capability in deallocation");
 
       /*
        * Enforce permissions on the returned pointer.  These pointers end up in
@@ -496,6 +498,7 @@ namespace snmalloc
       static const size_t reqperm = CHERI_PERM_LOAD | CHERI_PERM_STORE |
         CHERI_PERM_LOAD_CAP | CHERI_PERM_STORE_CAP;
       snmalloc_check_client(
+        mitigations(cheri_checks),
         (__builtin_cheri_perms_get(p) & reqperm) == reqperm,
         "Insufficient permissions on capability in deallocation");
 
@@ -510,13 +513,16 @@ namespace snmalloc
        * elide this test.
        */
       snmalloc_check_client(
-        __builtin_cheri_tag_get(p), "Untagged capability in deallocation");
+        mitigations(cheri_checks),
+        __builtin_cheri_tag_get(p),
+        "Untagged capability in deallocation");
 
       /*
        * Verify that the capability is not zero-length, ruling out the other
        * edge case around monotonicity.
        */
       snmalloc_check_client(
+        mitigations(cheri_checks),
         __builtin_cheri_length_get(p) > 0,
         "Zero-length capability in deallocation");
 
@@ -585,8 +591,10 @@ namespace snmalloc
        * acceptable security posture for the allocator and between clients;
        * misbehavior is confined to the misbehaving client.
        */
-    }
+#else
+      UNUSED(p);
 #endif
+    }
 
     SNMALLOC_FAST_PATH void dealloc(void* p_raw)
     {
@@ -638,9 +646,8 @@ namespace snmalloc
 
       if (SNMALLOC_LIKELY(local_cache.remote_allocator == entry.get_remote()))
       {
-#  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
         dealloc_cheri_checks(p_tame.unsafe_ptr());
-#  endif
+
         if (SNMALLOC_LIKELY(CoreAlloc::dealloc_local_object_fast(
               entry, p_tame, local_cache.entropy)))
           return;
@@ -651,13 +658,13 @@ namespace snmalloc
       RemoteAllocator* remote = entry.get_remote();
       if (SNMALLOC_LIKELY(remote != nullptr))
       {
-#  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
         dealloc_cheri_checks(p_tame.unsafe_ptr());
-#  endif
 
         // Detect double free of large allocations here.
         snmalloc_check_client(
-          !entry.is_backend_owned(), "Memory corruption detected");
+          mitigations(sanity_checks),
+          !entry.is_backend_owned(),
+          "Memory corruption detected");
 
         // Check if we have space for the remote deallocation
         if (local_cache.remote_dealloc_cache.reserve_space(entry))
@@ -678,7 +685,10 @@ namespace snmalloc
       // If p_tame is not null, then dealloc has been call on something
       // it shouldn't be called on.
       // TODO: Should this be tested even in the !CHECK_CLIENT case?
-      snmalloc_check_client(p_tame == nullptr, "Not allocated by snmalloc.");
+      snmalloc_check_client(
+        mitigations(sanity_checks),
+        p_tame == nullptr,
+        "Not allocated by snmalloc.");
 
 #  ifdef SNMALLOC_TRACING
       message<1024>("nullptr deallocation");
@@ -689,17 +699,26 @@ namespace snmalloc
 
     void check_size(void* p, size_t size)
     {
-#ifdef SNMALLOC_CHECK_CLIENT
-      size = size == 0 ? 1 : size;
-      auto sc = size_to_sizeclass_full(size);
-      auto pm_sc =
-        Config::Backend::get_metaentry(address_cast(p)).get_sizeclass();
-      auto rsize = sizeclass_full_to_size(sc);
-      auto pm_size = sizeclass_full_to_size(pm_sc);
-      snmalloc_check_client(
-        sc == pm_sc, "Dealloc rounded size mismatch: {} != {}", rsize, pm_size);
-#else
+#ifdef SNMALLOC_PASS_THROUGH
       UNUSED(p, size);
+#else
+      if constexpr (mitigations(sanity_checks))
+      {
+        size = size == 0 ? 1 : size;
+        auto sc = size_to_sizeclass_full(size);
+        auto pm_sc =
+          Config::Backend::get_metaentry(address_cast(p)).get_sizeclass();
+        auto rsize = sizeclass_full_to_size(sc);
+        auto pm_size = sizeclass_full_to_size(pm_sc);
+        snmalloc_check_client(
+          mitigations(sanity_checks),
+          sc == pm_sc,
+          "Dealloc rounded size mismatch: {} != {}",
+          rsize,
+          pm_size);
+      }
+      else
+        UNUSED(p, size);
 #endif
     }
 

@@ -190,73 +190,78 @@ namespace snmalloc
 
       auto& b = meta->free_queue;
 
-#ifdef SNMALLOC_CHECK_CLIENT
-      // Structure to represent the temporary list elements
-      struct PreAllocObject
+      if constexpr (mitigations(random_initial))
       {
-        capptr::AllocFull<PreAllocObject> next;
-      };
-      // The following code implements Sattolo's algorithm for generating
-      // random cyclic permutations.  This implementation is in the opposite
-      // direction, so that the original space does not need initialising.  This
-      // is described as outside-in without citation on Wikipedia, appears to be
-      // Folklore algorithm.
+        // Structure to represent the temporary list elements
+        struct PreAllocObject
+        {
+          capptr::AllocFull<PreAllocObject> next;
+        };
+        // The following code implements Sattolo's algorithm for generating
+        // random cyclic permutations.  This implementation is in the opposite
+        // direction, so that the original space does not need initialising.
+        // This is described as outside-in without citation on Wikipedia,
+        // appears to be Folklore algorithm.
 
-      // Note the wide bounds on curr relative to each of the ->next fields;
-      // curr is not persisted once the list is built.
-      capptr::Chunk<PreAllocObject> curr =
-        pointer_offset(bumpptr, 0).template as_static<PreAllocObject>();
-      curr->next = Aal::capptr_bound<PreAllocObject, capptr::bounds::AllocFull>(
-        curr, rsize);
-
-      uint16_t count = 1;
-      for (curr =
-             pointer_offset(curr, rsize).template as_static<PreAllocObject>();
-           curr.as_void() < slab_end;
-           curr =
-             pointer_offset(curr, rsize).template as_static<PreAllocObject>())
-      {
-        size_t insert_index = entropy.sample(count);
-        curr->next = std::exchange(
-          pointer_offset(bumpptr, insert_index * rsize)
-            .template as_static<PreAllocObject>()
-            ->next,
+        // Note the wide bounds on curr relative to each of the ->next fields;
+        // curr is not persisted once the list is built.
+        capptr::Chunk<PreAllocObject> curr =
+          pointer_offset(bumpptr, 0).template as_static<PreAllocObject>();
+        curr->next =
           Aal::capptr_bound<PreAllocObject, capptr::bounds::AllocFull>(
-            curr, rsize));
-        count++;
-      }
+            curr, rsize);
 
-      // Pick entry into space, and then build linked list by traversing cycle
-      // to the start.  Use ->next to jump from Chunk to Alloc.
-      auto start_index = entropy.sample(count);
-      auto start_ptr = pointer_offset(bumpptr, start_index * rsize)
-                         .template as_static<PreAllocObject>()
-                         ->next;
-      auto curr_ptr = start_ptr;
-      do
+        uint16_t count = 1;
+        for (curr =
+               pointer_offset(curr, rsize).template as_static<PreAllocObject>();
+             curr.as_void() < slab_end;
+             curr =
+               pointer_offset(curr, rsize).template as_static<PreAllocObject>())
+        {
+          size_t insert_index = entropy.sample(count);
+          curr->next = std::exchange(
+            pointer_offset(bumpptr, insert_index * rsize)
+              .template as_static<PreAllocObject>()
+              ->next,
+            Aal::capptr_bound<PreAllocObject, capptr::bounds::AllocFull>(
+              curr, rsize));
+          count++;
+        }
+
+        // Pick entry into space, and then build linked list by traversing cycle
+        // to the start.  Use ->next to jump from Chunk to Alloc.
+        auto start_index = entropy.sample(count);
+        auto start_ptr = pointer_offset(bumpptr, start_index * rsize)
+                           .template as_static<PreAllocObject>()
+                           ->next;
+        auto curr_ptr = start_ptr;
+        do
+        {
+          b.add(
+            // Here begins our treatment of the heap as containing Wild pointers
+            freelist::Object::make<capptr::bounds::AllocWild>(
+              capptr_to_user_address_control(curr_ptr.as_void())),
+            key,
+            entropy);
+          curr_ptr = curr_ptr->next;
+        } while (curr_ptr != start_ptr);
+      }
+      else
       {
-        b.add(
-          // Here begins our treatment of the heap as containing Wild pointers
-          freelist::Object::make<capptr::bounds::AllocWild>(
-            capptr_to_user_address_control(curr_ptr.as_void())),
-          key,
-          entropy);
-        curr_ptr = curr_ptr->next;
-      } while (curr_ptr != start_ptr);
-#else
-      auto p = bumpptr;
-      do
-      {
-        b.add(
-          // Here begins our treatment of the heap as containing Wild pointers
-          freelist::Object::make<capptr::bounds::AllocWild>(
-            capptr_to_user_address_control(
-              Aal::capptr_bound<void, capptr::bounds::AllocFull>(
-                p.as_void(), rsize))),
-          key);
-        p = pointer_offset(p, rsize);
-      } while (p < slab_end);
-#endif
+        auto p = bumpptr;
+        do
+        {
+          b.add(
+            // Here begins our treatment of the heap as containing Wild pointers
+            freelist::Object::make<capptr::bounds::AllocWild>(
+              capptr_to_user_address_control(
+                Aal::capptr_bound<void, capptr::bounds::AllocFull>(
+                  p.as_void(), rsize))),
+            key,
+            entropy);
+          p = pointer_offset(p, rsize);
+        } while (p < slab_end);
+      }
       // This code consumes everything up to slab_end.
       bumpptr = slab_end;
     }
@@ -276,47 +281,43 @@ namespace snmalloc
       capptr::Alloc<void> p =
         finish_alloc_no_zero(fl.take(key, domesticate), sizeclass);
 
-#ifdef SNMALLOC_CHECK_CLIENT
-      // Check free list is well-formed on platforms with
-      // integers as pointers.
-      size_t count = 1; // Already taken one above.
-      while (!fl.empty())
+      // If clear_meta is requested, we should also walk the free list to clear
+      // it.
+      // TODO: we could optimise the clear_meta case to not walk the free list
+      // and instead just clear the whole slab, but that requires amplification.
+      if constexpr (
+        mitigations(freelist_teardown_validate) || mitigations(clear_meta))
       {
-        fl.take(key, domesticate);
-        count++;
-      }
-      // Check the list contains all the elements
-      SNMALLOC_CHECK(
-        (count + more) == snmalloc::sizeclass_to_slab_object_count(sizeclass));
-
-      if (more > 0)
-      {
-        auto no_more = meta->free_queue.close(fl, key);
-        SNMALLOC_ASSERT(no_more == 0);
-        UNUSED(no_more);
-
+        // Check free list is well-formed on platforms with
+        // integers as pointers.
+        size_t count = 1; // Already taken one above.
         while (!fl.empty())
         {
           fl.take(key, domesticate);
           count++;
         }
+        // Check the list contains all the elements
+        SNMALLOC_CHECK(
+          (count + more) ==
+          snmalloc::sizeclass_to_slab_object_count(sizeclass));
+
+        if (more > 0)
+        {
+          auto no_more = meta->free_queue.close(fl, key);
+          SNMALLOC_ASSERT(no_more == 0);
+          UNUSED(no_more);
+
+          while (!fl.empty())
+          {
+            fl.take(key, domesticate);
+            count++;
+          }
+        }
+        SNMALLOC_CHECK(
+          count == snmalloc::sizeclass_to_slab_object_count(sizeclass));
       }
-      SNMALLOC_CHECK(
-        count == snmalloc::sizeclass_to_slab_object_count(sizeclass));
-#endif
-      // TODO: This is a capability amplification as we are saying we
-      // have the whole chunk.
       auto start_of_slab = pointer_align_down<void>(
         p, snmalloc::sizeclass_to_slab_size(sizeclass));
-
-#if defined(__CHERI_PURE_CAPABILITY__) && !defined(SNMALLOC_CHECK_CLIENT)
-      // Zero the whole slab. For CHERI we at least need to clear the freelist
-      // pointers to avoid leaking capabilities but we do not need to do it in
-      // the freelist order as for SNMALLOC_CHECK_CLIENT. Zeroing the whole slab
-      // may be more friendly to hw because it does not involve pointer chasing
-      // and is amenable to prefetching.
-      // FIXME: This should be a back-end method guarded on a feature flag.
-#endif
 
 #ifdef SNMALLOC_TRACING
       message<1024>(
@@ -683,6 +684,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(!meta->is_unused());
 
       snmalloc_check_client(
+        mitigations(sanity_checks),
         is_start_of_object(entry.get_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
@@ -704,23 +706,18 @@ namespace snmalloc
       auto& sl = alloc_classes[sizeclass].available;
       if (SNMALLOC_LIKELY(alloc_classes[sizeclass].length > 0))
       {
-#ifdef SNMALLOC_CHECK_CLIENT
-        // Occassionally don't use the last list.
-        if (SNMALLOC_UNLIKELY(alloc_classes[sizeclass].length == 1))
+        if constexpr (mitigations(random_extra_slab))
         {
-          // If the slab has a lot of free space, then we shouldn't allocate a
-          // new slab.
-          auto min = alloc_classes[sizeclass]
-                       .available.peek()
-                       ->free_queue.min_list_length();
-          if ((min * 2) < threshold_for_waking_slab(sizeclass))
+          // Occassionally don't use the last list.
+          if (SNMALLOC_UNLIKELY(alloc_classes[sizeclass].length == 1))
+          {
             if (entropy.next_bit() == 0)
               return small_alloc_slow<zero_mem>(sizeclass, fast_free_list);
+          }
         }
-#endif
-        // If CHECK_CLIENT, we use FIFO operations on the list. This reduces
-        // perf slightly, but increases randomness.
-        auto meta = sl.template pop<!CHECK_CLIENT>();
+
+        // Mitigations use LIFO to increase time to reuse.
+        auto meta = sl.template pop<!mitigations(reuse_LIFO)>();
         // Drop length of sl, and empty count if it was empty.
         alloc_classes[sizeclass].length--;
         if (meta->needed() == 0)

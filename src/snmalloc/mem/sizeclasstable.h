@@ -225,12 +225,9 @@ namespace snmalloc
         meta_slow.capacity =
           static_cast<uint16_t>((meta.slab_mask + 1) / rsize);
 
-        meta_slow.waking =
-#ifdef SNMALLOC_CHECK_CLIENT
-          static_cast<uint16_t>(meta_slow.capacity / 4);
-#else
+        meta_slow.waking = mitigations(random_larger_thresholds) ?
+          static_cast<uint16_t>(meta_slow.capacity / 4) :
           static_cast<uint16_t>(bits::min((meta_slow.capacity / 4), 32));
-#endif
 
         if (meta_slow.capacity > max_capacity)
         {

@@ -27,6 +27,11 @@
 #  define SNMALLOC_REQUIRE_CONSTINIT
 #  define SNMALLOC_UNUSED_FUNCTION
 #  define SNMALLOC_USED_FUNCTION
+#  ifdef SNMALLOC_USE_CXX17
+#    define SNMALLOC_NO_UNIQUE_ADDRESS
+#  else
+#    define SNMALLOC_NO_UNIQUE_ADDRESS [[msvc::no_unique_address]]
+#  endif
 #else
 #  define SNMALLOC_FAST_FAIL() __builtin_trap()
 #  define SNMALLOC_LIKELY(x) __builtin_expect(!!(x), 1)
@@ -50,6 +55,11 @@
 #  define SNMALLOC_COLD __attribute__((cold))
 #  define SNMALLOC_UNUSED_FUNCTION __attribute((unused))
 #  define SNMALLOC_USED_FUNCTION __attribute((used))
+#  ifdef SNMALLOC_USE_CXX17
+#    define SNMALLOC_NO_UNIQUE_ADDRESS
+#  else
+#    define SNMALLOC_NO_UNIQUE_ADDRESS [[no_unique_address]]
+#  endif
 #  ifdef __clang__
 #    define SNMALLOC_REQUIRE_CONSTINIT \
       [[clang::require_constant_initialization]]
@@ -192,43 +202,4 @@ namespace snmalloc
   template<typename... Args>
   SNMALLOC_FAST_PATH_INLINE void UNUSED(Args&&...)
   {}
-
-  template<typename... Args>
-  inline SNMALLOC_FAST_PATH void
-  check_client_error(const char* const str, Args... args)
-  {
-    //[[clang::musttail]]
-    return snmalloc::report_fatal_error(str, args...);
-  }
-
-  template<typename... Args>
-  inline SNMALLOC_FAST_PATH void
-  check_client_impl(bool test, const char* const str, Args... args)
-  {
-    if (SNMALLOC_UNLIKELY(!test))
-    {
-      if constexpr (!DEBUG)
-      {
-        UNUSED(str, args...);
-        SNMALLOC_FAST_FAIL();
-      }
-      else
-      {
-        check_client_error(str, args...);
-      }
-    }
-  }
-
-#ifdef SNMALLOC_CHECK_CLIENT
-  static constexpr bool CHECK_CLIENT = true;
-#else
-  static constexpr bool CHECK_CLIENT = false;
-#endif
 } // namespace snmalloc
-
-#ifdef SNMALLOC_CHECK_CLIENT
-#  define snmalloc_check_client(test, str, ...) \
-    snmalloc::check_client_impl(test, str, ##__VA_ARGS__)
-#else
-#  define snmalloc_check_client(test, str, ...)
-#endif
