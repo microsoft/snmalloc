@@ -30,7 +30,7 @@ If memory is not required any more, then `snmalloc` will change the state to
 `not using`, and will ensure that it notifies the `Pal` again
 before it every accesses that memory again.  
 The `not using` state allows the `Pal` to recycle the memory for other purposes.
-If `PalEnforceAccess` is set to true, then accessing that has not been notified
+If `pal_enforce_access` is set as a mitigation, then accessing memory that has not been notified
 correctly should trigger an exception/segfault.
 
 The state for a particular region of memory is set with 

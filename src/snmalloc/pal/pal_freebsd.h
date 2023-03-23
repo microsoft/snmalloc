@@ -83,7 +83,7 @@ namespace snmalloc
       madvise(p, size, MADV_NOCORE);
       madvise(p, size, MADV_FREE);
 
-      if constexpr (PalEnforceAccess)
+      if constexpr (mitigations(pal_enforce_access))
       {
         mprotect(p, size, PROT_NONE);
       }

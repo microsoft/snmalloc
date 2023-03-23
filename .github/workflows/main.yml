@@ -58,6 +58,13 @@ jobs:
             build-type: Debug
             self-host: true
             extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On"
+          # Extra build to check using individual mitigations works.
+          - os: "ubuntu-latest"
+            variant: "individual mitigations"
+            dependencies: "sudo apt install ninja-build"
+            build-type: Release
+            self-host: true
+            extra-cmake-flags: "-DSNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS=On -DBUILD_TESTING=Off"
           # Check that we can build specifically with libstdc++
           - os: "ubuntu-latest"
             variant: "libstdc++ (Build only)"
@@ -92,7 +99,7 @@ jobs:
       run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
     - name: Test file size of binaries is sane
       working-directory: ${{github.workspace}}/build
-      run: "ls -l func-first_operation-fast ; [ $(ls -l func-first_operation-fast | awk '{ print $5}') -lt 10000000 ]"
+      run: "ls -l libsnmallocshim.* ; [ $(ls -l libsnmallocshim.* | awk '{ print $5}') -lt 10000000 ]"
       # If the tests are enabled for this job, run them
     - name: Test
       if: ${{ matrix.build-only != 'yes' }}
@@ -102,12 +109,9 @@ jobs:
       if: ${{ matrix.self-host }}
       working-directory: ${{github.workspace}}/build
       run: |
-        sudo cp libsnmallocshim.so libsnmallocshim-checks.so /usr/local/lib/
-        ninja clean
-        LD_PRELOAD=/usr/local/lib/libsnmallocshim.so ninja
-        ninja clean
-        LD_PRELOAD=/usr/local/lib/libsnmallocshim-checks.so ninja
-
+        mkdir libs
+        cp libsnmallocshim*.so libs
+        for lib in `ls libs`; do echo; echo Testing $lib; ninja clean; LD_PRELOAD=libs/$lib ninja libsnmallocshim.so; done
   # GitHub doesn't natively support *BSD, but we can run them in VMs on Mac /
   # Linux runners
   freebsd:

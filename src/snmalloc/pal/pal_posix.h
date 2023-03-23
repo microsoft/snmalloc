@@ -204,7 +204,7 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
 
-      if constexpr (PalEnforceAccess)
+      if constexpr (mitigations(pal_enforce_access))
       {
         // Fill memory so that when we switch the pages back on we don't make
         // assumptions on the content.
@@ -232,7 +232,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(
         is_aligned_block<OS::page_size>(p, size) || (zero_mem == NoZero));
 
-      if constexpr (PalEnforceAccess)
+      if constexpr (mitigations(pal_enforce_access))
         mprotect(p, size, PROT_READ | PROT_WRITE);
       else
       {
@@ -253,7 +253,7 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(is_aligned_block<OS::page_size>(p, size));
 
-      if constexpr (PalEnforceAccess)
+      if constexpr (mitigations(pal_enforce_access))
         mprotect(p, size, PROT_READ);
       else
       {
@@ -326,7 +326,8 @@ namespace snmalloc
       // If enforcing access, map pages initially as None, and then
       // add permissions as required.  Otherwise, immediately give all
       // access as this is the most efficient to implement.
-      auto prot = PalEnforceAccess ? PROT_NONE : PROT_READ | PROT_WRITE;
+      auto prot =
+        mitigations(pal_enforce_access) ? PROT_NONE : PROT_READ | PROT_WRITE;
 
       void* p = mmap(
         nullptr,

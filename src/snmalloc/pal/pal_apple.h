@@ -125,7 +125,7 @@ namespace snmalloc
       while (madvise(p, size, MADV_FREE_REUSABLE) == -1 && errno == EAGAIN)
         ;
 
-      if constexpr (PalEnforceAccess)
+      if constexpr (mitigations(pal_enforce_access))
       {
         // This must occur after `MADV_FREE_REUSABLE`.
         //
@@ -180,7 +180,7 @@ namespace snmalloc
         }
       }
 
-      if constexpr (PalEnforceAccess)
+      if constexpr (mitigations(pal_enforce_access))
       {
         // Mark pages as writable for `madvise` below.
         //
@@ -220,7 +220,7 @@ namespace snmalloc
       // must be initialized to 0 or addr is interepreted as a lower-bound.
       mach_vm_address_t addr = 0;
 
-      vm_prot_t prot = (state_using || !PalEnforceAccess) ?
+      vm_prot_t prot = (state_using || !mitigations(pal_enforce_access)) ?
         VM_PROT_READ | VM_PROT_WRITE :
         VM_PROT_NONE;
 

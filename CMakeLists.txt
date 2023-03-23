@@ -25,6 +25,7 @@ option(SNMALLOC_NO_REALLOCARRAY "Build without reallocarray exported" ON)
 option(SNMALLOC_NO_REALLOCARR "Build without reallocarr exported" ON)
 option(SNMALLOC_LINK_ICF "Link with Identical Code Folding" ON)
 option(SNMALLOC_IPO "Link with IPO/LTO support" OFF)
+option(SNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS "Build tests and ld_preload for individual mitigations" OFF)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_STATIC_LIBRARY "Build static libraries" ON "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
@@ -271,7 +272,6 @@ function(add_warning_flags name)
     $<$<PLATFORM_ID:Windows>:$<${ci_or_debug}:/DEBUG>>)
 endfunction()
 
-
 # To build with just the header library target define SNMALLOC_HEADER_ONLY_LIBRARY
 if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
@@ -284,6 +284,78 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       endif()
     endforeach()
     set(${result} ${dirlist} PARENT_SCOPE)
+  endfunction()
+
+  set(TESTDIR ${CMAKE_CURRENT_SOURCE_DIR}/src/test)
+
+  if(BUILD_TESTING)
+    enable_testing()
+    subdirlist(TEST_CATEGORIES ${TESTDIR})
+  else()
+    set(TEST_CATEGORIES "")
+  endif()
+  list(REVERSE TEST_CATEGORIES)
+
+  if (${SNMALLOC_CLEANUP} STREQUAL THREAD_CLEANUP)
+    set(TEST_CLEANUP PTHREAD_DESTRUCTORS)
+  else ()
+    set(TEST_CLEANUP ${SNMALLOC_CLEANUP})
+  endif()
+
+  function(make_tests TAG DEFINES)
+    foreach(TEST_CATEGORY ${TEST_CATEGORIES})
+      message(STATUS "Adding ${TAG}/${TEST_CATEGORY} tests")
+      subdirlist(TESTS ${TESTDIR}/${TEST_CATEGORY})
+      foreach(TEST ${TESTS})
+        unset(SRC)
+        aux_source_directory(${TESTDIR}/${TEST_CATEGORY}/${TEST} SRC)
+        set(TESTNAME "${TEST_CATEGORY}-${TEST}-${TAG}")
+
+        add_executable(${TESTNAME} ${SRC})
+
+        if(SNMALLOC_SANITIZER)
+          target_compile_options(${TESTNAME} PRIVATE -g -fsanitize=${SNMALLOC_SANITIZER} -fno-omit-frame-pointer)
+          target_link_libraries(${TESTNAME} -fsanitize=${SNMALLOC_SANITIZER})
+        endif()
+
+        add_warning_flags(${TESTNAME})
+
+        target_link_libraries(${TESTNAME} snmalloc)
+        target_compile_definitions(${TESTNAME} PRIVATE "SNMALLOC_USE_${TEST_CLEANUP}")
+        
+        if (NOT DEFINES STREQUAL " ")
+          target_compile_definitions(${TESTNAME} PRIVATE ${DEFINES})
+        endif()
+
+        if (${TEST} MATCHES "release-.*")
+          message(VERBOSE "Adding test: ${TESTNAME} only for release configs")
+          add_test(NAME ${TESTNAME} COMMAND ${TESTNAME} CONFIGURATIONS "Release")
+        else()
+          message(VERBOSE "Adding test: ${TESTNAME}")
+          add_test(${TESTNAME} ${TESTNAME})
+        endif()
+        if (${TEST_CATEGORY} MATCHES "perf")
+          message(VERBOSE "Single threaded test: ${TESTNAME}")
+          set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
+        endif()
+        if(WIN32)
+          # On Windows these tests use a lot of memory as it doesn't support
+          # lazy commit.
+          if (${TEST} MATCHES "two_alloc_types")
+            message(VERBOSE "Single threaded test: ${TESTNAME}")
+            set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
+          endif()
+          if (${TEST} MATCHES "fixed_region")
+            message(VERBOSE "Single threaded test: ${TESTNAME}")
+            set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
+          endif()
+          if (${TEST} MATCHES "memory")
+            message(VERBOSE "Single threaded test: ${TESTNAME}")
+            set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
+          endif()
+        endif()
+      endforeach()
+    endforeach()
   endfunction()
 
   if(NOT (DEFINED SNMALLOC_LINKER_FLAVOUR) OR ("${SNMALLOC_LINKER_FLAVOUR}" MATCHES "^$"))
@@ -376,89 +448,75 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     target_compile_definitions(snmallocshim-checks-rust PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 
-  set(TESTDIR ${CMAKE_CURRENT_SOURCE_DIR}/src/test)
+  if (BUILD_TESTING)
+    if (WIN32
+    OR (CMAKE_SYSTEM_NAME STREQUAL NetBSD)
+    OR (CMAKE_SYSTEM_NAME STREQUAL OpenBSD)
+    OR (CMAKE_SYSTEM_NAME STREQUAL DragonFly)
+    OR (CMAKE_SYSTEM_NAME STREQUAL SunOS))
+    # Windows does not support aligned allocation well enough
+    # for pass through.
+    # NetBSD, OpenBSD and DragonFlyBSD do not support malloc*size calls.
+      set(FLAVOURS fast;check)
+    else()
+      set(FLAVOURS fast;check;malloc)
+    endif()
 
-  if(BUILD_TESTING)
-    enable_testing()
-    subdirlist(TEST_CATEGORIES ${TESTDIR})
-  else()
-    set(TEST_CATEGORIES "")
-  endif()
-
-  list(REVERSE TEST_CATEGORIES)
-  if (${SNMALLOC_CLEANUP} STREQUAL THREAD_CLEANUP)
-    set(TEST_CLEANUP PTHREAD_DESTRUCTORS)
-  else ()
-    set(TEST_CLEANUP ${SNMALLOC_CLEANUP})
-  endif()
-  foreach(TEST_CATEGORY ${TEST_CATEGORIES})
-    message(STATUS "Adding ${TEST_CATEGORY} tests")
-    subdirlist(TESTS ${TESTDIR}/${TEST_CATEGORY})
-    foreach(TEST ${TESTS})
-      if (WIN32
-          OR (CMAKE_SYSTEM_NAME STREQUAL NetBSD)
-          OR (CMAKE_SYSTEM_NAME STREQUAL OpenBSD)
-          OR (CMAKE_SYSTEM_NAME STREQUAL DragonFly)
-          OR (CMAKE_SYSTEM_NAME STREQUAL SunOS))
-        # Windows does not support aligned allocation well enough
-        # for pass through.
-        # NetBSD, OpenBSD and DragonFlyBSD do not support malloc*size calls.
-        set(FLAVOURS fast;check)
-      else()
-        set(FLAVOURS fast;check;malloc)
+    foreach(FLAVOUR ${FLAVOURS})
+      if (${FLAVOUR} STREQUAL "malloc")
+        set(DEFINES SNMALLOC_PASS_THROUGH)
       endif()
-      foreach(FLAVOUR ${FLAVOURS})
-        unset(SRC)
-        aux_source_directory(${TESTDIR}/${TEST_CATEGORY}/${TEST} SRC)
-        set(TESTNAME "${TEST_CATEGORY}-${TEST}-${FLAVOUR}")
+      if (${FLAVOUR} STREQUAL "check")
+        set(DEFINES SNMALLOC_CHECK_CLIENT)
+      endif()
+      if (${FLAVOUR} STREQUAL "fast")
+        set(DEFINES " ")
+      endif()
 
-        add_executable(${TESTNAME} ${SRC})
-
-        if(SNMALLOC_SANITIZER)
-          target_compile_options(${TESTNAME} PRIVATE -g -fsanitize=${SNMALLOC_SANITIZER} -fno-omit-frame-pointer)
-          target_link_libraries(${TESTNAME} -fsanitize=${SNMALLOC_SANITIZER})
-        endif()
-
-        add_warning_flags(${TESTNAME})
-
-        if (${FLAVOUR} STREQUAL "malloc")
-          target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_PASS_THROUGH)
-        endif()
-        if (${FLAVOUR} STREQUAL "check")
-          target_compile_definitions(${TESTNAME} PRIVATE SNMALLOC_CHECK_CLIENT)
-        endif()
-        target_link_libraries(${TESTNAME} snmalloc)
-        target_compile_definitions(${TESTNAME} PRIVATE "SNMALLOC_USE_${TEST_CLEANUP}")
-        if (${TEST} MATCHES "release-.*")
-          message(VERBOSE "Adding test: ${TESTNAME} only for release configs")
-          add_test(NAME ${TESTNAME} COMMAND ${TESTNAME} CONFIGURATIONS "Release")
-        else()
-          message(VERBOSE "Adding test: ${TESTNAME}")
-          add_test(${TESTNAME} ${TESTNAME})
-        endif()
-        if (${TEST_CATEGORY} MATCHES "perf")
-          message(VERBOSE "Single threaded test: ${TESTNAME}")
-          set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
-        endif()
-        if(WIN32)
-          # On Windows these tests use a lot of memory as it doesn't support
-          # lazy commit.
-          if (${TEST} MATCHES "two_alloc_types")
-            message(VERBOSE "Single threaded test: ${TESTNAME}")
-            set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
-          endif()
-          if (${TEST} MATCHES "fixed_region")
-            message(VERBOSE "Single threaded test: ${TESTNAME}")
-            set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
-          endif()
-          if (${TEST} MATCHES "memory")
-            message(VERBOSE "Single threaded test: ${TESTNAME}")
-            set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
-          endif()
-        endif()
-      endforeach()
+      make_tests(${FLAVOUR} ${DEFINES})
     endforeach()
-  endforeach()
+  endif()
+
+  if (SNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS)
+    set (MITIGATIONS 
+      metadata_protection;
+      pal_enforce_access;
+      random_pagemap;
+      sanity_checks;
+      freelist_forward_edge;
+      freelist_backward_edge;
+      freelist_teardown_validate;
+      reuse_LIFO;
+      random_larger_thresholds;
+      random_initial;
+      random_preserve;
+      random_extra_slab)
+
+
+    foreach (MITIGATION ${MITIGATIONS})
+      set(DEFINES "SNMALLOC_CHECK_CLIENT_MITIGATIONS=${MITIGATION}")
+      add_shim(snmallocshim-${MITIGATION} SHARED ${SHIM_FILES})
+      target_compile_definitions(snmallocshim-${MITIGATION} PRIVATE ${DEFINES})
+      if (BUILD_TESTING)
+        make_tests(${MITIGATION} ${DEFINES})
+      endif()
+    endforeach()
+
+    set(MITIGATIONSET "no_checks")
+    set(COUNT 0)
+    foreach (MITIGATION ${MITIGATIONS})
+      MATH(EXPR COUNT "${COUNT} + 1")
+      set(MITIGATIONNAME "mitigations-${COUNT}")
+      set(MITIGATIONSET "${MITIGATIONSET}+${MITIGATION}")
+      message(STATUS "MITIGATIONSET: ${COUNT} -> ${MITIGATIONSET}")
+      set(DEFINES "-DSNMALLOC_CHECK_CLIENT_MITIGATIONS=${MITIGATIONSET}")
+      add_shim(snmallocshim-${MITIGATIONNAME} SHARED ${SHIM_FILES})
+      target_compile_definitions(snmallocshim-${MITIGATIONNAME} PRIVATE ${DEFINES})
+      if (BUILD_TESTING)
+        make_tests(${MITIGATIONNAME} ${DEFINES})
+      endif()
+    endforeach()
+  endif()
 
   clangformat_targets()
 endif()
