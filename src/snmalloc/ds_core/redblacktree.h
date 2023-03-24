@@ -730,9 +730,14 @@ namespace snmalloc
       invariant();
     }
 
+    bool is_empty()
+    {
+      return get_root().is_null();
+    }
+
     K remove_min()
     {
-      if (get_root().is_null())
+      if (is_empty())
         return Rep::null;
 
       auto path = get_root_path();
@@ -748,7 +753,7 @@ namespace snmalloc
 
     bool remove_elem(K value)
     {
-      if (get_root().is_null())
+      if (is_empty())
         return false;
 
       auto path = get_root_path();
