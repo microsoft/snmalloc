@@ -162,9 +162,11 @@ namespace snmalloc
 
         SNMALLOC_NO_UNIQUE_ADDRESS
         std::conditional_t<mitigations(freelist_backward_edge), Prev, Empty>
-          prev;
+          prev{};
 
       public:
+        constexpr T() : next_object(){};
+
         template<
           SNMALLOC_CONCEPT(capptr::IsBound) BView = typename BQueue::
             template with_wildness<capptr::dimension::Wildness::Tame>,
