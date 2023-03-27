@@ -14,11 +14,11 @@ So let's see how we detect this with snmalloc.
 
 So `memcpy(dst, src, len)` copies `len` bytes from `src` to `dst`.
 For this to be valid, we can check: 
-```
+```C++
   if (src is managed by snmalloc)
-    check(remaining_bytes(src) >= len)
+    check(remaining_bytes(src) >= len);
   if (dst is managed by snmalloc)
-    check(remaining_bytes(dst) >= len)
+    check(remaining_bytes(dst) >= len);
 ```
 Now, the first `if` is checking for reading beyond the end of the object, and the second is checking for writing beyond the end of the destination object.
 By default, for release checks we only check the `dst` is big enough.
@@ -34,7 +34,7 @@ All slab sizes are powers of two, and a given slab's lowest address will be natu
 That is if `x` is the start of a slab of size `2^n`, then `x % (2^n) == 0`.
 This means that a single mask can be used to find the offset into a slab.
 As the objects are layed out continguously, we can also get the offset in the object with a modulus operations, that is, `remaining_bytes(p)` is effectively:
-```
+```C++
     object_size - ((p % slab_size) % object_size)
 ```
 
@@ -46,14 +46,14 @@ However, as `object_size` can be non-power-of-two values, we need to work a litt
 
 When you have a finite domain, you can lower divisions into a multiply and shift.
 By pre-calculating `c = (((2^n) - 1)/size) + 1`, the division `x / size` can instead be computed by
-```
+```C++
   (x * c) >> n
 ```
 The choice of `n` has to be done carefully for the possible values of `x`, but with a large enough `n` we can make this work for all slab offsets and sizes.
 
 Now from division, we can calculate the modulus, by multiplying the result of the division
 by the size, and then subtracting the result from the original value:
-```
+```C++
   x - (((x * c) >> n) * size)
 ```
 and thus `remaining_bytes(x)` is:
@@ -85,7 +85,7 @@ So we need a check for this case.
 
 The finished assembly for checking the destination length in `memcpy` is:
 
-```x86asm
+```asm
 <memcpy_guarded>:
     mov    rax,QWORD PTR [rip+0xbfa]        # Load Chunk map base
     test   rax,rax                          # Check if chunk map is initialised
