@@ -30,9 +30,15 @@ namespace snmalloc
     MPMCStack<T, PreZeroed> stack;
     FlagWord lock{};
     T* list{nullptr};
+    size_t count{0};
 
   public:
     constexpr PoolState() = default;
+
+    size_t get_count()
+    {
+      return count;
+    }
   };
 
   /**
@@ -145,6 +151,8 @@ namespace snmalloc
       FlagLock f(pool.lock);
       p->list_next = pool.list;
       pool.list = p;
+
+      pool.count++;
 
       p->set_in_use();
       return p;
