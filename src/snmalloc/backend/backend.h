@@ -159,7 +159,7 @@ namespace snmalloc
     // No separation between the two
     using Stats = StatsRange<GlobalR>;
     using ObjectRange = SmallBuddyRange<
-      LargeBuddyRange<CommitRange<Stats, PAL>, 21, 21, Pagemap>>;
+      LargeBuddyRange<CommitRange<Stats, PAL>, 18, 18, Pagemap>>;
     using GlobalMetaRange = GlobalRange<ObjectRange>;
 #endif
 
