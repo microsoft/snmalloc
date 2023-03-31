@@ -66,20 +66,19 @@ namespace snmalloc
     }
 
     template<size_t allocator_size>
-    SNMALLOC_FAST_PATH void dealloc(
-      RemoteAllocator::alloc_id_t target_id,
-      capptr::Alloc<void> p)
+    SNMALLOC_FAST_PATH void
+    dealloc(RemoteAllocator::alloc_id_t target_id, capptr::Alloc<void> p)
     {
       SNMALLOC_ASSERT(initialised);
       auto r = p.template as_reinterpret<freelist::Object::T<>>();
 
-      list[get_slot<allocator_size>(target_id, 0)].add(r, RemoteAllocator::key_global);
+      list[get_slot<allocator_size>(target_id, 0)].add(
+        r, RemoteAllocator::key_global);
     }
 
     template<size_t allocator_size, typename Config>
     bool post(
-      typename Config::LocalState* local_state,
-      RemoteAllocator::alloc_id_t id)
+      typename Config::LocalState* local_state, RemoteAllocator::alloc_id_t id)
     {
       // Use same key as the remote allocator, so segments can be
       // posted to a remote allocator without reencoding.

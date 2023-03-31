@@ -83,8 +83,7 @@ namespace snmalloc
     }
 
     template<typename Domesticator_head>
-    inline bool
-    can_dequeue(Domesticator_head domesticate_head)
+    inline bool can_dequeue(Domesticator_head domesticate_head)
     {
       return domesticate_head(front.load())
                ->atomic_read_next(key_global, domesticate_head) == nullptr;
@@ -115,7 +114,8 @@ namespace snmalloc
 
       if (SNMALLOC_LIKELY(prev != nullptr))
       {
-        freelist::Object::atomic_store_next(domesticate_head(prev), first, key_global);
+        freelist::Object::atomic_store_next(
+          domesticate_head(prev), first, key_global);
         return;
       }
 
@@ -148,7 +148,8 @@ namespace snmalloc
 
       while (address_cast(curr) != address_cast(b))
       {
-        freelist::HeadPtr next = curr->atomic_read_next(key_global, domesticate_queue);
+        freelist::HeadPtr next =
+          curr->atomic_read_next(key_global, domesticate_queue);
         // We have observed a non-linearisable effect of the queue.
         // Just go back to allocating normally.
         if (SNMALLOC_UNLIKELY(next == nullptr))

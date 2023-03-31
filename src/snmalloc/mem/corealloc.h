@@ -838,7 +838,8 @@ namespace snmalloc
         while (p_tame != nullptr)
         {
           bool need_post = true; // Always going to post, so ignore.
-          auto n_tame = p_tame->atomic_read_next(RemoteAllocator::key_global, domesticate);
+          auto n_tame =
+            p_tame->atomic_read_next(RemoteAllocator::key_global, domesticate);
           const PagemapEntry& entry =
             Config::Backend::get_metaentry(snmalloc::address_cast(p_tame));
           handle_dealloc_remote(entry, p_tame.as_void(), need_post);
