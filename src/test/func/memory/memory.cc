@@ -1,3 +1,6 @@
+// Silence some warnings from MSVC headers
+#define _CRT_SECURE_NO_WARNINGS
+
 #include <iostream>
 #include <snmalloc/snmalloc.h>
 #include <test/opt.h>
@@ -5,7 +8,6 @@
 #include <test/xoroshiro.h>
 #include <unordered_set>
 #include <vector>
-#define __STDC_WANT_LIB_EXT1__ 1
 #include <string.h>
 #if ((defined(__linux__) && !defined(__ANDROID__)) || defined(__sun)) && \
   !defined(SNMALLOC_QEMU_WORKAROUND)
@@ -529,11 +531,7 @@ void test_scrub_free()
   auto& alloc = ThreadAlloc::get();
 
   auto secret = (char*)alloc.alloc(256);
-#ifdef __STDC_LIB_EXT1__
-  strcpy_s(secret, 256, "mypassword");
-#else
   strcpy(secret, "mypassword");
-#endif
   auto leak = (void**)alloc.alloc(16 * sizeof(void*));
 
   for (size_t i = 0; i < 16; i++)
