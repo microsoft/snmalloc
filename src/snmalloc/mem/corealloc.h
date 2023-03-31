@@ -688,6 +688,12 @@ namespace snmalloc
         is_start_of_object(entry.get_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
+      if (mitigations(scrub_free))
+      {
+        Config::Pal::zero(
+          p.unsafe_ptr(), sizeclass_full_to_size(entry.get_sizeclass()));
+      }
+
       auto cp = p.as_static<freelist::Object::T<>>();
 
       auto& key = entropy.get_free_list_key();

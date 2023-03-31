@@ -490,7 +490,8 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       random_larger_thresholds;
       random_initial;
       random_preserve;
-      random_extra_slab)
+      random_extra_slab;
+      scrub_free)
 
 
     foreach (MITIGATION ${MITIGATIONS})
