@@ -3,12 +3,12 @@
 
 #include <iostream>
 #include <snmalloc/snmalloc.h>
+#include <string.h>
 #include <test/opt.h>
 #include <test/setup.h>
 #include <test/xoroshiro.h>
 #include <unordered_set>
 #include <vector>
-#include <string.h>
 #if ((defined(__linux__) && !defined(__ANDROID__)) || defined(__sun)) && \
   !defined(SNMALLOC_QEMU_WORKAROUND)
 /*
