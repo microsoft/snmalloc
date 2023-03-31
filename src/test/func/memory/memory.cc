@@ -515,6 +515,47 @@ void test_consolidaton_bug()
   }
 }
 
+/**
+ * Test that scrub free does not allow a secret to leak to the
+ * next allocation.
+ */
+void test_scrub_free()
+{
+  if (!snmalloc::mitigations(snmalloc::scrub_free))
+    return;
+
+  auto& alloc = ThreadAlloc::get();
+
+  auto secret = (char*)alloc.alloc(256);
+  strcpy(secret, "mypassword");
+
+  auto leak = (void**)alloc.alloc(16 * sizeof(void*));
+
+  for (size_t i = 0; i < 16; i++)
+  {
+    leak[i] = secret;
+  }
+
+  alloc.dealloc(leak);
+
+  for (size_t i = 0; i < 10000; i++)
+  {
+    auto search = (char**)alloc.alloc(16 * sizeof(void*));
+
+    for (size_t j = 0; j < 16; j++)
+    {
+      if (search[j] == secret)
+      {
+        printf(
+          "Secret \"%s\" after %zu index %zu @%p\n", search[j], i, j, search);
+        SNMALLOC_CHECK(false);
+      }
+    }
+
+    alloc.dealloc(search);
+  }
+}
+
 int main(int argc, char** argv)
 {
   setup();
@@ -555,5 +596,6 @@ int main(int argc, char** argv)
   test_calloc_16M();
 #endif
   test_consolidaton_bug();
+  test_scrub_free();
   return 0;
 }
