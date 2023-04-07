@@ -2,7 +2,7 @@ Porting snmalloc to a new platform
 ==================================
 
 All of the platform-specific logic in snmalloc is isolated in the [Platform
-Abstraction Layer (PAL)](src/pal).
+Abstraction Layer (PAL)](../src/snmalloc/pal).
 To add support for a new platform, you will need to implement a new PAL for
 your system.
 
