@@ -485,14 +485,18 @@ namespace snmalloc
                            SNMALLOC_FAST_PATH_LAMBDA {
                              return capptr_domesticate<Backend>(local_state, p);
                            };
-      auto cb = [this,
-                 &need_post](freelist::HeadPtr msg) SNMALLOC_FAST_PATH_LAMBDA {
+
+      size_t received_bytes = 0;
+
+      auto cb = [this, &need_post, &received_bytes](
+                  freelist::HeadPtr msg) SNMALLOC_FAST_PATH_LAMBDA {
 #ifdef SNMALLOC_TRACING
         message<1024>("Handling remote");
 #endif
 
         auto& entry =
           Backend::Pagemap::template get_metaentry(snmalloc::address_cast(msg));
+        received_bytes += sizeclass_full_to_size(entry.get_sizeclass());
 
         handle_dealloc_remote(entry, msg.as_void(), need_post);
 
@@ -520,6 +524,9 @@ namespace snmalloc
       {
         post();
       }
+
+      // Push size to global statistics
+      RemoteDeallocCache::remote_inflight -= received_bytes;
 
       return action(args...);
     }
@@ -549,10 +556,7 @@ namespace snmalloc
       }
       else
       {
-        if (
-          !need_post &&
-          !attached_cache->remote_dealloc_cache.reserve_space(entry))
-          need_post = true;
+        need_post = attached_cache->remote_dealloc_cache.reserve_space(entry);
         attached_cache->remote_dealloc_cache
           .template dealloc<sizeof(CoreAllocator)>(
             entry.get_remote()->trunc_id(), p.as_void(), key_global);
@@ -835,16 +839,18 @@ namespace snmalloc
       {
         auto p_wild = message_queue().destroy();
         auto p_tame = domesticate(p_wild);
-
+        size_t received_bytes = 0;
         while (p_tame != nullptr)
         {
           bool need_post = true; // Always going to post, so ignore.
           auto n_tame = p_tame->atomic_read_next(key_global, domesticate);
           const PagemapEntry& entry =
             Backend::Pagemap::get_metaentry(snmalloc::address_cast(p_tame));
+          received_bytes += sizeclass_full_to_size(entry.get_sizeclass());
           handle_dealloc_remote(entry, p_tame.as_void(), need_post);
           p_tame = n_tame;
         }
+        RemoteDeallocCache::remote_inflight -= received_bytes;
       }
       else
       {

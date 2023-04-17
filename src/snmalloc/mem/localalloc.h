@@ -412,7 +412,7 @@ namespace snmalloc
         message<1024>("flush(): core_alloc={}", core_alloc);
 #endif
         local_cache.remote_allocator = &Backend::unused_remote;
-        local_cache.remote_dealloc_cache.capacity = 0;
+        local_cache.remote_dealloc_cache.cache_bytes = REMOTE_CACHE;
       }
     }
 

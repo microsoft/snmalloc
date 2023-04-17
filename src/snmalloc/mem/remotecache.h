@@ -19,14 +19,17 @@ namespace snmalloc
   {
     std::array<freelist::Builder<false, false>, REMOTE_SLOTS> list;
 
+    static inline std::atomic<size_t> remote_inflight{0};
+
     /**
-     * The total amount of memory we are waiting for before we will dispatch
-     * to other allocators. Zero can mean we have not initialised the allocator
-     * yet. This is initialised to the 0 so that we always hit a slow path to
-     * start with, when we hit the slow path and need to dispatch everything, we
-     * can check if we are a real allocator and lazily provide a real allocator.
+     * The total amount of bytes of memory in the cache.
+     *
+     * REMOTE_CACHE is used as the initial value, so that we always hit a slow
+     * path to start with, when we hit the slow path and need to dispatch
+     * everything, we can check if we are a real allocator and lazily provide a
+     * real allocator.
      */
-    int64_t capacity{0};
+    size_t cache_bytes{REMOTE_CACHE};
 
 #ifndef NDEBUG
     bool initialised = false;
@@ -56,13 +59,10 @@ namespace snmalloc
     template<typename Entry>
     SNMALLOC_FAST_PATH bool reserve_space(const Entry& entry)
     {
-      auto size =
-        static_cast<int64_t>(sizeclass_full_to_size(entry.get_sizeclass()));
+      auto size = sizeclass_full_to_size(entry.get_sizeclass());
 
-      bool result = capacity > size;
-      if (result)
-        capacity -= size;
-      return result;
+      cache_bytes += size;
+      return cache_bytes < REMOTE_CACHE;
     }
 
     template<size_t allocator_size>
@@ -91,6 +91,8 @@ namespace snmalloc
                              return capptr_domesticate<Backend>(local_state, p);
                            };
 
+      // We are about to post cache_bytes bytes to other allocators.
+      remote_inflight += cache_bytes;
       while (true)
       {
         auto my_slot = get_slot<allocator_size>(id, post_round);
@@ -151,7 +153,7 @@ namespace snmalloc
       }
 
       // Reset capacity as we have empty everything
-      capacity = REMOTE_CACHE;
+      cache_bytes = 0;
 
       return sent_something;
     }
@@ -174,7 +176,7 @@ namespace snmalloc
       {
         l.init();
       }
-      capacity = REMOTE_CACHE;
+      cache_bytes = 0;
     }
   };
 } // namespace snmalloc
