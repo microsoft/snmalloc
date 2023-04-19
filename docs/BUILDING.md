@@ -99,7 +99,7 @@ In this section we show how to compile snmalloc into your project such that it r
 Add these lines to your CMake file.
 
 ```cmake
-set(SNMALLOC_ONLY_HEADER_LIBRARY ON)
+set(SNMALLOC_HEADER_ONLY_LIBRARY ON)
 add_subdirectory(snmalloc EXCLUDE_FROM_ALL)
 ```
 
