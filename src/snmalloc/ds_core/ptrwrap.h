@@ -293,6 +293,16 @@ namespace snmalloc
 #endif
 
     /**
+     * The CapPtr constructor is not sufficiently intimidating, given that it
+     * can be used to break annotation correctness.  Expose it with a better
+     * name.
+     */
+    static constexpr SNMALLOC_FAST_PATH CapPtr unsafe_from(T* p)
+    {
+      return CapPtr<T, bounds>(p);
+    }
+
+    /**
      * Allow static_cast<>-s that preserve bounds but vary the target type.
      */
     template<typename U>
