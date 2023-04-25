@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         # Build each combination of OS and release/debug variants
-        os: [ "ubuntu-latest", "ubuntu-18.04", "ubuntu-20.04", "macos-11", "macos-12" ]
+        os: [ "ubuntu-latest", "ubuntu-20.04", "macos-11", "macos-12" ]
         build-type: [ Release, Debug ]
         # Extra cmake flags.  GitHub Actions matrix overloads `include` to mean
         # 'add extra things to a job' and 'add jobs'.  You can add extra things
@@ -29,7 +29,7 @@ jobs:
         # Modify the complete matrix
         include:
           # Provide the dependency installation for each platform
-          - os: "ubuntu-18.04"
+          - os: "ubuntu-20.04"
             dependencies: "sudo apt install ninja-build"
             cmake-flags: "-DSNMALLOC_USE_CXX17=ON"
           - os: "ubuntu-20.04"
@@ -400,14 +400,14 @@ jobs:
 
   # Job to run clang-format and report errors
   format:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     # We don't need to do the build for this job, but we need to configure it to get the clang-format target
     steps:
     - uses: actions/checkout@v3
+    - name: Install clang-tidy and clang-format
+      run: sudo apt install clang-tidy-9 clang-format-9
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DSNMALLOC_USE_CXX17=ON
-    - name: Install clang-tidy
-      run: sudo apt install clang-tidy-9
     # Run the clang-format check and error if it generates a diff
     - name: Run clang-format
       working-directory: ${{github.workspace}}/build
