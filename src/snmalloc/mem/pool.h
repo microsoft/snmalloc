@@ -27,7 +27,11 @@ namespace snmalloc
     friend class Pool;
 
   private:
-    MPMCStack<T, PreZeroed> stack;
+    // Queue of elements in not currently in use
+    // Must hold lock to modify
+    capptr::Alloc<T> front{nullptr};
+    capptr::Alloc<T> back{nullptr};
+
     FlagWord lock{};
     T* list{nullptr};
     size_t count{0};
@@ -129,12 +133,20 @@ namespace snmalloc
     static T* acquire(Args&&... args)
     {
       PoolState<T>& pool = get_state();
-      T* p = pool.stack.pop();
-
-      if (p != nullptr)
       {
-        p->set_in_use();
-        return p;
+        FlagLock f(pool.lock);
+        if (pool.front != nullptr)
+        {
+          auto p = pool.front;
+          auto next = p->next;
+          if (next == nullptr)
+          {
+            pool.back = nullptr;
+          }
+          pool.front = next;
+          p->set_in_use();
+          return p.unsafe_ptr();
+        }
       }
 
       auto raw =
@@ -146,7 +158,7 @@ namespace snmalloc
           "Failed to initialise thread local allocator.");
       }
 
-      p = new (raw.unsafe_ptr()) T(std::forward<Args>(args)...);
+      auto p = new (raw.unsafe_ptr()) T(std::forward<Args>(args)...);
 
       FlagLock f(pool.lock);
       p->list_next = pool.list;
@@ -169,16 +181,23 @@ namespace snmalloc
       // is returned without the constructor being run, so the object is reused
       // without re-initialisation.
       p->reset_in_use();
-      get_state().stack.push(p);
+      restore(p, p);
     }
 
     static T* extract(T* p = nullptr)
     {
+      PoolState<T>& pool = get_state();
       // Returns a linked list of all objects in the stack, emptying the stack.
       if (p == nullptr)
-        return get_state().stack.pop_all();
+      {
+        FlagLock f(pool.lock);
+        auto result = pool.front;
+        pool.front = nullptr;
+        pool.back = nullptr;
+        return result.unsafe_ptr();
+      }
 
-      return p->next;
+      return p->next.unsafe_ptr();
     }
 
     /**
@@ -188,9 +207,45 @@ namespace snmalloc
      */
     static void restore(T* first, T* last)
     {
-      // Pushes a linked list of objects onto the stack. Use to put a linked
+      PoolState<T>& pool = get_state();
+      last->next = nullptr;
+      FlagLock f(pool.lock);
+      // Pushes a linked list of objects onto the stack. Used to put a linked
       // list returned by extract back onto the stack.
-      get_state().stack.push(first, last);
+      if (pool.front == nullptr)
+      {
+        pool.front = capptr::Alloc<T>::unsafe_from(first);
+      }
+      else
+      {
+        pool.back->next = capptr::Alloc<T>::unsafe_from(first); 
+      }
+
+      pool.back = capptr::Alloc<T>::unsafe_from(last);
+    }
+
+    /**
+     * Return to the pool a list of object previously retrieved by `extract`
+     *
+     * Do not return objects from `acquire`.
+     */
+    static void restore_front(T* first, T* last)
+    {
+      PoolState<T>& pool = get_state();
+      last->next = nullptr;
+      FlagLock f(pool.lock);
+      // Pushes a linked list of objects onto the stack. Used to put a linked
+      // list returned by extract back onto the stack.
+      if (pool.front == nullptr)
+      {
+        pool.back = capptr::Alloc<T>::unsafe_from(last);
+      }
+      else
+      {
+        last->next = pool.front; 
+        pool.back->next = capptr::Alloc<T>::unsafe_from(first); 
+      }
+      pool.front = capptr::Alloc<T>::unsafe_from(first);
     }
 
     static T* iterate(T* p = nullptr)
@@ -199,6 +254,43 @@ namespace snmalloc
         return get_state().list;
 
       return p->list_next;
+    }
+
+    /**
+     * Put the stack in a consistent order.  This is helpful for systematic
+     * testing based systems. It is not thread safe, and the caller should
+     * ensure no other thread can be performing a `sort` concurrently with this
+     * call.
+     */
+    static void sort()
+    {
+      // Marker is used to signify free elements.
+      auto marker = capptr::Alloc<T>::unsafe_from(reinterpret_cast<T*>(1));
+
+      // Extract all the elements and mark them as free.
+      T* curr = extract();
+      T* prev = nullptr;
+      while (curr != nullptr)
+      {
+        prev = curr;
+        curr = extract(curr);
+        // Assignment must occur after extract, otherwise extract would read the
+        // marker
+        prev->next = marker;
+      }
+
+      // Build a list of the free elements in the correct order.
+      // This is the opposite order to the list of all elements
+      // so that iterate works correctly.
+      curr = iterate();
+      while (curr != nullptr)
+      {
+        if (curr->next == marker)
+        {
+          restore_front(curr, curr);
+        }
+        curr = iterate(curr);
+      }
     }
   };
 } // namespace snmalloc
