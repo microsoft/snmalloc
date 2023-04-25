@@ -110,6 +110,9 @@ void test_double_alloc()
   SNMALLOC_CHECK(ptr1 != ptr2);
   PoolA::release(ptr2);
   auto ptr3 = PoolA::acquire();
+  // The following check assumes a stack discipline for acquire/release.
+  // Placing it first in the list of tests means, there is a single element
+  // and thus it works for both stack and queue.
   SNMALLOC_CHECK(ptr2 == ptr3);
   PoolA::release(ptr1);
   PoolA::release(ptr3);
@@ -219,14 +222,14 @@ int main(int argc, char** argv)
   UNUSED(argc, argv);
 #endif
 
+  test_double_alloc();
+  std::cout << "test_double_alloc passed" << std::endl;
   test_alloc();
   std::cout << "test_alloc passed" << std::endl;
   test_constructor();
   std::cout << "test_constructor passed" << std::endl;
   test_alloc_many();
   std::cout << "test_alloc_many passed" << std::endl;
-  test_double_alloc();
-  std::cout << "test_double_alloc passed" << std::endl;
   test_different_alloc();
   std::cout << "test_different_alloc passed" << std::endl;
   test_iterator();
