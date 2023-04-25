@@ -200,8 +200,7 @@ namespace snmalloc
       PoolState<T>& pool = get_state();
       last->next = nullptr;
       FlagLock f(pool.lock);
-      // Pushes a linked list of objects onto the stack. Used to put a linked
-      // list returned by extract back onto the stack.
+
       if (pool.front == nullptr)
       {
         pool.front = capptr::Alloc<T>::unsafe_from(first);
@@ -224,8 +223,7 @@ namespace snmalloc
       PoolState<T>& pool = get_state();
       last->next = nullptr;
       FlagLock f(pool.lock);
-      // Pushes a linked list of objects onto the stack. Used to put a linked
-      // list returned by extract back onto the stack.
+
       if (pool.front == nullptr)
       {
         pool.back = capptr::Alloc<T>::unsafe_from(last);
