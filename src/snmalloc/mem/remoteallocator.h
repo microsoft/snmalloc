@@ -41,6 +41,11 @@ namespace snmalloc
   {
     /**
      * Global key for all remote lists.
+     *
+     * Note that we use a single key for all remote free lists and queues.
+     * This is so that we do not have to recode next pointers when sending
+     * segments, and look up specific keys based on destination.  This is
+     * potentially more performant, but could make it easier to guess the key.
      */
     inline static FreeListKey key_global{0xdeadbeef, 0xbeefdead, 0xdeadbeef};
 
