@@ -158,8 +158,7 @@ namespace snmalloc
     // Source for object allocations and metadata
     // No separation between the two
     using Stats = StatsRange<GlobalR>;
-    using ObjectRange = SmallBuddyRange<
-      LargeBuddyRange<CommitRange<Stats, PAL>, 18, 18, Pagemap>>;
+    using ObjectRange = SmallBuddyRange<CommitRange<Stats, PAL>>;
     using GlobalMetaRange = GlobalRange<ObjectRange>;
 #endif
 
