@@ -11,11 +11,6 @@
 namespace snmalloc
 {
   /**
-   * Global key for all remote lists.
-   */
-  inline static FreeListKey key_global(0xdeadbeef, 0xbeefdead, 0xdeadbeef);
-
-  /**
    *
    * A RemoteAllocator is the message queue of freed objects.  It exposes a MPSC
    * append-only atomic queue that uses one xchg per append.
@@ -44,6 +39,16 @@ namespace snmalloc
    */
   struct alignas(REMOTE_MIN_ALIGN) RemoteAllocator
   {
+    /**
+     * Global key for all remote lists.
+     *
+     * Note that we use a single key for all remote free lists and queues.
+     * This is so that we do not have to recode next pointers when sending
+     * segments, and look up specific keys based on destination.  This is
+     * potentially more performant, but could make it easier to guess the key.
+     */
+    inline static FreeListKey key_global{0xdeadbeef, 0xbeefdead, 0xdeadbeef};
+
     using alloc_id_t = address_t;
 
     // Store the message queue on a separate cacheline. It is mutable data that
@@ -83,11 +88,10 @@ namespace snmalloc
     }
 
     template<typename Domesticator_head>
-    inline bool
-    can_dequeue(const FreeListKey& key, Domesticator_head domesticate_head)
+    inline bool can_dequeue(Domesticator_head domesticate_head)
     {
       return domesticate_head(front.load())
-               ->atomic_read_next(key, domesticate_head) == nullptr;
+               ->atomic_read_next(key_global, domesticate_head) == nullptr;
     }
 
     /**
@@ -101,11 +105,10 @@ namespace snmalloc
     void enqueue(
       freelist::HeadPtr first,
       freelist::HeadPtr last,
-      const FreeListKey& key,
       Domesticator_head domesticate_head)
     {
       invariant();
-      freelist::Object::atomic_store_null(last, key);
+      freelist::Object::atomic_store_null(last, key_global);
 
       // Exchange needs to be acq_rel.
       // *  It needs to be a release, so nullptr in next is visible.
@@ -116,7 +119,8 @@ namespace snmalloc
 
       if (SNMALLOC_LIKELY(prev != nullptr))
       {
-        freelist::Object::atomic_store_next(domesticate_head(prev), first, key);
+        freelist::Object::atomic_store_next(
+          domesticate_head(prev), first, key_global);
         return;
       }
 
@@ -136,7 +140,6 @@ namespace snmalloc
       typename Domesticator_queue,
       typename Cb>
     void dequeue(
-      const FreeListKey& key,
       Domesticator_head domesticate_head,
       Domesticator_queue domesticate_queue,
       Cb cb)
@@ -150,7 +153,8 @@ namespace snmalloc
 
       while (address_cast(curr) != address_cast(b))
       {
-        freelist::HeadPtr next = curr->atomic_read_next(key, domesticate_queue);
+        freelist::HeadPtr next =
+          curr->atomic_read_next(key_global, domesticate_queue);
         // We have observed a non-linearisable effect of the queue.
         // Just go back to allocating normally.
         if (SNMALLOC_UNLIKELY(next == nullptr))

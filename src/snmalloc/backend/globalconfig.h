@@ -108,7 +108,7 @@ namespace snmalloc
       LocalEntropy entropy;
       entropy.init<Pal>();
       // Initialise key for remote deallocation lists
-      key_global = FreeListKey(entropy.get_free_list_key());
+      RemoteAllocator::key_global = FreeListKey(entropy.get_free_list_key());
 
       // Need to randomise pagemap location. If requested and not a
       // StrictProvenance architecture, randomize its table's location within a

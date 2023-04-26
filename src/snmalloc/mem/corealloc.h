@@ -462,7 +462,7 @@ namespace snmalloc
         }
       };
 
-      return !(message_queue().can_dequeue(key_global, domesticate));
+      return !(message_queue().can_dequeue(domesticate));
     }
 
     /**
@@ -502,11 +502,11 @@ namespace snmalloc
           [](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
             return freelist::HeadPtr::unsafe_from(p.unsafe_ptr());
           };
-        message_queue().dequeue(key_global, domesticate_first, domesticate, cb);
+        message_queue().dequeue(domesticate_first, domesticate, cb);
       }
       else
       {
-        message_queue().dequeue(key_global, domesticate, domesticate, cb);
+        message_queue().dequeue(domesticate, domesticate, cb);
       }
 
       if (need_post)
@@ -548,7 +548,7 @@ namespace snmalloc
           need_post = true;
         attached_cache->remote_dealloc_cache
           .template dealloc<sizeof(CoreAllocator)>(
-            entry.get_remote()->trunc_id(), p.as_void(), key_global);
+            entry.get_remote()->trunc_id(), p.as_void());
       }
     }
 
@@ -643,7 +643,7 @@ namespace snmalloc
       bool sent_something =
         attached_cache->remote_dealloc_cache
           .post<sizeof(CoreAllocator), Config>(
-            backend_state_ptr(), public_state()->trunc_id(), key_global);
+            backend_state_ptr(), public_state()->trunc_id());
 
       return sent_something;
     }
@@ -838,7 +838,8 @@ namespace snmalloc
         while (p_tame != nullptr)
         {
           bool need_post = true; // Always going to post, so ignore.
-          auto n_tame = p_tame->atomic_read_next(key_global, domesticate);
+          auto n_tame =
+            p_tame->atomic_read_next(RemoteAllocator::key_global, domesticate);
           const PagemapEntry& entry =
             Config::Backend::get_metaentry(snmalloc::address_cast(p_tame));
           handle_dealloc_remote(entry, p_tame.as_void(), need_post);
@@ -891,7 +892,7 @@ namespace snmalloc
       c->remote_allocator = public_state();
 
       // Set up remote cache.
-      c->remote_dealloc_cache.init(entropy.get_free_list_key());
+      c->remote_dealloc_cache.init();
     }
 
     /**

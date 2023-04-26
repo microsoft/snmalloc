@@ -66,23 +66,23 @@ namespace snmalloc
     }
 
     template<size_t allocator_size>
-    SNMALLOC_FAST_PATH void dealloc(
-      RemoteAllocator::alloc_id_t target_id,
-      capptr::Alloc<void> p,
-      const FreeListKey& key)
+    SNMALLOC_FAST_PATH void
+    dealloc(RemoteAllocator::alloc_id_t target_id, capptr::Alloc<void> p)
     {
       SNMALLOC_ASSERT(initialised);
       auto r = p.template as_reinterpret<freelist::Object::T<>>();
 
-      list[get_slot<allocator_size>(target_id, 0)].add(r, key);
+      list[get_slot<allocator_size>(target_id, 0)].add(
+        r, RemoteAllocator::key_global);
     }
 
     template<size_t allocator_size, typename Config>
     bool post(
-      typename Config::LocalState* local_state,
-      RemoteAllocator::alloc_id_t id,
-      const FreeListKey& key)
+      typename Config::LocalState* local_state, RemoteAllocator::alloc_id_t id)
     {
+      // Use same key as the remote allocator, so segments can be
+      // posted to a remote allocator without reencoding.
+      const auto& key = RemoteAllocator::key_global;
       SNMALLOC_ASSERT(initialised);
       size_t post_round = 0;
       bool sent_something = false;
@@ -118,11 +118,11 @@ namespace snmalloc
               auto domesticate_nop = [](freelist::QueuePtr p) {
                 return freelist::HeadPtr::unsafe_from(p.unsafe_ptr());
               };
-              remote->enqueue(first, last, key, domesticate_nop);
+              remote->enqueue(first, last, domesticate_nop);
             }
             else
             {
-              remote->enqueue(first, last, key, domesticate);
+              remote->enqueue(first, last, domesticate);
             }
             sent_something = true;
           }
@@ -166,7 +166,7 @@ namespace snmalloc
      * Must be called before anything else to ensure actually initialised
      * not just zero init.
      */
-    void init(const FreeListKey& key)
+    void init()
     {
 #ifndef NDEBUG
       initialised = true;
@@ -175,7 +175,7 @@ namespace snmalloc
       {
         // We do not need to initialise with a particular slab, so pass
         // a null address.
-        l.init(0, key);
+        l.init(0, RemoteAllocator::key_global);
       }
       capacity = REMOTE_CACHE;
     }

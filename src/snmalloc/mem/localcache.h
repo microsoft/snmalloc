@@ -86,7 +86,7 @@ namespace snmalloc
       }
 
       return remote_dealloc_cache.post<allocator_size, Config>(
-        local_state, remote_allocator->trunc_id(), key_global);
+        local_state, remote_allocator->trunc_id());
     }
 
     template<

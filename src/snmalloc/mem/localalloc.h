@@ -279,7 +279,7 @@ namespace snmalloc
         const PagemapEntry& entry =
           Config::Backend::template get_metaentry(address_cast(p));
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-          entry.get_remote()->trunc_id(), p, key_global);
+          entry.get_remote()->trunc_id(), p);
         post_remote_cache();
         return;
       }
@@ -670,7 +670,7 @@ namespace snmalloc
         if (local_cache.remote_dealloc_cache.reserve_space(entry))
         {
           local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-            remote->trunc_id(), p_tame, key_global);
+            remote->trunc_id(), p_tame);
 #  ifdef SNMALLOC_TRACING
           message<1024>(
             "Remote dealloc fast {} ({})", p_raw, alloc_size(p_raw));
