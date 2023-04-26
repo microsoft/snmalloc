@@ -150,7 +150,7 @@ namespace snmalloc
       }
 
       auto p = capptr::Alloc<T>::unsafe_from(new (raw.unsafe_ptr())
-                                          T(std::forward<Args>(args)...));
+                                               T(std::forward<Args>(args)...));
 
       FlagLock f(pool.lock);
       p->list_next = pool.list;
@@ -207,7 +207,7 @@ namespace snmalloc
       }
       else
       {
-        pool.back->next = capptr::Alloc<T>::unsafe_from(first); 
+        pool.back->next = capptr::Alloc<T>::unsafe_from(first);
       }
 
       pool.back = capptr::Alloc<T>::unsafe_from(last);
@@ -230,8 +230,8 @@ namespace snmalloc
       }
       else
       {
-        last->next = pool.front; 
-        pool.back->next = capptr::Alloc<T>::unsafe_from(first); 
+        last->next = pool.front;
+        pool.back->next = capptr::Alloc<T>::unsafe_from(first);
       }
       pool.front = capptr::Alloc<T>::unsafe_from(first);
     }
