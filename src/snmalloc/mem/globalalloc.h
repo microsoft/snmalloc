@@ -87,7 +87,7 @@ namespace snmalloc
       }
     }
 
-    if (result == nullptr  && RemoteDeallocCache::remote_inflight.load() != 0)
+    if (result == nullptr  && RemoteDeallocCache::remote_inflight.get_curr() != 0)
       error("ERROR: RemoteDeallocCache::remote_inflight != 0");
 
     if (result != nullptr)

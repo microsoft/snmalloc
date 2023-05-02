@@ -12,8 +12,7 @@ namespace snmalloc
   {
     ParentRange parent{};
 
-    static inline std::atomic<size_t> current_usage{};
-    static inline std::atomic<size_t> peak_usage{};
+    static inline Stat usage{};
 
   public:
     static constexpr bool Aligned = ParentRange::Aligned;
@@ -27,31 +26,25 @@ namespace snmalloc
       auto result = parent.alloc_range(size);
       if (result != nullptr)
       {
-        auto prev = current_usage.fetch_add(size);
-        auto curr = peak_usage.load();
-        while (curr < prev + size)
-        {
-          if (peak_usage.compare_exchange_weak(curr, prev + size))
-            break;
-        }
+        usage += size;
       }
       return result;
     }
 
     void dealloc_range(capptr::Chunk<void> base, size_t size)
     {
-      current_usage -= size;
+      usage -= size;
       parent.dealloc_range(base, size);
     }
 
     size_t get_current_usage()
     {
-      return current_usage.load();
+      return usage.get_curr();
     }
 
     size_t get_peak_usage()
     {
-      return peak_usage.load();
+      return usage.get_peak();
     }
   };
 

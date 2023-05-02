@@ -19,7 +19,7 @@ namespace snmalloc
   {
     std::array<freelist::Builder<false, false>, REMOTE_SLOTS> list;
 
-    static inline std::atomic<size_t> remote_inflight{0};
+    static inline Stat remote_inflight;
 
     /**
      * The total amount of bytes of memory in the cache.
