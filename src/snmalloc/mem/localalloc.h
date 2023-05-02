@@ -205,6 +205,9 @@ namespace snmalloc
             chunk.unsafe_ptr(), bits::next_pow2(size));
         }
 
+        if (chunk.unsafe_ptr() != nullptr)
+          core_alloc->stats[size_to_sizeclass_full(size)].objects_allocated++;
+
         return capptr_chunk_is_alloc(capptr_to_user_address_control(chunk));
       });
     }
@@ -240,7 +243,7 @@ namespace snmalloc
       };
 
       return local_cache.template alloc<zero_mem, Backend>(
-        domesticate, size, slowpath);
+        domesticate, core_alloc->stats, size, slowpath);
     }
 
     /**
@@ -634,7 +637,7 @@ namespace snmalloc
 #  if defined(__CHERI_PURE_CAPABILITY__) && defined(SNMALLOC_CHECK_CLIENT)
         dealloc_cheri_checks(p_tame.unsafe_ptr());
 #  endif
-        if (SNMALLOC_LIKELY(CoreAlloc::dealloc_local_object_fast(
+        if (SNMALLOC_LIKELY(core_alloc->dealloc_local_object_fast(
               entry, p_tame, local_cache.entropy)))
           return;
         core_alloc->dealloc_local_object_slow(p_tame, entry);

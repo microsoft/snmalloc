@@ -137,4 +137,36 @@ namespace snmalloc
     }
   }
 
+  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
+  inline static AllocStats get_stats()
+  {
+    auto alloc = AllocPool<SharedStateHandle>::iterate();
+    AllocStats stats;
+    while (alloc != nullptr)
+    {
+      stats += alloc->get_stats();
+      alloc = AllocPool<SharedStateHandle>::iterate(alloc);
+    }
+    return stats;
+  }
+
+  template<SNMALLOC_CONCEPT(ConceptBackendGlobals) SharedStateHandle>
+  inline static void print_alloc_stats()
+  {
+#ifndef SNMALLOC_PASS_THROUGH // This test depends on snmalloc internals
+    auto stats = snmalloc::get_stats<SharedStateHandle>();
+    for (size_t i = 0; i < snmalloc::SIZECLASS_REP_SIZE; i++)
+    {
+      auto sc = snmalloc::sizeclass_t::from_raw(i);
+      auto allocated = *stats[sc].objects_allocated;
+      auto deallocated = *stats[sc].objects_deallocated;
+      if (allocated == 0 && deallocated == 0)
+        continue;
+      auto size =
+        snmalloc::sizeclass_full_to_size(snmalloc::sizeclass_t::from_raw(i));
+      auto in_use = allocated - deallocated;
+      snmalloc::message<1024>("{},{},{},{},{}", i, size, allocated, deallocated, in_use);
+    }
+#endif
+  }
 } // namespace snmalloc

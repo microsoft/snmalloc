@@ -111,6 +111,11 @@ namespace snmalloc
     Ticker<typename Backend::Pal> ticker;
 
     /**
+     * Tracks this allocators memory usage
+     */
+    AllocStats stats;
+
+    /**
      * The message queue needs to be accessible from other threads
      *
      * In the cross trust domain version this is the minimum amount
@@ -200,6 +205,7 @@ namespace snmalloc
       // Use attached cache, and fill it if it is empty.
       return attached_cache->template alloc<NoZero, Backend>(
         domesticate,
+        stats,
         size,
         [&](smallsizeclass_t sizeclass, freelist::Iter<>* fl) {
           return small_alloc<NoZero>(sizeclass, *fl);
@@ -679,13 +685,14 @@ namespace snmalloc
       // pointers
       auto& entry =
         Backend::Pagemap::template get_metaentry(snmalloc::address_cast(p));
-      if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p, entropy)))
+      if (SNMALLOC_LIKELY(dealloc_local_object_fast<false>(entry, p, entropy)))
         return;
 
       dealloc_local_object_slow(p, entry);
     }
 
-    SNMALLOC_FAST_PATH static bool dealloc_local_object_fast(
+    template<bool Statistics = true>
+    SNMALLOC_FAST_PATH bool dealloc_local_object_fast(
       const PagemapEntry& entry,
       CapPtr<void, capptr::bounds::Alloc> p,
       LocalEntropy& entropy)
@@ -705,6 +712,10 @@ namespace snmalloc
       // Update the head and the next pointer in the free list.
       meta->free_queue.add(cp, key, entropy);
 
+      if constexpr (Statistics)
+      {
+        stats[entry.get_sizeclass()].objects_deallocated++;
+      }
       return SNMALLOC_LIKELY(!meta->return_object());
     }
 
@@ -749,6 +760,8 @@ namespace snmalloc
           alloc_classes[sizeclass].length++;
           sl.insert(meta);
         }
+
+        stats[sizeclass].objects_allocated++;
 
         auto r = finish_alloc<zero_mem, Backend>(p, sizeclass);
         return ticker.check_tick(r);
@@ -816,6 +829,8 @@ namespace snmalloc
         alloc_classes[sizeclass].length++;
         alloc_classes[sizeclass].available.insert(meta);
       }
+
+      stats[sizeclass].objects_allocated++;
 
       auto r = finish_alloc<zero_mem, Backend>(p, sizeclass);
       return ticker.check_tick(r);
@@ -961,6 +976,11 @@ namespace snmalloc
       }
 
       return debug_is_empty_impl(result);
+    }
+
+    const AllocStats& get_stats()
+    {
+      return stats;
     }
   };
 
