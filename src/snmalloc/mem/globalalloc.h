@@ -165,7 +165,7 @@ namespace snmalloc
       auto size =
         snmalloc::sizeclass_full_to_size(snmalloc::sizeclass_t::from_raw(i));
       auto in_use = allocated - deallocated;
-      snmalloc::message<1024>("{},{},{},{},{}", i, size, allocated, deallocated, in_use);
+      snmalloc::message<1024>("SNMALLOCallocs,{},{},{},{},{}", i, size, allocated, deallocated, in_use);
     }
 #endif
   }
