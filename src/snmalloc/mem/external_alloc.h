@@ -45,6 +45,11 @@ namespace snmalloc::external_alloc
 {
   using ::malloc_usable_size;
 }
+#    elif defined(__DragonFly__)
+namespace snmalloc::external_alloc
+{
+  using ::malloc_usable_size;
+}
 #    else
 #      error Define malloc size macro for this platform.
 #    endif
