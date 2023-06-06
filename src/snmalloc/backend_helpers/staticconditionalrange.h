@@ -12,8 +12,8 @@ namespace snmalloc
     // Disabling is global, and not local.
     // This is used to allow disabling thread local buddy allocators when the
     // initial fixed size heap is small.
-    // 
-    // The range builds a more complex parent 
+    //
+    // The range builds a more complex parent
     //    Pipe<ParentRange, OptionalRange>
     // and uses the ancestor functions to bypass the OptionalRange if the flag
     // has been set.
@@ -31,7 +31,8 @@ namespace snmalloc
     public:
       static constexpr bool Aligned = ActualParentRange::Aligned;
 
-      static constexpr bool ConcurrencySafe = ActualParentRange::ConcurrencySafe;
+      static constexpr bool ConcurrencySafe =
+        ActualParentRange::ConcurrencySafe;
 
       using ChunkBounds = typename ActualParentRange::ChunkBounds;
 

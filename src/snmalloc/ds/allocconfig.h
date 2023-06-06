@@ -96,5 +96,6 @@ namespace snmalloc
   // Used to configure when the backend should use thread local buddies.
   // This only basically is used to disable some buddy allocators on small
   // fixed heap scenarios like OpenEnclave.
-  static constexpr size_t MIN_HEAP_SIZE_FOR_THREAD_LOCAL_BUDDY = bits::one_at_bit(25);
+  static constexpr size_t MIN_HEAP_SIZE_FOR_THREAD_LOCAL_BUDDY =
+    bits::one_at_bit(25);
 } // namespace snmalloc
