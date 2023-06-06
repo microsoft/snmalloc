@@ -8,13 +8,24 @@ namespace snmalloc
   template<typename OptionalRange>
   struct StaticConditionalRange
   {
+    // This is a range that can bypass the OptionalRange if it is disabled.
+    // Disabling is global, and not local.
+    // This is used to allow disabling thread local buddy allocators when the
+    // initial fixed size heap is small.
+    // 
+    // The range builds a more complex parent 
+    //    Pipe<ParentRange, OptionalRange>
+    // and uses the ancestor functions to bypass the OptionalRange if the flag
+    // has been set.
     template<typename ParentRange>
     class Type : public ContainsParent<Pipe<ParentRange, OptionalRange>>
     {
+      // This contains connects the optional range to the parent range.
       using ActualParentRange = Pipe<ParentRange, OptionalRange>;
 
       using ContainsParent<ActualParentRange>::parent;
 
+      // Global flag specifying if the optional range should be disabled.
       static inline bool disable_range_{false};
 
     public:
@@ -23,9 +34,6 @@ namespace snmalloc
       static constexpr bool ConcurrencySafe = ActualParentRange::ConcurrencySafe;
 
       using ChunkBounds = typename ActualParentRange::ChunkBounds;
-      static_assert(
-        ChunkBounds::address_space_control ==
-        capptr::dimension::AddressSpaceControl::Full);
 
       constexpr Type() = default;
 
@@ -33,6 +41,7 @@ namespace snmalloc
       {
         if (disable_range_)
         {
+          // Use ancestor to bypass the optional range.
           return this->template ancestor<ParentRange>()->alloc_range(size);
         }
 
@@ -43,6 +52,7 @@ namespace snmalloc
       {
         if (disable_range_)
         {
+          // Use ancestor to bypass the optional range.
           this->template ancestor<ParentRange>()->dealloc_range(base, size);
           return;
         }
