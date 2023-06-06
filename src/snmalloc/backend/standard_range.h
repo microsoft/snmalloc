@@ -49,11 +49,11 @@ namespace snmalloc
     // Use buddy allocators to cache locally.
     using LargeObjectRange = Pipe<
       Stats,
-      LargeBuddyRange<
+      StaticConditionalRange<LargeBuddyRange<
         LocalCacheSizeBits,
         LocalCacheSizeBits,
         Pagemap,
-        page_size_bits>>;
+        page_size_bits>>>;
 
   private:
     using ObjectRange = Pipe<LargeObjectRange, SmallBuddyRange>;
@@ -84,6 +84,12 @@ namespace snmalloc
     {
       // Use the object range to service meta-data requests.
       return object_range;
+    }
+
+    void set_small_heap()
+    {
+      // This disables the thread local caching of large objects.
+      object_range.template ancestor<LargeObjectRange>()->disable_range();
     }
   };
 } // namespace snmalloc

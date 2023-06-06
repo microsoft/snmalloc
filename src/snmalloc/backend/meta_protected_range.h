@@ -120,6 +120,11 @@ namespace snmalloc
       return meta_range;
     }
 
+    void set_small_heap()
+    {
+      error("Not supported! Cannot use a small heap with MetaProtectedRange.");
+    }
+
     // Create global range that can service small meta-data requests.
     // Don't want to add the SmallBuddyRange to the CentralMetaRange as that
     // would require committing memory inside the main global lock.

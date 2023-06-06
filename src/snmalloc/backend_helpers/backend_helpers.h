@@ -14,5 +14,6 @@
 #include "palrange.h"
 #include "range_helpers.h"
 #include "smallbuddyrange.h"
+#include "staticconditionalrange.h"
 #include "statsrange.h"
 #include "subrange.h"
