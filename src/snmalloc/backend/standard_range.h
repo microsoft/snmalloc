@@ -86,10 +86,10 @@ namespace snmalloc
       return object_range;
     }
 
-    void set_small_heap()
+    static void set_small_heap()
     {
       // This disables the thread local caching of large objects.
-      object_range.template ancestor<LargeObjectRange>()->disable_range();
+      LargeObjectRange::disable_range();
     }
   };
 } // namespace snmalloc

@@ -90,7 +90,7 @@ namespace snmalloc
       // Make this a alloc_config constant.
       if (length < MIN_HEAP_SIZE_FOR_THREAD_LOCAL_BUDDY)
       {
-        local_state->set_small_heap();
+        LocalState::set_small_heap();
       }
 
       Authmap::arena = capptr::Arena<void>::unsafe_from(heap_base);

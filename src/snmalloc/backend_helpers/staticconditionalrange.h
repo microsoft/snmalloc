@@ -60,7 +60,7 @@ namespace snmalloc
         parent.dealloc_range(base, size);
       }
 
-      void disable_range()
+      static void disable_range()
       {
         disable_range_ = true;
       }
