@@ -62,6 +62,12 @@ namespace snmalloc
 
     constexpr RemoteAllocator() = default;
 
+    void invariant()	
+    {	
+      SNMALLOC_ASSERT(	
+        (back != nullptr) ||	
+        (address_cast(front.load()) == address_cast(&stub)));	
+    }
 
     void init()
     {
