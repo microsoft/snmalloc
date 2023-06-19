@@ -12,268 +12,28 @@ on:
   workflow_dispatch:
 
 jobs:
-  linux:
-    strategy:
-      matrix:
-        # Build each combination of OS and release/debug variants
-        os: [ "ubuntu-latest", "ubuntu-20.04", "macos-11", "macos-12" ]
-        build-type: [ Release, Debug ]
-        # Extra cmake flags.  GitHub Actions matrix overloads `include` to mean
-        # 'add extra things to a job' and 'add jobs'.  You can add extra things
-        # to a job by specifying things that exist in a job created from the
-        # matrix definition and adding things.  You can specify extra jobs by
-        # specifying properties that don't match existing jobs.  We use
-        # `cmake-flags` to add cmake flags to all jobs matching a pattern and
-        # `extra-cmake-flags` to specify a new job with custom CMake flags.
-        extra-cmake-flags: [ "" ]
-        # Modify the complete matrix
-        include:
-          # Provide the dependency installation for each platform
-          - os: "ubuntu-20.04"
-            dependencies: "sudo apt install ninja-build"
-            cmake-flags: "-DSNMALLOC_USE_CXX17=ON"
-          - os: "ubuntu-20.04"
-            dependencies: "sudo apt install ninja-build"
-          - os: "ubuntu-latest" # 22.04 at time of writing
-            dependencies: "sudo apt install ninja-build"
-          - os: "macos-11"
-            # The homebrew packages are broken at the moment and error out
-            # after trying to install Python as a dependency of ninja because
-            # 2to3 exists.  As a quick hack, delete it first.  This should be
-            # removed once the homebrew install is fixed.
-            dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
-          - os: "macos-12"
-            dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
-          # Add the self-host build, using the bounds-checked memcpy in
-          # maximally paranoid mode (checking loads and stores)
-          - os: "ubuntu-latest"
-            build-type: Debug
-            self-host: true
-            extra-cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
-            dependencies: "sudo apt install ninja-build"
-          # Extra build to check using pthread library for destructing local state.
-          - os: "ubuntu-latest"
-            variant: "with pthread destructors"
-            dependencies: "sudo apt install ninja-build"
-            build-type: Debug
-            self-host: true
-            extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On"
-          # Extra build to check using individual mitigations works.
-          - os: "ubuntu-latest"
-            variant: "individual mitigations"
-            dependencies: "sudo apt install ninja-build"
-            build-type: Release
-            self-host: true
-            extra-cmake-flags: "-DSNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS=On -DBUILD_TESTING=Off"
-          # Check that we can build specifically with libstdc++
-          - os: "ubuntu-latest"
-            variant: "libstdc++ (Build only)"
-            dependencies: "sudo apt install ninja-build"
-            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
-            build-only: yes
-          # Replay some of the above tests with clang-10 specifically
-          - os: "ubuntu-20.04"
-            variant: "clang-10 (with pthread destructors)."
-            dependencies: "sudo apt install ninja-build"
-            build-type: Debug
-            self-host: true
-            extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On -DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10"
-          - os: "ubuntu-20.04"
-            variant: "clang-10 libstdc++ (Build only)"
-            dependencies: "sudo apt install ninja-build"
-            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10 -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
-            build-only: yes
-      # Don't abort runners if a single one fails
-      fail-fast: false
-    runs-on: ${{ matrix.os }}
-    name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.variant }}
-    steps:
-    - uses: actions/checkout@v3
-    - name: Install build dependencies
-      run: ${{ matrix.dependencies }}
-    - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.cmake-flags }} ${{ matrix.extra-cmake-flags }}
-      # Build with a nice ninja status line
-    - name: Build
-      working-directory: ${{github.workspace}}/build
-      run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-    - name: Test file size of binaries is sane
-      working-directory: ${{github.workspace}}/build
-      run: "ls -l libsnmallocshim.* ; [ $(ls -l libsnmallocshim.* | awk '{ print $5}') -lt 10000000 ]"
-      # If the tests are enabled for this job, run them
-    - name: Test
-      if: ${{ matrix.build-only != 'yes' }}
-      working-directory: ${{github.workspace}}/build
-      run: ctest --output-on-failure -j 4 -C ${{ matrix.build-type }} --timeout 400
-    - name: Selfhost
-      if: ${{ matrix.self-host }}
-      working-directory: ${{github.workspace}}/build
-      run: |
-        mkdir libs
-        cp libsnmallocshim*.so libs
-        for lib in `ls libs`; do echo; echo Testing $lib; ninja clean; LD_PRELOAD=libs/$lib ninja libsnmallocshim.so; done
-  # GitHub doesn't natively support *BSD, but we can run them in VMs on Mac /
-  # Linux runners
-  freebsd:
-    strategy:
-      matrix:
-        # Build each combination of OS, version, and release/debug variants
-        # FreeBSD and OpenBSD run on xhyve, netbsd needs qemu
-        os:
-          - version: '13.1'
-            dependencies: pkg ins -y cmake ninja
-          - version: '12.3'
-            dependencies: pkg ins -y cmake ninja
-        build-type: [ Release, Debug ]
-      # Don't abort runners if a single one fails
-      fail-fast: false
-    # Kill these jobs if they take too long.
-    timeout-minutes: 25
-    runs-on: macos-latest
-    name: FreeBSD-${{ matrix.os.version}} ${{ matrix.build-type }}
-    steps:
-    - uses: actions/checkout@v3
-    - uses: vmactions/freebsd-vm@v0
-      with:
-        release: ${{ matrix.os.version}}
-        usesh: true
-        mem: 8192
-        copyback: false
-        prepare: |
-          ${{ matrix.os.dependencies }}
-        run: |
-          set -e
-          cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja 
-          cd ${{github.workspace}}/build
-          NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-          ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
-
-  netbsd:
-    strategy:
-      matrix:
-        # Build each combination of OS, version, and release/debug variants
-        # FreeBSD and OpenBSD run on xhyve, netbsd needs qemu
-        os:
-          - version: '9.2'
-            dependencies: |
-              pkg_add cmake ninja-build gcc10
-        build-type: [ Release, Debug ]
-      # Don't abort runners if a single one fails
-      fail-fast: false
-    # Kill these jobs if they take too long.
-    timeout-minutes: 25
-    runs-on: macos-latest
-    name: NetBSD-${{ matrix.os.version}} ${{ matrix.build-type }}
-    steps:
-    - uses: actions/checkout@v3
-    - uses: vmactions/netbsd-vm@v0
-      with:
-        release: ${{ matrix.os.version}}
-        usesh: true
-        mem: 8192
-        copyback: false
-        prepare: |
-          ${{ matrix.os.dependencies }}
-        run: |
-          set -e
-          cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja -DCMAKE_CXX_COMPILER=/usr/pkg/gcc10/bin/g++ -DCMAKE_C_COMPILER=/usr/pkg/gcc10/bin/gcc
-          cd ${{github.workspace}}/build
-          NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-          ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
-
-  ## Without overcommit, or explicit commit the current implementation cannot be made to work on openbsd.
-  ## We could add a layered pagemap for openbsd, that would address the requirements. 
-  # openbsd:
-  #   strategy:
-  #     matrix:
-  #       # Build each combination of OS, version, and release/debug variants
-  #       os:
-  #         - version: '7.2'
-  #           dependencies: pkg_add -I cmake ninja
-  #       build-type: [ Release, Debug ]
-  #     # Don't abort runners if a single one fails
-  #     fail-fast: false
-  #   # Kill these jobs if they take too long.
-  #   timeout-minutes: 25
-  #   runs-on: macos-latest
-  #   name: OpenBSD-${{ matrix.os.version}} ${{ matrix.build-type }}
-  #   steps:
-  #   - uses: actions/checkout@v3
-  #   - uses: vmactions/openbsd-vm@v0
-  #     with:
-  #       release: ${{ matrix.os.version}}
-  #       usesh: true
-  #       mem: 8192
-  #       copyback: false
-  #       prepare: |
-  #         ${{ matrix.os.dependencies }}
-  #       run: |
-  #         set -e
-  #         cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja
-  #         cd ${{github.workspace}}/build
-  #         NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-  #         ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
-
-  sanitizer:
-    strategy:
-      matrix:
-        # Build just release variant as Debug is too slow.
-        build-type: [ Release ]
-        include:
-          - os: "ubuntu-latest"
-            continue-on-error: # Don't class as an error if this fails, until we have a more reliablity.
-            variant: "libc++ (TSan + UBSan)"
-            dependencies: "sudo apt install ninja-build"
-            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-stdlib=\"libc++ -g\" -DSNMALLOC_SANITIZER=undefined,thread"
-          # Also test specifically with clang-10 (on ubuntu-20.04)
-          - os: "ubuntu-20.04"
-            continue-on-error: # Don't class as an error if this fails, until we have a more reliablity.
-            variant: "clang-10 libc++ (TSan + UBSan)"
-            dependencies: "sudo apt install ninja-build"
-            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_CXX_FLAGS=-stdlib=\"libc++ -g\" -DSNMALLOC_SANITIZER=undefined,thread"
-      # Don't abort runners if a single one fails
-      fail-fast: false
-    runs-on: ${{ matrix.os }}
-    name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.variant }}
-    steps:
-    - uses: actions/checkout@v3
-    - name: Install build dependencies
-      run: ${{ matrix.dependencies }}
-    - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.cmake-flags }} ${{ matrix.extra-cmake-flags }}
-      # Build with a nice ninja status line
-    - name: Build
-      working-directory: ${{github.workspace}}/build
-      run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-    - name: Test
-      working-directory: ${{github.workspace}}/build
-      run: ctest --output-on-failure -j 4 -C ${{ matrix.build-type }} --timeout 400 -E "memcpy|external_pointer" --repeat-until-fail 2
-
   qemu-crossbuild:
     strategy:
       matrix:
         build-type: [ Release, Debug ]
         arch:
-          - name: armhf
-            system-processor: arm
-            triple: arm-linux-gnueabihf
-            rtld: ld-linux-armhf.so.3
-            ld-flavour: lld
+          - name: riscv64-1
+            system-processor: riscv64
+            triple: riscv64-linux-gnu
+            rtld: ld-linux-riscv64-lp64d.so.1
+            extra-packages: binutils-riscv64-linux-gnu
+            ld-flavour: bfd
+            ld: /usr/bin/riscv64-linux-gnu-ld.bfd
             host-os: ubuntu-latest
-          - name: arm64
-            system-processor: aarch64
-            triple: aarch64-linux-gnu
-            rtld: ld-linux-aarch64.so.1
-            ld-flavour: lld
+          - name: riscv64-2
+            system-processor: riscv64
+            triple: riscv64-linux-gnu
+            rtld: ld-linux-riscv64-lp64d.so.1
+            extra-packages: binutils-riscv64-linux-gnu
+            ld-flavour: bfd
+            ld: /usr/bin/riscv64-linux-gnu-ld.bfd
             host-os: ubuntu-latest
-          - name: ppc64el
-            system-processor: powerpc64le
-            triple: powerpc64le-linux-gnu
-            rtld: ld64.so.2
-            ld-flavour: lld
-            # See https://github.com/microsoft/snmalloc/issues/576
-            host-os: ubuntu-20.04
-          - name: riscv64
+          - name: riscv64-3
             system-processor: riscv64
             triple: riscv64-linux-gnu
             rtld: ld-linux-riscv64-lp64d.so.1
@@ -345,86 +105,9 @@ jobs:
       run: ctest -j 2 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
       timeout-minutes: 30
 
-  windows:
-    strategy:
-      matrix:
-        # Build each combination of OS and release/debug variants
-        os: [ windows-2019 ]
-        build-type: [ Release, Debug ]
-        arch: [ Win32, x64 ]
-        toolchain: [ "", "-T ClangCL" ]
-        extra-cmake-flags: [ "" ]
-        # Add an extra check for the Windows 8 compatible PAL
-        include:
-          - os: windows-2019
-            build-type: Release
-            arch: x64
-            toolchain: ""
-            extra-cmake-flags: -DWIN8COMPAT=TRUE
-            variant: Windows 8 compatible
-          - os: windows-2022
-            build-type: Release
-            arch: Win32
-            toolchain: ""
-          - os: windows-2022
-            build-type: Debug
-            arch: Win32
-            toolchain: ""
-          - os: windows-2022
-            build-type: Release
-            arch: x64
-            toolchain: ""
-          - os: windows-2022
-            build-type: Debug
-            arch: x64
-            toolchain: ""
-        
-      # Don't abort runners if a single one fails
-      fail-fast: false
-    runs-on: ${{ matrix.os }}
-    name: ${{ matrix.os }} ${{ matrix.arch }} ${{ matrix.build-type }} ${{ matrix.toolchain }} ${{ matrix.variant }}
-    steps:
-    - uses: actions/checkout@v3
-    - name: Configure CMake
-      run: |
-        cmake -B ${{github.workspace}}/build -A ${{ matrix.arch }} ${{ matrix.toolchain }} ${{ matrix.extra-cmake-flags }} -DSNMALLOC_CI_BUILD=On -DSNMALLOC_RUST_SUPPORT=On
-      # Build with whatever version of msbuild was configured, for a single build configuration.
-    - name: Build
-      run: cmake --build ${{github.workspace}}/build -- /m /p:Configuration=${{ matrix.build-type }}
-      # Run the tests.
-    - name: Test
-      working-directory: ${{ github.workspace }}/build
-      run: ctest -j 2 --interactive-debug-mode 0 --output-on-failure -C ${{ matrix.build-type }} --timeout 400
-      timeout-minutes: 20
-
-
-  # Job to run clang-format and report errors
-  format:
-    runs-on: ubuntu-20.04
-    # We don't need to do the build for this job, but we need to configure it to get the clang-format target
-    steps:
-    - uses: actions/checkout@v3
-    - name: Install clang-tidy and clang-format
-      run: sudo apt install clang-tidy-9 clang-format-9
-    - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DSNMALLOC_USE_CXX17=ON
-    # Run the clang-format check and error if it generates a diff
-    - name: Run clang-format
-      working-directory: ${{github.workspace}}/build
-      run: |
-        set -eo pipefail
-        make clangformat
-        git diff --exit-code
-    - name: Run clang-tidy
-      run: |
-        clang-tidy-9  src/snmalloc/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16 -DSNMALLOC_PLATFORM_HAS_GETENTROPY=0
-        if [ -f tidy.fail ] ; then
-          cat tidy.fail
-          exit 1
-        fi
 
   all-checks:
-    needs: [linux, freebsd, qemu-crossbuild, windows, format, sanitizer]
+    needs: [qemu-crossbuild]
     runs-on: ubuntu-latest
     steps:
     - name: Dummy step

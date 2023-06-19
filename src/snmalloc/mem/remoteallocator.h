@@ -62,12 +62,6 @@ namespace snmalloc
 
     constexpr RemoteAllocator() = default;
 
-    void invariant()
-    {
-      SNMALLOC_ASSERT(
-        (back != nullptr) ||
-        (address_cast(front.load()) == address_cast(&stub)));
-    }
 
     void init()
     {
@@ -75,7 +69,9 @@ namespace snmalloc
       freelist::Object::atomic_store_null(stub_ptr, key_global);
       front.store(freelist::QueuePtr::unsafe_from(&stub));
       back.store(nullptr, std::memory_order_relaxed);
-      invariant();
+      SNMALLOC_ASSERT(
+        (back != nullptr) ||
+        (address_cast(front.load()) == address_cast(&stub)));
     }
 
     freelist::QueuePtr destroy()
@@ -107,7 +103,9 @@ namespace snmalloc
       freelist::HeadPtr last,
       Domesticator_head domesticate_head)
     {
-      invariant();
+      SNMALLOC_ASSERT(
+        (back != nullptr) ||
+        (address_cast(front.load()) == address_cast(&stub)));
       freelist::Object::atomic_store_null(last, key_global);
 
       // Exchange needs to be acq_rel.
@@ -144,7 +142,9 @@ namespace snmalloc
       Domesticator_queue domesticate_queue,
       Cb cb)
     {
-      invariant();
+      SNMALLOC_ASSERT(
+        (back != nullptr) ||
+        (address_cast(front.load()) == address_cast(&stub)));
       SNMALLOC_ASSERT(front.load() != nullptr);
 
       // Use back to bound, so we don't handle new entries.
@@ -173,7 +173,9 @@ namespace snmalloc
            * dequeue().
            */
           front = capptr_rewild(next);
-          invariant();
+          SNMALLOC_ASSERT(
+            (back != nullptr) ||
+            (address_cast(front.load()) == address_cast(&stub)));
           return;
         }
 
@@ -186,7 +188,9 @@ namespace snmalloc
        * above hold here.
        */
       front = capptr_rewild(curr);
-      invariant();
+      SNMALLOC_ASSERT(
+        (back != nullptr) ||
+        (address_cast(front.load()) == address_cast(&stub)));
     }
 
     alloc_id_t trunc_id()
