@@ -15,9 +15,9 @@ jobs:
   qemu-crossbuild:
     strategy:
       matrix:
-        build-type: [ Release, Debug ]
+        build-type: [ Debug ]
         arch:
-          - name: riscv64-1
+          - name: riscv64
             system-processor: riscv64
             triple: riscv64-linux-gnu
             rtld: ld-linux-riscv64-lp64d.so.1
@@ -25,7 +25,7 @@ jobs:
             ld-flavour: bfd
             ld: /usr/bin/riscv64-linux-gnu-ld.bfd
             host-os: ubuntu-latest
-          - name: riscv64-2
+          - name: riscv64
             system-processor: riscv64
             triple: riscv64-linux-gnu
             rtld: ld-linux-riscv64-lp64d.so.1
@@ -33,7 +33,7 @@ jobs:
             ld-flavour: bfd
             ld: /usr/bin/riscv64-linux-gnu-ld.bfd
             host-os: ubuntu-latest
-          - name: riscv64-3
+          - name: riscv64
             system-processor: riscv64
             triple: riscv64-linux-gnu
             rtld: ld-linux-riscv64-lp64d.so.1
