@@ -29,12 +29,21 @@ namespace snmalloc
       static inline bool disable_range_{false};
 
     public:
-      static constexpr bool Aligned = ActualParentRange::Aligned;
+      // Both parent and grandparent must be aligned for this range to be
+      // aligned.
+      static constexpr bool Aligned =
+        ActualParentRange::Aligned && ParentRange::Aligned;
 
+      // Both parent and grandparent must be aligned for this range to be
+      // concurrency safe.
       static constexpr bool ConcurrencySafe =
-        ActualParentRange::ConcurrencySafe;
+        ActualParentRange::ConcurrencySafe && ParentRange::ConcurrencySafe;
 
       using ChunkBounds = typename ActualParentRange::ChunkBounds;
+
+      static_assert(
+        ChunkBounds == ParentRange::ChunkBounds,
+        "Grandparent and optional parent range chunk bounds must be equal");
 
       constexpr Type() = default;
 
