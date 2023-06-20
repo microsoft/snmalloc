@@ -65,8 +65,8 @@ namespace snmalloc
     void invariant()
     {
       SNMALLOC_ASSERT(
-        (back != nullptr) ||
-        (address_cast(front.load()) == address_cast(&stub)));
+        (address_cast(front.load()) == address_cast(&stub)) ||
+        (back != nullptr));
     }
 
     void init()
