@@ -87,6 +87,12 @@ namespace snmalloc
       auto [heap_base, heap_length] =
         Pagemap::concretePagemap.init(base, length);
 
+      // Make this a alloc_config constant.
+      if (length < MIN_HEAP_SIZE_FOR_THREAD_LOCAL_BUDDY)
+      {
+        LocalState::set_small_heap();
+      }
+
       Authmap::arena = capptr::Arena<void>::unsafe_from(heap_base);
 
       Pagemap::register_range(Authmap::arena, heap_length);
