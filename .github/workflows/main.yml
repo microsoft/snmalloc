@@ -64,7 +64,7 @@ jobs:
             dependencies: "sudo apt install ninja-build"
             build-type: Release
             self-host: true
-            extra-cmake-flags: "-DSNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS=On -DBUILD_TESTING=Off"
+            extra-cmake-flags: "-DSNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS=On -DSNMALLOC_BUILD_TESTING=Off"
           # Check that we can build specifically with libstdc++
           - os: "ubuntu-latest"
             variant: "libstdc++ (Build only)"
