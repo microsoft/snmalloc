@@ -1,5 +1,8 @@
 ## Changelog
 
+### 0.3.4
+- Tracking upstream to match version 0.6.2
+
 ### 0.3.3
 - Tracking upstream to fix Linux PAL typo.
 
