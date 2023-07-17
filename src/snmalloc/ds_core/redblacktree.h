@@ -260,7 +260,7 @@ namespace snmalloc
       std::array<RBStep, 128> path;
       size_t length = 0;
 
-      RBPath(typename Rep::Handle root) : path{}
+      RBPath(typename Rep::Handle root)
       {
         path[0].set(root, false);
         length = 1;
@@ -494,8 +494,8 @@ namespace snmalloc
         // If we had a left child, replace ourselves with the extracted value
         // from above
         Rep::set_red(curr, Rep::is_red(splice));
-        get_dir(true, curr) = K(get_dir(true, splice));
-        get_dir(false, curr) = K(get_dir(false, splice));
+        get_dir(true, curr) = K{get_dir(true, splice)};
+        get_dir(false, curr) = K{get_dir(false, splice)};
         splice = curr;
         path.fixup();
       }

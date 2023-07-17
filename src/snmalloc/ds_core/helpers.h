@@ -324,7 +324,7 @@ namespace snmalloc
       }
       std::array<char, 20> buf{{0}};
       const char digits[] = "0123456789";
-      for (long i = long(buf.size() - 1); i >= 0; i--)
+      for (long i = static_cast<long>(buf.size() - 1); i >= 0; i--)
       {
         buf[static_cast<size_t>(i)] = digits[s % 10];
         s /= 10;
@@ -356,7 +356,7 @@ namespace snmalloc
       const char hexdigits[] = "0123456789abcdef";
       // Length of string including null terminator
       static_assert(sizeof(hexdigits) == 0x11);
-      for (long i = long(buf.size() - 1); i >= 0; i--)
+      for (long i = static_cast<long>(buf.size() - 1); i >= 0; i--)
       {
         buf[static_cast<size_t>(i)] = hexdigits[s & 0xf];
         s >>= 4;
