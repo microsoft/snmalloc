@@ -63,13 +63,11 @@ namespace snmalloc
      * C++, and not just its initializer fragment, to initialize a non-prefix
      * subset of the flags (in any order, at that).
      */
-    static constexpr Flags Options = []() constexpr
-    {
+    static constexpr Flags Options = []() constexpr {
       Flags opts = {};
       opts.HasDomesticate = true;
       return opts;
-    }
-    ();
+    }();
 
     // This needs to be a forward reference as the
     // thread local state will need to know about this.

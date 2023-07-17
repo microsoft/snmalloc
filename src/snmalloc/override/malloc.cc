@@ -113,7 +113,7 @@ extern "C"
 
 #if !defined(SNMALLOC_NO_REALLOCARRAY)
   SNMALLOC_EXPORT void*
-    SNMALLOC_NAME_MANGLE(reallocarray)(void* ptr, size_t nmemb, size_t size)
+  SNMALLOC_NAME_MANGLE(reallocarray)(void* ptr, size_t nmemb, size_t size)
   {
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
@@ -128,7 +128,7 @@ extern "C"
 
 #if !defined(SNMALLOC_NO_REALLOCARR)
   SNMALLOC_EXPORT int
-    SNMALLOC_NAME_MANGLE(reallocarr)(void* ptr_, size_t nmemb, size_t size)
+  SNMALLOC_NAME_MANGLE(reallocarr)(void* ptr_, size_t nmemb, size_t size)
   {
     int err = errno;
     auto& a = ThreadAlloc::get();
@@ -168,7 +168,7 @@ extern "C"
 #endif
 
   SNMALLOC_EXPORT void*
-    SNMALLOC_NAME_MANGLE(memalign)(size_t alignment, size_t size)
+  SNMALLOC_NAME_MANGLE(memalign)(size_t alignment, size_t size)
   {
     if ((alignment == 0) || (alignment == size_t(-1)))
     {
@@ -186,7 +186,7 @@ extern "C"
   }
 
   SNMALLOC_EXPORT void*
-    SNMALLOC_NAME_MANGLE(aligned_alloc)(size_t alignment, size_t size)
+  SNMALLOC_NAME_MANGLE(aligned_alloc)(size_t alignment, size_t size)
   {
     SNMALLOC_ASSERT((size % alignment) == 0);
     return SNMALLOC_NAME_MANGLE(memalign)(alignment, size);

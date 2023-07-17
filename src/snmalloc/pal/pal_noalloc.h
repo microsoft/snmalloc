@@ -17,7 +17,7 @@ namespace snmalloc
    * The minimal subset of a PAL that we need for delegation
    */
   template<typename PAL>
-  concept PALNoAllocBase = IsPAL_static_sizes<PAL>&& IsPAL_error<PAL>;
+  concept PALNoAllocBase = IsPAL_static_sizes<PAL> && IsPAL_error<PAL>;
 #endif
 
   /**

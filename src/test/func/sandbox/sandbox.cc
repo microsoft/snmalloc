@@ -172,7 +172,7 @@ namespace
        * sandbox but allocates memory inside.
        */
       struct RemoteAllocator queue;
-    } * shared_state;
+    }* shared_state;
 
     /**
      * The memory provider for this sandbox.
@@ -195,7 +195,7 @@ namespace
     Sandbox(size_t sb_size)
     : start(alloc_sandbox_heap(sb_size)),
       top(pointer_offset(start, sb_size)),
-      shared_state(new (start) SharedState()),
+      shared_state(new(start) SharedState()),
       state(
         pointer_offset(CapPtr<void, CBChunk>(start), sizeof(SharedState)),
         sb_size - sizeof(SharedState)),
