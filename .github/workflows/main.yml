@@ -405,7 +405,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install clang-tidy and clang-format
-      run: sudo apt install clang-tidy-15 clang-format-15
+      run: |
+        sudo apt update
+        sudo apt install clang-tidy-15 clang-format-15
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DSNMALLOC_USE_CXX17=ON
     # Run the clang-format check and error if it generates a diff
