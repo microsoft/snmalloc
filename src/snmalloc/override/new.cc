@@ -38,12 +38,12 @@ void* operator new[](size_t size, std::nothrow_t&)
   return ThreadAlloc::get().alloc(size);
 }
 
-void operator delete(void* p)EXCEPTSPEC
+void operator delete(void* p) EXCEPTSPEC
 {
   ThreadAlloc::get().dealloc(p);
 }
 
-void operator delete(void* p, size_t size)EXCEPTSPEC
+void operator delete(void* p, size_t size) EXCEPTSPEC
 {
   if (p == nullptr)
     return;
@@ -96,7 +96,7 @@ void* operator new[](size_t size, std::align_val_t val, std::nothrow_t&)
   return ThreadAlloc::get().alloc(size);
 }
 
-void operator delete(void* p, std::align_val_t)EXCEPTSPEC
+void operator delete(void* p, std::align_val_t) EXCEPTSPEC
 {
   ThreadAlloc::get().dealloc(p);
 }
@@ -106,7 +106,7 @@ void operator delete[](void* p, std::align_val_t) EXCEPTSPEC
   ThreadAlloc::get().dealloc(p);
 }
 
-void operator delete(void* p, size_t size, std::align_val_t val)EXCEPTSPEC
+void operator delete(void* p, size_t size, std::align_val_t val) EXCEPTSPEC
 {
   size = aligned_size(size_t(val), size);
   ThreadAlloc::get().dealloc(p, size);

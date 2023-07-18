@@ -167,8 +167,8 @@ namespace snmalloc
 
   struct SizeClassTable
   {
-    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_fast> fast_;
-    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_slow> slow_;
+    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_fast> fast_{};
+    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_slow> slow_{};
 
     size_t DIV_MULT_SHIFT{0};
 
@@ -203,7 +203,7 @@ namespace snmalloc
       return slow_[index.raw()];
     }
 
-    constexpr SizeClassTable() : fast_(), slow_(), DIV_MULT_SHIFT()
+    constexpr SizeClassTable()
     {
       size_t max_capacity = 0;
 
