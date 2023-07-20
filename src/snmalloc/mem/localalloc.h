@@ -184,6 +184,13 @@ namespace snmalloc
       }
 
       return check_init([&](CoreAlloc* core_alloc) {
+        if (size > bits::one_at_bit(bits::BITS - 1))
+        {
+          // Cannot allocate something that is more that half the size of the
+          // address space
+          errno = ENOMEM;
+          return capptr::Alloc<void>{nullptr};
+        }
         // Grab slab of correct size
         // Set remote as large allocator remote.
         auto [chunk, meta] = Config::Backend::alloc_chunk(
@@ -712,7 +719,7 @@ namespace snmalloc
         auto pm_size = sizeclass_full_to_size(pm_sc);
         snmalloc_check_client(
           mitigations(sanity_checks),
-          sc == pm_sc,
+          (sc == pm_sc) || (p == nullptr),
           "Dealloc rounded size mismatch: {} != {}",
           rsize,
           pm_size);
