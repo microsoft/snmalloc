@@ -48,6 +48,26 @@ namespace snmalloc
        * microarchitecture.
        */
     }
+
+    static inline uint64_t tick() noexcept
+    {
+      uint64_t t;
+#if defined(SNMALLOC_VA_BITS_64)
+      __asm__ volatile("rdcycle %0" : "=r"(t));
+#else
+      uint32_t high, low, nhigh;
+      __asm__ volatile(
+        "jmp%=:"
+        "rdcycleh %0\n"
+        "rdcycle %1\n"
+        "rdcycleh %2\n"
+        "bne %0, %2, jmp%="
+        : "=r"(high), "=r"(low), "=r"(nhigh));
+
+      t = (static_cast<uint64_t>(high) << 32) | low;
+#endif
+      return t;
+    }
   };
 
   using AAL_Arch = AAL_RISCV;
