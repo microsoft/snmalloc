@@ -148,7 +148,7 @@ namespace snmalloc::libc
 
   inline void* memalign(size_t alignment, size_t size)
   {
-    if ((alignment == 0) || (alignment == size_t(-1)))
+    if (alignment < sizeof(uintptr_t) || bits::is_pow2(alignment))
     {
       return set_error(EINVAL);
     }
@@ -164,7 +164,7 @@ namespace snmalloc::libc
 
   inline int posix_memalign(void** memptr, size_t alignment, size_t size)
   {
-    if ((alignment < sizeof(uintptr_t) || ((alignment & (alignment - 1)) != 0)))
+    if ((alignment < sizeof(uintptr_t) || bits::is_pow2(alignment)))
     {
       return EINVAL;
     }
@@ -178,4 +178,4 @@ namespace snmalloc::libc
     *memptr = p;
     return 0;
   }
-}
+} // namespace snmalloc::libc
