@@ -24,22 +24,22 @@ namespace snmalloc::libc
     return ThreadAlloc::get().external_pointer<OnePastEnd>(ptr);
   }
 
-  SNMALLOC_FAST_PATH inline void* malloc(size_t size)
+  SNMALLOC_FAST_PATH_INLINE void* malloc(size_t size)
   {
     return ThreadAlloc::get().alloc(size);
   }
 
-  SNMALLOC_FAST_PATH inline void free(void* ptr)
+  SNMALLOC_FAST_PATH_INLINE void free(void* ptr)
   {
     ThreadAlloc::get().dealloc(ptr);
   }
 
-  SNMALLOC_FAST_PATH inline void free_sized(void* ptr, size_t size)
+  SNMALLOC_FAST_PATH_INLINE void free_sized(void* ptr, size_t size)
   {
     ThreadAlloc::get().dealloc(ptr, size);
   }
 
-  SNMALLOC_FAST_PATH void* calloc(size_t nmemb, size_t size)
+  SNMALLOC_FAST_PATH_INLINE void* calloc(size_t nmemb, size_t size)
   {
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
@@ -50,7 +50,7 @@ namespace snmalloc::libc
     return ThreadAlloc::get().alloc<ZeroMem::YesZero>(sz);
   }
 
-  SNMALLOC_FAST_PATH inline void* realloc(void* ptr, size_t size)
+  SNMALLOC_FAST_PATH_INLINE void* realloc(void* ptr, size_t size)
   {
     auto& a = ThreadAlloc::get();
     size_t sz = a.alloc_size(ptr);
