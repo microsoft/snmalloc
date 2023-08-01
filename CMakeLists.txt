@@ -387,7 +387,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       target_compile_options(${name} PRIVATE
         -fomit-frame-pointer -ffunction-sections)
 
-      check_cxx_compiler_flag(-mprfchw SUPPORT_PREFETCH_WRITE)
+      check_cxx_compiler_flag("-Werror -Wextra -Wall -mprfchw" SUPPORT_PREFETCH_WRITE)
       if (SUPPORT_PREFETCH_WRITE)
         target_compile_options(${name} PRIVATE -mprfchw)
       endif()
