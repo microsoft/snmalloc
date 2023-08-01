@@ -386,6 +386,10 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
       target_compile_options(${name} PRIVATE
         -fomit-frame-pointer -ffunction-sections)
+
+      if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+        target_compile_options(${name} PRIVATE -mprfchw)
+      endif()
       # Static TLS model is unsupported on Haiku.
       if (NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
         target_compile_options(${name} PRIVATE -ftls-model=initial-exec)

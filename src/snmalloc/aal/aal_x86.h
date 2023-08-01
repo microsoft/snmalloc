@@ -78,7 +78,7 @@ namespace snmalloc
      */
     static inline void prefetch(void* ptr)
     {
-      _mm_prefetch(reinterpret_cast<const char*>(ptr), _MM_HINT_T0);
+      _m_prefetchw(ptr);
     }
 
     /**
