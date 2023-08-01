@@ -142,7 +142,8 @@ namespace snmalloc::libc
 
   inline void* memalign(size_t alignment, size_t size)
   {
-    if (SNMALLOC_UNLIKELY(alignment < sizeof(uintptr_t) || !bits::is_pow2(alignment)))
+    if (SNMALLOC_UNLIKELY(
+          alignment < sizeof(uintptr_t) || !bits::is_pow2(alignment)))
     {
       return set_error(EINVAL);
     }
@@ -158,7 +159,8 @@ namespace snmalloc::libc
 
   inline int posix_memalign(void** memptr, size_t alignment, size_t size)
   {
-    if (SNMALLOC_UNLIKELY((alignment < sizeof(uintptr_t) || !bits::is_pow2(alignment))))
+    if (SNMALLOC_UNLIKELY(
+          (alignment < sizeof(uintptr_t) || !bits::is_pow2(alignment))))
     {
       return EINVAL;
     }
