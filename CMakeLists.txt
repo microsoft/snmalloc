@@ -389,6 +389,8 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
       if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
         target_compile_options(${name} PRIVATE -mprfchw)
+      else()
+        message(STATUS "Disabling -mprfchw for ${name} on ${CMAKE_SYSTEM_PROCESSOR}")
       endif()
       # Static TLS model is unsupported on Haiku.
       if (NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
