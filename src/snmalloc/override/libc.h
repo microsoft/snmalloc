@@ -7,16 +7,10 @@
 
 namespace snmalloc::libc
 {
-  /**
-   * Clang was helpfully inlining the constant return value, and
-   * thus converting from a tail call to an ordinary call.
-   */
-  static inline void* snmalloc_not_allocated = nullptr;
-
   SNMALLOC_SLOW_PATH inline void* set_error(int err = ENOMEM)
   {
     errno = err;
-    return snmalloc_not_allocated;
+    return nullptr;
   }
 
   SNMALLOC_SLOW_PATH inline int set_error_and_return(int err = ENOMEM)
@@ -30,22 +24,22 @@ namespace snmalloc::libc
     return ThreadAlloc::get().external_pointer<OnePastEnd>(ptr);
   }
 
-  inline void* malloc(size_t size)
+  SNMALLOC_FAST_PATH inline void* malloc(size_t size)
   {
     return ThreadAlloc::get().alloc(size);
   }
 
-  inline void free(void* ptr)
+  SNMALLOC_FAST_PATH inline void free(void* ptr)
   {
     ThreadAlloc::get().dealloc(ptr);
   }
 
-  inline void free_sized(void* ptr, size_t size)
+  SNMALLOC_FAST_PATH inline void free_sized(void* ptr, size_t size)
   {
     ThreadAlloc::get().dealloc(ptr, size);
   }
 
-  inline void* calloc(size_t nmemb, size_t size)
+  SNMALLOC_FAST_PATH void* calloc(size_t nmemb, size_t size)
   {
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
@@ -56,7 +50,7 @@ namespace snmalloc::libc
     return ThreadAlloc::get().alloc<ZeroMem::YesZero>(sz);
   }
 
-  inline void* realloc(void* ptr, size_t size)
+  SNMALLOC_FAST_PATH inline void* realloc(void* ptr, size_t size)
   {
     auto& a = ThreadAlloc::get();
     size_t sz = a.alloc_size(ptr);
@@ -79,7 +73,7 @@ namespace snmalloc::libc
       sz = bits::min(size, sz);
       // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
       // otherwise.
-      if (sz != 0)
+      if (SNMALLOC_UNLIKELY(sz != 0))
         ::memcpy(p, ptr, sz);
       a.dealloc(ptr);
     }
@@ -103,7 +97,7 @@ namespace snmalloc::libc
   {
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
-    if (overflow)
+    if (SNMALLOC_UNLIKELY(overflow))
     {
       return set_error();
     }
@@ -116,19 +110,19 @@ namespace snmalloc::libc
     auto& a = ThreadAlloc::get();
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
-    if (sz == 0)
+    if (SNMALLOC_UNLIKELY(sz == 0))
     {
       errno = err;
       return 0;
     }
-    if (overflow)
+    if (SNMALLOC_UNLIKELY(overflow))
     {
       return set_error_and_return(EOVERFLOW);
     }
 
     void** ptr = reinterpret_cast<void**>(ptr_);
     void* p = a.alloc(sz);
-    if (p == nullptr)
+    if (SNMALLOC_UNLIKELY(p == nullptr))
     {
       return set_error_and_return(ENOMEM);
     }
@@ -138,7 +132,7 @@ namespace snmalloc::libc
     SNMALLOC_ASSUME(*ptr != nullptr || sz == 0);
     // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
     // otherwise.
-    if (sz != 0)
+    if (SNMALLOC_UNLIKELY(sz != 0))
       ::memcpy(p, *ptr, sz);
     errno = err;
     a.dealloc(*ptr);
@@ -148,7 +142,7 @@ namespace snmalloc::libc
 
   inline void* memalign(size_t alignment, size_t size)
   {
-    if (alignment < sizeof(uintptr_t) || !bits::is_pow2(alignment))
+    if (SNMALLOC_UNLIKELY(alignment < sizeof(uintptr_t) || !bits::is_pow2(alignment)))
     {
       return set_error(EINVAL);
     }
@@ -164,7 +158,7 @@ namespace snmalloc::libc
 
   inline int posix_memalign(void** memptr, size_t alignment, size_t size)
   {
-    if ((alignment < sizeof(uintptr_t) || !bits::is_pow2(alignment)))
+    if (SNMALLOC_UNLIKELY((alignment < sizeof(uintptr_t) || !bits::is_pow2(alignment))))
     {
       return EINVAL;
     }
