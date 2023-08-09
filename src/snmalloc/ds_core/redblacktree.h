@@ -68,7 +68,9 @@ namespace snmalloc
 
   template<typename Rep>
   concept RBRep = //
-    RBRepTypes<Rep> && RBRepMethods<Rep> &&
+    RBRepTypes<Rep> //
+    && RBRepMethods<Rep> //
+    &&
     ConceptSame<decltype(Rep::null), std::add_const_t<typename Rep::Contents>>;
 #endif
 

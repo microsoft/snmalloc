@@ -478,6 +478,12 @@ namespace snmalloc
   {
     if (size > sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1))
     {
+      if (size > bits::one_at_bit(bits::BITS - 1))
+      {
+        // This size is too large, no rounding should occur as will result in a
+        // failed allocation later.
+        return size;
+      }
       return bits::next_pow2(size);
     }
     // If realloc(ptr, 0) returns nullptr, some consumers treat this as a
