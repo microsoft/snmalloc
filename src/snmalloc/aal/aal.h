@@ -147,7 +147,7 @@ namespace snmalloc
     static inline void prefetch(void* ptr) noexcept
     {
 #if __has_builtin(__builtin_prefetch) && !defined(SNMALLOC_NO_AAL_BUILTINS)
-      __builtin_prefetch(ptr);
+      __builtin_prefetch(ptr, 1, 3);
 #else
       Arch::prefetch(ptr);
 #endif
