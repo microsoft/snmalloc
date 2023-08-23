@@ -61,6 +61,10 @@ if (SNMALLOC_SANITIZER)
   message(STATUS "Using sanitizer=${SNMALLOC_SANITIZER}")
 endif()
 
+if(MSVC AND NOT (SNMALLOC_STATIC_LIBRARY_PREFIX STREQUAL ""))
+  message(FATAL_ERROR "Empty static library prefix not supported on MSVC")
+endif()
+
 # If CheckLinkerFlag doesn't exist then provide a dummy implementation that
 # always fails.  The fallback can be removed when we move to CMake 3.18 as the
 # baseline.
