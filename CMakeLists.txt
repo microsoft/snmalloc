@@ -61,7 +61,7 @@ if (SNMALLOC_SANITIZER)
   message(STATUS "Using sanitizer=${SNMALLOC_SANITIZER}")
 endif()
 
-if(MSVC AND NOT (SNMALLOC_STATIC_LIBRARY_PREFIX STREQUAL ""))
+if(MSVC AND SNMALLOC_STATIC_LIBRARY AND NOT (SNMALLOC_STATIC_LIBRARY_PREFIX STREQUAL ""))
   message(FATAL_ERROR "Empty static library prefix not supported on MSVC")
 endif()
 
