@@ -40,6 +40,12 @@ extern "C"
   {
     return snmalloc::libc::malloc_usable_size(ptr);
   }
+  SNMALLOC_EXPORT 
+  size_t SNMALLOC_NAME_MANGLE(_msize)( 
+    MALLOC_USABLE_SIZE_QUALIFIER void* ptr) 
+  { 
+    return snmalloc::libc::malloc_usable_size(ptr); 
+  } 
 
   SNMALLOC_EXPORT
   size_t SNMALLOC_NAME_MANGLE(malloc_good_size)(size_t size)
