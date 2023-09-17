@@ -278,6 +278,8 @@ namespace snmalloc
        */
       constexpr BackendStateWordRef(uintptr_t* v) : val(v) {}
 
+      constexpr BackendStateWordRef() : val(nullptr) {};
+
       /**
        * Copy constructor.  Aliases the underlying storage.  Note that this is
        * not thread safe: two `BackendStateWordRef` instances sharing access to

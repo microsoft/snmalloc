@@ -15,9 +15,9 @@ namespace snmalloc
   template<typename Rep, size_t MIN_SIZE_BITS, size_t MAX_SIZE_BITS>
   class Buddy
   {
-    std::array<RBTree<Rep>, MAX_SIZE_BITS - MIN_SIZE_BITS> trees;
+    std::array<RBTree<Rep>, MAX_SIZE_BITS - MIN_SIZE_BITS> trees{};
     // All RBtrees at or above this index should be empty.
-    size_t empty_at_or_above = 0;
+    size_t empty_at_or_above{0};
 
     size_t to_index(size_t size)
     {
