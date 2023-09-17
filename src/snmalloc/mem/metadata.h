@@ -278,7 +278,7 @@ namespace snmalloc
        */
       constexpr BackendStateWordRef(uintptr_t* v) : val(v) {}
 
-      constexpr BackendStateWordRef() : val(nullptr) {};
+      constexpr BackendStateWordRef() : val(nullptr) {}
 
       /**
        * Copy constructor.  Aliases the underlying storage.  Note that this is
