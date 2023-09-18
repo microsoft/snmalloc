@@ -44,6 +44,10 @@ jobs:
             dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
           - os: "macos-12"
             dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
+          - os: "macos-12"
+            variant: "C++17"
+            dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
+            cmake-flags: "-DSNMALLOC_USE_CXX17=ON"
           # Add the self-host build, using the bounds-checked memcpy in
           # maximally paranoid mode (checking loads and stores)
           - os: "ubuntu-latest"
