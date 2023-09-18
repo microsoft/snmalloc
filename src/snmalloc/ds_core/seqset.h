@@ -34,6 +34,9 @@ namespace snmalloc
       constexpr Node(Node* next, Node* prev) : next(next), prev(prev) {}
 
     public:
+      /// Default constructor, creates an invalid node.
+      constexpr Node() : Node(nullptr, nullptr) {}
+
       void invariant()
       {
         SNMALLOC_ASSERT(next != nullptr);
