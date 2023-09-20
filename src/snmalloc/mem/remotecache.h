@@ -151,7 +151,7 @@ namespace snmalloc
         }
       }
 
-      // Reset capacity as we have empty everything
+      // Reset capacity as we have emptied everything
       capacity = REMOTE_CACHE;
 
       return sent_something;

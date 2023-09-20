@@ -323,7 +323,7 @@ namespace snmalloc
 
 #ifdef SNMALLOC_TRACING
       message<1024>(
-        "Slab {}  is unused, Object sizeclass {}",
+        "Slab {} is unused, Object sizeclass {}",
         start_of_slab.unsafe_ptr(),
         sizeclass);
 #endif
@@ -490,10 +490,6 @@ namespace snmalloc
                            };
       auto cb = [this,
                  &need_post](freelist::HeadPtr msg) SNMALLOC_FAST_PATH_LAMBDA {
-#ifdef SNMALLOC_TRACING
-        message<1024>("Handling remote");
-#endif
-
         auto& entry =
           Config::Backend::template get_metaentry(snmalloc::address_cast(msg));
 
@@ -501,6 +497,10 @@ namespace snmalloc
 
         return true;
       };
+
+#ifdef SNMALLOC_TRACING
+      message<1024>("Handling remote queue before proceeding...");
+#endif
 
       if constexpr (Config::Options.QueueHeadsAreTame)
       {
@@ -935,9 +935,11 @@ namespace snmalloc
         else
           report_fatal_error(
             "debug_is_empty: found non-empty allocator: size={} on "
-            "slab_start {}",
+            "slab_start {} meta {} entry {}",
             sizeclass_full_to_size(size_class),
-            slab_start);
+            slab_start,
+            address_cast(slab_metadata),
+            address_cast(&entry));
       };
 
       auto test = [&error](auto& queue) {
