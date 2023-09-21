@@ -20,11 +20,23 @@ extern "C"
   {
     return ThreadAlloc::get().alloc(size);
   }
+  #ifdef _WIN32
+   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(_malloc_base)(size_t size)
+   {
+     return ThreadAlloc::get().alloc(size);
+   }
+   #endif
 
   SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(free)(void* ptr)
   {
     ThreadAlloc::get().dealloc(ptr);
   }
+  #ifdef _WIN32
+   SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(_free_base)(void* ptr)
+   {
+     ThreadAlloc::get().dealloc(ptr);
+   }
+   #endif
 
   SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(cfree)(void* ptr)
   {
@@ -53,6 +65,12 @@ extern "C"
     }
     return ThreadAlloc::get().alloc<ZeroMem::YesZero>(sz);
   }
+  #ifdef _WIN32
+   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(_calloc_base)(size_t nmemb, size_t size)
+   {
+     return calloc(nmemb,size);
+   }
+   #endif
 
   SNMALLOC_EXPORT
   size_t SNMALLOC_NAME_MANGLE(malloc_usable_size)(
@@ -60,6 +78,19 @@ extern "C"
   {
     return ThreadAlloc::get().alloc_size(ptr);
   }
+  #ifdef _WIN32
+
+   SNMALLOC_EXPORT
+   size_t SNMALLOC_NAME_MANGLE(_msize)(MALLOC_USABLE_SIZE_QUALIFIER void* ptr)
+   {
+     return malloc_usable_size(ptr);
+   }
+   SNMALLOC_EXPORT
+   size_t SNMALLOC_NAME_MANGLE(_msize_base)(MALLOC_USABLE_SIZE_QUALIFIER void* ptr) noexcept
+   {
+     return malloc_usable_size(ptr);
+   }
+ #endif
 
   SNMALLOC_EXPORT
   size_t SNMALLOC_NAME_MANGLE(malloc_good_size)(size_t size)
@@ -110,7 +141,12 @@ extern "C"
     }
     return p;
   }
-
+#ifdef _WIN32
+   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(_realloc_base)(void* ptr, size_t size)
+   {
+     return realloc(ptr,size);
+   }
+ #endif
 #if !defined(SNMALLOC_NO_REALLOCARRAY)
   SNMALLOC_EXPORT void*
     SNMALLOC_NAME_MANGLE(reallocarray)(void* ptr, size_t nmemb, size_t size)
