@@ -462,7 +462,7 @@ namespace snmalloc
         }
       };
 
-      return !(message_queue().can_dequeue(domesticate));
+      return message_queue().can_dequeue(domesticate);
     }
 
     /**

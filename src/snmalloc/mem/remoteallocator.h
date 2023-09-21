@@ -91,7 +91,7 @@ namespace snmalloc
     inline bool can_dequeue(Domesticator_head domesticate_head)
     {
       return domesticate_head(front.load())
-               ->atomic_read_next(key_global, domesticate_head) == nullptr;
+               ->atomic_read_next(key_global, domesticate_head) != nullptr;
     }
 
     /**
