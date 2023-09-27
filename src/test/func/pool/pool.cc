@@ -4,7 +4,6 @@
 #include <test/opt.h>
 #include <test/setup.h>
 #include <unordered_set>
-#include <vector>
 
 using namespace snmalloc;
 
