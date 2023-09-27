@@ -141,8 +141,11 @@ namespace snmalloc
         }
       }
 
+      size_t request_size = bits::next_pow2(sizeof(T));
+      size_t spare = request_size - sizeof(T);
+
       auto raw =
-        Config::Backend::template alloc_meta_data<T>(nullptr, sizeof(T));
+        Config::Backend::template alloc_meta_data<T>(nullptr, request_size);
 
       if (raw == nullptr)
       {
@@ -150,7 +153,7 @@ namespace snmalloc
       }
 
       auto p = capptr::Alloc<T>::unsafe_from(new (raw.unsafe_ptr())
-                                               T(std::forward<Args>(args)...));
+                                               T(spare, std::forward<Args>(args)...));
 
       FlagLock f(pool.lock);
       p->list_next = pool.list;

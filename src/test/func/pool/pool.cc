@@ -11,7 +11,7 @@ struct PoolAEntry : Pooled<PoolAEntry>
 {
   int field;
 
-  PoolAEntry() : field(1){};
+  PoolAEntry(size_t) : field(1){};
 };
 
 using PoolA = Pool<PoolAEntry, Alloc::Config>;
@@ -20,8 +20,8 @@ struct PoolBEntry : Pooled<PoolBEntry>
 {
   int field;
 
-  PoolBEntry() : field(0){};
-  PoolBEntry(int f) : field(f){};
+  PoolBEntry(size_t) : field(0){};
+  PoolBEntry(size_t, int f) : field(f){};
 };
 
 using PoolB = Pool<PoolBEntry, Alloc::Config>;
@@ -30,7 +30,7 @@ struct PoolLargeEntry : Pooled<PoolLargeEntry>
 {
   std::array<int, 2'000'000> payload;
 
-  PoolLargeEntry()
+  PoolLargeEntry(size_t)
   {
     printf(".");
     fflush(stdout);
@@ -48,7 +48,7 @@ struct PoolSortEntry : Pooled<PoolSortEntry<order>>
 {
   int field;
 
-  PoolSortEntry(int f) : field(f){};
+  PoolSortEntry(size_t, int f) : field(f){};
 };
 
 template<bool order>
