@@ -571,6 +571,14 @@ namespace snmalloc
 
       if (spare.length != 0)
       {
+        /*
+         * Seed this frontend's private metadata allocation cache with any
+         * excess space from the metadata allocation holding the frontend
+         * Allocator object itself.  This alleviates thundering herd
+         * contention on the backend during startup: each slab opened now
+         * makes one trip to the backend, for the slab itself, rather than
+         * two, for the slab and its metadata.
+         */
         Config::Backend::dealloc_meta_data(
           get_backend_local_state(), spare.base, spare.length);
       }
