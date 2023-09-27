@@ -571,8 +571,8 @@ namespace snmalloc
 
       if (spare != 0)
       {
-        capptr::Arena<void> spare_start = capptr::Arena<void>::unsafe_from((
-          void*)pointer_offset((uintptr_t)this, sizeof(CoreAllocator<Config>)));
+        capptr::Arena<void> spare_start = capptr::Arena<void>::unsafe_from(
+          pointer_offset(this, sizeof(CoreAllocator<Config>)));
         Config::Backend::dealloc_meta_data(
           get_backend_local_state(), spare_start, spare);
       }
