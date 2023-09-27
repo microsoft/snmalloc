@@ -9,7 +9,7 @@
 
 using namespace snmalloc;
 
-std::vector<uint64_t> counters;
+std::vector<uint64_t> counters{};
 
 template<typename F>
 class ParallelTest
