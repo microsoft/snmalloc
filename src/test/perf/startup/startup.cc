@@ -9,7 +9,7 @@
 
 using namespace snmalloc;
 
-std::array<uint64_t, 72> counters;
+std::vector<uint64_t> counters;
 
 template<typename F>
 class ParallelTest
@@ -69,6 +69,8 @@ public:
 
 int main()
 {
+  counters.resize(std::thread::hardware_concurrency());
+
   ParallelTest test(
     [](size_t id) {
       auto start = Aal::tick();
@@ -77,15 +79,15 @@ int main()
       auto end = Aal::tick();
       counters[id] = end - start;
     },
-    72);
+    counters.size());
 
   std::cout << "Taken: " << test.time() << std::endl;
   std::sort(counters.begin(), counters.end());
   uint64_t start = 0;
-  for (size_t i = 0; i < 72; i++)
+  for (auto counter: counters)
   {
-    std::cout << "Thread time " << counters[i] << " (" << counters[i] - start
+    std::cout << "Thread time " << counter << " (" << counter - start
               << ")" << std::endl;
-    start = counters[i];
+    start = counter;
   }
 }
