@@ -81,7 +81,7 @@ int main()
 
   std::cout << "Taken: " << test.time() << std::endl;
   std::sort(counters.begin(), counters.end());
-  size_t start = 0;
+  uint64_t start = 0;
   for (size_t i = 0; i < 72; i++)
   {
     std::cout << "Thread time " << counters[i] << " (" << counters[i] - start
