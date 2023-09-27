@@ -84,10 +84,10 @@ int main()
   std::cout << "Taken: " << test.time() << std::endl;
   std::sort(counters.begin(), counters.end());
   uint64_t start = 0;
-  for (auto counter: counters)
+  for (auto counter : counters)
   {
-    std::cout << "Thread time " << counter << " (" << counter - start
-              << ")" << std::endl;
+    std::cout << "Thread time " << counter << " (" << counter - start << ")"
+              << std::endl;
     start = counter;
   }
 }
