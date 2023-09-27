@@ -6,6 +6,7 @@
 #include <iostream>
 #include <snmalloc/snmalloc.h>
 #include <thread>
+#include <vector>
 
 using namespace snmalloc;
 
