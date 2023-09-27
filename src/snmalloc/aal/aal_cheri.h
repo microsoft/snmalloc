@@ -70,8 +70,8 @@ namespace snmalloc
     capptr_bound(CapPtr<U, BIn> a, size_t size) noexcept
     {
       static_assert(
-        BIn::spatial > capptr::dimension::Spatial::Alloc
-        || BOut::spatial == capptr::dimension::Spatial::Alloc,
+        BIn::spatial > capptr::dimension::Spatial::Alloc ||
+          BOut::spatial == capptr::dimension::Spatial::Alloc,
         "Refusing to re-bound Spatial::Alloc CapPtr");
       static_assert(
         capptr::is_spatial_refinement<BIn, BOut>(),
@@ -88,8 +88,11 @@ namespace snmalloc
 
       void* pb = __builtin_cheri_bounds_set_exact(a.unsafe_ptr(), size);
 
-      SNMALLOC_ASSERT(
-        __builtin_cheri_tag_get(pb) && "capptr_bound exactness failed.");
+      SNMALLOC_ASSERT_MSG(
+        __builtin_cheri_tag_get(pb),
+        "capptr_bound exactness failed. {} of size {}",
+        a.unsafe_ptr(),
+        size);
 
       return CapPtr<T, BOut>::unsafe_from(static_cast<T*>(pb));
     }
