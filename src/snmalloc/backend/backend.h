@@ -75,9 +75,10 @@ namespace snmalloc
      * to alloc_meta_data, but can be a sub-range of the original allocation.
      */
     static void dealloc_meta_data(
-      LocalState& local_state, capptr::Arena<void> p, size_t size)
+      LocalState& local_state, capptr::Alloc<void> p, size_t size)
     {
-      local_state.get_meta_range().dealloc_range(p, size);
+      auto arena = Authmap::amplify(p);
+      local_state.get_meta_range().dealloc_range(arena, size);
     }
 
     /**

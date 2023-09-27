@@ -152,8 +152,14 @@ namespace snmalloc
         Config::Pal::error("Failed to initialise thread local allocator.");
       }
 
+      capptr::Alloc<void> spare_start = pointer_offset(raw, sizeof(T));
+      Range<capptr::bounds::Alloc> r{spare_start, spare};
+
       auto p = capptr::Alloc<T>::unsafe_from(
-        new (raw.unsafe_ptr()) T(spare, std::forward<Args>(args)...));
+        new (raw.unsafe_ptr()) T(r, std::forward<Args>(args)...));
+
+      // Remove excess from the permissions.
+      p = Aal::capptr_bound<T, capptr::bounds::Alloc>(p, sizeof(T));
 
       FlagLock f(pool.lock);
       p->list_next = pool.list;

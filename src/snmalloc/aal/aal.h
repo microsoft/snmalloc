@@ -205,7 +205,8 @@ namespace snmalloc
     capptr_bound(CapPtr<U, BIn> a, size_t size) noexcept
     {
       static_assert(
-        BIn::spatial > capptr::dimension::Spatial::Alloc,
+        (BIn::spatial > capptr::dimension::Spatial::Alloc) ||
+          (capptr::dimension::Spatial::Alloc == BOut::spatial),
         "Refusing to re-bound Spatial::Alloc CapPtr");
       static_assert(
         capptr::is_spatial_refinement<BIn, BOut>(),

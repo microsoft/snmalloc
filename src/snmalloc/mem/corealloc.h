@@ -559,7 +559,7 @@ namespace snmalloc
      * spare is the amount of space directly after the allocator that is
      * reserved as meta-data, but is not required by this CoreAllocator.
      */
-    void init(size_t spare)
+    void init(Range<capptr::bounds::Alloc>& spare)
     {
 #ifdef SNMALLOC_TRACING
       message<1024>("Making an allocator.");
@@ -569,12 +569,10 @@ namespace snmalloc
       // This must occur before any freelists are constructed.
       entropy.init<typename Config::Pal>();
 
-      if (spare != 0)
+      if (spare.length != 0)
       {
-        capptr::Arena<void> spare_start = capptr::Arena<void>::unsafe_from(
-          pointer_offset(this, sizeof(CoreAllocator<Config>)));
         Config::Backend::dealloc_meta_data(
-          get_backend_local_state(), spare_start, spare);
+          get_backend_local_state(), spare.base, spare.length);
       }
 
       // Ignoring stats for now.
@@ -615,7 +613,8 @@ namespace snmalloc
     template<
       typename Config_ = Config,
       typename = std::enable_if_t<Config_::Options.CoreAllocOwnsLocalState>>
-    CoreAllocator(size_t spare, LocalCache* cache) : attached_cache(cache)
+    CoreAllocator(Range<capptr::bounds::Alloc>& spare, LocalCache* cache)
+    : attached_cache(cache)
     {
       init(spare);
     }
@@ -631,7 +630,9 @@ namespace snmalloc
       typename Config_ = Config,
       typename = std::enable_if_t<!Config_::Options.CoreAllocOwnsLocalState>>
     CoreAllocator(
-      size_t spare, LocalCache* cache, LocalState* backend = nullptr)
+      Range<capptr::bounds::Alloc>& spare,
+      LocalCache* cache,
+      LocalState* backend = nullptr)
     : backend_state(backend), attached_cache(cache)
     {
       init(spare);

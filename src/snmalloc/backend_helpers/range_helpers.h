@@ -160,5 +160,4 @@ namespace snmalloc
       }
     }
   };
-
 } // namespace snmalloc

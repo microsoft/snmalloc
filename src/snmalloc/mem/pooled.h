@@ -5,13 +5,20 @@
 
 namespace snmalloc
 {
+  template<SNMALLOC_CONCEPT(capptr::IsBound) bounds>
+  struct Range
+  {
+    CapPtr<void, bounds> base;
+    size_t length;
+  };
+
   template<class T>
   class PoolState;
 
   /**
    * Required to be implemented by all types that are pooled.
    *
-   * The constructor of any inherited type must take a size_t as its first
+   * The constructor of any inherited type must take a Range& as its first
    * argument.  This represents the leftover from pool allocation rounding up to
    * the nearest power of 2. It is valid to ignore this argument, but can be
    * used to optimise meta-data usage at startup.
