@@ -10,11 +10,11 @@ namespace snmalloc
 
   /**
    * Required to be implemented by all types that are pooled.
-   * 
+   *
    * The constructor of any inherited type must take a size_t as its first
-   * argument.  This represents the leftover from pool allocation rounding up to the
-   * nearest power of 2. It is valid to ignore this argument, but can be used to
-   * optimise meta-data usage at startup.
+   * argument.  This represents the leftover from pool allocation rounding up to
+   * the nearest power of 2. It is valid to ignore this argument, but can be
+   * used to optimise meta-data usage at startup.
    */
   template<class T>
   class Pooled
