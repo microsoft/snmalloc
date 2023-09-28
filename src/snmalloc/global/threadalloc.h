@@ -32,25 +32,6 @@ namespace snmalloc
 {
 #ifdef SNMALLOC_EXTERNAL_THREAD_ALLOC
   /**
-   * Version of the `ThreadAlloc` interface that does no management of thread
-   * local state.
-   *
-   * It assumes that Alloc has been defined, and `ThreadAllocExternal` class
-   * has access to snmalloc_core.h.
-   */
-  class ThreadAlloc
-  {
-  protected:
-    static void register_cleanup() {}
-
-  public:
-    static SNMALLOC_FAST_PATH Alloc& get()
-    {
-      return ThreadAllocExternal::get();
-    }
-  };
-
-  /**
    * Function passed as a template parameter to `Allocator` to allow lazy
    * replacement.  There is nothing to initialise in this case, so we expect
    * this to never be called.
@@ -183,3 +164,15 @@ namespace snmalloc
   inline void register_clean_up() {}
 }
 #endif
+
+namespace snmalloc
+{
+  SNMALLOC_FAST_PATH_INLINE Alloc& get_alloc()
+  {
+#ifdef SNMALLOC_EXTERNAL_THREAD_ALLOC
+    return ThreadAllocExternal::get();
+#else
+    return ThreadAlloc::get();
+#endif
+  }
+} // namespace snmalloc

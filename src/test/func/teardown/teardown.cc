@@ -13,7 +13,7 @@
 
 void trigger_teardown()
 {
-  auto& a = snmalloc::ThreadAlloc::get();
+  auto& a = snmalloc::get_alloc();
   // Trigger init
   void* r = a.alloc(16);
   a.dealloc(r);
@@ -24,14 +24,14 @@ void trigger_teardown()
 void alloc1(size_t size)
 {
   trigger_teardown();
-  void* r = snmalloc::ThreadAlloc::get().alloc(size);
-  snmalloc::ThreadAlloc::get().dealloc(r);
+  void* r = snmalloc::get_alloc().alloc(size);
+  snmalloc::get_alloc().dealloc(r);
 }
 
 void alloc2(size_t size)
 {
   trigger_teardown();
-  auto& a = snmalloc::ThreadAlloc::get();
+  auto& a = snmalloc::get_alloc();
   void* r = a.alloc(size);
   a.dealloc(r);
 }
@@ -39,7 +39,7 @@ void alloc2(size_t size)
 void alloc3(size_t size)
 {
   trigger_teardown();
-  auto& a = snmalloc::ThreadAlloc::get();
+  auto& a = snmalloc::get_alloc();
   void* r = a.alloc(size);
   a.dealloc(r, size);
 }
@@ -47,7 +47,7 @@ void alloc3(size_t size)
 void alloc4(size_t size)
 {
   trigger_teardown();
-  auto& a = snmalloc::ThreadAlloc::get();
+  auto& a = snmalloc::get_alloc();
   void* r = a.alloc(size);
   a.dealloc(r);
 }
@@ -77,16 +77,15 @@ void check_calloc(void* p, size_t size)
 void calloc1(size_t size)
 {
   trigger_teardown();
-  void* r =
-    snmalloc::ThreadAlloc::get().alloc<snmalloc::ZeroMem::YesZero>(size);
+  void* r = snmalloc::get_alloc().alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
-  snmalloc::ThreadAlloc::get().dealloc(r);
+  snmalloc::get_alloc().dealloc(r);
 }
 
 void calloc2(size_t size)
 {
   trigger_teardown();
-  auto& a = snmalloc::ThreadAlloc::get();
+  auto& a = snmalloc::get_alloc();
   void* r = a.alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
   a.dealloc(r);
@@ -95,7 +94,7 @@ void calloc2(size_t size)
 void calloc3(size_t size)
 {
   trigger_teardown();
-  auto& a = snmalloc::ThreadAlloc::get();
+  auto& a = snmalloc::get_alloc();
   void* r = a.alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
   a.dealloc(r, size);
@@ -104,7 +103,7 @@ void calloc3(size_t size)
 void calloc4(size_t size)
 {
   trigger_teardown();
-  auto& a = snmalloc::ThreadAlloc::get();
+  auto& a = snmalloc::get_alloc();
   void* r = a.alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
   a.dealloc(r);
@@ -113,25 +112,25 @@ void calloc4(size_t size)
 void dealloc1(void* p, size_t)
 {
   trigger_teardown();
-  snmalloc::ThreadAlloc::get().dealloc(p);
+  snmalloc::get_alloc().dealloc(p);
 }
 
 void dealloc2(void* p, size_t size)
 {
   trigger_teardown();
-  snmalloc::ThreadAlloc::get().dealloc(p, size);
+  snmalloc::get_alloc().dealloc(p, size);
 }
 
 void dealloc3(void* p, size_t)
 {
   trigger_teardown();
-  snmalloc::ThreadAlloc::get().dealloc(p);
+  snmalloc::get_alloc().dealloc(p);
 }
 
 void dealloc4(void* p, size_t size)
 {
   trigger_teardown();
-  snmalloc::ThreadAlloc::get().dealloc(p, size);
+  snmalloc::get_alloc().dealloc(p, size);
 }
 
 void f(size_t size)

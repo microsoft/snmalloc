@@ -21,22 +21,22 @@ namespace snmalloc::libc
 
   inline void* __malloc_end_pointer(void* ptr)
   {
-    return ThreadAlloc::get().external_pointer<OnePastEnd>(ptr);
+    return get_alloc().external_pointer<OnePastEnd>(ptr);
   }
 
   SNMALLOC_FAST_PATH_INLINE void* malloc(size_t size)
   {
-    return ThreadAlloc::get().alloc(size);
+    return get_alloc().alloc(size);
   }
 
   SNMALLOC_FAST_PATH_INLINE void free(void* ptr)
   {
-    ThreadAlloc::get().dealloc(ptr);
+    get_alloc().dealloc(ptr);
   }
 
   SNMALLOC_FAST_PATH_INLINE void free_sized(void* ptr, size_t size)
   {
-    ThreadAlloc::get().dealloc(ptr, size);
+    get_alloc().dealloc(ptr, size);
   }
 
   SNMALLOC_FAST_PATH_INLINE void* calloc(size_t nmemb, size_t size)
@@ -47,12 +47,12 @@ namespace snmalloc::libc
     {
       return set_error();
     }
-    return ThreadAlloc::get().alloc<ZeroMem::YesZero>(sz);
+    return get_alloc().alloc<ZeroMem::YesZero>(sz);
   }
 
   SNMALLOC_FAST_PATH_INLINE void* realloc(void* ptr, size_t size)
   {
-    auto& a = ThreadAlloc::get();
+    auto& a = get_alloc();
     size_t sz = a.alloc_size(ptr);
     // Keep the current allocation if the given size is in the same sizeclass.
     if (sz == round_size(size))
@@ -90,7 +90,7 @@ namespace snmalloc::libc
 
   inline size_t malloc_usable_size(const void* ptr)
   {
-    return ThreadAlloc::get().alloc_size(ptr);
+    return get_alloc().alloc_size(ptr);
   }
 
   inline void* reallocarray(void* ptr, size_t nmemb, size_t size)
@@ -107,7 +107,7 @@ namespace snmalloc::libc
   inline int reallocarr(void* ptr_, size_t nmemb, size_t size)
   {
     int err = errno;
-    auto& a = ThreadAlloc::get();
+    auto& a = get_alloc();
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
     if (SNMALLOC_UNLIKELY(sz == 0))
