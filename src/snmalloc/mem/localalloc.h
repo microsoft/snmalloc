@@ -140,6 +140,7 @@ namespace snmalloc
           init();
         }
 
+#ifndef SNMALLOC_EXTERNAL_THREAD_ALLOC
         // register_clean_up must be called after init.  register clean up may
         // be implemented with allocation, so need to ensure we have a valid
         // allocator at this point.
@@ -147,7 +148,8 @@ namespace snmalloc
           // Must be called at least once per thread.
           // A pthread implementation only calls the thread destruction handle
           // if the key has been set.
-          Config::register_clean_up();
+          ThreadLocal<LocalAllocator>::register_cleanup();
+#endif
 
         // Perform underlying operation
         auto r = action(core_alloc, args...);
