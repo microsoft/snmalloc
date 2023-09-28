@@ -24,21 +24,25 @@ namespace snmalloc::libc
     return get_alloc().external_pointer<OnePastEnd>(ptr);
   }
 
+  template<typename Partition = MainPartition>
   SNMALLOC_FAST_PATH_INLINE void* malloc(size_t size)
   {
-    return get_alloc().alloc(size);
+    return get_alloc<Partition>().alloc(size);
   }
 
+  template<typename Partition = MainPartition>
   SNMALLOC_FAST_PATH_INLINE void free(void* ptr)
   {
-    get_alloc().dealloc(ptr);
+    get_alloc<Partition>().dealloc(ptr);
   }
 
+  template<typename Partition = MainPartition>
   SNMALLOC_FAST_PATH_INLINE void free_sized(void* ptr, size_t size)
   {
-    get_alloc().dealloc(ptr, size);
+    get_alloc<Partition>().dealloc(ptr, size);
   }
 
+  template<typename Partition = MainPartition>
   SNMALLOC_FAST_PATH_INLINE void* calloc(size_t nmemb, size_t size)
   {
     bool overflow = false;
@@ -47,12 +51,13 @@ namespace snmalloc::libc
     {
       return set_error();
     }
-    return get_alloc().alloc<ZeroMem::YesZero>(sz);
+    return get_alloc<Partition>().template alloc<ZeroMem::YesZero>(sz);
   }
 
+  template<typename Partition = MainPartition>
   SNMALLOC_FAST_PATH_INLINE void* realloc(void* ptr, size_t size)
   {
-    auto& a = get_alloc();
+    auto& a = get_alloc<Partition>();
     size_t sz = a.alloc_size(ptr);
     // Keep the current allocation if the given size is in the same sizeclass.
     if (sz == round_size(size))
@@ -93,6 +98,7 @@ namespace snmalloc::libc
     return get_alloc().alloc_size(ptr);
   }
 
+  template<typename Partition = MainPartition>
   inline void* reallocarray(void* ptr, size_t nmemb, size_t size)
   {
     bool overflow = false;
@@ -101,13 +107,14 @@ namespace snmalloc::libc
     {
       return set_error();
     }
-    return realloc(ptr, sz);
+    return realloc<Partition>(ptr, sz);
   }
 
+  template<typename Partition = MainPartition>
   inline int reallocarr(void* ptr_, size_t nmemb, size_t size)
   {
     int err = errno;
-    auto& a = get_alloc();
+    auto& a = get_alloc<Partition>();
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
     if (SNMALLOC_UNLIKELY(sz == 0))
@@ -140,6 +147,7 @@ namespace snmalloc::libc
     return 0;
   }
 
+  template<typename Partition = MainPartition>
   inline void* memalign(size_t alignment, size_t size)
   {
     if (SNMALLOC_UNLIKELY(
@@ -148,15 +156,17 @@ namespace snmalloc::libc
       return set_error(EINVAL);
     }
 
-    return malloc(aligned_size(alignment, size));
+    return malloc<Partition>(aligned_size(alignment, size));
   }
 
+  template<typename Partition = MainPartition>
   inline void* aligned_alloc(size_t alignment, size_t size)
   {
     SNMALLOC_ASSERT((size % alignment) == 0);
-    return memalign(alignment, size);
+    return memalign<Partition>(alignment, size);
   }
 
+  template<typename Partition = MainPartition>
   inline int posix_memalign(void** memptr, size_t alignment, size_t size)
   {
     if (SNMALLOC_UNLIKELY(
@@ -165,7 +175,7 @@ namespace snmalloc::libc
       return EINVAL;
     }
 
-    void* p = memalign(alignment, size);
+    void* p = memalign<Partition>(alignment, size);
     if (SNMALLOC_UNLIKELY(p == nullptr))
     {
       if (size != 0)

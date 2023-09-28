@@ -5,12 +5,16 @@
 
 namespace snmalloc
 {
-  SNMALLOC_FAST_PATH_INLINE Alloc& get_alloc()
+  template<typename T = MainPartition>
+  SNMALLOC_FAST_PATH_INLINE LocalAllocator<Alloc::Config, T>& get_alloc()
   {
 #ifdef SNMALLOC_EXTERNAL_THREAD_ALLOC
+    static_assert(
+      std::is_same_v<T, MainPartition>,
+      "SNMALLOC_EXTERNAL_THREAD_ALLOC only supports the default allocator.");
     return ThreadAllocExternal::get();
 #else
-    return ThreadLocal<Alloc>::get();
+    return ThreadLocal<LocalAllocator<Alloc::Config, T>>::get();
 #endif
   }
 } // namespace snmalloc
