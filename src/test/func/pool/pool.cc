@@ -11,26 +11,26 @@ struct PoolAEntry : Pooled<PoolAEntry>
 {
   int field;
 
-  PoolAEntry(Range<capptr::bounds::Alloc>&) : field(1){};
+  PoolAEntry() : field(1){};
 };
 
-using PoolA = Pool<PoolAEntry, Alloc::Config>;
+using PoolA = Pool<PoolAEntry>;
 
 struct PoolBEntry : Pooled<PoolBEntry>
 {
   int field;
 
-  PoolBEntry(Range<capptr::bounds::Alloc>&) : field(0){};
-  PoolBEntry(Range<capptr::bounds::Alloc>&, int f) : field(f){};
+  PoolBEntry() : field(0){};
+  PoolBEntry(int f) : field(f){};
 };
 
-using PoolB = Pool<PoolBEntry, Alloc::Config>;
+using PoolB = Pool<PoolBEntry>;
 
 struct PoolLargeEntry : Pooled<PoolLargeEntry>
 {
   std::array<int, 2'000'000> payload;
 
-  PoolLargeEntry(Range<capptr::bounds::Alloc>&)
+  PoolLargeEntry()
   {
     printf(".");
     fflush(stdout);
@@ -41,18 +41,18 @@ struct PoolLargeEntry : Pooled<PoolLargeEntry>
   };
 };
 
-using PoolLarge = Pool<PoolLargeEntry, Alloc::Config>;
+using PoolLarge = Pool<PoolLargeEntry>;
 
 template<bool order>
 struct PoolSortEntry : Pooled<PoolSortEntry<order>>
 {
   int field;
 
-  PoolSortEntry(Range<capptr::bounds::Alloc>&, int f) : field(f){};
+  PoolSortEntry(int f) : field(f){};
 };
 
 template<bool order>
-using PoolSort = Pool<PoolSortEntry<order>, Alloc::Config>;
+using PoolSort = Pool<PoolSortEntry<order>>;
 
 void test_alloc()
 {

@@ -29,7 +29,7 @@ namespace snmalloc
   public:
     template<
       typename TT,
-      SNMALLOC_CONCEPT(IsConfig) Config,
+      typename Construct,
       PoolState<TT>& get_state()>
     friend class Pool;
 
