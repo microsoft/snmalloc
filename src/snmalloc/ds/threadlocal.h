@@ -153,7 +153,7 @@ namespace snmalloc
    * globalconfig but is not necessary when using a libc hook.
    */
   template<typename A>
-  inline void ThreadLocal<A>::register_clean_up()
+  inline void ThreadLocal<A>::register_cleanup()
   {
     // Add ThreadLocal<A>::teardown() to the list of thread_cleanup calls.
     abort();
