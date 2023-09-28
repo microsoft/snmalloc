@@ -20,10 +20,7 @@ namespace snmalloc
   template<class T>
   class PoolState
   {
-    template<
-      typename TT,
-      typename Construct,
-      PoolState<TT>& get_state()>
+    template<typename TT, typename Construct, PoolState<TT>& get_state()>
     friend class Pool;
 
   private:
@@ -64,8 +61,8 @@ namespace snmalloc
   /**
    * @brief Default construct helper for the pool. Just uses `new`.  This can't
    * be used by the allocator pool as it has not created memory yet.
-   * 
-   * @tparam T 
+   *
+   * @tparam T
    */
   template<typename T>
   class DefaultConstruct

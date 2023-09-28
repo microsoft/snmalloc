@@ -1039,8 +1039,7 @@ namespace snmalloc
       capptr::Alloc<void> spare_start = pointer_offset(raw, round_sizeof);
       Range<capptr::bounds::Alloc> r{spare_start, spare};
 
-      auto p = capptr::Alloc<CA>::unsafe_from(
-        new (raw.unsafe_ptr()) CA(r, lc));
+      auto p = capptr::Alloc<CA>::unsafe_from(new (raw.unsafe_ptr()) CA(r, lc));
 
       // Remove excess from the permissions.
       p = Aal::capptr_bound<CA, capptr::bounds::Alloc>(p, round_sizeof);

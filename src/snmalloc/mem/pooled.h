@@ -27,10 +27,7 @@ namespace snmalloc
   class Pooled
   {
   public:
-    template<
-      typename TT,
-      typename Construct,
-      PoolState<TT>& get_state()>
+    template<typename TT, typename Construct, PoolState<TT>& get_state()>
     friend class Pool;
 
     /// Used by the pool for chaining together entries when not in use.
