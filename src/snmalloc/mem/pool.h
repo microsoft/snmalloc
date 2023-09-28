@@ -141,16 +141,26 @@ namespace snmalloc
         }
       }
 
+      size_t request_size = bits::next_pow2(sizeof(T));
+      size_t round_sizeof = Aal::capptr_size_round(sizeof(T));
+      size_t spare = request_size - round_sizeof;
+
       auto raw =
-        Config::Backend::template alloc_meta_data<T>(nullptr, sizeof(T));
+        Config::Backend::template alloc_meta_data<T>(nullptr, request_size);
 
       if (raw == nullptr)
       {
         Config::Pal::error("Failed to initialise thread local allocator.");
       }
 
-      auto p = capptr::Alloc<T>::unsafe_from(new (raw.unsafe_ptr())
-                                               T(std::forward<Args>(args)...));
+      capptr::Alloc<void> spare_start = pointer_offset(raw, round_sizeof);
+      Range<capptr::bounds::Alloc> r{spare_start, spare};
+
+      auto p = capptr::Alloc<T>::unsafe_from(
+        new (raw.unsafe_ptr()) T(r, std::forward<Args>(args)...));
+
+      // Remove excess from the permissions.
+      p = Aal::capptr_bound<T, capptr::bounds::Alloc>(p, round_sizeof);
 
       FlagLock f(pool.lock);
       p->list_next = pool.list;

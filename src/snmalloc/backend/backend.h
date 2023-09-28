@@ -71,6 +71,17 @@ namespace snmalloc
     }
 
     /**
+     * Returns unused meta-data to the system.  This must have come from a call
+     * to alloc_meta_data, but can be a sub-range of the original allocation.
+     */
+    static void dealloc_meta_data(
+      LocalState& local_state, capptr::Alloc<void> p, size_t size)
+    {
+      auto arena = Authmap::amplify(p);
+      local_state.get_meta_range().dealloc_range(arena, size);
+    }
+
+    /**
      * Returns a chunk of memory with alignment and size of `size`, and a
      * block containing metadata about the slab.
      *
