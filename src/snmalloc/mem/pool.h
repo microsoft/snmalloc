@@ -20,7 +20,10 @@ namespace snmalloc
   template<class T>
   class PoolState
   {
-    template<typename TT, typename Construct, PoolState<TT>& get_state()>
+    template<
+      typename TT,
+      SNMALLOC_CONCEPT(Constructable<TT>) Construct,
+      PoolState<TT>& get_state()>
     friend class Pool;
 
   private:
@@ -89,7 +92,7 @@ namespace snmalloc
    */
   template<
     typename T,
-    typename ConstructT = DefaultConstruct<T>,
+    SNMALLOC_CONCEPT(Constructable<T>) ConstructT = DefaultConstruct<T>,
     PoolState<T>& get_state() = SingletonPoolState<T>::pool>
   class Pool
   {
