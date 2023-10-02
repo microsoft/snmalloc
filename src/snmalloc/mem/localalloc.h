@@ -393,7 +393,7 @@ namespace snmalloc
       // Initialise the global allocator structures
       ensure_init();
       // Grab an allocator for this thread.
-      init(AllocPool<Config>::acquire(&(this->local_cache)));
+      init(AllocPool<Config>::acquire());
     }
 
     // Return all state in the fast allocator and release the underlying

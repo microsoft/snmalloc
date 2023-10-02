@@ -621,8 +621,7 @@ namespace snmalloc
     template<
       typename Config_ = Config,
       typename = std::enable_if_t<Config_::Options.CoreAllocOwnsLocalState>>
-    CoreAllocator(Range<capptr::bounds::Alloc>& spare, LocalCache* cache)
-    : attached_cache(cache)
+    CoreAllocator(Range<capptr::bounds::Alloc>& spare)
     {
       init(spare);
     }
@@ -1021,7 +1020,7 @@ namespace snmalloc
     using CA = CoreAllocator<Config>;
 
   public:
-    static capptr::Alloc<CA> make(LocalCache* lc)
+    static capptr::Alloc<CA> make()
     {
       size_t size = sizeof(CA);
       size_t round_sizeof = Aal::capptr_size_round(size);
@@ -1039,7 +1038,7 @@ namespace snmalloc
       capptr::Alloc<void> spare_start = pointer_offset(raw, round_sizeof);
       Range<capptr::bounds::Alloc> r{spare_start, spare};
 
-      auto p = capptr::Alloc<CA>::unsafe_from(new (raw.unsafe_ptr()) CA(r, lc));
+      auto p = capptr::Alloc<CA>::unsafe_from(new (raw.unsafe_ptr()) CA(r));
 
       // Remove excess from the permissions.
       p = Aal::capptr_bound<CA, capptr::bounds::Alloc>(p, round_sizeof);

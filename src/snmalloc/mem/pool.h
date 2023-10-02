@@ -68,10 +68,9 @@ namespace snmalloc
   class DefaultConstruct
   {
   public:
-    template<typename... Args>
-    static capptr::Alloc<T> make(Args&&... args)
+    static capptr::Alloc<T> make()
     {
-      return capptr::Alloc<T>::unsafe_from(new T(std::forward<Args>(args)...));
+      return capptr::Alloc<T>::unsafe_from(new T());
     }
   };
 
@@ -95,8 +94,7 @@ namespace snmalloc
   class Pool
   {
   public:
-    template<typename... Args>
-    static T* acquire(Args&&... args)
+    static T* acquire()
     {
       PoolState<T>& pool = get_state();
       {
@@ -115,7 +113,7 @@ namespace snmalloc
         }
       }
 
-      auto p = ConstructT::make(std::forward<Args>(args)...);
+      auto p = ConstructT::make();
 
       FlagLock f(pool.lock);
       p->list_next = pool.list;
