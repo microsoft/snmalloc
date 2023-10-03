@@ -11,26 +11,25 @@ struct PoolAEntry : Pooled<PoolAEntry>
 {
   int field;
 
-  PoolAEntry(Range<capptr::bounds::Alloc>&) : field(1){};
+  PoolAEntry() : field(1){};
 };
 
-using PoolA = Pool<PoolAEntry, Alloc::Config>;
+using PoolA = Pool<PoolAEntry>;
 
 struct PoolBEntry : Pooled<PoolBEntry>
 {
   int field;
 
-  PoolBEntry(Range<capptr::bounds::Alloc>&) : field(0){};
-  PoolBEntry(Range<capptr::bounds::Alloc>&, int f) : field(f){};
+  PoolBEntry() : field(0){};
 };
 
-using PoolB = Pool<PoolBEntry, Alloc::Config>;
+using PoolB = Pool<PoolBEntry>;
 
 struct PoolLargeEntry : Pooled<PoolLargeEntry>
 {
   std::array<int, 2'000'000> payload;
 
-  PoolLargeEntry(Range<capptr::bounds::Alloc>&)
+  PoolLargeEntry()
   {
     printf(".");
     fflush(stdout);
@@ -41,18 +40,18 @@ struct PoolLargeEntry : Pooled<PoolLargeEntry>
   };
 };
 
-using PoolLarge = Pool<PoolLargeEntry, Alloc::Config>;
+using PoolLarge = Pool<PoolLargeEntry>;
 
 template<bool order>
 struct PoolSortEntry : Pooled<PoolSortEntry<order>>
 {
   int field;
 
-  PoolSortEntry(Range<capptr::bounds::Alloc>&, int f) : field(f){};
+  PoolSortEntry() : field(1){};
 };
 
 template<bool order>
-using PoolSort = Pool<PoolSortEntry<order>, Alloc::Config>;
+using PoolSort = Pool<PoolSortEntry<order>>;
 
 void test_alloc()
 {
@@ -73,13 +72,8 @@ void test_constructor()
   SNMALLOC_CHECK(ptr2 != nullptr);
   SNMALLOC_CHECK(ptr2->field == 0);
 
-  auto ptr3 = PoolB::acquire(1);
-  SNMALLOC_CHECK(ptr3 != nullptr);
-  SNMALLOC_CHECK(ptr3->field == 1);
-
   PoolA::release(ptr1);
   PoolB::release(ptr2);
-  PoolB::release(ptr3);
 }
 
 void test_alloc_many()
@@ -181,8 +175,8 @@ void test_sort()
 
   // This test checks that `sort` puts the elements in the right order,
   // so it is the same as if they had been allocated in that order.
-  auto a1 = PoolSort<order>::acquire(1);
-  auto a2 = PoolSort<order>::acquire(1);
+  auto a1 = PoolSort<order>::acquire();
+  auto a2 = PoolSort<order>::acquire();
 
   auto position1 = position(a1);
   auto position2 = position(a2);
@@ -201,8 +195,8 @@ void test_sort()
 
   PoolSort<order>::sort();
 
-  auto b1 = PoolSort<order>::acquire(1);
-  auto b2 = PoolSort<order>::acquire(1);
+  auto b1 = PoolSort<order>::acquire();
+  auto b2 = PoolSort<order>::acquire();
 
   SNMALLOC_CHECK(position1 == position(b1));
   SNMALLOC_CHECK(position2 == position(b2));

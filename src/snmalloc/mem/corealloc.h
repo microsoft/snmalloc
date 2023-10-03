@@ -621,8 +621,7 @@ namespace snmalloc
     template<
       typename Config_ = Config,
       typename = std::enable_if_t<Config_::Options.CoreAllocOwnsLocalState>>
-    CoreAllocator(Range<capptr::bounds::Alloc>& spare, LocalCache* cache)
-    : attached_cache(cache)
+    CoreAllocator(Range<capptr::bounds::Alloc>& spare)
     {
       init(spare);
     }
@@ -1015,9 +1014,42 @@ namespace snmalloc
     }
   };
 
+  template<typename Config>
+  class ConstructCoreAlloc
+  {
+    using CA = CoreAllocator<Config>;
+
+  public:
+    static capptr::Alloc<CA> make()
+    {
+      size_t size = sizeof(CA);
+      size_t round_sizeof = Aal::capptr_size_round(size);
+      size_t request_size = bits::next_pow2(round_sizeof);
+      size_t spare = request_size - round_sizeof;
+
+      auto raw =
+        Config::Backend::template alloc_meta_data<CA>(nullptr, request_size);
+
+      if (raw == nullptr)
+      {
+        Config::Pal::error("Failed to initialise thread local allocator.");
+      }
+
+      capptr::Alloc<void> spare_start = pointer_offset(raw, round_sizeof);
+      Range<capptr::bounds::Alloc> r{spare_start, spare};
+
+      auto p = capptr::Alloc<CA>::unsafe_from(new (raw.unsafe_ptr()) CA(r));
+
+      // Remove excess from the bounds.
+      p = Aal::capptr_bound<CA, capptr::bounds::Alloc>(p, round_sizeof);
+      return p;
+    }
+  };
+
   /**
    * Use this alias to access the pool of allocators throughout snmalloc.
    */
   template<typename Config>
-  using AllocPool = Pool<CoreAllocator<Config>, Config, Config::pool>;
+  using AllocPool =
+    Pool<CoreAllocator<Config>, ConstructCoreAlloc<Config>, Config::pool>;
 } // namespace snmalloc
