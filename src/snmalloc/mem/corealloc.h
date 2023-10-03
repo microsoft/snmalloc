@@ -1040,7 +1040,7 @@ namespace snmalloc
 
       auto p = capptr::Alloc<CA>::unsafe_from(new (raw.unsafe_ptr()) CA(r));
 
-      // Remove excess from the permissions.
+      // Remove excess from the bounds.
       p = Aal::capptr_bound<CA, capptr::bounds::Alloc>(p, round_sizeof);
       return p;
     }
