@@ -133,11 +133,11 @@ jobs:
       fail-fast: false
     # Kill these jobs if they take too long.
     timeout-minutes: 25
-    runs-on: macos-latest
+    runs-on: ubuntu-22.04
     name: FreeBSD-${{ matrix.os.version}} ${{ matrix.build-type }}
     steps:
     - uses: actions/checkout@v3
-    - uses: vmactions/freebsd-vm@v0
+    - uses: vmactions/freebsd-vm@v1
       with:
         release: ${{ matrix.os.version}}
         usesh: true
