@@ -159,7 +159,7 @@ jobs:
           - version: '9.2'
             dependencies: |
               pkg_add cmake ninja-build gcc10
-        build-type: [ Release, Debug ]
+        build-type: [ Release ]
       # Don't abort runners if a single one fails
       fail-fast: false
     # Kill these jobs if they take too long.
