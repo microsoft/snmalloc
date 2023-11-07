@@ -95,6 +95,11 @@ jobs:
     - uses: actions/checkout@v3
     - name: Install build dependencies
       run: ${{ matrix.dependencies }}
+    
+    - name: Test runner
+      run: |
+        echo "Runner name: ${{ runner.name }} ${{ runner.os }} ${{ runner.os_version }} ${{ runner.labels }}"
+
     - uses: mjp41/workaround8649@027dbedef21ad1c2fa7aa7fecbf4b87c7f7db45d
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.cmake-flags }} ${{ matrix.extra-cmake-flags }}
@@ -245,6 +250,10 @@ jobs:
     - name: Install build dependencies
       run: ${{ matrix.dependencies }}
     
+    - name: Test runner
+      run: |
+        echo "Runner name: ${{ runner.name }} ${{ runner.os }} ${{ runner.os_version }} ${{ runner.labels }}"
+
     - uses: mjp41/workaround8649@027dbedef21ad1c2fa7aa7fecbf4b87c7f7db45d
 
     - name: Configure CMake
