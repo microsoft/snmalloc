@@ -26,6 +26,7 @@ option(SNMALLOC_NO_REALLOCARR "Build without reallocarr exported" ON)
 option(SNMALLOC_LINK_ICF "Link with Identical Code Folding" ON)
 option(SNMALLOC_IPO "Link with IPO/LTO support" OFF)
 option(SNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS "Build tests and ld_preload for individual mitigations" OFF)
+option(SNMALLOC_ENABLE_DYNAMIC_LOADING "Build such that snmalloc can be dynamically loaded. This is not required for LD_PRELOAD, and will harm performance if enabled." OFF)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_STATIC_LIBRARY "Build static libraries" ON "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
@@ -59,6 +60,10 @@ endif()
 set(SNMALLOC_SANITIZER "" CACHE STRING "Use sanitizer type (undefined|thread|...)")
 if (SNMALLOC_SANITIZER)
   message(STATUS "Using sanitizer=${SNMALLOC_SANITIZER}")
+endif()
+
+if(MSVC AND SNMALLOC_STATIC_LIBRARY AND (SNMALLOC_STATIC_LIBRARY_PREFIX STREQUAL ""))
+  message(FATAL_ERROR "Empty static library prefix not supported on MSVC")
 endif()
 
 # If CheckLinkerFlag doesn't exist then provide a dummy implementation that
@@ -150,7 +155,7 @@ function(clangformat_targets)
   # tool.  It does not work with older versions as AfterCaseLabel is not supported
   # in earlier versions.
   find_program(CLANG_FORMAT NAMES
-    clang-format90 clang-format-9)
+    clang-format150 clang-format-15)
 
   # If we've found a clang-format tool, generate a target for it, otherwise emit
   # a warning.
@@ -386,8 +391,14 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
       target_compile_options(${name} PRIVATE
         -fomit-frame-pointer -ffunction-sections)
+
+      check_cxx_compiler_flag("-Werror -Wextra -Wall -mprfchw" SUPPORT_PREFETCH_WRITE)
+      if (SUPPORT_PREFETCH_WRITE)
+        target_compile_options(${name} PRIVATE -mprfchw)
+      endif()
       # Static TLS model is unsupported on Haiku.
-      if (NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku")
+      if ((NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku") AND (NOT SNMALLOC_ENABLE_DYNAMIC_LOADING))
+        message(STATUS "snmalloc: Using static TLS model")
         target_compile_options(${name} PRIVATE -ftls-model=initial-exec)
         target_compile_options(${name} PRIVATE $<$<BOOL:${SNMALLOC_CI_BUILD}>:-g>)
       endif()

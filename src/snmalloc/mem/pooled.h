@@ -5,16 +5,40 @@
 
 namespace snmalloc
 {
+  template<SNMALLOC_CONCEPT(capptr::IsBound) bounds>
+  struct Range
+  {
+    CapPtr<void, bounds> base;
+    size_t length;
+  };
+
   template<class T>
   class PoolState;
 
+#ifdef __cpp_concepts
+  template<typename C, typename T>
+  concept Constructable = requires() {
+                            {
+                              C::make()
+                              } -> ConceptSame<capptr::Alloc<T>>;
+                          };
+#endif // __cpp_concepts
+
+  /**
+   * Required to be implemented by all types that are pooled.
+   *
+   * The constructor of any inherited type must take a Range& as its first
+   * argument.  This represents the leftover from pool allocation rounding up to
+   * the nearest power of 2. It is valid to ignore this argument, but can be
+   * used to optimise meta-data usage at startup.
+   */
   template<class T>
   class Pooled
   {
   public:
     template<
       typename TT,
-      SNMALLOC_CONCEPT(IsConfig) Config,
+      SNMALLOC_CONCEPT(Constructable<TT>) Construct,
       PoolState<TT>& get_state()>
     friend class Pool;
 

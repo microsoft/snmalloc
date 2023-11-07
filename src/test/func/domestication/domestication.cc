@@ -62,14 +62,12 @@ namespace snmalloc
      * C++, and not just its initializer fragment, to initialize a non-prefix
      * subset of the flags (in any order, at that).
      */
-    static constexpr Flags Options = []() constexpr
-    {
+    static constexpr Flags Options = []() constexpr {
       Flags opts = {};
       opts.QueueHeadsAreTame = false;
       opts.HasDomesticate = true;
       return opts;
-    }
-    ();
+    }();
 
     static GlobalPoolState& pool()
     {

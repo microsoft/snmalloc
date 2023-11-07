@@ -247,10 +247,10 @@ namespace snmalloc
      */
     full_checks + cheri_checks + clear_meta - freelist_forward_edge -
       pal_enforce_access :
-    /**
-     * clear_meta is important on CHERI to avoid leaking capabilities.
-     */
-    sanity_checks + cheri_checks + clear_meta;
+     /**
+      * clear_meta is important on CHERI to avoid leaking capabilities.
+      */
+     sanity_checks + cheri_checks + clear_meta;
 #else
     CHECK_CLIENT ? full_checks : no_checks;
 #endif

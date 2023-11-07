@@ -167,8 +167,8 @@ namespace snmalloc
 
   struct SizeClassTable
   {
-    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_fast> fast_;
-    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_slow> slow_;
+    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_fast> fast_{};
+    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_slow> slow_{};
 
     size_t DIV_MULT_SHIFT{0};
 
@@ -203,7 +203,7 @@ namespace snmalloc
       return slow_[index.raw()];
     }
 
-    constexpr SizeClassTable() : fast_(), slow_(), DIV_MULT_SHIFT()
+    constexpr SizeClassTable()
     {
       size_t max_capacity = 0;
 
@@ -478,6 +478,12 @@ namespace snmalloc
   {
     if (size > sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1))
     {
+      if (size > bits::one_at_bit(bits::BITS - 1))
+      {
+        // This size is too large, no rounding should occur as will result in a
+        // failed allocation later.
+        return size;
+      }
       return bits::next_pow2(size);
     }
     // If realloc(ptr, 0) returns nullptr, some consumers treat this as a

@@ -147,7 +147,7 @@ namespace snmalloc
     static inline void prefetch(void* ptr) noexcept
     {
 #if __has_builtin(__builtin_prefetch) && !defined(SNMALLOC_NO_AAL_BUILTINS)
-      __builtin_prefetch(ptr);
+      __builtin_prefetch(ptr, 1, 3);
 #else
       Arch::prefetch(ptr);
 #endif
@@ -204,9 +204,6 @@ namespace snmalloc
     static SNMALLOC_FAST_PATH CapPtr<T, BOut>
     capptr_bound(CapPtr<U, BIn> a, size_t size) noexcept
     {
-      static_assert(
-        BIn::spatial > capptr::dimension::Spatial::Alloc,
-        "Refusing to re-bound Spatial::Alloc CapPtr");
       static_assert(
         capptr::is_spatial_refinement<BIn, BOut>(),
         "capptr_bound must preserve non-spatial CapPtr dimensions");

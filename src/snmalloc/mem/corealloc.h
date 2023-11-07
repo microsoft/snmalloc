@@ -555,8 +555,11 @@ namespace snmalloc
     /**
      * Initialiser, shared code between the constructors for different
      * configurations.
+     *
+     * spare is the amount of space directly after the allocator that is
+     * reserved as meta-data, but is not required by this CoreAllocator.
      */
-    void init()
+    void init(Range<capptr::bounds::Alloc>& spare)
     {
 #ifdef SNMALLOC_TRACING
       message<1024>("Making an allocator.");
@@ -565,6 +568,20 @@ namespace snmalloc
       // it generates.
       // This must occur before any freelists are constructed.
       entropy.init<typename Config::Pal>();
+
+      if (spare.length != 0)
+      {
+        /*
+         * Seed this frontend's private metadata allocation cache with any
+         * excess space from the metadata allocation holding the frontend
+         * Allocator object itself.  This alleviates thundering herd
+         * contention on the backend during startup: each slab opened now
+         * makes one trip to the backend, for the slab itself, rather than
+         * two, for the slab and its metadata.
+         */
+        Config::Backend::dealloc_meta_data(
+          get_backend_local_state(), spare.base, spare.length);
+      }
 
       // Ignoring stats for now.
       //      stats().start();
@@ -597,26 +614,35 @@ namespace snmalloc
     /**
      * Constructor for the case that the core allocator owns the local state.
      * SFINAE disabled if the allocator does not own the local state.
+     *
+     * spare is the amount of space directly after the allocator that is
+     * reserved as meta-data, but is not required by this CoreAllocator.
      */
     template<
       typename Config_ = Config,
       typename = std::enable_if_t<Config_::Options.CoreAllocOwnsLocalState>>
-    CoreAllocator(LocalCache* cache) : attached_cache(cache)
+    CoreAllocator(Range<capptr::bounds::Alloc>& spare)
     {
-      init();
+      init(spare);
     }
 
     /**
      * Constructor for the case that the core allocator does not owns the local
      * state. SFINAE disabled if the allocator does own the local state.
+     *
+     * spare is the amount of space directly after the allocator that is
+     * reserved as meta-data, but is not required by this CoreAllocator.
      */
     template<
       typename Config_ = Config,
       typename = std::enable_if_t<!Config_::Options.CoreAllocOwnsLocalState>>
-    CoreAllocator(LocalCache* cache, LocalState* backend = nullptr)
+    CoreAllocator(
+      Range<capptr::bounds::Alloc>& spare,
+      LocalCache* cache,
+      LocalState* backend = nullptr)
     : backend_state(backend), attached_cache(cache)
     {
-      init();
+      init(spare);
     }
 
     /**
@@ -988,9 +1014,42 @@ namespace snmalloc
     }
   };
 
+  template<typename Config>
+  class ConstructCoreAlloc
+  {
+    using CA = CoreAllocator<Config>;
+
+  public:
+    static capptr::Alloc<CA> make()
+    {
+      size_t size = sizeof(CA);
+      size_t round_sizeof = Aal::capptr_size_round(size);
+      size_t request_size = bits::next_pow2(round_sizeof);
+      size_t spare = request_size - round_sizeof;
+
+      auto raw =
+        Config::Backend::template alloc_meta_data<CA>(nullptr, request_size);
+
+      if (raw == nullptr)
+      {
+        Config::Pal::error("Failed to initialise thread local allocator.");
+      }
+
+      capptr::Alloc<void> spare_start = pointer_offset(raw, round_sizeof);
+      Range<capptr::bounds::Alloc> r{spare_start, spare};
+
+      auto p = capptr::Alloc<CA>::unsafe_from(new (raw.unsafe_ptr()) CA(r));
+
+      // Remove excess from the bounds.
+      p = Aal::capptr_bound<CA, capptr::bounds::Alloc>(p, round_sizeof);
+      return p;
+    }
+  };
+
   /**
    * Use this alias to access the pool of allocators throughout snmalloc.
    */
   template<typename Config>
-  using AllocPool = Pool<CoreAllocator<Config>, Config, Config::pool>;
+  using AllocPool =
+    Pool<CoreAllocator<Config>, ConstructCoreAlloc<Config>, Config::pool>;
 } // namespace snmalloc

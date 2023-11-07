@@ -71,9 +71,10 @@ namespace snmalloc
         error("Only one inflight ABA operation at a time is allowed.");
       operation_in_flight = true;
 #  endif
-      return Cmp{{independent.ptr.load(std::memory_order_relaxed),
-                  independent.aba.load(std::memory_order_relaxed)},
-                 this};
+      return Cmp{
+        {independent.ptr.load(std::memory_order_relaxed),
+         independent.aba.load(std::memory_order_relaxed)},
+        this};
     }
 
     struct Cmp

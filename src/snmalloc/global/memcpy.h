@@ -192,7 +192,8 @@ namespace snmalloc
      * It's not entirely clear what we would do if this were not the case.
      * Best not think too hard about it now.
      */
-    static_assert(alignof(void*) == sizeof(void*));
+    static_assert(
+      alignof(void*) == sizeof(void*)); // NOLINT(misc-redundant-expression)
 
     static constexpr size_t LargestRegisterSize = 16;
 

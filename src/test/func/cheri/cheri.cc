@@ -133,8 +133,7 @@ int main()
     static_assert(
       std::is_same_v<decltype(alloc.alloc), LocalAllocator<StandardConfig>>);
 
-    LocalCache lc{&StandardConfig::unused_remote};
-    auto* ca = AllocPool<StandardConfig>::acquire(&lc);
+    auto* ca = AllocPool<StandardConfig>::acquire();
 
     SNMALLOC_CHECK(cap_len_is(ca, sizeof(*ca)));
     SNMALLOC_CHECK(cap_vmem_perm_is(ca, false));
