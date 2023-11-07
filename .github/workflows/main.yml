@@ -96,7 +96,7 @@ jobs:
     - name: Install build dependencies
       run: ${{ matrix.dependencies }}
     
-    - uses: mjp41/workaround8649@7138a6cf099e27773bf64c470b3a6dc56299a401
+    - uses: mjp41/workaround8649@0aa743885d26b33c0ec79368d65efb10d43bc600
       with:
         os: ${{ matrix.os }}
 
@@ -249,7 +249,7 @@ jobs:
     - name: Install build dependencies
       run: ${{ matrix.dependencies }}
 
-    - uses: mjp41/workaround8649@7138a6cf099e27773bf64c470b3a6dc56299a401
+    - uses: mjp41/workaround8649@0aa743885d26b33c0ec79368d65efb10d43bc600
       with:
         os: ${{ matrix.os }}
   
