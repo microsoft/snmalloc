@@ -440,7 +440,8 @@ jobs:
         fi
 
   all-checks:
-    needs: [linux, freebsd, qemu-crossbuild, windows, format, sanitizer]
+    # Currently FreeBSD and NetBSD CI are not working, so we do not require them to pass.
+    needs: [linux, qemu-crossbuild, windows, format, sanitizer]
     runs-on: ubuntu-latest
     steps:
     - name: Dummy step
