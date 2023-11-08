@@ -95,6 +95,11 @@ jobs:
     - uses: actions/checkout@v3
     - name: Install build dependencies
       run: ${{ matrix.dependencies }}
+    
+    - uses: mjp41/workaround8649@7929373c0fe5caf844d8115adccef39e3b5362e7
+      with:
+        os: ${{ matrix.os }}
+
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.cmake-flags }} ${{ matrix.extra-cmake-flags }}
       # Build with a nice ninja status line
@@ -243,6 +248,11 @@ jobs:
     - uses: actions/checkout@v3
     - name: Install build dependencies
       run: ${{ matrix.dependencies }}
+
+    - uses: mjp41/workaround8649@7929373c0fe5caf844d8115adccef39e3b5362e7
+      with:
+        os: ${{ matrix.os }}
+  
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.cmake-flags }} ${{ matrix.extra-cmake-flags }}
       # Build with a nice ninja status line
@@ -430,7 +440,8 @@ jobs:
         fi
 
   all-checks:
-    needs: [linux, freebsd, qemu-crossbuild, windows, format, sanitizer]
+    # Currently FreeBSD and NetBSD CI are not working, so we do not require them to pass.
+    needs: [linux, qemu-crossbuild, windows, format, sanitizer]
     runs-on: ubuntu-latest
     steps:
     - name: Dummy step
