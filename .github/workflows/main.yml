@@ -129,20 +129,18 @@ jobs:
         # Build each combination of OS, version, and release/debug variants
         # FreeBSD and OpenBSD run on xhyve, netbsd needs qemu
         os:
-          - version: '13.1'
-            dependencies: pkg ins -y cmake ninja
-          - version: '12.3'
+          - version: '13.2'
             dependencies: pkg ins -y cmake ninja
         build-type: [ Release, Debug ]
       # Don't abort runners if a single one fails
       fail-fast: false
     # Kill these jobs if they take too long.
     timeout-minutes: 25
-    runs-on: macos-latest
+    runs-on: ubuntu-22.04
     name: FreeBSD-${{ matrix.os.version}} ${{ matrix.build-type }}
     steps:
     - uses: actions/checkout@v3
-    - uses: vmactions/freebsd-vm@v0
+    - uses: vmactions/freebsd-vm@v1
       with:
         release: ${{ matrix.os.version}}
         usesh: true
@@ -166,7 +164,7 @@ jobs:
           - version: '9.2'
             dependencies: |
               pkg_add cmake ninja-build gcc10
-        build-type: [ Release, Debug ]
+        build-type: [ Release ]
       # Don't abort runners if a single one fails
       fail-fast: false
     # Kill these jobs if they take too long.
