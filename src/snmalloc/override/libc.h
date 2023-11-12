@@ -74,7 +74,10 @@ namespace snmalloc::libc
       // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
       // otherwise.
       if (SNMALLOC_UNLIKELY(sz != 0))
+      {
+        SNMALLOC_ASSUME(ptr != nullptr);
         ::memcpy(p, ptr, sz);
+      }
       a.dealloc(ptr);
     }
     else if (SNMALLOC_LIKELY(size == 0))
