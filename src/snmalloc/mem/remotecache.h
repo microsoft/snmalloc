@@ -69,14 +69,22 @@ namespace snmalloc
     }
 
     template<size_t allocator_size>
+    SNMALLOC_FAST_PATH void forward(
+      RemoteAllocator::alloc_id_t target_id, capptr::Alloc<RemoteMessage> msg)
+    {
+      list[get_slot<allocator_size>(target_id, 0)].add(
+        RemoteMessage::to_message_link(msg),
+        RemoteAllocator::key_global,
+        NO_KEY_TWEAK);
+    }
+
+    template<size_t allocator_size>
     SNMALLOC_FAST_PATH void
     dealloc(RemoteAllocator::alloc_id_t target_id, capptr::Alloc<void> p)
     {
       SNMALLOC_ASSERT(initialised);
-      auto r = freelist::Object::make<capptr::bounds::AllocWild>(p);
-
-      list[get_slot<allocator_size>(target_id, 0)].add(
-        r, RemoteAllocator::key_global, NO_KEY_TWEAK);
+      auto r = RemoteMessage::emplace_in_alloc(p);
+      forward<allocator_size>(target_id, r);
     }
 
     template<size_t allocator_size>
@@ -105,9 +113,11 @@ namespace snmalloc
 
           if (!list[i].empty())
           {
-            auto [first, last] = list[i].extract_segment(key, NO_KEY_TWEAK);
+            auto [first_, last_] = list[i].extract_segment(key, NO_KEY_TWEAK);
+            auto first = RemoteMessage::from_message_link(first_);
+            auto last = RemoteMessage::from_message_link(last_);
             const auto& entry =
-              Config::Backend::get_metaentry(address_cast(first));
+              Config::Backend::get_metaentry(address_cast(first_));
             auto remote = entry.get_remote();
             // If the allocator is not correctly aligned, then the bit that is
             // set implies this is used by the backend, and we should not be
