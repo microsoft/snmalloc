@@ -513,12 +513,12 @@ namespace snmalloc
                            SNMALLOC_FAST_PATH_LAMBDA {
                              return capptr_domesticate<Config>(local_state, p);
                            };
-      auto cb = [this,
-                 &need_post](freelist::HeadPtr msg) SNMALLOC_FAST_PATH_LAMBDA {
+      auto cb = [this, &need_post](
+                  capptr::Alloc<RemoteMessage> msg) SNMALLOC_FAST_PATH_LAMBDA {
         auto& entry =
           Config::Backend::template get_metaentry(snmalloc::address_cast(msg));
 
-        handle_dealloc_remote(entry, msg.as_void(), need_post);
+        handle_dealloc_remote(entry, msg, need_post);
 
         return true;
       };
@@ -560,7 +560,7 @@ namespace snmalloc
      */
     void handle_dealloc_remote(
       const PagemapEntry& entry,
-      CapPtr<void, capptr::bounds::Alloc> p,
+      capptr::Alloc<RemoteMessage> msg,
       bool& need_post)
     {
       // TODO this needs to not double count stats
@@ -569,7 +569,7 @@ namespace snmalloc
 
       if (SNMALLOC_LIKELY(entry.get_remote() == public_state()))
       {
-        dealloc_local_object(p, entry);
+        dealloc_local_object(msg.as_void(), entry);
         return;
       }
       else
@@ -581,8 +581,8 @@ namespace snmalloc
           need_post = true;
         }
         attached_cache->remote_dealloc_cache
-          .template dealloc<sizeof(CoreAllocator)>(
-            entry.get_remote()->trunc_id(), p.as_void());
+          .template forward<sizeof(CoreAllocator)>(
+            entry.get_remote()->trunc_id(), msg);
       }
     }
 
@@ -882,11 +882,11 @@ namespace snmalloc
 
       if (destroy_queue)
       {
-        auto cb = [this](capptr::Alloc<void> p) {
+        auto cb = [this](capptr::Alloc<RemoteMessage> m) {
           bool need_post = true; // Always going to post, so ignore.
           const PagemapEntry& entry =
-            Config::Backend::get_metaentry(snmalloc::address_cast(p));
-          handle_dealloc_remote(entry, p.as_void(), need_post);
+            Config::Backend::get_metaentry(snmalloc::address_cast(m));
+          handle_dealloc_remote(entry, m, need_post);
         };
 
         message_queue().destroy_and_iterate(domesticate, cb);

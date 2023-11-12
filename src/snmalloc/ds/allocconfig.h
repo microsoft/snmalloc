@@ -43,7 +43,7 @@ namespace snmalloc
 #if defined(SNMALLOC_MIN_ALLOC_SIZE)
     SNMALLOC_MIN_ALLOC_SIZE;
 #else
-    2 * sizeof(void*);
+    sizeof(void*) * (mitigations(freelist_backward_edge) ? 4 : 2);
 #endif
 
   // Minimum slab size.
