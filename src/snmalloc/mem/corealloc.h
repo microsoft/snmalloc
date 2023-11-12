@@ -450,19 +450,25 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH bool has_messages()
     {
-      auto domesticate = [local_state = backend_state_ptr()](
-                           freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
-        if constexpr (Config::Options.QueueHeadsAreTame)
-        {
-          return freelist::HeadPtr::unsafe_from(p.unsafe_ptr());
-        }
-        else
-        {
+      auto local_state = backend_state_ptr();
+      auto domesticate_head =
+        [local_state](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+          if constexpr (Config::Options.QueueHeadsAreTame)
+          {
+            UNUSED(local_state);
+            return freelist::HeadPtr::unsafe_from(p.unsafe_ptr());
+          }
+          else
+          {
+            return capptr_domesticate<Config>(local_state, p);
+          }
+        };
+      auto domesticate_queue =
+        [local_state](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
           return capptr_domesticate<Config>(local_state, p);
-        }
-      };
+        };
 
-      return message_queue().can_dequeue(domesticate);
+      return message_queue().can_dequeue(domesticate_head, domesticate_queue);
     }
 
     /**

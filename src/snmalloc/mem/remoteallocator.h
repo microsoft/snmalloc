@@ -87,11 +87,12 @@ namespace snmalloc
       return fnt;
     }
 
-    template<typename Domesticator_head>
-    inline bool can_dequeue(Domesticator_head domesticate_head)
+    template<typename Domesticator_head, typename Domesticator_queue>
+    inline bool can_dequeue(
+      Domesticator_head domesticate_head, Domesticator_queue domesticate_queue)
     {
       return domesticate_head(front.load())
-               ->atomic_read_next(key_global, domesticate_head) != nullptr;
+               ->atomic_read_next(key_global, domesticate_queue) != nullptr;
     }
 
     /**
