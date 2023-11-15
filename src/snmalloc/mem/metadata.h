@@ -576,7 +576,8 @@ namespace snmalloc
       auto& key = entropy.get_free_list_key();
 
       std::remove_reference_t<decltype(fast_free_list)> tmp_fl;
-      auto remaining = meta->free_queue.close(tmp_fl, key);
+
+      auto remaining = meta->free_queue.close(tmp_fl, key, NO_KEY_TWEAK);
       auto p = tmp_fl.take(key, domesticate);
       fast_free_list = tmp_fl;
 
