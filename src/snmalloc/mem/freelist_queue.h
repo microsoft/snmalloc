@@ -75,6 +75,19 @@ namespace snmalloc
       return fnt;
     }
 
+    template<typename Domesticator_queue, typename Cb>
+    void destroy_and_iterate(Domesticator_queue domesticate, Cb cb)
+    {
+      auto p = domesticate(destroy());
+
+      while (p != nullptr)
+      {
+        auto n = p->atomic_read_next(Key, domesticate);
+        cb(p);
+        p = n;
+      }
+    }
+
     template<typename Domesticator_head, typename Domesticator_queue>
     inline bool can_dequeue(
       Domesticator_head domesticate_head, Domesticator_queue domesticate_queue)

@@ -849,19 +849,14 @@ namespace snmalloc
 
       if (destroy_queue)
       {
-        auto p_wild = message_queue().destroy();
-        auto p_tame = domesticate(p_wild);
-
-        while (p_tame != nullptr)
-        {
+        auto cb = [this](capptr::Alloc<void> p) {
           bool need_post = true; // Always going to post, so ignore.
-          auto n_tame =
-            p_tame->atomic_read_next(RemoteAllocator::key_global, domesticate);
           const PagemapEntry& entry =
-            Config::Backend::get_metaentry(snmalloc::address_cast(p_tame));
-          handle_dealloc_remote(entry, p_tame.as_void(), need_post);
-          p_tame = n_tame;
-        }
+            Config::Backend::get_metaentry(snmalloc::address_cast(p));
+          handle_dealloc_remote(entry, p.as_void(), need_post);
+        };
+
+        message_queue().destroy_and_iterate(domesticate, cb);
       }
       else
       {
