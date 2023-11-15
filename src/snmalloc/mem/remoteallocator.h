@@ -42,9 +42,13 @@ namespace snmalloc
       list.init();
     }
 
-    freelist::QueuePtr destroy()
+    template<typename Domesticator_queue, typename Cb>
+    void destroy_and_iterate(Domesticator_queue domesticate, Cb cb)
     {
-      return list.destroy();
+      auto cbwrap = [cb](freelist::HeadPtr p)
+                      SNMALLOC_FAST_PATH_LAMBDA { cb(p.as_void()); };
+
+      return list.destroy_and_iterate(domesticate, cbwrap);
     }
 
     template<typename Domesticator_head, typename Domesticator_queue>
