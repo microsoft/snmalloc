@@ -36,7 +36,7 @@ namespace snmalloc
    * should perform actual validation.  If the MPSCQ is exposed to the
    * allocator client, both Domesticators should perform validation.
    */
-  template<FreeListKey& Key>
+  template<FreeListKey& Key, address_t Key_tweak = NO_KEY_TWEAK>
   struct alignas(REMOTE_MIN_ALIGN) FreeListMPSCQ
   {
     // Store the message queue on a separate cacheline. It is mutable data that
@@ -82,7 +82,7 @@ namespace snmalloc
 
       while (p != nullptr)
       {
-        auto n = p->atomic_read_next(Key, domesticate);
+        auto n = p->atomic_read_next(Key, Key_tweak, domesticate);
         cb(p);
         p = n;
       }
@@ -93,7 +93,7 @@ namespace snmalloc
       Domesticator_head domesticate_head, Domesticator_queue domesticate_queue)
     {
       return domesticate_head(front.load())
-               ->atomic_read_next(Key, domesticate_queue) != nullptr;
+               ->atomic_read_next(Key, Key_tweak, domesticate_queue) != nullptr;
     }
 
     /**
@@ -121,7 +121,8 @@ namespace snmalloc
 
       if (SNMALLOC_LIKELY(prev != nullptr))
       {
-        freelist::Object::atomic_store_next(domesticate_head(prev), first, Key);
+        freelist::Object::atomic_store_next(
+          domesticate_head(prev), first, Key, Key_tweak);
         return;
       }
 
@@ -154,7 +155,8 @@ namespace snmalloc
 
       while (address_cast(curr) != address_cast(b))
       {
-        freelist::HeadPtr next = curr->atomic_read_next(Key, domesticate_queue);
+        freelist::HeadPtr next =
+          curr->atomic_read_next(Key, Key_tweak, domesticate_queue);
         // We have observed a non-linearisable effect of the queue.
         // Just go back to allocating normally.
         if (SNMALLOC_UNLIKELY(next == nullptr))
