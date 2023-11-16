@@ -29,7 +29,21 @@ namespace snmalloc
   class RemoteMessage
   {
     friend class RemoteMessageAssertions;
+
+    freelist::Object::T<> free_ring;
     freelist::Object::T<> message_link;
+
+    static_assert(
+      sizeof(free_ring.next_object) >= sizeof(void*),
+      "RemoteMessage bitpacking needs sizeof(void*) in next_object");
+
+    static auto decode_next(uintptr_t encoded, capptr::Alloc<RemoteMessage> m)
+    {
+      return capptr_rewild(
+               pointer_offset_signed(
+                 m, static_cast<ptrdiff_t>(encoded) >> MAX_CAPACITY_BITS))
+        .as_static<freelist::Object::T<>>();
+    }
 
   public:
     static auto emplace_in_alloc(capptr::Alloc<void> alloc)
@@ -38,24 +52,90 @@ namespace snmalloc
         new (alloc.unsafe_ptr()) RemoteMessage());
     }
 
+    static auto mk_from_freelist_builder(
+      freelist::Builder<false, true>& flb,
+      const FreeListKey& key,
+      address_t key_tweak)
+    {
+      size_t size = flb.extract_segment_length();
+
+      SNMALLOC_ASSERT(size < bits::one_at_bit(MAX_CAPACITY_BITS));
+
+      auto [first, last] = flb.extract_segment(key, key_tweak);
+
+      // Preserve the last node's backpointer and change its type.
+      auto last_prev = last->prev;
+      auto self = CapPtr<RemoteMessage, capptr::bounds::Alloc>::unsafe_from(
+        new (last.unsafe_ptr()) RemoteMessage());
+      self->free_ring.prev = last_prev;
+
+      // XXX CHERI
+
+      auto n = freelist::HeadPtr::unsafe_from(
+        unsafe_from_uintptr<freelist::Object::T<>>(
+          (static_cast<uintptr_t>(pointer_diff_signed(self, first))
+           << MAX_CAPACITY_BITS) +
+          size));
+
+      // Close the ring, storing our bit-packed value in the next field.
+      freelist::Object::store_nextish(
+        &self->free_ring.next_object, first, key, key_tweak, n);
+
+      return self;
+    }
+
     static freelist::HeadPtr to_message_link(capptr::Alloc<RemoteMessage> m)
     {
-      // TODO: This needs a pointer_offset once message_link isn't at 0
-      return m.as_reinterpret<freelist::Object::T<>>();
+      return pointer_offset(m, offsetof(RemoteMessage, message_link))
+        .as_reinterpret<freelist::Object::T<>>();
     }
 
     static capptr::Alloc<RemoteMessage>
     from_message_link(freelist::HeadPtr chainPtr)
     {
-      // TODO: This needs a pointer_offset once message_link isn't at 0
-      return chainPtr.as_reinterpret<RemoteMessage>();
+      return pointer_offset_signed(
+               chainPtr,
+               -static_cast<ptrdiff_t>(offsetof(RemoteMessage, message_link)))
+        .as_reinterpret<RemoteMessage>();
+    }
+
+    template<typename Domesticator_queue>
+    static std::pair<freelist::HeadPtr, uint16_t> open_free_ring(
+      capptr::Alloc<RemoteMessage> m,
+      const FreeListKey& key,
+      address_t key_tweak,
+      Domesticator_queue domesticate)
+    {
+      uintptr_t encoded =
+        m->free_ring.read_next(key, key_tweak, domesticate).unsafe_uintptr();
+
+      uint16_t decoded_size =
+        static_cast<uint16_t>(encoded) & bits::mask_bits(MAX_CAPACITY_BITS);
+      static_assert(sizeof(decoded_size) * 8 > MAX_CAPACITY_BITS);
+
+      auto next = domesticate(decode_next(encoded, m));
+
+      if constexpr (mitigations(freelist_backward_edge))
+      {
+        next->check_prev(
+          signed_prev(address_cast(m), address_cast(next), key, key_tweak));
+      }
+      else
+      {
+        UNUSED(key);
+        UNUSED(key_tweak);
+      }
+
+      // XXX CHERI
+
+      return {next.template as_static<freelist::Object::T<>>(), decoded_size};
     }
   };
 
   class RemoteMessageAssertions
   {
     static_assert(sizeof(RemoteMessage) <= MIN_ALLOC_SIZE);
-    static_assert(offsetof(RemoteMessage, message_link) == 0);
+    static_assert(offsetof(RemoteMessage, free_ring) == 0);
 
     static_assert(
       MAX_SLAB_SPAN_BITS + MAX_CAPACITY_BITS < 8 * sizeof(void*),
