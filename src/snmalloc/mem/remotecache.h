@@ -12,6 +12,84 @@
 
 namespace snmalloc
 {
+
+  /**
+   * Same-destination message batching.
+   *
+   * In addition to batching message sends (see below), we can also batch
+   * collections of messages destined for the same slab.  This class handles
+   * collecting sufficiently temporally local messages destined to the same
+   * slab, collecting them with freelist::Builder(s), and then converting
+   * them to RemoteMessage rings when appropriate.
+   *
+   * In order that this class not need to know about the mechanics of actually
+   * pushing RemoteMessage-s around, the methods involved in "closing" rings
+   * -- that is, in converting freelist::Builder(s) to RemoteMessages -- take
+   * a callable, of template type Forward, which is given the destination
+   * slab('s metadata address) and the to-be-sent RemoteMessage.
+   */
+  template<typename Config>
+  class RemoteDeallocCacheBatching
+  {
+    freelist::Builder<false, true> open_builder;
+    typename Config::PagemapEntry::SlabMetadata* open_meta = nullptr;
+    RemoteAllocator::alloc_id_t open_target = 0;
+
+    template<typename Forward>
+    SNMALLOC_FAST_PATH void close_pending(Forward forward)
+    {
+      auto rmsg = RemoteMessage::mk_from_freelist_builder(
+        open_builder, RemoteAllocator::key_global /* XXX */, 0 /* XXX */);
+      forward(open_target, rmsg);
+    }
+
+    SNMALLOC_FAST_PATH void init_pending(
+      typename Config::PagemapEntry::SlabMetadata* meta,
+      RemoteAllocator::alloc_id_t id)
+    {
+      open_builder.init(
+        0, RemoteAllocator::key_global /* XXX */, NO_KEY_TWEAK /* XXX */);
+      open_meta = meta;
+      open_target = id;
+    }
+
+  public:
+    template<typename Forward>
+    SNMALLOC_FAST_PATH void dealloc(
+      typename Config::PagemapEntry::SlabMetadata* meta,
+      RemoteAllocator::alloc_id_t target_id,
+      freelist::HeadPtr r,
+      Forward forward)
+    {
+      if (meta != open_meta)
+      {
+        if (open_meta != nullptr)
+        {
+          close_pending(forward);
+        }
+        init_pending(meta, target_id);
+      }
+
+      open_builder.add(
+        r, RemoteAllocator::key_global /* XXX */, NO_KEY_TWEAK /* XXX */);
+    }
+
+    template<typename Forward>
+    SNMALLOC_FAST_PATH void close_all(Forward forward)
+    {
+      if (open_meta != nullptr)
+      {
+        close_pending(forward);
+        open_meta = nullptr;
+      }
+    }
+
+    void init()
+    {
+      open_meta = nullptr;
+    }
+  };
+
   /**
    * Stores the remote deallocation to batch them before sending
    */
@@ -19,6 +97,8 @@ namespace snmalloc
   struct RemoteDeallocCache
   {
     std::array<freelist::Builder<false>, REMOTE_SLOTS> list;
+
+    RemoteDeallocCacheBatching<Config> batching;
 
     /**
      * The total amount of memory we are waiting for before we will dispatch
@@ -85,23 +165,18 @@ namespace snmalloc
       capptr::Alloc<void> p)
     {
       SNMALLOC_ASSERT(initialised);
-      UNUSED(meta);
 
       auto r = freelist::Object::make<capptr::bounds::AllocWild>(p);
 
-      freelist::Builder<false, true> open_builder;
-      open_builder.init(
-        0, RemoteAllocator::key_global /* XXX */, NO_KEY_TWEAK /* XXX */);
-
-      open_builder.add(
-        r, RemoteAllocator::key_global /* XXX */, NO_KEY_TWEAK /* XXX */);
-
-      auto rmsg = RemoteMessage::mk_from_freelist_builder(
-        open_builder,
-        RemoteAllocator::key_global /* XXX */,
-        NO_KEY_TWEAK /* XXX */);
-
-      forward<allocator_size>(target_id, rmsg);
+      batching.dealloc(
+        meta,
+        target_id,
+        r,
+        [this](
+          RemoteAllocator::alloc_id_t target_id,
+          capptr::Alloc<RemoteMessage> msg) {
+          forward<allocator_size>(target_id, msg);
+        });
     }
 
     template<size_t allocator_size>
@@ -118,6 +193,12 @@ namespace snmalloc
                            SNMALLOC_FAST_PATH_LAMBDA {
                              return capptr_domesticate<Config>(local_state, p);
                            };
+
+      batching.close_all([this](
+                           RemoteAllocator::alloc_id_t target_id,
+                           capptr::Alloc<RemoteMessage> msg) {
+        forward<allocator_size>(target_id, msg);
+      });
 
       while (true)
       {
@@ -208,6 +289,8 @@ namespace snmalloc
         l.init(0, RemoteAllocator::key_global, NO_KEY_TWEAK);
       }
       capacity = REMOTE_CACHE;
+
+      batching.init();
     }
   };
 } // namespace snmalloc
