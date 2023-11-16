@@ -20,6 +20,10 @@ namespace snmalloc
   {
     std::array<freelist::Builder<false>, REMOTE_SLOTS> list;
 
+    freelist::Builder<false, true> open_builder;
+    typename Config::PagemapEntry::SlabMetadata* open_meta = nullptr;
+    RemoteAllocator::alloc_id_t open_target = 0;
+
     /**
      * The total amount of memory we are waiting for before we will dispatch
      * to other allocators. Zero can mean we have not initialised the allocator
@@ -79,29 +83,44 @@ namespace snmalloc
     }
 
     template<size_t allocator_size>
+    SNMALLOC_FAST_PATH void close_pending()
+    {
+      auto rmsg = RemoteMessage::mk_from_freelist_builder(
+        open_builder, RemoteAllocator::key_global /* XXX */, 0 /* XXX */);
+      forward<allocator_size>(open_target, rmsg);
+    }
+
+    SNMALLOC_FAST_PATH void init_pending(
+      typename Config::PagemapEntry::SlabMetadata* meta,
+      RemoteAllocator::alloc_id_t id)
+    {
+      open_builder.init(
+        0, RemoteAllocator::key_global /* XXX */, NO_KEY_TWEAK /* XXX */);
+      open_meta = meta;
+      open_target = id;
+    }
+
+    template<size_t allocator_size>
     SNMALLOC_FAST_PATH void dealloc(
       typename Config::PagemapEntry::SlabMetadata* meta,
       RemoteAllocator::alloc_id_t target_id,
       capptr::Alloc<void> p)
     {
       SNMALLOC_ASSERT(initialised);
-      UNUSED(meta);
 
       auto r = freelist::Object::make<capptr::bounds::AllocWild>(p);
 
-      freelist::Builder<false, true> open_builder;
-      open_builder.init(
-        0, RemoteAllocator::key_global /* XXX */, NO_KEY_TWEAK /* XXX */);
+      if (meta != open_meta)
+      {
+        if (open_meta != nullptr)
+        {
+          close_pending<allocator_size>();
+        }
+        init_pending(meta, target_id);
+      }
 
       open_builder.add(
         r, RemoteAllocator::key_global /* XXX */, NO_KEY_TWEAK /* XXX */);
-
-      auto rmsg = RemoteMessage::mk_from_freelist_builder(
-        open_builder,
-        RemoteAllocator::key_global /* XXX */,
-        NO_KEY_TWEAK /* XXX */);
-
-      forward<allocator_size>(target_id, rmsg);
     }
 
     template<size_t allocator_size>
@@ -118,6 +137,13 @@ namespace snmalloc
                            SNMALLOC_FAST_PATH_LAMBDA {
                              return capptr_domesticate<Config>(local_state, p);
                            };
+
+      /* Close open rings */
+      if (open_meta != nullptr)
+      {
+        close_pending<allocator_size>();
+        open_meta = nullptr;
+      }
 
       while (true)
       {
@@ -208,6 +234,8 @@ namespace snmalloc
         l.init(0, RemoteAllocator::key_global, NO_KEY_TWEAK);
       }
       capacity = REMOTE_CACHE;
+
+      open_meta = nullptr;
     }
   };
 } // namespace snmalloc
