@@ -513,13 +513,11 @@ namespace snmalloc
                            SNMALLOC_FAST_PATH_LAMBDA {
                              return capptr_domesticate<Config>(local_state, p);
                            };
-      auto cb = [this, &need_post](
+      auto cb = [this, domesticate, &need_post](
                   capptr::Alloc<RemoteMessage> msg) SNMALLOC_FAST_PATH_LAMBDA {
         auto& entry =
           Config::Backend::template get_metaentry(snmalloc::address_cast(msg));
-
-        handle_dealloc_remote(entry, msg, need_post);
-
+        handle_dealloc_remote(entry, msg, need_post, domesticate);
         return true;
       };
 
@@ -558,10 +556,12 @@ namespace snmalloc
      *
      * need_post will be set to true, if capacity is exceeded.
      */
+    template<typename Domesticator_queue>
     void handle_dealloc_remote(
       const PagemapEntry& entry,
       capptr::Alloc<RemoteMessage> msg,
-      bool& need_post)
+      bool& need_post,
+      Domesticator_queue domesticate)
     {
       // TODO this needs to not double count stats
       // TODO this needs to not double revoke if using MTE
@@ -569,11 +569,29 @@ namespace snmalloc
 
       if (SNMALLOC_LIKELY(entry.get_remote() == public_state()))
       {
+        address_t tail = address_cast(msg);
+
+        auto [curr, length] = RemoteMessage::open_free_ring(
+          msg,
+          RemoteAllocator::key_global /* XXX */,
+          NO_KEY_TWEAK /* XXX */,
+          domesticate);
+
         dealloc_local_object(msg.as_void(), entry);
-        return;
+
+        while (address_cast(curr) != tail)
+        {
+          auto next = curr->read_next(
+            RemoteAllocator::key_global /* XXX */,
+            NO_KEY_TWEAK /* XXX */,
+            domesticate);
+          dealloc_local_object(curr.as_void(), entry);
+          curr = next;
+        }
       }
       else
       {
+        // XXX message size
         if (
           !need_post &&
           !attached_cache->remote_dealloc_cache.reserve_space(entry))
@@ -882,11 +900,11 @@ namespace snmalloc
 
       if (destroy_queue)
       {
-        auto cb = [this](capptr::Alloc<RemoteMessage> m) {
+        auto cb = [this, domesticate](capptr::Alloc<RemoteMessage> m) {
           bool need_post = true; // Always going to post, so ignore.
           const PagemapEntry& entry =
             Config::Backend::get_metaentry(snmalloc::address_cast(m));
-          handle_dealloc_remote(entry, m, need_post);
+          handle_dealloc_remote(entry, m, need_post, domesticate);
         };
 
         message_queue().destroy_and_iterate(domesticate, cb);
