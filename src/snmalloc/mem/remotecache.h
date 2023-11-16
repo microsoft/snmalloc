@@ -87,8 +87,21 @@ namespace snmalloc
       SNMALLOC_ASSERT(initialised);
       UNUSED(meta);
 
-      auto r = RemoteMessage::emplace_in_alloc(p);
-      forward<allocator_size>(target_id, r);
+      auto r = freelist::Object::make<capptr::bounds::AllocWild>(p);
+
+      freelist::Builder<false, true> open_builder;
+      open_builder.init(
+        0, RemoteAllocator::key_global /* XXX */, NO_KEY_TWEAK /* XXX */);
+
+      open_builder.add(
+        r, RemoteAllocator::key_global /* XXX */, NO_KEY_TWEAK /* XXX */);
+
+      auto rmsg = RemoteMessage::mk_from_freelist_builder(
+        open_builder,
+        RemoteAllocator::key_global /* XXX */,
+        NO_KEY_TWEAK /* XXX */);
+
+      forward<allocator_size>(target_id, rmsg);
     }
 
     template<size_t allocator_size>

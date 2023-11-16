@@ -40,6 +40,8 @@
 
 namespace snmalloc
 {
+  class RemoteMessage;
+
   static constexpr address_t NO_KEY_TWEAK = 0;
 
   /**
@@ -138,6 +140,8 @@ namespace snmalloc
         friend class Builder;
 
         friend class Object;
+
+        friend class ::snmalloc::RemoteMessage;
 
         class Empty
         {
