@@ -79,10 +79,14 @@ namespace snmalloc
     }
 
     template<size_t allocator_size>
-    SNMALLOC_FAST_PATH void
-    dealloc(RemoteAllocator::alloc_id_t target_id, capptr::Alloc<void> p)
+    SNMALLOC_FAST_PATH void dealloc(
+      typename Config::PagemapEntry::SlabMetadata* meta,
+      RemoteAllocator::alloc_id_t target_id,
+      capptr::Alloc<void> p)
     {
       SNMALLOC_ASSERT(initialised);
+      UNUSED(meta);
+
       auto r = RemoteMessage::emplace_in_alloc(p);
       forward<allocator_size>(target_id, r);
     }
