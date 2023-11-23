@@ -65,6 +65,13 @@ namespace snmalloc
     class Object
     {
     public:
+      /**
+       * Shared key for slab free lists (but tweaked by metadata address).
+       *
+       * XXX Maybe this belongs somewhere else
+       */
+      inline static FreeListKey key_root{0xdeadbeef, 0xbeefdead, 0xdeadbeef};
+
       template<
         SNMALLOC_CONCEPT(capptr::IsBound) BQueue = capptr::bounds::AllocWild>
       class T;

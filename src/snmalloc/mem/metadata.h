@@ -573,7 +573,7 @@ namespace snmalloc
       LocalEntropy& entropy,
       smallsizeclass_t sizeclass)
     {
-      auto& key = entropy.get_free_list_key();
+      auto& key = freelist::Object::key_root;
 
       std::remove_reference_t<decltype(fast_free_list)> tmp_fl;
 

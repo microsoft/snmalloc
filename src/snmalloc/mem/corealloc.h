@@ -186,7 +186,6 @@ namespace snmalloc
     {
       auto slab_end = pointer_offset(bumpptr, slab_size + 1 - rsize);
 
-      auto& key = entropy.get_free_list_key();
       auto key_tweak = meta->as_key_tweak();
 
       auto& b = meta->free_queue;
@@ -242,7 +241,7 @@ namespace snmalloc
             // Here begins our treatment of the heap as containing Wild pointers
             freelist::Object::make<capptr::bounds::AllocWild>(
               capptr_to_user_address_control(curr_ptr.as_void())),
-            key,
+            freelist::Object::key_root,
             key_tweak,
             entropy);
           curr_ptr = curr_ptr->next;
@@ -259,7 +258,7 @@ namespace snmalloc
               capptr_to_user_address_control(
                 Aal::capptr_bound<void, capptr::bounds::AllocFull>(
                   p.as_void(), rsize))),
-            key,
+            freelist::Object::key_root,
             key_tweak,
             entropy);
           p = pointer_offset(p, rsize);
@@ -272,18 +271,18 @@ namespace snmalloc
     capptr::Alloc<void>
     clear_slab(BackendSlabMetadata* meta, smallsizeclass_t sizeclass)
     {
-      auto& key = entropy.get_free_list_key();
       auto key_tweak = meta->as_key_tweak();
       freelist::Iter<> fl;
-      auto more = meta->free_queue.close(fl, key, key_tweak);
+      auto more =
+        meta->free_queue.close(fl, freelist::Object::key_root, key_tweak);
       UNUSED(more);
       auto local_state = backend_state_ptr();
       auto domesticate = [local_state](freelist::QueuePtr p)
                            SNMALLOC_FAST_PATH_LAMBDA {
                              return capptr_domesticate<Config>(local_state, p);
                            };
-      capptr::Alloc<void> p =
-        finish_alloc_no_zero(fl.take(key, domesticate), sizeclass);
+      capptr::Alloc<void> p = finish_alloc_no_zero(
+        fl.take(freelist::Object::key_root, domesticate), sizeclass);
 
       // If clear_meta is requested, we should also walk the free list to clear
       // it.
@@ -297,7 +296,7 @@ namespace snmalloc
         size_t count = 1; // Already taken one above.
         while (!fl.empty())
         {
-          fl.take(key, domesticate);
+          fl.take(freelist::Object::key_root, domesticate);
           count++;
         }
         // Check the list contains all the elements
@@ -307,13 +306,14 @@ namespace snmalloc
 
         if (more > 0)
         {
-          auto no_more = meta->free_queue.close(fl, key, key_tweak);
+          auto no_more =
+            meta->free_queue.close(fl, freelist::Object::key_root, key_tweak);
           SNMALLOC_ASSERT(no_more == 0);
           UNUSED(no_more);
 
           while (!fl.empty())
           {
-            fl.take(key, domesticate);
+            fl.take(freelist::Object::key_root, domesticate);
             count++;
           }
         }
@@ -353,7 +353,7 @@ namespace snmalloc
           if (check_slabs)
           {
             meta->free_queue.validate(
-              entropy.get_free_list_key(), meta->as_key_tweak(), domesticate);
+              freelist::Object::key_root, meta->as_key_tweak(), domesticate);
           }
           return;
         }
@@ -414,7 +414,6 @@ namespace snmalloc
 
       smallsizeclass_t sizeclass = entry.get_sizeclass().as_small();
 
-      UNUSED(entropy);
       if (meta->is_sleeping())
       {
         // Slab has been woken up add this to the list of slabs with free space.
@@ -713,10 +712,9 @@ namespace snmalloc
 
       auto cp = p.as_static<freelist::Object::T<>>();
 
-      auto& key = entropy.get_free_list_key();
-
       // Update the head and the next pointer in the free list.
-      meta->free_queue.add(cp, key, meta->as_key_tweak(), entropy);
+      meta->free_queue.add(
+        cp, freelist::Object::key_root, meta->as_key_tweak(), entropy);
 
       return SNMALLOC_LIKELY(!meta->return_object());
     }
@@ -814,7 +812,7 @@ namespace snmalloc
 
       // Set meta slab to empty.
       meta->initialise(
-        sizeclass, address_cast(slab), entropy.get_free_list_key());
+        sizeclass, address_cast(slab), freelist::Object::key_root);
 
       // Build a free list for the slab
       alloc_new_list(slab, meta, rsize, slab_size, entropy);
@@ -884,14 +882,14 @@ namespace snmalloc
         dealloc_local_slabs<true>(sizeclass);
       }
 
-      laden.iterate([this, domesticate](
-                      BackendSlabMetadata* meta) SNMALLOC_FAST_PATH_LAMBDA {
-        if (!meta->is_large())
-        {
-          meta->free_queue.validate(
-            entropy.get_free_list_key(), meta->as_key_tweak(), domesticate);
-        }
-      });
+      laden.iterate(
+        [domesticate](BackendSlabMetadata* meta) SNMALLOC_FAST_PATH_LAMBDA {
+          if (!meta->is_large())
+          {
+            meta->free_queue.validate(
+              freelist::Object::key_root, meta->as_key_tweak(), domesticate);
+          }
+        });
 
       return posted;
     }
@@ -921,10 +919,9 @@ namespace snmalloc
      */
     bool debug_is_empty_impl(bool* result)
     {
-      auto& key = entropy.get_free_list_key();
-
-      auto error = [&result, &key](auto slab_metadata) {
-        auto slab_interior = slab_metadata->get_slab_interior(key);
+      auto error = [&result](auto slab_metadata) {
+        auto slab_interior =
+          slab_metadata->get_slab_interior(freelist::Object::key_root);
         const PagemapEntry& entry =
           Config::Backend::get_metaentry(slab_interior);
         SNMALLOC_ASSERT(slab_metadata == entry.get_slab_metadata());
