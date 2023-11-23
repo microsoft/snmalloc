@@ -179,7 +179,8 @@ namespace snmalloc
           auto n_wild = Object::decode_next(
             address_cast(&this->next_object),
             this->atomic_next_object.load(std::memory_order_acquire),
-            key);
+            key,
+            key_tweak);
           auto n_tame = domesticate(n_wild);
           if constexpr (mitigations(freelist_backward_edge))
           {
@@ -204,11 +205,14 @@ namespace snmalloc
           SNMALLOC_CONCEPT(capptr::IsBound) BView = typename BQueue::
             template with_wildness<capptr::dimension::Wildness::Tame>,
           typename Domesticator>
-        BHeadPtr<BView, BQueue>
-        read_next(const FreeListKey& key, Domesticator domesticate)
+        BHeadPtr<BView, BQueue> read_next(
+          const FreeListKey& key, address_t key_tweak, Domesticator domesticate)
         {
           return domesticate(Object::decode_next(
-            address_cast(&this->next_object), this->next_object, key));
+            address_cast(&this->next_object),
+            this->next_object,
+            key,
+            key_tweak));
         }
 
         /**
@@ -259,8 +263,11 @@ namespace snmalloc
        * Involutive encryption with raw pointers
        */
       template<SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
-      inline static Object::T<BQueue>*
-      code_next(address_t curr, Object::T<BQueue>* next, const FreeListKey& key)
+      inline static Object::T<BQueue>* code_next(
+        address_t curr,
+        Object::T<BQueue>* next,
+        const FreeListKey& key,
+        address_t key_tweak)
       {
         // Note we can consider other encoding schemes here.
         //   * XORing curr and next.  This doesn't require any key material
@@ -273,11 +280,13 @@ namespace snmalloc
           mitigations(freelist_forward_edge) && !aal_supports<StrictProvenance>)
         {
           return unsafe_from_uintptr<Object::T<BQueue>>(
-            unsafe_to_uintptr<Object::T<BQueue>>(next) ^ key.key_next);
+            unsafe_to_uintptr<Object::T<BQueue>>(next) ^ key.key_next ^
+            key_tweak);
         }
         else
         {
           UNUSED(key);
+          UNUSED(key_tweak);
           return next;
         }
       }
@@ -301,10 +310,13 @@ namespace snmalloc
         SNMALLOC_CONCEPT(capptr::IsBound) BView,
         SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       inline static BQueuePtr<BQueue> encode_next(
-        address_t curr, BHeadPtr<BView, BQueue> next, const FreeListKey& key)
+        address_t curr,
+        BHeadPtr<BView, BQueue> next,
+        const FreeListKey& key,
+        address_t key_tweak)
       {
         return BQueuePtr<BQueue>::unsafe_from(
-          code_next(curr, next.unsafe_ptr(), key));
+          code_next(curr, next.unsafe_ptr(), key, key_tweak));
       }
 
       /**
@@ -326,10 +338,13 @@ namespace snmalloc
         SNMALLOC_CONCEPT(capptr::IsBound) BView,
         SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       inline static BHeadPtr<BView, BQueue> decode_next(
-        address_t curr, BHeadPtr<BView, BQueue> next, const FreeListKey& key)
+        address_t curr,
+        BHeadPtr<BView, BQueue> next,
+        const FreeListKey& key,
+        address_t key_tweak)
       {
         return BHeadPtr<BView, BQueue>::unsafe_from(
-          code_next(curr, next.unsafe_ptr(), key));
+          code_next(curr, next.unsafe_ptr(), key, key_tweak));
       }
 
       template<
@@ -380,15 +395,16 @@ namespace snmalloc
           UNUSED(key_tweak);
         }
 
-        *curr = encode_next(address_cast(curr), next, key);
+        *curr = encode_next(address_cast(curr), next, key, key_tweak);
         return &(next->next_object);
       }
 
       template<SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
-      static void store_null(BQueuePtr<BQueue>* curr, const FreeListKey& key)
+      static void store_null(
+        BQueuePtr<BQueue>* curr, const FreeListKey& key, address_t key_tweak)
       {
-        *curr =
-          encode_next(address_cast(curr), BQueuePtr<BQueue>(nullptr), key);
+        *curr = encode_next(
+          address_cast(curr), BQueuePtr<BQueue>(nullptr), key, key_tweak);
       }
 
       /**
@@ -421,21 +437,26 @@ namespace snmalloc
         // Signature needs to be visible before item is linked in
         // so requires release semantics.
         curr->atomic_next_object.store(
-          encode_next(address_cast(&curr->next_object), next, key),
+          encode_next(address_cast(&curr->next_object), next, key, key_tweak),
           std::memory_order_release);
       }
 
       template<
         SNMALLOC_CONCEPT(capptr::IsBound) BView,
         SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
-      static void
-      atomic_store_null(BHeadPtr<BView, BQueue> curr, const FreeListKey& key)
+      static void atomic_store_null(
+        BHeadPtr<BView, BQueue> curr,
+        const FreeListKey& key,
+        address_t key_tweak)
       {
         static_assert(BView::wildness == capptr::dimension::Wildness::Tame);
 
         curr->atomic_next_object.store(
           encode_next(
-            address_cast(&curr->next_object), BQueuePtr<BQueue>(nullptr), key),
+            address_cast(&curr->next_object),
+            BQueuePtr<BQueue>(nullptr),
+            key,
+            key_tweak),
           std::memory_order_relaxed);
       }
     };
@@ -537,9 +558,12 @@ namespace snmalloc
       };
 
       SNMALLOC_NO_UNIQUE_ADDRESS
-      std::
-        conditional_t<mitigations(freelist_backward_edge), KeyTweak, NoKeyTweak>
-          key_tweak;
+      std::conditional_t<
+        mitigations(freelist_forward_edge) ||
+          mitigations(freelist_backward_edge),
+        KeyTweak,
+        NoKeyTweak>
+        key_tweak;
 
     public:
       constexpr Iter(
@@ -578,7 +602,7 @@ namespace snmalloc
       take(const FreeListKey& key, Domesticator domesticate)
       {
         auto c = curr;
-        auto next = curr->read_next(key, domesticate);
+        auto next = curr->read_next(key, key_tweak.get(), domesticate);
 
         Aal::prefetch(next.unsafe_ptr());
         curr = next;
@@ -720,10 +744,10 @@ namespace snmalloc
       /**
        * Makes a terminator to a free list.
        */
-      SNMALLOC_FAST_PATH void
-      terminate_list(uint32_t index, const FreeListKey& key)
+      SNMALLOC_FAST_PATH void terminate_list(
+        uint32_t index, const FreeListKey& key, address_t key_tweak)
       {
-        Object::store_null(cast_end(index), key);
+        Object::store_null(cast_end(index), key, key_tweak);
       }
 
       /**
@@ -735,11 +759,11 @@ namespace snmalloc
        * and is thus subject to encoding if the next_object pointers
        * encoded.
        */
-      [[nodiscard]] Object::BHeadPtr<BView, BQueue>
-      read_head(uint32_t index, const FreeListKey& key) const
+      [[nodiscard]] Object::BHeadPtr<BView, BQueue> read_head(
+        uint32_t index, const FreeListKey& key, address_t key_tweak) const
       {
         return Object::decode_next(
-          address_cast(&head[index]), cast_head(index), key);
+          address_cast(&head[index]), cast_head(index), key, key_tweak);
       }
 
       address_t get_fake_signed_prev(
@@ -747,7 +771,7 @@ namespace snmalloc
       {
         return signed_prev(
           address_cast(&head[index]),
-          address_cast(read_head(index, key)),
+          address_cast(read_head(index, key, key_tweak)),
           key,
           key_tweak);
       }
@@ -778,10 +802,10 @@ namespace snmalloc
           i = 0;
         }
 
-        terminate_list(i, key);
+        terminate_list(i, key, key_tweak);
 
         fl = {
-          read_head(i, key),
+          read_head(i, key, key_tweak),
           get_fake_signed_prev(i, key, key_tweak),
           key_tweak};
 
@@ -801,7 +825,8 @@ namespace snmalloc
       /**
        * Set the builder to a not building state.
        */
-      constexpr void init(address_t slab, const FreeListKey& key)
+      constexpr void
+      init(address_t slab, const FreeListKey& key, address_t key_tweak)
       {
         for (size_t i = 0; i < LENGTH; i++)
         {
@@ -819,7 +844,8 @@ namespace snmalloc
           head[i] = Object::code_next(
             address_cast(&head[i]),
             useless_ptr_from_addr<Object::T<BQueue>>(slab),
-            key);
+            key,
+            key_tweak);
         }
       }
 
@@ -829,19 +855,19 @@ namespace snmalloc
         std::pair<
           Object::BHeadPtr<BView, BQueue>,
           Object::BHeadPtr<BView, BQueue>>>
-      extract_segment(const FreeListKey& key)
+      extract_segment(const FreeListKey& key, address_t key_tweak)
       {
         static_assert(RANDOM_ == RANDOM, "Don't set SFINAE parameter!");
         SNMALLOC_ASSERT(!empty());
 
-        auto first = read_head(0, key);
+        auto first = read_head(0, key, key_tweak);
         // end[0] is pointing to the first field in the object,
         // this is doing a CONTAINING_RECORD like cast to get back
         // to the actual object.  This isn't true if the builder is
         // empty, but you are not allowed to call this in the empty case.
         auto last = Object::BHeadPtr<BView, BQueue>::unsafe_from(
           Object::from_next_ptr(cast_end(0)));
-        init(address_cast(head[0]), key);
+        init(address_cast(head[0]), key, key_tweak);
         return {first, last};
       }
 
@@ -860,7 +886,7 @@ namespace snmalloc
             }
 
             size_t count = 1;
-            auto curr = read_head(i, key);
+            auto curr = read_head(i, key, key_tweak);
             auto prev = get_fake_signed_prev(i, key, key_tweak);
             while (true)
             {
@@ -868,7 +894,7 @@ namespace snmalloc
               if (address_cast(&(curr->next_object)) == address_cast(end[i]))
                 break;
               count++;
-              auto next = curr->read_next(key, domesticate);
+              auto next = curr->read_next(key, key_tweak, domesticate);
               prev = signed_prev(
                 address_cast(curr), address_cast(next), key, key_tweak);
               curr = next;

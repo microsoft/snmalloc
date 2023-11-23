@@ -102,7 +102,7 @@ namespace snmalloc
 
           if (!list[i].empty())
           {
-            auto [first, last] = list[i].extract_segment(key);
+            auto [first, last] = list[i].extract_segment(key, NO_KEY_TWEAK);
             const auto& entry =
               Config::Backend::get_metaentry(address_cast(first));
             auto remote = entry.get_remote();
@@ -175,7 +175,7 @@ namespace snmalloc
       {
         // We do not need to initialise with a particular slab, so pass
         // a null address.
-        l.init(0, RemoteAllocator::key_global);
+        l.init(0, RemoteAllocator::key_global, NO_KEY_TWEAK);
       }
       capacity = REMOTE_CACHE;
     }

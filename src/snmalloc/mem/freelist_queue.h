@@ -60,7 +60,7 @@ namespace snmalloc
     void init()
     {
       freelist::HeadPtr stub_ptr = freelist::HeadPtr::unsafe_from(&stub);
-      freelist::Object::atomic_store_null(stub_ptr, Key);
+      freelist::Object::atomic_store_null(stub_ptr, Key, Key_tweak);
       front.store(freelist::QueuePtr::unsafe_from(&stub));
       back.store(nullptr, std::memory_order_relaxed);
       invariant();
@@ -110,7 +110,7 @@ namespace snmalloc
       Domesticator_head domesticate_head)
     {
       invariant();
-      freelist::Object::atomic_store_null(last, Key);
+      freelist::Object::atomic_store_null(last, Key, Key_tweak);
 
       // Exchange needs to be acq_rel.
       // *  It needs to be a release, so nullptr in next is visible.
