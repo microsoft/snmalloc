@@ -209,7 +209,7 @@ namespace snmalloc
         if (meta != nullptr)
         {
           meta->initialise_large(
-            address_cast(chunk), local_cache.entropy.get_free_list_key());
+            address_cast(chunk), freelist::Object::key_root);
           core_alloc->laden.insert(meta);
         }
 
