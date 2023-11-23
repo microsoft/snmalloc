@@ -66,7 +66,7 @@ namespace snmalloc
     template<size_t allocator_size, typename Config, typename DeallocFun>
     bool flush(typename Config::LocalState* local_state, DeallocFun dealloc)
     {
-      auto& key = entropy.get_free_list_key();
+      auto& key = freelist::Object::key_root;
       auto domesticate = [local_state](freelist::QueuePtr p)
                            SNMALLOC_FAST_PATH_LAMBDA {
                              return capptr_domesticate<Config>(local_state, p);
@@ -97,7 +97,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH capptr::Alloc<void>
     alloc(Domesticator domesticate, size_t size, Slowpath slowpath)
     {
-      auto& key = entropy.get_free_list_key();
+      auto& key = freelist::Object::key_root;
       smallsizeclass_t sizeclass = size_to_sizeclass(size);
       auto& fl = small_fast_free_lists[sizeclass];
       if (SNMALLOC_LIKELY(!fl.empty()))
