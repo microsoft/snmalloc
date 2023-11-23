@@ -443,7 +443,7 @@ namespace snmalloc
       static_assert(
         std::is_base_of<FrontendSlabMetadata_Trait, BackendType>::value,
         "Template should be a subclass of FrontendSlabMetadata");
-      free_queue.init(slab, key);
+      free_queue.init(slab, key, NO_KEY_TWEAK);
       // Set up meta data as if the entire slab has been turned into a free
       // list. This means we don't have to check for special cases where we have
       // returned all the elements, but this is a slab that is still being bump
@@ -462,7 +462,7 @@ namespace snmalloc
     void initialise_large(address_t slab, const FreeListKey& key)
     {
       // We will push to this just to make the fast path clean.
-      free_queue.init(slab, key);
+      free_queue.init(slab, key, NO_KEY_TWEAK);
 
       // Flag to detect that it is a large alloc on the slow path
       large_ = true;
@@ -582,7 +582,7 @@ namespace snmalloc
     // start of the slab.
     [[nodiscard]] address_t get_slab_interior(const FreeListKey& key) const
     {
-      return address_cast(free_queue.read_head(0, key));
+      return address_cast(free_queue.read_head(0, key, NO_KEY_TWEAK));
     }
   };
 
