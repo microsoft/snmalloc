@@ -78,7 +78,7 @@ namespace snmalloc
     // allocation on the fast path. This part of the code is inspired by
     // mimalloc.
     // Also contains remote deallocation cache.
-    LocalCache local_cache{&Config::unused_remote};
+    LocalCache<Config> local_cache{&Config::unused_remote};
 
     // Underlying allocator for most non-fast path operations.
     CoreAlloc* core_alloc{nullptr};
@@ -253,8 +253,7 @@ namespace snmalloc
           sizeclass);
       };
 
-      return local_cache.template alloc<zero_mem, Config>(
-        domesticate, size, slowpath);
+      return local_cache.template alloc<zero_mem>(domesticate, size, slowpath);
     }
 
     /**
@@ -924,7 +923,7 @@ namespace snmalloc
      * core allocator for use by this local allocator then it needs to access
      * this field.
      */
-    LocalCache& get_local_cache()
+    LocalCache<Config>& get_local_cache()
     {
       return local_cache;
     }

@@ -104,7 +104,7 @@ namespace snmalloc
      * This is the thread local structure associated to this
      * allocator.
      */
-    LocalCache* attached_cache;
+    LocalCache<Config>* attached_cache;
 
     /**
      * Ticker to query the clock regularly at a lower cost.
@@ -634,7 +634,7 @@ namespace snmalloc
       typename = std::enable_if_t<!Config_::Options.CoreAllocOwnsLocalState>>
     CoreAllocator(
       Range<capptr::bounds::Alloc>& spare,
-      LocalCache* cache,
+      LocalCache<Config_>* cache,
       LocalState* backend = nullptr)
     : backend_state(backend), attached_cache(cache)
     {
@@ -664,7 +664,7 @@ namespace snmalloc
       // stats().remote_post();  // TODO queue not in line!
       bool sent_something =
         attached_cache->remote_dealloc_cache
-          .post<sizeof(CoreAllocator), Config>(
+          .template post<sizeof(CoreAllocator)>(
             backend_state_ptr(), public_state()->trunc_id());
 
       return sent_something;
@@ -871,7 +871,7 @@ namespace snmalloc
           handle_message_queue([]() {});
       }
 
-      auto posted = attached_cache->flush<sizeof(CoreAllocator), Config>(
+      auto posted = attached_cache->template flush<sizeof(CoreAllocator)>(
         backend_state_ptr(),
         [&](capptr::Alloc<void> p) { dealloc_local_object(p); });
 
@@ -896,7 +896,7 @@ namespace snmalloc
 
     // This allows the caching layer to be attached to an underlying
     // allocator instance.
-    void attach(LocalCache* c)
+    void attach(LocalCache<Config>* c)
     {
 #ifdef SNMALLOC_TRACING
       message<1024>("Attach cache to {}", this);
@@ -990,7 +990,7 @@ namespace snmalloc
       {
         // We need a cache to perform some operations, so set one up
         // temporarily
-        LocalCache temp(public_state());
+        LocalCache<Config> temp(public_state());
         attach(&temp);
 #ifdef SNMALLOC_TRACING
         message<1024>("debug_is_empty - attach a cache");
