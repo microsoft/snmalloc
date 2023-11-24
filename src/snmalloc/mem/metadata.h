@@ -589,19 +589,19 @@ namespace snmalloc
    * Entry stored in the pagemap.  See docs/AddressSpace.md for the full
    * FrontendMetaEntry lifecycle.
    */
-  template<typename BackendSlabMetadata>
+  template<typename SlabMetadataType>
   class FrontendMetaEntry : public MetaEntryBase
   {
     /**
      * Ensure that the template parameter is valid.
      */
     static_assert(
-      std::is_convertible_v<BackendSlabMetadata, FrontendSlabMetadata_Trait>,
+      std::is_convertible_v<SlabMetadataType, FrontendSlabMetadata_Trait>,
       "The front end requires that the back end provides slab metadata that is "
       "compatible with the front-end's structure");
 
   public:
-    using SlabMetadata = BackendSlabMetadata;
+    using SlabMetadata = SlabMetadataType;
 
     constexpr FrontendMetaEntry() = default;
 
@@ -612,9 +612,8 @@ namespace snmalloc
      * `get_remote_and_sizeclass`.
      */
     SNMALLOC_FAST_PATH
-    FrontendMetaEntry(BackendSlabMetadata* meta, uintptr_t remote_and_sizeclass)
-    : MetaEntryBase(
-        unsafe_to_uintptr<BackendSlabMetadata>(meta), remote_and_sizeclass)
+    FrontendMetaEntry(SlabMetadata* meta, uintptr_t remote_and_sizeclass)
+    : MetaEntryBase(unsafe_to_uintptr<SlabMetadata>(meta), remote_and_sizeclass)
     {
       SNMALLOC_ASSERT_MSG(
         (REMOTE_BACKEND_MARKER & remote_and_sizeclass) == 0,
@@ -645,12 +644,10 @@ namespace snmalloc
      * guarded by an assert that this chunk is being used as a slab (i.e., has
      * an associated owning allocator).
      */
-    [[nodiscard]] SNMALLOC_FAST_PATH BackendSlabMetadata*
-    get_slab_metadata() const
+    [[nodiscard]] SNMALLOC_FAST_PATH SlabMetadata* get_slab_metadata() const
     {
       SNMALLOC_ASSERT(get_remote() != nullptr);
-      return unsafe_from_uintptr<BackendSlabMetadata>(
-        meta & ~META_BOUNDARY_BIT);
+      return unsafe_from_uintptr<SlabMetadata>(meta & ~META_BOUNDARY_BIT);
     }
   };
 
