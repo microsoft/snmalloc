@@ -559,22 +559,18 @@ namespace snmalloc
 
       if (SNMALLOC_LIKELY(entry.get_remote() == public_state()))
       {
+        auto key_tweak = entry.get_slab_metadata()->as_key_tweak();
         address_t tail = address_cast(msg);
 
         auto [curr, length] = RemoteMessage::open_free_ring(
-          msg,
-          RemoteAllocator::key_global /* XXX */,
-          NO_KEY_TWEAK /* XXX */,
-          domesticate);
+          msg, freelist::Object::key_root, key_tweak, domesticate);
 
         dealloc_local_object(msg.as_void(), entry);
 
         while (address_cast(curr) != tail)
         {
-          auto next = curr->read_next(
-            RemoteAllocator::key_global /* XXX */,
-            NO_KEY_TWEAK /* XXX */,
-            domesticate);
+          auto next =
+            curr->read_next(freelist::Object::key_root, key_tweak, domesticate);
           dealloc_local_object(curr.as_void(), entry);
           curr = next;
         }
