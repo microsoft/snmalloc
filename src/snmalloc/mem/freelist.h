@@ -118,6 +118,7 @@ namespace snmalloc
       {
         template<
           bool,
+          bool,
           SNMALLOC_CONCEPT(capptr::IsBound),
           SNMALLOC_CONCEPT(capptr::IsBound)>
         friend class Builder;
@@ -640,10 +641,13 @@ namespace snmalloc
      */
     template<
       bool RANDOM,
+      bool TRACK_LENGTH = RANDOM,
       SNMALLOC_CONCEPT(capptr::IsBound) BView = capptr::bounds::Alloc,
       SNMALLOC_CONCEPT(capptr::IsBound) BQueue = capptr::bounds::AllocWild>
     class Builder
     {
+      static_assert(!RANDOM || TRACK_LENGTH);
+
       static constexpr size_t LENGTH = RANDOM ? 2 : 1;
 
       /*
@@ -681,7 +685,8 @@ namespace snmalloc
           static_cast<Object::T<BQueue>*>(head[ix]));
       }
 
-      SNMALLOC_NO_UNIQUE_ADDRESS std::array<uint16_t, RANDOM ? 2 : 0> length{};
+      SNMALLOC_NO_UNIQUE_ADDRESS
+      std::array<uint16_t, RANDOM ? 2 : (TRACK_LENGTH ? 1 : 0)> length{};
 
     public:
       constexpr Builder() = default;
@@ -717,7 +722,7 @@ namespace snmalloc
           index = 0;
 
         set_end(index, Object::store_next(cast_end(index), n, key, key_tweak));
-        if constexpr (RANDOM)
+        if constexpr (TRACK_LENGTH)
         {
           length[index]++;
         }
@@ -739,6 +744,10 @@ namespace snmalloc
       {
         static_assert(RANDOM_ == RANDOM, "Don't set template parameter");
         set_end(0, Object::store_next(cast_end(0), n, key, key_tweak));
+        if constexpr (TRACK_LENGTH)
+        {
+          length[0]++;
+        }
       }
 
       /**
@@ -831,7 +840,7 @@ namespace snmalloc
         for (size_t i = 0; i < LENGTH; i++)
         {
           end[i] = &head[i];
-          if constexpr (RANDOM)
+          if constexpr (TRACK_LENGTH)
           {
             length[i] = 0;
           }
@@ -847,6 +856,13 @@ namespace snmalloc
             key,
             key_tweak);
         }
+      }
+
+      template<bool RANDOM_ = RANDOM>
+      std::enable_if_t<!RANDOM_, size_t> extract_segment_length()
+      {
+        static_assert(RANDOM_ == RANDOM, "Don't set SFINAE parameter!");
+        return length[0];
       }
 
       template<bool RANDOM_ = RANDOM>
@@ -881,7 +897,7 @@ namespace snmalloc
           {
             if (&head[i] == end[i])
             {
-              SNMALLOC_CHECK(!RANDOM || (length[i] == 0));
+              SNMALLOC_CHECK(!TRACK_LENGTH || (length[i] == 0));
               continue;
             }
 
@@ -899,7 +915,7 @@ namespace snmalloc
                 address_cast(curr), address_cast(next), key, key_tweak);
               curr = next;
             }
-            SNMALLOC_CHECK(!RANDOM || (count == length[i]));
+            SNMALLOC_CHECK(!TRACK_LENGTH || (count == length[i]));
           }
         }
         else
