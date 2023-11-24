@@ -15,6 +15,7 @@ namespace snmalloc
   /**
    * Stores the remote deallocation to batch them before sending
    */
+  template<typename Config>
   struct RemoteDeallocCache
   {
     std::array<freelist::Builder<false>, REMOTE_SLOTS> list;
@@ -78,7 +79,7 @@ namespace snmalloc
         r, RemoteAllocator::key_global, NO_KEY_TWEAK);
     }
 
-    template<size_t allocator_size, typename Config>
+    template<size_t allocator_size>
     bool post(
       typename Config::LocalState* local_state, RemoteAllocator::alloc_id_t id)
     {
