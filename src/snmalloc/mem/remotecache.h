@@ -86,7 +86,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void close_pending()
     {
       auto rmsg = RemoteMessage::mk_from_freelist_builder(
-        open_builder, RemoteAllocator::key_global /* XXX */, 0 /* XXX */);
+        open_builder, freelist::Object::key_root, open_meta->as_key_tweak());
       forward<allocator_size>(open_target, rmsg);
     }
 
@@ -95,7 +95,7 @@ namespace snmalloc
       RemoteAllocator::alloc_id_t id)
     {
       open_builder.init(
-        0, RemoteAllocator::key_global /* XXX */, NO_KEY_TWEAK /* XXX */);
+        0, freelist::Object::key_root, open_meta->as_key_tweak());
       open_meta = meta;
       open_target = id;
     }
@@ -119,8 +119,7 @@ namespace snmalloc
         init_pending(meta, target_id);
       }
 
-      open_builder.add(
-        r, RemoteAllocator::key_global /* XXX */, NO_KEY_TWEAK /* XXX */);
+      open_builder.add(r, freelist::Object::key_root, meta->as_key_tweak());
     }
 
     template<size_t allocator_size>
