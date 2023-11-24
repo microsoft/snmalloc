@@ -54,10 +54,10 @@ namespace snmalloc
      * This does not require initialisation to be safely called.
      */
     template<typename Entry>
-    SNMALLOC_FAST_PATH bool reserve_space(const Entry& entry)
+    SNMALLOC_FAST_PATH bool reserve_space(const Entry& entry, uint16_t n = 1)
     {
       auto size =
-        static_cast<int64_t>(sizeclass_full_to_size(entry.get_sizeclass()));
+        n * static_cast<int64_t>(sizeclass_full_to_size(entry.get_sizeclass()));
 
       bool result = capacity > size;
       if (result)
