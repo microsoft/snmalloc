@@ -379,39 +379,11 @@ namespace snmalloc
     }
 
     /**
-     * Slow path for deallocating an object locally.
-     * This is either waking up a slab that was not actively being used
-     * by this thread, or handling the final deallocation onto a slab,
-     * so it can be reused by other threads.
+     * Very slow path for deallocating an object locally.
      */
-    SNMALLOC_SLOW_PATH void
-    dealloc_local_object_slow(capptr::Alloc<void> p, const PagemapEntry& entry)
+    SNMALLOC_SLOW_PATH void dealloc_local_object_slower(
+      const PagemapEntry& entry, BackendSlabMetadata* meta)
     {
-      // TODO: Handle message queue on this path?
-
-      auto* meta = entry.get_slab_metadata();
-
-      if (meta->is_large())
-      {
-        // Handle large deallocation here.
-        size_t entry_sizeclass = entry.get_sizeclass().as_large();
-        size_t size = bits::one_at_bit(entry_sizeclass);
-
-#ifdef SNMALLOC_TRACING
-        message<1024>("Large deallocation: {}", size);
-#else
-        UNUSED(size);
-#endif
-
-        // Remove from set of fully used slabs.
-        meta->node.remove();
-
-        Config::Backend::dealloc_chunk(
-          get_backend_local_state(), *meta, p, size, entry.get_sizeclass());
-
-        return;
-      }
-
       smallsizeclass_t sizeclass = entry.get_sizeclass().as_small();
 
       if (meta->is_sleeping())
@@ -447,6 +419,47 @@ namespace snmalloc
         dealloc_local_slabs(sizeclass);
       }
       ticker.check_tick();
+    }
+
+    /**
+     * Slow path for deallocating an object locally.
+     * This is either waking up a slab that was not actively being used
+     * by this thread, or handling the final deallocation onto a slab,
+     * so it can be reused by other threads.
+     */
+    SNMALLOC_SLOW_PATH void
+    dealloc_local_object_slow(capptr::Alloc<void> p, const PagemapEntry& entry)
+    {
+      // TODO: Handle message queue on this path?
+
+      auto* meta = entry.get_slab_metadata();
+
+      if (meta->is_large())
+      {
+        // Handle large deallocation here.
+
+        // XXX: because large objects have unique metadata associated with them,
+        // the ring size here is one.  We should probably assert that.
+
+        size_t entry_sizeclass = entry.get_sizeclass().as_large();
+        size_t size = bits::one_at_bit(entry_sizeclass);
+
+#ifdef SNMALLOC_TRACING
+        message<1024>("Large deallocation: {}", size);
+#else
+        UNUSED(size);
+#endif
+
+        // Remove from set of fully used slabs.
+        meta->node.remove();
+
+        Config::Backend::dealloc_chunk(
+          get_backend_local_state(), *meta, p, size, entry.get_sizeclass());
+
+        return;
+      }
+
+      dealloc_local_object_slower(entry, meta);
     }
 
     /**
