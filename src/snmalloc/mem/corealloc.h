@@ -569,35 +569,43 @@ namespace snmalloc
 
       if (SNMALLOC_LIKELY(entry.get_remote() == public_state()))
       {
-        auto key_tweak = entry.get_slab_metadata()->as_key_tweak();
-        address_t tail = address_cast(msg);
+        auto meta = entry.get_slab_metadata();
 
-        auto [curr, length] = RemoteMessage::open_free_ring(
-          msg, freelist::Object::key_root, key_tweak, domesticate);
+        auto unreturned =
+          dealloc_local_objects_fast(msg, entry, meta, entropy, domesticate);
 
-        dealloc_local_object(msg.as_void(), entry);
-
-        while (address_cast(curr) != tail)
+        /*
+         * dealloc_local_objects_fast has updated the free list but not updated
+         * the slab metadata; it falls to us to do so.  It is UNLIKELY that we
+         * will need to take further steps, but we might.
+         */
+        if (SNMALLOC_UNLIKELY(unreturned.template step<true>()))
         {
-          auto next =
-            curr->read_next(freelist::Object::key_root, key_tweak, domesticate);
-          dealloc_local_object(curr.as_void(), entry);
-          curr = next;
+          dealloc_local_object_slow(msg.as_void(), entry, meta);
+
+          while (SNMALLOC_UNLIKELY(unreturned.template step<false>()))
+          {
+            dealloc_local_object_meta(entry, meta);
+          }
         }
+
+        return;
       }
-      else
+
+      auto nelem = RemoteMessage::ring_size(
+        msg,
+        freelist::Object::key_root,
+        entry.get_slab_metadata()->as_key_tweak(),
+        domesticate);
+      if (
+        !need_post &&
+        !attached_cache->remote_dealloc_cache.reserve_space(entry, nelem))
       {
-        // XXX message size
-        if (
-          !need_post &&
-          !attached_cache->remote_dealloc_cache.reserve_space(entry))
-        {
-          need_post = true;
-        }
-        attached_cache->remote_dealloc_cache
-          .template forward<sizeof(CoreAllocator)>(
-            entry.get_remote()->trunc_id(), msg);
+        need_post = true;
       }
+      attached_cache->remote_dealloc_cache
+        .template forward<sizeof(CoreAllocator)>(
+          entry.get_remote()->trunc_id(), msg);
     }
 
     /**
@@ -759,6 +767,36 @@ namespace snmalloc
         cp, freelist::Object::key_root, meta->as_key_tweak(), entropy);
 
       return SNMALLOC_LIKELY(!meta->return_object());
+    }
+
+    template<typename Domesticator>
+    SNMALLOC_FAST_PATH static auto dealloc_local_objects_fast(
+      capptr::Alloc<RemoteMessage> msg,
+      const PagemapEntry& entry,
+      BackendSlabMetadata* meta,
+      LocalEntropy& entropy,
+      Domesticator domesticate)
+    {
+      SNMALLOC_ASSERT(!meta->is_unused());
+
+      snmalloc_check_client(
+        mitigations(sanity_checks),
+        is_start_of_object(entry.get_sizeclass(), address_cast(msg)),
+        "Not deallocating start of an object");
+
+      auto [curr, length] = RemoteMessage::open_free_ring(
+        msg, freelist::Object::key_root, meta->as_key_tweak(), domesticate);
+
+      // Update the head and the next pointer in the free list.
+      meta->free_queue.append_segment(
+        curr,
+        msg.template as_reinterpret<freelist::Object::T<>>(),
+        length,
+        freelist::Object::key_root,
+        meta->as_key_tweak(),
+        entropy);
+
+      return meta->return_objects(length);
     }
 
     template<ZeroMem zero_mem>
