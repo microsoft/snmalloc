@@ -483,6 +483,54 @@ namespace snmalloc
       return (--needed()) == 0;
     }
 
+    class ReturnObjectsResult
+    {
+      friend FrontendSlabMetadata;
+
+      bool _needs;
+      uint16_t _batch;
+
+      static_assert(sizeof(_batch) * 8 > MAX_CAPACITY_BITS);
+
+      ReturnObjectsResult() : _needs(false), _batch(0) {}
+      ReturnObjectsResult(uint16_t n) : _needs(true), _batch(n) {}
+
+    public:
+      bool needs_work()
+      {
+        return _needs;
+      }
+      uint16_t batch_size()
+      {
+        return _batch;
+      }
+    };
+
+    /**
+     * A batch version of return_object.  Returns up to the next threshold of
+     * objects all at once, which may leave objects unreturned.
+     *
+     * This function returns zero if all objects were successfully returned and
+     * the slow path threshold was not hit.  Otherwise, this function returns
+     * the number of unclaimed objects plus 1 to ensure the return value is
+     * nonzero.
+     *
+     * Unlike return_object(), the caller's slow-path must loop to retry any
+     * unreturned objects.
+     */
+    ReturnObjectsResult return_objects(uint16_t n)
+    {
+      if (n >= needed())
+      {
+        n -= needed();
+        needed() = 0;
+        return ReturnObjectsResult(n);
+      }
+
+      needed() -= n;
+      return ReturnObjectsResult();
+    }
+
     bool is_unused()
     {
       return needed() == 0;
