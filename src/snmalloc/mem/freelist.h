@@ -920,6 +920,34 @@ namespace snmalloc
         return {first, last};
       }
 
+      /**
+       * Put back an extracted segment from a builder using the same key.
+       *
+       * The caller must tell us how many elements are involved.
+       */
+      void append_segment(
+        Object::BHeadPtr<BView, BQueue> first,
+        Object::BHeadPtr<BView, BQueue> last,
+        uint16_t size,
+        const FreeListKey& key,
+        address_t key_tweak,
+        LocalEntropy& entropy)
+      {
+        uint32_t index;
+        if constexpr (RANDOM)
+          index = entropy.next_bit();
+        else
+          index = 0;
+
+        if constexpr (TRACK_LENGTH)
+          length[index] += size;
+        else
+          UNUSED(size);
+
+        Object::store_next(cast_end(index), first, key, key_tweak);
+        set_end(index, &(last->next_object));
+      }
+
       template<typename Domesticator>
       SNMALLOC_FAST_PATH void validate(
         const FreeListKey& key, address_t key_tweak, Domesticator domesticate)
