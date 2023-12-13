@@ -130,6 +130,37 @@ namespace snmalloc
 
       return {next.template as_static<freelist::Object::T<>>(), decoded_size};
     }
+
+    template<typename Domesticator_queue>
+    static uint16_t ring_size(
+      capptr::Alloc<RemoteMessage> m,
+      const FreeListKey& key,
+      address_t key_tweak,
+      Domesticator_queue domesticate)
+    {
+      uintptr_t encoded =
+        m->free_ring.read_next(key, key_tweak, domesticate).unsafe_uintptr();
+
+      uint16_t decoded_size =
+        static_cast<uint16_t>(encoded) & bits::mask_bits(MAX_CAPACITY_BITS);
+      static_assert(sizeof(decoded_size) * 8 > MAX_CAPACITY_BITS);
+
+      if constexpr (mitigations(freelist_backward_edge))
+      {
+        auto next = domesticate(decode_next(encoded, m));
+
+        next->check_prev(
+          signed_prev(address_cast(m), address_cast(next), key, key_tweak));
+      }
+      else
+      {
+        UNUSED(key);
+        UNUSED(key_tweak);
+        UNUSED(domesticate);
+      }
+
+      return decoded_size;
+    }
   };
 
   class RemoteMessageAssertions
