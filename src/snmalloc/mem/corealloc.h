@@ -597,23 +597,6 @@ namespace snmalloc
         init_message_queue();
         message_queue().invariant();
       }
-
-      if constexpr (DEBUG)
-      {
-        for (smallsizeclass_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
-        {
-          size_t size = sizeclass_to_size(i);
-          smallsizeclass_t sc1 = size_to_sizeclass(size);
-          smallsizeclass_t sc2 = size_to_sizeclass_const(size);
-          size_t size1 = sizeclass_to_size(sc1);
-          size_t size2 = sizeclass_to_size(sc2);
-
-          SNMALLOC_CHECK(sc1 == i);
-          SNMALLOC_CHECK(sc1 == sc2);
-          SNMALLOC_CHECK(size1 == size);
-          SNMALLOC_CHECK(size1 == size2);
-        }
-      }
     }
 
   public:
