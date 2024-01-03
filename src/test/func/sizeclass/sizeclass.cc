@@ -109,6 +109,13 @@ int main(int, char**)
                   << (size_t)sz << std::endl;
         failed = true;
       }
+      if (snmalloc::size_to_sizeclass_const(i) != sz)
+      {
+        std::cout << "Size " << i << " has _const sizeclass "
+                  << (size_t)snmalloc::size_to_sizeclass_const(i)
+                  << " but expected sizeclass " << (size_t)sz << std::endl;
+        failed = true;
+      }
     }
 
     size_low = size;
