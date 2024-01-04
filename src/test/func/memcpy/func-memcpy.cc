@@ -57,6 +57,9 @@ extern "C" void abort()
   {
     longjmp(jmp, 1);
   }
+#  if __has_builtin(__builtin_trap)
+  __builtin_trap();
+#  endif
   exit(-1);
 }
 
