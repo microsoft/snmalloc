@@ -39,7 +39,7 @@ jobs:
           - os: "morello"
             caps: Hybrid
             dependencies: >-
-              llvm-localbase cmake ninja
+              llvm llvm-localbase cmake ninja
             cmake-flags: >
               -DCMAKE_CXX_COMPILER=/usr/local64/bin/clang++
               -DCMAKE_C_COMPILER=/usr/local64/bin/clang
@@ -48,7 +48,7 @@ jobs:
           - os: "morello"
             caps: Purecap
             dependencies: >-
-              llvm-localbase cmake ninja
+              llvm llvm-localbase cmake ninja
             cmake-flags: >
               -DCMAKE_CXX_COMPILER=/usr/local64/bin/clang++
               -DCMAKE_C_COMPILER=/usr/local64/bin/clang
