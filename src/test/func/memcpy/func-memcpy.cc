@@ -57,6 +57,9 @@ extern "C" void abort()
   {
     longjmp(jmp, 1);
   }
+#  if __has_builtin(__builtin_trap)
+  __builtin_trap();
+#  endif
   exit(-1);
 }
 
@@ -152,7 +155,11 @@ int main()
   // Some sizes to check for out-of-bounds access.  As we are only able to
   // catch overflows past the end of the sizeclass-padded allocation, make
   // sure we don't try to test on smaller allocations.
-  std::initializer_list<size_t> sizes = {MIN_ALLOC_SIZE, 1024, 2 * 1024 * 1024};
+
+  static constexpr size_t min_class_size =
+    sizeclass_to_size(size_to_sizeclass(MIN_ALLOC_SIZE));
+
+  std::initializer_list<size_t> sizes = {min_class_size, 1024, 2 * 1024 * 1024};
   static_assert(
     MIN_ALLOC_SIZE < 1024,
     "Can't detect overflow except at sizeclass boundaries");
