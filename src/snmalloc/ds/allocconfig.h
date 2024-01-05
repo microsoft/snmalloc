@@ -21,7 +21,12 @@ namespace snmalloc
   static constexpr size_t CACHELINE_SIZE = 64;
 
   /// The "machine epsilon" for the small sizeclass machinery.
-  static constexpr size_t MIN_ALLOC_STEP_SIZE = 2 * sizeof(void*);
+  static constexpr size_t MIN_ALLOC_STEP_SIZE =
+#if defined(SNMALLOC_MIN_ALLOC_STEP_SIZE)
+    SNMALLOC_MIN_ALLOC_STEP_SIZE;
+#else
+    2 * sizeof(void*);
+#endif
 
   /// Derived from MIN_ALLOC_STEP_SIZE
   static constexpr size_t MIN_ALLOC_STEP_BITS =
@@ -34,7 +39,12 @@ namespace snmalloc
    * smaller than MIN_ALLOC_SIZE), which may be useful if MIN_ALLOC_SIZE must
    * be large or not a power of two, those smaller size classes will be unused.
    */
-  static constexpr size_t MIN_ALLOC_SIZE = 2 * sizeof(void*);
+  static constexpr size_t MIN_ALLOC_SIZE =
+#if defined(SNMALLOC_MIN_ALLOC_SIZE)
+    SNMALLOC_MIN_ALLOC_SIZE;
+#else
+    2 * sizeof(void*);
+#endif
 
   // Minimum slab size.
 #if defined(SNMALLOC_QEMU_WORKAROUND) && defined(SNMALLOC_VA_BITS_64)
