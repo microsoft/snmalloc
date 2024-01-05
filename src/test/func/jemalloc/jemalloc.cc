@@ -23,6 +23,17 @@
  * exported from libc.
  */
 #  define TEST_JEMALLOC_MALLOCX
+
+#  if !defined(__CHERI_PURE_CAPABILITY__)
+/**
+ * CheriBSD 2023.11 removes the exports of jemalloc's {,r,s,d,n}allocm
+ * functions, so be slightly more judicious about where we test those.  There's
+ * relatively little utility in testing those on older CheriBSD releases, so
+ * just notch out all of CheriBSD.
+ */
+#    define TEST_JEMALLOC_ALLOCM
+#  endif
+
 #endif
 
 #define OUR_MALLOCX_LG_ALIGN(la) (static_cast<int>(la))
@@ -365,6 +376,8 @@ int main()
   test_size<mallocx, dallocx, sallocx, nallocx>();
   test_zeroing<mallocx, dallocx, rallocx>();
   test_xallocx<mallocx, dallocx, xallocx>();
+#endif
+#ifdef TEST_JEMALLOC_ALLOCM
   test_legacy_experimental_apis<allocm, rallocm, sallocm, dallocm, nallocm>();
 #endif
 }
