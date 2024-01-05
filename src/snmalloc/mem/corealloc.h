@@ -112,6 +112,11 @@ namespace snmalloc
     Ticker<typename Config::Pal> ticker;
 
     /**
+     * Tracks this allocators memory usage
+     */
+    AllocStats stats;
+
+    /**
      * The message queue needs to be accessible from other threads
      *
      * In the cross trust domain version this is the minimum amount
@@ -364,6 +369,8 @@ namespace snmalloc
         // don't touch the cache lines at this point in snmalloc_check_client.
         auto start = clear_slab(meta, sizeclass);
 
+        stats[sizeclass].slabs_deallocated++;
+
         Config::Backend::dealloc_chunk(
           get_backend_local_state(),
           *meta,
@@ -399,6 +406,8 @@ namespace snmalloc
 
         // Remove from set of fully used slabs.
         meta->node.remove();
+
+        stats[entry.get_sizeclass()].slabs_deallocated++;
 
         Config::Backend::dealloc_chunk(
           get_backend_local_state(), *meta, p, size);
@@ -484,14 +493,18 @@ namespace snmalloc
                            SNMALLOC_FAST_PATH_LAMBDA {
                              return capptr_domesticate<Config>(local_state, p);
                            };
-      auto cb = [this,
-                 &need_post](freelist::HeadPtr msg) SNMALLOC_FAST_PATH_LAMBDA {
+
+      size_t received_bytes = 0;
+
+      auto cb = [this, &need_post, &received_bytes](
+                  freelist::HeadPtr msg) SNMALLOC_FAST_PATH_LAMBDA {
 #ifdef SNMALLOC_TRACING
         message<1024>("Handling remote");
 #endif
 
         auto& entry =
           Config::Backend::template get_metaentry(snmalloc::address_cast(msg));
+        received_bytes += sizeclass_full_to_size(entry.get_sizeclass());
 
         handle_dealloc_remote(entry, msg.as_void(), need_post);
 
@@ -519,6 +532,9 @@ namespace snmalloc
       {
         post();
       }
+
+      // Push size to global statistics
+      RemoteDeallocCache::remote_inflight -= received_bytes;
 
       return action(args...);
     }
@@ -548,10 +564,7 @@ namespace snmalloc
       }
       else
       {
-        if (
-          !need_post &&
-          !attached_cache->remote_dealloc_cache.reserve_space(entry))
-          need_post = true;
+        need_post |= attached_cache->remote_dealloc_cache.reserve_space(entry);
         attached_cache->remote_dealloc_cache
           .template dealloc<sizeof(CoreAllocator)>(
             entry.get_remote()->trunc_id(), p.as_void());
@@ -700,13 +713,14 @@ namespace snmalloc
       // pointers
       auto& entry =
         Config::Backend::template get_metaentry(snmalloc::address_cast(p));
-      if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p, entropy)))
+      if (SNMALLOC_LIKELY(dealloc_local_object_fast<false>(entry, p, entropy)))
         return;
 
       dealloc_local_object_slow(p, entry);
     }
 
-    SNMALLOC_FAST_PATH static bool dealloc_local_object_fast(
+    template<bool Statistics = true>
+    SNMALLOC_FAST_PATH bool dealloc_local_object_fast(
       const PagemapEntry& entry,
       CapPtr<void, capptr::bounds::Alloc> p,
       LocalEntropy& entropy)
@@ -727,6 +741,10 @@ namespace snmalloc
       // Update the head and the next pointer in the free list.
       meta->free_queue.add(cp, key, entropy);
 
+      if constexpr (Statistics)
+      {
+        stats[entry.get_sizeclass()].objects_deallocated++;
+      }
       return SNMALLOC_LIKELY(!meta->return_object());
     }
 
@@ -773,6 +791,7 @@ namespace snmalloc
         }
 
         auto r = finish_alloc<zero_mem, Config>(p, sizeclass);
+        stats[sizeclass].objects_allocated++;
         return ticker.check_tick(r);
       }
       return small_alloc_slow<zero_mem>(sizeclass, fast_free_list);
@@ -845,6 +864,9 @@ namespace snmalloc
       }
 
       auto r = finish_alloc<zero_mem, Config>(p, sizeclass);
+
+      stats[sizeclass].objects_allocated++;
+      stats[sizeclass].slabs_allocated++;
       return ticker.check_tick(r);
     }
 
@@ -866,7 +888,7 @@ namespace snmalloc
       {
         auto p_wild = message_queue().destroy();
         auto p_tame = domesticate(p_wild);
-
+        size_t received_bytes = 0;
         while (p_tame != nullptr)
         {
           bool need_post = true; // Always going to post, so ignore.
@@ -874,9 +896,11 @@ namespace snmalloc
             p_tame->atomic_read_next(RemoteAllocator::key_global, domesticate);
           const PagemapEntry& entry =
             Config::Backend::get_metaentry(snmalloc::address_cast(p_tame));
+          received_bytes += sizeclass_full_to_size(entry.get_sizeclass());
           handle_dealloc_remote(entry, p_tame.as_void(), need_post);
           p_tame = n_tame;
         }
+        RemoteDeallocCache::remote_inflight -= received_bytes;
       }
       else
       {
@@ -1017,6 +1041,11 @@ namespace snmalloc
       }
 
       return debug_is_empty_impl(result);
+    }
+
+    const AllocStats& get_stats()
+    {
+      return stats;
     }
   };
 

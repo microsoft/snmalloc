@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds/ds.h"
+#include "allocstats.h"
 #include "freelist.h"
 #include "remotecache.h"
 #include "sizeclasstable.h"
@@ -94,8 +95,11 @@ namespace snmalloc
       typename Config,
       typename Slowpath,
       typename Domesticator>
-    SNMALLOC_FAST_PATH capptr::Alloc<void>
-    alloc(Domesticator domesticate, size_t size, Slowpath slowpath)
+    SNMALLOC_FAST_PATH capptr::Alloc<void> alloc(
+      Domesticator domesticate,
+      AllocStats& stats,
+      size_t size,
+      Slowpath slowpath)
     {
       auto& key = entropy.get_free_list_key();
       smallsizeclass_t sizeclass = size_to_sizeclass(size);
@@ -103,6 +107,7 @@ namespace snmalloc
       if (SNMALLOC_LIKELY(!fl.empty()))
       {
         auto p = fl.take(key, domesticate);
+        stats[sizeclass].objects_allocated++;
         return finish_alloc<zero_mem, Config>(p, sizeclass);
       }
       return slowpath(sizeclass, &fl);
