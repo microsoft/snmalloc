@@ -139,11 +139,11 @@ extern "C"
     }
     if (f.should_zero())
     {
-      *ptr = ThreadAlloc::get().alloc<ZeroMem::YesZero>(size);
+      *ptr = get_alloc().alloc<ZeroMem::YesZero>(size);
     }
     else
     {
-      *ptr = ThreadAlloc::get().alloc(size);
+      *ptr = get_alloc().alloc(size);
     }
     return (*ptr != nullptr) ? allocm_success : allocm_err_oom;
   }
@@ -162,7 +162,7 @@ extern "C"
     auto f = JEMallocFlags(flags);
     auto alloc_size = f.aligned_size(size);
 
-    auto& a = ThreadAlloc::get();
+    auto& a = get_alloc();
     size_t sz = a.alloc_size(*ptr);
     // Keep the current allocation if the given size is in the same sizeclass.
     if (sz == round_size(alloc_size))
@@ -213,7 +213,7 @@ extern "C"
    */
   int SNMALLOC_NAME_MANGLE(sallocm)(const void* ptr, size_t* rsize, int)
   {
-    *rsize = ThreadAlloc::get().alloc_size(ptr);
+    *rsize = get_alloc().alloc_size(ptr);
     return allocm_success;
   }
 
@@ -224,7 +224,7 @@ extern "C"
    */
   int SNMALLOC_NAME_MANGLE(dallocm)(void* ptr, int)
   {
-    ThreadAlloc::get().dealloc(ptr);
+    get_alloc().dealloc(ptr);
     return allocm_success;
   }
 
@@ -253,9 +253,9 @@ extern "C"
     size = f.aligned_size(size);
     if (f.should_zero())
     {
-      return ThreadAlloc::get().alloc<ZeroMem::YesZero>(size);
+      return get_alloc().alloc<ZeroMem::YesZero>(size);
     }
-    return ThreadAlloc::get().alloc(size);
+    return get_alloc().alloc(size);
   }
 
   /**
@@ -270,7 +270,7 @@ extern "C"
     auto f = JEMallocFlags(flags);
     size = f.aligned_size(size);
 
-    auto& a = ThreadAlloc::get();
+    auto& a = get_alloc();
     size_t sz = round_size(a.alloc_size(ptr));
     // Keep the current allocation if the given size is in the same sizeclass.
     if (sz == size)
@@ -309,7 +309,7 @@ extern "C"
    */
   size_t SNMALLOC_NAME_MANGLE(xallocx)(void* ptr, size_t, size_t, int)
   {
-    auto& a = ThreadAlloc::get();
+    auto& a = get_alloc();
     return a.alloc_size(ptr);
   }
 
@@ -319,7 +319,7 @@ extern "C"
    */
   size_t SNMALLOC_NAME_MANGLE(sallocx)(const void* ptr, int)
   {
-    auto& a = ThreadAlloc::get();
+    auto& a = get_alloc();
     return a.alloc_size(ptr);
   }
 
@@ -330,7 +330,7 @@ extern "C"
    */
   void SNMALLOC_NAME_MANGLE(dallocx)(void* ptr, int)
   {
-    ThreadAlloc::get().dealloc(ptr);
+    get_alloc().dealloc(ptr);
   }
 
   /**
@@ -343,7 +343,7 @@ extern "C"
    */
   void SNMALLOC_NAME_MANGLE(sdallocx)(void* ptr, size_t, int)
   {
-    ThreadAlloc::get().dealloc(ptr);
+    get_alloc().dealloc(ptr);
   }
 
   /**

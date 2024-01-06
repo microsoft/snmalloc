@@ -42,6 +42,13 @@ namespace snmalloc
   };
 
   /**
+   * @brief Class that is used to index types to get partitions. This 
+   * type represents the default partition, other partitions can be created
+   * by using a different type.
+   */
+  struct MainPartition {};
+
+  /**
    * A local allocator contains the fast-path allocation routines and
    * encapsulates all of the behaviour of an allocator that is local to some
    * context, typically a thread.  This delegates to a `CoreAllocator` for all
@@ -58,7 +65,7 @@ namespace snmalloc
    * core allocator must be provided externally by invoking the `init` method
    * on this class *before* any allocation-related methods are called.
    */
-  template<SNMALLOC_CONCEPT(IsConfig) Config_>
+  template<SNMALLOC_CONCEPT(IsConfig) Config_, typename Partition = MainPartition>
   class LocalAllocator
   {
   public:
@@ -140,6 +147,7 @@ namespace snmalloc
           init();
         }
 
+#ifndef SNMALLOC_EXTERNAL_THREAD_ALLOC
         // register_clean_up must be called after init.  register clean up may
         // be implemented with allocation, so need to ensure we have a valid
         // allocator at this point.
@@ -147,7 +155,8 @@ namespace snmalloc
           // Must be called at least once per thread.
           // A pthread implementation only calls the thread destruction handle
           // if the key has been set.
-          Config::register_clean_up();
+          ThreadLocal<LocalAllocator>::register_cleanup();
+#endif
 
         // Perform underlying operation
         auto r = action(core_alloc, args...);

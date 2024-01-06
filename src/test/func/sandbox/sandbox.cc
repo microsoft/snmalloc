@@ -243,7 +243,7 @@ namespace
       // Use the outside-sandbox snmalloc to allocate memory, rather than using
       // the PAL directly, so that our out-of-sandbox can amplify sandbox
       // pointers
-      return ThreadAlloc::get().alloc(sb_size);
+      return get_alloc().alloc(sb_size);
     }
   };
 }
@@ -259,7 +259,7 @@ int main()
   auto check = [](Sandbox& sb, auto& alloc, size_t sz) {
     void* ptr = alloc.alloc(sz);
     SNMALLOC_CHECK(sb.is_in_sandbox_heap(ptr, sz));
-    ThreadAlloc::get().dealloc(ptr);
+    get_alloc().dealloc(ptr);
   };
   auto check_with_sb = [&](Sandbox& sb) {
     // Check with a range of sizes

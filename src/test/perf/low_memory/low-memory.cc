@@ -19,7 +19,7 @@ class Queue
 
   Node* new_node(size_t size)
   {
-    auto result = (Node*)ThreadAlloc::get().alloc(size);
+    auto result = (Node*)get_alloc().alloc(size);
     result->next = nullptr;
     return result;
   }
@@ -43,7 +43,7 @@ public:
       return false;
 
     Node* next = head->next;
-    ThreadAlloc::get().dealloc(head);
+    get_alloc().dealloc(head);
     head = next;
     return true;
   }

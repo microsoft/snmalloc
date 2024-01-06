@@ -12,7 +12,7 @@ template<size_t size>
 void debug_check_empty_1()
 {
   std::cout << "debug_check_empty_1 " << size << std::endl;
-  snmalloc::Alloc& a = snmalloc::ThreadAlloc::get();
+  snmalloc::Alloc& a = snmalloc::get_alloc();
   bool result;
 
   auto r = a.alloc(size);
@@ -58,7 +58,7 @@ template<size_t size>
 void debug_check_empty_2()
 {
   std::cout << "debug_check_empty_2 " << size << std::endl;
-  snmalloc::Alloc& a = snmalloc::ThreadAlloc::get();
+  snmalloc::Alloc& a = snmalloc::get_alloc();
   bool result;
   std::vector<void*> allocs;
   // 1GB of allocations

@@ -11,3 +11,4 @@
 #include "mpmcstack.h"
 #include "pagemap.h"
 #include "singleton.h"
+#include "threadlocal.h"

@@ -52,7 +52,7 @@ namespace test
 
   void test_external_pointer(xoroshiro::p128r64& r)
   {
-    auto& alloc = ThreadAlloc::get();
+    auto& alloc = get_alloc();
     // This is very slow on Windows at the moment.  Until this is fixed, help
     // CI terminate.
 #if defined(NDEBUG) && !defined(_MSC_VER)

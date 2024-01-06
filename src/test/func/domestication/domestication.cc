@@ -74,11 +74,6 @@ namespace snmalloc
       return alloc_pool;
     }
 
-    static void register_clean_up()
-    {
-      snmalloc::register_clean_up();
-    }
-
     static inline bool domesticate_trace;
     static inline size_t domesticate_count;
     static inline uintptr_t* domesticate_patch_location;

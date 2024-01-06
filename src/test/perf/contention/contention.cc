@@ -75,7 +75,7 @@ size_t swapcount;
 
 void test_tasks_f(size_t id)
 {
-  auto& a = ThreadAlloc::get();
+  auto& a = get_alloc();
   xoroshiro::p128r32 r(id + 5000);
 
   for (size_t n = 0; n < swapcount; n++)
@@ -111,7 +111,7 @@ void test_tasks(size_t num_tasks, size_t count, size_t size)
 {
   std::cout << "Sequential setup" << std::endl;
 
-  auto& a = ThreadAlloc::get();
+  auto& a = get_alloc();
 
   contention = new std::atomic<size_t*>[size];
   xoroshiro::p128r32 r;

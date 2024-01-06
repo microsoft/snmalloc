@@ -29,7 +29,7 @@ void shape(size_t size)
     // the memcpys. constexpr size_t alignment = 16; offset = (my_random() %
     // size / alignment) * alignment;
     Shape s;
-    s.object = ThreadAlloc::get().alloc(rsize);
+    s.object = get_alloc().alloc(rsize);
     s.dst = static_cast<unsigned char*>(s.object) + offset;
     // Bring into cache the destination of the copy.
     memset(s.dst, 0xFF, size);
@@ -41,7 +41,7 @@ void unshape()
 {
   for (auto& s : allocs)
   {
-    ThreadAlloc::get().dealloc(s.object);
+    get_alloc().dealloc(s.object);
   }
   allocs.clear();
 }
@@ -62,7 +62,7 @@ void test(
   Memcpy mc,
   std::vector<std::pair<size_t, std::chrono::nanoseconds>>& stats)
 {
-  auto src = ThreadAlloc::get().alloc(size);
+  auto src = get_alloc().alloc(size);
   shape(size);
   for (size_t i = 0; i < 10; i++)
   {
@@ -71,7 +71,7 @@ void test(
     auto time = m.get_time();
     stats.push_back({size, time});
   }
-  ThreadAlloc::get().dealloc(src);
+  get_alloc().dealloc(src);
   unshape();
 }
 

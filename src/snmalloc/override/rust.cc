@@ -12,19 +12,19 @@ using namespace snmalloc;
 extern "C" SNMALLOC_EXPORT void*
 SNMALLOC_NAME_MANGLE(rust_alloc)(size_t alignment, size_t size)
 {
-  return ThreadAlloc::get().alloc(aligned_size(alignment, size));
+  return get_alloc().alloc(aligned_size(alignment, size));
 }
 
 extern "C" SNMALLOC_EXPORT void*
 SNMALLOC_NAME_MANGLE(rust_alloc_zeroed)(size_t alignment, size_t size)
 {
-  return ThreadAlloc::get().alloc<YesZero>(aligned_size(alignment, size));
+  return get_alloc().alloc<YesZero>(aligned_size(alignment, size));
 }
 
 extern "C" SNMALLOC_EXPORT void
 SNMALLOC_NAME_MANGLE(rust_dealloc)(void* ptr, size_t alignment, size_t size)
 {
-  ThreadAlloc::get().dealloc(ptr, aligned_size(alignment, size));
+  get_alloc().dealloc(ptr, aligned_size(alignment, size));
 }
 
 extern "C" SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(rust_realloc)(
@@ -36,11 +36,11 @@ extern "C" SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(rust_realloc)(
     size_to_sizeclass_full(aligned_old_size).raw() ==
     size_to_sizeclass_full(aligned_new_size).raw())
     return ptr;
-  void* p = ThreadAlloc::get().alloc(aligned_new_size);
+  void* p = get_alloc().alloc(aligned_new_size);
   if (p)
   {
     std::memcpy(p, ptr, old_size < new_size ? old_size : new_size);
-    ThreadAlloc::get().dealloc(ptr, aligned_old_size);
+    get_alloc().dealloc(ptr, aligned_old_size);
   }
   return p;
 }
