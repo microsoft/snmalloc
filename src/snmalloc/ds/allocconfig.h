@@ -117,7 +117,7 @@ namespace snmalloc
 #ifdef USE_REMOTE_CACHE
     USE_REMOTE_CACHE
 #else
-    1 << MIN_CHUNK_BITS
+    MIN_CHUNK_SIZE
 #endif
     ;
 
