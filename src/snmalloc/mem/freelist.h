@@ -289,7 +289,7 @@ namespace snmalloc
        *  though the result is likely not safe to dereference, being an
        *  obfuscated bundle of bits (on non-CHERI architectures, anyway). That's
        *  additional motivation to consider the result BQueue-bounded, as that
-       * is likely (but not necessarily) Wild.
+       *  is likely (but not necessarily) Wild.
        */
       template<
         SNMALLOC_CONCEPT(capptr::IsBound) BView,
