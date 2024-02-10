@@ -108,10 +108,20 @@ fn main() {
     }
 
     if cfg!(feature = "cache-friendly") {
-        eprintln!("cache-friendly feature flag is deprecated and no longer has any effect. \
-            it may be removed in a future release");
+        eprintln!(
+            "cache-friendly feature flag is deprecated and no longer has any effect. \
+            it may be removed in a future release"
+        );
         // The following code no longer works
         // build.define("CACHE_FRIENDLY_OFFSET", "64");
+    }
+
+    if cfg!(feature = "lto") {
+        build.define("SNMALLOC_IPO", "ON");
+    }
+
+    if cfg!(feature = "notls") {
+        build.define("SNMALLOC_ENABLE_DYNAMIC_LOADING", "ON");
     }
 
     build.compile(target);
@@ -140,14 +150,16 @@ fn main() {
         // no need
     } else {
         // link c++ runtime
-        println!("cargo:rustc-link-lib={}",
-                 std::env::var("CXXSTDLIB").unwrap_or_else(|_| {
-                     if cfg!(target_os = "macos") || cfg!(target_os = "openbsd") {
-                         "c++".to_string()
-                     } else {
-                         "stdc++".to_string()
-                     }
-                 }))
+        println!(
+            "cargo:rustc-link-lib={}",
+            std::env::var("CXXSTDLIB").unwrap_or_else(|_| {
+                if cfg!(target_os = "macos") || cfg!(target_os = "openbsd") {
+                    "c++".to_string()
+                } else {
+                    "stdc++".to_string()
+                }
+            })
+        )
     }
 }
 
@@ -305,13 +317,15 @@ fn main() {
         // not need for explicit c++ runtime
     } else {
         // link c++ runtime
-        println!("cargo:rustc-link-lib={}",
-                 std::env::var("CXXSTDLIB").unwrap_or_else(|_| {
-                     if cfg!(target_os = "macos") || cfg!(target_os = "openbsd") {
-                         "c++".to_string()
-                     } else {
-                         "stdc++".to_string()
-                     }
-                 }))
+        println!(
+            "cargo:rustc-link-lib={}",
+            std::env::var("CXXSTDLIB").unwrap_or_else(|_| {
+                if cfg!(target_os = "macos") || cfg!(target_os = "openbsd") {
+                    "c++".to_string()
+                } else {
+                    "stdc++".to_string()
+                }
+            })
+        )
     }
 }

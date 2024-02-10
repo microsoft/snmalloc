@@ -44,7 +44,6 @@ unsafe impl GlobalAlloc for SnMalloc {
         ffi::sn_rust_alloc(layout.align(), layout.size()) as _
     }
 
-
     /// De-allocate the memory at the given address with the given alignment and size.
     /// The client must assure the following things:
     /// - the memory is acquired using the same allocator and the pointer points to the start position.
@@ -110,6 +109,17 @@ mod tests {
 
             let ptr = alloc.alloc(layout);
             let ptr = alloc.realloc(ptr, layout, 16);
+            alloc.dealloc(ptr, layout);
+        }
+    }
+
+    #[test]
+    fn it_frees_large_alloc() {
+        unsafe {
+            let layout = Layout::from_size_align(1 << 20, 32).unwrap();
+            let alloc = SnMalloc;
+
+            let ptr = alloc.alloc(layout);
             alloc.dealloc(ptr, layout);
         }
     }
