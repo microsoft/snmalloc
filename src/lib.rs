@@ -75,6 +75,17 @@ unsafe impl GlobalAlloc for SnMalloc {
     }
 }
 
+impl SnMalloc {
+    /// Returns the available bytes in a memory block.
+    ///
+    /// Note that the value could be higher than the allocation size and
+    /// depends very much on the underlying operating system.
+    #[inline(always)]
+    pub fn usable_size(&self, ptr: *const u8) -> usize {
+        unsafe { ffi::sn_malloc_usable_size(ptr as *const _) }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -121,6 +132,19 @@ mod tests {
 
             let ptr = alloc.alloc(layout);
             alloc.dealloc(ptr, layout);
+        }
+    }
+
+    #[test]
+    fn it_usable_size() {
+        unsafe {
+            let layout = Layout::from_size_align(8, 8).unwrap();
+            let alloc = SnMalloc;
+
+            let ptr = alloc.alloc(layout);
+            let usz = alloc.usable_size(ptr);
+            alloc.dealloc(ptr, layout);
+            assert!(usz >= 8);
         }
     }
 }
