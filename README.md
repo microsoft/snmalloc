@@ -36,6 +36,8 @@ are listed at
 - `check`: Enable extra checks to improve security, see upstream [security docs](https://github.com/microsoft/snmalloc/tree/main/docs/security).
   Note that the `memcpy` protection is not enabled in Rust.
 - `win8compat`: Improve compatibility for old Windows platforms (removing usages of `VirtualAlloc2` and other new APIs)
+- `lto`: Links with InterProceduralOptimization/LinkTimeOptimization
+- `notls`: Enables to be loaded dynamically, thus disable tls.
 
 **To get the crates compiled, you need to choose either `1mib` or `16mib` to determine the chunk configuration**
 
