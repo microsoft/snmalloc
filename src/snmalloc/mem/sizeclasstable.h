@@ -165,6 +165,8 @@ namespace snmalloc
     uint16_t waking;
   };
 
+  static_assert(sizeof(sizeclass_data_slow::capacity) * 8 > MAX_CAPACITY_BITS);
+
   struct SizeClassTable
   {
     ModArray<SIZECLASS_REP_SIZE, sizeclass_data_fast> fast_{};
@@ -268,6 +270,9 @@ namespace snmalloc
   };
 
   constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
+
+  static_assert(
+    bits::BITS - sizeclass_metadata.DIV_MULT_SHIFT <= MAX_CAPACITY_BITS);
 
   constexpr size_t DIV_MULT_SHIFT = sizeclass_metadata.DIV_MULT_SHIFT;
 

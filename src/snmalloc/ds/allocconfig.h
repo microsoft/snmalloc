@@ -93,6 +93,28 @@ namespace snmalloc
     MAX_SMALL_SIZECLASS_SIZE >= MIN_CHUNK_SIZE,
     "Large sizes need to be representable by as a multiple of MIN_CHUNK_SIZE");
 
+  /**
+   * The number of bits needed to count the number of objects within a slab.
+   *
+   * Most likely, this is achieved by the smallest sizeclass, which will have
+   * many more than MIN_OBJECT_COUNT objects in its slab.  But, just in case,
+   * it's defined here and checked when we compute the sizeclass table, since
+   * computing this number is potentially nontrivial.
+   */
+#if defined(SNMALLOC_QEMU_WORKAROUND) && defined(SNMALLOC_VA_BITS_64)
+  static constexpr size_t MAX_CAPACITY_BITS = 13;
+#else
+  static constexpr size_t MAX_CAPACITY_BITS = 11;
+#endif
+
+  /**
+   * The maximum distance between the start of two objects in the same slab.
+   */
+  static constexpr size_t MAX_SLAB_SPAN_SIZE =
+    (MIN_OBJECT_COUNT - 1) * MAX_SMALL_SIZECLASS_SIZE;
+  static constexpr size_t MAX_SLAB_SPAN_BITS =
+    bits::next_pow2_bits_const(MAX_SLAB_SPAN_SIZE);
+
   // Number of slots for remote deallocation.
   static constexpr size_t REMOTE_SLOT_BITS = 8;
   static constexpr size_t REMOTE_SLOTS = 1 << REMOTE_SLOT_BITS;
