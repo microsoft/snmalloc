@@ -73,7 +73,7 @@ namespace snmalloc
     dealloc(RemoteAllocator::alloc_id_t target_id, capptr::Alloc<void> p)
     {
       SNMALLOC_ASSERT(initialised);
-      auto r = p.template as_reinterpret<freelist::Object::T<>>();
+      auto r = freelist::Object::make<capptr::bounds::AllocWild>(p);
 
       list[get_slot<allocator_size>(target_id, 0)].add(
         r, RemoteAllocator::key_global, NO_KEY_TWEAK);

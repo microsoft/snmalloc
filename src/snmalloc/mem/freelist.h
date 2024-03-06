@@ -260,7 +260,8 @@ namespace snmalloc
         SNMALLOC_CONCEPT(capptr::IsBound) BView>
       static BHeadPtr<BView, BQueue> make(CapPtr<void, BView> p)
       {
-        return p.template as_static<Object::T<BQueue>>();
+        return CapPtr<Object::T<BQueue>, BView>::unsafe_from(
+          new (p.unsafe_ptr()) Object::T());
       }
 
       /**
