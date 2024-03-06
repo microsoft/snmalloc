@@ -237,6 +237,7 @@ namespace snmalloc
         auto curr_ptr = start_ptr;
         do
         {
+          auto next_ptr = curr_ptr->next;
           b.add(
             // Here begins our treatment of the heap as containing Wild pointers
             freelist::Object::make<capptr::bounds::AllocWild>(
@@ -244,7 +245,7 @@ namespace snmalloc
             freelist::Object::key_root,
             key_tweak,
             entropy);
-          curr_ptr = curr_ptr->next;
+          curr_ptr = next_ptr;
         } while (curr_ptr != start_ptr);
       }
       else
