@@ -372,6 +372,33 @@ namespace snmalloc
           "Free Object Queue bounds must match View bounds (but may be Wild)");
       }
 
+      template<
+        SNMALLOC_CONCEPT(capptr::IsBound) BView,
+        SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
+      static void store_nextish(
+        BQueuePtr<BQueue>* curr,
+        BHeadPtr<BView, BQueue> next,
+        const FreeListKey& key,
+        address_t key_tweak,
+        BHeadPtr<BView, BQueue> next_value)
+      {
+        assert_view_queue_bounds<BView, BQueue>();
+
+        if constexpr (mitigations(freelist_backward_edge))
+        {
+          next->prev.set_prev(signed_prev(
+            address_cast(curr), address_cast(next), key, key_tweak));
+        }
+        else
+        {
+          UNUSED(next);
+          UNUSED(key);
+          UNUSED(key_tweak);
+        }
+
+        *curr = encode_next(address_cast(curr), next_value, key, key_tweak);
+      }
+
       /**
        * Assign next_object and update its prev_encoded if
        * SNMALLOC_CHECK_CLIENT. Static so that it can be used on reference to a
@@ -390,20 +417,7 @@ namespace snmalloc
         const FreeListKey& key,
         address_t key_tweak)
       {
-        assert_view_queue_bounds<BView, BQueue>();
-
-        if constexpr (mitigations(freelist_backward_edge))
-        {
-          next->prev.set_prev(signed_prev(
-            address_cast(curr), address_cast(next), key, key_tweak));
-        }
-        else
-        {
-          UNUSED(key);
-          UNUSED(key_tweak);
-        }
-
-        *curr = encode_next(address_cast(curr), next, key, key_tweak);
+        store_nextish(curr, next, key, key_tweak, next);
         return &(next->next_object);
       }
 
