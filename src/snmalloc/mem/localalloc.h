@@ -654,11 +654,7 @@ namespace snmalloc
       if (SNMALLOC_LIKELY(local_cache.remote_allocator == entry.get_remote()))
       {
         dealloc_cheri_checks(p_tame.unsafe_ptr());
-
-        if (SNMALLOC_LIKELY(CoreAlloc::dealloc_local_object_fast(
-              entry, p_tame, local_cache.entropy)))
-          return;
-        core_alloc->dealloc_local_object_slow(p_tame, entry);
+        core_alloc->dealloc_local_object(p_tame, entry);
         return;
       }
 

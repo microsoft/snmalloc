@@ -559,11 +559,8 @@ namespace snmalloc
 
       if (SNMALLOC_LIKELY(entry.get_remote() == public_state()))
       {
-        if (SNMALLOC_LIKELY(
-              dealloc_local_object_fast(entry, p.as_void(), entropy)))
-          return;
-
-        dealloc_local_object_slow(p, entry);
+        dealloc_local_object(p, entry);
+        return;
       }
       else
       {
@@ -697,17 +694,23 @@ namespace snmalloc
       return handle_message_queue_inner(action, args...);
     }
 
+    SNMALLOC_FAST_PATH void dealloc_local_object(
+      CapPtr<void, capptr::bounds::Alloc> p,
+      const typename Config::PagemapEntry& entry)
+    {
+      if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p, entropy)))
+        return;
+
+      dealloc_local_object_slow(p, entry);
+    }
+
     SNMALLOC_FAST_PATH void
     dealloc_local_object(CapPtr<void, capptr::bounds::Alloc> p)
     {
       // PagemapEntry-s seen here are expected to have meaningful Remote
       // pointers
-      auto& entry =
-        Config::Backend::template get_metaentry(snmalloc::address_cast(p));
-      if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p, entropy)))
-        return;
-
-      dealloc_local_object_slow(p, entry);
+      dealloc_local_object(
+        p, Config::Backend::template get_metaentry(snmalloc::address_cast(p)));
     }
 
     SNMALLOC_FAST_PATH static bool dealloc_local_object_fast(
