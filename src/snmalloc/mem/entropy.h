@@ -116,8 +116,7 @@ namespace snmalloc
         fresh_bits = get_next();
         count = 64;
       }
-      uint16_t result =
-        static_cast<uint16_t>(fresh_bits & (bits::one_at_bit(n) - 1));
+      uint16_t result = static_cast<uint16_t>(fresh_bits & bits::mask_bits(n));
       fresh_bits >>= n;
       count -= n;
       return result;
