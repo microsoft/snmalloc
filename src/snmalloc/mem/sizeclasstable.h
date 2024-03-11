@@ -220,7 +220,7 @@ namespace snmalloc
         size_t slab_bits = bits::max(
           bits::next_pow2_bits_const(MIN_OBJECT_COUNT * rsize), MIN_CHUNK_BITS);
 
-        meta.slab_mask = bits::one_at_bit(slab_bits) - 1;
+        meta.slab_mask = bits::mask_bits(slab_bits);
 
         auto& meta_slow = slow(sizeclass_t::from_small_class(sizeclass));
         meta_slow.capacity =
@@ -245,8 +245,7 @@ namespace snmalloc
       {
         // Calculate reciprocal division constant.
         auto& meta = fast_small(sizeclass);
-        meta.div_mult =
-          ((bits::one_at_bit(DIV_MULT_SHIFT) - 1) / meta.size) + 1;
+        meta.div_mult = (bits::mask_bits(DIV_MULT_SHIFT) / meta.size) + 1;
 
         size_t zero = 0;
         meta.mod_zero_mult = (~zero / meta.size) + 1;

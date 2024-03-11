@@ -354,7 +354,7 @@ namespace snmalloc
         SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
         SNMALLOC_ASSERT(bits::is_pow2(size));
 
-        if (size >= (bits::one_at_bit(MAX_SIZE_BITS) - 1))
+        if (size >= bits::mask_bits(MAX_SIZE_BITS))
         {
           if (ParentRange::Aligned)
             return parent.alloc_range(size);
@@ -378,7 +378,7 @@ namespace snmalloc
 
         if constexpr (MAX_SIZE_BITS != (bits::BITS - 1))
         {
-          if (size >= (bits::one_at_bit(MAX_SIZE_BITS) - 1))
+          if (size >= bits::mask_bits(MAX_SIZE_BITS))
           {
             parent_dealloc_range(base, size);
             return;
