@@ -20,9 +20,12 @@ namespace snmalloc
   {
     std::array<freelist::Builder<false>, REMOTE_SLOTS> list;
 
-    freelist::Builder<false, true> open_builder;
-    typename Config::PagemapEntry::SlabMetadata* open_meta = nullptr;
-    RemoteAllocator::alloc_id_t open_target = 0;
+    static constexpr size_t RING_ASSOC = 2;
+
+    std::array<freelist::Builder<false, true>, RING_ASSOC> open_builder;
+    std::array<typename Config::PagemapEntry::SlabMetadata*, RING_ASSOC>
+      open_meta = {nullptr};
+    std::array<RemoteAllocator::alloc_id_t, RING_ASSOC> open_target = {0};
 
     /**
      * The total amount of memory we are waiting for before we will dispatch
@@ -83,21 +86,27 @@ namespace snmalloc
     }
 
     template<size_t allocator_size>
-    SNMALLOC_FAST_PATH void close_pending()
+    SNMALLOC_FAST_PATH void close_one_pending(size_t ix)
     {
       auto rmsg = RemoteMessage::mk_from_freelist_builder(
-        open_builder, freelist::Object::key_root, open_meta->as_key_tweak());
-      forward<allocator_size>(open_target, rmsg);
+        open_builder[ix],
+        freelist::Object::key_root,
+        open_meta[ix]->as_key_tweak());
+
+      forward<allocator_size>(open_target[ix], rmsg);
+
+      open_meta[ix] = nullptr;
     }
 
-    SNMALLOC_FAST_PATH void init_pending(
+    SNMALLOC_FAST_PATH void init_one_pending(
+      size_t ix,
       typename Config::PagemapEntry::SlabMetadata* meta,
       RemoteAllocator::alloc_id_t id)
     {
-      open_builder.init(
-        0, freelist::Object::key_root, open_meta->as_key_tweak());
-      open_meta = meta;
-      open_target = id;
+      open_builder[ix].init(
+        0, freelist::Object::key_root, open_meta[ix]->as_key_tweak());
+      open_meta[ix] = meta;
+      open_target[ix] = id;
     }
 
     template<size_t allocator_size>
@@ -110,16 +119,42 @@ namespace snmalloc
 
       auto r = freelist::Object::make<capptr::bounds::AllocWild>(p);
 
-      if (meta != open_meta)
+      for (size_t ix = 0; ix < RING_ASSOC; ix++)
       {
-        if (open_meta != nullptr)
+        if (meta == open_meta[ix])
         {
-          close_pending<allocator_size>();
+          open_builder[ix].add(
+            r, freelist::Object::key_root, meta->as_key_tweak());
+          return;
         }
-        init_pending(meta, target_id);
       }
 
-      open_builder.add(r, freelist::Object::key_root, meta->as_key_tweak());
+      size_t victim_ix = 0;
+      size_t victim_size = 0;
+      for (size_t ix = 0; ix < RING_ASSOC; ix++)
+      {
+        if (open_meta[ix] == nullptr)
+        {
+          victim_ix = ix;
+          break;
+        }
+
+        size_t szix = open_builder[ix].extract_segment_length();
+        if (szix > victim_size)
+        {
+          victim_size = szix;
+          victim_ix = ix;
+        }
+      }
+
+      if (open_meta[victim_ix] != nullptr)
+      {
+        close_one_pending<allocator_size>(victim_ix);
+      }
+      init_one_pending(victim_ix, meta, target_id);
+
+      open_builder[victim_ix].add(
+        r, freelist::Object::key_root, meta->as_key_tweak());
     }
 
     template<size_t allocator_size>
@@ -138,10 +173,13 @@ namespace snmalloc
                            };
 
       /* Close open rings */
-      if (open_meta != nullptr)
+      for (size_t ix = 0; ix < RING_ASSOC; ix++)
       {
-        close_pending<allocator_size>();
-        open_meta = nullptr;
+        if (open_meta[ix] != nullptr)
+        {
+          close_one_pending<allocator_size>(ix);
+          open_meta[ix] = nullptr;
+        }
       }
 
       while (true)
@@ -234,7 +272,7 @@ namespace snmalloc
       }
       capacity = REMOTE_CACHE;
 
-      open_meta = nullptr;
+      open_meta = {nullptr};
     }
   };
 } // namespace snmalloc
