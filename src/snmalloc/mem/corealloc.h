@@ -578,7 +578,7 @@ namespace snmalloc
       }
       else
       {
-        auto nelem = RemoteMessage::ring_size(
+        auto nelem = RemoteMessage::template ring_size<Config>(
           msg,
           freelist::Object::key_root,
           entry.get_slab_metadata()->as_key_tweak(),
@@ -771,8 +771,14 @@ namespace snmalloc
         is_start_of_object(entry.get_sizeclass(), address_cast(msg)),
         "Not deallocating start of an object");
 
-      auto [curr, length] = RemoteMessage::open_free_ring(
-        msg, freelist::Object::key_root, meta->as_key_tweak(), domesticate);
+      size_t objsize = sizeclass_full_to_size(entry.get_sizeclass());
+
+      auto [curr, length] = RemoteMessage::template open_free_ring<Config>(
+        msg,
+        objsize,
+        freelist::Object::key_root,
+        meta->as_key_tweak(),
+        domesticate);
 
       // Update the head and the next pointer in the free list.
       meta->free_queue.append_segment(

@@ -188,6 +188,14 @@ namespace snmalloc
       local_state.get_object_range()->dealloc_range(arena, size);
     }
 
+    SNMALLOC_FAST_PATH static capptr::Alloc<void>
+    capptr_rederive_alloc(capptr::Alloc<void> a, size_t objsize)
+    {
+      return capptr_to_user_address_control(
+        Aal::capptr_bound<void, capptr::bounds::AllocFull>(
+          Authmap::amplify(a), objsize));
+    }
+
     template<bool potentially_out_of_range = false>
     SNMALLOC_FAST_PATH static const PagemapEntry& get_metaentry(address_t p)
     {
