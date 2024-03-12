@@ -21,11 +21,15 @@ namespace snmalloc
     std::array<freelist::Builder<false>, REMOTE_SLOTS> list;
 
     static constexpr size_t RING_ASSOC = 2;
+    static constexpr size_t RING_SET_BITS = 4;
 
-    std::array<freelist::Builder<false, true>, RING_ASSOC> open_builder;
-    std::array<typename Config::PagemapEntry::SlabMetadata*, RING_ASSOC>
-      open_meta = {nullptr};
-    std::array<RemoteAllocator::alloc_id_t, RING_ASSOC> open_target = {0};
+    static constexpr size_t RINGS =
+      RING_ASSOC * bits::one_at_bit(RING_SET_BITS);
+
+    std::array<freelist::Builder<false, true>, RINGS> open_builder;
+    std::array<typename Config::PagemapEntry::SlabMetadata*, RINGS> open_meta =
+      {nullptr};
+    std::array<RemoteAllocator::alloc_id_t, RINGS> open_target = {0};
 
     /**
      * The total amount of memory we are waiting for before we will dispatch
@@ -109,6 +113,14 @@ namespace snmalloc
       open_target[ix] = id;
     }
 
+    SNMALLOC_FAST_PATH size_t
+    ring_way(typename Config::PagemapEntry::SlabMetadata* meta)
+    {
+      // See https://github.com/skeeto/hash-prospector for choice of constant
+      return ((meta->as_key_tweak() * 0x7EFB352D) >> 16) &
+        bits::mask_bits(RING_SET_BITS);
+    }
+
     template<size_t allocator_size>
     SNMALLOC_FAST_PATH void dealloc(
       typename Config::PagemapEntry::SlabMetadata* meta,
@@ -119,8 +131,11 @@ namespace snmalloc
 
       auto r = freelist::Object::make<capptr::bounds::AllocWild>(p);
 
-      for (size_t ix = 0; ix < RING_ASSOC; ix++)
+      size_t ix_set = ring_way(meta);
+
+      for (size_t ix_way = 0; ix_way < RING_ASSOC; ix_way++)
       {
+        size_t ix = ix_set + ix_way;
         if (meta == open_meta[ix])
         {
           open_builder[ix].add(
@@ -129,10 +144,11 @@ namespace snmalloc
         }
       }
 
-      size_t victim_ix = 0;
+      size_t victim_ix = ix_set;
       size_t victim_size = 0;
-      for (size_t ix = 0; ix < RING_ASSOC; ix++)
+      for (size_t ix_way = 0; ix_way < RING_ASSOC; ix_way++)
       {
+        size_t ix = ix_set + ix_way;
         if (open_meta[ix] == nullptr)
         {
           victim_ix = ix;
@@ -173,7 +189,7 @@ namespace snmalloc
                            };
 
       /* Close open rings */
-      for (size_t ix = 0; ix < RING_ASSOC; ix++)
+      for (size_t ix = 0; ix < RINGS; ix++)
       {
         if (open_meta[ix] != nullptr)
         {
