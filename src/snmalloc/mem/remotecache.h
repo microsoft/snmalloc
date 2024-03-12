@@ -32,11 +32,23 @@ namespace snmalloc
   class RemoteDeallocCacheBatching
   {
     static constexpr size_t RING_ASSOC = 2;
+    static constexpr size_t RING_SET_BITS = 3;
 
-    std::array<freelist::Builder<false, true>, RING_ASSOC> open_builder;
-    std::array<typename Config::PagemapEntry::SlabMetadata*, RING_ASSOC>
-      open_meta = {nullptr};
-    std::array<RemoteAllocator::alloc_id_t, RING_ASSOC> open_target = {0};
+    static constexpr size_t RINGS =
+      RING_ASSOC * bits::one_at_bit(RING_SET_BITS);
+
+    std::array<freelist::Builder<false, true>, RINGS> open_builder;
+    std::array<typename Config::PagemapEntry::SlabMetadata*, RINGS> open_meta =
+      {nullptr};
+    std::array<RemoteAllocator::alloc_id_t, RINGS> open_target = {0};
+
+    SNMALLOC_FAST_PATH size_t
+    ring_set(typename Config::PagemapEntry::SlabMetadata* meta)
+    {
+      // See https://github.com/skeeto/hash-prospector for choice of constant
+      return ((meta->as_key_tweak() * 0x7EFB352D) >> 16) &
+        bits::mask_bits(RING_SET_BITS);
+    }
 
     template<typename Forward>
     SNMALLOC_FAST_PATH void close_one_pending(Forward forward, size_t ix)
@@ -70,8 +82,11 @@ namespace snmalloc
       freelist::HeadPtr r,
       Forward forward)
     {
-      for (size_t ix = 0; ix < RING_ASSOC; ix++)
+      size_t ix_set = ring_set(meta);
+
+      for (size_t ix_way = 0; ix_way < RING_ASSOC; ix_way++)
       {
+        size_t ix = ix_set + ix_way;
         if (meta == open_meta[ix])
         {
           open_builder[ix].add(
@@ -82,10 +97,11 @@ namespace snmalloc
 
       // No hit in cache, so find an available or victim line.
 
-      size_t victim_ix = 0;
+      size_t victim_ix = ix_set;
       size_t victim_size = 0;
-      for (size_t ix = 0; ix < RING_ASSOC; ix++)
+      for (size_t ix_way = 0; ix_way < RING_ASSOC; ix_way++)
       {
+        size_t ix = ix_set + ix_way;
         if (open_meta[ix] == nullptr)
         {
           victim_ix = ix;
@@ -113,7 +129,7 @@ namespace snmalloc
     template<typename Forward>
     SNMALLOC_FAST_PATH void close_all(Forward forward)
     {
-      for (size_t ix = 0; ix < RING_ASSOC; ix++)
+      for (size_t ix = 0; ix < RINGS; ix++)
       {
         if (open_meta[ix] != nullptr)
         {
