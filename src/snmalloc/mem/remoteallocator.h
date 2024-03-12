@@ -37,14 +37,6 @@ namespace snmalloc
       sizeof(free_ring.next_object) >= sizeof(void*),
       "RemoteMessage bitpacking needs sizeof(void*) in next_object");
 
-    static auto decode_next(uintptr_t encoded, capptr::Alloc<RemoteMessage> m)
-    {
-      return capptr_rewild(
-               pointer_offset_signed(
-                 m, static_cast<ptrdiff_t>(encoded) >> MAX_CAPACITY_BITS))
-        .as_static<freelist::Object::T<>>();
-    }
-
   public:
     static auto emplace_in_alloc(capptr::Alloc<void> alloc)
     {
@@ -75,7 +67,9 @@ namespace snmalloc
         new (last.unsafe_ptr()) RemoteMessage());
       self->free_ring.prev = last_prev;
 
-      // XXX CHERI
+      // XXX On CHERI, we could do a fair bit better if we had a primitive for
+      // extracting and discarding the offset.  That probably beats the dance
+      // done below, but it should work as it stands.
 
       auto n = freelist::HeadPtr::unsafe_from(
         unsafe_from_uintptr<freelist::Object::T<>>(
@@ -105,9 +99,11 @@ namespace snmalloc
         .as_reinterpret<RemoteMessage>();
     }
 
-    template<typename Domesticator_queue>
-    static std::pair<freelist::HeadPtr, uint16_t> open_free_ring(
+    template<SNMALLOC_CONCEPT(IsConfigLazy) Config, typename Domesticator_queue>
+    SNMALLOC_FAST_PATH static std::pair<freelist::HeadPtr, uint16_t>
+    open_free_ring(
       capptr::Alloc<RemoteMessage> m,
+      size_t objsize,
       const FreeListKey& key,
       address_t key_tweak,
       Domesticator_queue domesticate)
@@ -119,7 +115,20 @@ namespace snmalloc
         static_cast<uint16_t>(encoded) & bits::mask_bits(MAX_CAPACITY_BITS);
       static_assert(sizeof(decoded_size) * 8 > MAX_CAPACITY_BITS);
 
-      auto next = domesticate(decode_next(encoded, m));
+      /*
+       * Derive an out-of-bounds pointer to the next allocation, then use the
+       * authmap to reconstruct an in-bounds version, which we then immediately
+       * bound and rewild and then domesticate (how strange).
+       *
+       * XXX See above re: doing better on CHERI.
+       */
+      auto next = domesticate(
+        capptr_rewild(
+          Config::Backend::capptr_rederive_alloc(
+            pointer_offset_signed(
+              m, static_cast<ptrdiff_t>(encoded) >> MAX_CAPACITY_BITS),
+            objsize))
+          .template as_static<freelist::Object::T<>>());
 
       if constexpr (mitigations(freelist_backward_edge))
       {
@@ -132,12 +141,10 @@ namespace snmalloc
         UNUSED(key_tweak);
       }
 
-      // XXX CHERI
-
       return {next.template as_static<freelist::Object::T<>>(), decoded_size};
     }
 
-    template<typename Domesticator_queue>
+    template<SNMALLOC_CONCEPT(IsConfigLazy) Config, typename Domesticator_queue>
     static uint16_t ring_size(
       capptr::Alloc<RemoteMessage> m,
       const FreeListKey& key,
@@ -153,7 +160,18 @@ namespace snmalloc
 
       if constexpr (mitigations(freelist_backward_edge))
       {
-        auto next = domesticate(decode_next(encoded, m));
+        /*
+         * Like above, but we don't strictly need to rebound the pointer,
+         * since it's only used internally.  Still, doesn't hurt to bound
+         * to the free list linkage.
+         */
+        auto next = domesticate(
+          capptr_rewild(
+            Config::Backend::capptr_rederive_alloc(
+              pointer_offset_signed(
+                m, static_cast<ptrdiff_t>(encoded) >> MAX_CAPACITY_BITS),
+              sizeof(freelist::Object::T<>)))
+            .template as_static<freelist::Object::T<>>());
 
         next->check_prev(
           signed_prev(address_cast(m), address_cast(next), key, key_tweak));
