@@ -657,6 +657,12 @@ namespace snmalloc
         return;
       }
 
+      dealloc_remote(entry, p_tame);
+    }
+
+    SNMALLOC_SLOW_PATH void
+    dealloc_remote(const PagemapEntry& entry, capptr::Alloc<void> p_tame)
+    {
       RemoteAllocator* remote = entry.get_remote();
       if (SNMALLOC_LIKELY(remote != nullptr))
       {
@@ -676,8 +682,8 @@ namespace snmalloc
 #  ifdef SNMALLOC_TRACING
           message<1024>(
             "Remote dealloc fast {} ({}, {})",
-            p_raw,
-            alloc_size(p_raw),
+            address_cast(p_tame),
+            alloc_size(p_tame.unsafe_ptr()),
             address_cast(entry.get_slab_metadata()));
 #  endif
           return;
