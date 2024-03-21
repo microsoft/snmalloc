@@ -24,7 +24,6 @@ namespace snmalloc
     std::array<freelist::Builder<false, true>, RINGS> open_builder;
     std::array<typename Config::PagemapEntry::SlabMetadata*, RINGS> open_meta =
       {nullptr};
-    std::array<RemoteAllocator::alloc_id_t, RINGS> open_target = {0};
 
     SNMALLOC_FAST_PATH size_t
     ring_set(typename Config::PagemapEntry::SlabMetadata* meta)
@@ -42,27 +41,25 @@ namespace snmalloc
         freelist::Object::key_root,
         open_meta[ix]->as_key_tweak());
 
-      forward(open_target[ix], rmsg);
+      auto& entry = Config::Backend::get_metaentry(address_cast(rmsg));
+
+      forward(entry.get_remote()->trunc_id(), rmsg);
 
       open_meta[ix] = nullptr;
     }
 
     SNMALLOC_FAST_PATH void init_one_pending(
-      size_t ix,
-      typename Config::PagemapEntry::SlabMetadata* meta,
-      RemoteAllocator::alloc_id_t id)
+      size_t ix, typename Config::PagemapEntry::SlabMetadata* meta)
     {
       open_builder[ix].init(
         0, freelist::Object::key_root, open_meta[ix]->as_key_tweak());
       open_meta[ix] = meta;
-      open_target[ix] = id;
     }
 
   public:
     template<typename Forward>
     SNMALLOC_FAST_PATH void dealloc(
       typename Config::PagemapEntry::SlabMetadata* meta,
-      RemoteAllocator::alloc_id_t target_id,
       freelist::HeadPtr r,
       Forward forward)
     {
@@ -102,7 +99,7 @@ namespace snmalloc
       {
         close_one_pending(forward, victim_ix);
       }
-      init_one_pending(victim_ix, meta, target_id);
+      init_one_pending(victim_ix, meta);
 
       open_builder[victim_ix].add(
         r, freelist::Object::key_root, meta->as_key_tweak());
@@ -197,9 +194,7 @@ namespace snmalloc
 
     template<size_t allocator_size>
     SNMALLOC_FAST_PATH void dealloc(
-      typename Config::PagemapEntry::SlabMetadata* meta,
-      RemoteAllocator::alloc_id_t target_id,
-      capptr::Alloc<void> p)
+      typename Config::PagemapEntry::SlabMetadata* meta, capptr::Alloc<void> p)
     {
       SNMALLOC_ASSERT(initialised);
 
@@ -207,7 +202,6 @@ namespace snmalloc
 
       batching.dealloc(
         meta,
-        target_id,
         r,
         [this](
           RemoteAllocator::alloc_id_t target_id,
