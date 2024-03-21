@@ -37,6 +37,7 @@ namespace snmalloc
   // This is defined on its own, so that it can be embedded in the
   // thread local fast allocator, but also referenced from the
   // thread local core allocator.
+  template<typename Config>
   struct LocalCache
   {
     // Free list per small size class.  These are used for
@@ -54,7 +55,7 @@ namespace snmalloc
     /**
      * Remote deallocations for other threads
      */
-    RemoteDeallocCache remote_dealloc_cache;
+    RemoteDeallocCache<Config> remote_dealloc_cache;
 
     constexpr LocalCache(RemoteAllocator* remote_allocator)
     : remote_allocator(remote_allocator)
@@ -63,10 +64,10 @@ namespace snmalloc
     /**
      * Return all the free lists to the allocator.  Used during thread teardown.
      */
-    template<size_t allocator_size, typename Config, typename DeallocFun>
+    template<size_t allocator_size, typename DeallocFun>
     bool flush(typename Config::LocalState* local_state, DeallocFun dealloc)
     {
-      auto& key = entropy.get_free_list_key();
+      auto& key = freelist::Object::key_root;
       auto domesticate = [local_state](freelist::QueuePtr p)
                            SNMALLOC_FAST_PATH_LAMBDA {
                              return capptr_domesticate<Config>(local_state, p);
@@ -85,19 +86,15 @@ namespace snmalloc
         }
       }
 
-      return remote_dealloc_cache.post<allocator_size, Config>(
+      return remote_dealloc_cache.template post<allocator_size>(
         local_state, remote_allocator->trunc_id());
     }
 
-    template<
-      ZeroMem zero_mem,
-      typename Config,
-      typename Slowpath,
-      typename Domesticator>
+    template<ZeroMem zero_mem, typename Slowpath, typename Domesticator>
     SNMALLOC_FAST_PATH capptr::Alloc<void>
     alloc(Domesticator domesticate, size_t size, Slowpath slowpath)
     {
-      auto& key = entropy.get_free_list_key();
+      auto& key = freelist::Object::key_root;
       smallsizeclass_t sizeclass = size_to_sizeclass(size);
       auto& fl = small_fast_free_lists[sizeclass];
       if (SNMALLOC_LIKELY(!fl.empty()))

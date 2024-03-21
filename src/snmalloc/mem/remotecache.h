@@ -15,9 +15,20 @@ namespace snmalloc
   /**
    * Stores the remote deallocation to batch them before sending
    */
+  template<typename Config>
   struct RemoteDeallocCache
   {
     std::array<freelist::Builder<false>, REMOTE_SLOTS> list;
+
+    static constexpr size_t RING_ASSOC = 2;
+    static constexpr size_t RING_SET_BITS = 4;
+
+    static constexpr size_t RINGS =
+      RING_ASSOC * bits::one_at_bit(RING_SET_BITS);
+
+    std::array<freelist::Builder<false, true>, RINGS> open_builder;
+    std::array<typename Config::PagemapEntry::SlabMetadata*, RINGS> open_meta =
+      {nullptr};
 
     /**
      * The total amount of memory we are waiting for before we will dispatch
@@ -54,10 +65,12 @@ namespace snmalloc
      * This does not require initialisation to be safely called.
      */
     template<typename Entry>
-    SNMALLOC_FAST_PATH bool reserve_space(const Entry& entry)
+    SNMALLOC_FAST_PATH bool reserve_space(const Entry& entry, uint16_t n = 1)
     {
+      static_assert(sizeof(n) * 8 > MAX_CAPACITY_BITS);
+
       auto size =
-        static_cast<int64_t>(sizeclass_full_to_size(entry.get_sizeclass()));
+        n * static_cast<int64_t>(sizeclass_full_to_size(entry.get_sizeclass()));
 
       bool result = capacity > size;
       if (result)
@@ -66,17 +79,97 @@ namespace snmalloc
     }
 
     template<size_t allocator_size>
-    SNMALLOC_FAST_PATH void
-    dealloc(RemoteAllocator::alloc_id_t target_id, capptr::Alloc<void> p)
+    SNMALLOC_FAST_PATH void forward(
+      RemoteAllocator::alloc_id_t target_id, capptr::Alloc<RemoteMessage> msg)
     {
-      SNMALLOC_ASSERT(initialised);
-      auto r = p.template as_reinterpret<freelist::Object::T<>>();
-
       list[get_slot<allocator_size>(target_id, 0)].add(
-        r, RemoteAllocator::key_global);
+        RemoteMessage::to_message_link(msg),
+        RemoteAllocator::key_global,
+        NO_KEY_TWEAK);
     }
 
-    template<size_t allocator_size, typename Config>
+    template<size_t allocator_size>
+    SNMALLOC_FAST_PATH void close_one_pending(size_t ix)
+    {
+      auto rmsg = RemoteMessage::mk_from_freelist_builder(
+        open_builder[ix],
+        freelist::Object::key_root,
+        open_meta[ix]->as_key_tweak());
+
+      auto& entry = Config::Backend::get_metaentry(address_cast(rmsg));
+
+      forward<allocator_size>(entry.get_remote()->trunc_id(), rmsg);
+
+      open_meta[ix] = nullptr;
+    }
+
+    SNMALLOC_FAST_PATH void init_one_pending(
+      size_t ix, typename Config::PagemapEntry::SlabMetadata* meta)
+    {
+      open_builder[ix].init(
+        0, freelist::Object::key_root, open_meta[ix]->as_key_tweak());
+      open_meta[ix] = meta;
+    }
+
+    SNMALLOC_FAST_PATH size_t
+    ring_way(typename Config::PagemapEntry::SlabMetadata* meta)
+    {
+      // See https://github.com/skeeto/hash-prospector for choice of constant
+      return ((meta->as_key_tweak() * 0x7EFB352D) >> 16) &
+        bits::mask_bits(RING_SET_BITS);
+    }
+
+    template<size_t allocator_size>
+    SNMALLOC_FAST_PATH void dealloc(
+      typename Config::PagemapEntry::SlabMetadata* meta, capptr::Alloc<void> p)
+    {
+      SNMALLOC_ASSERT(initialised);
+
+      auto r = freelist::Object::make<capptr::bounds::AllocWild>(p);
+
+      size_t ix_set = ring_way(meta);
+
+      for (size_t ix_way = 0; ix_way < RING_ASSOC; ix_way++)
+      {
+        size_t ix = ix_set + ix_way;
+        if (meta == open_meta[ix])
+        {
+          open_builder[ix].add(
+            r, freelist::Object::key_root, meta->as_key_tweak());
+          return;
+        }
+      }
+
+      size_t victim_ix = ix_set;
+      size_t victim_size = 0;
+      for (size_t ix_way = 0; ix_way < RING_ASSOC; ix_way++)
+      {
+        size_t ix = ix_set + ix_way;
+        if (open_meta[ix] == nullptr)
+        {
+          victim_ix = ix;
+          break;
+        }
+
+        size_t szix = open_builder[ix].extract_segment_length();
+        if (szix > victim_size)
+        {
+          victim_size = szix;
+          victim_ix = ix;
+        }
+      }
+
+      if (open_meta[victim_ix] != nullptr)
+      {
+        close_one_pending<allocator_size>(victim_ix);
+      }
+      init_one_pending(victim_ix, meta);
+
+      open_builder[victim_ix].add(
+        r, freelist::Object::key_root, meta->as_key_tweak());
+    }
+
+    template<size_t allocator_size>
     bool post(
       typename Config::LocalState* local_state, RemoteAllocator::alloc_id_t id)
     {
@@ -91,6 +184,16 @@ namespace snmalloc
                              return capptr_domesticate<Config>(local_state, p);
                            };
 
+      /* Close open rings */
+      for (size_t ix = 0; ix < RINGS; ix++)
+      {
+        if (open_meta[ix] != nullptr)
+        {
+          close_one_pending<allocator_size>(ix);
+          open_meta[ix] = nullptr;
+        }
+      }
+
       while (true)
       {
         auto my_slot = get_slot<allocator_size>(id, post_round);
@@ -102,9 +205,11 @@ namespace snmalloc
 
           if (!list[i].empty())
           {
-            auto [first, last] = list[i].extract_segment(key);
+            auto [first_, last_] = list[i].extract_segment(key, NO_KEY_TWEAK);
+            auto first = RemoteMessage::from_message_link(first_);
+            auto last = RemoteMessage::from_message_link(last_);
             const auto& entry =
-              Config::Backend::get_metaentry(address_cast(first));
+              Config::Backend::get_metaentry(address_cast(first_));
             auto remote = entry.get_remote();
             // If the allocator is not correctly aligned, then the bit that is
             // set implies this is used by the backend, and we should not be
@@ -135,7 +240,7 @@ namespace snmalloc
         // so take copy of the head, mark the last element,
         // and clear the original list.
         freelist::Iter<> resend;
-        list[my_slot].close(resend, key);
+        list[my_slot].close(resend, key, NO_KEY_TWEAK);
 
         post_round++;
 
@@ -147,11 +252,11 @@ namespace snmalloc
           const auto& entry = Config::Backend::get_metaentry(address_cast(r));
           auto i = entry.get_remote()->trunc_id();
           size_t slot = get_slot<allocator_size>(i, post_round);
-          list[slot].add(r, key);
+          list[slot].add(r, key, NO_KEY_TWEAK);
         }
       }
 
-      // Reset capacity as we have empty everything
+      // Reset capacity as we have emptied everything
       capacity = REMOTE_CACHE;
 
       return sent_something;
@@ -175,9 +280,11 @@ namespace snmalloc
       {
         // We do not need to initialise with a particular slab, so pass
         // a null address.
-        l.init(0, RemoteAllocator::key_global);
+        l.init(0, RemoteAllocator::key_global, NO_KEY_TWEAK);
       }
       capacity = REMOTE_CACHE;
+
+      open_meta = {nullptr};
     }
   };
 } // namespace snmalloc

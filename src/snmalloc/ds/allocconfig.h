@@ -20,10 +20,31 @@ namespace snmalloc
   // Used to isolate values on cache lines to prevent false sharing.
   static constexpr size_t CACHELINE_SIZE = 64;
 
-  // Minimum allocation size is space for two pointers.
-  static_assert(bits::next_pow2_const(sizeof(void*)) == sizeof(void*));
-  static constexpr size_t MIN_ALLOC_SIZE = 2 * sizeof(void*);
-  static constexpr size_t MIN_ALLOC_BITS = bits::ctz_const(MIN_ALLOC_SIZE);
+  /// The "machine epsilon" for the small sizeclass machinery.
+  static constexpr size_t MIN_ALLOC_STEP_SIZE =
+#if defined(SNMALLOC_MIN_ALLOC_STEP_SIZE)
+    SNMALLOC_MIN_ALLOC_STEP_SIZE;
+#else
+    2 * sizeof(void*);
+#endif
+
+  /// Derived from MIN_ALLOC_STEP_SIZE
+  static constexpr size_t MIN_ALLOC_STEP_BITS =
+    bits::ctz_const(MIN_ALLOC_STEP_SIZE);
+  static_assert(bits::is_pow2(MIN_ALLOC_STEP_SIZE));
+
+  /**
+   * Minimum allocation size is space for two pointers.  If the small sizeclass
+   * machinery permits smaller values (that is, if MIN_ALLOC_STEP_SIZE is
+   * smaller than MIN_ALLOC_SIZE), which may be useful if MIN_ALLOC_SIZE must
+   * be large or not a power of two, those smaller size classes will be unused.
+   */
+  static constexpr size_t MIN_ALLOC_SIZE =
+#if defined(SNMALLOC_MIN_ALLOC_SIZE)
+    SNMALLOC_MIN_ALLOC_SIZE;
+#else
+    sizeof(void*) * (mitigations(freelist_backward_edge) ? 4 : 2);
+#endif
 
   // Minimum slab size.
 #if defined(SNMALLOC_QEMU_WORKAROUND) && defined(SNMALLOC_VA_BITS_64)
@@ -72,24 +93,49 @@ namespace snmalloc
     MAX_SMALL_SIZECLASS_SIZE >= MIN_CHUNK_SIZE,
     "Large sizes need to be representable by as a multiple of MIN_CHUNK_SIZE");
 
+  /**
+   * The number of bits needed to count the number of objects within a slab.
+   *
+   * Most likely, this is achieved by the smallest sizeclass, which will have
+   * many more than MIN_OBJECT_COUNT objects in its slab.  But, just in case,
+   * it's defined here and checked when we compute the sizeclass table, since
+   * computing this number is potentially nontrivial.
+   */
+  static constexpr size_t MAX_CAPACITY_BITS = 10;
+
+  /**
+   * The maximum distance between the start of two objects in the same slab.
+   */
+  static constexpr size_t MAX_SLAB_SPAN_SIZE =
+    (MIN_OBJECT_COUNT - 1) * MAX_SMALL_SIZECLASS_SIZE;
+  static constexpr size_t MAX_SLAB_SPAN_BITS =
+    bits::next_pow2_bits_const(MAX_SLAB_SPAN_SIZE);
+
   // Number of slots for remote deallocation.
   static constexpr size_t REMOTE_SLOT_BITS = 8;
   static constexpr size_t REMOTE_SLOTS = 1 << REMOTE_SLOT_BITS;
   static constexpr size_t REMOTE_MASK = REMOTE_SLOTS - 1;
 
   static_assert(
-    INTERMEDIATE_BITS < MIN_ALLOC_BITS,
+    INTERMEDIATE_BITS < MIN_ALLOC_STEP_BITS,
     "INTERMEDIATE_BITS must be less than MIN_ALLOC_BITS");
   static_assert(
     MIN_ALLOC_SIZE >= (sizeof(void*) * 2),
     "MIN_ALLOC_SIZE must be sufficient for two pointers");
+  static_assert(
+    1 << (INTERMEDIATE_BITS + MIN_ALLOC_STEP_BITS) >=
+      bits::next_pow2_const(MIN_ALLOC_SIZE),
+    "Entire sizeclass exponent is below MIN_ALLOC_SIZE; adjust STEP_SIZE");
+  static_assert(
+    MIN_ALLOC_SIZE >= MIN_ALLOC_STEP_SIZE,
+    "Minimum alloc sizes below minimum step size; raise MIN_ALLOC_SIZE");
 
   // Return remote small allocs when the local cache reaches this size.
   static constexpr int64_t REMOTE_CACHE =
 #ifdef USE_REMOTE_CACHE
     USE_REMOTE_CACHE
 #else
-    1 << MIN_CHUNK_BITS
+    MIN_CHUNK_SIZE
 #endif
     ;
 
