@@ -275,7 +275,7 @@ fn main() {
 
     if cfg!(all(windows, target_env = "gnu")) {
         let stdout = std::process::Command::new("gcc")
-            .args(&["-print-search-dirs"])
+            .args(["-print-search-dirs"])
             .output()
             .unwrap_or_else(|_| {
                 eprintln!("Cannot run gcc.exe");
