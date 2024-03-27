@@ -15,7 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [windows-latest, macos-11, ubuntu-latest]
+        os: [windows-latest, macos-11, macos-14, ubuntu-latest]
         rust: [stable, nightly]
     steps:
     - uses: actions-rs/toolchain@v1
