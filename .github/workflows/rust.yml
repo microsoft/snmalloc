@@ -41,5 +41,9 @@ jobs:
       run: cargo test --all --features check
     - name: Run tests build_cc
       run: cargo test --all --features "build_cc usecxx17"
-    - name: Run tests build_cc
+    - name: Run tests native-cpu
       run: cargo test --all --features native-cpu
+    - name: Run tests local_dynamic_tls
+      run: cargo test --all --features local_dynamic_tls
+    - name: Run tests lto
+      run: cargo test --all --features lto
