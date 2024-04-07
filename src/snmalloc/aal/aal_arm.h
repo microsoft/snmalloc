@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(__aarch64__)
+#if defined(__aarch64__) || defined(_M_ARM64) || defined(_M_ARM64EC)
 #  define SNMALLOC_VA_BITS_64
 #  ifdef _MSC_VER
 #    include <arm64_neon.h>

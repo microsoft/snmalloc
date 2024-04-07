@@ -158,7 +158,11 @@ namespace snmalloc
       SNMALLOC_ASSERT(x != 0); // Calling with 0 is UB on some implementations
 
 #if defined(_MSC_VER) && !defined(__clang__)
-#  ifdef _WIN64
+#  if defined(_M_ARM64) || defined(_M_ARM64EC)
+      unsigned long n = 0;
+      _BitScanForward64(&n, static_cast<unsigned __int64>(x));
+      return static_cast<size_t>(n);
+#  elif defined(_WIN64)
       return _tzcnt_u64(static_cast<unsigned __int64>(x));
 #  else
       return _tzcnt_u32(static_cast<unsigned int>(x));
@@ -203,7 +207,12 @@ namespace snmalloc
       overflow = __builtin_mul_overflow(x, y, &prod);
       return prod;
 #elif defined(_MSC_VER)
-#  ifdef _WIN64
+#  if defined(_M_ARM64) || defined(_M_ARM64EC)
+      size_t high_prod = __umulh(x, y);
+      size_t prod = x * y;
+      overflow = high_prod != 0;
+      return prod;
+#  elif defined(_WIN64)
       size_t high_prod;
       size_t prod = _umul128(x, y, &high_prod);
       overflow = high_prod != 0;
