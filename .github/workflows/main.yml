@@ -361,7 +361,7 @@ jobs:
         # Build each combination of OS and release/debug variants
         os: [ windows-2019 ]
         build-type: [ Release, Debug ]
-        arch: [ Win32, x64 ]
+        arch: [ Win32, x64, ARM64, ARM64EC ]
         toolchain: [ "", "-T ClangCL" ]
         extra-cmake-flags: [ "" ]
         # Add an extra check for the Windows 8 compatible PAL
@@ -388,6 +388,24 @@ jobs:
             build-type: Debug
             arch: x64
             toolchain: ""
+          - os: windows-2022
+            build-type: Release
+            arch: ARM64
+            toolchain: ""
+          - os: windows-2022
+            build-type: Debug
+            arch: ARM64
+            toolchain: ""
+          - os: windows-2022
+            build-type: Release
+            arch: ARM64EC
+            toolchain: ""
+            extra-cmake-flags: -DCMAKE_SYSTEM_VERSION="10.0.22621.0"
+          - os: windows-2022
+            build-type: Debug
+            arch: ARM64EC
+            toolchain: ""
+            extra-cmake-flags: -DCMAKE_SYSTEM_VERSION="10.0.22621.0"
         
       # Don't abort runners if a single one fails
       fail-fast: false
