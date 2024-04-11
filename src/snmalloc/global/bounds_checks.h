@@ -61,7 +61,7 @@ namespace snmalloc
     }
     else
     {
-      auto& alloc = ThreadAlloc::get();
+      auto& alloc = get_alloc();
       void* p = const_cast<void*>(ptr);
 
       auto range_end = pointer_offset(p, len);
@@ -91,7 +91,7 @@ namespace snmalloc
   {
     if constexpr (PerformCheck)
     {
-      auto& alloc = ThreadAlloc::get();
+      auto& alloc = get_alloc();
       return alloc.check_bounds(ptr, len);
     }
     else

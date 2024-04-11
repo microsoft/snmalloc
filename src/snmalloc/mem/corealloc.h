@@ -38,7 +38,7 @@ namespace snmalloc
                           Pooled<CoreAllocator<Config>>,
                           Empty>
   {
-    template<SNMALLOC_CONCEPT(IsConfig)>
+    template<SNMALLOC_CONCEPT(IsConfig), typename>
     friend class LocalAllocator;
 
     /**

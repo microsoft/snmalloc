@@ -63,7 +63,7 @@ int main()
   setup();
   allocator_thread_init();
 
-  auto& a = ThreadAlloc::get();
+  auto& a = get_alloc();
 
   for (size_t i = 0; i < 1000; i++)
   {
@@ -72,7 +72,7 @@ int main()
     a.dealloc(r1);
   }
 
-  ThreadAlloc::get().teardown();
+  get_alloc().teardown();
 
   // This checks that the scoped allocator does not call
   // register clean up, as this configuration will fault

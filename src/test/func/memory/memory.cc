@@ -59,7 +59,7 @@ void test_limited(rlim64_t as_limit, size_t& count)
     upper_bound = std::min(
       upper_bound, static_cast<unsigned long long>(info.freeram >> 3u));
     std::cout << "trying to alloc " << upper_bound / KiB << " KiB" << std::endl;
-    auto& alloc = ThreadAlloc::get();
+    auto& alloc = get_alloc();
     std::cout << "allocator initialised" << std::endl;
     auto chunk = alloc.alloc(upper_bound);
     alloc.dealloc(chunk);
@@ -81,7 +81,7 @@ void test_limited(rlim64_t as_limit, size_t& count)
 
 void test_alloc_dealloc_64k()
 {
-  auto& alloc = ThreadAlloc::get();
+  auto& alloc = get_alloc();
 
   constexpr size_t count = 1 << 12;
   constexpr size_t outer_count = 12;
@@ -113,7 +113,7 @@ void test_alloc_dealloc_64k()
 
 void test_random_allocation()
 {
-  auto& alloc = ThreadAlloc::get();
+  auto& alloc = get_alloc();
   std::unordered_set<void*> allocated;
 
   constexpr size_t count = 10000;
@@ -165,7 +165,7 @@ void test_random_allocation()
 
 void test_calloc()
 {
-  auto& alloc = ThreadAlloc::get();
+  auto& alloc = get_alloc();
 
   for (size_t size = 16; size <= (1 << 24); size <<= 1)
   {
@@ -235,7 +235,7 @@ void test_double_alloc()
 void test_external_pointer()
 {
   // Malloc does not have an external pointer querying mechanism.
-  auto& alloc = ThreadAlloc::get();
+  auto& alloc = get_alloc();
 
   for (uint8_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
   {
@@ -278,7 +278,7 @@ void test_external_pointer()
 
 void check_offset(void* base, void* interior)
 {
-  auto& alloc = ThreadAlloc::get();
+  auto& alloc = get_alloc();
   void* calced_base = alloc.external_pointer((void*)interior);
   if (calced_base != (void*)base)
   {
@@ -303,7 +303,7 @@ void test_external_pointer_large()
 {
   xoroshiro::p128r64 r;
 
-  auto& alloc = ThreadAlloc::get();
+  auto& alloc = get_alloc();
 
   constexpr size_t count_log = DefaultPal::address_bits > 32 ? 5 : 3;
   constexpr size_t count = 1 << count_log;
@@ -346,7 +346,7 @@ void test_external_pointer_large()
 void test_external_pointer_dealloc_bug()
 {
   std::cout << "Testing external pointer dealloc bug" << std::endl;
-  auto& alloc = ThreadAlloc::get();
+  auto& alloc = get_alloc();
   constexpr size_t count = MIN_CHUNK_SIZE;
   void* allocs[count];
 
@@ -375,7 +375,7 @@ void test_external_pointer_stack()
 
   std::array<int, 2000> stack;
 
-  auto& alloc = ThreadAlloc::get();
+  auto& alloc = get_alloc();
 
   for (size_t i = 0; i < stack.size(); i++)
   {
@@ -393,7 +393,7 @@ void test_external_pointer_stack()
 
 void test_alloc_16M()
 {
-  auto& alloc = ThreadAlloc::get();
+  auto& alloc = get_alloc();
   // sizes >= 16M use large_alloc
   const size_t size = 16'000'000;
 
@@ -404,7 +404,7 @@ void test_alloc_16M()
 
 void test_calloc_16M()
 {
-  auto& alloc = ThreadAlloc::get();
+  auto& alloc = get_alloc();
   // sizes >= 16M use large_alloc
   const size_t size = 16'000'000;
 
@@ -415,7 +415,7 @@ void test_calloc_16M()
 
 void test_calloc_large_bug()
 {
-  auto& alloc = ThreadAlloc::get();
+  auto& alloc = get_alloc();
   // Perform large calloc, to check for correct zeroing from PAL.
   // Some PALS have special paths for PAGE aligned zeroing of large
   // allocations.  This is a large allocation that is intentionally
@@ -430,7 +430,7 @@ void test_calloc_large_bug()
 template<size_t asz, int dealloc>
 void test_static_sized_alloc()
 {
-  auto& alloc = ThreadAlloc::get();
+  auto& alloc = get_alloc();
   auto p = alloc.alloc<asz>();
 
   static_assert((dealloc >= 0) && (dealloc <= 2), "bad dealloc flavor");
@@ -469,7 +469,7 @@ void test_static_sized_allocs()
 
 void test_remaining_bytes()
 {
-  auto& alloc = ThreadAlloc::get();
+  auto& alloc = get_alloc();
   for (size_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
   {
     auto size = sizeclass_to_size(sc);
@@ -499,7 +499,7 @@ void test_consolidaton_bug()
    * Check for consolidation of various sizes, but allocating and deallocating,
    * then requesting larger sizes. See issue #506
    */
-  auto& alloc = ThreadAlloc::get();
+  auto& alloc = get_alloc();
 
   for (size_t i = 0; i < 27; i++)
   {
