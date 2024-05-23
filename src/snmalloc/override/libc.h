@@ -156,7 +156,6 @@ namespace snmalloc::libc
 
   inline void* aligned_alloc(size_t alignment, size_t size)
   {
-    SNMALLOC_ASSERT((size % alignment) == 0);
     return memalign(alignment, size);
   }
 
