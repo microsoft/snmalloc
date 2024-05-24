@@ -323,22 +323,6 @@ namespace snmalloc
      * Does not work for value=0.
      ***********************************************/
     template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
-    static size_t to_exp_mant(size_t value)
-    {
-      constexpr size_t LEADING_BIT = one_at_bit(MANTISSA_BITS + LOW_BITS) >> 1;
-      constexpr size_t MANTISSA_MASK = one_at_bit(MANTISSA_BITS) - 1;
-
-      value = value - 1;
-
-      size_t e =
-        bits::BITS - MANTISSA_BITS - LOW_BITS - clz(value | LEADING_BIT);
-      size_t b = (e == 0) ? 0 : 1;
-      size_t m = (value >> (LOW_BITS + e - b)) & MANTISSA_MASK;
-
-      return (e << MANTISSA_BITS) + m;
-    }
-
-    template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
     constexpr size_t to_exp_mant_const(size_t value)
     {
       constexpr size_t LEADING_BIT = one_at_bit(MANTISSA_BITS + LOW_BITS) >> 1;

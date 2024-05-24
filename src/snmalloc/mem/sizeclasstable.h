@@ -24,7 +24,7 @@ namespace snmalloc
     // For example, 24 byte allocations can be
     // problematic for some data due to alignment issues.
     auto sc = static_cast<smallsizeclass_t>(
-      bits::to_exp_mant_const<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(size));
+      bits::to_exp_mant_const<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>(size));
 
     SNMALLOC_ASSERT(sc == static_cast<uint8_t>(sc));
 
@@ -214,7 +214,8 @@ namespace snmalloc
         auto& meta = fast_small(sizeclass);
 
         size_t rsize =
-          bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_BITS>(sizeclass);
+          bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>(
+            sizeclass);
         meta.size = rsize;
         size_t slab_bits = bits::max(
           bits::next_pow2_bits_const(MIN_OBJECT_COUNT * rsize), MIN_CHUNK_BITS);
@@ -405,7 +406,7 @@ namespace snmalloc
   {
     // We subtract and shift to reduce the size of the table, i.e. we don't have
     // to store a value for every size.
-    return (s - 1) >> MIN_ALLOC_BITS;
+    return (s - 1) >> MIN_ALLOC_STEP_BITS;
   }
 
   constexpr size_t sizeclass_lookup_size =
@@ -421,13 +422,29 @@ namespace snmalloc
 
     constexpr SizeClassLookup()
     {
+      constexpr sizeclass_compress_t minimum_class =
+        static_cast<sizeclass_compress_t>(
+          size_to_sizeclass_const(MIN_ALLOC_SIZE));
+
+      /* Some unused sizeclasses is OK, but keep it within reason! */
+      static_assert(minimum_class < sizeclass_lookup_size);
+
       size_t curr = 1;
-      for (sizeclass_compress_t sizeclass = 0;
-           sizeclass < NUM_SMALL_SIZECLASSES;
-           sizeclass++)
+
+      sizeclass_compress_t sizeclass = 0;
+      for (; sizeclass < minimum_class; sizeclass++)
       {
         for (; curr <= sizeclass_metadata.fast_small(sizeclass).size;
-             curr += 1 << MIN_ALLOC_BITS)
+             curr += MIN_ALLOC_STEP_SIZE)
+        {
+          table[sizeclass_lookup_index(curr)] = minimum_class;
+        }
+      }
+
+      for (; sizeclass < NUM_SMALL_SIZECLASSES; sizeclass++)
+      {
+        for (; curr <= sizeclass_metadata.fast_small(sizeclass).size;
+             curr += MIN_ALLOC_STEP_SIZE)
         {
           auto i = sizeclass_lookup_index(curr);
           if (i == sizeclass_lookup_size)

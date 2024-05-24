@@ -237,7 +237,9 @@ void test_external_pointer()
   // Malloc does not have an external pointer querying mechanism.
   auto& alloc = ThreadAlloc::get();
 
-  for (uint8_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
+  for (snmalloc::smallsizeclass_t sc = size_to_sizeclass(MIN_ALLOC_SIZE);
+       sc < NUM_SMALL_SIZECLASSES;
+       sc++)
   {
     size_t size = sizeclass_to_size(sc);
     void* p1 = alloc.alloc(size);
@@ -470,7 +472,9 @@ void test_static_sized_allocs()
 void test_remaining_bytes()
 {
   auto& alloc = ThreadAlloc::get();
-  for (size_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
+  for (snmalloc::smallsizeclass_t sc = size_to_sizeclass(MIN_ALLOC_SIZE);
+       sc < NUM_SMALL_SIZECLASSES;
+       sc++)
   {
     auto size = sizeclass_to_size(sc);
     char* p = (char*)alloc.alloc(size);
