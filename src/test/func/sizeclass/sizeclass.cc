@@ -75,6 +75,10 @@ int main(int, char**)
   bool failed = false;
   size_t size_low = 0;
 
+  std::cout << "Configured with minimum allocation size "
+            << snmalloc::MIN_ALLOC_SIZE << " and step size "
+            << snmalloc::MIN_ALLOC_STEP_SIZE << std::endl;
+
   std::cout << "0 has sizeclass: " << (size_t)snmalloc::size_to_sizeclass(0)
             << std::endl;
 
