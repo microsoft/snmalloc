@@ -447,8 +447,10 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
   endfunction()
 
-  set(SHIM_FILES src/snmalloc/override/new.cc)
+  set(SHIM_FILES src/snmalloc/override/malloc.cc src/snmalloc/override/new.cc)
   set(SHIM_FILES_MEMCPY src/snmalloc/override/memcpy.cc)
+
+  add_shim(snmalloc-new-override STATIC src/snmalloc/override/new.cc)
 
   if (SNMALLOC_STATIC_LIBRARY)
     add_shim(snmallocshim-static STATIC ${SHIM_FILES})
