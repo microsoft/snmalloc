@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../global/global.h"
+#include "snmalloc/snmalloc.h"
 
 #ifndef SNMALLOC_EXPORT
 #  define SNMALLOC_EXPORT

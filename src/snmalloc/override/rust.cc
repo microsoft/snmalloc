@@ -1,5 +1,5 @@
 #define SNMALLOC_NAME_MANGLE(a) sn_##a
-#include "malloc.cc"
+#include "snmalloc/snmalloc.h"
 
 #include <cstring>
 

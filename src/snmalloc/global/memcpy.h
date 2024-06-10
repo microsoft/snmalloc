@@ -1,5 +1,4 @@
 #pragma once
-#include "../backend/globalconfig.h"
 #include "bounds_checks.h"
 
 namespace snmalloc

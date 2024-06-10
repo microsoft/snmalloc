@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../global/global.h"
+#include "threadalloc.h"
 
 #include <errno.h>
 #include <string.h>
