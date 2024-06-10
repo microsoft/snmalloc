@@ -368,7 +368,7 @@ namespace snmalloc
   class FrontendSlabMetadata_Trait
   {
   private:
-    template<typename BackendType>
+    template<typename BackendType, typename ClientMeta_>
     friend class FrontendSlabMetadata;
 
     // Can only be constructed by FrontendSlabMetadata
@@ -379,10 +379,15 @@ namespace snmalloc
    * The FrontendSlabMetadata represent the metadata associated with a single
    * slab.
    */
-  template<typename BackendType>
+  template<typename BackendType, typename ClientMeta_>
   class FrontendSlabMetadata : public FrontendSlabMetadata_Trait
   {
   public:
+    /**
+     * Type that encapsulates logic for accessing client meta-data.
+     */
+    using ClientMeta = ClientMeta_;
+
     /**
      * Used to link slab metadata together in various other data-structures.
      * This is used with `SeqSet` and so may actually hold a subclass of this
@@ -424,6 +429,13 @@ namespace snmalloc
      */
     bool large_ = false;
 
+    /**
+     * Stores client meta-data for this slab. This must be last element in the
+     * slab. The meta data will actually allocate multiple elements after this
+     * type, so that client_meta_[1] will work for the required meta-data size.
+     */
+    SNMALLOC_NO_UNIQUE_ADDRESS typename ClientMeta::StorageType client_meta_;
+
     uint16_t& needed()
     {
       return needed_;
@@ -452,6 +464,9 @@ namespace snmalloc
       set_sleeping(sizeclass, 0);
 
       large_ = false;
+
+      new (&client_meta_)
+        typename ClientMeta::StorageType[get_client_storage_count(sizeclass)];
     }
 
     /**
@@ -469,6 +484,8 @@ namespace snmalloc
 
       // Jump to slow path on first deallocation.
       needed() = 1;
+
+      new (&client_meta_) typename ClientMeta::StorageType();
     }
 
     /**
@@ -582,6 +599,28 @@ namespace snmalloc
     [[nodiscard]] address_t get_slab_interior(const FreeListKey& key) const
     {
       return address_cast(free_queue.read_head(0, key));
+    }
+
+    typename ClientMeta::StorageType* get_client_meta_base()
+    {
+      return &client_meta_;
+    }
+
+    static size_t get_client_storage_count(smallsizeclass_t sizeclass)
+    {
+      auto count = sizeclass_to_slab_object_count(sizeclass);
+      auto result = ClientMeta::required_count(count);
+      if (result == 0)
+        return 1;
+      return result;
+    }
+
+    static size_t get_extra_bytes(smallsizeclass_t sizeclass)
+    {
+      // We remove one from the extra-bytes as there is one in the metadata to
+      // start with.
+      return (get_client_storage_count(sizeclass) - 1) *
+        sizeof(typename ClientMeta::StorageType);
     }
   };
 

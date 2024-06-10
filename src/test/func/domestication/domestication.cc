@@ -23,7 +23,7 @@ namespace snmalloc
   {
   public:
     using Pal = DefaultPal;
-    using PagemapEntry = DefaultPagemapEntry;
+    using PagemapEntry = DefaultPagemapEntry<NoClientMetaDataProvider>;
 
   private:
     using ConcretePagemap =

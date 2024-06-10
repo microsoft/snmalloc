@@ -95,6 +95,33 @@ namespace snmalloc
     bool HasDomesticate = false;
   };
 
+  struct NoClientMetaDataProvider
+  {
+    using StorageType = Empty;
+
+    static size_t required_count(size_t) {
+      return 1;
+    }
+
+    static Empty& get(Empty* base, size_t) {
+      return *base;
+    }
+  };
+
+  template <typename T>
+  struct ArrayClientMetaDataProvider
+  {
+    using StorageType = T;
+
+    static size_t required_count(size_t max_count) {
+      return max_count;
+    }
+
+    static T& get(StorageType* base, size_t index) {
+      return base[index];
+    }
+  };
+
   /**
    * Class containing definitions that are likely to be used by all except for
    * the most unusual back-end implementations.  This can be subclassed as a

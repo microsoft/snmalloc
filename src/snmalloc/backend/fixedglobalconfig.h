@@ -8,11 +8,13 @@ namespace snmalloc
   /**
    * A single fixed address range allocator configuration
    */
-  template<SNMALLOC_CONCEPT(IsPAL) PAL>
+  template<
+    SNMALLOC_CONCEPT(IsPAL) PAL,
+    typename ClientMetaDataProvider = NoClientMetaDataProvider>
   class FixedRangeConfig final : public CommonConfig
   {
   public:
-    using PagemapEntry = DefaultPagemapEntry;
+    using PagemapEntry = DefaultPagemapEntry<ClientMetaDataProvider>;
 
   private:
     using ConcretePagemap =
@@ -63,11 +65,13 @@ namespace snmalloc
      * C++, and not just its initializer fragment, to initialize a non-prefix
      * subset of the flags (in any order, at that).
      */
-    static constexpr Flags Options = []() constexpr {
+    static constexpr Flags Options = []() constexpr
+    {
       Flags opts = {};
       opts.HasDomesticate = true;
       return opts;
-    }();
+    }
+    ();
 
     // This needs to be a forward reference as the
     // thread local state will need to know about this.

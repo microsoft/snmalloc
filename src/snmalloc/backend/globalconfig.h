@@ -28,13 +28,14 @@ namespace snmalloc
    * The Configuration sets up a Pagemap for the backend to use, and the state
    * required to build new allocators (GlobalPoolState).
    */
-  class StandardConfig final : public CommonConfig
+  template <typename ClientMetaDataProvider = NoClientMetaDataProvider>
+  class StandardConfigClientMeta final : public CommonConfig
   {
-    using GlobalPoolState = PoolState<CoreAllocator<StandardConfig>>;
+    using GlobalPoolState = PoolState<CoreAllocator<StandardConfigClientMeta<ClientMetaDataProvider>>>;
 
   public:
     using Pal = DefaultPal;
-    using PagemapEntry = DefaultPagemapEntry;
+    using PagemapEntry = DefaultPagemapEntry<ClientMetaDataProvider>;
 
   private:
     using ConcretePagemap =
@@ -162,6 +163,8 @@ namespace snmalloc
       snmalloc::register_clean_up();
     }
   };
+
+  using StandardConfig = StandardConfigClientMeta<NoClientMetaDataProvider>;
 
   /**
    * Create allocator type for this configuration.

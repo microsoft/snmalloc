@@ -364,11 +364,15 @@ namespace snmalloc
         // don't touch the cache lines at this point in snmalloc_check_client.
         auto start = clear_slab(meta, sizeclass);
 
+        // Calculate the extra bytes required to store the client meta-data.
+        size_t extra_bytes = BackendSlabMetadata::get_extra_bytes(sizeclass);
+
         Config::Backend::dealloc_chunk(
           get_backend_local_state(),
           *meta,
           start,
-          sizeclass_to_slab_size(sizeclass));
+          sizeclass_to_slab_size(sizeclass),
+          extra_bytes);
       });
     }
 
@@ -401,7 +405,7 @@ namespace snmalloc
         meta->node.remove();
 
         Config::Backend::dealloc_chunk(
-          get_backend_local_state(), *meta, p, size);
+          get_backend_local_state(), *meta, p, size, 0);
 
         return;
       }
@@ -792,11 +796,16 @@ namespace snmalloc
       message<1024>("small_alloc_slow rsize={} slab size={}", rsize, slab_size);
 #endif
 
+      // Calculate the extra bytes required to store the client meta-data.
+      size_t extra_bytes = BackendSlabMetadata::get_extra_bytes(sizeclass);
+      message<1024>("extra_bytes={}, sizeclass={}", extra_bytes, sizeclass);
+
       auto [slab, meta] = Config::Backend::alloc_chunk(
         get_backend_local_state(),
         slab_size,
         PagemapEntry::encode(
-          public_state(), sizeclass_t::from_small_class(sizeclass)));
+          public_state(), sizeclass_t::from_small_class(sizeclass)),
+        extra_bytes);
 
       if (slab == nullptr)
       {
