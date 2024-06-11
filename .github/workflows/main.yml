@@ -224,16 +224,15 @@ jobs:
       matrix:
         # Build just release variant as Debug is too slow.
         build-type: [ Release ]
+        os: ["ubuntu-latest", "ubuntu-20.04"]
         extra-cmake-flags: [ "" ]
         include:
           - os: "ubuntu-latest"
-            continue-on-error: # Don't class as an error if this fails, until we have a more reliablity.
             variant: "libc++ (TSan + UBSan)"
             dependencies: "sudo apt install ninja-build"
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-stdlib=\"libc++ -g\" -DSNMALLOC_SANITIZER=undefined,thread"
           # Also test specifically with clang-10 (on ubuntu-20.04)
           - os: "ubuntu-20.04"
-            continue-on-error: # Don't class as an error if this fails, until we have a more reliablity.
             variant: "clang-10 libc++ (TSan + UBSan)"
             dependencies: "sudo apt install ninja-build"
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_CXX_FLAGS=-stdlib=\"libc++ -g\" -DSNMALLOC_SANITIZER=undefined,thread"
