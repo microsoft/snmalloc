@@ -817,6 +817,49 @@ namespace snmalloc
     }
 
     /**
+     * @brief Get the client meta data for the snmalloc allocation covering this pointer.
+     * 
+     */
+    typename Config::ClientMeta::DataRef get_client_meta_data(void* p)
+    {
+      const PagemapEntry& entry = Config::Backend::template get_metaentry(address_cast(p));
+
+      size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
+
+      auto* meta_slab = entry.get_slab_metadata();
+      
+      if (SNMALLOC_UNLIKELY(meta_slab == nullptr))
+      {
+        // TODO handle const case, where we read fake meta-data.
+        abort();
+      }
+
+      return meta_slab->get_meta_for_object(index);
+    }
+
+    /**
+     * @brief Get the client meta data for the snmalloc allocation covering this pointer.
+     * 
+     */
+    typename Config::ClientMeta::ConstDataRef get_client_meta_data_const(void* p)
+    {
+      const PagemapEntry& entry = Config::Backend::template get_metaentry(address_cast(p));
+
+      size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
+
+      auto* meta_slab = entry.get_slab_metadata();
+      
+      if (SNMALLOC_UNLIKELY(meta_slab == nullptr))
+      {
+        static typename Config::ClientMeta::StorageType null_meta_store{};
+        return Config::ClientMeta::get(&null_meta_store, 0);
+      }
+
+      return meta_slab->get_meta_for_object(index);
+    }
+
+
+    /**
      * Returns the number of remaining bytes in an object.
      *
      * auto p = (char*)malloc(size)

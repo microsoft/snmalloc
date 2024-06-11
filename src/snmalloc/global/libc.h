@@ -176,4 +176,17 @@ namespace snmalloc::libc
     *memptr = p;
     return 0;
   }
+
+  inline typename snmalloc::Alloc::Config::ClientMeta::DataRef
+  get_client_meta_data(void* p)
+  {
+    return ThreadAlloc::get().get_client_meta_data(p);
+  }
+
+  inline typename snmalloc::Alloc::Config::ClientMeta::ConstDataRef
+  get_client_meta_data_const(void* p)
+  {
+    return ThreadAlloc::get().get_client_meta_data_const(p);
+  }
+
 } // namespace snmalloc::libc

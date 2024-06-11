@@ -98,12 +98,14 @@ namespace snmalloc
   struct NoClientMetaDataProvider
   {
     using StorageType = Empty;
+    using DataRef = Empty&;
+    using ConstDataRef = const Empty&;
 
     static size_t required_count(size_t) {
       return 1;
     }
 
-    static Empty& get(Empty* base, size_t) {
+    static DataRef get(StorageType* base, size_t) {
       return *base;
     }
   };
@@ -112,12 +114,14 @@ namespace snmalloc
   struct ArrayClientMetaDataProvider
   {
     using StorageType = T;
+    using DataRef = T&;
+    using ConstDataRef = const T&;
 
     static size_t required_count(size_t max_count) {
       return max_count;
     }
 
-    static T& get(StorageType* base, size_t index) {
+    static DataRef get(StorageType* base, size_t index) {
       return base[index];
     }
   };

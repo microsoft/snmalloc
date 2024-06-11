@@ -372,7 +372,7 @@ namespace snmalloc
     friend class FrontendSlabMetadata;
 
     // Can only be constructed by FrontendSlabMetadata
-    FrontendSlabMetadata_Trait() = default;
+    constexpr FrontendSlabMetadata_Trait() = default;
   };
 
   /**
@@ -434,7 +434,7 @@ namespace snmalloc
      * slab. The meta data will actually allocate multiple elements after this
      * type, so that client_meta_[1] will work for the required meta-data size.
      */
-    SNMALLOC_NO_UNIQUE_ADDRESS typename ClientMeta::StorageType client_meta_;
+    SNMALLOC_NO_UNIQUE_ADDRESS typename ClientMeta::StorageType client_meta_{};
 
     uint16_t& needed()
     {
@@ -601,9 +601,9 @@ namespace snmalloc
       return address_cast(free_queue.read_head(0, key));
     }
 
-    typename ClientMeta::StorageType* get_client_meta_base()
+    typename ClientMeta::DataRef get_meta_for_object(size_t index)
     {
-      return &client_meta_;
+      return ClientMeta::get(&client_meta_, index);
     }
 
     static size_t get_client_storage_count(smallsizeclass_t sizeclass)

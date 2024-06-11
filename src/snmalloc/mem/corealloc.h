@@ -798,7 +798,6 @@ namespace snmalloc
 
       // Calculate the extra bytes required to store the client meta-data.
       size_t extra_bytes = BackendSlabMetadata::get_extra_bytes(sizeclass);
-      message<1024>("extra_bytes={}, sizeclass={}", extra_bytes, sizeclass);
 
       auto [slab, meta] = Config::Backend::alloc_chunk(
         get_backend_local_state(),

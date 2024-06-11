@@ -15,6 +15,7 @@ namespace snmalloc
   {
   public:
     using PagemapEntry = DefaultPagemapEntry<ClientMetaDataProvider>;
+    using ClientMeta = ClientMetaDataProvider;
 
   private:
     using ConcretePagemap =
