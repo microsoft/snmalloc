@@ -225,7 +225,6 @@ jobs:
         # Build just release variant as Debug is too slow.
         build-type: [ Release ]
         os: ["ubuntu-latest", "ubuntu-20.04"]
-        extra-cmake-flags: [ "" ]
         include:
           - os: "ubuntu-latest"
             variant: "libc++ (TSan + UBSan)"
