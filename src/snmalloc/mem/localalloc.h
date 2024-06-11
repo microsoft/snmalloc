@@ -832,7 +832,7 @@ namespace snmalloc
       if (SNMALLOC_UNLIKELY(meta_slab == nullptr))
       {
         error(
-          "Cannot access meta-data for non-snmalloc object in writable form!")
+          "Cannot access meta-data for non-snmalloc object in writable form!");
       }
 
       return meta_slab->get_meta_for_object(index);
