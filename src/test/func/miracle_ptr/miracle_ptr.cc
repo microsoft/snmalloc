@@ -29,7 +29,7 @@ SNMALLOC_SLOW_PATH void error(std::string msg)
   abort();
 }
 
-SNMALLOC_FAST_PATH void check(bool b, std::string msg)
+SNMALLOC_FAST_PATH_INLINE void check(bool b, std::string msg)
 {
   if (SNMALLOC_UNLIKELY(!b))
     error(msg);
@@ -114,12 +114,18 @@ void operator delete(void* p)
   snmalloc::miracle::free(p);
 }
 
+void operator delete(void* p, size_t)
+{
+  snmalloc::miracle::free(p);
+}
+
+
 /**
  * This class can be used to replace a raw pointer. It will automatically use
  * the underlying backup reference counting design from the miracle pointer
  * docs.
  */
-template<typename T>
+template <typename T>
 class raw_ptr
 {
   T* p;
