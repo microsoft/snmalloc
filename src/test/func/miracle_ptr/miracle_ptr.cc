@@ -119,13 +119,12 @@ void operator delete(void* p, size_t)
   snmalloc::miracle::free(p);
 }
 
-
 /**
  * This class can be used to replace a raw pointer. It will automatically use
  * the underlying backup reference counting design from the miracle pointer
  * docs.
  */
-template <typename T>
+template<typename T>
 class raw_ptr
 {
   T* p;

@@ -1,9 +1,9 @@
 #include "test/setup.h"
 
 #include <iostream>
-#include <vector>
 #include <snmalloc/backend/globalconfig.h>
 #include <snmalloc/snmalloc_core.h>
+#include <vector>
 
 namespace snmalloc
 {
