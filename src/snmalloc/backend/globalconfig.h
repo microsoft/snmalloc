@@ -1,9 +1,9 @@
 #pragma once
 
-#  include "../backend_helpers/backend_helpers.h"
-#  include "backend.h"
-#  include "meta_protected_range.h"
-#  include "standard_range.h"
+#include "../backend_helpers/backend_helpers.h"
+#include "backend.h"
+#include "meta_protected_range.h"
+#include "standard_range.h"
 
 namespace snmalloc
 {
@@ -24,10 +24,11 @@ namespace snmalloc
    * The Configuration sets up a Pagemap for the backend to use, and the state
    * required to build new allocators (GlobalPoolState).
    */
-  template <typename ClientMetaDataProvider = NoClientMetaDataProvider>
+  template<typename ClientMetaDataProvider = NoClientMetaDataProvider>
   class StandardConfigClientMeta final : public CommonConfig
   {
-    using GlobalPoolState = PoolState<CoreAllocator<StandardConfigClientMeta<ClientMetaDataProvider>>>;
+    using GlobalPoolState = PoolState<
+      CoreAllocator<StandardConfigClientMeta<ClientMetaDataProvider>>>;
 
   public:
     using Pal = DefaultPal;
@@ -96,9 +97,9 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH static void ensure_init_slow()
     {
       FlagLock lock{initialisation_lock};
-#  ifdef SNMALLOC_TRACING
+#ifdef SNMALLOC_TRACING
       message<1024>("Run init_impl");
-#  endif
+#endif
 
       if (initialised)
         return;

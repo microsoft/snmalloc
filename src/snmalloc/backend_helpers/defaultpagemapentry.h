@@ -64,11 +64,14 @@ namespace snmalloc
     SNMALLOC_FAST_PATH DefaultPagemapEntryT() = default;
   };
 
-  template <typename ClientMetaDataProvider>
-  class DefaultSlabMetadata : public FrontendSlabMetadata<DefaultSlabMetadata<ClientMetaDataProvider>, ClientMetaDataProvider>
+  template<typename ClientMetaDataProvider>
+  class DefaultSlabMetadata : public FrontendSlabMetadata<
+                                DefaultSlabMetadata<ClientMetaDataProvider>,
+                                ClientMetaDataProvider>
   {};
 
-  template <typename ClientMetaDataProvider>
-  using DefaultPagemapEntry = DefaultPagemapEntryT<DefaultSlabMetadata<ClientMetaDataProvider>>;
+  template<typename ClientMetaDataProvider>
+  using DefaultPagemapEntry =
+    DefaultPagemapEntryT<DefaultSlabMetadata<ClientMetaDataProvider>>;
 
 } // namespace snmalloc

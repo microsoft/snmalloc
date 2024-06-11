@@ -87,8 +87,11 @@ namespace snmalloc
      *   (remote, sizeclass, slab_metadata)
      * where slab_metadata, is the second element of the pair return.
      */
-    static std::pair<capptr::Chunk<void>, SlabMetadata*>
-    alloc_chunk(LocalState& local_state, size_t size, uintptr_t ras, size_t extra_bytes = 0)
+    static std::pair<capptr::Chunk<void>, SlabMetadata*> alloc_chunk(
+      LocalState& local_state,
+      size_t size,
+      uintptr_t ras,
+      size_t extra_bytes = 0)
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
@@ -96,7 +99,8 @@ namespace snmalloc
       auto meta_size = bits::next_pow2(sizeof(SlabMetadata) + extra_bytes);
 
 #ifdef SNMALLOC_TRACING
-      message<1024>("Allocating metadata of size: {} ({})", meta_size, extra_bytes);
+      message<1024>(
+        "Allocating metadata of size: {} ({})", meta_size, extra_bytes);
 #endif
 
       auto meta_cap = local_state.get_meta_range().alloc_range(meta_size);

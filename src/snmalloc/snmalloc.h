@@ -10,11 +10,13 @@
 // definition of `snmalloc::Alloc` before including any files that include
 // `snmalloc.h` or consume the global allocation APIs.
 #ifndef SNMALLOC_PROVIDE_OWN_CONFIG
-namespace snmalloc {
-    /**
-     * Create allocator type for this configuration.
-     */
-    using Alloc = snmalloc::LocalAllocator<snmalloc::StandardConfigClientMeta<NoClientMetaDataProvider>>;
+namespace snmalloc
+{
+  /**
+   * Create allocator type for this configuration.
+   */
+  using Alloc = snmalloc::LocalAllocator<
+    snmalloc::StandardConfigClientMeta<NoClientMetaDataProvider>>;
 } // namespace snmalloc
 #endif
 

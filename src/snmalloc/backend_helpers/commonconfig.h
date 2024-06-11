@@ -101,27 +101,31 @@ namespace snmalloc
     using DataRef = Empty&;
     using ConstDataRef = const Empty&;
 
-    static size_t required_count(size_t) {
+    static size_t required_count(size_t)
+    {
       return 1;
     }
 
-    static DataRef get(StorageType* base, size_t) {
+    static DataRef get(StorageType* base, size_t)
+    {
       return *base;
     }
   };
 
-  template <typename T>
+  template<typename T>
   struct ArrayClientMetaDataProvider
   {
     using StorageType = T;
     using DataRef = T&;
     using ConstDataRef = const T&;
 
-    static size_t required_count(size_t max_count) {
+    static size_t required_count(size_t max_count)
+    {
       return max_count;
     }
 
-    static DataRef get(StorageType* base, size_t index) {
+    static DataRef get(StorageType* base, size_t index)
+    {
       return base[index];
     }
   };

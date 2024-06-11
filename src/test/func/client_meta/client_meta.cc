@@ -1,25 +1,22 @@
 #include "test/setup.h"
 
 #include <iostream>
-
-#include <snmalloc/snmalloc_core.h>
 #include <snmalloc/backend/globalconfig.h>
+#include <snmalloc/snmalloc_core.h>
 
 namespace snmalloc
 {
-    using Alloc = snmalloc::LocalAllocator<
-        snmalloc::StandardConfigClientMeta<ArrayClientMetaDataProvider<std::atomic<size_t>>>>;
+  using Alloc = snmalloc::LocalAllocator<snmalloc::StandardConfigClientMeta<
+    ArrayClientMetaDataProvider<std::atomic<size_t>>>>;
 }
 #define SNMALLOC_PROVIDE_OWN_CONFIG
 #include <snmalloc/snmalloc.h>
 
-
-
 int main()
 {
 #ifdef SNMALLOC_PASS_THROUGH
-    // This test does not make sense in pass-through
-    return 0;
+  // This test does not make sense in pass-through
+  return 0;
 #else
   std::vector<void*> ptrs;
   for (size_t i = 0; i < 10000; i++)
@@ -37,8 +34,8 @@ int main()
     auto& meta = snmalloc::libc::get_client_meta_data(p);
     if (meta != i)
     {
-        std::cout << "Failed at index " << i << std::endl;
-        abort();
+      std::cout << "Failed at index " << i << std::endl;
+      abort();
     }
     for (size_t j = 0; j < 1024; j++)
     {

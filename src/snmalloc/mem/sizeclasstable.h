@@ -360,7 +360,8 @@ namespace snmalloc
     }
   }
 
-  SNMALLOC_FAST_PATH constexpr address_t start_of_object(sizeclass_t sc, address_t addr)
+  SNMALLOC_FAST_PATH constexpr address_t
+  start_of_object(sizeclass_t sc, address_t addr)
   {
     auto meta = sizeclass_metadata.fast(sc);
     address_t slab_start = addr & ~meta.slab_mask;
