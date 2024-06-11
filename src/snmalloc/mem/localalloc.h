@@ -846,7 +846,7 @@ namespace snmalloc
     get_client_meta_data_const(void* p)
     {
       const PagemapEntry& entry =
-        Config::Backend::template get_metaentry(address_cast(p));
+        Config::Backend::template get_metaentry<true>(address_cast(p));
 
       size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
 

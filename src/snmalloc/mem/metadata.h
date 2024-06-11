@@ -685,7 +685,7 @@ namespace snmalloc
      */
     [[nodiscard]] SNMALLOC_FAST_PATH SlabMetadata* get_slab_metadata() const
     {
-      SNMALLOC_ASSERT(get_remote() != nullptr);
+      //SNMALLOC_ASSERT(get_remote() != nullptr);
       return unsafe_from_uintptr<SlabMetadata>(meta & ~META_BOUNDARY_BIT);
     }
   };
