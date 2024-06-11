@@ -5,6 +5,12 @@
  *
  * Do not use as is.
  */
+#if defined(__has_feature)
+#  if __has_feature(thread_sanitizer)
+#    define SNMALLOC_THREAD_SANITIZER_ENABLED
+#  endif
+#endif
+
 #ifdef SNMALLOC_THREAD_SANITIZER_ENABLED
 int main()
 {

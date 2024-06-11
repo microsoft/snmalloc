@@ -224,6 +224,7 @@ jobs:
       matrix:
         # Build just release variant as Debug is too slow.
         build-type: [ Release ]
+        extra-cmake-flags: [ "" ]
         include:
           - os: "ubuntu-latest"
             continue-on-error: # Don't class as an error if this fails, until we have a more reliablity.
@@ -452,7 +453,7 @@ jobs:
         git diff --exit-code
     - name: Run clang-tidy
       run: |
-        clang-tidy-15  src/snmalloc/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16 -DSNMALLOC_PLATFORM_HAS_GETENTROPY=0
+        clang-tidy-15  src/snmalloc/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16 -DSNMALLOC_PLATFORM_HAS_GETENTROPY=0 -Isrc
         if [ -f tidy.fail ] ; then
           cat tidy.fail
           exit 1
