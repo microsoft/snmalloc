@@ -1,8 +1,4 @@
 #pragma once
-// If you define SNMALLOC_PROVIDE_OWN_CONFIG then you must provide your own
-// definition of `snmalloc::Alloc` before including any files that include
-// `snmalloc.h` or consume the global allocation APIs.
-#ifndef SNMALLOC_PROVIDE_OWN_CONFIG
 
 #  include "../backend_helpers/backend_helpers.h"
 #  include "backend.h"
@@ -163,12 +159,4 @@ namespace snmalloc
       snmalloc::register_clean_up();
     }
   };
-
-  using StandardConfig = StandardConfigClientMeta<NoClientMetaDataProvider>;
-
-  /**
-   * Create allocator type for this configuration.
-   */
-  using Alloc = snmalloc::LocalAllocator<snmalloc::StandardConfig>;
 } // namespace snmalloc
-#endif
