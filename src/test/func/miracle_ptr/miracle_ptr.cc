@@ -5,13 +5,19 @@
  *
  * Do not use as is.
  */
+#ifdef SNMALLOC_THREAD_SANITIZER_ENABLED
+int main()
+{
+  return 0;
+}
+#else
 
-#include "test/setup.h"
+#  include "test/setup.h"
 
-#include <iostream>
-#include <memory>
-#include <snmalloc/backend/globalconfig.h>
-#include <snmalloc/snmalloc_core.h>
+#  include <iostream>
+#  include <memory>
+#  include <snmalloc/backend/globalconfig.h>
+#  include <snmalloc/snmalloc_core.h>
 
 namespace snmalloc
 {
@@ -20,8 +26,8 @@ namespace snmalloc
   using Alloc = snmalloc::LocalAllocator<snmalloc::StandardConfigClientMeta<
     ArrayClientMetaDataProvider<std::atomic<size_t>>>>;
 }
-#define SNMALLOC_PROVIDE_OWN_CONFIG
-#include <snmalloc/snmalloc.h>
+#  define SNMALLOC_PROVIDE_OWN_CONFIG
+#  include <snmalloc/snmalloc.h>
 
 SNMALLOC_SLOW_PATH void error(std::string msg)
 {
@@ -176,7 +182,7 @@ public:
 
 int main()
 {
-#ifndef SNMALLOC_PASS_THROUGH
+#  ifndef SNMALLOC_PASS_THROUGH
   raw_ptr<int> p;
   {
     auto up = std::make_unique<int>(42);
@@ -188,6 +194,7 @@ int main()
   // raw_ptr has kept the memory live.
   // Current implementation zeros the memory when the unique_ptr is destroyed.
   check(*p == 0, "Failed to keep memory live");
-#endif
+#  endif
   return 0;
 }
+#endif
