@@ -61,9 +61,6 @@ fn main() {
         if cfg!(feature = "android-lld") {
             build.define("ANDROID_LD", "lld");
         }
-        if cfg!(feature = "android-shared-stl") {
-            build.define("ANDROID_STL", "c++_shared");
-        }
         if triple.contains("aarch64") {
             build.define("ANDROID_ABI", "arm64-v8a");
         } else if triple.contains("armv7") {
@@ -196,11 +193,6 @@ fn main() {
 
         if cfg!(feature = "android-lld") {
             cfg = cfg.define("ANDROID_LD", "lld");
-        }
-
-        if cfg!(feature = "android-shared-stl") {
-            println!("cargo:rustc-link-lib=dylib=c++_shared");
-            cfg = cfg.define("ANDROID_STL", "c++_shared");
         }
 
         if triple.contains("aarch64") {

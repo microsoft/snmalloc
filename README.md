@@ -38,6 +38,7 @@ are listed at
 - `win8compat`: Improve compatibility for old Windows platforms (removing usages of `VirtualAlloc2` and other new APIs)
 - `lto`: Links with InterProceduralOptimization/LinkTimeOptimization
 - `notls`: Enables to be loaded dynamically, thus disable tls.
+- `stats`: Enables allocation statistics.
 
 **To get the crates compiled, you need to choose either `1mib` or `16mib` to determine the chunk configuration**
 

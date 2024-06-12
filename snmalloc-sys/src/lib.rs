@@ -1,7 +1,7 @@
 #![no_std]
 #![allow(non_camel_case_types)]
 
-use {core::ffi::c_void, core::usize};
+use core::ffi::c_void;
 
 extern "C" {
     /// Allocate the memory with the given alignment and size.
