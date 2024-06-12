@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../ds_core/ds_core.h"
+
 namespace snmalloc
 {
   /**
@@ -179,7 +181,13 @@ namespace snmalloc
       // Allocate a power of two extra to allow the placement of the
       // pagemap be difficult to guess if randomize_position set.
       size_t additional_size =
+#ifdef SNMALLOC_THREAD_SANITIZER_ENABLED
+        // When running with TSAN we failed to allocate the very large range
+        // randomly
+        randomize_position ? bits::next_pow2(REQUIRED_SIZE) : 0;
+#else
         randomize_position ? bits::next_pow2(REQUIRED_SIZE) * 4 : 0;
+#endif
       size_t request_size = REQUIRED_SIZE + additional_size;
 
       auto new_body_untyped = PAL::reserve(request_size);
