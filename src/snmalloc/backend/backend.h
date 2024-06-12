@@ -91,11 +91,14 @@ namespace snmalloc
       LocalState& local_state,
       size_t size,
       uintptr_t ras,
-      size_t extra_bytes = 0)
+      sizeclass_t sizeclass)
     {
       SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
 
+      // Calculate the extra bytes required to store the client meta-data.
+      size_t extra_bytes = SlabMetadata::get_extra_bytes(sizeclass);
+    
       auto meta_size = bits::next_pow2(sizeof(SlabMetadata) + extra_bytes);
 
 #ifdef SNMALLOC_TRACING
@@ -148,7 +151,7 @@ namespace snmalloc
       SlabMetadata& slab_metadata,
       capptr::Alloc<void> alloc,
       size_t size,
-      size_t extra_bytes = 0)
+      sizeclass_t sizeclass)
     {
       /*
        * The backend takes possession of these chunks now, by disassociating
@@ -174,6 +177,9 @@ namespace snmalloc
        * remainder of the backend.
        */
       capptr::Arena<void> arena = Authmap::amplify(alloc);
+
+      // Calculate the extra bytes required to store the client meta-data.
+      size_t extra_bytes = SlabMetadata::get_extra_bytes(sizeclass);
 
       auto meta_size = bits::next_pow2(sizeof(SlabMetadata) + extra_bytes);
       local_state.get_meta_range().dealloc_range(

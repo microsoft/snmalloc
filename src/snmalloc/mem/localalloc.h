@@ -197,7 +197,8 @@ namespace snmalloc
           core_alloc->get_backend_local_state(),
           large_size_to_chunk_size(size),
           PagemapEntry::encode(
-            core_alloc->public_state(), size_to_sizeclass_full(size)));
+            core_alloc->public_state(), size_to_sizeclass_full(size)),
+          size_to_sizeclass_full(size));
         // set up meta data so sizeclass is correct, and hence alloc size, and
         // external pointer.
 #ifdef SNMALLOC_TRACING

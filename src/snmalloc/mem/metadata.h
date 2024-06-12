@@ -615,12 +615,17 @@ namespace snmalloc
       return result;
     }
 
-    static size_t get_extra_bytes(smallsizeclass_t sizeclass)
+    static size_t get_extra_bytes(sizeclass_t sizeclass)
     {
-      // We remove one from the extra-bytes as there is one in the metadata to
-      // start with.
-      return (get_client_storage_count(sizeclass) - 1) *
-        sizeof(typename ClientMeta::StorageType);
+      if (sizeclass.is_small())
+        // We remove one from the extra-bytes as there is one in the metadata to
+        // start with.
+        return (get_client_storage_count(sizeclass.as_small()) - 1) *
+          sizeof(typename ClientMeta::StorageType);
+      
+      // For large classes there is only a single entry, so this is covered by the
+      // existing entry in the metaslab, and further bytes are not required.
+      return 0;
     }
   };
 
