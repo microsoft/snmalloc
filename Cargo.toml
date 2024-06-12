@@ -1,6 +1,6 @@
 [package]
 name = "snmalloc-rs"
-version = "0.3.5"
+version = "0.3.6"
 authors = ["schrodingerzhu <i@zhuyi.fan>"]
 edition = "2021"
 license = "MIT"
