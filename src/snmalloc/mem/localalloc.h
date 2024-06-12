@@ -843,7 +843,7 @@ namespace snmalloc
      * @brief Get the client meta data for the snmalloc allocation covering this
      * pointer.
      */
-    typename Config::ClientMeta::ConstDataRef
+    std::add_const_t<typename Config::ClientMeta::DataRef>
     get_client_meta_data_const(void* p)
     {
       const PagemapEntry& entry =

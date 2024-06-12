@@ -99,7 +99,6 @@ namespace snmalloc
   {
     using StorageType = Empty;
     using DataRef = Empty&;
-    using ConstDataRef = const Empty&;
 
     static size_t required_count(size_t)
     {
@@ -117,7 +116,6 @@ namespace snmalloc
   {
     using StorageType = T;
     using DataRef = T&;
-    using ConstDataRef = const T&;
 
     static size_t required_count(size_t max_count)
     {
