@@ -111,7 +111,63 @@ namespace snmalloc::miracle
     std::cout << "Freeing from release " << p << std::endl;
     snmalloc::libc::free(p);
   }
-};
+
+  /**
+   * This class can be used to replace a raw pointer. It will automatically use
+   * the underlying backup reference counting design from the miracle pointer
+   * docs.
+   */
+  template<typename T>
+  class raw_ptr
+  {
+    T* p;
+
+  public:
+    raw_ptr() : p(nullptr) {}
+
+    raw_ptr(T* p) : p(p)
+    {
+      snmalloc::miracle::acquire(p);
+    }
+
+    T& operator*()
+    {
+      return *p;
+    }
+
+    ~raw_ptr()
+    {
+      if (p == nullptr)
+        return;
+      snmalloc::miracle::release(p);
+    }
+
+    raw_ptr(const raw_ptr& rp) : p(rp.p)
+    {
+      snmalloc::miracle::acquire(p);
+    }
+
+    raw_ptr& operator=(const raw_ptr& other)
+    {
+      p = other.p;
+      snmalloc::miracle::acquire(other.p);
+      return *this;
+    }
+
+    raw_ptr(raw_ptr&& other) : p(other.p)
+    {
+      other.p = nullptr;
+    }
+
+    raw_ptr& operator=(raw_ptr&& other)
+    {
+      p = other.p;
+      other.p = nullptr;
+      return *this;
+    }
+  };
+} // namespace snmalloc::miracle
+
 
 /**
  * Overload new and delete to use the "miracle pointer" implementation.
@@ -131,65 +187,11 @@ void operator delete(void* p, size_t)
   snmalloc::miracle::free(p);
 }
 
-/**
- * This class can be used to replace a raw pointer. It will automatically use
- * the underlying backup reference counting design from the miracle pointer
- * docs.
- */
-template<typename T>
-class raw_ptr
-{
-  T* p;
-
-public:
-  raw_ptr() : p(nullptr) {}
-
-  raw_ptr(T* p) : p(p)
-  {
-    snmalloc::miracle::acquire(p);
-  }
-
-  T& operator*()
-  {
-    return *p;
-  }
-
-  ~raw_ptr()
-  {
-    if (p == nullptr)
-      return;
-    snmalloc::miracle::release(p);
-  }
-
-  raw_ptr(const raw_ptr& rp) : p(rp.p)
-  {
-    snmalloc::miracle::acquire(p);
-  }
-
-  raw_ptr& operator=(const raw_ptr& other)
-  {
-    p = other.p;
-    snmalloc::miracle::acquire(other.p);
-    return *this;
-  }
-
-  raw_ptr(raw_ptr&& other) : p(other.p)
-  {
-    other.p = nullptr;
-  }
-
-  raw_ptr& operator=(raw_ptr&& other)
-  {
-    p = other.p;
-    other.p = nullptr;
-    return *this;
-  }
-};
 
 int main()
 {
 #  ifndef SNMALLOC_PASS_THROUGH
-  raw_ptr<int> p;
+  snmalloc::miracle::raw_ptr<int> p;
   {
     auto up = std::make_unique<int>(42);
     auto up2 = std::make_unique<int>(41);
