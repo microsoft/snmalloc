@@ -193,8 +193,10 @@ int main()
 #  ifndef SNMALLOC_PASS_THROUGH
   snmalloc::miracle::raw_ptr<int> p;
   {
+    auto up1 = std::make_unique<int>(41);
     auto up = std::make_unique<int>(42);
-    auto up2 = std::make_unique<int>(41);
+    auto up2 = std::make_unique<int>(40);
+    auto up3 = std::make_unique<int>(39);
     p = up.get();
     check(*p == 42, "Failed to set p");
   }
