@@ -98,7 +98,7 @@ namespace snmalloc
 
       // Calculate the extra bytes required to store the client meta-data.
       size_t extra_bytes = SlabMetadata::get_extra_bytes(sizeclass);
-    
+
       auto meta_size = bits::next_pow2(sizeof(SlabMetadata) + extra_bytes);
 
 #ifdef SNMALLOC_TRACING

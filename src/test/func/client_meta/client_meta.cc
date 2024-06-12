@@ -1,5 +1,6 @@
 /**
- * This test performs a very simple use of the client_meta data feature in snmalloc.
+ * This test performs a very simple use of the client_meta data feature in
+ * snmalloc.
  */
 
 #include "test/setup.h"

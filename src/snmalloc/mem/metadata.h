@@ -622,9 +622,9 @@ namespace snmalloc
         // start with.
         return (get_client_storage_count(sizeclass.as_small()) - 1) *
           sizeof(typename ClientMeta::StorageType);
-      
-      // For large classes there is only a single entry, so this is covered by the
-      // existing entry in the metaslab, and further bytes are not required.
+
+      // For large classes there is only a single entry, so this is covered by
+      // the existing entry in the metaslab, and further bytes are not required.
       return 0;
     }
   };

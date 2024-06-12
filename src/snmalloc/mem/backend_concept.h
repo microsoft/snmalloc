@@ -98,7 +98,11 @@ namespace snmalloc
 
   template<typename LocalState, typename PagemapEntry, typename Backend>
   concept IsBackend =
-    requires(LocalState& local_state, size_t size, uintptr_t ras, sizeclass_t sizeclass) {
+    requires(
+      LocalState& local_state,
+      size_t size,
+      uintptr_t ras,
+      sizeclass_t sizeclass) {
       {
         Backend::alloc_chunk(local_state, size, ras, sizeclass)
         } -> ConceptSame<
@@ -116,7 +120,8 @@ namespace snmalloc
       size_t size,
       sizeclass_t sizeclass) {
       {
-        Backend::dealloc_chunk(local_state, slab_metadata, alloc, size, sizeclass)
+        Backend::dealloc_chunk(
+          local_state, slab_metadata, alloc, size, sizeclass)
         } -> ConceptSame<void>;
     } &&
     requires(address_t p) {

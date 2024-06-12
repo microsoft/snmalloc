@@ -168,7 +168,6 @@ namespace snmalloc::miracle
   };
 } // namespace snmalloc::miracle
 
-
 /**
  * Overload new and delete to use the "miracle pointer" implementation.
  */
@@ -186,7 +185,6 @@ void operator delete(void* p, size_t)
 {
   snmalloc::miracle::free(p);
 }
-
 
 int main()
 {
