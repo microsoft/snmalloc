@@ -830,6 +830,11 @@ namespace snmalloc
 
       auto* meta_slab = entry.get_slab_metadata();
 
+      if (SNMALLOC_UNLIKELY(entry.is_backend_owned()))
+      {
+        error("Cannot access meta-data for write for freed memory!");
+      }
+
       if (SNMALLOC_UNLIKELY(meta_slab == nullptr))
       {
         error(
@@ -853,7 +858,8 @@ namespace snmalloc
 
       auto* meta_slab = entry.get_slab_metadata();
 
-      if (SNMALLOC_UNLIKELY(meta_slab == nullptr))
+      if (SNMALLOC_UNLIKELY(
+            (meta_slab == nullptr) || (entry.is_backend_owned())))
       {
         static typename Config::ClientMeta::StorageType null_meta_store{};
         return Config::ClientMeta::get(&null_meta_store, 0);

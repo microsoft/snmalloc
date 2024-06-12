@@ -690,9 +690,7 @@ namespace snmalloc
      */
     [[nodiscard]] SNMALLOC_FAST_PATH SlabMetadata* get_slab_metadata() const
     {
-      // TODO Following assertion removed for client meta-data use case.
-      // Think about possible UAF scenarios.
-      // SNMALLOC_ASSERT(get_remote() != nullptr);
+      SNMALLOC_ASSERT(!is_backend_owned());
       return unsafe_from_uintptr<SlabMetadata>(meta & ~META_BOUNDARY_BIT);
     }
   };
