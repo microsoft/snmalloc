@@ -1,5 +1,4 @@
 #pragma once
-#include "../backend/globalconfig.h"
 
 /**
  * This header requires that Alloc has been defined.

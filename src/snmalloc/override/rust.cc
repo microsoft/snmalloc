@@ -1,5 +1,5 @@
 #define SNMALLOC_NAME_MANGLE(a) sn_##a
-#include "malloc.cc"
+#include "snmalloc/snmalloc.h"
 
 #include <cstring>
 
@@ -48,6 +48,6 @@ extern "C" SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(rust_realloc)(
 extern "C" SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(rust_statistics)(
   size_t* current_memory_usage, size_t* peak_memory_usage)
 {
-  *current_memory_usage = StandardConfig::Backend::get_current_usage();
-  *peak_memory_usage = StandardConfig::Backend::get_peak_usage();
+  *current_memory_usage = Alloc::Config::Backend::get_current_usage();
+  *peak_memory_usage = Alloc::Config::Backend::get_peak_usage();
 }

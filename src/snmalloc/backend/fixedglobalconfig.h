@@ -8,11 +8,14 @@ namespace snmalloc
   /**
    * A single fixed address range allocator configuration
    */
-  template<SNMALLOC_CONCEPT(IsPAL) PAL>
+  template<
+    SNMALLOC_CONCEPT(IsPAL) PAL,
+    typename ClientMetaDataProvider = NoClientMetaDataProvider>
   class FixedRangeConfig final : public CommonConfig
   {
   public:
-    using PagemapEntry = DefaultPagemapEntry;
+    using PagemapEntry = DefaultPagemapEntry<ClientMetaDataProvider>;
+    using ClientMeta = ClientMetaDataProvider;
 
   private:
     using ConcretePagemap =

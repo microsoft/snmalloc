@@ -1,13 +1,9 @@
 #pragma once
-// If you define SNMALLOC_PROVIDE_OWN_CONFIG then you must provide your own
-// definition of `snmalloc::Alloc` before including any files that include
-// `snmalloc.h` or consume the global allocation APIs.
-#ifndef SNMALLOC_PROVIDE_OWN_CONFIG
 
-#  include "../backend_helpers/backend_helpers.h"
-#  include "backend.h"
-#  include "meta_protected_range.h"
-#  include "standard_range.h"
+#include "../backend_helpers/backend_helpers.h"
+#include "backend.h"
+#include "meta_protected_range.h"
+#include "standard_range.h"
 
 namespace snmalloc
 {
@@ -28,13 +24,16 @@ namespace snmalloc
    * The Configuration sets up a Pagemap for the backend to use, and the state
    * required to build new allocators (GlobalPoolState).
    */
-  class StandardConfig final : public CommonConfig
+  template<typename ClientMetaDataProvider = NoClientMetaDataProvider>
+  class StandardConfigClientMeta final : public CommonConfig
   {
-    using GlobalPoolState = PoolState<CoreAllocator<StandardConfig>>;
+    using GlobalPoolState = PoolState<
+      CoreAllocator<StandardConfigClientMeta<ClientMetaDataProvider>>>;
 
   public:
     using Pal = DefaultPal;
-    using PagemapEntry = DefaultPagemapEntry;
+    using PagemapEntry = DefaultPagemapEntry<ClientMetaDataProvider>;
+    using ClientMeta = ClientMetaDataProvider;
 
   private:
     using ConcretePagemap =
@@ -98,9 +97,9 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH static void ensure_init_slow()
     {
       FlagLock lock{initialisation_lock};
-#  ifdef SNMALLOC_TRACING
+#ifdef SNMALLOC_TRACING
       message<1024>("Run init_impl");
-#  endif
+#endif
 
       if (initialised)
         return;
@@ -162,10 +161,4 @@ namespace snmalloc
       snmalloc::register_clean_up();
     }
   };
-
-  /**
-   * Create allocator type for this configuration.
-   */
-  using Alloc = snmalloc::LocalAllocator<snmalloc::StandardConfig>;
 } // namespace snmalloc
-#endif

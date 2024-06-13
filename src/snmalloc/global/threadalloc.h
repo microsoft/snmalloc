@@ -1,7 +1,5 @@
 #pragma once
 
-#include "../backend/globalconfig.h"
-
 #if defined(SNMALLOC_EXTERNAL_THREAD_ALLOC)
 #  define SNMALLOC_THREAD_TEARDOWN_DEFINED
 #endif

@@ -333,14 +333,11 @@ namespace snmalloc
       .capacity;
   }
 
-  constexpr address_t start_of_object(sizeclass_t sc, address_t addr)
+  SNMALLOC_FAST_PATH constexpr size_t slab_index(sizeclass_t sc, address_t addr)
   {
     auto meta = sizeclass_metadata.fast(sc);
-    address_t slab_start = addr & ~meta.slab_mask;
     size_t offset = addr & meta.slab_mask;
-    size_t size = meta.size;
-
-    if constexpr (sizeof(addr) >= 8)
+    if constexpr (sizeof(offset) >= 8)
     {
       // Only works for 64 bit multiplication, as the following will overflow in
       // 32bit.
@@ -351,15 +348,25 @@ namespace snmalloc
       // the slab_mask by making the `div_mult` zero. The link uses 128 bit
       // multiplication, we have shrunk the range of the calculation to remove
       // this dependency.
-      size_t offset_start = ((offset * meta.div_mult) >> DIV_MULT_SHIFT) * size;
-      return slab_start + offset_start;
+      size_t index = ((offset * meta.div_mult) >> DIV_MULT_SHIFT);
+      return index;
     }
     else
     {
+      size_t size = meta.size;
       if (size == 0)
         return 0;
-      return slab_start + (offset / size) * size;
+      return offset / size;
     }
+  }
+
+  SNMALLOC_FAST_PATH constexpr address_t
+  start_of_object(sizeclass_t sc, address_t addr)
+  {
+    auto meta = sizeclass_metadata.fast(sc);
+    address_t slab_start = addr & ~meta.slab_mask;
+    size_t index = slab_index(sc, addr);
+    return slab_start + (index * meta.size);
   }
 
   constexpr size_t index_in_object(sizeclass_t sc, address_t addr)

@@ -2,6 +2,7 @@
 
 #ifdef __cpp_concepts
 #  include "../ds/ds.h"
+#  include "sizeclasstable.h"
 
 #  include <cstddef>
 namespace snmalloc
@@ -97,9 +98,13 @@ namespace snmalloc
 
   template<typename LocalState, typename PagemapEntry, typename Backend>
   concept IsBackend =
-    requires(LocalState& local_state, size_t size, uintptr_t ras) {
+    requires(
+      LocalState& local_state,
+      size_t size,
+      uintptr_t ras,
+      sizeclass_t sizeclass) {
       {
-        Backend::alloc_chunk(local_state, size, ras)
+        Backend::alloc_chunk(local_state, size, ras, sizeclass)
         } -> ConceptSame<
           std::pair<capptr::Chunk<void>, typename Backend::SlabMetadata*>>;
     } &&
@@ -112,9 +117,11 @@ namespace snmalloc
       LocalState& local_state,
       typename Backend::SlabMetadata& slab_metadata,
       capptr::Alloc<void> alloc,
-      size_t size) {
+      size_t size,
+      sizeclass_t sizeclass) {
       {
-        Backend::dealloc_chunk(local_state, slab_metadata, alloc, size)
+        Backend::dealloc_chunk(
+          local_state, slab_metadata, alloc, size, sizeclass)
         } -> ConceptSame<void>;
     } &&
     requires(address_t p) {

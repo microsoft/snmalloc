@@ -1,4 +1,3 @@
-#include "libc.h"
 #include "override.h"
 
 using namespace snmalloc;

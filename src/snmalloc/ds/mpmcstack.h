@@ -4,12 +4,6 @@
 #include "aba.h"
 #include "allocconfig.h"
 
-#if defined(__has_feature)
-#  if __has_feature(thread_sanitizer)
-#    define SNMALLOC_THREAD_SANITIZER_ENABLED
-#  endif
-#endif
-
 namespace snmalloc
 {
   template<class T, Construction c = RequiresInit>

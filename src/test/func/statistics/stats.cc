@@ -17,7 +17,7 @@ void debug_check_empty_1()
 
   auto r = a.alloc(size);
 
-  snmalloc::debug_check_empty<snmalloc::StandardConfig>(&result);
+  snmalloc::debug_check_empty<snmalloc::Alloc::Config>(&result);
   if (result != false)
   {
     std::cout << "debug_check_empty failed to detect leaked memory:" << size
@@ -27,7 +27,7 @@ void debug_check_empty_1()
 
   a.dealloc(r);
 
-  snmalloc::debug_check_empty<snmalloc::StandardConfig>(&result);
+  snmalloc::debug_check_empty<snmalloc::Alloc::Config>(&result);
   if (result != true)
   {
     std::cout << "debug_check_empty failed to say empty:" << size << std::endl;
@@ -36,7 +36,7 @@ void debug_check_empty_1()
 
   r = a.alloc(size);
 
-  snmalloc::debug_check_empty<snmalloc::StandardConfig>(&result);
+  snmalloc::debug_check_empty<snmalloc::Alloc::Config>(&result);
   if (result != false)
   {
     std::cout << "debug_check_empty failed to detect leaked memory:" << size
@@ -46,7 +46,7 @@ void debug_check_empty_1()
 
   a.dealloc(r);
 
-  snmalloc::debug_check_empty<snmalloc::StandardConfig>(&result);
+  snmalloc::debug_check_empty<snmalloc::Alloc::Config>(&result);
   if (result != true)
   {
     std::cout << "debug_check_empty failed to say empty:" << size << std::endl;
@@ -72,7 +72,7 @@ void debug_check_empty_2()
     }
     auto r = a.alloc(size);
     allocs.push_back(r);
-    snmalloc::debug_check_empty<snmalloc::StandardConfig>(&result);
+    snmalloc::debug_check_empty<snmalloc::Alloc::Config>(&result);
     if (result != false)
     {
       std::cout << "False empty after " << i << " allocations of " << size
@@ -88,7 +88,7 @@ void debug_check_empty_2()
     {
       std::cout << "." << std::flush;
     }
-    snmalloc::debug_check_empty<snmalloc::StandardConfig>(&result);
+    snmalloc::debug_check_empty<snmalloc::Alloc::Config>(&result);
     if (result != false)
     {
       std::cout << "False empty after " << i << " deallocations of " << size
@@ -98,7 +98,7 @@ void debug_check_empty_2()
     a.dealloc(allocs[i]);
   }
   std::cout << std::endl;
-  snmalloc::debug_check_empty<snmalloc::StandardConfig>();
+  snmalloc::debug_check_empty<snmalloc::Alloc::Config>();
 }
 
 int main()

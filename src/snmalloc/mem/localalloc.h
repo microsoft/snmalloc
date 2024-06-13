@@ -197,7 +197,8 @@ namespace snmalloc
           core_alloc->get_backend_local_state(),
           large_size_to_chunk_size(size),
           PagemapEntry::encode(
-            core_alloc->public_state(), size_to_sizeclass_full(size)));
+            core_alloc->public_state(), size_to_sizeclass_full(size)),
+          size_to_sizeclass_full(size));
         // set up meta data so sizeclass is correct, and hence alloc size, and
         // external pointer.
 #ifdef SNMALLOC_TRACING
@@ -814,6 +815,57 @@ namespace snmalloc
       {
         return pointer_offset(p, remaining_bytes(address_cast(p)));
       }
+    }
+
+    /**
+     * @brief Get the client meta data for the snmalloc allocation covering this
+     * pointer.
+     */
+    typename Config::ClientMeta::DataRef get_client_meta_data(void* p)
+    {
+      const PagemapEntry& entry =
+        Config::Backend::template get_metaentry(address_cast(p));
+
+      size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
+
+      auto* meta_slab = entry.get_slab_metadata();
+
+      if (SNMALLOC_UNLIKELY(entry.is_backend_owned()))
+      {
+        error("Cannot access meta-data for write for freed memory!");
+      }
+
+      if (SNMALLOC_UNLIKELY(meta_slab == nullptr))
+      {
+        error(
+          "Cannot access meta-data for non-snmalloc object in writable form!");
+      }
+
+      return meta_slab->get_meta_for_object(index);
+    }
+
+    /**
+     * @brief Get the client meta data for the snmalloc allocation covering this
+     * pointer.
+     */
+    std::add_const_t<typename Config::ClientMeta::DataRef>
+    get_client_meta_data_const(void* p)
+    {
+      const PagemapEntry& entry =
+        Config::Backend::template get_metaentry<true>(address_cast(p));
+
+      size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
+
+      auto* meta_slab = entry.get_slab_metadata();
+
+      if (SNMALLOC_UNLIKELY(
+            (meta_slab == nullptr) || (entry.is_backend_owned())))
+      {
+        static typename Config::ClientMeta::StorageType null_meta_store{};
+        return Config::ClientMeta::get(&null_meta_store, 0);
+      }
+
+      return meta_slab->get_meta_for_object(index);
     }
 
     /**

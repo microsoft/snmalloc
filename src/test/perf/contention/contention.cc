@@ -154,7 +154,7 @@ void test_tasks(size_t num_tasks, size_t count, size_t size)
   }
 
 #ifndef NDEBUG
-  snmalloc::debug_check_empty<StandardConfig>();
+  snmalloc::debug_check_empty<snmalloc::Alloc::Config>();
 #endif
 };
 

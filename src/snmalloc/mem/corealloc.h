@@ -368,7 +368,8 @@ namespace snmalloc
           get_backend_local_state(),
           *meta,
           start,
-          sizeclass_to_slab_size(sizeclass));
+          sizeclass_to_slab_size(sizeclass),
+          sizeclass_t::from_small_class(sizeclass));
       });
     }
 
@@ -401,7 +402,7 @@ namespace snmalloc
         meta->node.remove();
 
         Config::Backend::dealloc_chunk(
-          get_backend_local_state(), *meta, p, size);
+          get_backend_local_state(), *meta, p, size, entry.get_sizeclass());
 
         return;
       }
@@ -796,7 +797,8 @@ namespace snmalloc
         get_backend_local_state(),
         slab_size,
         PagemapEntry::encode(
-          public_state(), sizeclass_t::from_small_class(sizeclass)));
+          public_state(), sizeclass_t::from_small_class(sizeclass)),
+        sizeclass_t::from_small_class(sizeclass));
 
       if (slab == nullptr)
       {
