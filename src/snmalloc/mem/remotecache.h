@@ -73,7 +73,7 @@ namespace snmalloc
       auto r = p.template as_reinterpret<freelist::Object::T<>>();
 
       list[get_slot<allocator_size>(target_id, 0)].add(
-        r, RemoteAllocator::key_global);
+        r, RemoteAllocator::key_global, NO_KEY_TWEAK);
     }
 
     template<size_t allocator_size, typename Config>
@@ -102,7 +102,7 @@ namespace snmalloc
 
           if (!list[i].empty())
           {
-            auto [first, last] = list[i].extract_segment(key);
+            auto [first, last] = list[i].extract_segment(key, NO_KEY_TWEAK);
             const auto& entry =
               Config::Backend::get_metaentry(address_cast(first));
             auto remote = entry.get_remote();
@@ -135,7 +135,7 @@ namespace snmalloc
         // so take copy of the head, mark the last element,
         // and clear the original list.
         freelist::Iter<> resend;
-        list[my_slot].close(resend, key);
+        list[my_slot].close(resend, key, NO_KEY_TWEAK);
 
         post_round++;
 
@@ -147,7 +147,7 @@ namespace snmalloc
           const auto& entry = Config::Backend::get_metaentry(address_cast(r));
           auto i = entry.get_remote()->trunc_id();
           size_t slot = get_slot<allocator_size>(i, post_round);
-          list[slot].add(r, key);
+          list[slot].add(r, key, NO_KEY_TWEAK);
         }
       }
 
@@ -175,7 +175,7 @@ namespace snmalloc
       {
         // We do not need to initialise with a particular slab, so pass
         // a null address.
-        l.init(0, RemoteAllocator::key_global);
+        l.init(0, RemoteAllocator::key_global, NO_KEY_TWEAK);
       }
       capacity = REMOTE_CACHE;
     }

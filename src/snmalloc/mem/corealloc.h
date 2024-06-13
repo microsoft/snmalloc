@@ -242,6 +242,7 @@ namespace snmalloc
             freelist::Object::make<capptr::bounds::AllocWild>(
               capptr_to_user_address_control(curr_ptr.as_void())),
             key,
+            NO_KEY_TWEAK,
             entropy);
           curr_ptr = curr_ptr->next;
         } while (curr_ptr != start_ptr);
@@ -258,6 +259,7 @@ namespace snmalloc
                 Aal::capptr_bound<void, capptr::bounds::AllocFull>(
                   p.as_void(), rsize))),
             key,
+            NO_KEY_TWEAK,
             entropy);
           p = pointer_offset(p, rsize);
         } while (p < slab_end);
@@ -271,7 +273,7 @@ namespace snmalloc
     {
       auto& key = entropy.get_free_list_key();
       freelist::Iter<> fl;
-      auto more = meta->free_queue.close(fl, key);
+      auto more = meta->free_queue.close(fl, key, NO_KEY_TWEAK);
       UNUSED(more);
       auto local_state = backend_state_ptr();
       auto domesticate = [local_state](freelist::QueuePtr p)
@@ -303,7 +305,7 @@ namespace snmalloc
 
         if (more > 0)
         {
-          auto no_more = meta->free_queue.close(fl, key);
+          auto no_more = meta->free_queue.close(fl, key, NO_KEY_TWEAK);
           SNMALLOC_ASSERT(no_more == 0);
           UNUSED(no_more);
 
@@ -348,7 +350,8 @@ namespace snmalloc
         {
           if (check_slabs)
           {
-            meta->free_queue.validate(entropy.get_free_list_key(), domesticate);
+            meta->free_queue.validate(
+              entropy.get_free_list_key(), NO_KEY_TWEAK, domesticate);
           }
           return;
         }
@@ -709,7 +712,7 @@ namespace snmalloc
       auto& key = entropy.get_free_list_key();
 
       // Update the head and the next pointer in the free list.
-      meta->free_queue.add(cp, key, entropy);
+      meta->free_queue.add(cp, key, NO_KEY_TWEAK, entropy);
 
       return SNMALLOC_LIKELY(!meta->return_object());
     }
@@ -849,19 +852,14 @@ namespace snmalloc
 
       if (destroy_queue)
       {
-        auto p_wild = message_queue().destroy();
-        auto p_tame = domesticate(p_wild);
-
-        while (p_tame != nullptr)
-        {
+        auto cb = [this](capptr::Alloc<void> p) {
           bool need_post = true; // Always going to post, so ignore.
-          auto n_tame =
-            p_tame->atomic_read_next(RemoteAllocator::key_global, domesticate);
           const PagemapEntry& entry =
-            Config::Backend::get_metaentry(snmalloc::address_cast(p_tame));
-          handle_dealloc_remote(entry, p_tame.as_void(), need_post);
-          p_tame = n_tame;
-        }
+            Config::Backend::get_metaentry(snmalloc::address_cast(p));
+          handle_dealloc_remote(entry, p.as_void(), need_post);
+        };
+
+        message_queue().destroy_and_iterate(domesticate, cb);
       }
       else
       {
@@ -886,7 +884,8 @@ namespace snmalloc
                       BackendSlabMetadata* meta) SNMALLOC_FAST_PATH_LAMBDA {
         if (!meta->is_large())
         {
-          meta->free_queue.validate(entropy.get_free_list_key(), domesticate);
+          meta->free_queue.validate(
+            entropy.get_free_list_key(), NO_KEY_TWEAK, domesticate);
         }
       });
 
