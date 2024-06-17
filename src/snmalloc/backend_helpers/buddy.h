@@ -49,6 +49,33 @@ namespace snmalloc
 #endif
     }
 
+    bool remove_buddy(typename Rep::Contents addr, size_t size)
+    {
+      auto idx = to_index(size);
+
+      // Empty at this range.
+      if (idx >= empty_at_or_above)
+        return false;
+
+      auto buddy = Rep::buddy(addr, size);
+
+      auto path = trees[idx].get_root_path();
+      bool contains_buddy = trees[idx].find(path, buddy);
+
+      if (!contains_buddy)
+        return false;
+
+      // Only check if we can consolidate after we know the buddy is in
+      // the buddy allocator.  This is required to prevent possible segfaults
+      // from looking at the buddies meta-data, which we only know exists
+      // once we have found it in the red-black tree.
+      if (!Rep::can_consolidate(addr, size))
+        return false;
+
+      trees[idx].remove_path(path);
+      return true;
+    }
+
   public:
     constexpr Buddy() = default;
     /**
@@ -63,47 +90,29 @@ namespace snmalloc
      */
     typename Rep::Contents add_block(typename Rep::Contents addr, size_t size)
     {
-      auto idx = to_index(size);
-      empty_at_or_above = bits::max(empty_at_or_above, idx + 1);
-
       validate_block(addr, size);
 
-      auto buddy = Rep::buddy(addr, size);
 
-      auto path = trees[idx].get_root_path();
-      bool contains_buddy = trees[idx].find(path, buddy);
-
-      if (contains_buddy)
+      if (remove_buddy(addr, size))
       {
-        // Only check if we can consolidate after we know the buddy is in
-        // the buddy allocator.  This is required to prevent possible segfaults
-        // from looking at the buddies meta-data, which we only know exists
-        // once we have found it in the red-black tree.
-        if (Rep::can_consolidate(addr, size))
+        // Add to next level cache
+        size *= 2;
+        addr = Rep::align_down(addr, size);
+        if (size == bits::one_at_bit(MAX_SIZE_BITS))
         {
-          trees[idx].remove_path(path);
-
-          // Add to next level cache
-          size *= 2;
-          addr = Rep::align_down(addr, size);
-          if (size == bits::one_at_bit(MAX_SIZE_BITS))
-          {
-            // Invariant should be checked on all non-tail return paths.
-            // Holds trivially here with current design.
-            invariant();
-            // Too big for this buddy allocator.
-            return addr;
-          }
-          return add_block(addr, size);
+          // Invariant should be checked on all non-tail return paths.
+          // Holds trivially here with current design.
+          invariant();
+          // Too big for this buddy allocator.
+          return addr;
         }
-
-        // Re-traverse as the path was to the buddy,
-        // but the representation says we cannot combine.
-        // We must find the correct place for this element.
-        // Something clever could be done here, but it's not worth it.
-        //        path = trees[idx].get_root_path();
-        trees[idx].find(path, addr);
+        return add_block(addr, size);
       }
+
+      auto idx = to_index(size);
+      empty_at_or_above = bits::max(empty_at_or_above, idx + 1);
+      auto path = trees[idx].get_root_path();
+      trees[idx].find(path, addr);
       trees[idx].insert_path(path, addr);
       invariant();
       return Rep::null;
