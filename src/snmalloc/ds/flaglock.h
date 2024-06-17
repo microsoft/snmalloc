@@ -133,4 +133,11 @@ namespace snmalloc
       lock.flag.store(false, std::memory_order_release);
     }
   };
+
+  template <typename F>
+  inline void with(FlagWord& lock, F&& f)
+  {
+    FlagLock l(lock);
+    f();
+  }
 } // namespace snmalloc

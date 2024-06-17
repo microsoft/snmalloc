@@ -35,14 +35,18 @@ namespace snmalloc
 
       CapPtr<void, ChunkBounds> alloc_range(size_t size)
       {
-        FlagLock lock(spin_lock);
-        return parent.alloc_range(size);
+        CapPtr<void, ChunkBounds> result;
+        with(spin_lock, [&]() {
+          {
+            result = parent.alloc_range(size);
+          }
+        });
+        return result;
       }
 
       void dealloc_range(CapPtr<void, ChunkBounds> base, size_t size)
       {
-        FlagLock lock(spin_lock);
-        parent.dealloc_range(base, size);
+        with(spin_lock, [&]() { parent.dealloc_range(base, size); });
       }
     };
   };
