@@ -130,7 +130,11 @@ namespace snmalloc
 #endif
       ;
 
+#ifdef PAGESIZE
+    static constexpr size_t page_size = PAGESIZE;
+#else
     static constexpr size_t page_size = Aal::smallest_page_size;
+#endif
 
     /**
      * Address bits are potentially mediated by some POSIX OSes, but generally
