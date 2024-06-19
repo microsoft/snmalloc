@@ -28,14 +28,10 @@ namespace snmalloc
    * a callable, of template type Forward, which is given the destination
    * slab('s metadata address) and the to-be-sent RemoteMessage.
    */
-  template<typename Config>
+  template<typename Config, size_t RINGS>
   class RemoteDeallocCacheBatching
   {
-    static constexpr size_t RING_ASSOC = 2;
-    static constexpr size_t RING_SET_BITS = 3;
-
-    static constexpr size_t RINGS =
-      RING_ASSOC * bits::one_at_bit(RING_SET_BITS);
+    static_assert(RINGS > 0);
 
     std::array<freelist::Builder<false, true>, RINGS> open_builder;
     std::array<typename Config::PagemapEntry::SlabMetadata*, RINGS> open_meta =
@@ -46,13 +42,13 @@ namespace snmalloc
     {
       // See https://github.com/skeeto/hash-prospector for choice of constant
       return ((meta->as_key_tweak() * 0x7EFB352D) >> 16) &
-        bits::mask_bits(RING_SET_BITS);
+        bits::mask_bits(DEALLOC_BATCH_RING_SET_BITS);
     }
 
     template<typename Forward>
     SNMALLOC_FAST_PATH void close_one_pending(Forward forward, size_t ix)
     {
-      auto rmsg = RemoteMessage::mk_from_freelist_builder(
+      auto rmsg = BatchedRemoteMessage::mk_from_freelist_builder(
         open_builder[ix],
         freelist::Object::key_root,
         open_meta[ix]->as_key_tweak());
@@ -81,7 +77,7 @@ namespace snmalloc
     {
       size_t ix_set = ring_set(meta);
 
-      for (size_t ix_way = 0; ix_way < RING_ASSOC; ix_way++)
+      for (size_t ix_way = 0; ix_way < DEALLOC_BATCH_RING_ASSOC; ix_way++)
       {
         size_t ix = ix_set + ix_way;
         if (meta == open_meta[ix])
@@ -96,7 +92,7 @@ namespace snmalloc
 
       size_t victim_ix = ix_set;
       size_t victim_size = 0;
-      for (size_t ix_way = 0; ix_way < RING_ASSOC; ix_way++)
+      for (size_t ix_way = 0; ix_way < DEALLOC_BATCH_RING_ASSOC; ix_way++)
       {
         size_t ix = ix_set + ix_way;
         if (open_meta[ix] == nullptr)
@@ -142,6 +138,34 @@ namespace snmalloc
     }
   };
 
+  template<typename Config>
+  struct RemoteDeallocCacheNoBatching
+  {
+    void init() {}
+
+    template<typename Forward>
+    void close_all(Forward)
+    {}
+
+    template<typename Forward>
+    SNMALLOC_FAST_PATH void dealloc(
+      typename Config::PagemapEntry::SlabMetadata*,
+      freelist::HeadPtr r,
+      Forward forward)
+    {
+      auto& entry = Config::Backend::get_metaentry(address_cast(r));
+      forward(
+        entry.get_remote()->trunc_id(),
+        SingletonRemoteMessage::emplace_in_alloc(r.as_void()));
+    }
+  };
+
+  template<typename Config>
+  using RemoteDeallocCacheBatchingImpl = std::conditional_t<
+    (DEALLOC_BATCH_RINGS > 0),
+    RemoteDeallocCacheBatching<Config, DEALLOC_BATCH_RINGS>,
+    RemoteDeallocCacheNoBatching<Config>>;
+
   /**
    * Stores the remote deallocation to batch them before sending
    */
@@ -150,7 +174,7 @@ namespace snmalloc
   {
     std::array<freelist::Builder<false>, REMOTE_SLOTS> list;
 
-    RemoteDeallocCacheBatching<Config> batching;
+    RemoteDeallocCacheBatchingImpl<Config> batching;
 
     /**
      * The total amount of memory we are waiting for before we will dispatch
