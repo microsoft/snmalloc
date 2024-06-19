@@ -26,22 +26,22 @@ namespace snmalloc
    * address space).  This gives us enough room to pack in the length of the
    * ring, without needing to grow the structure.
    */
-  class RemoteMessage
+  class BatchedRemoteMessage
   {
-    friend class RemoteMessageAssertions;
+    friend class BatchedRemoteMessageAssertions;
 
     freelist::Object::T<> free_ring;
     freelist::Object::T<> message_link;
 
     static_assert(
       sizeof(free_ring.next_object) >= sizeof(void*),
-      "RemoteMessage bitpacking needs sizeof(void*) in next_object");
+      "BatchedRemoteMessage bitpacking needs sizeof(void*) in next_object");
 
   public:
     static auto emplace_in_alloc(capptr::Alloc<void> alloc)
     {
-      return CapPtr<RemoteMessage, capptr::bounds::Alloc>::unsafe_from(
-        new (alloc.unsafe_ptr()) RemoteMessage());
+      return CapPtr<BatchedRemoteMessage, capptr::bounds::Alloc>::unsafe_from(
+        new (alloc.unsafe_ptr()) BatchedRemoteMessage());
     }
 
     static auto mk_from_freelist_builder(
@@ -57,8 +57,9 @@ namespace snmalloc
 
       // Preserve the last node's backpointer and change its type.
       auto last_prev = last->prev;
-      auto self = CapPtr<RemoteMessage, capptr::bounds::Alloc>::unsafe_from(
-        new (last.unsafe_ptr()) RemoteMessage());
+      auto self =
+        CapPtr<BatchedRemoteMessage, capptr::bounds::Alloc>::unsafe_from(
+          new (last.unsafe_ptr()) BatchedRemoteMessage());
       self->free_ring.prev = last_prev;
 
       // XXX On CHERI, we could do a fair bit better if we had a primitive for
@@ -78,25 +79,27 @@ namespace snmalloc
       return self;
     }
 
-    static freelist::HeadPtr to_message_link(capptr::Alloc<RemoteMessage> m)
+    static freelist::HeadPtr
+    to_message_link(capptr::Alloc<BatchedRemoteMessage> m)
     {
-      return pointer_offset(m, offsetof(RemoteMessage, message_link))
+      return pointer_offset(m, offsetof(BatchedRemoteMessage, message_link))
         .as_reinterpret<freelist::Object::T<>>();
     }
 
-    static capptr::Alloc<RemoteMessage>
+    static capptr::Alloc<BatchedRemoteMessage>
     from_message_link(freelist::HeadPtr chainPtr)
     {
       return pointer_offset_signed(
                chainPtr,
-               -static_cast<ptrdiff_t>(offsetof(RemoteMessage, message_link)))
-        .as_reinterpret<RemoteMessage>();
+               -static_cast<ptrdiff_t>(
+                 offsetof(BatchedRemoteMessage, message_link)))
+        .as_reinterpret<BatchedRemoteMessage>();
     }
 
     template<SNMALLOC_CONCEPT(IsConfigLazy) Config, typename Domesticator_queue>
     SNMALLOC_FAST_PATH static std::pair<freelist::HeadPtr, uint16_t>
     open_free_ring(
-      capptr::Alloc<RemoteMessage> m,
+      capptr::Alloc<BatchedRemoteMessage> m,
       size_t objsize,
       const FreeListKey& key,
       address_t key_tweak,
@@ -140,7 +143,7 @@ namespace snmalloc
 
     template<SNMALLOC_CONCEPT(IsConfigLazy) Config, typename Domesticator_queue>
     static uint16_t ring_size(
-      capptr::Alloc<RemoteMessage> m,
+      capptr::Alloc<BatchedRemoteMessage> m,
       const FreeListKey& key,
       address_t key_tweak,
       Domesticator_queue domesticate)
@@ -181,15 +184,87 @@ namespace snmalloc
     }
   };
 
-  class RemoteMessageAssertions
+  class BatchedRemoteMessageAssertions
   {
-    static_assert(sizeof(RemoteMessage) <= MIN_ALLOC_SIZE);
-    static_assert(offsetof(RemoteMessage, free_ring) == 0);
+    static_assert(
+      (DEALLOC_BATCH_RINGS == 0) ||
+      (sizeof(BatchedRemoteMessage) <= MIN_ALLOC_SIZE));
+    static_assert(offsetof(BatchedRemoteMessage, free_ring) == 0);
 
     static_assert(
-      MAX_SLAB_SPAN_BITS + MAX_CAPACITY_BITS < 8 * sizeof(void*),
+      (DEALLOC_BATCH_RINGS == 0) ||
+        (MAX_SLAB_SPAN_BITS + MAX_CAPACITY_BITS < 8 * sizeof(void*)),
       "Ring bit-stuffing trick can't reach far enough to enclose a slab");
   };
+
+  class SingletonRemoteMessage
+  {
+    friend class SingletonRemoteMessageAssertions;
+
+    freelist::Object::T<> message_link;
+
+  public:
+    static auto emplace_in_alloc(capptr::Alloc<void> alloc)
+    {
+      return CapPtr<SingletonRemoteMessage, capptr::bounds::Alloc>::unsafe_from(
+        new (alloc.unsafe_ptr()) SingletonRemoteMessage());
+    }
+
+    static freelist::HeadPtr
+    to_message_link(capptr::Alloc<SingletonRemoteMessage> m)
+    {
+      return pointer_offset(m, offsetof(SingletonRemoteMessage, message_link))
+        .as_reinterpret<freelist::Object::T<>>();
+    }
+
+    static capptr::Alloc<SingletonRemoteMessage>
+    from_message_link(freelist::HeadPtr chainPtr)
+    {
+      return pointer_offset_signed(
+               chainPtr,
+               -static_cast<ptrdiff_t>(
+                 offsetof(SingletonRemoteMessage, message_link)))
+        .as_reinterpret<SingletonRemoteMessage>();
+    }
+
+    template<SNMALLOC_CONCEPT(IsConfigLazy) Config, typename Domesticator_queue>
+    SNMALLOC_FAST_PATH static std::pair<freelist::HeadPtr, uint16_t>
+    open_free_ring(
+      capptr::Alloc<SingletonRemoteMessage> m,
+      size_t,
+      const FreeListKey&,
+      address_t,
+      Domesticator_queue)
+    {
+      return {
+        m.as_reinterpret<freelist::Object::T<>>(), static_cast<uint16_t>(1)};
+    }
+
+    template<SNMALLOC_CONCEPT(IsConfigLazy) Config, typename Domesticator_queue>
+    static uint16_t ring_size(
+      capptr::Alloc<SingletonRemoteMessage>,
+      const FreeListKey&,
+      address_t,
+      Domesticator_queue)
+    {
+      return 1;
+    }
+  };
+
+  class SingletonRemoteMessageAssertions
+  {
+    static_assert(sizeof(SingletonRemoteMessage) <= MIN_ALLOC_SIZE);
+    static_assert(
+      sizeof(SingletonRemoteMessage) == sizeof(freelist::Object::T<>));
+    static_assert(offsetof(SingletonRemoteMessage, message_link) == 0);
+  };
+
+  using RemoteMessage = std::conditional_t<
+    (DEALLOC_BATCH_RINGS > 0),
+    BatchedRemoteMessage,
+    SingletonRemoteMessage>;
+
+  static_assert(sizeof(RemoteMessage) <= MIN_ALLOC_SIZE);
 
   /**
    * A RemoteAllocator is the message queue of freed objects.  It builds on the
