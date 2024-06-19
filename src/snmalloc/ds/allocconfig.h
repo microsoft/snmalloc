@@ -120,6 +120,45 @@ namespace snmalloc
   static constexpr size_t REMOTE_SLOTS = 1 << REMOTE_SLOT_BITS;
   static constexpr size_t REMOTE_MASK = REMOTE_SLOTS - 1;
 
+#if defined(SNMALLOC_DEALLOC_BATCH_RING_ASSOC)
+  static constexpr size_t DEALLOC_BATCH_RING_ASSOC =
+    SNMALLOC_DEALLOC_BATCH_RING_ASSOC;
+#else
+#  if defined(__has_cpp_attribute)
+#    if ( \
+      __has_cpp_attribute(msvc::no_unique_address) && \
+      (__cplusplus >= 201803L || _MSVC_LANG >= 201803L)) || \
+      __has_cpp_attribute(no_unique_address)
+  // For C++20 or later, we do have [[no_unique_address]] and so can also do
+  // batching if we aren't turning on the backward-pointer mitigations
+  static constexpr size_t DEALLOC_BATCH_MIN_ALLOC_WORDS =
+    mitigations(freelist_backward_edge) ? 4 : 2;
+#    else
+  // For C++17, we don't have [[no_unique_address]] and so we always end up
+  // needing all four pointers' worth of space (because BatchedRemoteMessage has
+  // two freelist::Object::T<> links within, each of which will have two fields
+  // and will be padded to two pointers).
+  static constexpr size_t DEALLOC_BATCH_MIN_ALLOC_WORDS = 4;
+#    endif
+#  else
+  // If we don't even have the feature test macro, we're C++17 or earlier.
+  static constexpr size_t DEALLOC_BATCH_MIN_ALLOC_WORDS = 4;
+#  endif
+
+  static constexpr size_t DEALLOC_BATCH_RING_ASSOC =
+    (MIN_ALLOC_SIZE >= (DEALLOC_BATCH_MIN_ALLOC_WORDS * sizeof(void*))) ? 2 : 0;
+#endif
+
+#if defined(SNMALLOC_DEALLOC_BATCH_RING_SET_BITS)
+  static constexpr size_t DEALLOC_BATCH_RING_SET_BITS =
+    SNMALLOC_DEALLOC_BATCH_RING_SET_BITS;
+#else
+  static constexpr size_t DEALLOC_BATCH_RING_SET_BITS = 3;
+#endif
+
+  static constexpr size_t DEALLOC_BATCH_RINGS =
+    DEALLOC_BATCH_RING_ASSOC * bits::one_at_bit(DEALLOC_BATCH_RING_SET_BITS);
+
   static_assert(
     INTERMEDIATE_BITS < MIN_ALLOC_STEP_BITS,
     "INTERMEDIATE_BITS must be less than MIN_ALLOC_BITS");
