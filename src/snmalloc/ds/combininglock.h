@@ -9,7 +9,15 @@
 namespace snmalloc
 {
   class CombineLockNode;
-  using CombiningLock = std::atomic<CombineLockNode*>;
+
+  struct CombiningLock
+  {
+    // Fast path lock incase there is no contention.
+    std::atomic<bool> flag{false};
+
+    // MCS queue of work items
+    std::atomic<CombineLockNode*> head{nullptr};
+  };
 
   /**
    * @brief Combinations of MCS queue lock with Flat Combining
@@ -52,6 +60,11 @@ namespace snmalloc
     // Stores the C++ lambda associated with this node in the queue.
     void (*f_raw)(CombineLockNode*);
 
+    void release(CombiningLock& lock)
+    {
+      lock.flag.store(false, std::memory_order_release);
+    }
+
     void set_status(LockStatus s)
     {
       status.store(s, std::memory_order_release);
@@ -62,8 +75,25 @@ namespace snmalloc
 
     void attach(CombiningLock& lock)
     {
-      // Add to the queue of pending work
-      auto prev = lock.exchange(this, std::memory_order_acq_rel);
+      // Test if no one is waiting
+      if (lock.head.load(std::memory_order_relaxed) == nullptr)
+      {
+        // No one was waiting so low contention. Attempt to acquire the flag
+        // lock.
+        if (lock.flag.exchange(true, std::memory_order_acquire) == false)
+        {
+          // We grabbed the lock.
+          f_raw(this);
+
+          // Release the lock
+          release(lock);
+          return;
+        }
+      }
+
+      // There is contention for the lock, we need to add our work to the
+      // queue of pending work
+      auto prev = lock.head.exchange(this, std::memory_order_acq_rel);
 
       if (prev != nullptr)
       {
@@ -78,10 +108,25 @@ namespace snmalloc
         if (status.load(std::memory_order_acquire) == LockStatus::DONE)
           return;
       }
-      // We could add an else branch here that could set
-      //    status = LockStatus::Ready
-      // However, the subsequent state assumes it is Ready, and
-      // nothing would read it.
+      else
+      {
+        // We are the head of the queue. Spin until we acquire the fast path
+        // lock.  As we are in the queue future requests shouldn't try to
+        // acquire the fast path lock, but stale views of the queue being empty
+        // could still be concurrent with this thread.
+        while (lock.flag.exchange(true, std::memory_order_acquire))
+        {
+          while (lock.flag.load(std::memory_order_relaxed))
+          {
+            Aal::pause();
+          }
+        }
+
+        // We could set
+        //    status = LockStatus::Ready
+        // However, the subsequent state assumes it is Ready, and
+        // nothing would read it.
+      }
 
       // We are the head of the queue, and responsible for
       // waking/performing our and subsequent work.
@@ -105,11 +150,13 @@ namespace snmalloc
         // This could be the end of the queue, attempt to close the
         // queue.
         auto curr_c = curr;
-        if (lock.compare_exchange_strong(curr_c, nullptr, std::memory_order_acq_rel))
+        if (lock.head.compare_exchange_strong(
+              curr_c, nullptr, std::memory_order_acq_rel))
         {
           // Queue was successfully closed.
           // Notify last element the work was completed.
           curr->set_status(LockStatus::DONE);
+          release(lock);
           return;
         }
 
