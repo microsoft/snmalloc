@@ -188,6 +188,10 @@ if(SNMALLOC_USE_CXX17)
 else()
   target_compile_features(snmalloc INTERFACE cxx_std_20)
 endif()
+# https://learn.microsoft.com/en-us/cpp/build/reference/zc-cplusplus
+if(MSVC)
+  target_compile_options(snmalloc INTERFACE "/Zc:__cplusplus")
+endif()
 
 # Add header paths.
 target_include_directories(snmalloc
