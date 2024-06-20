@@ -17,7 +17,7 @@
  * `inline` and complains if you specify `SNMALLOC_FAST_PATH` and `inline`.
  */
 #  define SNMALLOC_FAST_PATH_INLINE ALWAYSINLINE
-#  if _MSC_VER >= 1927 && !defined(SNMALLOC_USE_CXX17)
+#  if _MSC_VER >= 1927 && _MSVC_LANG > 201703L
 #    define SNMALLOC_FAST_PATH_LAMBDA [[msvc::forceinline]]
 #  else
 #    define SNMALLOC_FAST_PATH_LAMBDA

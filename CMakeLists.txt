@@ -184,7 +184,6 @@ endfunction()
 add_library(snmalloc INTERFACE)
 
 if(SNMALLOC_USE_CXX17)
-  target_compile_definitions(snmalloc INTERFACE -DSNMALLOC_USE_CXX17)
   target_compile_features(snmalloc INTERFACE cxx_std_17)
 else()
   target_compile_features(snmalloc INTERFACE cxx_std_20)
