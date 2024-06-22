@@ -134,7 +134,7 @@ namespace snmalloc
     }
   };
 
-  template <typename F>
+  template<typename F>
   inline void with(FlagWord& lock, F&& f)
   {
     FlagLock l(lock);

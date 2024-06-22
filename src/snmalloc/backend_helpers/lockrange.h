@@ -22,7 +22,7 @@ namespace snmalloc
        * This is infrequently used code, a spin lock simplifies the code
        * considerably, and should never be on the fast path.
        */
-      FlagWord spin_lock{};
+      CombiningLock spin_lock{};
 
     public:
       static constexpr bool Aligned = ParentRange::Aligned;
