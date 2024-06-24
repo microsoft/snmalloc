@@ -35,6 +35,9 @@ namespace snmalloc
    */
   class CombineLockNode
   {
+    template<typename F>
+    friend class CombineLockNodeTempl;
+
     enum class LockStatus
     {
       // The work for this node has not been completed.
@@ -70,10 +73,9 @@ namespace snmalloc
       status.store(s, std::memory_order_release);
     }
 
-  public:
     constexpr CombineLockNode(void (*f)(CombineLockNode*)) : f_raw(f) {}
 
-    void attach(CombiningLock& lock)
+    SNMALLOC_FAST_PATH void attach(CombiningLock& lock)
     {
       // Test if no one is waiting
       if (lock.head.load(std::memory_order_relaxed) == nullptr)
@@ -90,7 +92,11 @@ namespace snmalloc
           return;
         }
       }
+      attach_slow(lock);
+    }
 
+    SNMALLOC_SLOW_PATH void attach_slow(CombiningLock& lock)
+    {
       // There is contention for the lock, we need to add our work to the
       // queue of pending work
       auto prev = lock.head.exchange(this, std::memory_order_acq_rel);
@@ -151,7 +157,10 @@ namespace snmalloc
         // queue.
         auto curr_c = curr;
         if (lock.head.compare_exchange_strong(
-              curr_c, nullptr, std::memory_order_acq_rel))
+              curr_c,
+              nullptr,
+              std::memory_order_release,
+              std::memory_order_relaxed))
         {
           // Queue was successfully closed.
           // Notify last element the work was completed.
