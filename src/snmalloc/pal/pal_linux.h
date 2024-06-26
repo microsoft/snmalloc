@@ -27,7 +27,8 @@ namespace snmalloc
      *
      * We always make sure that linux has entropy support.
      */
-    static constexpr uint64_t pal_features = PALPOSIX::pal_features | Entropy;
+    static constexpr uint64_t pal_features =
+      PALPOSIX::pal_features | Entropy | CoreDump;
 
     static constexpr size_t page_size =
       Aal::aal_name == PowerPC ? 0x10000 : PALPOSIX::page_size;
@@ -58,7 +59,6 @@ namespace snmalloc
       void* p = PALPOSIX<PALLinux>::reserve(size);
       if (p)
       {
-        madvise(p, size, MADV_DONTDUMP);
 #  ifdef SNMALLOC_PAGEID
 #    ifndef PR_SET_VMA
 #      define PR_SET_VMA 0x53564d41
@@ -125,7 +125,6 @@ namespace snmalloc
       if constexpr (DEBUG)
         memset(p, 0x5a, size);
 
-      madvise(p, size, MADV_DONTDUMP);
       madvise(p, size, madvise_free_flags);
 
       if constexpr (mitigations(pal_enforce_access))
@@ -135,25 +134,19 @@ namespace snmalloc
     }
 
     /**
-     * Notify platform that we will be using these pages for reading.
-     *
-     * This is used only for pages full of zeroes and so we exclude them from
-     * core dumps.
+     * Notify platform that these pages should be included in a core dump.
      */
-    static void notify_using_readonly(void* p, size_t size) noexcept
+    static void notify_do_dump(void* p, size_t size) noexcept
     {
-      PALPOSIX<PALLinux>::notify_using_readonly(p, size);
-      madvise(p, size, MADV_DONTDUMP);
+      madvise(p, size, MADV_DODUMP);
     }
 
     /**
-     * Notify platform that we will be using these pages.
+     * Notify platform that these pages should not be included in a core dump.
      */
-    template<ZeroMem zero_mem>
-    static void notify_using(void* p, size_t size) noexcept
+    static void notify_do_not_dump(void* p, size_t size) noexcept
     {
-      PALPOSIX<PALLinux>::notify_using<zero_mem>(p, size);
-      madvise(p, size, MADV_DODUMP);
+      madvise(p, size, MADV_DONTDUMP);
     }
 
     static uint64_t get_entropy64()

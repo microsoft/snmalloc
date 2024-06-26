@@ -43,7 +43,8 @@ namespace snmalloc
      * field is declared explicitly to remind anyone modifying this class to
      * add new features that they should add any required feature flags.
      */
-    static constexpr uint64_t pal_features = PALBSD_Aligned::pal_features;
+    static constexpr uint64_t pal_features =
+      PALBSD_Aligned::pal_features | CoreDump;
 
     /**
      * FreeBSD uses atypically small address spaces on its 64 bit RISC machines.
@@ -68,10 +69,8 @@ namespace snmalloc
     /**
      * Notify platform that we will not be using these pages.
      *
-     * We use the `MADV_FREE` and `NADV_NOCORE` flags to `madvise`.  The first
-     * allows the system to discard the page and replace it with a CoW mapping
-     * of the zero page.  The second prevents this mapping from appearing in
-     * core files.
+     * We use the `MADV_FREE` flag to `madvise`. This allows the system to
+     * discard the page and replace it with a CoW mapping of the zero page.
      */
     static void notify_not_using(void* p, size_t size) noexcept
     {
@@ -80,7 +79,6 @@ namespace snmalloc
       if constexpr (DEBUG)
         memset(p, 0x5a, size);
 
-      madvise(p, size, MADV_NOCORE);
       madvise(p, size, MADV_FREE);
 
       if constexpr (mitigations(pal_enforce_access))
@@ -90,28 +88,19 @@ namespace snmalloc
     }
 
     /**
-     * Notify platform that we will be using these pages for reading.
-     *
-     * This is used only for pages full of zeroes and so we exclude them from
-     * core dumps.
+     * Notify platform that these pages should be included in a core dump.
      */
-    static void notify_using_readonly(void* p, size_t size) noexcept
+    static void notify_do_dump(void* p, size_t size) noexcept
     {
-      PALBSD_Aligned<PALFreeBSD>::notify_using_readonly(p, size);
-      madvise(p, size, MADV_NOCORE);
+      madvise(p, size, MADV_CORE);
     }
 
     /**
-     * Notify platform that we will be using these pages.
-     *
-     * We may have previously marked this memory as not being included in core
-     * files, so mark it for inclusion again.
+     * Notify platform that these pages should not be included in a core dump.
      */
-    template<ZeroMem zero_mem>
-    static void notify_using(void* p, size_t size) noexcept
+    static void notify_do_not_dump(void* p, size_t size) noexcept
     {
-      PALBSD_Aligned<PALFreeBSD>::notify_using<zero_mem>(p, size);
-      madvise(p, size, MADV_CORE);
+      madvise(p, size, MADV_NOCORE);
     }
 
 #  if defined(__CHERI_PURE_CAPABILITY__)

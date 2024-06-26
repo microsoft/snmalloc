@@ -55,6 +55,12 @@ namespace snmalloc
      * This Pal provides a millisecond time source
      */
     Time = (1 << 5),
+
+    /**
+     * This Pal provides selective core dumps, so
+     * modify which parts get dumped.
+     */
+    CoreDump = (1 << 6),
   };
 
   /**
