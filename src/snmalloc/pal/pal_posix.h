@@ -135,7 +135,7 @@ namespace snmalloc
       bits::is_pow2(SNMALLOC_PAGESIZE), "Page size must be a power of 2");
     static constexpr size_t page_size = SNMALLOC_PAGESIZE;
 #elif defined(PAGESIZE)
-    static constexpr size_t page_size = PAGESIZE;
+    static constexpr size_t page_size = max(Aal::smallest_page_size, PAGESIZE);
 #else
     static constexpr size_t page_size = Aal::smallest_page_size;
 #endif
