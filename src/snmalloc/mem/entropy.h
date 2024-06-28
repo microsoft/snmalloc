@@ -28,7 +28,6 @@ namespace snmalloc
     uint64_t local_counter{0};
     uint64_t fresh_bits{0};
     uint64_t count{0};
-    FreeListKey key{0, 0, 0};
 
   public:
     constexpr LocalEntropy() = default;
@@ -38,18 +37,6 @@ namespace snmalloc
     {
       local_key = get_entropy64<PAL>();
       local_counter = get_entropy64<PAL>();
-      if constexpr (bits::BITS == 64)
-      {
-        key.key1 = get_next();
-        key.key2 = get_next();
-        key.key_next = get_next();
-      }
-      else
-      {
-        key.key1 = get_next() & 0xffff'ffff;
-        key.key2 = get_next() & 0xffff'ffff;
-        key.key_next = get_next() & 0xffff'ffff;
-      }
       bit_source = get_next();
     }
 
@@ -70,9 +57,20 @@ namespace snmalloc
     /**
      * A key for the free lists for this thread.
      */
-    const FreeListKey& get_free_list_key()
+    void make_free_list_key(FreeListKey& key)
     {
-      return key;
+      if constexpr (bits::BITS == 64)
+      {
+        key.key1 = static_cast<address_t>(get_next());
+        key.key2 = static_cast<address_t>(get_next());
+        key.key_next = static_cast<address_t>(get_next());
+      }
+      else
+      {
+        key.key1 = static_cast<address_t>(get_next() & 0xffff'ffff);
+        key.key2 = static_cast<address_t>(get_next() & 0xffff'ffff);
+        key.key_next = static_cast<address_t>(get_next() & 0xffff'ffff);
+      }
     }
 
     /**
@@ -116,8 +114,7 @@ namespace snmalloc
         fresh_bits = get_next();
         count = 64;
       }
-      uint16_t result =
-        static_cast<uint16_t>(fresh_bits & (bits::one_at_bit(n) - 1));
+      uint16_t result = static_cast<uint16_t>(fresh_bits & bits::mask_bits(n));
       fresh_bits >>= n;
       count -= n;
       return result;

@@ -137,7 +137,7 @@ void test_tasks(size_t num_tasks, size_t count, size_t size)
     ParallelTest<test_tasks_f> test(num_tasks);
 
     std::cout << "Task test, " << num_tasks << " threads, " << count
-              << " swaps per thread " << test.time() << "ticks" << std::endl;
+              << " swaps per thread " << test.time() << " ticks" << std::endl;
 
     for (size_t n = 0; n < swapsize; n++)
     {

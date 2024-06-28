@@ -455,7 +455,7 @@ namespace snmalloc
       static_assert(
         std::is_base_of<FrontendSlabMetadata_Trait, BackendType>::value,
         "Template should be a subclass of FrontendSlabMetadata");
-      free_queue.init(slab, key, NO_KEY_TWEAK);
+      free_queue.init(slab, key, this->as_key_tweak());
       // Set up meta data as if the entire slab has been turned into a free
       // list. This means we don't have to check for special cases where we have
       // returned all the elements, but this is a slab that is still being bump
@@ -477,7 +477,7 @@ namespace snmalloc
     void initialise_large(address_t slab, const FreeListKey& key)
     {
       // We will push to this just to make the fast path clean.
-      free_queue.init(slab, key, NO_KEY_TWEAK);
+      free_queue.init(slab, key, this->as_key_tweak());
 
       // Flag to detect that it is a large alloc on the slow path
       large_ = true;
@@ -498,6 +498,55 @@ namespace snmalloc
     bool return_object()
     {
       return (--needed()) == 0;
+    }
+
+    class ReturnObjectsResult
+    {
+      friend FrontendSlabMetadata;
+
+      bool _needs;
+      uint16_t _batch;
+
+      static_assert(sizeof(_batch) * 8 > MAX_CAPACITY_BITS);
+
+      ReturnObjectsResult() : _needs(false), _batch(0) {}
+      ReturnObjectsResult(uint16_t n) : _needs(true), _batch(n) {}
+
+    public:
+      bool needs_work()
+      {
+        return _needs;
+      }
+      uint16_t batch_size()
+      {
+        return _batch;
+      }
+    };
+
+    /**
+     * A batch version of return_object.  Returns up to the next threshold of
+     * objects all at once, which may leave objects unreturned.
+     *
+     * The ReturnObjectsResult will indicate that it `.needs_work()` to be done
+     * if a slow-path threshold has been hit.  The `.batch_size()` indicates the
+     * number of objects yet to be returned (which will be nonzero only if
+     * `.needs_work()` is true, but may be zero even if there is work to be
+     * done).
+     *
+     * Unlike return_object(), the caller's slow-path must loop to retry any
+     * unreturned objects.
+     */
+    ReturnObjectsResult return_objects(uint16_t n)
+    {
+      if (n >= needed())
+      {
+        n -= needed();
+        needed() = 0;
+        return ReturnObjectsResult(n);
+      }
+
+      needed() -= n;
+      return ReturnObjectsResult();
     }
 
     bool is_unused()
@@ -573,11 +622,12 @@ namespace snmalloc
       LocalEntropy& entropy,
       smallsizeclass_t sizeclass)
     {
-      auto& key = entropy.get_free_list_key();
+      auto& key = freelist::Object::key_root;
 
       std::remove_reference_t<decltype(fast_free_list)> tmp_fl;
 
-      auto remaining = meta->free_queue.close(tmp_fl, key, NO_KEY_TWEAK);
+      auto remaining =
+        meta->free_queue.close(tmp_fl, key, meta->as_key_tweak());
       auto p = tmp_fl.take(key, domesticate);
       fast_free_list = tmp_fl;
 
@@ -599,7 +649,12 @@ namespace snmalloc
     // start of the slab.
     [[nodiscard]] address_t get_slab_interior(const FreeListKey& key) const
     {
-      return address_cast(free_queue.read_head(0, key, NO_KEY_TWEAK));
+      return address_cast(free_queue.read_head(0, key, this->as_key_tweak()));
+    }
+
+    [[nodiscard]] SNMALLOC_FAST_PATH address_t as_key_tweak() const noexcept
+    {
+      return address_cast(this) / alignof(decltype(*this));
     }
 
     typename ClientMeta::DataRef get_meta_for_object(size_t index)

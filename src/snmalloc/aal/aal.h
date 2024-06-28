@@ -56,7 +56,7 @@ namespace snmalloc
   {
     /*
      * Provide a default specification of address_t as uintptr_t for Arch-es
-     * that support IntegerPointers.  Those Arch-es without IntegerPoihnters
+     * that support IntegerPointers.  Those Arch-es without IntegerPointers
      * must explicitly give their address_t.
      *
      * This somewhat obtuse way of spelling the defaulting is necessary so
