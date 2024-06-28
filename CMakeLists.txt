@@ -65,6 +65,8 @@ endif()
 set(SNMALLOC_MIN_ALLOC_SIZE "" CACHE STRING "Minimum allocation bytes (power of 2)")
 set(SNMALLOC_MIN_ALLOC_STEP_SIZE "" CACHE STRING "Minimum allocation step (power of 2)")
 
+set(SNMALLOC_PAGESIZE "" CACHE STRING "Page size in bytes")
+
 if(MSVC AND SNMALLOC_STATIC_LIBRARY AND (SNMALLOC_STATIC_LIBRARY_PREFIX STREQUAL ""))
   message(FATAL_ERROR "Empty static library prefix not supported on MSVC")
 endif()
@@ -248,6 +250,8 @@ if (SNMALLOC_NO_REALLOCARR)
 endif()
 add_as_define_value(SNMALLOC_MIN_ALLOC_SIZE)
 add_as_define_value(SNMALLOC_MIN_ALLOC_STEP_SIZE)
+
+add_as_define_value(SNMALLOC_PAGESIZE)
 
 target_compile_definitions(snmalloc INTERFACE $<$<BOOL:CONST_QUALIFIED_MALLOC_USABLE_SIZE>:MALLOC_USABLE_SIZE_QUALIFIER=const>)
 
