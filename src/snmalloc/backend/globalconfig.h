@@ -96,33 +96,37 @@ namespace snmalloc
     // of allocators.
     SNMALLOC_SLOW_PATH static void ensure_init_slow()
     {
-      FlagLock lock{initialisation_lock};
-#ifdef SNMALLOC_TRACING
-      message<1024>("Run init_impl");
-#endif
-
       if (initialised)
         return;
 
-      LocalEntropy entropy;
-      entropy.init<Pal>();
-      // Initialise key for remote deallocation lists
-      RemoteAllocator::key_global = FreeListKey(entropy.get_free_list_key());
+      with(initialisation_lock, [&]() {
+#ifdef SNMALLOC_TRACING
+        message<1024>("Run init_impl");
+#endif
 
-      // Need to randomise pagemap location. If requested and not a
-      // StrictProvenance architecture, randomize its table's location within a
-      // significantly larger address space allocation.
-      static constexpr bool pagemap_randomize =
-        mitigations(random_pagemap) && !aal_supports<StrictProvenance>;
+        if (initialised)
+          return;
 
-      Pagemap::concretePagemap.template init<pagemap_randomize>();
+        LocalEntropy entropy;
+        entropy.init<Pal>();
+        // Initialise key for remote deallocation lists
+        RemoteAllocator::key_global = FreeListKey(entropy.get_free_list_key());
 
-      if constexpr (aal_supports<StrictProvenance>)
-      {
-        Authmap::init();
-      }
+        // Need to randomise pagemap location. If requested and not a
+        // StrictProvenance architecture, randomize its table's location within
+        // a significantly larger address space allocation.
+        static constexpr bool pagemap_randomize =
+          mitigations(random_pagemap) && !aal_supports<StrictProvenance>;
 
-      initialised.store(true, std::memory_order_release);
+        Pagemap::concretePagemap.template init<pagemap_randomize>();
+
+        if constexpr (aal_supports<StrictProvenance>)
+        {
+          Authmap::init();
+        }
+
+        initialised.store(true, std::memory_order_release);
+      });
     }
 
   public:
