@@ -145,8 +145,7 @@ namespace snmalloc::libc
 
   inline void* memalign(size_t alignment, size_t size)
   {
-    if (SNMALLOC_UNLIKELY(
-          alignment < sizeof(uintptr_t) || !bits::is_pow2(alignment)))
+    if (SNMALLOC_UNLIKELY(alignment == 0 || !bits::is_pow2(alignment)))
     {
       return set_error(EINVAL);
     }
