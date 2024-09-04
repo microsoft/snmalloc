@@ -21,8 +21,7 @@ namespace snmalloc
     static_assert(RINGS > 0);
 
     std::array<freelist::Builder<false, true>, RINGS> open_builder;
-    std::array<typename Config::PagemapEntry::SlabMetadata*, RINGS> open_meta =
-      {nullptr};
+    std::array<address_t, RINGS> open_meta = {0};
 
     SNMALLOC_FAST_PATH size_t
     ring_set(typename Config::PagemapEntry::SlabMetadata* meta)
@@ -38,21 +37,23 @@ namespace snmalloc
       auto rmsg = BatchedRemoteMessage::mk_from_freelist_builder(
         open_builder[ix],
         freelist::Object::key_root,
-        open_meta[ix]->as_key_tweak());
+        Config::PagemapEntry::SlabMetadata::as_key_tweak(open_meta[ix]));
 
       auto& entry = Config::Backend::get_metaentry(address_cast(rmsg));
 
       forward(entry.get_remote()->trunc_id(), rmsg);
 
-      open_meta[ix] = nullptr;
+      open_meta[ix] = 0;
     }
 
     SNMALLOC_FAST_PATH void init_one_pending(
       size_t ix, typename Config::PagemapEntry::SlabMetadata* meta)
     {
       open_builder[ix].init(
-        0, freelist::Object::key_root, open_meta[ix]->as_key_tweak());
-      open_meta[ix] = meta;
+        0,
+        freelist::Object::key_root,
+        Config::PagemapEntry::SlabMetadata::as_key_tweak(open_meta[ix]));
+      open_meta[ix] = address_cast(meta);
     }
 
   public:
@@ -67,7 +68,7 @@ namespace snmalloc
       for (size_t ix_way = 0; ix_way < DEALLOC_BATCH_RING_ASSOC; ix_way++)
       {
         size_t ix = ix_set + ix_way;
-        if (meta == open_meta[ix])
+        if (address_cast(meta) == open_meta[ix])
         {
           open_builder[ix].add(
             r, freelist::Object::key_root, meta->as_key_tweak());
@@ -80,7 +81,7 @@ namespace snmalloc
       for (size_t ix_way = 0; ix_way < DEALLOC_BATCH_RING_ASSOC; ix_way++)
       {
         size_t ix = ix_set + ix_way;
-        if (open_meta[ix] == nullptr)
+        if (open_meta[ix] == 0)
         {
           victim_ix = ix;
           break;
@@ -94,7 +95,7 @@ namespace snmalloc
         }
       }
 
-      if (open_meta[victim_ix] != nullptr)
+      if (open_meta[victim_ix] != 0)
       {
         close_one_pending(forward, victim_ix);
       }
@@ -109,17 +110,17 @@ namespace snmalloc
     {
       for (size_t ix = 0; ix < RINGS; ix++)
       {
-        if (open_meta[ix] != nullptr)
+        if (open_meta[ix] != 0)
         {
           close_one_pending(forward, ix);
-          open_meta[ix] = nullptr;
+          open_meta[ix] = 0;
         }
       }
     }
 
     void init()
     {
-      open_meta = {nullptr};
+      open_meta = {0};
     }
   };
 

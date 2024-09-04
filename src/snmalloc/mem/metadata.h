@@ -654,7 +654,13 @@ namespace snmalloc
 
     [[nodiscard]] SNMALLOC_FAST_PATH address_t as_key_tweak() const noexcept
     {
-      return address_cast(this) / alignof(decltype(*this));
+      return as_key_tweak(address_cast(this));
+    }
+
+    [[nodiscard]] SNMALLOC_FAST_PATH static address_t
+    as_key_tweak(address_t self)
+    {
+      return self / alignof(FrontendSlabMetadata);
     }
 
     typename ClientMeta::DataRef get_meta_for_object(size_t index)
