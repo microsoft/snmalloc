@@ -15,6 +15,8 @@ namespace snmalloc
   template<typename Rep, size_t MIN_SIZE_BITS, size_t MAX_SIZE_BITS>
   class Buddy
   {
+    static_assert(MAX_SIZE_BITS > MIN_SIZE_BITS);
+
     struct Entry
     {
       typename Rep::Contents cache[3];
