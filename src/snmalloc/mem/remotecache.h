@@ -77,8 +77,6 @@ namespace snmalloc
       LocalEntropy* entropy,
       Forward forward)
     {
-      UNUSED(entropy);
-
       size_t ix_set = ring_set(meta);
 
       for (size_t ix_way = 0; ix_way < DEALLOC_BATCH_RING_ASSOC; ix_way++)
@@ -88,6 +86,20 @@ namespace snmalloc
         {
           open_builder[ix].add(
             r, freelist::Object::key_root, meta->as_key_tweak());
+
+          if constexpr (mitigations(random_preserve))
+          {
+            auto rand_limit = entropy->next_fresh_bits(MAX_CAPACITY_BITS);
+            if (open_builder[ix].extract_segment_length() >= rand_limit)
+            {
+              close_one_pending(forward, ix);
+              open_meta[ix] = 0;
+            }
+          }
+          else
+          {
+            UNUSED(entropy);
+          }
           return;
         }
       }
