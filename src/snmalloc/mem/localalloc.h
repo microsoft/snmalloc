@@ -286,7 +286,7 @@ namespace snmalloc
           address_cast(entry.get_slab_metadata()));
 #endif
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-          entry.get_slab_metadata(), p);
+          entry.get_slab_metadata(), p, &local_cache.entropy);
         post_remote_cache();
         return;
       }
@@ -679,7 +679,7 @@ namespace snmalloc
         if (local_cache.remote_dealloc_cache.reserve_space(entry))
         {
           local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-            entry.get_slab_metadata(), p_tame);
+            entry.get_slab_metadata(), p_tame, &local_cache.entropy);
 #  ifdef SNMALLOC_TRACING
           message<1024>(
             "Remote dealloc fast {} ({}, {})",

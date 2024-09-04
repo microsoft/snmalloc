@@ -74,8 +74,11 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void dealloc(
       typename Config::PagemapEntry::SlabMetadata* meta,
       freelist::HeadPtr r,
+      LocalEntropy* entropy,
       Forward forward)
     {
+      UNUSED(entropy);
+
       size_t ix_set = ring_set(meta);
 
       for (size_t ix_way = 0; ix_way < DEALLOC_BATCH_RING_ASSOC; ix_way++)
@@ -152,8 +155,11 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void dealloc(
       typename Config::PagemapEntry::SlabMetadata*,
       freelist::HeadPtr r,
+      LocalEntropy* entropy,
       Forward forward)
     {
+      UNUSED(entropy);
+
       auto& entry = Config::Backend::get_metaentry(address_cast(r));
       forward(
         entry.get_remote()->trunc_id(),
@@ -237,7 +243,9 @@ namespace snmalloc
 
     template<size_t allocator_size>
     SNMALLOC_FAST_PATH void dealloc(
-      typename Config::PagemapEntry::SlabMetadata* meta, capptr::Alloc<void> p)
+      typename Config::PagemapEntry::SlabMetadata* meta,
+      capptr::Alloc<void> p,
+      LocalEntropy* entropy)
     {
       SNMALLOC_ASSERT(initialised);
 
@@ -246,6 +254,7 @@ namespace snmalloc
       batching.dealloc(
         meta,
         r,
+        entropy,
         [this](
           RemoteAllocator::alloc_id_t target_id,
           capptr::Alloc<RemoteMessage> msg) {
