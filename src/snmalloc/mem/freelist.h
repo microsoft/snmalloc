@@ -55,6 +55,13 @@ namespace snmalloc
 
   namespace freelist
   {
+    template<
+      bool RANDOM,
+      bool TRACK_LENGTH = RANDOM,
+      SNMALLOC_CONCEPT(capptr::IsBound) BView = capptr::bounds::Alloc,
+      SNMALLOC_CONCEPT(capptr::IsBound) BQueue = capptr::bounds::AllocWild>
+    class Builder;
+
     class Object
     {
     public:
@@ -641,9 +648,9 @@ namespace snmalloc
      */
     template<
       bool RANDOM,
-      bool TRACK_LENGTH = RANDOM,
-      SNMALLOC_CONCEPT(capptr::IsBound) BView = capptr::bounds::Alloc,
-      SNMALLOC_CONCEPT(capptr::IsBound) BQueue = capptr::bounds::AllocWild>
+      bool TRACK_LENGTH,
+      SNMALLOC_CONCEPT(capptr::IsBound) BView,
+      SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
     class Builder
     {
       static_assert(!RANDOM || TRACK_LENGTH);
