@@ -15,6 +15,7 @@ namespace snmalloc
   /**
    * Stores the remote deallocation to batch them before sending
    */
+  template<typename Config>
   struct RemoteDeallocCache
   {
     std::array<freelist::Builder<false>, REMOTE_SLOTS> list;
@@ -54,10 +55,12 @@ namespace snmalloc
      * This does not require initialisation to be safely called.
      */
     template<typename Entry>
-    SNMALLOC_FAST_PATH bool reserve_space(const Entry& entry)
+    SNMALLOC_FAST_PATH bool reserve_space(const Entry& entry, uint16_t n = 1)
     {
+      static_assert(sizeof(n) * 8 > MAX_CAPACITY_BITS);
+
       auto size =
-        static_cast<int64_t>(sizeclass_full_to_size(entry.get_sizeclass()));
+        n * static_cast<int64_t>(sizeclass_full_to_size(entry.get_sizeclass()));
 
       bool result = capacity > size;
       if (result)
@@ -70,13 +73,13 @@ namespace snmalloc
     dealloc(RemoteAllocator::alloc_id_t target_id, capptr::Alloc<void> p)
     {
       SNMALLOC_ASSERT(initialised);
-      auto r = p.template as_reinterpret<freelist::Object::T<>>();
+      auto r = freelist::Object::make<capptr::bounds::AllocWild>(p);
 
       list[get_slot<allocator_size>(target_id, 0)].add(
         r, RemoteAllocator::key_global, NO_KEY_TWEAK);
     }
 
-    template<size_t allocator_size, typename Config>
+    template<size_t allocator_size>
     bool post(
       typename Config::LocalState* local_state, RemoteAllocator::alloc_id_t id)
     {
@@ -151,7 +154,7 @@ namespace snmalloc
         }
       }
 
-      // Reset capacity as we have empty everything
+      // Reset capacity as we have emptied everything
       capacity = REMOTE_CACHE;
 
       return sent_something;

@@ -78,7 +78,7 @@ namespace snmalloc
     // allocation on the fast path. This part of the code is inspired by
     // mimalloc.
     // Also contains remote deallocation cache.
-    LocalCache local_cache{&Config::unused_remote};
+    LocalCache<Config> local_cache{&Config::unused_remote};
 
     // Underlying allocator for most non-fast path operations.
     CoreAlloc* core_alloc{nullptr};
@@ -209,7 +209,7 @@ namespace snmalloc
         if (meta != nullptr)
         {
           meta->initialise_large(
-            address_cast(chunk), local_cache.entropy.get_free_list_key());
+            address_cast(chunk), freelist::Object::key_root);
           core_alloc->laden.insert(meta);
         }
 
@@ -253,8 +253,7 @@ namespace snmalloc
           sizeclass);
       };
 
-      return local_cache.template alloc<zero_mem, Config>(
-        domesticate, size, slowpath);
+      return local_cache.template alloc<zero_mem>(domesticate, size, slowpath);
     }
 
     /**
@@ -274,18 +273,18 @@ namespace snmalloc
      * In the second case we need to recheck if this is a remote deallocation,
      * as we might acquire the originating allocator.
      */
-    SNMALLOC_SLOW_PATH void dealloc_remote_slow(capptr::Alloc<void> p)
+    SNMALLOC_SLOW_PATH void
+    dealloc_remote_slow(const PagemapEntry& entry, capptr::Alloc<void> p)
     {
       if (core_alloc != nullptr)
       {
 #ifdef SNMALLOC_TRACING
         message<1024>(
-          "Remote dealloc post {} ({})",
+          "Remote dealloc post {} ({}, {})",
           p.unsafe_ptr(),
-          alloc_size(p.unsafe_ptr()));
+          alloc_size(p.unsafe_ptr()),
+          address_cast(entry.get_slab_metadata()));
 #endif
-        const PagemapEntry& entry =
-          Config::Backend::template get_metaentry(address_cast(p));
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
           entry.get_remote()->trunc_id(), p);
         post_remote_cache();
@@ -655,11 +654,7 @@ namespace snmalloc
       if (SNMALLOC_LIKELY(local_cache.remote_allocator == entry.get_remote()))
       {
         dealloc_cheri_checks(p_tame.unsafe_ptr());
-
-        if (SNMALLOC_LIKELY(CoreAlloc::dealloc_local_object_fast(
-              entry, p_tame, local_cache.entropy)))
-          return;
-        core_alloc->dealloc_local_object_slow(p_tame, entry);
+        core_alloc->dealloc_local_object(p_tame, entry);
         return;
       }
 
@@ -681,12 +676,15 @@ namespace snmalloc
             remote->trunc_id(), p_tame);
 #  ifdef SNMALLOC_TRACING
           message<1024>(
-            "Remote dealloc fast {} ({})", p_raw, alloc_size(p_raw));
+            "Remote dealloc fast {} ({}, {})",
+            p_raw,
+            alloc_size(p_raw),
+            address_cast(entry.get_slab_metadata()));
 #  endif
           return;
         }
 
-        dealloc_remote_slow(p_tame);
+        dealloc_remote_slow(entry, p_tame);
         return;
       }
 
@@ -921,7 +919,7 @@ namespace snmalloc
      * core allocator for use by this local allocator then it needs to access
      * this field.
      */
-    LocalCache& get_local_cache()
+    LocalCache<Config>& get_local_cache()
     {
       return local_cache;
     }
