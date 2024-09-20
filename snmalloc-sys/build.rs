@@ -6,7 +6,7 @@ fn main() {
         (false, "-O3", "/O2", "/RELEASE")
     };
     let mut build = cc::Build::new();
-    build.include("snmalloc/src/snmalloc");
+    build.include("snmalloc/src");
     build.file("snmalloc/src/snmalloc/override/rust.cc".to_string());
     build.flag_if_supported("/O2");
     build.flag_if_supported("/Zi");
@@ -44,7 +44,6 @@ fn main() {
         build.flag_if_supported("/std:c++17");
         build.flag_if_supported("-Wc++17-extensions");
         build.flag_if_supported("/Wc++17-extensions");
-        build.define("SNMALLOC_USE_CXX17", "1");
     } else {
         build.flag_if_supported("-std=c++20");
         build.flag_if_supported("/std:c++20");

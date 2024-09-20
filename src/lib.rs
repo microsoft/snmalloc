@@ -82,7 +82,7 @@ impl SnMalloc {
     /// depends very much on the underlying operating system.
     #[inline(always)]
     pub fn usable_size(&self, ptr: *const u8) -> usize {
-        unsafe { ffi::sn_malloc_usable_size(ptr as *const _) }
+        unsafe { ffi::sn_rust_usable_size(ptr as *const _) }
     }
 }
 
