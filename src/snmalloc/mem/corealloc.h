@@ -380,9 +380,15 @@ namespace snmalloc
     }
 
     /**
-     * Very slow path for deallocating an object locally.
+     * Very slow path for object deallocation.
+     *
+     * The object has already been returned to the slab, so all that is left to
+     * do is update its metadata and, if that pushes us into having too many
+     * unused slabs in this size class, return some.
+     *
+     * Also while here, check the time.
      */
-    SNMALLOC_SLOW_PATH void dealloc_local_object_slower(
+    SNMALLOC_SLOW_PATH void dealloc_local_object_meta(
       const PagemapEntry& entry, BackendSlabMetadata* meta)
     {
       smallsizeclass_t sizeclass = entry.get_sizeclass().as_small();
@@ -427,6 +433,9 @@ namespace snmalloc
      * This is either waking up a slab that was not actively being used
      * by this thread, or handling the final deallocation onto a slab,
      * so it can be reused by other threads.
+     *
+     * Live large objects look like slabs that need attention when they become
+     * free; that attention is also given here.
      */
     SNMALLOC_SLOW_PATH void
     dealloc_local_object_slow(capptr::Alloc<void> p, const PagemapEntry& entry)
@@ -460,7 +469,8 @@ namespace snmalloc
         return;
       }
 
-      dealloc_local_object_slower(entry, meta);
+      // Not a large object; update slab metadata
+      dealloc_local_object_meta(entry, meta);
     }
 
     /**
