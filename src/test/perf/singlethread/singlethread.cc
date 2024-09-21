@@ -34,9 +34,9 @@ void test_alloc_dealloc(size_t count, size_t size, bool write)
     {
       auto it = set.begin();
       void* p = *it;
-      alloc.dealloc(p, size);
       set.erase(it);
       SNMALLOC_CHECK(set.find(p) == set.end());
+      alloc.dealloc(p, size);
     }
 
     // alloc 1x objects
