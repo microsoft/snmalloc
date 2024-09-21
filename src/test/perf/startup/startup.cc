@@ -70,7 +70,8 @@ public:
 
 int main()
 {
-  counters.resize(std::thread::hardware_concurrency());
+  auto nthreads = std::thread::hardware_concurrency();
+  counters.resize(nthreads);
 
   ParallelTest test(
     [](size_t id) {
@@ -80,7 +81,7 @@ int main()
       auto end = Aal::tick();
       counters[id] = end - start;
     },
-    counters.size());
+    nthreads);
 
   std::cout << "Taken: " << test.time() << std::endl;
   std::sort(counters.begin(), counters.end());
