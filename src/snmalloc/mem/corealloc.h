@@ -437,12 +437,12 @@ namespace snmalloc
      * Live large objects look like slabs that need attention when they become
      * free; that attention is also given here.
      */
-    SNMALLOC_SLOW_PATH void
-    dealloc_local_object_slow(capptr::Alloc<void> p, const PagemapEntry& entry)
+    SNMALLOC_SLOW_PATH void dealloc_local_object_slow(
+      capptr::Alloc<void> p,
+      const PagemapEntry& entry,
+      BackendSlabMetadata* meta)
     {
       // TODO: Handle message queue on this path?
-
-      auto* meta = entry.get_slab_metadata();
 
       if (meta->is_large())
       {
@@ -708,10 +708,12 @@ namespace snmalloc
       CapPtr<void, capptr::bounds::Alloc> p,
       const typename Config::PagemapEntry& entry)
     {
-      if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p, entropy)))
+      auto meta = entry.get_slab_metadata();
+
+      if (SNMALLOC_LIKELY(dealloc_local_object_fast(p, entry, meta, entropy)))
         return;
 
-      dealloc_local_object_slow(p, entry);
+      dealloc_local_object_slow(p, entry, meta);
     }
 
     SNMALLOC_FAST_PATH void
@@ -724,12 +726,11 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH static bool dealloc_local_object_fast(
-      const PagemapEntry& entry,
       CapPtr<void, capptr::bounds::Alloc> p,
+      const PagemapEntry& entry,
+      BackendSlabMetadata* meta,
       LocalEntropy& entropy)
     {
-      auto meta = entry.get_slab_metadata();
-
       SNMALLOC_ASSERT(!meta->is_unused());
 
       snmalloc_check_client(
