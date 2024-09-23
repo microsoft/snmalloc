@@ -380,9 +380,15 @@ namespace snmalloc
     }
 
     /**
-     * Very slow path for deallocating an object locally.
+     * Very slow path for object deallocation.
+     *
+     * The object has already been returned to the slab, so all that is left to
+     * do is update its metadata and, if that pushes us into having too many
+     * unused slabs in this size class, return some.
+     *
+     * Also while here, check the time.
      */
-    SNMALLOC_SLOW_PATH void dealloc_local_object_slower(
+    SNMALLOC_SLOW_PATH void dealloc_local_object_meta(
       const PagemapEntry& entry, BackendSlabMetadata* meta)
     {
       smallsizeclass_t sizeclass = entry.get_sizeclass().as_small();
@@ -427,13 +433,16 @@ namespace snmalloc
      * This is either waking up a slab that was not actively being used
      * by this thread, or handling the final deallocation onto a slab,
      * so it can be reused by other threads.
+     *
+     * Live large objects look like slabs that need attention when they become
+     * free; that attention is also given here.
      */
-    SNMALLOC_SLOW_PATH void
-    dealloc_local_object_slow(capptr::Alloc<void> p, const PagemapEntry& entry)
+    SNMALLOC_SLOW_PATH void dealloc_local_object_slow(
+      capptr::Alloc<void> p,
+      const PagemapEntry& entry,
+      BackendSlabMetadata* meta)
     {
       // TODO: Handle message queue on this path?
-
-      auto* meta = entry.get_slab_metadata();
 
       if (meta->is_large())
       {
@@ -460,7 +469,8 @@ namespace snmalloc
         return;
       }
 
-      dealloc_local_object_slower(entry, meta);
+      // Not a large object; update slab metadata
+      dealloc_local_object_meta(entry, meta);
     }
 
     /**
@@ -503,13 +513,11 @@ namespace snmalloc
                            SNMALLOC_FAST_PATH_LAMBDA {
                              return capptr_domesticate<Config>(local_state, p);
                            };
-      auto cb = [this,
-                 &need_post](freelist::HeadPtr msg) SNMALLOC_FAST_PATH_LAMBDA {
+      auto cb = [this, domesticate, &need_post](
+                  capptr::Alloc<RemoteMessage> msg) SNMALLOC_FAST_PATH_LAMBDA {
         auto& entry =
           Config::Backend::template get_metaentry(snmalloc::address_cast(msg));
-
-        handle_dealloc_remote(entry, msg.as_void(), need_post);
-
+        handle_dealloc_remote(entry, msg, need_post, domesticate);
         return true;
       };
 
@@ -548,10 +556,12 @@ namespace snmalloc
      *
      * need_post will be set to true, if capacity is exceeded.
      */
+    template<typename Domesticator_queue>
     void handle_dealloc_remote(
       const PagemapEntry& entry,
-      CapPtr<void, capptr::bounds::Alloc> p,
-      bool& need_post)
+      capptr::Alloc<RemoteMessage> msg,
+      bool& need_post,
+      Domesticator_queue domesticate)
     {
       // TODO this needs to not double count stats
       // TODO this needs to not double revoke if using MTE
@@ -559,21 +569,43 @@ namespace snmalloc
 
       if (SNMALLOC_LIKELY(entry.get_remote() == public_state()))
       {
-        dealloc_local_object(p, entry);
+        auto meta = entry.get_slab_metadata();
+
+        auto unreturned =
+          dealloc_local_objects_fast(msg, entry, meta, entropy, domesticate);
+
+        /*
+         * dealloc_local_objects_fast has updated the free list but not updated
+         * the slab metadata; it falls to us to do so.  It is UNLIKELY that we
+         * will need to take further steps, but we might.
+         */
+        if (SNMALLOC_UNLIKELY(unreturned.template step<true>()))
+        {
+          dealloc_local_object_slow(msg.as_void(), entry, meta);
+
+          while (SNMALLOC_UNLIKELY(unreturned.template step<false>()))
+          {
+            dealloc_local_object_meta(entry, meta);
+          }
+        }
+
         return;
       }
-      else
+
+      auto nelem = RemoteMessage::template ring_size<Config>(
+        msg,
+        freelist::Object::key_root,
+        entry.get_slab_metadata()->as_key_tweak(),
+        domesticate);
+      if (
+        !need_post &&
+        !attached_cache->remote_dealloc_cache.reserve_space(entry, nelem))
       {
-        if (
-          !need_post &&
-          !attached_cache->remote_dealloc_cache.reserve_space(entry))
-        {
-          need_post = true;
-        }
-        attached_cache->remote_dealloc_cache
-          .template dealloc<sizeof(CoreAllocator)>(
-            entry.get_remote()->trunc_id(), p.as_void());
+        need_post = true;
       }
+      attached_cache->remote_dealloc_cache
+        .template forward<sizeof(CoreAllocator)>(
+          entry.get_remote()->trunc_id(), msg);
     }
 
     /**
@@ -698,10 +730,12 @@ namespace snmalloc
       CapPtr<void, capptr::bounds::Alloc> p,
       const typename Config::PagemapEntry& entry)
     {
-      if (SNMALLOC_LIKELY(dealloc_local_object_fast(entry, p, entropy)))
+      auto meta = entry.get_slab_metadata();
+
+      if (SNMALLOC_LIKELY(dealloc_local_object_fast(p, entry, meta, entropy)))
         return;
 
-      dealloc_local_object_slow(p, entry);
+      dealloc_local_object_slow(p, entry, meta);
     }
 
     SNMALLOC_FAST_PATH void
@@ -714,12 +748,11 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH static bool dealloc_local_object_fast(
-      const PagemapEntry& entry,
       CapPtr<void, capptr::bounds::Alloc> p,
+      const PagemapEntry& entry,
+      BackendSlabMetadata* meta,
       LocalEntropy& entropy)
     {
-      auto meta = entry.get_slab_metadata();
-
       SNMALLOC_ASSERT(!meta->is_unused());
 
       snmalloc_check_client(
@@ -734,6 +767,42 @@ namespace snmalloc
         cp, freelist::Object::key_root, meta->as_key_tweak(), entropy);
 
       return SNMALLOC_LIKELY(!meta->return_object());
+    }
+
+    template<typename Domesticator>
+    SNMALLOC_FAST_PATH static auto dealloc_local_objects_fast(
+      capptr::Alloc<RemoteMessage> msg,
+      const PagemapEntry& entry,
+      BackendSlabMetadata* meta,
+      LocalEntropy& entropy,
+      Domesticator domesticate)
+    {
+      SNMALLOC_ASSERT(!meta->is_unused());
+
+      snmalloc_check_client(
+        mitigations(sanity_checks),
+        is_start_of_object(entry.get_sizeclass(), address_cast(msg)),
+        "Not deallocating start of an object");
+
+      size_t objsize = sizeclass_full_to_size(entry.get_sizeclass());
+
+      auto [curr, length] = RemoteMessage::template open_free_ring<Config>(
+        msg,
+        objsize,
+        freelist::Object::key_root,
+        meta->as_key_tweak(),
+        domesticate);
+
+      // Update the head and the next pointer in the free list.
+      meta->free_queue.append_segment(
+        curr,
+        msg.template as_reinterpret<freelist::Object::T<>>(),
+        length,
+        freelist::Object::key_root,
+        meta->as_key_tweak(),
+        entropy);
+
+      return meta->return_objects(length);
     }
 
     template<ZeroMem zero_mem>
@@ -871,11 +940,11 @@ namespace snmalloc
 
       if (destroy_queue)
       {
-        auto cb = [this](capptr::Alloc<void> p) {
+        auto cb = [this, domesticate](capptr::Alloc<RemoteMessage> m) {
           bool need_post = true; // Always going to post, so ignore.
           const PagemapEntry& entry =
-            Config::Backend::get_metaentry(snmalloc::address_cast(p));
-          handle_dealloc_remote(entry, p.as_void(), need_post);
+            Config::Backend::get_metaentry(snmalloc::address_cast(m));
+          handle_dealloc_remote(entry, m, need_post, domesticate);
         };
 
         message_queue().destroy_and_iterate(domesticate, cb);

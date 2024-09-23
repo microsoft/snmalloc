@@ -40,6 +40,8 @@
 
 namespace snmalloc
 {
+  class BatchedRemoteMessage;
+
   static constexpr address_t NO_KEY_TWEAK = 0;
 
   /**
@@ -138,6 +140,8 @@ namespace snmalloc
         friend class Builder;
 
         friend class Object;
+
+        friend class ::snmalloc::BatchedRemoteMessage;
 
         class Empty
         {
@@ -914,6 +918,34 @@ namespace snmalloc
           Object::from_next_ptr(cast_end(0)));
         init(address_cast(head[0]), key, key_tweak);
         return {first, last};
+      }
+
+      /**
+       * Put back an extracted segment from a builder using the same key.
+       *
+       * The caller must tell us how many elements are involved.
+       */
+      void append_segment(
+        Object::BHeadPtr<BView, BQueue> first,
+        Object::BHeadPtr<BView, BQueue> last,
+        uint16_t size,
+        const FreeListKey& key,
+        address_t key_tweak,
+        LocalEntropy& entropy)
+      {
+        uint32_t index;
+        if constexpr (RANDOM)
+          index = entropy.next_bit();
+        else
+          index = 0;
+
+        if constexpr (TRACK_LENGTH)
+          length[index] += size;
+        else
+          UNUSED(size);
+
+        Object::store_next(cast_end(index), first, key, key_tweak);
+        set_end(index, &(last->next_object));
       }
 
       template<typename Domesticator>

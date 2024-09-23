@@ -500,6 +500,59 @@ namespace snmalloc
       return (--needed()) == 0;
     }
 
+    class ReturnObjectsIterator
+    {
+      uint16_t _batch;
+      FrontendSlabMetadata* _meta;
+
+      static_assert(sizeof(_batch) * 8 > MAX_CAPACITY_BITS);
+
+    public:
+      ReturnObjectsIterator(uint16_t n, FrontendSlabMetadata* m)
+      : _batch(n), _meta(m)
+      {}
+
+      template<bool first>
+      SNMALLOC_FAST_PATH bool step()
+      {
+        // The first update must always return some positive number of objects.
+        SNMALLOC_ASSERT(!first || (_batch != 0));
+
+        /*
+         * Stop iteration when there are no more objects to return.  Perform
+         * this test only on non-first steps to avoid a branch on the hot path.
+         */
+        if (!first && _batch == 0)
+          return false;
+
+        if (SNMALLOC_LIKELY(_batch < _meta->needed()))
+        {
+          // Will not hit threshold for state transition
+          _meta->needed() -= _batch;
+          return false;
+        }
+
+        // Hit threshold for state transition, may yet hit another
+        _batch -= _meta->needed();
+        _meta->needed() = 0;
+        return true;
+      }
+    };
+
+    /**
+     * A batch version of return_object.
+     *
+     * Returns an iterator that should have `.step<>()` called on it repeatedly
+     * until it returns `false`.  The first step should invoke `.step<true>()`
+     * while the rest should invoke `.step<false>()`.  After each
+     * true-returning `.step()`, the caller should run the slow-path code to
+     * update the rest of the metadata for this slab.
+     */
+    ReturnObjectsIterator return_objects(uint16_t n)
+    {
+      return ReturnObjectsIterator(n, this);
+    }
+
     bool is_unused()
     {
       return needed() == 0;
@@ -605,7 +658,13 @@ namespace snmalloc
 
     [[nodiscard]] SNMALLOC_FAST_PATH address_t as_key_tweak() const noexcept
     {
-      return address_cast(this) / alignof(decltype(*this));
+      return as_key_tweak(address_cast(this));
+    }
+
+    [[nodiscard]] SNMALLOC_FAST_PATH static address_t
+    as_key_tweak(address_t self)
+    {
+      return self / alignof(FrontendSlabMetadata);
     }
 
     typename ClientMeta::DataRef get_meta_for_object(size_t index)
