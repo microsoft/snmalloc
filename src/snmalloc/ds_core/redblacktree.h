@@ -3,7 +3,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <string>
 
 namespace snmalloc
 {
@@ -439,9 +438,19 @@ namespace snmalloc
           depth);
         if (!(get_dir(true, curr).is_null() && get_dir(false, curr).is_null()))
         {
-          auto s_indent = std::string(indent);
-          print(get_dir(true, curr), (s_indent + "|").c_str(), depth + 1);
-          print(get_dir(false, curr), (s_indent + " ").c_str(), depth + 1);
+          char s_indent[128];
+          size_t end = 0;
+          for (; end < 127; end++)
+          {
+            if (indent[end] == 0)
+              break;
+            s_indent[end] = indent[end];
+          }
+          s_indent[end] = '|';
+          s_indent[end + 1] = 0;
+          print(get_dir(true, curr), s_indent, depth + 1);
+          s_indent[end] = ' ';
+          print(get_dir(false, curr), s_indent, depth + 1);
         }
       }
     }
