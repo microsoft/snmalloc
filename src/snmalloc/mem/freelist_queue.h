@@ -3,7 +3,6 @@
 #include "../ds/ds.h"
 #include "freelist.h"
 
-#include <array>
 #include <atomic>
 
 namespace snmalloc

@@ -3,7 +3,6 @@
 #include "../ds_core/ds_core.h"
 
 #include <atomic>
-#include <functional>
 
 namespace snmalloc
 {

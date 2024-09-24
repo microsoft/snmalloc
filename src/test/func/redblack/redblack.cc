@@ -4,7 +4,6 @@
 #include "test/xoroshiro.h"
 
 #include <algorithm>
-#include <array>
 #include <iostream>
 #include <vector>
 

@@ -6,8 +6,6 @@
 #include "empty_range.h"
 #include "range_helpers.h"
 
-#include <string>
-
 namespace snmalloc
 {
   /**
