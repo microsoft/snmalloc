@@ -12,12 +12,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  linux:
+  ubuntu:
     strategy:
       matrix:
         # Build each combination of OS and release/debug variants
-        os: [ "ubuntu-latest", "ubuntu-20.04", "macos-11", "macos-12" ]
-        build-type: [ Release, Debug ]
+        os: [ "ubuntu-latest", "ubuntu-20.04" ]
+        build-type: [ "Release", "Debug" ]
         # Extra cmake flags.  GitHub Actions matrix overloads `include` to mean
         # 'add extra things to a job' and 'add jobs'.  You can add extra things
         # to a job by specifying things that exist in a job created from the
@@ -25,66 +25,51 @@ jobs:
         # specifying properties that don't match existing jobs.  We use
         # `cmake-flags` to add cmake flags to all jobs matching a pattern and
         # `extra-cmake-flags` to specify a new job with custom CMake flags.
+        #
+        # Note that adding new jobs does not *refine* existing matrix entries,
+        # but rather adds new tuples wholesale.  That is, specifying "os" alone
+        # will result in a tuple without set "build-type" rather than one for
+        # each existing "build-type" value!
         extra-cmake-flags: [ "" ]
         # Modify the complete matrix
         include:
-          # Provide the dependency installation for each platform
           - os: "ubuntu-20.04"
-            dependencies: "sudo apt install ninja-build"
-            cmake-flags: "-DSNMALLOC_USE_CXX17=ON"
-          - os: "ubuntu-20.04"
-            dependencies: "sudo apt install ninja-build"
-          - os: "ubuntu-latest" # 22.04 at time of writing
-            dependencies: "sudo apt install ninja-build"
-          - os: "macos-11"
-            # The homebrew packages are broken at the moment and error out
-            # after trying to install Python as a dependency of ninja because
-            # 2to3 exists.  As a quick hack, delete it first.  This should be
-            # removed once the homebrew install is fixed.
-            dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
-          - os: "macos-12"
-            dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
-          - os: "macos-12"
             variant: "C++17"
-            dependencies: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
-            cmake-flags: "-DSNMALLOC_USE_CXX17=ON"
+            build-type: "Debug"
+            extra-cmake-flags: "-DSNMALLOC_USE_CXX17=ON"
           # Add the self-host build, using the bounds-checked memcpy in
           # maximally paranoid mode (checking loads and stores)
           - os: "ubuntu-latest"
             build-type: Debug
             self-host: true
             extra-cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
-            dependencies: "sudo apt install ninja-build"
           # Extra build to check using pthread library for destructing local state.
           - os: "ubuntu-latest"
             variant: "with pthread destructors"
-            dependencies: "sudo apt install ninja-build"
             build-type: Debug
             self-host: true
             extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On"
           # Extra build to check using individual mitigations works.
           - os: "ubuntu-latest"
             variant: "individual mitigations"
-            dependencies: "sudo apt install ninja-build"
             build-type: Release
             self-host: true
             extra-cmake-flags: "-DSNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS=On -DSNMALLOC_BUILD_TESTING=Off"
           # Check that we can build specifically with libstdc++
           - os: "ubuntu-latest"
             variant: "libstdc++ (Build only)"
-            dependencies: "sudo apt install ninja-build"
+            build-type: Release
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
             build-only: yes
           # Replay some of the above tests with clang-10 specifically
           - os: "ubuntu-20.04"
             variant: "clang-10 (with pthread destructors)."
-            dependencies: "sudo apt install ninja-build"
             build-type: Debug
             self-host: true
             extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On -DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10"
           - os: "ubuntu-20.04"
             variant: "clang-10 libstdc++ (Build only)"
-            dependencies: "sudo apt install ninja-build"
+            build-type: Release
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10 -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
             build-only: yes
       # Don't abort runners if a single one fails
@@ -94,7 +79,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install build dependencies
-      run: ${{ matrix.dependencies }}
+      run: "sudo apt install ninja-build"
     
     - uses: mjp41/workaround8649@c8550b715ccdc17f89c8d5c28d7a48eeff9c94a8
       with:
@@ -121,6 +106,49 @@ jobs:
         mkdir libs
         cp libsnmallocshim*.so libs
         for lib in `ls libs`; do echo; echo Testing $lib; ninja clean; LD_PRELOAD=libs/$lib ninja libsnmallocshim.so; done
+
+  # If this looks remarkably familiar, that's because it is.  Sigh.
+  macos:
+    strategy:
+      matrix:
+        os: [ "macos-12", "macos-14" ]
+        build-type: [ "Release", "Debug" ]
+        extra-cmake-flags: [ "", "-DSNMALLOC_USE_CXX17=ON" ]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.extra-cmake-flags }}
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install build dependencies
+            # The homebrew packages are broken at the moment and error out
+            # after trying to install Python as a dependency of ninja because
+            # 2to3 exists.  As a quick hack, delete it first.  This should be
+            # removed once the homebrew install is fixed.
+      run: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
+    
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.cmake-flags }} ${{ matrix.extra-cmake-flags }}
+      # Build with a nice ninja status line
+    - name: Build
+      working-directory: ${{github.workspace}}/build
+      run: NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+    - name: Test file size of binaries is sane
+      working-directory: ${{github.workspace}}/build
+      run: "ls -l libsnmallocshim.* ; [ $(ls -l libsnmallocshim.* | awk '{ print $5}') -lt 10000000 ]"
+      # If the tests are enabled for this job, run them
+    - name: Test
+      if: ${{ matrix.build-only != 'yes' }}
+      working-directory: ${{github.workspace}}/build
+      run: ctest --output-on-failure -j 4 -C ${{ matrix.build-type }} --timeout 400
+    - name: Selfhost
+      if: ${{ matrix.self-host }}
+      working-directory: ${{github.workspace}}/build
+      run: |
+        mkdir libs
+        cp libsnmallocshim*.so libs
+        for lib in `ls libs`; do echo; echo Testing $lib; ninja clean; LD_PRELOAD=libs/$lib ninja libsnmallocshim.so; done
+
+
   # GitHub doesn't natively support *BSD, but we can run them in VMs on Mac /
   # Linux runners
   freebsd:
@@ -459,7 +487,7 @@ jobs:
 
   all-checks:
     # Currently FreeBSD and NetBSD CI are not working, so we do not require them to pass.
-    needs: [linux, qemu-crossbuild, windows, format, sanitizer]
+    needs: [ubuntu, macos, freebsd, netbsd, sanitizer, qemu-crossbuild, windows, format]
     runs-on: ubuntu-latest
     steps:
     - name: Dummy step

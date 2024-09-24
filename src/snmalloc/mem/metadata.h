@@ -455,7 +455,7 @@ namespace snmalloc
       static_assert(
         std::is_base_of<FrontendSlabMetadata_Trait, BackendType>::value,
         "Template should be a subclass of FrontendSlabMetadata");
-      free_queue.init(slab, key, NO_KEY_TWEAK);
+      free_queue.init(slab, key, this->as_key_tweak());
       // Set up meta data as if the entire slab has been turned into a free
       // list. This means we don't have to check for special cases where we have
       // returned all the elements, but this is a slab that is still being bump
@@ -477,7 +477,7 @@ namespace snmalloc
     void initialise_large(address_t slab, const FreeListKey& key)
     {
       // We will push to this just to make the fast path clean.
-      free_queue.init(slab, key, NO_KEY_TWEAK);
+      free_queue.init(slab, key, this->as_key_tweak());
 
       // Flag to detect that it is a large alloc on the slow path
       large_ = true;
@@ -498,6 +498,59 @@ namespace snmalloc
     bool return_object()
     {
       return (--needed()) == 0;
+    }
+
+    class ReturnObjectsIterator
+    {
+      uint16_t _batch;
+      FrontendSlabMetadata* _meta;
+
+      static_assert(sizeof(_batch) * 8 > MAX_CAPACITY_BITS);
+
+    public:
+      ReturnObjectsIterator(uint16_t n, FrontendSlabMetadata* m)
+      : _batch(n), _meta(m)
+      {}
+
+      template<bool first>
+      SNMALLOC_FAST_PATH bool step()
+      {
+        // The first update must always return some positive number of objects.
+        SNMALLOC_ASSERT(!first || (_batch != 0));
+
+        /*
+         * Stop iteration when there are no more objects to return.  Perform
+         * this test only on non-first steps to avoid a branch on the hot path.
+         */
+        if (!first && _batch == 0)
+          return false;
+
+        if (SNMALLOC_LIKELY(_batch < _meta->needed()))
+        {
+          // Will not hit threshold for state transition
+          _meta->needed() -= _batch;
+          return false;
+        }
+
+        // Hit threshold for state transition, may yet hit another
+        _batch -= _meta->needed();
+        _meta->needed() = 0;
+        return true;
+      }
+    };
+
+    /**
+     * A batch version of return_object.
+     *
+     * Returns an iterator that should have `.step<>()` called on it repeatedly
+     * until it returns `false`.  The first step should invoke `.step<true>()`
+     * while the rest should invoke `.step<false>()`.  After each
+     * true-returning `.step()`, the caller should run the slow-path code to
+     * update the rest of the metadata for this slab.
+     */
+    ReturnObjectsIterator return_objects(uint16_t n)
+    {
+      return ReturnObjectsIterator(n, this);
     }
 
     bool is_unused()
@@ -573,11 +626,12 @@ namespace snmalloc
       LocalEntropy& entropy,
       smallsizeclass_t sizeclass)
     {
-      auto& key = entropy.get_free_list_key();
+      auto& key = freelist::Object::key_root;
 
       std::remove_reference_t<decltype(fast_free_list)> tmp_fl;
 
-      auto remaining = meta->free_queue.close(tmp_fl, key, NO_KEY_TWEAK);
+      auto remaining =
+        meta->free_queue.close(tmp_fl, key, meta->as_key_tweak());
       auto p = tmp_fl.take(key, domesticate);
       fast_free_list = tmp_fl;
 
@@ -599,7 +653,18 @@ namespace snmalloc
     // start of the slab.
     [[nodiscard]] address_t get_slab_interior(const FreeListKey& key) const
     {
-      return address_cast(free_queue.read_head(0, key, NO_KEY_TWEAK));
+      return address_cast(free_queue.read_head(0, key, this->as_key_tweak()));
+    }
+
+    [[nodiscard]] SNMALLOC_FAST_PATH address_t as_key_tweak() const noexcept
+    {
+      return as_key_tweak(address_cast(this));
+    }
+
+    [[nodiscard]] SNMALLOC_FAST_PATH static address_t
+    as_key_tweak(address_t self)
+    {
+      return self / alignof(FrontendSlabMetadata);
     }
 
     typename ClientMeta::DataRef get_meta_for_object(size_t index)

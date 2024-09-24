@@ -17,7 +17,7 @@
  * `inline` and complains if you specify `SNMALLOC_FAST_PATH` and `inline`.
  */
 #  define SNMALLOC_FAST_PATH_INLINE ALWAYSINLINE
-#  if _MSC_VER >= 1927 && !defined(SNMALLOC_USE_CXX17)
+#  if _MSC_VER >= 1927 && _MSVC_LANG > 201703L
 #    define SNMALLOC_FAST_PATH_LAMBDA [[msvc::forceinline]]
 #  else
 #    define SNMALLOC_FAST_PATH_LAMBDA
@@ -27,11 +27,6 @@
 #  define SNMALLOC_REQUIRE_CONSTINIT
 #  define SNMALLOC_UNUSED_FUNCTION
 #  define SNMALLOC_USED_FUNCTION
-#  ifdef SNMALLOC_USE_CXX17
-#    define SNMALLOC_NO_UNIQUE_ADDRESS
-#  else
-#    define SNMALLOC_NO_UNIQUE_ADDRESS [[msvc::no_unique_address]]
-#  endif
 #else
 #  define SNMALLOC_FAST_FAIL() __builtin_trap()
 #  define SNMALLOC_LIKELY(x) __builtin_expect(!!(x), 1)
@@ -55,17 +50,33 @@
 #  define SNMALLOC_COLD __attribute__((cold))
 #  define SNMALLOC_UNUSED_FUNCTION __attribute((unused))
 #  define SNMALLOC_USED_FUNCTION __attribute((used))
-#  ifdef SNMALLOC_USE_CXX17
-#    define SNMALLOC_NO_UNIQUE_ADDRESS
-#  else
-#    define SNMALLOC_NO_UNIQUE_ADDRESS [[no_unique_address]]
-#  endif
 #  ifdef __clang__
 #    define SNMALLOC_REQUIRE_CONSTINIT \
       [[clang::require_constant_initialization]]
 #  else
 #    define SNMALLOC_REQUIRE_CONSTINIT
 #  endif
+#endif
+
+/*
+ * Try to find the right "no_unique_address" attribute for our use, assuming one
+ * exists.
+ *
+ * Different compiler versions and ABIs make this a right pain; see, for
+ * example, https://github.com/llvm/llvm-project/issues/49358 and
+ * https://devblogs.microsoft.com/cppblog/msvc-cpp20-and-the-std-cpp20-switch/ .
+ */
+#if defined(__has_cpp_attribute)
+#  if __has_cpp_attribute(msvc::no_unique_address) && \
+    (__cplusplus >= 201803L || _MSVC_LANG >= 201803L)
+#    define SNMALLOC_NO_UNIQUE_ADDRESS [[msvc::no_unique_address]]
+#  elif __has_cpp_attribute(no_unique_address)
+#    define SNMALLOC_NO_UNIQUE_ADDRESS [[no_unique_address]]
+#  else
+#    define SNMALLOC_NO_UNIQUE_ADDRESS
+#  endif
+#else
+#  define SNMALLOC_NO_UNIQUE_ADDRESS
 #endif
 
 #if defined(__cpp_constinit) && __cpp_constinit >= 201907

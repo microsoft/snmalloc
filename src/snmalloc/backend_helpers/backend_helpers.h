@@ -9,6 +9,7 @@
 #include "indirectrange.h"
 #include "largebuddyrange.h"
 #include "logrange.h"
+#include "noprange.h"
 #include "pagemap.h"
 #include "pagemapregisterrange.h"
 #include "palrange.h"

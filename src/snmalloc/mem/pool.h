@@ -100,8 +100,9 @@ namespace snmalloc
     static T* acquire()
     {
       PoolState<T>& pool = get_state();
-      {
-        FlagLock f(pool.lock);
+
+      T* result{nullptr};
+      with(pool.lock, [&]() {
         if (pool.front != nullptr)
         {
           auto p = pool.front;
@@ -112,17 +113,21 @@ namespace snmalloc
           }
           pool.front = next;
           p->set_in_use();
-          return p.unsafe_ptr();
+          result = p.unsafe_ptr();
         }
-      }
+      });
+
+      if (result != nullptr)
+        return result;
 
       auto p = ConstructT::make();
 
-      FlagLock f(pool.lock);
-      p->list_next = pool.list;
-      pool.list = p;
+      with(pool.lock, [&]() {
+        p->list_next = pool.list;
+        pool.list = p;
 
-      p->set_in_use();
+        p->set_in_use();
+      });
       return p.unsafe_ptr();
     }
 
@@ -146,11 +151,13 @@ namespace snmalloc
       // Returns a linked list of all objects in the stack, emptying the stack.
       if (p == nullptr)
       {
-        FlagLock f(pool.lock);
-        auto result = pool.front;
-        pool.front = nullptr;
-        pool.back = nullptr;
-        return result.unsafe_ptr();
+        T* result;
+        with(pool.lock, [&]() {
+          result = pool.front.unsafe_ptr();
+          pool.front = nullptr;
+          pool.back = nullptr;
+        });
+        return result;
       }
 
       return p->next.unsafe_ptr();
@@ -165,18 +172,18 @@ namespace snmalloc
     {
       PoolState<T>& pool = get_state();
       last->next = nullptr;
-      FlagLock f(pool.lock);
+      with(pool.lock, [&]() {
+        if (pool.front == nullptr)
+        {
+          pool.front = capptr::Alloc<T>::unsafe_from(first);
+        }
+        else
+        {
+          pool.back->next = capptr::Alloc<T>::unsafe_from(first);
+        }
 
-      if (pool.front == nullptr)
-      {
-        pool.front = capptr::Alloc<T>::unsafe_from(first);
-      }
-      else
-      {
-        pool.back->next = capptr::Alloc<T>::unsafe_from(first);
-      }
-
-      pool.back = capptr::Alloc<T>::unsafe_from(last);
+        pool.back = capptr::Alloc<T>::unsafe_from(last);
+      });
     }
 
     /**
@@ -188,18 +195,19 @@ namespace snmalloc
     {
       PoolState<T>& pool = get_state();
       last->next = nullptr;
-      FlagLock f(pool.lock);
 
-      if (pool.front == nullptr)
-      {
-        pool.back = capptr::Alloc<T>::unsafe_from(last);
-      }
-      else
-      {
-        last->next = pool.front;
-        pool.back->next = capptr::Alloc<T>::unsafe_from(first);
-      }
-      pool.front = capptr::Alloc<T>::unsafe_from(first);
+      with(pool.lock, [&]() {
+        if (pool.front == nullptr)
+        {
+          pool.back = capptr::Alloc<T>::unsafe_from(last);
+        }
+        else
+        {
+          last->next = pool.front;
+          pool.back->next = capptr::Alloc<T>::unsafe_from(first);
+        }
+        pool.front = capptr::Alloc<T>::unsafe_from(first);
+      });
     }
 
     static T* iterate(T* p = nullptr)

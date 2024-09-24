@@ -67,6 +67,9 @@ set(SNMALLOC_MIN_ALLOC_STEP_SIZE "" CACHE STRING "Minimum allocation step (power
 
 set(SNMALLOC_PAGESIZE "" CACHE STRING "Page size in bytes")
 
+set(SNMALLOC_DEALLOC_BATCH_RING_ASSOC "" CACHE STRING "Associativity of deallocation batch cache; 0 to disable")
+set(SNMALLOC_DEALLOC_BATCH_RING_SET_BITS "" CACHE STRING "Logarithm of number of deallocation batch cache associativity sets")
+
 if(MSVC AND SNMALLOC_STATIC_LIBRARY AND (SNMALLOC_STATIC_LIBRARY_PREFIX STREQUAL ""))
   message(FATAL_ERROR "Empty static library prefix not supported on MSVC")
 endif()
@@ -186,10 +189,13 @@ endfunction()
 add_library(snmalloc INTERFACE)
 
 if(SNMALLOC_USE_CXX17)
-  target_compile_definitions(snmalloc INTERFACE -DSNMALLOC_USE_CXX17)
   target_compile_features(snmalloc INTERFACE cxx_std_17)
 else()
   target_compile_features(snmalloc INTERFACE cxx_std_20)
+endif()
+# https://learn.microsoft.com/en-us/cpp/build/reference/zc-cplusplus
+if(MSVC)
+  target_compile_options(snmalloc INTERFACE "/Zc:__cplusplus")
 endif()
 
 # Add header paths.
@@ -250,6 +256,8 @@ if (SNMALLOC_NO_REALLOCARR)
 endif()
 add_as_define_value(SNMALLOC_MIN_ALLOC_SIZE)
 add_as_define_value(SNMALLOC_MIN_ALLOC_STEP_SIZE)
+add_as_define_value(SNMALLOC_DEALLOC_BATCH_RING_ASSOC)
+add_as_define_value(SNMALLOC_DEALLOC_BATCH_RING_SET_BITS)
 
 add_as_define_value(SNMALLOC_PAGESIZE)
 

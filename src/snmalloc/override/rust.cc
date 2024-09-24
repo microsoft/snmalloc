@@ -51,3 +51,9 @@ extern "C" SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(rust_statistics)(
   *current_memory_usage = Alloc::Config::Backend::get_current_usage();
   *peak_memory_usage = Alloc::Config::Backend::get_peak_usage();
 }
+
+extern "C" SNMALLOC_EXPORT size_t
+SNMALLOC_NAME_MANGLE(rust_usable_size)(const void* ptr)
+{
+  return ThreadAlloc::get().alloc_size(ptr);
+}

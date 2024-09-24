@@ -137,7 +137,8 @@ int main()
 
   LocalEntropy entropy;
   entropy.init<DefaultPal>();
-  RemoteAllocator::key_global = FreeListKey(entropy.get_free_list_key());
+  entropy.make_free_list_key(RemoteAllocator::key_global);
+  entropy.make_free_list_key(freelist::Object::key_root);
 
   auto alloc1 = new Alloc();
 
