@@ -84,7 +84,7 @@ extern "C"
   SNMALLOC_EXPORT void*
   SNMALLOC_NAME_MANGLE(aligned_alloc)(size_t alignment, size_t size)
   {
-    return snmalloc::libc::memalign(alignment, size);
+    return snmalloc::libc::aligned_alloc(alignment, size);
   }
 
   SNMALLOC_EXPORT int SNMALLOC_NAME_MANGLE(posix_memalign)(
