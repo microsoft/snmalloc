@@ -1,8 +1,8 @@
 #pragma once
 
-#include <new>
-
 #include "freelist_queue.h"
+
+#include <new>
 
 namespace snmalloc
 {
