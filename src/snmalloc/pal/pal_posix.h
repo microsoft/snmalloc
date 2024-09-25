@@ -8,6 +8,7 @@
 #endif
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>
@@ -129,8 +130,15 @@ namespace snmalloc
       | Entropy
 #endif
       ;
-
+#ifdef SNMALLOC_PAGESIZE
+    static_assert(
+      bits::is_pow2(SNMALLOC_PAGESIZE), "Page size must be a power of 2");
+    static constexpr size_t page_size = SNMALLOC_PAGESIZE;
+#elif defined(PAGESIZE)
+    static constexpr size_t page_size = max(Aal::smallest_page_size, PAGESIZE);
+#else
     static constexpr size_t page_size = Aal::smallest_page_size;
+#endif
 
     /**
      * Address bits are potentially mediated by some POSIX OSes, but generally
