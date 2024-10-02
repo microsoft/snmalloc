@@ -180,7 +180,8 @@ namespace snmalloc
         CombiningLockNodeTempl* self_templ =
           reinterpret_cast<CombiningLockNodeTempl*>(self);
         self_templ->f();
-    }), f(std::forward<F>(f_))
+      }),
+      f(std::forward<F>(f_))
     {
       attach_slow(lock);
     }
@@ -199,7 +200,8 @@ namespace snmalloc
     {
       // No one was waiting so low contention. Attempt to acquire the flag
       // lock.
-      if (SNMALLOC_LIKELY(lock.flag.exchange(true, std::memory_order_acquire) == false))
+      if (SNMALLOC_LIKELY(
+            lock.flag.exchange(true, std::memory_order_acquire) == false))
       {
         // We grabbed the lock.
         // Execute the thunk.
