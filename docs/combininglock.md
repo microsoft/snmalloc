@@ -175,11 +175,11 @@ enum class LockStatus
 {
   WAITING,
   DONE,
-  READY
+  HEAD
 };
 ```
 The `WAITING` state is when the thread is waiting for the lock to become available to it.  This roughly corresponds to the `available` field in the MCS queue lock being `false`.
-The `READY` state is when this thread is responsible for completing more work from the queue. This roughly corresponds to the `available` field in the MCS queue lock being `true`.
+The `HEAD` state is when this thread is responsible for completing more work from the queue. This roughly corresponds to the `available` field in the MCS queue lock being `true`.
 The `DONE` state is when another thread has completed the operation (lambda) for this thread. This is a new state that is not present in the MCS queue lock and represents the case where another thread has completed the work for this thread.
 
 The lock node has an extra field that is a function pointer.
@@ -276,7 +276,7 @@ inline void with(CombiningLock& lock, F&& f)
 
   // Notify next thread to execute the remaining work.
   auto next = curr->next.load(std::memory_order_acquire);
-  next->status.store(LockStatus::READY, std::memory_order_release);
+  next->status.store(LockStatus::HEAD, std::memory_order_release);
 
   // Notify the current thread that its work has been completed.
   curr->status.store(LockStatus::DONE, std::memory_order_release);
@@ -295,7 +295,7 @@ The `RELEASE` part attempts to remove the last node from the `PERFORM` phase fro
 If this succeeds, then it can simply notify that queue node that its work is `DONE`,
 and return.
 Otherwise, as with the MCS lock, it must wait for a new thread that is joining the queue to set the `next` pointer.
-Then it can notify (`READY`) the newly joined thread that it can execute the remaining work.
+Then it can notify (`HEAD`) the newly joined thread that it can execute the remaining work.
 Finally, it must notify the last element it ran the lambda for that its work is `DONE`.
 The `DONE` notification must be done after the read of `next`, as signalling `DONE` can cause the memory for the node to be freed from the stack.
 
