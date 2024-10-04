@@ -13,7 +13,7 @@ To further improve the startup time, we introduced a new [_combining lock_](../s
 The core idea of the combining lock is that it holds a queue of operations that need to be executed while holding the lock,
 and then the thread holding the lock can execute multiple threads' operations in a single lock acquisition.
 This can reduce the amount of cache misses as a single thread performs multiple updates,
-and thus overall the system will have fewer cache misses.
+and thus overall the system may have fewer cache misses.
 
 The rest of this document will describe the combining lock in more detail.
 
@@ -274,12 +274,14 @@ inline void with(CombiningLock& lock, F&& f)
   while (curr->next.load(std::memory_order_relaxed) == nullptr)
     ;
 
-  // Notify next thread to execute the remaining work.
+  // Read the next thread
   auto next = curr->next.load(std::memory_order_acquire);
-  next->status.store(LockStatus::HEAD, std::memory_order_release);
 
   // Notify the current thread that its work has been completed.
   curr->status.store(LockStatus::DONE, std::memory_order_release);
+  // Notify the next thread it is the head of the queue, and should
+  // perform operations from the queue.
+  next->status.store(LockStatus::HEAD, std::memory_order_release);
   return;
 }
 ```

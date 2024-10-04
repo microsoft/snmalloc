@@ -110,7 +110,7 @@ namespace snmalloc
 
         // We could set
         //    status = LockStatus::HEAD
-        // However, the subsequent state assumes it is Ready, and
+        // However, the subsequent state assumes it is HEAD, and
         // nothing would read it.
       }
 
@@ -119,11 +119,15 @@ namespace snmalloc
       auto curr = this;
       while (true)
       {
+        // Start pulling in the next element of the queue
+        auto n = curr->next.load(std::memory_order_acquire);
+        Aal::prefetch(n);
+
         // Perform work for head of the queue
         curr->f_raw(curr);
 
         // Determine if there are more elements.
-        auto n = curr->next.load(std::memory_order_acquire);
+        n = curr->next.load(std::memory_order_acquire);
         if (n == nullptr)
           break;
         // Signal this work was completed and move on to
@@ -153,14 +157,16 @@ namespace snmalloc
       while (curr->next.load(std::memory_order_relaxed) == nullptr)
         Aal::pause();
 
+      auto n = curr->next.load(std::memory_order_acquire);
+
       // As we had to wait, give the job to the next thread
       // to carry on performing the work.
-      auto n = curr->next.load(std::memory_order_acquire);
       n->set_status(LockStatus::HEAD);
 
       // Notify the thread that we completed its work.
-      // Note that this needs to be done last, as we can't read
-      // curr->next after setting curr->status
+      // Note that this needs to be before setting curr->status,
+      // as after the status is set the thread may deallocate the
+      // queue node.
       curr->set_status(LockStatus::DONE);
       return;
     }
