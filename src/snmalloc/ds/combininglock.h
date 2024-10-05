@@ -8,7 +8,7 @@
 
 namespace snmalloc
 {
-  class CombineLockNode;
+  class CombiningLockNode;
 
   struct CombiningLock
   {
@@ -16,7 +16,12 @@ namespace snmalloc
     std::atomic<bool> flag{false};
 
     // MCS queue of work items
-    std::atomic<CombineLockNode*> head{nullptr};
+    std::atomic<CombiningLockNode*> last{nullptr};
+
+    void release()
+    {
+      flag.store(false, std::memory_order_release);
+    }
   };
 
   /**
@@ -33,10 +38,10 @@ namespace snmalloc
    * Note that, we should perhaps add a Futex/WakeOnAddress mode to improve
    * performance in the contended case, rather than spinning.
    */
-  class CombineLockNode
+  class CombiningLockNode
   {
     template<typename F>
-    friend class CombineLockNodeTempl;
+    friend class CombiningLockNodeTempl;
 
     enum class LockStatus
     {
@@ -49,7 +54,7 @@ namespace snmalloc
 
       // The work for this thread has not been completed, and it is the
       // head of the queue.
-      READY
+      HEAD
     };
 
     // Status of the queue, set by the thread at the head of the queue,
@@ -58,48 +63,23 @@ namespace snmalloc
     std::atomic<LockStatus> status{LockStatus::WAITING};
 
     // Used to store the queue
-    std::atomic<CombineLockNode*> next{nullptr};
+    std::atomic<CombiningLockNode*> next{nullptr};
 
     // Stores the C++ lambda associated with this node in the queue.
-    void (*f_raw)(CombineLockNode*);
+    void (*f_raw)(CombiningLockNode*);
 
-    void release(CombiningLock& lock)
-    {
-      lock.flag.store(false, std::memory_order_release);
-    }
+    constexpr CombiningLockNode(void (*f)(CombiningLockNode*)) : f_raw(f) {}
 
     void set_status(LockStatus s)
     {
       status.store(s, std::memory_order_release);
     }
 
-    constexpr CombineLockNode(void (*f)(CombineLockNode*)) : f_raw(f) {}
-
-    SNMALLOC_FAST_PATH void attach(CombiningLock& lock)
-    {
-      // Test if no one is waiting
-      if (lock.head.load(std::memory_order_relaxed) == nullptr)
-      {
-        // No one was waiting so low contention. Attempt to acquire the flag
-        // lock.
-        if (lock.flag.exchange(true, std::memory_order_acquire) == false)
-        {
-          // We grabbed the lock.
-          f_raw(this);
-
-          // Release the lock
-          release(lock);
-          return;
-        }
-      }
-      attach_slow(lock);
-    }
-
     SNMALLOC_SLOW_PATH void attach_slow(CombiningLock& lock)
     {
       // There is contention for the lock, we need to add our work to the
       // queue of pending work
-      auto prev = lock.head.exchange(this, std::memory_order_acq_rel);
+      auto prev = lock.last.exchange(this, std::memory_order_acq_rel);
 
       if (prev != nullptr)
       {
@@ -129,8 +109,8 @@ namespace snmalloc
         }
 
         // We could set
-        //    status = LockStatus::Ready
-        // However, the subsequent state assumes it is Ready, and
+        //    status = LockStatus::HEAD
+        // However, the subsequent state assumes it is HEAD, and
         // nothing would read it.
       }
 
@@ -139,57 +119,61 @@ namespace snmalloc
       auto curr = this;
       while (true)
       {
+        // Start pulling in the next element of the queue
+        auto n = curr->next.load(std::memory_order_acquire);
+        Aal::prefetch(n);
+
         // Perform work for head of the queue
         curr->f_raw(curr);
 
         // Determine if there are more elements.
-        auto n = curr->next.load(std::memory_order_acquire);
-        if (n != nullptr)
-        {
-          // Signal this work was completed and move on to
-          // next item.
-          curr->set_status(LockStatus::DONE);
-          curr = n;
-          continue;
-        }
-
-        // This could be the end of the queue, attempt to close the
-        // queue.
-        auto curr_c = curr;
-        if (lock.head.compare_exchange_strong(
-              curr_c,
-              nullptr,
-              std::memory_order_release,
-              std::memory_order_relaxed))
-        {
-          // Queue was successfully closed.
-          // Notify last element the work was completed.
-          curr->set_status(LockStatus::DONE);
-          release(lock);
-          return;
-        }
-
-        // Failed to close the queue wait for next thread to be
-        // added.
-        while (curr->next.load(std::memory_order_relaxed) == nullptr)
-          Aal::pause();
-
-        // As we had to wait, give the job to the next thread
-        // to carry on performing the work.
         n = curr->next.load(std::memory_order_acquire);
-        n->set_status(LockStatus::READY);
-
-        // Notify the thread that we completed its work.
-        // Note that this needs to be done last, as we can't read
-        // curr->next after setting curr->status
+        if (n == nullptr)
+          break;
+        // Signal this work was completed and move on to
+        // next item.
         curr->set_status(LockStatus::DONE);
+        curr = n;
+      }
+
+      // This could be the end of the queue, attempt to close the
+      // queue.
+      auto curr_c = curr;
+      if (lock.last.compare_exchange_strong(
+            curr_c,
+            nullptr,
+            std::memory_order_release,
+            std::memory_order_relaxed))
+      {
+        // Queue was successfully closed.
+        // Notify last element the work was completed.
+        curr->set_status(LockStatus::DONE);
+        lock.release();
         return;
       }
+
+      // Failed to close the queue wait for next thread to be
+      // added.
+      while (curr->next.load(std::memory_order_relaxed) == nullptr)
+        Aal::pause();
+
+      auto n = curr->next.load(std::memory_order_acquire);
+
+      // As we had to wait, give the job to the next thread
+      // to carry on performing the work.
+      n->set_status(LockStatus::HEAD);
+
+      // Notify the thread that we completed its work.
+      // Note that this needs to be before setting curr->status,
+      // as after the status is set the thread may deallocate the
+      // queue node.
+      curr->set_status(LockStatus::DONE);
+      return;
     }
   };
 
   template<typename F>
-  class CombineLockNodeTempl : CombineLockNode
+  class CombiningLockNodeTempl : CombiningLockNode
   {
     template<typename FF>
     friend void with(CombiningLock&, FF&&);
@@ -197,17 +181,15 @@ namespace snmalloc
     // This holds the closure for the lambda
     F f;
 
-    // Untyped version of calling f to store in the node.
-    static void invoke(CombineLockNode* self)
+    CombiningLockNodeTempl(CombiningLock& lock, F&& f_)
+    : CombiningLockNode([](CombiningLockNode* self) {
+        CombiningLockNodeTempl* self_templ =
+          reinterpret_cast<CombiningLockNodeTempl*>(self);
+        self_templ->f();
+      }),
+      f(std::forward<F>(f_))
     {
-      auto self_templ = reinterpret_cast<CombineLockNodeTempl*>(self);
-      self_templ->f();
-    }
-
-    CombineLockNodeTempl(CombiningLock& lock, F&& f_)
-    : CombineLockNode(invoke), f(f_)
-    {
-      attach(lock);
+      attach_slow(lock);
     }
   };
 
@@ -219,6 +201,26 @@ namespace snmalloc
   template<typename F>
   inline void with(CombiningLock& lock, F&& f)
   {
-    CombineLockNodeTempl<F> node{lock, std::forward<F>(f)};
+    // Test if no one is waiting
+    if (SNMALLOC_LIKELY(lock.last.load(std::memory_order_relaxed) == nullptr))
+    {
+      // No one was waiting so low contention. Attempt to acquire the flag
+      // lock.
+      if (SNMALLOC_LIKELY(
+            lock.flag.exchange(true, std::memory_order_acquire) == false))
+      {
+        // We grabbed the lock.
+        // Execute the thunk.
+        f();
+
+        // Release the lock
+        lock.release();
+        return;
+      }
+    }
+
+    // There is contention for the lock, we need to take the slow path
+    // with the queue.
+    CombiningLockNodeTempl<F> node(lock, std::forward<F>(f));
   }
 } // namespace snmalloc
