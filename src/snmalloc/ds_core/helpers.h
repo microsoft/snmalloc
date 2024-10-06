@@ -4,8 +4,8 @@
 
 #include <array>
 #include <atomic>
-#include <functional>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 
 namespace snmalloc

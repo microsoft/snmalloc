@@ -2,6 +2,8 @@
 
 #include "freelist_queue.h"
 
+#include <new>
+
 namespace snmalloc
 {
   class RemoteMessageAssertions;

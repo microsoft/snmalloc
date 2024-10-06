@@ -3,9 +3,7 @@
 #include "../ds_core/ds_core.h"
 #include "flaglock.h"
 
-#include <array>
 #include <atomic>
-#include <string_view>
 #include <type_traits>
 
 namespace snmalloc
