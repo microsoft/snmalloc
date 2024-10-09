@@ -760,6 +760,30 @@ namespace snmalloc
         is_start_of_object(entry.get_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
+      if (mitigations(scrub_free))
+      {
+        size_t block_size = 64;
+        auto size = sizeclass_full_to_size(entry.get_sizeclass());
+        if ((size & (block_size -1)) != 0)
+          Config::Pal::zero(p.unsafe_ptr(), size);
+        else
+        {
+          auto p_unsafe = reinterpret_cast<uint64_t*>(p.unsafe_ptr());
+          auto step = sizeof(uint64_t);
+          // Objects size is a multiple of 64, so we can write this differently
+          for (; size > 0; size -= block_size)
+          {
+            bool write = false;
+            auto p_unsafe2 = p_unsafe;
+            for (size_t j = block_size; j > 0; j -= step)
+              write |= *(p_unsafe++) != 0;
+            if (write)
+              for (size_t j = 0; j < block_size; j += 8)
+                *(p_unsafe2++) = 0;
+          }
+        }
+      }
+
       auto cp = p.as_static<freelist::Object::T<>>();
 
       // Update the head and the next pointer in the free list.
