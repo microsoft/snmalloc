@@ -220,7 +220,7 @@ namespace snmalloc
     random_larger_thresholds + freelist_forward_edge + freelist_backward_edge +
     freelist_teardown_validate + random_initial + random_preserve +
     metadata_protection + random_extra_slab + reuse_LIFO + sanity_checks +
-    clear_meta + pal_enforce_access + scrub_free;
+    clear_meta + pal_enforce_access;
 
   constexpr mitigation::type no_checks{0};
 

@@ -527,6 +527,7 @@ void test_scrub_free()
 {
   if (!snmalloc::mitigations(snmalloc::scrub_free))
     return;
+  std::cout << "Testing scrub free" << std::endl;
 
   auto& alloc = ThreadAlloc::get();
 
