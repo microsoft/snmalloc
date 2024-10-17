@@ -710,7 +710,7 @@ namespace snmalloc
             auto block_end = p_unsafe + (block_size / step);
             bool dirty = false;
             size_t line = 8;
-            assert((block_size / step) % line == 0);
+            SNMALLOC_ASSERT((block_size / step) % line == 0);
             while (p_unsafe != block_end && !dirty)
             {
               for (size_t i = 0; i < line; i++)
