@@ -27,7 +27,7 @@ namespace snmalloc
 
     if constexpr (mitigations(scrub_free))
     {
-      Config::Pal::zero(r.unsafe_ptr(), sizeof(freelist::Object));
+      Config::Pal::zero(r.unsafe_ptr(), sizeof(freelist::Object::T<>));
     }
     else if constexpr (zero_mem == YesZero)
       Config::Pal::zero(r.unsafe_ptr(), sizeclass_to_size(sizeclass));
