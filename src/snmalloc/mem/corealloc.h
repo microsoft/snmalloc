@@ -708,13 +708,18 @@ namespace snmalloc
           while (p_unsafe != p_end)
           {
             auto block_end = p_unsafe + (block_size / step);
-            while (p_unsafe != block_end && *p_unsafe == 0)
+            bool dirty = false;
+            size_t line = 8;
+            assert((block_size / step) % line == 0);
+            while (p_unsafe != block_end && !dirty)
             {
-              p_unsafe++;
+              for (size_t i = 0; i < line; i++)
+                dirty |= *p_unsafe++;
             }
             while (p_unsafe != block_end)
             {
-              *(p_unsafe++) = 0;
+              for (size_t i = 0; i < line; i++)
+                *p_unsafe++ = 0;
             }
           }
         }
