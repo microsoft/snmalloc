@@ -704,7 +704,7 @@ namespace snmalloc
           Config::Pal::zero(p.unsafe_ptr(), size);
         else
         {
-          if (size & (block_size - 1) != 0)
+          if ((size & (block_size - 1)) != 0)
           {
             // Not page aligned, so just run to the end.
             block_size = size;
