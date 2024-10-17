@@ -696,25 +696,31 @@ namespace snmalloc
         // This is not particularly realistic, but happens in a lot of
         // benchmarks.
         size_t block_size = Config::Pal::page_size;
+        size_t line = 8;
+        auto step = sizeof(uint64_t);
+
         auto size = sizeclass_full_to_size(entry.get_sizeclass());
-        if ((size & (block_size - 1)) != 0)
+        if ((size & ((line*step) - 1)) != 0)
           Config::Pal::zero(p.unsafe_ptr(), size);
         else
         {
+          if (size & (block_size - 1) != 0)
+          {
+            // Not page aligned, so just run to the end.
+            block_size = size;
+          }
           auto p_unsafe = reinterpret_cast<uint64_t*>(p.unsafe_ptr());
-          auto step = sizeof(uint64_t);
           auto p_end = p_unsafe + (size / step);
           // Objects size is a multiple of 64, so we can write this differently
           while (p_unsafe != p_end)
           {
             auto block_end = p_unsafe + (block_size / step);
             bool dirty = false;
-            size_t line = 8;
             SNMALLOC_ASSERT((block_size / step) % line == 0);
             while (p_unsafe != block_end && !dirty)
             {
               for (size_t i = 0; i < line; i++)
-                dirty |= *p_unsafe++;
+                dirty |= (*p_unsafe++ != 0);
             }
             while (p_unsafe != block_end)
             {
