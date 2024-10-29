@@ -241,11 +241,8 @@ namespace snmalloc
     template<class T>
     static void wait_on_address(std::atomic<T>& addr, T expected)
     {
-      for (;;)
+      while (addr.load(std::memory_order_relaxed) == expected)
       {
-        if (addr.load(std::memory_order_relaxed) != expected)
-          break;
-
         if (::WaitOnAddress(&addr, &expected, sizeof(T), INFINITE))
           break;
       }
