@@ -238,8 +238,8 @@ namespace snmalloc
 
 #  ifdef PLATFORM_HAS_WAITONADDRESS
     using WaitingWord = char;
-    template <class T>
-    void wait_on_address(std::atomic<T>& addr, T expected)
+    template<class T>
+    static void wait_on_address(std::atomic<T>& addr, T expected)
     {
       for (;;)
       {
@@ -250,13 +250,13 @@ namespace snmalloc
           break;
       }
     }
-
-    void notify_one_on_address(std::atomic<T>& addr)
+    template<class T>
+    static void notify_one_on_address(std::atomic<T>& addr)
     {
       ::WakeByAddressSingle(&addr);
     }
-
-    void notify_all_on_address(std::atomic<T>& addr)
+    template<class T>
+    static void notify_all_on_address(std::atomic<T>& addr)
     {
       ::WakeByAddressAll(&addr);
     }
