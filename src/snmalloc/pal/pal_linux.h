@@ -247,22 +247,19 @@ namespace snmalloc
     template<class T>
     static void wait_on_address(std::atomic<T>& addr, T expected)
     {
+      int backup = errno;
       static_assert(
         sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
         "T must be the same size and alignment as WaitingWord");
-      for (;;)
+      while (addr.load(std::memory_order_relaxed) == expected)
       {
-        if (addr.load(std::memory_order_relaxed) != expected)
-          break;
-
         long ret = syscall(
           SYS_futex, &addr, FUTEX_WAIT_PRIVATE, expected, nullptr, nullptr, 0);
 
-        if (ret == -1 && errno == EINTR)
-          continue;
-
-        return;
+        if (ret == 0)
+          break;
       }
+      errno = backup;
     }
 
     template<class T>

@@ -141,13 +141,20 @@ namespace snmalloc
       static_assert(
         sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
         "T must be the same size and alignment as WaitingWord");
-      if (a.load(std::memory_order_relaxed) == v)
-        _umtx_op(
+      int backup = errno;
+      while (addr.load(std::memory_order_relaxed) == expected)
+      {
+        int ret = _umtx_op(
           &addr,
           UMTX_OP_WAIT_UINT_PRIVATE,
-          static_cast<unsigned long>(v),
+          static_cast<unsigned long>(expected),
           nullptr,
           nullptr);
+
+        if (ret == 0)
+          break;
+      }
+      errno = backup;
     }
 
     template<typename T>
