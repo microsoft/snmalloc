@@ -50,7 +50,7 @@ namespace snmalloc
     template<typename Pal>
     struct WaitWordTypeSelect<true, Pal>
     {
-      using type = Pal::WaitingWord;
+      using type = typename Pal::WaitingWord;
     };
 
     template<typename Pal>
