@@ -134,6 +134,9 @@ int main() {
 # this is why we check its existence here
 CHECK_INCLUDE_FILE_CXX(linux/random.h SNMALLOC_HAS_LINUX_RANDOM_H)
 
+# check if futex.h is available
+CHECK_INCLUDE_FILE_CXX(linux/futex.h SNMALLOC_HAS_LINUX_FUTEX_H)
+
 # Provide as function so other projects can reuse
 # FIXME: This modifies some variables that may or may not be the ones that
 # provide flags and so is broken by design.  It should be removed once Verona
@@ -248,6 +251,7 @@ add_as_define(SNMALLOC_TRACING)
 add_as_define(SNMALLOC_CI_BUILD)
 add_as_define(SNMALLOC_PLATFORM_HAS_GETENTROPY)
 add_as_define(SNMALLOC_HAS_LINUX_RANDOM_H)
+add_as_define(SNMALLOC_HAS_LINUX_FUTEX_H)
 if (SNMALLOC_NO_REALLOCARRAY)
   add_as_define(SNMALLOC_NO_REALLOCARRAY)
 endif()

@@ -14,6 +14,10 @@
 #    include <linux/random.h>
 #  endif
 
+#  if defined(SNMALLOC_HAS_LINUX_FUTEX_H)
+#    include <linux/futex.h>
+#  endif
+
 extern "C" int puts(const char* str);
 
 namespace snmalloc
@@ -27,8 +31,12 @@ namespace snmalloc
      *
      * We always make sure that linux has entropy support.
      */
-    static constexpr uint64_t pal_features =
-      PALPOSIX::pal_features | Entropy | CoreDump;
+    static constexpr uint64_t pal_features = PALPOSIX::pal_features | Entropy |
+      CoreDump
+#  ifdef SNMALLOC_HAS_LINUX_FUTEX_H
+      | WaitOnAddress
+#  endif
+      ;
 
     static constexpr size_t page_size =
       Aal::aal_name == PowerPC ? 0x10000 : PALPOSIX::page_size;
@@ -232,6 +240,50 @@ namespace snmalloc
       // its APIs are not exception-free.
       return dev_urandom();
     }
+
+#  ifdef SNMALLOC_HAS_LINUX_FUTEX_H
+    using WaitingWord = int;
+
+    template<class T>
+    static void wait_on_address(std::atomic<T>& addr, T expected)
+    {
+      static_assert(
+        sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
+        "T must be the same size and alignment as WaitingWord");
+      for (;;)
+      {
+        if (addr.load(std::memory_order_relaxed) != expected)
+          break;
+
+        long ret = syscall(
+          SYS_futex, &addr, FUTEX_WAIT_PRIVATE, expected, nullptr, nullptr, 0);
+
+        if (ret == -EINTR)
+          continue;
+
+        return;
+      }
+    }
+
+    template<class T>
+    static void notify_one_on_address(std::atomic<T>& addr)
+    {
+      static_assert(
+        sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
+        "T must be the same size and alignment as WaitingWord");
+      syscall(SYS_futex, &addr, FUTEX_WAKE_PRIVATE, 1, nullptr, nullptr, 0);
+    }
+
+    template<class T>
+    static void notify_all_on_address(std::atomic<T>& addr)
+    {
+      static_assert(
+        sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
+        "T must be the same size and alignment as WaitingWord");
+      syscall(
+        SYS_futex, &addr, FUTEX_WAKE_PRIVATE, INT_MAX, nullptr, nullptr, 0);
+    }
+#  endif
   };
 } // namespace snmalloc
 #endif
