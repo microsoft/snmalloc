@@ -40,14 +40,33 @@ namespace snmalloc
    */
   class CombiningLockNode
   {
-    static constexpr bool always_spin =
-      !pal_supports<PalFeatures::WaitOnAddress, DefaultPal>;
+    template<typename Pal>
+    static constexpr bool has_wait_on_address =
+      pal_supports<PalFeatures::WaitOnAddress, Pal>;
+
+    template<bool HasWaitOnAddress, typename Pal>
+    struct WaitWordTypeSelect;
+
+    template<typename Pal>
+    struct WaitWordTypeSelect<true, Pal>
+    {
+      using type = Pal::WaitingWord;
+    };
+
+    template<typename Pal>
+    struct WaitWordTypeSelect<false, Pal>
+    {
+      using type = int;
+    };
+
+    using WaitingWoldType =
+      typename WaitWordTypeSelect<has_wait_on_address<DefaultPal>, DefaultPal>::
+        type;
 
     template<typename F>
     friend class CombiningLockNodeTempl;
 
-    enum class LockStatus : std::
-      conditional_t<always_spin, int, DefaultPal::WaitingWord>
+    enum class LockStatus : WaitingWoldType
     {
       // The work for this node has not been completed.
       WAITING,
@@ -82,9 +101,10 @@ namespace snmalloc
       status.store(s, std::memory_order_release);
     }
 
+    template<typename Pal = DefaultPal>
     static void wake(CombiningLockNode* node, LockStatus message)
     {
-      if constexpr (always_spin)
+      if constexpr (!has_wait_on_address<Pal>)
       {
         node->set_status(message);
       }
@@ -94,14 +114,15 @@ namespace snmalloc
           node->status.exchange(message, std::memory_order_acq_rel) ==
           LockStatus::SLEEPING)
         {
-          DefaultPal::notify_one_on_address(node->status);
+          Pal::notify_one_on_address(node->status);
         }
       }
     }
 
+    template<typename Pal = DefaultPal>
     void wait()
     {
-      if constexpr (always_spin)
+      if constexpr (!has_wait_on_address<Pal>)
       {
         while (status.load(std::memory_order_acquire) == LockStatus::WAITING)
           Aal::pause();
@@ -120,7 +141,7 @@ namespace snmalloc
         if (status.compare_exchange_strong(
               expected, LockStatus::SLEEPING, std::memory_order_acq_rel))
         {
-          DefaultPal::wait_on_address(status, LockStatus::SLEEPING);
+          Pal::wait_on_address(status, LockStatus::SLEEPING);
         }
       }
     }
