@@ -20,6 +20,7 @@
 #    if (NTDDI_VERSION >= NTDDI_WIN10_RS5) && \
       (WINVER >= _WIN32_WINNT_WIN10) && !defined(USE_SYSTEMATIC_TESTING)
 #      define PLATFORM_HAS_VIRTUALALLOC2
+#      define PLATFORM_HAS_WAITONADDRESS
 #    endif
 #  endif
 
@@ -60,6 +61,9 @@ namespace snmalloc
       Time
 #  if defined(PLATFORM_HAS_VIRTUALALLOC2) && !defined(USE_SYSTEMATIC_TESTING)
       | AlignedAllocation
+#  endif
+#  if defined(PLATFORM_HAS_WAITONADDRESS)
+      | WaitOnAddress
 #  endif
       ;
 
@@ -231,6 +235,32 @@ namespace snmalloc
           std::chrono::steady_clock::now().time_since_epoch())
           .count());
     }
+
+#  ifdef PLATFORM_HAS_WAITONADDRESS
+    using WaitingWord = char;
+    template <class T>
+    void wait_on_address(std::atomic<T>& addr, T expected)
+    {
+      for (;;)
+      {
+        if (addr.load(std::memory_order_relaxed) != expected)
+          break;
+
+        if (::WaitOnAddress(&addr, &expected, sizeof(T), INFINITE))
+          break;
+      }
+    }
+
+    void notify_one_on_address(std::atomic<T>& addr)
+    {
+      ::WakeByAddressSingle(&addr);
+    }
+
+    void notify_all_on_address(std::atomic<T>& addr)
+    {
+      ::WakeByAddressAll(&addr);
+    }
+#  endif
   };
 }
 #endif

@@ -18,3 +18,5 @@ CMakeFiles/
 *~
 *.sw?
 
+# cache dirs
+.cache

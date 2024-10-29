@@ -4,6 +4,7 @@
 #include "../pal/pal.h"
 
 #include <atomic>
+#include <type_traits>
 
 namespace snmalloc
 {
@@ -39,10 +40,14 @@ namespace snmalloc
    */
   class CombiningLockNode
   {
+    static constexpr bool always_spin =
+      !pal_supports<PalFeatures::WaitOnAddress, DefaultPal>;
+
     template<typename F>
     friend class CombiningLockNodeTempl;
 
-    enum class LockStatus
+    enum class LockStatus : std::
+      conditional_t<always_spin, int, DefaultPal::WaitingWord>
     {
       // The work for this node has not been completed.
       WAITING,
@@ -53,7 +58,10 @@ namespace snmalloc
 
       // The work for this thread has not been completed, and it is the
       // head of the queue.
-      HEAD
+      HEAD,
+
+      // The waiter is currently sleeping.
+      SLEEPING
     };
 
     // Status of the queue, set by the thread at the head of the queue,
@@ -74,6 +82,49 @@ namespace snmalloc
       status.store(s, std::memory_order_release);
     }
 
+    static void wake(CombiningLockNode* node, LockStatus message)
+    {
+      if constexpr (always_spin)
+      {
+        node->set_status(message);
+      }
+      else
+      {
+        if (
+          node->status.exchange(message, std::memory_order_acq_rel) ==
+          LockStatus::SLEEPING)
+        {
+          DefaultPal::notify_one_on_address(node->status);
+        }
+      }
+    }
+
+    void wait()
+    {
+      if constexpr (always_spin)
+      {
+        while (status.load(std::memory_order_acquire) == LockStatus::WAITING)
+          Aal::pause();
+      }
+      else
+      {
+        int remaining = 100;
+        while (remaining > 0)
+        {
+          if (status.load(std::memory_order_acquire) != LockStatus::WAITING)
+            return;
+          Aal::pause();
+          remaining--;
+        }
+        LockStatus expected = LockStatus::WAITING;
+        if (status.compare_exchange_strong(
+              expected, LockStatus::SLEEPING, std::memory_order_acq_rel))
+        {
+          DefaultPal::wait_on_address(status, LockStatus::SLEEPING);
+        }
+      }
+    }
+
     SNMALLOC_SLOW_PATH void attach_slow(CombiningLock& lock)
     {
       // There is contention for the lock, we need to add our work to the
@@ -86,8 +137,7 @@ namespace snmalloc
         prev->next.store(this, std::memory_order_release);
 
         // Wait to for predecessor to complete
-        while (status.load(std::memory_order_relaxed) == LockStatus::WAITING)
-          Aal::pause();
+        wait();
 
         // Determine if another thread completed our work.
         if (status.load(std::memory_order_acquire) == LockStatus::DONE)
@@ -131,7 +181,7 @@ namespace snmalloc
           break;
         // Signal this work was completed and move on to
         // next item.
-        curr->set_status(LockStatus::DONE);
+        wake(curr, LockStatus::DONE);
         curr = n;
       }
 
@@ -146,7 +196,7 @@ namespace snmalloc
       {
         // Queue was successfully closed.
         // Notify last element the work was completed.
-        curr->set_status(LockStatus::DONE);
+        wake(curr, LockStatus::DONE);
         lock.release();
         return;
       }
@@ -160,13 +210,13 @@ namespace snmalloc
 
       // As we had to wait, give the job to the next thread
       // to carry on performing the work.
-      n->set_status(LockStatus::HEAD);
+      wake(n, LockStatus::HEAD);
 
       // Notify the thread that we completed its work.
       // Note that this needs to be before setting curr->status,
       // as after the status is set the thread may deallocate the
       // queue node.
-      curr->set_status(LockStatus::DONE);
+      wake(curr, LockStatus::DONE);
       return;
     }
   };
