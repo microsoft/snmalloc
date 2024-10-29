@@ -258,7 +258,7 @@ namespace snmalloc
         long ret = syscall(
           SYS_futex, &addr, FUTEX_WAIT_PRIVATE, expected, nullptr, nullptr, 0);
 
-        if (ret == -EINTR)
+        if (ret == -1 && errno == EINTR)
           continue;
 
         return;
