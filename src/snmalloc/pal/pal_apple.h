@@ -17,6 +17,25 @@
 
 namespace snmalloc
 {
+  extern "C" int os_sync_wait_on_address(
+    void* addr, uint64_t value, size_t size, uint32_t flags)
+    __attribute__((weak_import));
+
+  extern "C" int
+  os_sync_wake_by_address_any(void* addr, size_t size, uint32_t flags)
+    __attribute__((weak_import));
+
+  extern "C" int
+  os_sync_wake_by_address_all(void* addr, size_t size, uint32_t flags)
+    __attribute__((weak_import));
+
+  extern "C" int
+  __ulock_wait(uint32_t lock_type, void* addr, uint64_t value, uint32_t)
+    __attribute__((weak_import));
+
+  extern "C" int __ulock_wake(uint32_t lock_type, void* addr, uint64_t)
+    __attribute__((weak_import));
+
   /**
    * PAL implementation for Apple systems (macOS, iOS, watchOS, tvOS...).
    */
@@ -28,7 +47,7 @@ namespace snmalloc
      * The features exported by this PAL.
      */
     static constexpr uint64_t pal_features =
-      AlignedAllocation | LazyCommit | Entropy | Time;
+      AlignedAllocation | LazyCommit | Entropy | Time | WaitOnAddress;
 
     /*
      * `page_size`
@@ -280,6 +299,83 @@ namespace snmalloc
       }
 
       return result;
+    }
+
+    using WaitingWord = uint32_t;
+    static constexpr uint32_t UL_COMPARE_AND_WAIT = 0x0000'0001;
+    static constexpr uint32_t ULF_NO_ERRNO = 0x0100'0000;
+    static constexpr uint32_t ULF_WAKE_ALL = 0x0000'0100;
+
+    template<class T>
+    static void wait_on_address(std::atomic<T>& addr, T expected)
+    {
+      int errno_backup = errno;
+      while (addr.load(std::memory_order_relaxed) == expected)
+      {
+        if (os_sync_wait_on_address)
+        {
+          if (
+            os_sync_wait_on_address(
+              &addr, static_cast<uint64_t>(expected), sizeof(T), 0) != -1)
+          {
+            errno = errno_backup;
+            return;
+          }
+        }
+        else if (__ulock_wait)
+        {
+          if (
+            __ulock_wait(
+              UL_COMPARE_AND_WAIT | ULF_NO_ERRNO,
+              &addr,
+              static_cast<uint64_t>(expected),
+              0) != -1)
+          {
+            return;
+          }
+        }
+      }
+    }
+
+    template<class T>
+    static void notify_one_on_address(std::atomic<T>& addr)
+    {
+      if (os_sync_wake_by_address_any)
+      {
+        os_sync_wake_by_address_any(&addr, sizeof(T), 0);
+      }
+      else if (__ulock_wake)
+      {
+        // __ulock_wake can get interrupted, so retry until either waking up a
+        // waiter or failing because there are no waiters (ENOENT).
+        for (;;)
+        {
+          int ret = __ulock_wake(UL_COMPARE_AND_WAIT | ULF_NO_ERRNO, &addr, 0);
+          if (ret >= 0 || ret == -ENOENT)
+            return;
+        }
+      }
+    }
+
+    template<class T>
+    static void notify_all_on_address(std::atomic<T>& addr)
+    {
+      if (os_sync_wake_by_address_all)
+      {
+        os_sync_wake_by_address_all(&addr, sizeof(T), 0);
+      }
+      else if (__ulock_wake)
+      {
+        // __ulock_wake can get interrupted, so retry until either waking up a
+        // waiter or failing because there are no waiters (ENOENT).
+        for (;;)
+        {
+          int ret = __ulock_wake(
+            UL_COMPARE_AND_WAIT | ULF_NO_ERRNO | ULF_WAKE_ALL, &addr, 0);
+          if (ret >= 0 || ret == -ENOENT)
+            return;
+        }
+      }
     }
   };
 } // namespace snmalloc
