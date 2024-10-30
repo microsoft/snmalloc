@@ -59,14 +59,14 @@ namespace snmalloc
       using type = int;
     };
 
-    using WaitingWoldType =
+    using WaitingWordType =
       typename WaitWordTypeSelect<has_wait_on_address<DefaultPal>, DefaultPal>::
         type;
 
     template<typename F>
     friend class CombiningLockNodeTempl;
 
-    enum class LockStatus : WaitingWoldType
+    enum class LockStatus : WaitingWordType
     {
       // The work for this node has not been completed.
       WAITING,
