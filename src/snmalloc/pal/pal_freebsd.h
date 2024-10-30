@@ -13,8 +13,7 @@
 #    endif
 #  endif
 
-extern "C" int
-_umtx_op(void* obj, int op, unsigned long val, void* uaddr, void* uaddr2);
+#  include <sys/umtx.h>
 
 /**
  * Direct system-call wrappers so that we can skip libthr interception, which
