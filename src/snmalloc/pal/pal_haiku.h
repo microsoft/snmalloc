@@ -37,15 +37,6 @@ namespace snmalloc
       SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
       posix_madvise(p, size, POSIX_MADV_DONTNEED);
     }
-
-    /**
-     * Hopefully a temporary workaround until the kernel random feature
-     * is exposed properly in the userspace ?
-     */
-    static uint64_t get_entropy64()
-    {
-      return PALPOSIX::dev_urandom();
-    }
   };
 } // namespace snmalloc
 #endif
