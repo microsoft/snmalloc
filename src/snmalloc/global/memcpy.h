@@ -42,6 +42,16 @@ namespace snmalloc
     }
   }
 
+  template<size_t Size, size_t PrefetchOffset = 0>
+  SNMALLOC_FAST_PATH_INLINE void
+  block_reverse_copy(void* dst, const void* src, size_t len)
+  {
+    for (size_t i = (len - 1); int64_t(i + Size) >= 0; i -= Size)
+    {
+      copy_one<Size>(pointer_offset(dst, i), pointer_offset(src, i));
+    }
+  }
+
   /**
    * Perform an overlapping copy of the end.  This will copy one (potentially
    * unaligned) `T` from the end of the source to the end of the destination.
@@ -455,6 +465,44 @@ namespace snmalloc
     if (SNMALLOC_UNLIKELY(!check_bounds<Checked>(dst, len)))
       return report_fatal_bounds_error(
         dst, len, "memcpy with destination out of bounds of heap allocation");
+
+    Arch::copy(dst, src, len);
+    return orig_dst;
+  }
+
+  template<
+    bool Checked,
+    bool ReadsChecked = CheckReads,
+    typename Arch = DefaultArch>
+  SNMALLOC_FAST_PATH_INLINE void*
+  memmove(void* dst, const void* src, size_t len)
+  {
+    auto orig_dst = dst;
+    // we don't need to do external
+    // pointer checks if we hit it.  It's also the fastest case, to encourage
+    // the compiler to favour the other cases.
+    if (SNMALLOC_UNLIKELY(len == 0 || dst == src))
+    {
+      return dst;
+    }
+
+    // Check the bounds of the arguments.
+    if (SNMALLOC_UNLIKELY(!check_bounds<(Checked && ReadsChecked)>(src, len)))
+      return report_fatal_bounds_error(
+        src, len, "memmove with source out of bounds of heap allocation");
+    if (SNMALLOC_UNLIKELY(!check_bounds<Checked>(dst, len)))
+      return report_fatal_bounds_error(
+        dst, len, "memmove with destination out of bounds of heap allocation");
+
+    if ((address_cast(dst) - address_cast(src)) < len)
+    {
+      // slow 'safe' reverse copy, we avoid optimised rollouts
+      // to cope with typical memmove use cases, moving
+      // one element to another address within the same
+      // contiguous space.
+      block_reverse_copy<1>(dst, src, len);
+      return dst;
+    }
 
     Arch::copy(dst, src, len);
     return orig_dst;
