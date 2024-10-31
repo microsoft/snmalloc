@@ -209,6 +209,12 @@ namespace snmalloc
    * model.
    */
   static constexpr mitigation::type pal_enforce_access{1 << 13};
+  /**
+   * If this mitigation is enabled, then deallocations are
+   * scrubbed before reallocation. This prevents data leaks
+   * by looking into uninitialised memory.
+   */
+  static constexpr mitigation::type scrub_free{1 << 14};
 
   constexpr mitigation::type full_checks = random_pagemap +
     random_larger_thresholds + freelist_forward_edge + freelist_backward_edge +
