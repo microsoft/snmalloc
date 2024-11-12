@@ -516,7 +516,7 @@ namespace snmalloc
       auto cb = [this, domesticate, &need_post](
                   capptr::Alloc<RemoteMessage> msg) SNMALLOC_FAST_PATH_LAMBDA {
         auto& entry =
-          Config::Backend::template get_metaentry(snmalloc::address_cast(msg));
+          Config::Backend::get_metaentry(snmalloc::address_cast(msg));
         handle_dealloc_remote(entry, msg, need_post, domesticate);
         return true;
       };
@@ -744,7 +744,7 @@ namespace snmalloc
       // PagemapEntry-s seen here are expected to have meaningful Remote
       // pointers
       dealloc_local_object(
-        p, Config::Backend::template get_metaentry(snmalloc::address_cast(p)));
+        p, Config::Backend::get_metaentry(snmalloc::address_cast(p)));
     }
 
     SNMALLOC_FAST_PATH static bool dealloc_local_object_fast(
