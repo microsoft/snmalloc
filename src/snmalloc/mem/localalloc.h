@@ -777,7 +777,7 @@ namespace snmalloc
       // entry for the first chunk of memory, that states it represents a
       // large object, so we can pull the check for null off the fast path.
       const PagemapEntry& entry =
-        Config::Backend::template get_metaentry(address_cast(p_raw));
+        Config::Backend::get_metaentry(address_cast(p_raw));
 
       return sizeclass_full_to_size(entry.get_sizeclass());
 #endif
@@ -828,7 +828,7 @@ namespace snmalloc
     typename Config::ClientMeta::DataRef get_client_meta_data(void* p)
     {
       const PagemapEntry& entry =
-        Config::Backend::template get_metaentry(address_cast(p));
+        Config::Backend::get_metaentry(address_cast(p));
 
       size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
 
