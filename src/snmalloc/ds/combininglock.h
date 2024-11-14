@@ -41,8 +41,9 @@ namespace snmalloc
   class CombiningLockNode
   {
     template<typename Pal>
-    static constexpr bool has_wait_on_address =
-      pal_supports<PalFeatures::WaitOnAddress, Pal>;
+    static constexpr bool use_wait_on_address =
+      pal_supports<PalFeatures::WaitOnAddress, Pal> &&
+      SNMALLOC_USE_WAIT_ON_ADDRESS;
 
     template<bool HasWaitOnAddress, typename Pal>
     struct WaitWordTypeSelect;
@@ -60,7 +61,7 @@ namespace snmalloc
     };
 
     using WaitingWordType =
-      typename WaitWordTypeSelect<has_wait_on_address<DefaultPal>, DefaultPal>::
+      typename WaitWordTypeSelect<use_wait_on_address<DefaultPal>, DefaultPal>::
         type;
 
     template<typename F>
@@ -104,7 +105,7 @@ namespace snmalloc
     template<typename Pal = DefaultPal>
     static void wake(CombiningLockNode* node, LockStatus message)
     {
-      if constexpr (!has_wait_on_address<Pal>)
+      if constexpr (!use_wait_on_address<Pal>)
       {
         node->set_status(message);
       }
@@ -122,7 +123,7 @@ namespace snmalloc
     template<typename Pal = DefaultPal>
     void wait()
     {
-      if constexpr (!has_wait_on_address<Pal>)
+      if constexpr (!use_wait_on_address<Pal>)
       {
         while (status.load(std::memory_order_acquire) == LockStatus::WAITING)
           Aal::pause();
