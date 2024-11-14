@@ -4,7 +4,6 @@
 #include "../pal/pal.h"
 
 #include <atomic>
-#include <type_traits>
 
 namespace snmalloc
 {
