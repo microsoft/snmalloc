@@ -323,7 +323,7 @@ namespace snmalloc
     template<class T>
     static void wait_on_address(std::atomic<T>& addr, T expected)
     {
-      int errno_backup = errno;
+      [[maybe_unused]] int errno_backup = errno;
       while (addr.load(std::memory_order_relaxed) == expected)
       {
 #  ifdef SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS
