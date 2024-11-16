@@ -1,10 +1,12 @@
 #include "fuzztest/fuzztest.h"
 #include "snmalloc/snmalloc.h"
 
-#include <array>
+#include <cstddef>
 #include <cstdlib>
+#include <execution>
 #include <new>
 #include <string_view>
+#include <vector>
 
 void simple_memcpy(std::vector<char> data)
 {
@@ -73,6 +75,116 @@ void backward_memmove(std::string data, size_t offset)
     abort();
 }
 
+constexpr static size_t size_limit = 16384;
+
+enum class EventKind : unsigned
+{
+  AllocZero = 0,
+  AllocNoZero = 1,
+  Free = 2,
+  Check = 3,
+  ReFill = 4,
+};
+
+struct Event
+{
+  EventKind kind;
+  size_t size_or_index;
+  char filler;
+
+  Event(std::tuple<unsigned, size_t, char> payload)
+  : kind(static_cast<EventKind>(std::get<0>(payload) % 5)),
+    size_or_index(std::get<1>(payload)),
+    filler(std::get<2>(payload))
+  {
+    if (kind == EventKind::AllocZero || kind == EventKind::AllocNoZero)
+    {
+      size_or_index %= size_limit;
+    }
+  }
+};
+
+struct Result
+{
+  char filler;
+  char* ptr;
+  size_t size;
+
+  void check()
+  {
+    auto res = std::reduce(
+      std::execution::unseq,
+      ptr,
+      ptr + size,
+      static_cast<unsigned char>(0),
+      [&](unsigned char acc, char c) -> unsigned char {
+        return acc | static_cast<unsigned char>(c != filler);
+      });
+    if (res)
+      abort();
+  }
+};
+
+void snmalloc_random_walk(
+  std::vector<std::tuple<unsigned, size_t, char>> payload)
+{
+  std::vector<Result> results;
+  for (auto& p : payload)
+  {
+    Event e(p);
+    auto scoped = snmalloc::get_scoped_allocator();
+    switch (e.kind)
+    {
+      case EventKind::AllocZero:
+      {
+        auto ptr =
+          static_cast<char*>(scoped->alloc<snmalloc::YesZero>(e.size_or_index));
+        results.push_back({0, ptr, e.size_or_index});
+        break;
+      }
+
+      case EventKind::AllocNoZero:
+      {
+        auto ptr =
+          static_cast<char*>(scoped->alloc<snmalloc::NoZero>(e.size_or_index));
+        std::fill(ptr, ptr + e.size_or_index, e.filler);
+        results.push_back({e.filler, ptr, e.size_or_index});
+        break;
+      }
+
+      case EventKind::Free:
+      {
+        if (results.empty())
+          break;
+        auto index = e.size_or_index % results.size();
+        scoped->dealloc(results[index].ptr);
+        results.erase(results.begin() + static_cast<ptrdiff_t>(index));
+        break;
+      }
+
+      case EventKind::Check:
+      {
+        for (auto& r : results)
+          r.check();
+        break;
+      }
+
+      case EventKind::ReFill:
+      {
+        if (results.empty())
+          break;
+        auto index = e.size_or_index % results.size();
+        std::fill(
+          results[index].ptr,
+          results[index].ptr + results[index].size,
+          e.filler);
+        results[index].filler = e.filler;
+        break;
+      }
+    }
+  }
+}
+
 FUZZ_TEST(snmalloc_fuzzing, simple_memcpy);
 FUZZ_TEST(snmalloc_fuzzing, simple_memmove);
 FUZZ_TEST(snmalloc_fuzzing, forward_memmove);
@@ -84,3 +196,4 @@ FUZZ_TEST(snmalloc_fuzzing, memcpy_with_align_offset)
     fuzztest::InRange(0, 6),
     fuzztest::Positive<size_t>(),
     fuzztest::String());
+FUZZ_TEST(snmalloc_fuzzing, snmalloc_random_walk);
