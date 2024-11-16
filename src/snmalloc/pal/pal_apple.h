@@ -15,8 +15,39 @@
 #  include <sys/mman.h>
 #  include <unistd.h>
 
+#  if __has_include(<AvailabilityMacros.h>) && __has_include(<Availability.h>)
+#    include <Availability.h>
+#    include <AvailabilityMacros.h>
+#    if defined(__MAC_OS_X_VERSION_MIN_REQUIRED) && \
+      defined(MAC_OS_X_VERSION_14_4)
+#      if __MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_14_4
+#        define SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS
+#      endif
+#    endif
+#  endif
+
 namespace snmalloc
 {
+#  ifdef SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS
+  // For macos 14.4+, we use os_sync_wait_on_address and friends. It is
+  // available as a part of stable API, and the usage is more straightforward.
+  extern "C" int os_sync_wait_on_address(
+    void* addr, uint64_t value, size_t size, uint32_t flags);
+
+  extern "C" int
+  os_sync_wake_by_address_any(void* addr, size_t size, uint32_t flags);
+
+  extern "C" int
+  os_sync_wake_by_address_all(void* addr, size_t size, uint32_t flags);
+#  else
+  // For platforms before macos 14.4, we use __ulock_wait and friends. It is
+  // available since macos 10.12.
+  extern "C" int
+  __ulock_wait(uint32_t lock_type, void* addr, uint64_t value, uint32_t);
+
+  extern "C" int __ulock_wake(uint32_t lock_type, void* addr, uint64_t);
+#  endif
+
   /**
    * PAL implementation for Apple systems (macOS, iOS, watchOS, tvOS...).
    */
@@ -28,7 +59,7 @@ namespace snmalloc
      * The features exported by this PAL.
      */
     static constexpr uint64_t pal_features =
-      AlignedAllocation | LazyCommit | Entropy | Time;
+      AlignedAllocation | LazyCommit | Entropy | Time | WaitOnAddress;
 
     /*
      * `page_size`
@@ -280,6 +311,76 @@ namespace snmalloc
       }
 
       return result;
+    }
+
+    using WaitingWord = uint32_t;
+#  ifndef SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS
+    static constexpr uint32_t UL_COMPARE_AND_WAIT = 0x0000'0001;
+    static constexpr uint32_t ULF_NO_ERRNO = 0x0100'0000;
+    static constexpr uint32_t ULF_WAKE_ALL = 0x0000'0100;
+#  endif
+
+    template<class T>
+    static void wait_on_address(std::atomic<T>& addr, T expected)
+    {
+      [[maybe_unused]] int errno_backup = errno;
+      while (addr.load(std::memory_order_relaxed) == expected)
+      {
+#  ifdef SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS
+        if (
+          os_sync_wait_on_address(
+            &addr, static_cast<uint64_t>(expected), sizeof(T), 0) != -1)
+        {
+          errno = errno_backup;
+          return;
+        }
+#  else
+        if (
+          __ulock_wait(
+            UL_COMPARE_AND_WAIT | ULF_NO_ERRNO,
+            &addr,
+            static_cast<uint64_t>(expected),
+            0) != -1)
+        {
+          return;
+        }
+#  endif
+      }
+    }
+
+    template<class T>
+    static void notify_one_on_address(std::atomic<T>& addr)
+    {
+#  ifdef SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS
+      os_sync_wake_by_address_any(&addr, sizeof(T), 0);
+#  else
+      // __ulock_wake can get interrupted, so retry until either waking up a
+      // waiter or failing because there are no waiters (ENOENT).
+      for (;;)
+      {
+        int ret = __ulock_wake(UL_COMPARE_AND_WAIT | ULF_NO_ERRNO, &addr, 0);
+        if (ret >= 0 || ret == -ENOENT)
+          return;
+      }
+#  endif
+    }
+
+    template<class T>
+    static void notify_all_on_address(std::atomic<T>& addr)
+    {
+#  ifdef SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS
+      os_sync_wake_by_address_all(&addr, sizeof(T), 0);
+#  else
+      // __ulock_wake can get interrupted, so retry until either waking up a
+      // waiter or failing because there are no waiters (ENOENT).
+      for (;;)
+      {
+        int ret = __ulock_wake(
+          UL_COMPARE_AND_WAIT | ULF_NO_ERRNO | ULF_WAKE_ALL, &addr, 0);
+        if (ret >= 0 || ret == -ENOENT)
+          return;
+      }
+#  endif
     }
   };
 } // namespace snmalloc

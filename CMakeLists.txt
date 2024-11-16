@@ -27,6 +27,7 @@ option(SNMALLOC_LINK_ICF "Link with Identical Code Folding" ON)
 option(SNMALLOC_IPO "Link with IPO/LTO support" OFF)
 option(SNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS "Build tests and ld_preload for individual mitigations" OFF)
 option(SNMALLOC_ENABLE_DYNAMIC_LOADING "Build such that snmalloc can be dynamically loaded. This is not required for LD_PRELOAD, and will harm performance if enabled." OFF)
+option(SNMALLOC_ENABLE_WAIT_ON_ADDRESS "Use wait on address backoff strategy if it is available" ON)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_STATIC_LIBRARY "Build static libraries" ON "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
@@ -134,6 +135,9 @@ int main() {
 # this is why we check its existence here
 CHECK_INCLUDE_FILE_CXX(linux/random.h SNMALLOC_HAS_LINUX_RANDOM_H)
 
+# check if futex.h is available
+CHECK_INCLUDE_FILE_CXX(linux/futex.h SNMALLOC_HAS_LINUX_FUTEX_H)
+
 # Provide as function so other projects can reuse
 # FIXME: This modifies some variables that may or may not be the ones that
 # provide flags and so is broken by design.  It should be removed once Verona
@@ -193,6 +197,13 @@ if(SNMALLOC_USE_CXX17)
 else()
   target_compile_features(snmalloc INTERFACE cxx_std_20)
 endif()
+
+if(SNMALLOC_ENABLE_WAIT_ON_ADDRESS)
+  target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_WAIT_ON_ADDRESS=1)
+else()
+  target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_WAIT_ON_ADDRESS=0)
+endif()
+
 # https://learn.microsoft.com/en-us/cpp/build/reference/zc-cplusplus
 if(MSVC)
   target_compile_options(snmalloc INTERFACE "/Zc:__cplusplus")
@@ -248,6 +259,7 @@ add_as_define(SNMALLOC_TRACING)
 add_as_define(SNMALLOC_CI_BUILD)
 add_as_define(SNMALLOC_PLATFORM_HAS_GETENTROPY)
 add_as_define(SNMALLOC_HAS_LINUX_RANDOM_H)
+add_as_define(SNMALLOC_HAS_LINUX_FUTEX_H)
 if (SNMALLOC_NO_REALLOCARRAY)
   add_as_define(SNMALLOC_NO_REALLOCARRAY)
 endif()

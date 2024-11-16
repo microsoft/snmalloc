@@ -13,6 +13,8 @@
 #    endif
 #  endif
 
+#  include <sys/umtx.h>
+
 /**
  * Direct system-call wrappers so that we can skip libthr interception, which
  * won't work if malloc is broken.
@@ -44,7 +46,7 @@ namespace snmalloc
      * add new features that they should add any required feature flags.
      */
     static constexpr uint64_t pal_features =
-      PALBSD_Aligned::pal_features | CoreDump;
+      PALBSD_Aligned::pal_features | CoreDump | WaitOnAddress;
 
     /**
      * FreeBSD uses atypically small address spaces on its 64 bit RISC machines.
@@ -129,6 +131,53 @@ namespace snmalloc
           p.unsafe_ptr(), ~static_cast<unsigned int>(CHERI_PERM_SW_VMEM)));
     }
 #  endif
+
+    using WaitingWord = unsigned int;
+
+    template<typename T>
+    static void wait_on_address(std::atomic<T>& addr, T expected)
+    {
+      static_assert(
+        sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
+        "T must be the same size and alignment as WaitingWord");
+      int backup = errno;
+      while (addr.load(std::memory_order_relaxed) == expected)
+      {
+        int ret = _umtx_op(
+          &addr,
+          UMTX_OP_WAIT_UINT_PRIVATE,
+          static_cast<unsigned long>(expected),
+          nullptr,
+          nullptr);
+
+        if (ret == 0)
+          break;
+      }
+      errno = backup;
+    }
+
+    template<typename T>
+    static void notify_one_on_address(std::atomic<T>& addr)
+    {
+      static_assert(
+        sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
+        "T must be the same size and alignment as WaitingWord");
+      _umtx_op(&addr, UMTX_OP_WAKE_PRIVATE, 1, nullptr, nullptr);
+    }
+
+    template<typename T>
+    static void notify_all_on_address(std::atomic<T>& addr)
+    {
+      static_assert(
+        sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
+        "T must be the same size and alignment as WaitingWord");
+      _umtx_op(
+        &addr,
+        UMTX_OP_WAKE_PRIVATE,
+        static_cast<unsigned long>(INT_MAX),
+        nullptr,
+        nullptr);
+    }
   };
 } // namespace snmalloc
 #endif

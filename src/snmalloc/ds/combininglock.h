@@ -39,10 +39,34 @@ namespace snmalloc
    */
   class CombiningLockNode
   {
+    template<typename Pal>
+    static constexpr bool use_wait_on_address =
+      pal_supports<PalFeatures::WaitOnAddress, Pal> &&
+      SNMALLOC_USE_WAIT_ON_ADDRESS;
+
+    template<bool HasWaitOnAddress, typename Pal>
+    struct WaitWordTypeSelect;
+
+    template<typename Pal>
+    struct WaitWordTypeSelect<true, Pal>
+    {
+      using type = typename Pal::WaitingWord;
+    };
+
+    template<typename Pal>
+    struct WaitWordTypeSelect<false, Pal>
+    {
+      using type = int;
+    };
+
+    using WaitingWordType =
+      typename WaitWordTypeSelect<use_wait_on_address<DefaultPal>, DefaultPal>::
+        type;
+
     template<typename F>
     friend class CombiningLockNodeTempl;
 
-    enum class LockStatus
+    enum class LockStatus : WaitingWordType
     {
       // The work for this node has not been completed.
       WAITING,
@@ -53,7 +77,10 @@ namespace snmalloc
 
       // The work for this thread has not been completed, and it is the
       // head of the queue.
-      HEAD
+      HEAD,
+
+      // The waiter is currently sleeping.
+      SLEEPING
     };
 
     // Status of the queue, set by the thread at the head of the queue,
@@ -74,6 +101,51 @@ namespace snmalloc
       status.store(s, std::memory_order_release);
     }
 
+    template<typename Pal = DefaultPal>
+    static void wake(CombiningLockNode* node, LockStatus message)
+    {
+      if constexpr (!use_wait_on_address<Pal>)
+      {
+        node->set_status(message);
+      }
+      else
+      {
+        if (
+          node->status.exchange(message, std::memory_order_acq_rel) ==
+          LockStatus::SLEEPING)
+        {
+          Pal::notify_one_on_address(node->status);
+        }
+      }
+    }
+
+    template<typename Pal = DefaultPal>
+    void wait()
+    {
+      if constexpr (!use_wait_on_address<Pal>)
+      {
+        while (status.load(std::memory_order_acquire) == LockStatus::WAITING)
+          Aal::pause();
+      }
+      else
+      {
+        int remaining = 100;
+        while (remaining > 0)
+        {
+          if (status.load(std::memory_order_acquire) != LockStatus::WAITING)
+            return;
+          Aal::pause();
+          remaining--;
+        }
+        LockStatus expected = LockStatus::WAITING;
+        if (status.compare_exchange_strong(
+              expected, LockStatus::SLEEPING, std::memory_order_acq_rel))
+        {
+          Pal::wait_on_address(status, LockStatus::SLEEPING);
+        }
+      }
+    }
+
     SNMALLOC_SLOW_PATH void attach_slow(CombiningLock& lock)
     {
       // There is contention for the lock, we need to add our work to the
@@ -86,8 +158,7 @@ namespace snmalloc
         prev->next.store(this, std::memory_order_release);
 
         // Wait to for predecessor to complete
-        while (status.load(std::memory_order_relaxed) == LockStatus::WAITING)
-          Aal::pause();
+        wait();
 
         // Determine if another thread completed our work.
         if (status.load(std::memory_order_acquire) == LockStatus::DONE)
@@ -131,7 +202,7 @@ namespace snmalloc
           break;
         // Signal this work was completed and move on to
         // next item.
-        curr->set_status(LockStatus::DONE);
+        wake(curr, LockStatus::DONE);
         curr = n;
       }
 
@@ -146,7 +217,7 @@ namespace snmalloc
       {
         // Queue was successfully closed.
         // Notify last element the work was completed.
-        curr->set_status(LockStatus::DONE);
+        wake(curr, LockStatus::DONE);
         lock.release();
         return;
       }
@@ -160,13 +231,13 @@ namespace snmalloc
 
       // As we had to wait, give the job to the next thread
       // to carry on performing the work.
-      n->set_status(LockStatus::HEAD);
+      wake(n, LockStatus::HEAD);
 
       // Notify the thread that we completed its work.
       // Note that this needs to be before setting curr->status,
       // as after the status is set the thread may deallocate the
       // queue node.
-      curr->set_status(LockStatus::DONE);
+      wake(curr, LockStatus::DONE);
       return;
     }
   };
