@@ -120,6 +120,12 @@ fn main() {
         build.define("SNMALLOC_ENABLE_DYNAMIC_LOADING", "ON");
     }
 
+    if cfg!(feature = "usewait-on-address") {
+        build.define("SNMALLOC_USE_WAIT_ON_ADDRESS", "1");
+    } else {
+        build.define("SNMALLOC_USE_WAIT_ON_ADDRESS", "0");
+    }
+
     build.compile(target);
 
     if target_env == "msvc" {
@@ -243,6 +249,12 @@ fn main() {
 
     if cfg!(feature = "qemu") {
         cfg = cfg.define("SNMALLOC_QEMU_WORKAROUND", "ON")
+    }
+
+    if cfg!(feature = "usewait-on-address") {
+        cfg = cfg.define("SNMALLOC_USE_WAIT_ON_ADDRESS", "1")
+    } else {
+        cfg = cfg.define("SNMALLOC_USE_WAIT_ON_ADDRESS", "0")
     }
 
     let mut dst = cfg.build_target(target).build();
