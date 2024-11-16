@@ -28,6 +28,7 @@ option(SNMALLOC_IPO "Link with IPO/LTO support" OFF)
 option(SNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS "Build tests and ld_preload for individual mitigations" OFF)
 option(SNMALLOC_ENABLE_DYNAMIC_LOADING "Build such that snmalloc can be dynamically loaded. This is not required for LD_PRELOAD, and will harm performance if enabled." OFF)
 option(SNMALLOC_ENABLE_WAIT_ON_ADDRESS "Use wait on address backoff strategy if it is available" ON)
+option(SNMALLOC_ENABLE_FUZZING "Enable fuzzing instrumentation tests" OFF)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_STATIC_LIBRARY "Build static libraries" ON "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
@@ -599,3 +600,6 @@ install(EXPORT snmallocConfig
   DESTINATION "share/snmalloc"
 )
 
+if (SNMALLOC_ENABLE_FUZZING)
+  add_subdirectory(fuzzing)
+endif()
