@@ -49,7 +49,8 @@ namespace snmalloc
     for (int64_t i = (int64_t)len; i >= (int64_t)Size; i -= (int64_t)Size)
     {
       copy_one<Size>(
-        pointer_offset(dst, (size_t)i), pointer_offset(src, (size_t)i));
+        pointer_offset(dst, (size_t)i - Size),
+        pointer_offset(src, (size_t)i - Size));
     }
   }
 
@@ -495,6 +496,7 @@ namespace snmalloc
       return report_fatal_bounds_error(
         dst, len, "memmove with destination out of bounds of heap allocation");
 
+    /*
     if ((address_cast(dst) - address_cast(src)) < len)
     {
       // slow 'safe' reverse copy, we avoid optimised rollouts
@@ -502,6 +504,28 @@ namespace snmalloc
       // one element to another address within the same
       // contiguous space.
       block_reverse_copy<1>(dst, src, len);
+      return dst;
+    }
+    */
+    ptrdiff_t diff = static_cast<ptrdiff_t>(address_cast(dst)) -
+      static_cast<ptrdiff_t>(address_cast(src));
+    ptrdiff_t signed_length = static_cast<ptrdiff_t>(len);
+    if (diff > 0 && diff < signed_length)
+    {
+      // slow 'safe' reverse copy, we avoid optimised rollouts
+      // to cope with typical memmove use cases, moving
+      // one element to another address within the same
+      // contiguous space.
+      block_reverse_copy<1>(dst, src, len);
+      return dst;
+    }
+    if (diff > -signed_length && diff < 0)
+    {
+      // slow 'safe' forward copy, we avoid optimised rollouts
+      // to cope with typical memmove use cases, moving
+      // one element to another address within the same
+      // contiguous space.
+      block_copy<1>(dst, src, len);
       return dst;
     }
 
