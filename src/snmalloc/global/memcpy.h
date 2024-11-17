@@ -46,9 +46,10 @@ namespace snmalloc
   SNMALLOC_FAST_PATH_INLINE void
   block_reverse_copy(void* dst, const void* src, size_t len)
   {
-    for (size_t i = (len - 1); int64_t(i + Size) >= 0; i -= Size)
+    for (int64_t i = (int64_t)len; i >= (int64_t)Size; i -= (int64_t)Size)
     {
-      copy_one<Size>(pointer_offset(dst, i), pointer_offset(src, i));
+      copy_one<Size>(
+        pointer_offset(dst, (size_t)i), pointer_offset(src, (size_t)i));
     }
   }
 
