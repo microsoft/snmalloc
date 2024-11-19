@@ -490,7 +490,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DSNMALLOC_USE_CXX17=ON -DSNMALLOC_FUZZING=ON -DFUZZTEST_FUZZING_MODE=ON
+      run: cmake -B ${{github.workspace}}/build -DSNMALLOC_FUZZING=ON -DFUZZTEST_FUZZING_MODE=ON -DCMAKE_CXX_COMPILER=clang++
     - name: Build
       run: cmake --build ${{github.workspace}}/build --target snmalloc-fuzzer
     - name: Test
