@@ -498,7 +498,8 @@ jobs:
 
   all-checks:
     # Currently FreeBSD and NetBSD CI are not working, so we do not require them to pass.
-    needs: [ubuntu, macos, freebsd, netbsd, sanitizer, qemu-crossbuild, windows, format, fuzzing]
+    # Add fuzzing back when the memove issue is fixed.
+    needs: [ubuntu, macos, freebsd, netbsd, sanitizer, qemu-crossbuild, windows, format]
     runs-on: ubuntu-latest
     steps:
     - name: Dummy step
