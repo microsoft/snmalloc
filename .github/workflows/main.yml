@@ -485,9 +485,20 @@ jobs:
           exit 1
         fi
 
+  fuzzing:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v3
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DSNMALLOC_USE_CXX17=ON -DSNMALLOC_FUZZING=ON -DFUZZTEST_FUZZING_MODE=ON
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --target snmalloc-fuzzer
+    - name: Test
+      run: ${{github.workspace}}/build/fuzzing/snmalloc-fuzzer
+
   all-checks:
     # Currently FreeBSD and NetBSD CI are not working, so we do not require them to pass.
-    needs: [ubuntu, macos, freebsd, netbsd, sanitizer, qemu-crossbuild, windows, format]
+    needs: [ubuntu, macos, freebsd, netbsd, sanitizer, qemu-crossbuild, windows, format, fuzzing]
     runs-on: ubuntu-latest
     steps:
     - name: Dummy step
