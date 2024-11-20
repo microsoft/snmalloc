@@ -113,6 +113,23 @@ struct Result
   char* ptr;
   size_t size;
 
+  Result(char filler, char* ptr, size_t size) : filler(filler), ptr(ptr), size(size) {}
+  Result(Result&& other) noexcept : filler(other.filler), ptr(other.ptr), size(other.size)
+  {
+    other.ptr = nullptr;
+  }
+  Result &operator=(Result&& other) noexcept
+  {
+    if (this != &other)
+    {
+      filler = other.filler;
+      ptr = other.ptr;
+      size = other.size;
+      other.ptr = nullptr;
+    }
+    return *this;
+  }
+
   void check()
   {
     auto res = std::reduce(
@@ -125,6 +142,14 @@ struct Result
       });
     if (res)
       abort();
+  }
+
+  ~Result()
+  {
+    auto alloc = snmalloc::get_scoped_allocator();
+    if (ptr)
+      alloc->dealloc(ptr, size);
+    ptr = nullptr;
   }
 };
 
@@ -142,7 +167,7 @@ void snmalloc_random_walk(
       {
         auto ptr =
           static_cast<char*>(scoped->alloc<snmalloc::YesZero>(e.size_or_index));
-        results.push_back({0, ptr, e.size_or_index});
+        results.emplace_back(0, ptr, e.size_or_index);
         break;
       }
 
@@ -151,7 +176,7 @@ void snmalloc_random_walk(
         auto ptr =
           static_cast<char*>(scoped->alloc<snmalloc::NoZero>(e.size_or_index));
         std::fill(ptr, ptr + e.size_or_index, e.filler);
-        results.push_back({e.filler, ptr, e.size_or_index});
+        results.emplace_back(e.filler, ptr, e.size_or_index);
         break;
       }
 
@@ -160,7 +185,6 @@ void snmalloc_random_walk(
         if (results.empty())
           break;
         auto index = e.size_or_index % results.size();
-        scoped->dealloc(results[index].ptr);
         results.erase(results.begin() + static_cast<ptrdiff_t>(index));
         break;
       }
