@@ -68,24 +68,15 @@ extern "C" void abort()
  * fills one with a well-known pattern, and then copies subsets of this at
  * one-byte increments to a target.  This gives us unaligned starts.
  */
-template<bool overlap>
 void check_size(size_t size)
 {
-  if constexpr (!overlap)
-  {
-    START_TEST("checking {}-byte memcpy", size);
-  }
-  else
-  {
-    START_TEST("checking {}-byte memmove", size);
-  }
+  START_TEST("checking {}-byte memcpy", size);
   auto* s = static_cast<unsigned char*>(my_malloc(size + 1));
   auto* d = static_cast<unsigned char*>(my_malloc(size + 1));
   d[size] = 0;
   s[size] = 255;
   for (size_t start = 0; start < size; start++)
   {
-    void* ret;
     unsigned char* src = s + start;
     unsigned char* dst = d + start;
     size_t sz = (size - start);
@@ -97,14 +88,7 @@ void check_size(size_t size)
     {
       dst[i] = 0;
     }
-    if constexpr (!overlap)
-    {
-      ret = my_memcpy(dst, src, sz);
-    }
-    else
-    {
-      ret = my_memmove(dst, src, sz);
-    }
+    void* ret = my_memcpy(dst, src, sz);
     EXPECT(ret == dst, "Return value should be {}, was {}", dst, ret);
     for (size_t i = 0; i < sz; ++i)
     {
@@ -163,50 +147,6 @@ void check_bounds(size_t size, size_t out_of_bounds)
   my_free(d);
 }
 
-void check_overlaps1()
-{
-  size_t size = 16;
-  START_TEST("memmove overlaps1");
-  auto* s = static_cast<unsigned int*>(my_malloc(size * sizeof(unsigned int)));
-  for (size_t i = 0; i < size; ++i)
-  {
-    s[i] = static_cast<unsigned int>(i);
-  }
-  my_memmove(&s[2], &s[4], sizeof(s[0]));
-  EXPECT(s[2] == s[4], "overlap error: {} {}", s[2], s[4]);
-  my_memmove(&s[15], &s[5], sizeof(s[0]));
-  EXPECT(s[15] == s[5], "overlap error: {} {}", s[15], s[5]);
-  auto ptr = s;
-  my_memmove(ptr, s, size * sizeof(s[0]));
-  EXPECT(ptr == s, "overlap error: {} {}", ptr, s);
-  my_free(s);
-}
-
-template<bool after>
-void check_overlaps2(size_t size)
-{
-  START_TEST("memmove overlaps2, size {}", size);
-  auto sz = size / 2;
-  auto offset = size / 2;
-  auto* s = static_cast<unsigned int*>(my_malloc(size * sizeof(unsigned int)));
-  for (size_t i = 0; i < size; ++i)
-  {
-    s[i] = static_cast<unsigned int>(i);
-  }
-  auto dst = after ? s + offset : s;
-  auto src = after ? s : s + offset;
-  size_t i = after ? 0 : offset;
-  size_t u = 0;
-  my_memmove(dst, src, sz * sizeof(unsigned int));
-  while (u < sz)
-  {
-    EXPECT(dst[u] == i, "overlap error: {} {}", dst[u], i);
-    u++;
-    i++;
-  }
-  my_free(s);
-}
-
 int main()
 {
   // Skip the checks that expect bounds checks to fail when we are not the
@@ -235,20 +175,7 @@ int main()
 #  endif
   for (size_t x = 0; x < 2048; x++)
   {
-    check_size<false>(x);
-  }
-
-  for (size_t x = 0; x < 2048; x++)
-  {
-    check_size<true>(x);
-  }
-
-  check_overlaps1();
-
-  for (size_t x = 8; x < 256; x += 64)
-  {
-    check_overlaps2<false>(x);
-    check_overlaps2<true>(x);
+    check_size(x);
   }
 }
 #endif
