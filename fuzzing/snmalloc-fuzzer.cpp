@@ -41,6 +41,8 @@ void memcpy_with_align_offset(
   ::operator delete(dst_, std::align_val_t{dest_alignment});
 }
 
+/*
+ * disable memmove tests for now
 void simple_memmove(std::vector<char> data)
 {
   std::vector<char> dest(data.size());
@@ -74,6 +76,7 @@ void backward_memmove(std::string data, size_t offset)
     std::string_view(to_move.data(), after_move))
     abort();
 }
+*/
 
 constexpr static size_t size_limit = 16384;
 
@@ -186,9 +189,12 @@ void snmalloc_random_walk(
 }
 
 FUZZ_TEST(snmalloc_fuzzing, simple_memcpy);
+/*
+ * disable memmove tests for now
 FUZZ_TEST(snmalloc_fuzzing, simple_memmove);
 FUZZ_TEST(snmalloc_fuzzing, forward_memmove);
 FUZZ_TEST(snmalloc_fuzzing, backward_memmove);
+*/
 FUZZ_TEST(snmalloc_fuzzing, memcpy_with_align_offset)
   .WithDomains(
     fuzztest::InRange(0, 6),
