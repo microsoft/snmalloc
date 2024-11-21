@@ -18,7 +18,17 @@ In particular, the current algorithm can suffer a lot of cache-misses while it h
 BatchIt proposes to add a small consumer- (that is, deallocator-) side cache to allow messages to the same slab of memory to be batched together.
 This results in smaller message queues within `snmalloc` and gives much better cache locality when handling messages.
 
-[TODO: Add some graphs from the paper here.]
+We developed a micro-benchmark that simulates a producer-consumer workload with a fixed number of in-flight messages.
+We then measure the time taken to process all the messages with different numbers of producer and consumer threads.
+`msgpass-1` has a single producer and a single consumer, `msgpass-2` has two producers and two consumers, and so on.
+
+![Graph of BatchIt performance](./snmalloc-msgpass.svg)
+
+The results show a significant potential for improvement in the producer-consumer workload.
+As the number of threads increases the cache becomes less effective as each thread can talk to all the other threads,
+that is, in the `msgpass-8` case each of the 8 producers can talk to each of the 8 consumers.
+
+The [paper](https://dl.acm.org/doi/10.1145/3652024.3665506) contains a lot more results, we have just given you a taste of the improvement here.
 
 ## Start-up performance
 
