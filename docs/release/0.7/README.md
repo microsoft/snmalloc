@@ -25,7 +25,7 @@ We then measure the time taken to process all the messages with different number
 ![Graph of BatchIt performance](./snmalloc-msgpass.svg)
 
 The results show a significant potential for improvement in the producer-consumer workload.
-As the number of threads increases the cache becomes less effective as each thread can talk to all the other threads,
+As the number of threads increases the cache becomes less effective as each producer can send to all the other consumers,
 that is, in the `msgpass-8` case each of the 8 producers can talk to each of the 8 consumers.
 
 The [paper](https://dl.acm.org/doi/10.1145/3652024.3665506) contains a lot more results, we have just given you a taste of the improvement here.
