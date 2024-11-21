@@ -44,10 +44,19 @@ We have a particularly tough benchmark for testing [startup time](../src/test/pe
 We used a machine with 72 hardware threads.
 The benchmark causes all the threads to synchronise on starting their first allocation.
 This means all 72 threads are contending on the lock at the same time to get their allocator initialised.
+The results are shown in the graph below.
 
-[TODO: Add a graph here.]
+![Performance graph for startup times](./perf-startup.svg)
 
-The rest of this section details some of the improvements to getting these results.
+Here 0.6.2 is the last release of snmalloc, and 0.7 is the current release.
+We use `spin` to mean that the combining lock is not using OS level waiting, but is spinning instead.
+We use `sec` to mean that `snmalloc` has been compiled with the security checks enabled.
+
+The results show that the 0.7 release is significantly faster than the 0.6.2 release.
+The improvements are smaller in the `sec` case as there are more interactions with the OS to set up disjoint address spaces for the meta-data and the object-data.
+The benchmarks were run on an Azure VM with 72 hardware threads.  Virtualization seems to be costly for the futex system call, so the `spin` version is faster.
+
+The rest of this section details some improvements to get those results.
 
 ### Combining Lock
 
