@@ -11,11 +11,12 @@ The main addition is the 0.7 release is integrating the `BatchIt` algorithm from
 > [BatchIt: Optimizing Message-Passing Allocators for Producer-Consumer Workloads: An Intellectual Abstract](https://dl.acm.org/doi/10.1145/3652024.3665506)
 > Nathaniel Wesley Filardo, Matthew J. Parkinson
 
-The paper observes that for heavily producer-consumer workloads, the current `snmalloc` implementation can be suboptimal.
-The current algorithm can suffer a lot of cache-misses while it handles the messages.
+As the title suggests, the paper considers producer-consumer workloads, wherein producer threads allocate memory for messages that get passed to consumer threads, which free their received messages.
+For workloads that do significant amounts of such message passing, the `snmalloc` implementation prior to this release can be sub-optimal.
+In particular, the current algorithm can suffer a lot of cache-misses while it handles returning the deallocated messages back to the producer threads' allocators.
 
-BatchIt proposes to add a small producer-side cache to allow messages to the same slab of memory to be grouped.
-This means that there is much better cache locality when handling messages.
+BatchIt proposes to add a small consumer- (that is, deallocator-) side cache to allow messages to the same slab of memory to be batched together.
+This results in smaller message queues within `snmalloc` and gives much better cache locality when handling messages.
 
 [TODO: Add some graphs from the paper here.]
 
