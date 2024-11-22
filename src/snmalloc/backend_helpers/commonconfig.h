@@ -159,4 +159,5 @@ namespace snmalloc
     }
   }
 } // namespace snmalloc
+
 #include "../mem/remotecache.h"

@@ -20,6 +20,7 @@ namespace snmalloc
       UNUSED(str);
       oe_abort();
     }
+
     static constexpr size_t address_bits = Aal::address_bits;
     static constexpr size_t page_size = Aal::smallest_page_size;
   };

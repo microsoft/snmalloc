@@ -46,10 +46,12 @@ void chatty(const char* p, ...)
 struct MyAlloc
 {
   MyAlloc() {}
+
   void* alloc(size_t sz)
   {
     return malloc(sz);
   }
+
   void dealloc(void* p)
   {
     free(p);
@@ -59,11 +61,14 @@ struct MyAlloc
 struct MyAlloc
 {
   snmalloc::Alloc& a;
+
   MyAlloc() : a(ThreadAlloc::get()) {}
+
   void* alloc(size_t sz)
   {
     return a.alloc(sz);
   }
+
   void dealloc(void* p)
   {
     a.dealloc(p);

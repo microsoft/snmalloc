@@ -22,6 +22,7 @@ namespace snmalloc
     {
       char data[Size];
     };
+
     auto* d = static_cast<Block*>(dst);
     auto* s = static_cast<const Block*>(src);
     *d = *s;
@@ -254,6 +255,7 @@ namespace snmalloc
           {
             void* p[2];
           };
+
           if (sizeof(Ptr2) <= len)
           {
             auto dp = static_cast<Ptr2*>(dst);

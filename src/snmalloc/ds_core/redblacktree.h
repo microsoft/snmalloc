@@ -137,6 +137,7 @@ namespace snmalloc
       {
         return ptr != t.ptr;
       }
+
       ///@}
 
       bool is_null()

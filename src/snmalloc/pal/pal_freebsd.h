@@ -22,6 +22,7 @@
  */
 extern "C" ssize_t __sys_writev(int fd, const struct iovec* iov, int iovcnt);
 extern "C" int __sys_fsync(int fd);
+
 /// @}
 
 namespace snmalloc
@@ -57,6 +58,7 @@ namespace snmalloc
     static constexpr size_t address_bits = (Aal::bits == 32) ?
       Aal::address_bits :
       (Aal::aal_name == RISCV ? 38 : Aal::address_bits);
+
     // TODO, if we ever backport to MIPS, this should yield 39 there.
 
     /**

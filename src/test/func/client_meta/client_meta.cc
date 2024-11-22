@@ -16,6 +16,7 @@ namespace snmalloc
   using Alloc = snmalloc::LocalAllocator<snmalloc::StandardConfigClientMeta<
     ArrayClientMetaDataProvider<std::atomic<size_t>>>>;
 }
+
 #define SNMALLOC_PROVIDE_OWN_CONFIG
 #include <snmalloc/snmalloc.h>
 

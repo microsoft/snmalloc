@@ -48,6 +48,7 @@ namespace snmalloc
      */
     using BackendSlabMetadata = typename Config::Backend::SlabMetadata;
     using PagemapEntry = typename Config::PagemapEntry;
+
     /// }@
 
     /**
@@ -197,6 +198,7 @@ namespace snmalloc
         {
           capptr::AllocFull<PreAllocObject> next;
         };
+
         // The following code implements Sattolo's algorithm for generating
         // random cyclic permutations.  This implementation is in the opposite
         // direction, so that the original space does not need initialising.
