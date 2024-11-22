@@ -18,7 +18,7 @@ In particular, the current algorithm can suffer a lot of cache-misses while it h
 BatchIt proposes to add a small consumer- (that is, deallocator-) side cache to allow messages to the same slab of memory to be batched together.
 This results in smaller message queues within `snmalloc` and gives much better cache locality when handling messages.
 
-We developed a micro-benchmark that simulates a producer-consumer workload with a fixed number of in-flight messages.
+We developed [a micro-benchmark](../../../src/test/perf/msgpass/msgpass.cc) that simulates a producer-consumer workload with back-pressure sending a fixed number of messages per producer.
 We then measure the time taken to process all the messages with different numbers of producer and consumer threads.
 `msgpass-1` has a single producer and a single consumer, `msgpass-2` has two producers and two consumers, and so on.
 
