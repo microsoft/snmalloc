@@ -14,6 +14,7 @@
  */
 extern "C" ssize_t _sys_writev(int fd, const struct iovec* iov, int iovcnt);
 extern "C" int _sys_fsync(int fd);
+
 /// @}
 
 namespace snmalloc

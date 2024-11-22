@@ -10,6 +10,7 @@
 
 // Specify type of allocator
 #define SNMALLOC_PROVIDE_OWN_CONFIG
+
 namespace snmalloc
 {
   using CustomGlobals = FixedRangeConfig<PALNoAlloc<DefaultPal>>;

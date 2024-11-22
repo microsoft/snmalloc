@@ -100,6 +100,7 @@ namespace snmalloc
 
   public:
     constexpr Buddy() = default;
+
     /**
      * Add a block to the buddy allocator.
      *

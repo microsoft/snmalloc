@@ -97,12 +97,14 @@ void setup()
 }
 #  else
 #    include <signal.h>
+
 void error_handle(int signal)
 {
   snmalloc::UNUSED(signal);
   snmalloc::error("Seg Fault");
   _exit(1);
 }
+
 void setup()
 {
   signal(SIGSEGV, error_handle);

@@ -172,6 +172,7 @@ namespace snmalloc
         uint64_t result;
         char buffer[sizeof(uint64_t)];
       };
+
       ssize_t ret;
 
       // give a try to SYS_getrandom

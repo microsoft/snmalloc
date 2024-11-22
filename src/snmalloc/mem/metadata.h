@@ -189,6 +189,7 @@ namespace snmalloc
     {
       return meta &= ~META_BOUNDARY_BIT;
     }
+
     ///@}
 
     /**

@@ -92,7 +92,9 @@ namespace snmalloc
     {}
 
     void set_owner() {}
+
     void clear_owner() {}
+
     void assert_not_owned_by_current_thread() {}
   };
 

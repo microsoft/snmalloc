@@ -21,6 +21,7 @@ namespace snmalloc::external_alloc
 }
 #    elif defined(__APPLE__)
 #      include <malloc/malloc.h>
+
 namespace snmalloc::external_alloc
 {
   inline size_t malloc_usable_size(void* ptr)
@@ -30,6 +31,7 @@ namespace snmalloc::external_alloc
 }
 #    elif defined(__linux__) || defined(__HAIKU__)
 #      include <malloc.h>
+
 namespace snmalloc::external_alloc
 {
   using ::malloc_usable_size;
@@ -41,6 +43,7 @@ namespace snmalloc::external_alloc
 }
 #    elif defined(__FreeBSD__)
 #      include <malloc_np.h>
+
 namespace snmalloc::external_alloc
 {
   using ::malloc_usable_size;

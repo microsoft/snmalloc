@@ -31,6 +31,7 @@ namespace snmalloc
     static constexpr Contents root = nullptr;
 
     static constexpr address_t MASK = 1;
+
     static void set(Handle ptr, Contents r)
     {
       SNMALLOC_ASSERT((address_cast(r) & MASK) == 0);

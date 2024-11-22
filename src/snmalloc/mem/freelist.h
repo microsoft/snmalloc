@@ -528,6 +528,7 @@ namespace snmalloc
 
     protected:
       constexpr Prev(address_t prev) : prev(prev) {}
+
       constexpr Prev() = default;
 
       address_t replace(address_t next)
@@ -570,10 +571,12 @@ namespace snmalloc
       struct KeyTweak
       {
         address_t key_tweak = 0;
+
         SNMALLOC_FAST_PATH address_t get()
         {
           return key_tweak;
         }
+
         void set(address_t kt)
         {
           key_tweak = kt;
@@ -588,6 +591,7 @@ namespace snmalloc
         {
           return 0;
         }
+
         void set(address_t) {}
       };
 

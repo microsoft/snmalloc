@@ -12,10 +12,13 @@
 
 using namespace snmalloc;
 static constexpr size_t GRANULARITY_BITS = 20;
+
 struct T
 {
   size_t v = 99;
+
   T(size_t v) : v(v) {}
+
   T() {}
 };
 

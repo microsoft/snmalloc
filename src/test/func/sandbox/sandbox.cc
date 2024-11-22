@@ -25,6 +25,7 @@ namespace
   {
     SNMALLOC_CHECK(0 && "Should never be called!");
   }
+
   /**
    * Sandbox class.  Allocates a memory region and an allocator that can
    * allocate into this from the outside.

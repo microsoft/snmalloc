@@ -30,6 +30,7 @@ extern "C" void* enclave_malloc(size_t);
 extern "C" void enclave_free(void*);
 
 using namespace snmalloc;
+
 int main()
 {
   setup();

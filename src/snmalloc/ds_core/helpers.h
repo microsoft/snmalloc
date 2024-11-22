@@ -96,6 +96,7 @@ namespace snmalloc
    */
   template<typename Fn>
   struct function_ref;
+
   template<typename R, typename... Args>
   struct function_ref<R(Args...)>
   {

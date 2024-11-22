@@ -4,6 +4,7 @@
 #include <string.h>
 
 using namespace snmalloc;
+
 namespace
 {
   /**
@@ -88,7 +89,9 @@ extern "C"
   // statistics on fork if built with statistics.
 
   SNMALLOC_EXPORT SNMALLOC_USED_FUNCTION inline void _malloc_prefork(void) {}
+
   SNMALLOC_EXPORT SNMALLOC_USED_FUNCTION inline void _malloc_postfork(void) {}
+
   SNMALLOC_EXPORT SNMALLOC_USED_FUNCTION inline void _malloc_first_thread(void)
   {}
 

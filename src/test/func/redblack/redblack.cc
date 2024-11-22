@@ -22,28 +22,36 @@ struct NodeRef
   static constexpr size_t offset = 10000;
 
   size_t* ptr;
+
   constexpr NodeRef(size_t* p) : ptr(p) {}
+
   constexpr NodeRef() : ptr(nullptr) {}
+
   constexpr NodeRef(const NodeRef& other) : ptr(other.ptr) {}
+
   constexpr NodeRef(NodeRef&& other) : ptr(other.ptr) {}
 
   bool operator!=(const NodeRef& other) const
   {
     return ptr != other.ptr;
   }
+
   NodeRef& operator=(const NodeRef& other)
   {
     ptr = other.ptr;
     return *this;
   }
+
   void set(uint16_t val)
   {
     *ptr = ((size_t(val) + offset) << 1) + (*ptr & 1);
   }
+
   explicit operator uint16_t()
   {
     return uint16_t((*ptr >> 1) - offset);
   }
+
   explicit operator size_t*()
   {
     return ptr;

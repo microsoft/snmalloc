@@ -17,6 +17,7 @@ int main()
 
 // Specify type of allocator
 #  define SNMALLOC_PROVIDE_OWN_CONFIG
+
 namespace snmalloc
 {
   class CustomConfig : public CommonConfig
