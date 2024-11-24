@@ -194,6 +194,15 @@ namespace snmalloc
 #  endif
 #endif
 
+// Used to suppress pattern filling for potentially unintialized variables with
+// automatic storage duration.
+// https://clang.llvm.org/docs/AttributeReference.html#uninitialized
+#ifdef __clang__
+#  define SNMALLOC_UNINITIALISED [[clang::uninitialized]]
+#else
+#  define SNMALLOC_UNINITIALISED
+#endif
+
 namespace snmalloc
 {
   /**
