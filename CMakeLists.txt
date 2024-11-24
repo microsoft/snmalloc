@@ -210,6 +210,11 @@ if(MSVC)
   target_compile_options(snmalloc INTERFACE "/Zc:__cplusplus")
 endif()
 
+if (CMAKE_SYSTEM_NAME STREQUAL NetBSD)
+	target_include_directories(snmalloc INTERFACE /usr/pkg/include)
+	target_link_directories(snmalloc INTERFACE /usr/pkg/lib)
+endif()
+
 # Add header paths.
 target_include_directories(snmalloc
   INTERFACE
