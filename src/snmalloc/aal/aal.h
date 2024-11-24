@@ -15,11 +15,13 @@
 #  ifdef CLOCK_MONOTONIC
 #    define SNMALLOC_TICK_USE_CLOCK_GETTIME
 #  endif
-#else
-#  include <chrono>
 #endif
 #include <cstdint>
 #include <utility>
+
+#ifndef SNMALLOC_TICK_USE_CLOCK_GETTIME
+#  include <chrono>
+#endif
 
 #if ( \
   defined(__i386__) || defined(_M_IX86) || defined(_X86_) || \
