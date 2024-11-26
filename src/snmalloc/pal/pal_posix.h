@@ -6,6 +6,7 @@
 #if defined(SNMALLOC_BACKTRACE_HEADER)
 #  include SNMALLOC_BACKTRACE_HEADER
 #endif
+#include <cstdlib>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>

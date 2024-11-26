@@ -4,8 +4,6 @@
 #include "pal_consts.h"
 #include "pal_ds.h"
 
-#include <chrono>
-
 namespace snmalloc
 {
   template<typename PalTime>
