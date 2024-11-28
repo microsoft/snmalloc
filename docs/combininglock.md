@@ -301,10 +301,19 @@ Then it can notify (`HEAD`) the newly joined thread that it can execute the rema
 Finally, it must notify the last element it ran the lambda for that its work is `DONE`.
 The `DONE` notification must be done after the read of `next`, as signalling `DONE` can cause the memory for the node to be freed from the stack.
 
+## Full Implementation
+
 The [actual implementation](../src/snmalloc/ds/combininglock.h) in the `snmalloc` codebase is a little more complex as it uses a fast path lock for the uncontended case.
 This uses fewer atomic operations in the common case where the lock is not contended,
 and is a standard technique for queue locks.
 
+The implementation is also optionally integrated with the OS primitive for waiting such as `futex` or `waitonaddress`.
+This means that if enabled, then after spinning for a while the thread will back off to the OS primitive.
+This leads to better tail latency in the case where the lock is highly contended.
+
+We observed the OS waiting primitive can be negatively impacted by virtualization. So we provide a flag to disable
+the OS waiting primitive. Setting `SNMALLOC_ENABLE_WAIT_ON_ADDRESS` to `OFF` will disable the OS waiting primitive.
+The PR adding this feature is [#685](https://github.com/microsoft/snmalloc/pull/685/).
 
 ## Performance Results
 
@@ -313,7 +322,7 @@ We used a machine with 72 hardware threads.
 The benchmark causes all the threads to synchronise on starting their first allocation.
 This means all 72 threads are contending on the lock at the same time to get their allocator initialised.
 
-We ran this bench mark with a standard spin-lock (0.7.0-spin) and with the new combining lock (0.7.0):
+We ran this benchmark with a standard spin-lock (0.7.0-spin) and with the new combining lock (0.7.0):
 
 ![Combining lock performance](combininglockperf.svg)
 
@@ -321,22 +330,8 @@ As we can see from the benchmark, the combining lock is significantly faster tha
 
 This benchmark is not at all representative of most scenarios, and is stressing a worst case scenario of the system.
 
-## Future Work
-
-There are two things that would make the Combining lock even better:
-
-* Back off strategies
-* Integration with Futex/Waitonaddress
-
-The current implementation does not have any back off strategies for its spinning loops.
-This can be bad for performance, however, with the MCS queue lock the threads spin on individual cache lines so some of the worst effects of [spinning are mitigated](https://pdos.csail.mit.edu/papers/linux:lock.pdf).
-However, for a more general purpose the combining lock should have a back off strategy to increase the time between checks the longer it waits.
-
-The second improvement would be to integrate the combining lock with the OS level support for waiting.
-The spinning should ultimately back off to the OS primitive for waiting such as `futex` or `waitonaddress`.
-A naive integration we tried was slower, so we need to integrate with a more sensible back-off strategy to make this work.
-
-Neither of these improvements are particularly difficult, but we have not found them necessary for the current use case in `snmalloc`.
+The benchmarking also disabled the OS level support for waiting, so the combining lock is only using spinning.
+This was because on a virtualized system the OS level support was slower than spinning.
 
 ## Conclusion
 
