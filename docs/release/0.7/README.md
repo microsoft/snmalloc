@@ -62,7 +62,7 @@ The rest of this section details some improvements to get those results.
 
 The most interesting feature was the combining lock.
 This uses ideas from the Flat Combining work to provide a C++ lock that can be used to reduce the number of cache misses during lock contention.
-You can read more about that in [combininglock.md](../combininglock.md).
+You can read more about that in [combininglock.md](../../combininglock.md).
 
 ### DO_DUMP and DONT_DUMP
 
