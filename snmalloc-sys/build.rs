@@ -260,8 +260,9 @@ fn main() {
     let mut dst = cfg.build_target(target).build();
 
     dst.push("./build");
-
-    println!("cargo:rustc-link-lib={}", target);
+    // we need to specify static modifier, otherwise the linker may not be smart enough to resolve
+    // dependency from snmalloc to libc/libgcc_s
+    println!("cargo:rustc-link-lib=static={}", target);
 
     if cfg!(all(windows, target_env = "msvc")) {
         if cfg!(not(feature = "win8compat")) {

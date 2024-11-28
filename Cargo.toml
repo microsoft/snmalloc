@@ -1,6 +1,6 @@
 [package]
 name = "snmalloc-rs"
-version = "0.3.6"
+version = "0.3.7"
 authors = ["schrodingerzhu <i@zhuyi.fan>"]
 edition = "2021"
 license = "MIT"
@@ -13,13 +13,13 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-members = ["snmalloc-sys" ]
+members = ["snmalloc-sys"]
 
 [dependencies]
-snmalloc-sys = {version = "0.3.5", path = "snmalloc-sys", default-features = false }
+snmalloc-sys = { version = "0.3.7", path = "snmalloc-sys", default-features = false }
 
 [features]
-default = ["snmalloc-sys/build_cmake"]
+default = ["snmalloc-sys/build_cmake", "snmalloc-sys/usewait-on-address"]
 build_cc = ["snmalloc-sys/build_cc"]
 qemu = ["snmalloc-sys/qemu"]
 debug = ["snmalloc-sys/debug"]
@@ -32,4 +32,4 @@ check = ["snmalloc-sys/check"]
 lto = ["snmalloc-sys/lto"]
 notls = ["snmalloc-sys/notls"]
 stats = ["snmalloc-sys/stats"]
-#nowait-on-target = ["snmalloc-sys/nowait-on-target"]
+usewait-on-address = ["snmalloc-sys/usewait-on-address"]
