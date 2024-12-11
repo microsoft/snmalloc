@@ -13,7 +13,7 @@ To build with Visual Studio:
 ```
 mkdir build
 cd build
-cmake -G "Visual Studio 15 2019 Win64" ..
+cmake -G "Visual Studio 17 2022" -A x64 ..
 cmake --build . --config Debug
 cmake --build . --config Release
 cmake --build . --config RelWithDebInfo
@@ -112,8 +112,8 @@ target_link_libraries([lib_name] PRIVATE snmalloc_lib)
 You will also need to compile the relevant parts of snmalloc itself. Create a new file with the following contents and compile it with the rest of your application.
 
 ```c++
-#include "snmalloc/src/override/malloc.cc"
-#include "snmalloc/src/override/new.cc"
+#include "src/snmalloc/override/malloc.cc"
+#include "src/snmalloc/override/new.cc"
 ```
 
 To enable the `reallocarray` symbol export, this can be added to your cmake command line.
