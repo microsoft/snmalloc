@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stddef.h>
+
 namespace snmalloc
 {
   class StringView
@@ -40,4 +42,4 @@ namespace snmalloc
       return len;
     }
   };
-}
+} // namespace snmalloc
