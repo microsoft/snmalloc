@@ -1,10 +1,10 @@
 #pragma once
 
 #include "bits.h"
+#include "string_view.h"
 
 #include <array>
 #include <atomic>
-#include <string_view>
 #include <tuple>
 #include <type_traits>
 
@@ -272,9 +272,9 @@ namespace snmalloc
     /**
      * Append a string to the buffer.
      */
-    void append(std::string_view sv)
+    void append(StringView s)
     {
-      for (auto c : sv)
+      for (auto c : s)
       {
         append_char(c);
       }
