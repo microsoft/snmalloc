@@ -116,7 +116,7 @@ jobs:
   macos:
     strategy:
       matrix:
-        os: [ "macos-12", "macos-14" ]
+        os: [ "macos-13", "macos-14", "macos-15" ]
         build-type: [ "Release", "Debug" ]
         extra-cmake-flags: [ "", "-DSNMALLOC_USE_CXX17=ON" ]
       fail-fast: false
