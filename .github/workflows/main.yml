@@ -68,6 +68,11 @@ jobs:
             self-host: true
             extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On -DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10"
           - os: "ubuntu-20.04"
+            variant: "Traced Build"
+            build-type: Release
+            extra-cmake-flags: "-DSNMALLOC_TRACING=On"
+            build-only: yes
+          - os: "ubuntu-20.04"
             variant: "clang-10 libstdc++ (Build only)"
             build-type: Release
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10 -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
