@@ -35,7 +35,6 @@ We recommend you read [docs/security](./docs/security/README.md) to find out abo
 if you want to dive into the code [docs/AddressSpace.md](./docs/AddressSpace.md) provides a good overview of the allocation and deallocation paths.
 
 [![snmalloc CI](https://github.com/microsoft/snmalloc/actions/workflows/main.yml/badge.svg)](https://github.com/microsoft/snmalloc/actions/workflows/main.yml)
-[![snmalloc CI for Morello](https://github.com/microsoft/snmalloc/actions/workflows/morello.yml/badge.svg)](https://github.com/microsoft/snmalloc/actions/workflows/morello.yml)
 
 # Hardening
 
