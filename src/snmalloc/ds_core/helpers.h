@@ -4,6 +4,7 @@
 
 #include <array>
 #include <atomic>
+#include <cstddef>
 #include <tuple>
 #include <type_traits>
 
@@ -305,39 +306,42 @@ namespace snmalloc
 #endif
 
     /**
-     * Append a raw pointer or to the buffer as a hex string.
+     * Append a nullptr
      */
-    void append_raw_ptr(const void* ptr)
+    void append(std::nullptr_t)
     {
+      append("(nullptr)");
+    }
+
+    /**
+     * Append a raw pointer to the buffer as a hex string.
+     */
+    void append(void* ptr)
+    {
+      if (ptr == nullptr)
+      {
+        append(nullptr);
+        return;
+      }
       append(static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(ptr)));
       // TODO: CHERI bits.
     }
 
     /**
-     * Append a pointer.
+     * Append a literal pointer.
      */
-    template<class T>
-    void append(const T* ptr)
+    void append(const char* ptr)
     {
-      if constexpr (std::is_same_v<T, char>)
+      if (ptr == nullptr)
       {
-        while (char data = *ptr++)
-        {
-          append_char(data);
-        }
+        append(nullptr);
+        return;
       }
-      else
-      {
-        append_raw_ptr(ptr);
-      }
-    }
 
-    /**
-     * Append a null pointer.
-     */
-    void append(std::nullptr_t ptr)
-    {
-      append_raw_ptr(ptr);
+      while (char data = *ptr++)
+      {
+        append_char(data);
+      }
     }
 
     /**

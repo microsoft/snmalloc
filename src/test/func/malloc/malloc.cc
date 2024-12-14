@@ -232,7 +232,8 @@ int main(int argc, char** argv)
     1234567};
   if (
     strcmp(
-      "testing pointer 0x42 size_t 0x2a message, hello world, null is 0x0, "
+      "testing pointer 0x42 size_t 0x2a message, hello world, null is "
+      "(nullptr), "
       "-123456 is -123456, 1234567 is 1234567",
       b.get_message()) != 0)
   {
