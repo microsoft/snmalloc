@@ -1,7 +1,6 @@
 #pragma once
 
 #include "bits.h"
-#include "string_view.h"
 
 #include <array>
 #include <atomic>
@@ -272,11 +271,12 @@ namespace snmalloc
     /**
      * Append a string to the buffer.
      */
-    void append(StringView s)
+    template<size_t N>
+    void append(const char (&s)[N])
     {
-      for (auto c : s)
+      for (size_t i = 0; i < N - 1; i++)
       {
-        append_char(c);
+        append_char(s[i]);
       }
     }
 
@@ -305,12 +305,39 @@ namespace snmalloc
 #endif
 
     /**
-     * Append a raw pointer to the buffer as a hex string.
+     * Append a raw pointer or to the buffer as a hex string.
      */
-    void append(void* ptr)
+    void append_raw_ptr(const void* ptr)
     {
       append(static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(ptr)));
       // TODO: CHERI bits.
+    }
+
+    /**
+     * Append a pointer.
+     */
+    template<class T>
+    void append(const T* ptr)
+    {
+      if constexpr (std::is_same_v<T, char>)
+      {
+        while (char data = *ptr++)
+        {
+          append_char(data);
+        }
+      }
+      else
+      {
+        append_raw_ptr(ptr);
+      }
+    }
+
+    /**
+     * Append a null pointer.
+     */
+    void append(std::nullptr_t ptr)
+    {
+      append_raw_ptr(ptr);
     }
 
     /**
