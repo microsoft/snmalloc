@@ -3,9 +3,7 @@
 #include "bits.h"
 
 #include <array>
-#include <atomic>
 #include <cstddef>
-#include <tuple>
 #include <type_traits>
 
 namespace snmalloc
@@ -155,26 +153,6 @@ namespace snmalloc
      * The insert position within `buffer`.
      */
     size_t insert = 0;
-
-    /**
-     * Add argument `i` from the tuple `args` to the output.  This is
-     * implemented recursively because the different tuple elements can have
-     * different types and so the code for dispatching will depend on the type
-     * at the index.  The compiler will lower this to a jump table in optimised
-     * builds.
-     */
-    template<size_t I, typename... Args>
-    void add_tuple_arg(size_t i, const std::tuple<Args...>& args)
-    {
-      if (i == I)
-      {
-        append(std::get<I>(args));
-      }
-      else if constexpr (I != 0)
-      {
-        add_tuple_arg<I - 1>(i, args);
-      }
-    }
 
     /**
      * Append a single character into the buffer.  This is the single primitive
@@ -361,28 +339,40 @@ namespace snmalloc
       append(static_cast<unsigned long long>(x));
     }
 
+    /**
+     * Append with format string and arguments. Compiler
+     * is able to optimize the recursion into loops.
+     */
+    template<typename Head, typename... Tail>
+    void append(const char* fmt, Head&& head, Tail&&... tail)
+    {
+      if (*fmt == 0)
+      {
+        return;
+      }
+
+      if (fmt[0] == '{' && fmt[1] == '}')
+      {
+        append(std::forward<Head>(head));
+        // Automatically fallback to string appending if there is no more
+        // arguments.
+        append(fmt + 2, std::forward<Tail>(tail)...);
+        return;
+      }
+
+      append_char(*fmt);
+      append(fmt + 1, std::forward<Head>(head), std::forward<Tail>(tail)...);
+    }
+
   public:
     /**
      * Constructor.  Takes a format string and the arguments to output.
      */
     template<typename... Args>
-    SNMALLOC_FAST_PATH MessageBuilder(const char* fmt, Args... args)
+    SNMALLOC_FAST_PATH MessageBuilder(const char* fmt, Args&&... args)
     {
       buffer[SafeLength] = 0;
-      size_t arg = 0;
-      auto args_tuple = std::forward_as_tuple(args...);
-      for (const char* s = fmt; *s != 0; ++s)
-      {
-        if (s[0] == '{' && s[1] == '}')
-        {
-          add_tuple_arg<sizeof...(Args) - 1>(arg++, args_tuple);
-          ++s;
-        }
-        else
-        {
-          append_char(*s);
-        }
-      }
+      append(fmt, std::forward<Args>(args)...);
       append_char('\0');
     }
 
