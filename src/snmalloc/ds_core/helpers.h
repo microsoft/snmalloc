@@ -344,7 +344,7 @@ namespace snmalloc
      * is able to optimize the recursion into loops.
      */
     template<typename Head, typename... Tail>
-    void append(const char* fmt, Head&& head, Tail&&... tail)
+    void append_args(const char* fmt, Head&& head, Tail&&... tail)
     {
       if (*fmt == 0)
       {
@@ -354,14 +354,20 @@ namespace snmalloc
       if (fmt[0] == '{' && fmt[1] == '}')
       {
         append(std::forward<Head>(head));
-        // Automatically fallback to string appending if there is no more
-        // arguments.
-        append(fmt + 2, std::forward<Tail>(tail)...);
+        if constexpr (sizeof...(Tail) == 0)
+        {
+          append(fmt + 2);
+        }
+        else
+        {
+          append_args(fmt + 2, std::forward<Tail>(tail)...);
+        }
         return;
       }
 
       append_char(*fmt);
-      append(fmt + 1, std::forward<Head>(head), std::forward<Tail>(tail)...);
+      append_args(
+        fmt + 1, std::forward<Head>(head), std::forward<Tail>(tail)...);
     }
 
   public:
@@ -372,7 +378,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH MessageBuilder(const char* fmt, Args&&... args)
     {
       buffer[SafeLength] = 0;
-      append(fmt, std::forward<Args>(args)...);
+      append_args(fmt, std::forward<Args>(args)...);
       append_char('\0');
     }
 
