@@ -169,8 +169,8 @@ namespace snmalloc
 
   struct SizeClassTable
   {
-    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_fast> fast_{};
-    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_slow> slow_{};
+    std::array<sizeclass_data_fast, SIZECLASS_REP_SIZE> fast_{};
+    std::array<sizeclass_data_slow, SIZECLASS_REP_SIZE> slow_{};
 
     size_t DIV_MULT_SHIFT{0};
 
