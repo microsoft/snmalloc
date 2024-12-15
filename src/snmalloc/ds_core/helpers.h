@@ -4,7 +4,7 @@
 
 #include <array>
 #include <atomic>
-#include <string_view>
+#include <cstddef>
 #include <tuple>
 #include <type_traits>
 
@@ -192,11 +192,12 @@ namespace snmalloc
     /**
      * Append a string to the buffer.
      */
-    void append(std::string_view sv)
+    template<size_t N>
+    void append(const char (&s)[N])
     {
-      for (auto c : sv)
+      for (size_t i = 0; i < N - 1; i++)
       {
-        append_char(c);
+        append_char(s[i]);
       }
     }
 
@@ -225,12 +226,42 @@ namespace snmalloc
 #endif
 
     /**
+     * Append a nullptr
+     */
+    void append(std::nullptr_t)
+    {
+      append("(nullptr)");
+    }
+
+    /**
      * Append a raw pointer to the buffer as a hex string.
      */
     void append(void* ptr)
     {
+      if (ptr == nullptr)
+      {
+        append(nullptr);
+        return;
+      }
       append(static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(ptr)));
       // TODO: CHERI bits.
+    }
+
+    /**
+     * Append a literal pointer.
+     */
+    void append(const char* ptr)
+    {
+      if (ptr == nullptr)
+      {
+        append(nullptr);
+        return;
+      }
+
+      while (char data = *ptr++)
+      {
+        append_char(data);
+      }
     }
 
     /**
