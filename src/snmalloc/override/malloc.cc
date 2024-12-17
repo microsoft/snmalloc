@@ -42,7 +42,7 @@ extern "C"
 
 #ifdef _WIN32
   SNMALLOC_EXPORT
-  size_t SNMALLOC_NAME_MANGLE(_msize)(MALLOC_USABLE_SIZE_QUALIFIER void* ptr)
+  size_t SNMALLOC_NAME_MANGLE(_msize)(void* ptr)
   {
     return snmalloc::libc::malloc_usable_size(ptr);
   }
