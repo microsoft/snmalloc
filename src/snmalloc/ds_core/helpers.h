@@ -346,11 +346,6 @@ namespace snmalloc
     template<typename Head, typename... Tail>
     void append(const char* fmt, Head&& head, Tail&&... tail)
     {
-      if (*fmt == 0)
-      {
-        return;
-      }
-
       if (fmt[0] == '{' && fmt[1] == '}')
       {
         append(std::forward<Head>(head));
