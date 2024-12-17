@@ -344,7 +344,7 @@ namespace snmalloc
      * is able to optimize the recursion into loops.
      */
     template<typename Head, typename... Tail>
-    void append_args(const char* fmt, Head&& head, Tail&&... tail)
+    void append(const char* fmt, Head&& head, Tail&&... tail)
     {
       if (*fmt == 0)
       {
@@ -354,20 +354,12 @@ namespace snmalloc
       if (fmt[0] == '{' && fmt[1] == '}')
       {
         append(std::forward<Head>(head));
-        if constexpr (sizeof...(Tail) == 0)
-        {
-          append(fmt + 2);
-        }
-        else
-        {
-          append_args(fmt + 2, std::forward<Tail>(tail)...);
-        }
+        append(fmt + 2, std::forward<Tail>(tail)...);
         return;
       }
 
       append_char(*fmt);
-      append_args(
-        fmt + 1, std::forward<Head>(head), std::forward<Tail>(tail)...);
+      append(fmt + 1, std::forward<Head>(head), std::forward<Tail>(tail)...);
     }
 
   public:
@@ -378,22 +370,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH MessageBuilder(const char* fmt, Args&&... args)
     {
       buffer[SafeLength] = 0;
-      append_args(fmt, std::forward<Args>(args)...);
-      append_char('\0');
-    }
-
-    /**
-     * Constructor for trivial format strings (no arguments).  This exists to
-     * allow `MessageBuilder` to be used with macros without special casing
-     * the single-argument version.
-     */
-    SNMALLOC_FAST_PATH MessageBuilder(const char* fmt)
-    {
-      buffer[SafeLength] = 0;
-      for (const char* s = fmt; *s != 0; ++s)
-      {
-        append_char(*s);
-      }
+      append(fmt, std::forward<Args>(args)...);
       append_char('\0');
     }
 
