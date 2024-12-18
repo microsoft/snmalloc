@@ -547,7 +547,9 @@ jobs:
     - name: Build
       run: cmake --build ${{github.workspace}}/build --parallel
     - name: Test
-      run: ctest --parallel
+      run: |
+        cd ${{github.workspace}}/build
+        ctest --parallel
       
   all-checks:
     # Currently FreeBSD and NetBSD CI are not working, so we do not require them to pass.
