@@ -62,6 +62,15 @@ namespace snmalloc
         return static_cast<int>(mem_ord);
       }
 
+      SNMALLOC_FAST_PATH static int infer_failure_order(MemoryOrder mem_ord)
+      {
+        if (mem_ord == MemoryOrder::RELEASE)
+          return order(MemoryOrder::RELAXED);
+        if (mem_ord == MemoryOrder::ACQ_REL)
+          return order(MemoryOrder::ACQUIRE);
+        return order(mem_ord);
+      }
+
       SNMALLOC_FAST_PATH static T* addressof(T& ref)
       {
         return __builtin_addressof(ref);
@@ -125,7 +134,7 @@ namespace snmalloc
           addressof(desired),
           false,
           order(mem_ord),
-          order(mem_ord));
+          infer_failure_order(mem_ord));
       }
 
       // Atomic compare exchange (separate success and failure memory orders)
@@ -154,7 +163,7 @@ namespace snmalloc
           addressof(desired),
           true,
           order(mem_ord),
-          order(mem_ord));
+          infer_failure_order(mem_ord));
       }
 
       // Atomic compare exchange (weak version with separate success and failure
