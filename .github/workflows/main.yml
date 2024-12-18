@@ -504,6 +504,44 @@ jobs:
     - name: Test
       run: ${{github.workspace}}/build/fuzzing/snmalloc-fuzzer
 
+  self-vendored:
+    strategy:
+      matrix:
+        os: [ "ubuntu-24.04", "windows-2022", "macos-15" ]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Prepare Windows
+      if: runner.os == 'Windows'
+      run: |
+        choco install ninja
+        echo CXX=clang-cl >> $GITHUB_ENV
+        echo CC=clang-cl >> $GITHUB_ENV
+    - name: Prepare macOS
+      if: runner.os == 'macOS'
+      run: |
+        brew install ninja
+        echo CXX=clang++ >> $GITHUB_ENV
+        echo CC=clang >> $GITHUB_ENV
+    - name: Prepare Ubuntu
+      if: runner.os == 'Linux'
+      run: |
+        echo CXX=clang++ >> $GITHUB_ENV
+        echo CC=clang >> $GITHUB_ENV
+    - name: Configure CMake
+      run: >
+        cmake 
+        -B ${{github.workspace}}/build 
+        -DSNMALLOC_USE_SELF_VENDORED_STL=ON
+        -GNinja
+        -DCMAKE_BUILD_TYPE=RelWithDebInfo
+        -DCMAKE_CXX_COMPILER=$CXX
+        -DCMAKE_C_COMPILER=$CC
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --parallel
+    - name: Test
+      run: ctest --parallel
+      
   all-checks:
     # Currently FreeBSD and NetBSD CI are not working, so we do not require them to pass.
     # Add fuzzing back when the memove issue is fixed.
