@@ -2,8 +2,7 @@
 
 #include "empty_range.h"
 #include "range_helpers.h"
-
-#include <atomic>
+#include "snmalloc/proxy/atomic.h"
 
 namespace snmalloc
 {
@@ -17,8 +16,8 @@ namespace snmalloc
     {
       using ContainsParent<ParentRange>::parent;
 
-      static inline std::atomic<size_t> current_usage{};
-      static inline std::atomic<size_t> peak_usage{};
+      static inline proxy::Atomic<size_t> current_usage{};
+      static inline proxy::Atomic<size_t> peak_usage{};
 
     public:
       static constexpr bool Aligned = ParentRange::Aligned;

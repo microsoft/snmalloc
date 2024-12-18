@@ -2,8 +2,7 @@
 
 #include "concept.h"
 #include "defines.h"
-
-#include <atomic>
+#include "snmalloc/proxy/atomic.h"
 
 namespace snmalloc
 {
@@ -41,7 +40,7 @@ namespace snmalloc
   using Pointer = T*;
 
   template<typename T>
-  using AtomicPointer = std::atomic<T*>;
+  using AtomicPointer = proxy::Atomic<T*>;
 
   /**
    * Summaries of StrictProvenance metadata.  We abstract away the particular
@@ -450,17 +449,17 @@ namespace snmalloc
 
   /**
    *
-   * Wrap a std::atomic<T*> with bounds annotation and speak in terms of
+   * Wrap a proxy::Atomic<T*> with bounds annotation and speak in terms of
    * bounds-annotated pointers at the interface.
    *
    * Note the membranous sleight of hand being pulled here: this class puts
-   * annotations around an un-annotated std::atomic<T*>, to appease C++, yet
+   * annotations around an un-annotated proxy::Atomic<T*>, to appease C++, yet
    * will expose or consume only CapPtr<T> with the same bounds annotation.
    */
   template<typename T, SNMALLOC_CONCEPT(capptr::IsBound) bounds>
   class AtomicCapPtr
   {
-    std::atomic<T*> unsafe_capptr;
+    proxy::Atomic<T*> unsafe_capptr;
 
   public:
     /**
@@ -497,21 +496,21 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH CapPtr<T, bounds>
-    load(std::memory_order order = std::memory_order_seq_cst) noexcept
+    load(proxy::MemoryOrder order = proxy::memory_order_seq_cst) noexcept
     {
       return CapPtr<T, bounds>::unsafe_from(this->unsafe_capptr.load(order));
     }
 
     SNMALLOC_FAST_PATH void store(
       CapPtr<T, bounds> desired,
-      std::memory_order order = std::memory_order_seq_cst) noexcept
+      proxy::MemoryOrder order = proxy::memory_order_seq_cst) noexcept
     {
       this->unsafe_capptr.store(desired.unsafe_ptr(), order);
     }
 
     SNMALLOC_FAST_PATH CapPtr<T, bounds> exchange(
       CapPtr<T, bounds> desired,
-      std::memory_order order = std::memory_order_seq_cst) noexcept
+      proxy::MemoryOrder order = proxy::memory_order_seq_cst) noexcept
     {
       return CapPtr<T, bounds>::unsafe_from(
         this->unsafe_capptr.exchange(desired.unsafe_ptr(), order));

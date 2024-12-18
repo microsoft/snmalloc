@@ -177,11 +177,11 @@ namespace snmalloc
 
       // give a try to SYS_getrandom
 #  ifdef SYS_getrandom
-      static std::atomic_bool syscall_not_working = false;
+      static proxy::AtomicBool syscall_not_working = false;
       // Relaxed ordering should be fine here. This function will be called
       // during early initialisation, which will examine the availability in a
       // protected routine.
-      if (false == syscall_not_working.load(std::memory_order_relaxed))
+      if (false == syscall_not_working.load(proxy::memory_order_relaxed))
       {
         auto current = std::begin(buffer);
         auto target = std::end(buffer);
@@ -224,7 +224,7 @@ namespace snmalloc
           // in this routine, the only possible situations should be ENOSYS
           // or EPERM (forbidden by seccomp, for example).
           SNMALLOC_ASSERT(errno == ENOSYS || errno == EPERM);
-          syscall_not_working.store(true, std::memory_order_relaxed);
+          syscall_not_working.store(true, proxy::memory_order_relaxed);
         }
         else
         {
@@ -246,13 +246,13 @@ namespace snmalloc
     using WaitingWord = int;
 
     template<class T>
-    static void wait_on_address(std::atomic<T>& addr, T expected)
+    static void wait_on_address(proxy::Atomic<T>& addr, T expected)
     {
       int backup = errno;
       static_assert(
         sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
         "T must be the same size and alignment as WaitingWord");
-      while (addr.load(std::memory_order_relaxed) == expected)
+      while (addr.load(proxy::memory_order_relaxed) == expected)
       {
         long ret = syscall(
           SYS_futex, &addr, FUTEX_WAIT_PRIVATE, expected, nullptr, nullptr, 0);
@@ -264,7 +264,7 @@ namespace snmalloc
     }
 
     template<class T>
-    static void notify_one_on_address(std::atomic<T>& addr)
+    static void notify_one_on_address(proxy::Atomic<T>& addr)
     {
       static_assert(
         sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
@@ -273,7 +273,7 @@ namespace snmalloc
     }
 
     template<class T>
-    static void notify_all_on_address(std::atomic<T>& addr)
+    static void notify_all_on_address(proxy::Atomic<T>& addr)
     {
       static_assert(
         sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),

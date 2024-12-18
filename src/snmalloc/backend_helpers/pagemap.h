@@ -2,8 +2,8 @@
 
 #include "../ds/ds.h"
 #include "../mem/mem.h"
+#include "snmalloc/proxy/atomic.h"
 
-#include <atomic>
 #include <utility>
 
 namespace snmalloc

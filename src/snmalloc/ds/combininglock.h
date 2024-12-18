@@ -2,8 +2,7 @@
 
 #include "../aal/aal.h"
 #include "../pal/pal.h"
-
-#include <atomic>
+#include "snmalloc/proxy/atomic.h"
 
 namespace snmalloc
 {
@@ -12,14 +11,14 @@ namespace snmalloc
   struct CombiningLock
   {
     // Fast path lock incase there is no contention.
-    std::atomic<bool> flag{false};
+    proxy::Atomic<bool> flag{false};
 
     // MCS queue of work items
-    std::atomic<CombiningLockNode*> last{nullptr};
+    proxy::Atomic<CombiningLockNode*> last{nullptr};
 
     void release()
     {
-      flag.store(false, std::memory_order_release);
+      flag.store(false, proxy::memory_order_release);
     }
   };
 
@@ -86,10 +85,10 @@ namespace snmalloc
     // Status of the queue, set by the thread at the head of the queue,
     // When it makes the thread for this node either the head of the queue
     // or completes its work.
-    std::atomic<LockStatus> status{LockStatus::WAITING};
+    proxy::Atomic<LockStatus> status{LockStatus::WAITING};
 
     // Used to store the queue
-    std::atomic<CombiningLockNode*> next{nullptr};
+    proxy::Atomic<CombiningLockNode*> next{nullptr};
 
     // Stores the C++ lambda associated with this node in the queue.
     void (*f_raw)(CombiningLockNode*);
@@ -98,7 +97,7 @@ namespace snmalloc
 
     void set_status(LockStatus s)
     {
-      status.store(s, std::memory_order_release);
+      status.store(s, proxy::memory_order_release);
     }
 
     template<typename Pal = DefaultPal>
@@ -111,7 +110,7 @@ namespace snmalloc
       else
       {
         if (
-          node->status.exchange(message, std::memory_order_acq_rel) ==
+          node->status.exchange(message, proxy::memory_order_acq_rel) ==
           LockStatus::SLEEPING)
         {
           Pal::notify_one_on_address(node->status);
@@ -124,7 +123,7 @@ namespace snmalloc
     {
       if constexpr (!use_wait_on_address<Pal>)
       {
-        while (status.load(std::memory_order_acquire) == LockStatus::WAITING)
+        while (status.load(proxy::memory_order_acquire) == LockStatus::WAITING)
           Aal::pause();
       }
       else
@@ -132,14 +131,14 @@ namespace snmalloc
         int remaining = 100;
         while (remaining > 0)
         {
-          if (status.load(std::memory_order_acquire) != LockStatus::WAITING)
+          if (status.load(proxy::memory_order_acquire) != LockStatus::WAITING)
             return;
           Aal::pause();
           remaining--;
         }
         LockStatus expected = LockStatus::WAITING;
         if (status.compare_exchange_strong(
-              expected, LockStatus::SLEEPING, std::memory_order_acq_rel))
+              expected, LockStatus::SLEEPING, proxy::memory_order_acq_rel))
         {
           Pal::wait_on_address(status, LockStatus::SLEEPING);
         }
@@ -150,18 +149,18 @@ namespace snmalloc
     {
       // There is contention for the lock, we need to add our work to the
       // queue of pending work
-      auto prev = lock.last.exchange(this, std::memory_order_acq_rel);
+      auto prev = lock.last.exchange(this, proxy::memory_order_acq_rel);
 
       if (prev != nullptr)
       {
         // If we aren't the head, link into predecessor
-        prev->next.store(this, std::memory_order_release);
+        prev->next.store(this, proxy::memory_order_release);
 
         // Wait to for predecessor to complete
         wait();
 
         // Determine if another thread completed our work.
-        if (status.load(std::memory_order_acquire) == LockStatus::DONE)
+        if (status.load(proxy::memory_order_acquire) == LockStatus::DONE)
           return;
       }
       else
@@ -170,9 +169,9 @@ namespace snmalloc
         // lock.  As we are in the queue future requests shouldn't try to
         // acquire the fast path lock, but stale views of the queue being empty
         // could still be concurrent with this thread.
-        while (lock.flag.exchange(true, std::memory_order_acquire))
+        while (lock.flag.exchange(true, proxy::memory_order_acquire))
         {
-          while (lock.flag.load(std::memory_order_relaxed))
+          while (lock.flag.load(proxy::memory_order_relaxed))
           {
             Aal::pause();
           }
@@ -190,14 +189,14 @@ namespace snmalloc
       while (true)
       {
         // Start pulling in the next element of the queue
-        auto n = curr->next.load(std::memory_order_acquire);
+        auto n = curr->next.load(proxy::memory_order_acquire);
         Aal::prefetch(n);
 
         // Perform work for head of the queue
         curr->f_raw(curr);
 
         // Determine if there are more elements.
-        n = curr->next.load(std::memory_order_acquire);
+        n = curr->next.load(proxy::memory_order_acquire);
         if (n == nullptr)
           break;
         // Signal this work was completed and move on to
@@ -212,8 +211,8 @@ namespace snmalloc
       if (lock.last.compare_exchange_strong(
             curr_c,
             nullptr,
-            std::memory_order_release,
-            std::memory_order_relaxed))
+            proxy::memory_order_release,
+            proxy::memory_order_relaxed))
       {
         // Queue was successfully closed.
         // Notify last element the work was completed.
@@ -224,10 +223,10 @@ namespace snmalloc
 
       // Failed to close the queue wait for next thread to be
       // added.
-      while (curr->next.load(std::memory_order_relaxed) == nullptr)
+      while (curr->next.load(proxy::memory_order_relaxed) == nullptr)
         Aal::pause();
 
-      auto n = curr->next.load(std::memory_order_acquire);
+      auto n = curr->next.load(proxy::memory_order_acquire);
 
       // As we had to wait, give the job to the next thread
       // to carry on performing the work.
@@ -272,12 +271,12 @@ namespace snmalloc
   inline void with(CombiningLock& lock, F&& f)
   {
     // Test if no one is waiting
-    if (SNMALLOC_LIKELY(lock.last.load(std::memory_order_relaxed) == nullptr))
+    if (SNMALLOC_LIKELY(lock.last.load(proxy::memory_order_relaxed) == nullptr))
     {
       // No one was waiting so low contention. Attempt to acquire the flag
       // lock.
       if (SNMALLOC_LIKELY(
-            lock.flag.exchange(true, std::memory_order_acquire) == false))
+            lock.flag.exchange(true, proxy::memory_order_acquire) == false))
       {
         // We grabbed the lock.
         // Execute the thunk.
