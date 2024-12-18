@@ -15,6 +15,7 @@ int main()
 
 #  include "test/setup.h"
 
+#  include <atomic>
 #  include <iostream>
 #  include <memory>
 #  include <snmalloc/backend/globalconfig.h>
