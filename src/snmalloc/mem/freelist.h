@@ -186,7 +186,7 @@ namespace snmalloc
           prev{};
 
       public:
-        constexpr T() : next_object() {};
+        constexpr T() : next_object(){};
 
         template<
           SNMALLOC_CONCEPT(capptr::IsBound) BView = typename BQueue::
@@ -542,7 +542,7 @@ namespace snmalloc
     class NoPrev
     {
     protected:
-      constexpr NoPrev(address_t) {};
+      constexpr NoPrev(address_t){};
       constexpr NoPrev() = default;
 
       address_t replace(address_t t)

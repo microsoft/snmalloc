@@ -15,12 +15,14 @@ namespace snmalloc
   template<class T>
   class PoolState;
 
+  // clang-format off
 #ifdef __cpp_concepts
   template<typename C, typename T>
   concept Constructable = requires() {
     { C::make() } -> ConceptSame<capptr::Alloc<T>>;
   };
 #endif // __cpp_concepts
+  
 
   /**
    * Required to be implemented by all types that are pooled.
