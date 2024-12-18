@@ -252,6 +252,7 @@ namespace snmalloc
     constexpr auto memory_order_seq_cst = std::memory_order_seq_cst;
 
     using AtomicBool = std::atomic<bool>;
+    using MemoryOrder = std::memory_order;
   } // namespace proxy
 } // namespace snmalloc
 #endif
