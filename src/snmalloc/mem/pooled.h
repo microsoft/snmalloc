@@ -18,10 +18,8 @@ namespace snmalloc
 #ifdef __cpp_concepts
   template<typename C, typename T>
   concept Constructable = requires() {
-                            {
-                              C::make()
-                              } -> ConceptSame<capptr::Alloc<T>>;
-                          };
+    { C::make() } -> ConceptSame<capptr::Alloc<T>>;
+  };
 #endif // __cpp_concepts
 
   /**
@@ -46,7 +44,7 @@ namespace snmalloc
     capptr::Alloc<T> next{nullptr};
     /// Used by the pool to keep the list of all entries ever created.
     capptr::Alloc<T> list_next;
-    std::atomic<bool> in_use{false};
+    proxy::Atomic<bool> in_use{false};
 
   public:
     void set_in_use()

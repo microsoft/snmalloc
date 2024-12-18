@@ -94,14 +94,14 @@ Let us provide an MCS queue lock for our API given above:
 ```C++
 struct LockNode
 {
-  std::atomic<LockNode*> next{nullptr};
-  std::atomic<bool> available{false};
+  proxy::Atomic<LockNode*> next{nullptr};
+  proxy::Atomic<bool> available{false};
 };
 
 struct MCSLock
 {
   // End of queue
-  std::atomic<LockNode*> last;
+  proxy::Atomic<LockNode*> last;
 };
 
 template<typename F>
@@ -112,13 +112,13 @@ inline void with(MCSLock& lock, F&& f)
 
   // **************ACQUIRE**************
   // Add ourselves to the end of the queue.
-  LockNode* prev = lock.last.exchange(&node, std::memory_order_acq_rel);
+  LockNode* prev = lock.last.exchange(&node, proxy::memory_order_acq_rel);
   if (prev != nullptr)
   {
     // Add link to previous element in the queue
-    prev->next.store(&node, std::memory_order_release);
+    prev->next.store(&node, proxy::memory_order_release);
     // Wait for out turn.
-    while (!node.available.load(std::memory_order_acquire))
+    while (!node.available.load(proxy::memory_order_acquire))
       ;
   }
 
@@ -128,19 +128,19 @@ inline void with(MCSLock& lock, F&& f)
 
   // **************RELEASE**************
   // Check if there is a next thread.
-  if (node.next.load(std::memory_order_acquire) == nullptr)
+  if (node.next.load(proxy::memory_order_acquire) == nullptr)
   {
     auto node_address = &node;
     // No next thread so remove ourselves from the end of the queue
-    if (lock.last.compare_exchange_strong(node_address, nullptr, std::memory_order_acq_rel))
+    if (lock.last.compare_exchange_strong(node_address, nullptr, proxy::memory_order_acq_rel))
       return;
     // Wait for next thread to be set as we failed to remove ourselves from the end of the queue.
-    while (node.next.load(std::memory_order_acquire) == nullptr)
+    while (node.next.load(proxy::memory_order_acquire) == nullptr)
       ;
   }
 
   // Wake next thread.
-  node.next.load(std::memory_order_acquire)->available.store(true, std::memory_order_release);
+  node.next.load(proxy::memory_order_acquire)->available.store(true, proxy::memory_order_release);
 }
 ```
 The code can be broken into three parts:
@@ -187,8 +187,8 @@ This represents the operation that the must be executed for this thread.
 ```C++
 struct CombiningLockNode
 {
-  std::atomic<CombiningLockNode*> next{nullptr};
-  std::atomic<LockStatus> status{WAITING};
+  proxy::Atomic<CombiningLockNode*> next{nullptr};
+  proxy::Atomic<LockStatus> status{WAITING};
   void (*f_raw)(CombiningLockNode*);
 
   void run()
@@ -226,19 +226,19 @@ inline void with(CombiningLock& lock, F&& f)
 
   // **************ACQUIRE**************
   // Add ourselves to the end of the queue.
-  CombiningLockNode* prev = lock.last.exchange(&node, std::memory_order_acq_rel);
+  CombiningLockNode* prev = lock.last.exchange(&node, proxy::memory_order_acq_rel);
 
   if (prev != nullptr)
   {
     // Add link to previous element in the queue
-    prev->next.store(&node, std::memory_order_release);
+    prev->next.store(&node, proxy::memory_order_release);
     
     // Wait for our turn.
-    while (node.status.load(std::memory_order_relaxed) == LockStatus::WAITING)
+    while (node.status.load(proxy::memory_order_relaxed) == LockStatus::WAITING)
       ;
 
     // Check if another thread completed our work.
-    if (node.status.load(std::memory_order_acquire) == LockStatus::DONE)
+    if (node.status.load(proxy::memory_order_acquire) == LockStatus::DONE)
       return;
   }
 
@@ -251,37 +251,37 @@ inline void with(CombiningLock& lock, F&& f)
     curr->run();
 
     // Check if there is another operation to execute
-    auto next = curr->next.load(std::memory_order_acquire);
+    auto next = curr->next.load(proxy::memory_order_acquire);
     if (next == nullptr)
       break;
 
     // Notify thread that we completed its work.
-    curr->status.store(LockStatus::DONE, std::memory_order_release);
+    curr->status.store(LockStatus::DONE, proxy::memory_order_release);
     curr = next;
   }
 
   // ***********RELEASE**************
   // Attempt to close the queue
   auto curr_address = curr;
-  if (lock.last.compare_exchange_strong(curr_address, nullptr, std::memory_order_acq_rel))
+  if (lock.last.compare_exchange_strong(curr_address, nullptr, proxy::memory_order_acq_rel))
   {
-    curr->status.store(LockStatus::DONE, std::memory_order_release);
+    curr->status.store(LockStatus::DONE, proxy::memory_order_release);
     return;
   }
 
   // Wait for next thread to be set as we failed to remove
   // ourselves from the end of the queue.
-  while (curr->next.load(std::memory_order_relaxed) == nullptr)
+  while (curr->next.load(proxy::memory_order_relaxed) == nullptr)
     ;
 
   // Read the next thread
-  auto next = curr->next.load(std::memory_order_acquire);
+  auto next = curr->next.load(proxy::memory_order_acquire);
 
   // Notify the current thread that its work has been completed.
-  curr->status.store(LockStatus::DONE, std::memory_order_release);
+  curr->status.store(LockStatus::DONE, proxy::memory_order_release);
   // Notify the next thread it is the head of the queue, and should
   // perform operations from the queue.
-  next->status.store(LockStatus::HEAD, std::memory_order_release);
+  next->status.store(LockStatus::HEAD, proxy::memory_order_release);
   return;
 }
 ```
