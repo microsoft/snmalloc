@@ -13,7 +13,14 @@ struct Shape
 
 size_t my_random()
 {
+#ifndef __OpenBSD__
   return (size_t)rand();
+#else
+  // OpenBSD complains on rand() usage
+  // we let it know we purposely want
+  // deterministic randomness here
+  return (size_t)lrand48();
+#endif
 }
 
 std::vector<Shape> allocs;
