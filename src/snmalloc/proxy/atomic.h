@@ -101,7 +101,9 @@ namespace snmalloc
       }
 
       // Atomic store.
-      SNMALLOC_FAST_PATH T operator=(T rhs)
+      // NOLINTNEXTLINE(misc-unconventional-assign-operator)
+      SNMALLOC_FAST_PATH
+      T operator=(T rhs)
       {
         store(rhs);
         return rhs;
@@ -216,7 +218,7 @@ namespace snmalloc
           addressof(val), 1, order(MemoryOrder::SEQ_CST));
       }
 
-      SNMALLOC_FAST_PATH T operator++(int)
+      SNMALLOC_FAST_PATH const T operator++(int)
       {
         static_assert(std::is_integral_v<T>, "T must be an integral type.");
         return __atomic_fetch_add(

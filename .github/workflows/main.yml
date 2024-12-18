@@ -507,7 +507,19 @@ jobs:
   self-vendored:
     strategy:
       matrix:
-        os: [ "ubuntu-24.04", "windows-2022", "macos-15" ]
+        include:
+        - os: windows-2022
+          cxx: clang-cl
+          cc: clang-cl
+        - os: ubuntu-latest
+          cxx: clang++
+          cc: clang
+        - os: ubuntu-latest
+          cxx: g++
+          cc: gcc
+        - os: macos-latest
+          cxx: clang++
+          cc: clang
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
@@ -515,20 +527,14 @@ jobs:
       if: runner.os == 'Windows'
       run: |
         choco install ninja
-        echo CXX=clang-cl >> $GITHUB_ENV
-        echo CC=clang-cl >> $GITHUB_ENV
     - name: Prepare macOS
       if: runner.os == 'macOS'
       run: |
         brew install ninja
-        echo CXX=clang++ >> $GITHUB_ENV
-        echo CC=clang >> $GITHUB_ENV
     - name: Prepare Ubuntu
       if: runner.os == 'Linux'
       run: |
         sudo apt install ninja-build
-        echo CXX=clang++ >> $GITHUB_ENV
-        echo CC=clang >> $GITHUB_ENV
     - name: Configure CMake
       run: >
         cmake 
@@ -536,8 +542,8 @@ jobs:
         -DSNMALLOC_USE_SELF_VENDORED_STL=ON
         -GNinja
         -DCMAKE_BUILD_TYPE=RelWithDebInfo
-        -DCMAKE_CXX_COMPILER=$CXX
-        -DCMAKE_C_COMPILER=$CC
+        -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
+        -DCMAKE_C_COMPILER=${{ matrix.cc }}
     - name: Build
       run: cmake --build ${{github.workspace}}/build --parallel
     - name: Test
