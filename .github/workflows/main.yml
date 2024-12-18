@@ -130,7 +130,10 @@ jobs:
             # 2to3 exists.  As a quick hack, delete it first.  This should be
             # removed once the homebrew install is fixed.
       run: "rm -f /usr/local/bin/2to3 ; brew update && brew install ninja"
-    
+    - name: Pick the latest XCode in runner
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.cmake-flags }} ${{ matrix.extra-cmake-flags }}
       # Build with a nice ninja status line
