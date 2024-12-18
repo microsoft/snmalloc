@@ -211,6 +211,7 @@ jobs:
       with:
         release: ${{ matrix.os.version}}
         usesh: true
+        sync: sshfs
         mem: 8192
         copyback: false
         prepare: |
