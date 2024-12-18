@@ -53,6 +53,10 @@
 #  define PLATFORM_IS_RISCV
 #endif
 
+#if defined(__loongarch__)
+#  define PLATFORM_IS_LOONGARCH
+#endif
+
 namespace snmalloc
 {
   /**
@@ -273,6 +277,8 @@ namespace snmalloc
 #  include "aal_sparc.h"
 #elif defined(PLATFORM_IS_RISCV)
 #  include "aal_riscv.h"
+#elif defined(PLATFORM_IS_LOONGARCH)
+#  include "aal_loongarch.h"
 #endif
 
 #if defined(__CHERI_PURE_CAPABILITY__)

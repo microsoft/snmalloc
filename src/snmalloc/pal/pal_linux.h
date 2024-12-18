@@ -38,8 +38,9 @@ namespace snmalloc
 #  endif
       ;
 
-    static constexpr size_t page_size =
-      Aal::aal_name == PowerPC ? 0x10000 : PALPOSIX::page_size;
+    static constexpr size_t page_size = Aal::aal_name == PowerPC ?
+      0x10000 :
+      (Aal::aal_name == LoongArch ? 0x4000 : PALPOSIX::page_size);
 
     /**
      * Linux requires an explicit no-reserve flag in `mmap` to guarantee lazy
