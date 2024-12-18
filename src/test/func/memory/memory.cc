@@ -5,8 +5,8 @@
 #include <test/xoroshiro.h>
 #include <unordered_set>
 #include <vector>
-#if ((defined(__linux__) && !defined(__ANDROID__)) || defined(__sun)) && \
-  !defined(SNMALLOC_QEMU_WORKAROUND)
+#if ((defined(__linux__) && !defined(__ANDROID__)) || defined(__sun)) || \
+  defined(__OpenBSD__) && !defined(SNMALLOC_QEMU_WORKAROUND)
 /*
  * We only test allocations with limited AS on linux and Solaris for now.
  * It should be a good representative for POSIX systems.
@@ -14,13 +14,19 @@
  * so we need to exclude it from such tests.
  */
 #  include <sys/resource.h>
-#  include <sys/sysinfo.h>
+#  ifndef __OpenBSD__
+#    include <sys/sysinfo.h>
+#  endif
 #  include <sys/wait.h>
 #  include <unistd.h>
 #  define TEST_LIMITED
 #  define KiB (1024ull)
 #  define MiB (KiB * KiB)
 #  define GiB (KiB * MiB)
+
+#  ifdef __OpenBSD__
+using rlim64_t = rlim_t;
+#  endif
 #else
 using rlim64_t = size_t;
 #endif
@@ -45,6 +51,7 @@ void test_limited(rlim64_t as_limit, size_t& count)
     }
     std::cout << "limiting memory to " << limit.rlim_cur / KiB << " KiB"
               << std::endl;
+#  ifndef __OpenBSD__
     struct sysinfo info
     {};
     if (sysinfo(&info))
@@ -59,6 +66,7 @@ void test_limited(rlim64_t as_limit, size_t& count)
     upper_bound = std::min(
       upper_bound, static_cast<unsigned long long>(info.freeram >> 3u));
     std::cout << "trying to alloc " << upper_bound / KiB << " KiB" << std::endl;
+#  endif
     auto& alloc = ThreadAlloc::get();
     std::cout << "allocator initialised" << std::endl;
     auto chunk = alloc.alloc(upper_bound);
