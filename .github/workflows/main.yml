@@ -526,6 +526,7 @@ jobs:
     - name: Prepare Ubuntu
       if: runner.os == 'Linux'
       run: |
+        sudo apt install ninja-build
         echo CXX=clang++ >> $GITHUB_ENV
         echo CC=clang >> $GITHUB_ENV
     - name: Configure CMake
