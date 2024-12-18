@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bits.h"
+#include "snmalloc/ds_core/defines.h"
 
 #include <array>
 #include <cstddef>
@@ -344,17 +345,25 @@ namespace snmalloc
      * is able to optimize the recursion into loops.
      */
     template<typename Head, typename... Tail>
-    void append(const char* fmt, Head&& head, Tail&&... tail)
+    SNMALLOC_FAST_PATH_INLINE void
+    append(const char* fmt, Head&& head, Tail&&... tail)
     {
-      if (fmt[0] == '{' && fmt[1] == '}')
+      for (;;)
       {
-        append(std::forward<Head>(head));
-        append(fmt + 2, std::forward<Tail>(tail)...);
-        return;
-      }
+        if (fmt[0] == '\0')
+        {
+          error("Internal error: format string missing `{}`!");
+        }
 
-      append_char(*fmt);
-      append(fmt + 1, std::forward<Head>(head), std::forward<Tail>(tail)...);
+        if (fmt[0] == '{' && fmt[1] == '}')
+        {
+          append(std::forward<Head>(head));
+          return append(fmt + 2, std::forward<Tail>(tail)...);
+        }
+
+        append_char(*fmt);
+        fmt++;
+      }
     }
 
   public:
