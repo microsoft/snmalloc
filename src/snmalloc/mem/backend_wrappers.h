@@ -43,16 +43,17 @@ namespace snmalloc
       SNMALLOC_CONCEPT(IsConfigDomestication) Config,
       typename T,
       SNMALLOC_CONCEPT(capptr::IsBound) B>
-    constexpr SNMALLOC_FAST_PATH auto has_domesticate(int) -> std::enable_if_t<
-      std::is_same_v<
-        decltype(Config::capptr_domesticate(
-          std::declval<typename Config::LocalState*>(),
-          std::declval<CapPtr<T, B>>())),
-        CapPtr<
-          T,
-          typename B::template with_wildness<
-            capptr::dimension::Wildness::Tame>>>,
-      bool>
+    constexpr SNMALLOC_FAST_PATH auto has_domesticate(int)
+      -> proxy::enable_if_t<
+        proxy::is_same_v<
+          decltype(Config::capptr_domesticate(
+            std::declval<typename Config::LocalState*>(),
+            std::declval<CapPtr<T, B>>())),
+          CapPtr<
+            T,
+            typename B::template with_wildness<
+              capptr::dimension::Wildness::Tame>>>,
+        bool>
     {
       return true;
     }

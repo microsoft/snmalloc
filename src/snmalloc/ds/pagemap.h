@@ -83,7 +83,7 @@ namespace snmalloc
      * fixed-range pagemaps, whose size depends on dynamic configuration.
      */
     template<bool has_bounds_ = has_bounds>
-    static constexpr std::enable_if_t<!has_bounds_, size_t> required_size()
+    static constexpr proxy::enable_if_t<!has_bounds_, size_t> required_size()
     {
       static_assert(
         has_bounds_ == has_bounds, "Don't set SFINAE template parameter!");
@@ -99,7 +99,7 @@ namespace snmalloc
      * `required_size` is enabled for the has-bounds case.
      */
     template<bool has_bounds_ = has_bounds>
-    std::enable_if_t<!has_bounds_> init(T* address)
+    proxy::enable_if_t<!has_bounds_> init(T* address)
     {
       SNMALLOC_ASSERT(!is_initialised());
 
@@ -115,7 +115,7 @@ namespace snmalloc
      * Returns usable range after pagemap has been allocated
      */
     template<bool has_bounds_ = has_bounds>
-    std::enable_if_t<has_bounds_, std::pair<void*, size_t>>
+    proxy::enable_if_t<has_bounds_, std::pair<void*, size_t>>
     init(void* b, size_t s)
     {
       SNMALLOC_ASSERT(!is_initialised());
@@ -174,7 +174,7 @@ namespace snmalloc
      * Initialise the pagemap without bounds.
      */
     template<bool randomize_position, bool has_bounds_ = has_bounds>
-    std::enable_if_t<!has_bounds_> init()
+    proxy::enable_if_t<!has_bounds_> init()
     {
       SNMALLOC_ASSERT(!is_initialised());
 
@@ -250,7 +250,7 @@ namespace snmalloc
     }
 
     template<bool has_bounds_ = has_bounds>
-    std::enable_if_t<has_bounds_, std::pair<address_t, size_t>> get_bounds()
+    proxy::enable_if_t<has_bounds_, std::pair<address_t, size_t>> get_bounds()
     {
       SNMALLOC_ASSERT(is_initialised());
 

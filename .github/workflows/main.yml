@@ -495,21 +495,23 @@ jobs:
       run: ${{github.workspace}}/build/fuzzing/snmalloc-fuzzer
 
   self-vendored:
+    name: Self Vendored STL Functionality
     strategy:
+      fail-fast: false
       matrix:
         include:
         - os: windows-2022
           cxx: clang-cl
           cc: clang-cl
-        - os: ubuntu-latest
-          cxx: clang++
-          cc: clang
-        - os: ubuntu-latest
-          cxx: g++
-          cc: gcc
+        - os: ubuntu-24.04
+          cxx: clang++-18
+          cc: clang-18
+        - os: ubuntu-24.04
+          cxx: g++-14
+          cc: gcc-14
         - os: macos-latest
           cxx: clang++
-          cc: clang
+          cc: clang 
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
@@ -524,7 +526,7 @@ jobs:
     - name: Prepare Ubuntu
       if: runner.os == 'Linux'
       run: |
-        sudo apt install ninja-build
+        sudo apt-get install -y ninja-build
     - name: Configure CMake
       run: >
         cmake 
