@@ -330,8 +330,6 @@ namespace snmalloc
     using std::remove_reference;
     using std::remove_reference_t;
     using std::true_type;
-    using std::type_identity;
-    using std::type_identity_t;
     using std::void_t;
   } // namespace proxy
 } // namespace snmalloc
