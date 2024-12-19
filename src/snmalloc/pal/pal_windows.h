@@ -35,7 +35,7 @@ namespace snmalloc
      * A flag indicating that we have tried to register for low-memory
      * notifications.
      */
-    static inline std::atomic<bool> registered_for_notifications;
+    static inline proxy::Atomic<bool> registered_for_notifications;
     static inline HANDLE lowMemoryObject;
 
     /**
@@ -240,9 +240,9 @@ namespace snmalloc
     using WaitingWord = char;
 
     template<class T>
-    static void wait_on_address(std::atomic<T>& addr, T expected)
+    static void wait_on_address(proxy::Atomic<T>& addr, T expected)
     {
-      while (addr.load(std::memory_order_relaxed) == expected)
+      while (addr.load(proxy::memory_order_relaxed) == expected)
       {
         if (::WaitOnAddress(&addr, &expected, sizeof(T), INFINITE))
           break;
@@ -250,13 +250,13 @@ namespace snmalloc
     }
 
     template<class T>
-    static void notify_one_on_address(std::atomic<T>& addr)
+    static void notify_one_on_address(proxy::Atomic<T>& addr)
     {
       ::WakeByAddressSingle(&addr);
     }
 
     template<class T>
-    static void notify_all_on_address(std::atomic<T>& addr)
+    static void notify_all_on_address(proxy::Atomic<T>& addr)
     {
       ::WakeByAddressAll(&addr);
     }

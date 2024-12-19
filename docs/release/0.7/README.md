@@ -112,7 +112,7 @@ This allows developers to build new security features on top of snmalloc.
 For instance, building snmalloc with the following definition of `Alloc` will allow you to store a 64-bit counter for each allocation:
 ```cpp
   using Alloc = snmalloc::LocalAllocator<snmalloc::StandardConfigClientMeta<
-    ArrayClientMetaDataProvider<std::atomic<size_t>>>>;
+    ArrayClientMetaDataProvider<proxy::Atomic<size_t>>>>;
 ```
 
 This does not affect the underlying alignment of the allocations.

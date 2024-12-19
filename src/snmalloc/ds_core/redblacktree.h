@@ -17,9 +17,9 @@ namespace snmalloc
    */
   template<typename Rep>
   concept RBRepTypes = requires() {
-                         typename Rep::Handle;
-                         typename Rep::Contents;
-                       };
+    typename Rep::Handle;
+    typename Rep::Contents;
+  };
 
   /**
    * The representation must define operations on the holder and contents
@@ -38,39 +38,28 @@ namespace snmalloc
    * the root node.
    */
   template<typename Rep>
-  concept RBRepMethods =
-    requires(typename Rep::Handle hp, typename Rep::Contents k, bool b) {
-      {
-        Rep::get(hp)
-        } -> ConceptSame<typename Rep::Contents>;
-      {
-        Rep::set(hp, k)
-        } -> ConceptSame<void>;
-      {
-        Rep::is_red(k)
-        } -> ConceptSame<bool>;
-      {
-        Rep::set_red(k, b)
-        } -> ConceptSame<void>;
-      {
-        Rep::ref(b, k)
-        } -> ConceptSame<typename Rep::Handle>;
-      {
-        Rep::null
-        } -> ConceptSameModRef<const typename Rep::Contents>;
-      {
-        typename Rep::Handle{const_cast<
-          std::remove_const_t<std::remove_reference_t<decltype(Rep::root)>>*>(
-          &Rep::root)}
-        } -> ConceptSame<typename Rep::Handle>;
-    };
+  concept RBRepMethods = requires(
+    typename Rep::Handle hp, typename Rep::Contents k, bool b) {
+    { Rep::get(hp) } -> ConceptSame<typename Rep::Contents>;
+    { Rep::set(hp, k) } -> ConceptSame<void>;
+    { Rep::is_red(k) } -> ConceptSame<bool>;
+    { Rep::set_red(k, b) } -> ConceptSame<void>;
+    { Rep::ref(b, k) } -> ConceptSame<typename Rep::Handle>;
+    { Rep::null } -> ConceptSameModRef<const typename Rep::Contents>;
+    {
+      typename Rep::Handle{const_cast<
+        proxy::remove_const_t<proxy::remove_reference_t<decltype(Rep::root)>>*>(
+        &Rep::root)}
+    } -> ConceptSame<typename Rep::Handle>;
+  };
 
   template<typename Rep>
   concept RBRep = //
     RBRepTypes<Rep> //
     && RBRepMethods<Rep> //
-    &&
-    ConceptSame<decltype(Rep::null), std::add_const_t<typename Rep::Contents>>;
+    && ConceptSame<
+         decltype(Rep::null),
+         proxy::add_const_t<typename Rep::Contents>>;
 #endif
 
   /**
@@ -156,7 +145,8 @@ namespace snmalloc
     };
 
     // Root field of the tree
-    typename std::remove_const_t<std::remove_reference_t<decltype(Rep::root)>>
+    typename proxy::remove_const_t<
+      proxy::remove_reference_t<decltype(Rep::root)>>
       root{Rep::root};
 
     static ChildRef get_dir(bool direction, K k)
@@ -495,7 +485,8 @@ namespace snmalloc
        */
       path.move(true);
       while (path.move(false))
-      {}
+      {
+      }
 
       K curr = path.curr();
 
@@ -746,7 +737,8 @@ namespace snmalloc
 
       auto path = get_root_path();
       while (path.move(true))
-      {}
+      {
+      }
 
       K result = path.curr();
 
