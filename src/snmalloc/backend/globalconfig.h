@@ -65,7 +65,7 @@ namespace snmalloc
     /**
      * Use one of the default range configurations
      */
-    using LocalState = std::conditional_t<
+    using LocalState = proxy::conditional_t<
       mitigations(metadata_protection),
       MetaProtectedRangeLocalState<Pal, Pagemap, Base>,
       StandardLocalState<Pal, Pagemap, Base>>;

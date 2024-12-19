@@ -14,7 +14,7 @@ namespace snmalloc
     proxy::Atomic<T*> elements{nullptr};
 
     static_assert(
-      std::is_same<decltype(T::pal_next), proxy::Atomic<T*>>::value,
+      proxy::is_same<decltype(T::pal_next), proxy::Atomic<T*>>::value,
       "Required pal_next type.");
 
   public:

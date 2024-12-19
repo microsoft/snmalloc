@@ -182,11 +182,11 @@ namespace snmalloc
         };
 
         SNMALLOC_NO_UNIQUE_ADDRESS
-        std::conditional_t<mitigations(freelist_backward_edge), Prev, Empty>
+        proxy::conditional_t<mitigations(freelist_backward_edge), Prev, Empty>
           prev{};
 
       public:
-        constexpr T() : next_object(){};
+        constexpr T() : next_object() {};
 
         template<
           SNMALLOC_CONCEPT(capptr::IsBound) BView = typename BQueue::
@@ -377,7 +377,7 @@ namespace snmalloc
           "Free Object View must be domesticated, justifying raw pointers");
 
         static_assert(
-          std::is_same_v<
+          proxy::is_same_v<
             typename BQueue::template with_wildness<
               capptr::dimension::Wildness::Tame>,
             BView>,
@@ -542,7 +542,7 @@ namespace snmalloc
     class NoPrev
     {
     protected:
-      constexpr NoPrev(address_t){};
+      constexpr NoPrev(address_t) {};
       constexpr NoPrev() = default;
 
       address_t replace(address_t t)
@@ -554,7 +554,7 @@ namespace snmalloc
     };
 
     using IterBase =
-      std::conditional_t<mitigations(freelist_backward_edge), Prev, NoPrev>;
+      proxy::conditional_t<mitigations(freelist_backward_edge), Prev, NoPrev>;
 
     /**
      * Used to iterate a free list in object space.
@@ -596,7 +596,7 @@ namespace snmalloc
       };
 
       SNMALLOC_NO_UNIQUE_ADDRESS
-      std::conditional_t<
+      proxy::conditional_t<
         mitigations(freelist_forward_edge) ||
           mitigations(freelist_backward_edge),
         KeyTweak,
@@ -774,7 +774,7 @@ namespace snmalloc
        * lists, which will be randomised at the other end.
        */
       template<bool RANDOM_ = RANDOM>
-      std::enable_if_t<!RANDOM_> add(
+      proxy::enable_if_t<!RANDOM_> add(
         Object::BHeadPtr<BView, BQueue> n,
         const FreeListKey& key,
         address_t key_tweak)
@@ -896,14 +896,14 @@ namespace snmalloc
       }
 
       template<bool RANDOM_ = RANDOM>
-      std::enable_if_t<!RANDOM_, size_t> extract_segment_length()
+      proxy::enable_if_t<!RANDOM_, size_t> extract_segment_length()
       {
         static_assert(RANDOM_ == RANDOM, "Don't set SFINAE parameter!");
         return length[0];
       }
 
       template<bool RANDOM_ = RANDOM>
-      std::enable_if_t<
+      proxy::enable_if_t<
         !RANDOM_,
         std::pair<
           Object::BHeadPtr<BView, BQueue>,

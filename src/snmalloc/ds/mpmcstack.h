@@ -36,7 +36,7 @@ namespace snmalloc
     void push(T* item)
     {
       static_assert(
-        std::is_same<decltype(T::next), proxy::Atomic<T*>>::value,
+        proxy::is_same<decltype(T::next), proxy::Atomic<T*>>::value,
         "T->next must be an proxy::Atomic<T*>");
 
       return push(item, item);

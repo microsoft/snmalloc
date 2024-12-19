@@ -3,8 +3,7 @@
 #include "../ds_core/ds_core.h"
 #include "flaglock.h"
 #include "snmalloc/proxy/atomic.h"
-
-#include <type_traits>
+#include "snmalloc/proxy/type_traits.h"
 
 namespace snmalloc
 {
