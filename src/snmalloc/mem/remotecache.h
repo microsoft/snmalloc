@@ -6,9 +6,9 @@
 #include "metadata.h"
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
+#include "snmalloc/proxy/atomic.h"
 
 #include <array>
-#include <atomic>
 
 namespace snmalloc
 {

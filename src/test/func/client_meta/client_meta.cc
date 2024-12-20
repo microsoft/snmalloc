@@ -5,6 +5,7 @@
 
 #include "test/setup.h"
 
+#include <atomic>
 #include <iostream>
 #include <snmalloc/backend/globalconfig.h>
 #include <snmalloc/snmalloc_core.h>
