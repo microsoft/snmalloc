@@ -274,7 +274,7 @@ namespace snmalloc
     static_assert(offsetof(SingletonRemoteMessage, message_link) == 0);
   };
 
-  using RemoteMessage = std::conditional_t<
+  using RemoteMessage = proxy::conditional_t<
     (DEALLOC_BATCH_RINGS > 0),
     BatchedRemoteMessage,
     SingletonRemoteMessage>;
