@@ -29,6 +29,7 @@ option(SNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS "Build tests and ld_preload for
 option(SNMALLOC_ENABLE_DYNAMIC_LOADING "Build such that snmalloc can be dynamically loaded. This is not required for LD_PRELOAD, and will harm performance if enabled." OFF)
 option(SNMALLOC_ENABLE_WAIT_ON_ADDRESS "Use wait on address backoff strategy if it is available" ON)
 option(SNMALLOC_ENABLE_FUZZING "Enable fuzzing instrumentation tests" OFF)
+option(SNMALLOC_USE_SELF_VENDORED_STL "Avoid using system STL" OFF)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_STATIC_LIBRARY "Build static libraries" ON "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
@@ -203,6 +204,12 @@ if(SNMALLOC_ENABLE_WAIT_ON_ADDRESS)
   target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_WAIT_ON_ADDRESS=1)
 else()
   target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_WAIT_ON_ADDRESS=0)
+endif()
+
+if(SNMALLOC_USE_SELF_VENDORED_STL)
+  target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_SELF_VENDORED_STL=1)
+else()
+  target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_SELF_VENDORED_STL=0)
 endif()
 
 # https://learn.microsoft.com/en-us/cpp/build/reference/zc-cplusplus
