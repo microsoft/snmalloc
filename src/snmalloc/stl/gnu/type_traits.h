@@ -390,5 +390,21 @@ namespace snmalloc
     template<class T>
     using add_const_t = const T;
 
+#if __has_builtin(__is_lvalue_reference)
+    template<class T>
+    inline constexpr bool is_lvalue_reference_v = __is_lvalue_reference(T);
+#else
+    template<typename T>
+    struct is_lvalue_reference : public false_type
+    {};
+
+    template<typename T>
+    struct is_lvalue_reference<T&> : public true_type
+    {};
+
+    template<typename T>
+    inline constexpr bool is_lvalue_reference_v = is_lvalue_reference<T>::value;
+#endif
+
   } // namespace stl
 } // namespace snmalloc

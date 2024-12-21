@@ -168,14 +168,14 @@ namespace snmalloc
   template<size_t BufferSize, typename... Args>
   [[noreturn]] inline void report_fatal_error(Args... args)
   {
-    MessageBuilder<BufferSize> msg{std::forward<Args>(args)...};
+    MessageBuilder<BufferSize> msg{stl::forward<Args>(args)...};
     DefaultPal::error(msg.get_message());
   }
 
   template<size_t BufferSize, typename... Args>
   inline void message(Args... args)
   {
-    MessageBuilder<BufferSize> msg{std::forward<Args>(args)...};
+    MessageBuilder<BufferSize> msg{stl::forward<Args>(args)...};
     MessageBuilder<BufferSize> msg_tid{
       "{}: {}", debug_get_tid(), msg.get_message()};
     DefaultPal::message(msg_tid.get_message());

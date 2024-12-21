@@ -3,6 +3,7 @@
 #include "bits.h"
 #include "snmalloc/ds_core/defines.h"
 #include "snmalloc/stl/type_traits.h"
+#include "snmalloc/stl/utility.h"
 
 #include <array>
 #include <stddef.h>
@@ -357,8 +358,8 @@ namespace snmalloc
 
         if (fmt[0] == '{' && fmt[1] == '}')
         {
-          append(std::forward<Head>(head));
-          return append(fmt + 2, std::forward<Tail>(tail)...);
+          append(stl::forward<Head>(head));
+          return append(fmt + 2, stl::forward<Tail>(tail)...);
         }
 
         append_char(*fmt);
@@ -374,7 +375,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH MessageBuilder(const char* fmt, Args&&... args)
     {
       buffer[SafeLength] = 0;
-      append(fmt, std::forward<Args>(args)...);
+      append(fmt, stl::forward<Args>(args)...);
       append_char('\0');
     }
 

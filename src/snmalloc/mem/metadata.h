@@ -620,7 +620,7 @@ namespace snmalloc
      * available objects for this slab metadata.
      */
     template<typename Domesticator>
-    static SNMALLOC_FAST_PATH std::pair<freelist::HeadPtr, bool>
+    static SNMALLOC_FAST_PATH stl::Pair<freelist::HeadPtr, bool>
     alloc_free_list(
       Domesticator domesticate,
       FrontendSlabMetadata* meta,

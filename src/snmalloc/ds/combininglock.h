@@ -256,7 +256,7 @@ namespace snmalloc
           reinterpret_cast<CombiningLockNodeTempl*>(self);
         self_templ->f();
       }),
-      f(std::forward<F>(f_))
+      f(stl::forward<F>(f_))
     {
       attach_slow(lock);
     }
@@ -290,6 +290,6 @@ namespace snmalloc
 
     // There is contention for the lock, we need to take the slow path
     // with the queue.
-    CombiningLockNodeTempl<F> node(lock, std::forward<F>(f));
+    CombiningLockNodeTempl<F> node(lock, stl::forward<F>(f));
   }
 } // namespace snmalloc

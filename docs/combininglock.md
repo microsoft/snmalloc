@@ -222,7 +222,7 @@ We can now provide our new version of the `with` function that uses the combinin
 template<typename F>
 inline void with(CombiningLock& lock, F&& f)
 {
-  CombiningLockNodeTempl<F> node(std::forward<F>(f));
+  CombiningLockNodeTempl<F> node(stl::forward<F>(f));
 
   // **************ACQUIRE**************
   // Add ourselves to the end of the queue.

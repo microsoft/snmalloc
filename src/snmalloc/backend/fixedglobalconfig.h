@@ -1,7 +1,10 @@
 #pragma once
 
 #include "../backend_helpers/backend_helpers.h"
+#include "snmalloc/stl/type_traits.h"
 #include "standard_range.h"
+
+#include <cstddef>
 
 namespace snmalloc
 {

@@ -115,7 +115,7 @@ namespace snmalloc
      * Returns usable range after pagemap has been allocated
      */
     template<bool has_bounds_ = has_bounds>
-    stl::enable_if_t<has_bounds_, std::pair<void*, size_t>>
+    stl::enable_if_t<has_bounds_, stl::Pair<void*, size_t>>
     init(void* b, size_t s)
     {
       SNMALLOC_ASSERT(!is_initialised());
@@ -250,7 +250,7 @@ namespace snmalloc
     }
 
     template<bool has_bounds_ = has_bounds>
-    stl::enable_if_t<has_bounds_, std::pair<address_t, size_t>> get_bounds()
+    stl::enable_if_t<has_bounds_, stl::Pair<address_t, size_t>> get_bounds()
     {
       SNMALLOC_ASSERT(is_initialised());
 
