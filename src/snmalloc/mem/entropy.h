@@ -4,7 +4,7 @@
 #include "../pal/pal.h"
 #include "snmalloc/stl/type_traits.h"
 
-#include <cstdint>
+#include <stdint.h>
 
 namespace snmalloc
 {

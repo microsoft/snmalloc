@@ -5,7 +5,7 @@
 #include "snmalloc/stl/type_traits.h"
 
 #include <array>
-#include <cstddef>
+#include <stddef.h>
 
 namespace snmalloc
 {

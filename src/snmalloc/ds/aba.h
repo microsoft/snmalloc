@@ -27,7 +27,7 @@ namespace snmalloc
   class ABA
   {
   public:
-    struct alignas(2 * sizeof(std::size_t)) Linked
+    struct alignas(2 * sizeof(size_t)) Linked
     {
       T* ptr{nullptr};
       uintptr_t aba{0};
@@ -43,13 +43,13 @@ namespace snmalloc
       sizeof(Linked) == sizeof(Independent),
       "Expecting identical struct sizes in union");
     static_assert(
-      sizeof(Linked) == (2 * sizeof(std::size_t)),
+      sizeof(Linked) == (2 * sizeof(size_t)),
       "Expecting ABA to be the size of two pointers");
 
   private:
     union
     {
-      alignas(2 * sizeof(std::size_t)) stl::Atomic<Linked> linked;
+      alignas(2 * sizeof(size_t)) stl::Atomic<Linked> linked;
       Independent independent;
     };
 

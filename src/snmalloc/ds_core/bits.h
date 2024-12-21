@@ -1,7 +1,6 @@
 #pragma once
 
-#include <cstddef>
-#include <limits>
+#include <stddef.h>
 
 // #define USE_LZCNT
 
@@ -9,9 +8,10 @@
 #include "snmalloc/stl/atomic.h"
 #include "snmalloc/stl/type_traits.h"
 
-#include <climits>
-#include <cstdint>
+#include <limits.h>
+#include <stdint.h>
 #if defined(_MSC_VER)
+#  include <intrin.h>
 #  include <intsafe.h>
 #endif
 
@@ -95,15 +95,15 @@ namespace snmalloc
       return BITS - index - 1;
 #  endif
 #else
-      if constexpr (stl::is_same_v<unsigned long, std::size_t>)
+      if constexpr (stl::is_same_v<unsigned long, size_t>)
       {
         return static_cast<size_t>(__builtin_clzl(x));
       }
-      else if constexpr (stl::is_same_v<unsigned long long, std::size_t>)
+      else if constexpr (stl::is_same_v<unsigned long long, size_t>)
       {
         return static_cast<size_t>(__builtin_clzll(x));
       }
-      else if constexpr (stl::is_same_v<unsigned int, std::size_t>)
+      else if constexpr (stl::is_same_v<unsigned int, size_t>)
       {
         return static_cast<size_t>(__builtin_clz(x));
       }
@@ -182,15 +182,15 @@ namespace snmalloc
       return _tzcnt_u32(static_cast<unsigned int>(x));
 #  endif
 #else
-      if constexpr (stl::is_same_v<unsigned long, std::size_t>)
+      if constexpr (stl::is_same_v<unsigned long, size_t>)
       {
         return static_cast<size_t>(__builtin_ctzl(x));
       }
-      else if constexpr (stl::is_same_v<unsigned long long, std::size_t>)
+      else if constexpr (stl::is_same_v<unsigned long long, size_t>)
       {
         return static_cast<size_t>(__builtin_ctzll(x));
       }
-      else if constexpr (stl::is_same_v<unsigned int, std::size_t>)
+      else if constexpr (stl::is_same_v<unsigned int, size_t>)
       {
         return static_cast<size_t>(__builtin_ctz(x));
       }
