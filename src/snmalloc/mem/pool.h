@@ -3,8 +3,6 @@
 #include "../ds/ds.h"
 #include "pooled.h"
 
-#include <new>
-
 namespace snmalloc
 {
   /**

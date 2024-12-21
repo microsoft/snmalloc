@@ -1,7 +1,7 @@
 #pragma once
 #include "defines.h"
 
-#include <cstddef>
+#include <stddef.h>
 
 namespace snmalloc
 {
