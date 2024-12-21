@@ -371,9 +371,9 @@ namespace snmalloc
     }
 
     /**
-     * Implementation of `std::min`
+     * Implementation of `proxy::min`
      *
-     * `std::min` is in `<algorithm>`, so pulls in a lot of unneccessary code
+     * `proxy::min` is in `<algorithm>`, so pulls in a lot of unneccessary code
      * We write our own to reduce the code that potentially needs reviewing.
      */
     template<typename T>
@@ -383,9 +383,9 @@ namespace snmalloc
     }
 
     /**
-     * Implementation of `std::max`
+     * Implementation of `proxy::max`
      *
-     * `std::max` is in `<algorithm>`, so pulls in a lot of unneccessary code
+     * `proxy::max` is in `<algorithm>`, so pulls in a lot of unneccessary code
      * We write our own to reduce the code that potentially needs reviewing.
      */
     template<typename T>

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds/ds.h"
+#include "snmalloc/proxy/algorithm.h"
 
 namespace snmalloc
 {
@@ -23,7 +24,7 @@ namespace snmalloc
       RBTree<Rep> tree{};
     };
 
-    std::array<Entry, MAX_SIZE_BITS - MIN_SIZE_BITS> entries{};
+    proxy::Array<Entry, MAX_SIZE_BITS - MIN_SIZE_BITS> entries{};
     // All RBtrees at or above this index should be empty.
     size_t empty_at_or_above{0};
 
@@ -167,7 +168,7 @@ namespace snmalloc
       {
         if (Rep::equal(Rep::null, addr) || Rep::compare(e, addr))
         {
-          addr = std::exchange(e, addr);
+          addr = proxy::exchange(e, addr);
         }
       }
 

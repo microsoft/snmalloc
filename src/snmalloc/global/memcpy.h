@@ -1,5 +1,6 @@
 #pragma once
 #include "bounds_checks.h"
+#include "snmalloc/proxy/algorithm.h"
 
 namespace snmalloc
 {
@@ -156,7 +157,7 @@ namespace snmalloc
      */
     SNMALLOC_UNUSED_FUNCTION
     static constexpr size_t LargestRegisterSize =
-      std::max(sizeof(uint64_t), sizeof(void*));
+      proxy::max(sizeof(uint64_t), sizeof(void*));
 
     /**
      * Hook for architecture-specific optimisations.

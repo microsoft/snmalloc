@@ -2,6 +2,7 @@
 #  undef SNMALLOC_USE_PTHREAD_DESTRUCTORS
 #endif
 
+#include <new>
 #include <snmalloc/snmalloc_core.h>
 #include <test/setup.h>
 

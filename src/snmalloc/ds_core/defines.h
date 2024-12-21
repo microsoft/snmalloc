@@ -130,7 +130,11 @@ namespace snmalloc
 #define TOSTRING(expr) TOSTRING2(expr)
 #define TOSTRING2(expr) #expr
 
-#ifdef __cpp_lib_source_location
+#ifndef SNMALLOC_USE_SELF_VENDORED_STL
+#  define SNMALLOC_USE_SELF_VENDORED_STL 0
+#endif
+
+#if defined(__cpp_lib_source_location) && !SNMALLOC_USE_SELF_VENDORED_STL
 #  include <source_location>
 #  define SNMALLOC_CURRENT_LINE std::source_location::current().line()
 #  define SNMALLOC_CURRENT_FILE std::source_location::current().file_name()
