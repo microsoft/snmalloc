@@ -2,10 +2,11 @@
 
 #include "bits.h"
 #include "snmalloc/ds_core/defines.h"
+#include "snmalloc/proxy/type_traits.h"
+#include "snmalloc/proxy/utility.h"
 
 #include <array>
-#include <cstddef>
-#include <type_traits>
+#include <stddef.h>
 
 namespace snmalloc
 {
@@ -104,7 +105,7 @@ namespace snmalloc
     template<
       typename Fn,
       typename =
-        std::enable_if_t<!std::is_same_v<std::decay_t<Fn>, function_ref>>>
+        proxy::enable_if_t<!proxy::is_same_v<std::decay_t<Fn>, function_ref>>>
     function_ref(Fn&& fn)
     {
       data_ = static_cast<void*>(&fn);
@@ -123,7 +124,7 @@ namespace snmalloc
     template<typename Fn>
     static R execute(void* p, Args... args)
     {
-      return (*static_cast<std::add_pointer_t<Fn>>(p))(args...);
+      return (*static_cast<proxy::add_pointer_t<Fn>>(p))(args...);
     };
   };
 
@@ -357,8 +358,8 @@ namespace snmalloc
 
         if (fmt[0] == '{' && fmt[1] == '}')
         {
-          append(std::forward<Head>(head));
-          return append(fmt + 2, std::forward<Tail>(tail)...);
+          append(proxy::forward<Head>(head));
+          return append(fmt + 2, proxy::forward<Tail>(tail)...);
         }
 
         append_char(*fmt);
@@ -374,7 +375,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH MessageBuilder(const char* fmt, Args&&... args)
     {
       buffer[SafeLength] = 0;
-      append(fmt, std::forward<Args>(args)...);
+      append(fmt, proxy::forward<Args>(args)...);
       append_char('\0');
     }
 

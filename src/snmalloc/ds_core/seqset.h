@@ -2,9 +2,10 @@
 
 #include "../aal/aal.h"
 #include "../ds_core/ds_core.h"
+#include "snmalloc/proxy/type_traits.h"
+#include "snmalloc/proxy/utility.h"
 
-#include <cstdint>
-#include <type_traits>
+#include <stdint.h>
 
 namespace snmalloc
 {
@@ -98,7 +99,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH bool is_empty()
     {
       static_assert(
-        std::is_same_v<Node, decltype(std::declval<T>().node)>,
+        proxy::is_same_v<Node, decltype(proxy::declval<T>().node)>,
         "T->node must be Node for T");
       head.invariant();
       return head.next == &head;

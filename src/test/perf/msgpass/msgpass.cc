@@ -275,7 +275,7 @@ int main(int argc, char** argv)
   /* Spawn proxies */
   for (size_t i = param.N_CONSUMER; i < param.N_QUEUE; i++)
   {
-    queue_threads[i] = std::thread(proxy, &param, i);
+    queue_threads[i] = std::thread(::proxy, &param, i);
   }
 
   /* Spawn producers */

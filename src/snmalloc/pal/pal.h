@@ -85,7 +85,7 @@ namespace snmalloc
     typename AAL = Aal,
     typename T,
     SNMALLOC_CONCEPT(capptr::IsBound) B>
-  static inline typename std::enable_if_t<
+  static inline typename proxy::enable_if_t<
     !aal_supports<StrictProvenance, AAL>,
     CapPtr<T, capptr::user_address_control_type<B>>>
   capptr_to_user_address_control(CapPtr<T, B> p)
@@ -99,7 +99,7 @@ namespace snmalloc
     typename AAL = Aal,
     typename T,
     SNMALLOC_CONCEPT(capptr::IsBound) B>
-  static SNMALLOC_FAST_PATH typename std::enable_if_t<
+  static SNMALLOC_FAST_PATH typename proxy::enable_if_t<
     aal_supports<StrictProvenance, AAL>,
     CapPtr<T, capptr::user_address_control_type<B>>>
   capptr_to_user_address_control(CapPtr<T, B> p)
@@ -168,14 +168,14 @@ namespace snmalloc
   template<size_t BufferSize, typename... Args>
   [[noreturn]] inline void report_fatal_error(Args... args)
   {
-    MessageBuilder<BufferSize> msg{std::forward<Args>(args)...};
+    MessageBuilder<BufferSize> msg{proxy::forward<Args>(args)...};
     DefaultPal::error(msg.get_message());
   }
 
   template<size_t BufferSize, typename... Args>
   inline void message(Args... args)
   {
-    MessageBuilder<BufferSize> msg{std::forward<Args>(args)...};
+    MessageBuilder<BufferSize> msg{proxy::forward<Args>(args)...};
     MessageBuilder<BufferSize> msg_tid{
       "{}: {}", DefaultPal::get_tid(), msg.get_message()};
     DefaultPal::message(msg_tid.get_message());
