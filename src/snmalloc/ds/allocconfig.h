@@ -182,6 +182,16 @@ namespace snmalloc
 #endif
     ;
 
+  // Stop processing remote batch when we reach this amount of deallocations in
+  // bytes
+  static constexpr int64_t REMOTE_BATCH_LIMIT =
+#ifdef SNMALLOC_REMOTE_BATCH_PROCESS_SIZE
+    SNMALLOC_REMOTE_BATCH_PROCESS_SIZE
+#else
+    1 * 1024 * 1024
+#endif
+    ;
+
   // Used to configure when the backend should use thread local buddies.
   // This only basically is used to disable some buddy allocators on small
   // fixed heap scenarios like OpenEnclave.

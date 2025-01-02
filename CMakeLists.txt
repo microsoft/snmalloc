@@ -205,6 +205,10 @@ else()
   target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_WAIT_ON_ADDRESS=0)
 endif()
 
+if(SNMALLOC_REMOTE_BATCH_PROCESS_SIZE)
+  target_compile_definitions(snmalloc INTERFACE SNMALLOC_REMOTE_BATCH_PROCESS_SIZE=${SNMALLOC_REMOTE_BATCH_PROCESS_SIZE})
+endif()
+
 # https://learn.microsoft.com/en-us/cpp/build/reference/zc-cplusplus
 if(MSVC)
   target_compile_options(snmalloc INTERFACE "/Zc:__cplusplus")
