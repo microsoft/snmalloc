@@ -4,8 +4,6 @@
 #  include "pal_consts.h"
 #  include "pal_ds.h"
 
-#  include <utility>
-
 namespace snmalloc
 {
   /*
@@ -21,7 +19,7 @@ namespace snmalloc
   template<typename PAL>
   concept IsPAL_static_features =
     requires() {
-      typename std::integral_constant<uint64_t, PAL::pal_features>;
+      typename proxy::integral_constant<uint64_t, PAL::pal_features>;
     };
 
   /**
@@ -30,8 +28,8 @@ namespace snmalloc
   template<typename PAL>
   concept IsPAL_static_sizes =
     requires() {
-      typename std::integral_constant<std::size_t, PAL::address_bits>;
-      typename std::integral_constant<std::size_t, PAL::page_size>;
+      typename proxy::integral_constant<size_t, PAL::address_bits>;
+      typename proxy::integral_constant<size_t, PAL::page_size>;
     };
 
   /**
@@ -48,7 +46,7 @@ namespace snmalloc
    * PALs expose a basic library of memory operations.
    */
   template<typename PAL>
-  concept IsPAL_memops = requires(void* vp, std::size_t sz) {
+  concept IsPAL_memops = requires(void* vp, size_t sz) {
                            {
                              PAL::notify_not_using(vp, sz)
                              } noexcept -> ConceptSame<void>;
@@ -85,7 +83,7 @@ namespace snmalloc
    * Absent any feature flags, the PAL must support a crude primitive allocator
    */
   template<typename PAL>
-  concept IsPAL_reserve = requires(PAL p, std::size_t sz) {
+  concept IsPAL_reserve = requires(PAL p, size_t sz) {
                             {
                               PAL::reserve(sz)
                               } noexcept -> ConceptSame<void*>;
@@ -95,7 +93,7 @@ namespace snmalloc
    * Some PALs expose a richer allocator which understands aligned allocations
    */
   template<typename PAL>
-  concept IsPAL_reserve_aligned = requires(std::size_t sz) {
+  concept IsPAL_reserve_aligned = requires(size_t sz) {
                                     {
                                       PAL::template reserve_aligned<true>(sz)
                                       } noexcept -> ConceptSame<void*>;

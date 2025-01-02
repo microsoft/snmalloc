@@ -2,10 +2,11 @@
 
 #include "bits.h"
 #include "snmalloc/ds_core/defines.h"
+#include "snmalloc/proxy/array.h"
+#include "snmalloc/proxy/type_traits.h"
+#include "snmalloc/proxy/utility.h"
 
-#include <array>
-#include <cstddef>
-#include <type_traits>
+#include <stddef.h>
 
 namespace snmalloc
 {
@@ -49,7 +50,7 @@ namespace snmalloc
     };
 
     static constexpr size_t rlength = bits::next_pow2_const(length);
-    std::array<TWrap, rlength> array;
+    proxy::Array<TWrap, rlength> array;
 
   public:
     constexpr const T& operator[](const size_t i) const
@@ -64,7 +65,7 @@ namespace snmalloc
   };
 #else
   template<size_t length, typename T>
-  using ModArray = std::array<T, length>;
+  using ModArray = proxy::Array<T, length>;
 #endif
 
   /**
@@ -104,7 +105,7 @@ namespace snmalloc
     template<
       typename Fn,
       typename =
-        std::enable_if_t<!std::is_same_v<std::decay_t<Fn>, function_ref>>>
+        proxy::enable_if_t<!proxy::is_same_v<proxy::decay_t<Fn>, function_ref>>>
     function_ref(Fn&& fn)
     {
       data_ = static_cast<void*>(&fn);
@@ -123,7 +124,7 @@ namespace snmalloc
     template<typename Fn>
     static R execute(void* p, Args... args)
     {
-      return (*static_cast<std::add_pointer_t<Fn>>(p))(args...);
+      return (*static_cast<proxy::add_pointer_t<Fn>>(p))(args...);
     };
   };
 
@@ -143,7 +144,7 @@ namespace snmalloc
     /**
      * The buffer that is used to store the formatted output.
      */
-    std::array<char, BufferSize> buffer;
+    proxy::Array<char, BufferSize> buffer;
 
     /**
      * Space in the buffer, excluding a trailing null terminator.
@@ -207,7 +208,7 @@ namespace snmalloc
     /**
      * Append a nullptr
      */
-    void append(std::nullptr_t)
+    void append(decltype(nullptr))
     {
       append("(nullptr)");
     }
@@ -253,7 +254,7 @@ namespace snmalloc
         append_char('-');
         s = 0 - s;
       }
-      std::array<char, 20> buf{{0}};
+      proxy::Array<char, 20> buf{{0}};
       const char digits[] = "0123456789";
       for (long i = static_cast<long>(buf.size() - 1); i >= 0; i--)
       {
@@ -283,7 +284,7 @@ namespace snmalloc
     {
       append_char('0');
       append_char('x');
-      std::array<char, 16> buf{{0}};
+      proxy::Array<char, 16> buf{{0}};
       const char hexdigits[] = "0123456789abcdef";
       // Length of string including null terminator
       static_assert(sizeof(hexdigits) == 0x11);
@@ -357,8 +358,8 @@ namespace snmalloc
 
         if (fmt[0] == '{' && fmt[1] == '}')
         {
-          append(std::forward<Head>(head));
-          return append(fmt + 2, std::forward<Tail>(tail)...);
+          append(proxy::forward<Head>(head));
+          return append(fmt + 2, proxy::forward<Tail>(tail)...);
         }
 
         append_char(*fmt);
@@ -374,7 +375,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH MessageBuilder(const char* fmt, Args&&... args)
     {
       buffer[SafeLength] = 0;
-      append(fmt, std::forward<Args>(args)...);
+      append(fmt, proxy::forward<Args>(args)...);
       append_char('\0');
     }
 

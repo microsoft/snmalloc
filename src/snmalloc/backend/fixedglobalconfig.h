@@ -1,7 +1,10 @@
 #pragma once
 
 #include "../backend_helpers/backend_helpers.h"
+#include "snmalloc/proxy/type_traits.h"
 #include "standard_range.h"
+
+#include <cstddef>
 
 namespace snmalloc
 {
@@ -117,8 +120,16 @@ namespace snmalloc
     {
       static_assert(B::wildness == capptr::dimension::Wildness::Wild);
 
-      static const size_t sz = sizeof(
-        std::conditional<std::is_same_v<std::remove_cv<T>, void>, void*, T>);
+      constexpr size_t sz = []() constexpr {
+        if constexpr (proxy::is_same_v<proxy::remove_cv_t<T>, void>)
+        {
+          return sizeof(void*);
+        }
+        else
+        {
+          return sizeof(T);
+        }
+      }();
 
       UNUSED(ls);
       auto address = address_cast(p);

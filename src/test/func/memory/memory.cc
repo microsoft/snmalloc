@@ -1,3 +1,4 @@
+#include <array>
 #include <iostream>
 #include <snmalloc/snmalloc.h>
 #include <test/opt.h>
@@ -5,6 +6,7 @@
 #include <test/xoroshiro.h>
 #include <unordered_set>
 #include <vector>
+
 #if ((defined(__linux__) && !defined(__ANDROID__)) || defined(__sun)) || \
   defined(__OpenBSD__) && !defined(SNMALLOC_QEMU_WORKAROUND)
 /*

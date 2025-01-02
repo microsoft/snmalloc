@@ -1,7 +1,7 @@
 #define SNMALLOC_NAME_MANGLE(a) sn_##a
 #include "snmalloc/snmalloc.h"
 
-#include <cstring>
+#include <string.h>
 
 #ifndef SNMALLOC_EXPORT
 #  define SNMALLOC_EXPORT
@@ -39,7 +39,7 @@ extern "C" SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(rust_realloc)(
   void* p = ThreadAlloc::get().alloc(aligned_new_size);
   if (p)
   {
-    std::memcpy(p, ptr, old_size < new_size ? old_size : new_size);
+    memcpy(p, ptr, old_size < new_size ? old_size : new_size);
     ThreadAlloc::get().dealloc(ptr, aligned_old_size);
   }
   return p;

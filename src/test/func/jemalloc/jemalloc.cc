@@ -1,4 +1,5 @@
 #include <functional>
+#include <limits.h>
 #include <stdio.h>
 #include <test/helpers.h>
 #include <test/setup.h>
@@ -288,7 +289,7 @@ namespace
   {
     START_TEST("allocm out-of-memory behaviour");
     void* ptr = nullptr;
-    int ret = Allocm(&ptr, nullptr, std::numeric_limits<size_t>::max() / 2, 0);
+    int ret = Allocm(&ptr, nullptr, SIZE_MAX / 2, 0);
     EXPECT(
       (ptr == nullptr) && (ret == OUR_ALLOCM_ERR_OOM),
       "Expected massive allocation to fail with out of memory ({}), received "

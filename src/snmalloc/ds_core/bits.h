@@ -1,17 +1,17 @@
 #pragma once
 
-#include <cstddef>
-#include <limits>
+#include <stddef.h>
 
 // #define USE_LZCNT
 
 #include "defines.h"
+#include "snmalloc/proxy/atomic.h"
+#include "snmalloc/proxy/type_traits.h"
 
-#include <atomic>
-#include <climits>
-#include <cstdint>
-#include <type_traits>
+#include <limits.h>
+#include <stdint.h>
 #if defined(_MSC_VER)
+#  include <intrin.h>
 #  include <intsafe.h>
 #endif
 
@@ -55,7 +55,7 @@ namespace snmalloc
     template<typename T = size_t, typename S>
     constexpr T one_at_bit(S shift)
     {
-      static_assert(std::is_integral_v<T>, "Type must be integral");
+      static_assert(proxy::is_integral_v<T>, "Type must be integral");
       SNMALLOC_ASSERT(sizeof(T) * 8 > static_cast<size_t>(shift));
       return (static_cast<T>(1)) << shift;
     }
@@ -95,15 +95,15 @@ namespace snmalloc
       return BITS - index - 1;
 #  endif
 #else
-      if constexpr (std::is_same_v<unsigned long, std::size_t>)
+      if constexpr (proxy::is_same_v<unsigned long, size_t>)
       {
         return static_cast<size_t>(__builtin_clzl(x));
       }
-      else if constexpr (std::is_same_v<unsigned long long, std::size_t>)
+      else if constexpr (proxy::is_same_v<unsigned long long, size_t>)
       {
         return static_cast<size_t>(__builtin_clzll(x));
       }
-      else if constexpr (std::is_same_v<unsigned int, std::size_t>)
+      else if constexpr (proxy::is_same_v<unsigned int, size_t>)
       {
         return static_cast<size_t>(__builtin_clz(x));
       }
@@ -182,15 +182,15 @@ namespace snmalloc
       return _tzcnt_u32(static_cast<unsigned int>(x));
 #  endif
 #else
-      if constexpr (std::is_same_v<unsigned long, std::size_t>)
+      if constexpr (proxy::is_same_v<unsigned long, size_t>)
       {
         return static_cast<size_t>(__builtin_ctzl(x));
       }
-      else if constexpr (std::is_same_v<unsigned long long, std::size_t>)
+      else if constexpr (proxy::is_same_v<unsigned long long, size_t>)
       {
         return static_cast<size_t>(__builtin_ctzll(x));
       }
-      else if constexpr (std::is_same_v<unsigned int, std::size_t>)
+      else if constexpr (proxy::is_same_v<unsigned int, size_t>)
       {
         return static_cast<size_t>(__builtin_ctz(x));
       }
@@ -371,9 +371,9 @@ namespace snmalloc
     }
 
     /**
-     * Implementation of `std::min`
+     * Implementation of `proxy::min`
      *
-     * `std::min` is in `<algorithm>`, so pulls in a lot of unneccessary code
+     * `proxy::min` is in `<algorithm>`, so pulls in a lot of unneccessary code
      * We write our own to reduce the code that potentially needs reviewing.
      */
     template<typename T>
@@ -383,9 +383,9 @@ namespace snmalloc
     }
 
     /**
-     * Implementation of `std::max`
+     * Implementation of `proxy::max`
      *
-     * `std::max` is in `<algorithm>`, so pulls in a lot of unneccessary code
+     * `proxy::max` is in `<algorithm>`, so pulls in a lot of unneccessary code
      * We write our own to reduce the code that potentially needs reviewing.
      */
     template<typename T>

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "snmalloc/aal/address.h"
 #if defined(_MSC_VER)
 #  define ALLOCATOR __declspec(allocator) __declspec(restrict)
 #elif __has_attribute(malloc)
@@ -20,8 +21,9 @@
 #  include "external_alloc.h"
 #endif
 
+#include "snmalloc/proxy/utility.h"
+
 #include <string.h>
-#include <utility>
 
 namespace snmalloc
 {
@@ -853,7 +855,7 @@ namespace snmalloc
      * @brief Get the client meta data for the snmalloc allocation covering this
      * pointer.
      */
-    std::add_const_t<typename Config::ClientMeta::DataRef>
+    proxy::add_const_t<typename Config::ClientMeta::DataRef>
     get_client_meta_data_const(void* p)
     {
       const PagemapEntry& entry =
@@ -888,8 +890,18 @@ namespace snmalloc
       auto sizeclass = entry.get_sizeclass();
       return snmalloc::remaining_bytes(sizeclass, p);
 #else
-      return reinterpret_cast<size_t>(
-        std::numeric_limits<decltype(p)>::max() - p);
+      constexpr address_t mask = static_cast<address_t>(-1);
+      constexpr bool is_signed = mask < 0;
+      constexpr address_t sign_bit = static_cast<address_t>(1)
+        << (CHAR_BIT * sizeof(address_t) - 1);
+      if constexpr (is_signed)
+      {
+        return (mask ^ sign_bit) - p;
+      }
+      else
+      {
+        return mask - p;
+      }
 #endif
     }
 
