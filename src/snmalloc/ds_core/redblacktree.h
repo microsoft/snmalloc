@@ -59,9 +59,8 @@ namespace snmalloc
         Rep::null
         } -> ConceptSameModRef<const typename Rep::Contents>;
       {
-        typename Rep::Handle{const_cast<
-          std::remove_const_t<std::remove_reference_t<decltype(Rep::root)>>*>(
-          &Rep::root)}
+        typename Rep::Handle{const_cast<proxy::remove_const_t<
+          proxy::remove_reference_t<decltype(Rep::root)>>*>(&Rep::root)}
         } -> ConceptSame<typename Rep::Handle>;
     };
 
@@ -69,8 +68,9 @@ namespace snmalloc
   concept RBRep = //
     RBRepTypes<Rep> //
     && RBRepMethods<Rep> //
-    &&
-    ConceptSame<decltype(Rep::null), std::add_const_t<typename Rep::Contents>>;
+    && ConceptSame<
+         decltype(Rep::null),
+         proxy::add_const_t<typename Rep::Contents>>;
 #endif
 
   /**
@@ -156,7 +156,8 @@ namespace snmalloc
     };
 
     // Root field of the tree
-    typename std::remove_const_t<std::remove_reference_t<decltype(Rep::root)>>
+    typename proxy::remove_const_t<
+      proxy::remove_reference_t<decltype(Rep::root)>>
       root{Rep::root};
 
     static ChildRef get_dir(bool direction, K k)

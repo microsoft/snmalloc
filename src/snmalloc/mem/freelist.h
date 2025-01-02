@@ -35,6 +35,7 @@
 
 #include "../ds/ds.h"
 #include "entropy.h"
+#include "snmalloc/proxy/new.h"
 
 #include <cstdint>
 
@@ -182,7 +183,7 @@ namespace snmalloc
         };
 
         SNMALLOC_NO_UNIQUE_ADDRESS
-        std::conditional_t<mitigations(freelist_backward_edge), Prev, Empty>
+        proxy::conditional_t<mitigations(freelist_backward_edge), Prev, Empty>
           prev{};
 
       public:
@@ -197,7 +198,7 @@ namespace snmalloc
         {
           auto n_wild = Object::decode_next(
             address_cast(&this->next_object),
-            this->atomic_next_object.load(std::memory_order_acquire),
+            this->atomic_next_object.load(proxy::memory_order_acquire),
             key,
             key_tweak);
           auto n_tame = domesticate(n_wild);
@@ -265,7 +266,7 @@ namespace snmalloc
       static BHeadPtr<BView, BQueue> make(CapPtr<void, BView> p)
       {
         return CapPtr<Object::T<BQueue>, BView>::unsafe_from(
-          new (p.unsafe_ptr()) Object::T());
+          new (p.unsafe_ptr(), placement_token) Object::T());
       }
 
       /**
@@ -377,7 +378,7 @@ namespace snmalloc
           "Free Object View must be domesticated, justifying raw pointers");
 
         static_assert(
-          std::is_same_v<
+          proxy::is_same_v<
             typename BQueue::template with_wildness<
               capptr::dimension::Wildness::Tame>,
             BView>,
@@ -472,7 +473,7 @@ namespace snmalloc
         // so requires release semantics.
         curr->atomic_next_object.store(
           encode_next(address_cast(&curr->next_object), next, key, key_tweak),
-          std::memory_order_release);
+          proxy::memory_order_release);
       }
 
       template<
@@ -491,7 +492,7 @@ namespace snmalloc
             BQueuePtr<BQueue>(nullptr),
             key,
             key_tweak),
-          std::memory_order_relaxed);
+          proxy::memory_order_relaxed);
       }
     };
 
@@ -554,7 +555,7 @@ namespace snmalloc
     };
 
     using IterBase =
-      std::conditional_t<mitigations(freelist_backward_edge), Prev, NoPrev>;
+      proxy::conditional_t<mitigations(freelist_backward_edge), Prev, NoPrev>;
 
     /**
      * Used to iterate a free list in object space.
@@ -596,7 +597,7 @@ namespace snmalloc
       };
 
       SNMALLOC_NO_UNIQUE_ADDRESS
-      std::conditional_t<
+      proxy::conditional_t<
         mitigations(freelist_forward_edge) ||
           mitigations(freelist_backward_edge),
         KeyTweak,
@@ -774,7 +775,7 @@ namespace snmalloc
        * lists, which will be randomised at the other end.
        */
       template<bool RANDOM_ = RANDOM>
-      std::enable_if_t<!RANDOM_> add(
+      proxy::enable_if_t<!RANDOM_> add(
         Object::BHeadPtr<BView, BQueue> n,
         const FreeListKey& key,
         address_t key_tweak)
@@ -896,14 +897,14 @@ namespace snmalloc
       }
 
       template<bool RANDOM_ = RANDOM>
-      std::enable_if_t<!RANDOM_, size_t> extract_segment_length()
+      proxy::enable_if_t<!RANDOM_, size_t> extract_segment_length()
       {
         static_assert(RANDOM_ == RANDOM, "Don't set SFINAE parameter!");
         return length[0];
       }
 
       template<bool RANDOM_ = RANDOM>
-      std::enable_if_t<
+      proxy::enable_if_t<
         !RANDOM_,
         std::pair<
           Object::BHeadPtr<BView, BQueue>,

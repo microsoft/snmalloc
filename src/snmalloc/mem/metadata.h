@@ -3,6 +3,7 @@
 #include "../ds/ds.h"
 #include "freelist.h"
 #include "sizeclasstable.h"
+#include "snmalloc/proxy/new.h"
 
 namespace snmalloc
 {
@@ -454,7 +455,7 @@ namespace snmalloc
       smallsizeclass_t sizeclass, address_t slab, const FreeListKey& key)
     {
       static_assert(
-        std::is_base_of<FrontendSlabMetadata_Trait, BackendType>::value,
+        proxy::is_base_of_v<FrontendSlabMetadata_Trait, BackendType>,
         "Template should be a subclass of FrontendSlabMetadata");
       free_queue.init(slab, key, this->as_key_tweak());
       // Set up meta data as if the entire slab has been turned into a free
@@ -466,7 +467,7 @@ namespace snmalloc
 
       large_ = false;
 
-      new (&client_meta_)
+      new (&client_meta_, placement_token)
         typename ClientMeta::StorageType[get_client_storage_count(sizeclass)];
     }
 
@@ -486,7 +487,7 @@ namespace snmalloc
       // Jump to slow path on first deallocation.
       needed() = 1;
 
-      new (&client_meta_) typename ClientMeta::StorageType();
+      new (&client_meta_, placement_token) typename ClientMeta::StorageType();
     }
 
     /**
@@ -629,7 +630,7 @@ namespace snmalloc
     {
       auto& key = freelist::Object::key_root;
 
-      std::remove_reference_t<decltype(fast_free_list)> tmp_fl;
+      proxy::remove_reference_t<decltype(fast_free_list)> tmp_fl;
 
       auto remaining =
         meta->free_queue.close(tmp_fl, key, meta->as_key_tweak());
@@ -707,7 +708,7 @@ namespace snmalloc
      * Ensure that the template parameter is valid.
      */
     static_assert(
-      std::is_convertible_v<SlabMetadataType, FrontendSlabMetadata_Trait>,
+      proxy::is_convertible_v<SlabMetadataType, FrontendSlabMetadata_Trait>,
       "The front end requires that the back end provides slab metadata that is "
       "compatible with the front-end's structure");
 
