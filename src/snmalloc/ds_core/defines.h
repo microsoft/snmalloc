@@ -1,5 +1,5 @@
 #pragma once
-#include <cstddef>
+#include <stddef.h>
 
 #if defined(_MSC_VER) && !defined(__clang__)
 // 28 is FAST_FAIL_INVALID_BUFFER_ACCESS.  Not using the symbolic constant to

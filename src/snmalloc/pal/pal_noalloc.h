@@ -8,7 +8,7 @@
 #include "pal_consts.h"
 #include "pal_timer_default.h"
 
-#include <cstring>
+#include <string.h>
 
 namespace snmalloc
 {
