@@ -510,17 +510,18 @@ namespace snmalloc
     handle_message_queue_inner(Action action, Args... args)
     {
       bool need_post = false;
+      size_t bytes_freed = 0;
       auto local_state = backend_state_ptr();
       auto domesticate = [local_state](freelist::QueuePtr p)
                            SNMALLOC_FAST_PATH_LAMBDA {
                              return capptr_domesticate<Config>(local_state, p);
                            };
-      auto cb = [this, domesticate, &need_post](
+      auto cb = [this, domesticate, &need_post, &bytes_freed](
                   capptr::Alloc<RemoteMessage> msg) SNMALLOC_FAST_PATH_LAMBDA {
         auto& entry =
           Config::Backend::get_metaentry(snmalloc::address_cast(msg));
-        handle_dealloc_remote(entry, msg, need_post, domesticate);
-        return true;
+        handle_dealloc_remote(entry, msg, need_post, domesticate, bytes_freed);
+        return bytes_freed < REMOTE_BATCH_LIMIT;
       };
 
 #ifdef SNMALLOC_TRACING
@@ -563,7 +564,8 @@ namespace snmalloc
       const PagemapEntry& entry,
       capptr::Alloc<RemoteMessage> msg,
       bool& need_post,
-      Domesticator_queue domesticate)
+      Domesticator_queue domesticate,
+      size_t& bytes_returned)
     {
       // TODO this needs to not double count stats
       // TODO this needs to not double revoke if using MTE
@@ -573,8 +575,8 @@ namespace snmalloc
       {
         auto meta = entry.get_slab_metadata();
 
-        auto unreturned =
-          dealloc_local_objects_fast(msg, entry, meta, entropy, domesticate);
+        auto unreturned = dealloc_local_objects_fast(
+          msg, entry, meta, entropy, domesticate, bytes_returned);
 
         /*
          * dealloc_local_objects_fast has updated the free list but not updated
@@ -777,7 +779,8 @@ namespace snmalloc
       const PagemapEntry& entry,
       BackendSlabMetadata* meta,
       LocalEntropy& entropy,
-      Domesticator domesticate)
+      Domesticator domesticate,
+      size_t& bytes_freed)
     {
       SNMALLOC_ASSERT(!meta->is_unused());
 
@@ -794,6 +797,8 @@ namespace snmalloc
         freelist::Object::key_root,
         meta->as_key_tweak(),
         domesticate);
+
+      bytes_freed = objsize * length;
 
       // Update the head and the next pointer in the free list.
       meta->free_queue.append_segment(
@@ -940,14 +945,18 @@ namespace snmalloc
                              return capptr_domesticate<Config>(local_state, p);
                            };
 
+      size_t bytes_flushed = 0; // Not currently used.
+
       if (destroy_queue)
       {
-        auto cb = [this, domesticate](capptr::Alloc<RemoteMessage> m) {
-          bool need_post = true; // Always going to post, so ignore.
-          const PagemapEntry& entry =
-            Config::Backend::get_metaentry(snmalloc::address_cast(m));
-          handle_dealloc_remote(entry, m, need_post, domesticate);
-        };
+        auto cb =
+          [this, domesticate, &bytes_flushed](capptr::Alloc<RemoteMessage> m) {
+            bool need_post = true; // Always going to post, so ignore.
+            const PagemapEntry& entry =
+              Config::Backend::get_metaentry(snmalloc::address_cast(m));
+            handle_dealloc_remote(
+              entry, m, need_post, domesticate, bytes_flushed);
+          };
 
         message_queue().destroy_and_iterate(domesticate, cb);
       }
