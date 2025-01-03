@@ -42,7 +42,7 @@ namespace snmalloc
         {
           init(&obj);
           initialised.store(State::Initialised, stl::memory_order_release);
-          first = true;
+          *first = true;
         }
       }
 
