@@ -19,8 +19,6 @@ namespace snmalloc
       Initialised
     };
 
-    using State;
-
     inline static stl::Atomic<State> initialised{State::Uninitialised};
     inline static Object obj;
 
@@ -38,7 +36,8 @@ namespace snmalloc
       auto state = initialised.load(stl::memory_order_acquire);
       if (SNMALLOC_UNLIKELY(state == State::Uninitialised))
       {
-        if (initialised.compare_exchange_strong(state, State::Initialising, stl::memory_order_relaxed))
+        if (initialised.compare_exchange_strong(
+          state, State::Initialising, stl::memory_order_relaxed))
         {
           init(&obj);
           initialised.store(State::Initialised, stl::memory_order_release);
@@ -46,7 +45,7 @@ namespace snmalloc
         }
       }
 
-      while(SNMALLOC_UNLIKELY(state != State::Initialised))
+      while (SNMALLOC_UNLIKELY(state != State::Initialised))
       {
         // Would be nice to call Aal::pause here,
         // ds_core is defined before Aal is defined.
