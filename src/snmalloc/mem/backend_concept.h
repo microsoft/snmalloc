@@ -148,7 +148,7 @@ namespace snmalloc
    *
    */
   template<typename Config>
-  concept IsConfig = std::is_base_of<CommonConfig, Config>::value &&
+  concept IsConfig = proxy::is_base_of_v<CommonConfig, Config> &&
     IsPAL<typename Config::Pal> &&
     IsBackend<typename Config::LocalState,
               typename Config::PagemapEntry,
