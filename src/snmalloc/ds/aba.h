@@ -35,8 +35,8 @@ namespace snmalloc
 
     struct Independent
     {
-      std::atomic<T*> ptr{nullptr};
-      std::atomic<uintptr_t> aba{0};
+      stl::Atomic<T*> ptr{nullptr};
+      stl::Atomic<uintptr_t> aba{0};
     };
 
     static_assert(
@@ -49,7 +49,7 @@ namespace snmalloc
   private:
     union
     {
-      alignas(2 * sizeof(std::size_t)) std::atomic<Linked> linked;
+      alignas(2 * sizeof(std::size_t)) stl::Atomic<Linked> linked;
       Independent independent;
     };
 
@@ -58,8 +58,8 @@ namespace snmalloc
 
     void init(T* x)
     {
-      independent.ptr.store(x, std::memory_order_relaxed);
-      independent.aba.store(0, std::memory_order_relaxed);
+      independent.ptr.store(x, stl::memory_order_relaxed);
+      independent.aba.store(0, stl::memory_order_relaxed);
     }
 
     struct Cmp;
@@ -72,8 +72,8 @@ namespace snmalloc
       operation_in_flight = true;
 #  endif
       return Cmp{
-        {independent.ptr.load(std::memory_order_relaxed),
-         independent.aba.load(std::memory_order_relaxed)},
+        {independent.ptr.load(stl::memory_order_relaxed),
+         independent.aba.load(stl::memory_order_relaxed)},
         this};
     }
 
@@ -109,10 +109,10 @@ namespace snmalloc
 #    endif
 
         Linked xchg{value, old.aba + 1};
-        std::atomic<Linked>& addr = parent->linked;
+        stl::Atomic<Linked>& addr = parent->linked;
 
         auto result = addr.compare_exchange_weak(
-          old, xchg, std::memory_order_acq_rel, std::memory_order_relaxed);
+          old, xchg, stl::memory_order_acq_rel, stl::memory_order_relaxed);
 #  endif
         return result;
       }
@@ -131,7 +131,7 @@ namespace snmalloc
     // This method is used in Verona
     T* peek()
     {
-      return independent.ptr.load(std::memory_order_relaxed);
+      return independent.ptr.load(stl::memory_order_relaxed);
     }
   };
 #else
@@ -141,21 +141,21 @@ namespace snmalloc
   template<typename T, Construction c = RequiresInit>
   class ABA
   {
-    std::atomic<T*> ptr = nullptr;
-    std::atomic<bool> lock{false};
+    stl::Atomic<T*> ptr = nullptr;
+    stl::Atomic<bool> lock{false};
 
   public:
     // This method is used in Verona
     void init(T* x)
     {
-      ptr.store(x, std::memory_order_relaxed);
+      ptr.store(x, stl::memory_order_relaxed);
     }
 
     struct Cmp;
 
     Cmp read()
     {
-      while (lock.exchange(true, std::memory_order_acquire))
+      while (lock.exchange(true, stl::memory_order_acquire))
         Aal::pause();
 
 #  if !defined(NDEBUG) && !defined(SNMALLOC_DISABLE_ABA_VERIFY)
@@ -185,7 +185,7 @@ namespace snmalloc
 
       ~Cmp()
       {
-        parent->lock.store(false, std::memory_order_release);
+        parent->lock.store(false, stl::memory_order_release);
 #  if !defined(NDEBUG) && !defined(SNMALLOC_DISABLE_ABA_VERIFY)
         operation_in_flight = false;
 #  endif
@@ -195,7 +195,7 @@ namespace snmalloc
     // This method is used in Verona
     T* peek()
     {
-      return ptr.load(std::memory_order_relaxed);
+      return ptr.load(stl::memory_order_relaxed);
     }
   };
 #endif

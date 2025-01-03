@@ -1,8 +1,7 @@
 #pragma once
 
 #include "../ds_core/ds_core.h"
-
-#include <atomic>
+#include "snmalloc/stl/atomic.h"
 
 namespace snmalloc
 {

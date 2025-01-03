@@ -197,7 +197,7 @@ namespace snmalloc
         {
           auto n_wild = Object::decode_next(
             address_cast(&this->next_object),
-            this->atomic_next_object.load(std::memory_order_acquire),
+            this->atomic_next_object.load(stl::memory_order_acquire),
             key,
             key_tweak);
           auto n_tame = domesticate(n_wild);
@@ -472,7 +472,7 @@ namespace snmalloc
         // so requires release semantics.
         curr->atomic_next_object.store(
           encode_next(address_cast(&curr->next_object), next, key, key_tweak),
-          std::memory_order_release);
+          stl::memory_order_release);
       }
 
       template<
@@ -491,7 +491,7 @@ namespace snmalloc
             BQueuePtr<BQueue>(nullptr),
             key,
             key_tweak),
-          std::memory_order_relaxed);
+          stl::memory_order_relaxed);
       }
     };
 

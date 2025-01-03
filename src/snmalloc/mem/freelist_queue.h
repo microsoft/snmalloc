@@ -2,8 +2,7 @@
 
 #include "../ds/ds.h"
 #include "freelist.h"
-
-#include <atomic>
+#include "snmalloc/stl/atomic.h"
 
 namespace snmalloc
 {
@@ -61,14 +60,14 @@ namespace snmalloc
       freelist::HeadPtr stub_ptr = freelist::HeadPtr::unsafe_from(&stub);
       freelist::Object::atomic_store_null(stub_ptr, Key, Key_tweak);
       front.store(freelist::QueuePtr::unsafe_from(&stub));
-      back.store(nullptr, std::memory_order_relaxed);
+      back.store(nullptr, stl::memory_order_relaxed);
       invariant();
     }
 
     freelist::QueuePtr destroy()
     {
       freelist::QueuePtr fnt = front.load();
-      back.store(nullptr, std::memory_order_relaxed);
+      back.store(nullptr, stl::memory_order_relaxed);
       if (address_cast(front.load()) == address_cast(&stub))
         return nullptr;
       return fnt;
@@ -116,7 +115,7 @@ namespace snmalloc
       // *  Needs to be acquire, so linking into the list does not race with
       //    the other threads nullptr init of the next field.
       freelist::QueuePtr prev =
-        back.exchange(capptr_rewild(last), std::memory_order_acq_rel);
+        back.exchange(capptr_rewild(last), stl::memory_order_acq_rel);
 
       if (SNMALLOC_LIKELY(prev != nullptr))
       {
@@ -149,7 +148,7 @@ namespace snmalloc
       SNMALLOC_ASSERT(front.load() != nullptr);
 
       // Use back to bound, so we don't handle new entries.
-      auto b = back.load(std::memory_order_relaxed);
+      auto b = back.load(stl::memory_order_relaxed);
       freelist::HeadPtr curr = domesticate_head(front.load());
 
       while (address_cast(curr) != address_cast(b))

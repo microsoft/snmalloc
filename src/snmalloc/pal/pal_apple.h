@@ -321,10 +321,10 @@ namespace snmalloc
 #  endif
 
     template<class T>
-    static void wait_on_address(std::atomic<T>& addr, T expected)
+    static void wait_on_address(stl::Atomic<T>& addr, T expected)
     {
       [[maybe_unused]] int errno_backup = errno;
-      while (addr.load(std::memory_order_relaxed) == expected)
+      while (addr.load(stl::memory_order_relaxed) == expected)
       {
 #  ifdef SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS
         if (
@@ -349,7 +349,7 @@ namespace snmalloc
     }
 
     template<class T>
-    static void notify_one_on_address(std::atomic<T>& addr)
+    static void notify_one_on_address(stl::Atomic<T>& addr)
     {
 #  ifdef SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS
       os_sync_wake_by_address_any(&addr, sizeof(T), 0);
@@ -366,7 +366,7 @@ namespace snmalloc
     }
 
     template<class T>
-    static void notify_all_on_address(std::atomic<T>& addr)
+    static void notify_all_on_address(stl::Atomic<T>& addr)
     {
 #  ifdef SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS
       os_sync_wake_by_address_all(&addr, sizeof(T), 0);

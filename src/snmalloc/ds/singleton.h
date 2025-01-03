@@ -2,8 +2,8 @@
 
 #include "../ds_core/ds_core.h"
 #include "flaglock.h"
+#include "snmalloc/stl/atomic.h"
 
-#include <atomic>
 #include <type_traits>
 
 namespace snmalloc
@@ -17,7 +17,7 @@ namespace snmalloc
   class Singleton
   {
     inline static FlagWord flag;
-    inline static std::atomic<bool> initialised{false};
+    inline static stl::Atomic<bool> initialised{false};
     inline static Object obj;
 
   public:
@@ -31,13 +31,13 @@ namespace snmalloc
       // If defined should be initially false;
       SNMALLOC_ASSERT(first == nullptr || *first == false);
 
-      if (SNMALLOC_UNLIKELY(!initialised.load(std::memory_order_acquire)))
+      if (SNMALLOC_UNLIKELY(!initialised.load(stl::memory_order_acquire)))
       {
         with(flag, [&]() {
           if (!initialised)
           {
             init(&obj);
-            initialised.store(true, std::memory_order_release);
+            initialised.store(true, stl::memory_order_release);
             if (first != nullptr)
               *first = true;
           }
