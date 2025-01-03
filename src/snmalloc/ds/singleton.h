@@ -1,10 +1,6 @@
 #pragma once
 
-#include "../ds_core/ds_core.h"
-#include "flaglock.h"
 #include "snmalloc/stl/atomic.h"
-
-#include <type_traits>
 
 namespace snmalloc
 {
@@ -16,8 +12,16 @@ namespace snmalloc
   template<class Object, void init(Object*) noexcept>
   class Singleton
   {
-    inline static FlagWord flag;
-    inline static stl::Atomic<bool> initialised{false};
+    enum class State
+    {
+      Uninitialised,
+      Initialising,
+      Initialised
+    };
+
+    using State;
+
+    inline static stl::Atomic<State> initialised{State::Uninitialised};
     inline static Object obj;
 
   public:
@@ -31,20 +35,26 @@ namespace snmalloc
       // If defined should be initially false;
       SNMALLOC_ASSERT(first == nullptr || *first == false);
 
-      if (SNMALLOC_UNLIKELY(!initialised.load(stl::memory_order_acquire)))
+      auto state = initialised.load(stl::memory_order_acquire);
+      if (SNMALLOC_UNLIKELY(state == State::Uninitialised))
       {
-        with(flag, [&]() {
-          if (!initialised)
-          {
-            init(&obj);
-            initialised.store(true, stl::memory_order_release);
-            if (first != nullptr)
-              *first = true;
-          }
-        });
+        if (initialised.compare_exchange_strong(state, State::Initialising, stl::memory_order_relaxed))
+        {
+          init(&obj);
+          initialised.store(State::Initialised, stl::memory_order_release);
+          first = true;
+        }
       }
+
+      while(SNMALLOC_UNLIKELY(state != State::Initialised))
+      {
+        // Would be nice to call Aal::pause here,
+        // ds_core is defined before Aal is defined.
+        // So we can't.
+        state = initialised.load(stl::memory_order_acquire);
+      }
+
       return obj;
     }
   };
-
 } // namespace snmalloc
