@@ -1,26 +1,11 @@
 #pragma once
 
-#include "snmalloc/ds_core/defines.h"
-
-// Proxy header for atomic implementations.
-
-#ifndef SNMALLOC_USE_SELF_VENDORED_STL
-#  define SNMALLOC_USE_SELF_VENDORED_STL 0
-#endif
-
-#if SNMALLOC_USE_SELF_VENDORED_STL
-
-#  if !defined(__GNUC__) && !defined(__clang__)
-#    error "cannot use vendored STL without GNU/Clang extensions"
-#  endif
-
-// TODO: switch to vendored headers when we have it.
-#  include <stddef.h>
-#  include <type_traits>
+#include <stddef.h>
+#include <type_traits> // TODO: switch the vendored headers when we have them.
 
 namespace snmalloc
 {
-  namespace proxy
+  namespace stl
   {
 
     enum class MemoryOrder : int
@@ -243,27 +228,5 @@ namespace snmalloc
     };
 
     using AtomicBool = Atomic<bool>;
-  } // namespace proxy
+  } // namespace stl
 } // namespace snmalloc
-#else
-#  include <atomic>
-
-namespace snmalloc
-{
-  namespace proxy
-  {
-    template<typename T>
-    using Atomic = std::atomic<T>;
-
-    constexpr auto memory_order_relaxed = std::memory_order_relaxed;
-    constexpr auto memory_order_consume = std::memory_order_consume;
-    constexpr auto memory_order_acquire = std::memory_order_acquire;
-    constexpr auto memory_order_release = std::memory_order_release;
-    constexpr auto memory_order_acq_rel = std::memory_order_acq_rel;
-    constexpr auto memory_order_seq_cst = std::memory_order_seq_cst;
-
-    using AtomicBool = std::atomic<bool>;
-    using MemoryOrder = std::memory_order;
-  } // namespace proxy
-} // namespace snmalloc
-#endif

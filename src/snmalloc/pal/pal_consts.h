@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../ds_core/ds_core.h"
-#include "snmalloc/proxy/atomic.h"
+#include "snmalloc/stl/atomic.h"
 
 namespace snmalloc
 {

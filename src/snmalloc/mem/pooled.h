@@ -46,7 +46,7 @@ namespace snmalloc
     capptr::Alloc<T> next{nullptr};
     /// Used by the pool to keep the list of all entries ever created.
     capptr::Alloc<T> list_next;
-    proxy::Atomic<bool> in_use{false};
+    stl::Atomic<bool> in_use{false};
 
   public:
     void set_in_use()

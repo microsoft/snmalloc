@@ -6,7 +6,7 @@
 // #define USE_LZCNT
 
 #include "defines.h"
-#include "snmalloc/proxy/atomic.h"
+#include "snmalloc/stl/atomic.h"
 
 #include <climits>
 #include <cstdint>

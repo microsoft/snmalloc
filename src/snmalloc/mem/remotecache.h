@@ -6,7 +6,7 @@
 #include "metadata.h"
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
-#include "snmalloc/proxy/atomic.h"
+#include "snmalloc/stl/atomic.h"
 
 #include <array>
 

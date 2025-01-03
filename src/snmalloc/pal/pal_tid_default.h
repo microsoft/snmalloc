@@ -1,6 +1,6 @@
 #pragma once
 
-#include "snmalloc/proxy/atomic.h"
+#include "snmalloc/stl/atomic.h"
 
 namespace snmalloc
 {
@@ -18,7 +18,7 @@ namespace snmalloc
     static inline ThreadIdentity get_tid() noexcept
     {
       static thread_local size_t tid{0};
-      static proxy::Atomic<size_t> tid_source{0};
+      static stl::Atomic<size_t> tid_source{0};
 
       if (tid == 0)
       {
