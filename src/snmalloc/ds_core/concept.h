@@ -1,6 +1,6 @@
 #pragma once
 
-#include "snmalloc/proxy/type_traits.h"
+#include "snmalloc/stl/type_traits.h"
 
 /**
  * C++20 concepts are referenced as if they were types in declarations within
@@ -21,14 +21,14 @@
 namespace snmalloc
 {
   template<typename T, typename U>
-  concept ConceptSame = proxy::is_same_v<T, U>;
+  concept ConceptSame = stl::is_same_v<T, U>;
 
   /**
-   * Equivalence mod proxy::remove_reference
+   * Equivalence mod stl::remove_reference
    */
   template<typename T, typename U>
   concept ConceptSameModRef =
-    ConceptSame<proxy::remove_reference_t<T>, proxy::remove_reference_t<U>>;
+    ConceptSame<stl::remove_reference_t<T>, stl::remove_reference_t<U>>;
 
   /**
    * Some of the types in snmalloc are circular in their definition and use
@@ -57,8 +57,7 @@ namespace snmalloc
   constexpr bool is_type_complete_v = false;
 
   template<typename T>
-  constexpr bool is_type_complete_v<T, proxy::void_t<decltype(sizeof(T))>> =
-    true;
+  constexpr bool is_type_complete_v<T, stl::void_t<decltype(sizeof(T))>> = true;
 
 } // namespace snmalloc
 #endif

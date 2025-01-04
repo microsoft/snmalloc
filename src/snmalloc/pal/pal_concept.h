@@ -21,7 +21,7 @@ namespace snmalloc
   template<typename PAL>
   concept IsPAL_static_features =
     requires() {
-      typename proxy::integral_constant<uint64_t, PAL::pal_features>;
+      typename stl::integral_constant<uint64_t, PAL::pal_features>;
     };
 
   /**
@@ -30,8 +30,8 @@ namespace snmalloc
   template<typename PAL>
   concept IsPAL_static_sizes =
     requires() {
-      typename proxy::integral_constant<std::size_t, PAL::address_bits>;
-      typename proxy::integral_constant<std::size_t, PAL::page_size>;
+      typename stl::integral_constant<std::size_t, PAL::address_bits>;
+      typename stl::integral_constant<std::size_t, PAL::page_size>;
     };
 
   /**

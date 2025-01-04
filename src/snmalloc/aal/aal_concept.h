@@ -15,10 +15,10 @@ namespace snmalloc
   template<typename AAL>
   concept IsAAL_static_members =
     requires() {
-      typename proxy::integral_constant<uint64_t, AAL::aal_features>;
-      typename proxy::integral_constant<int, AAL::aal_name>;
-      typename proxy::integral_constant<size_t, AAL::bits>;
-      typename proxy::integral_constant<size_t, AAL::address_bits>;
+      typename stl::integral_constant<uint64_t, AAL::aal_features>;
+      typename stl::integral_constant<int, AAL::aal_name>;
+      typename stl::integral_constant<size_t, AAL::bits>;
+      typename stl::integral_constant<size_t, AAL::address_bits>;
     };
 
   /**

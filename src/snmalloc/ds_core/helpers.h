@@ -2,7 +2,7 @@
 
 #include "bits.h"
 #include "snmalloc/ds_core/defines.h"
-#include "snmalloc/proxy/type_traits.h"
+#include "snmalloc/stl/type_traits.h"
 
 #include <array>
 #include <cstddef>
@@ -104,7 +104,7 @@ namespace snmalloc
     template<
       typename Fn,
       typename =
-        proxy::enable_if_t<!proxy::is_same_v<std::decay_t<Fn>, function_ref>>>
+        stl::enable_if_t<!stl::is_same_v<std::decay_t<Fn>, function_ref>>>
     function_ref(Fn&& fn)
     {
       data_ = static_cast<void*>(&fn);
@@ -123,7 +123,7 @@ namespace snmalloc
     template<typename Fn>
     static R execute(void* p, Args... args)
     {
-      return (*static_cast<proxy::add_pointer_t<Fn>>(p))(args...);
+      return (*static_cast<stl::add_pointer_t<Fn>>(p))(args...);
     };
   };
 

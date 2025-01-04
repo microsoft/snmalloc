@@ -85,7 +85,7 @@ namespace snmalloc
     typename AAL = Aal,
     typename T,
     SNMALLOC_CONCEPT(capptr::IsBound) B>
-  static inline typename proxy::enable_if_t<
+  static inline typename stl::enable_if_t<
     !aal_supports<StrictProvenance, AAL>,
     CapPtr<T, capptr::user_address_control_type<B>>>
   capptr_to_user_address_control(CapPtr<T, B> p)
@@ -99,7 +99,7 @@ namespace snmalloc
     typename AAL = Aal,
     typename T,
     SNMALLOC_CONCEPT(capptr::IsBound) B>
-  static SNMALLOC_FAST_PATH typename proxy::enable_if_t<
+  static SNMALLOC_FAST_PATH typename stl::enable_if_t<
     aal_supports<StrictProvenance, AAL>,
     CapPtr<T, capptr::user_address_control_type<B>>>
   capptr_to_user_address_control(CapPtr<T, B> p)

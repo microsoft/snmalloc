@@ -2,7 +2,7 @@
 
 #include "../ds/ds.h"
 #include "../pal/pal.h"
-#include "snmalloc/proxy/type_traits.h"
+#include "snmalloc/stl/type_traits.h"
 
 #include <cstdint>
 

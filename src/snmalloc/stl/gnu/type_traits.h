@@ -1,26 +1,10 @@
 #pragma once
 
-#ifndef SNMALLOC_USE_SELF_VENDORED_STL
-#  define SNMALLOC_USE_SELF_VENDORED_STL 0
-#endif
-
-#if SNMALLOC_USE_SELF_VENDORED_STL
-
-#  if !defined(__GNUC__) && !defined(__clang__)
-#    error "cannot use vendored STL without GNU/Clang extensions"
-#  endif
-
-#  ifndef __clang__
-#    if __GNUC__ < 14
-#      error "cannot use vendored STL with GCC < 14"
-#    endif
-#  endif
-
-#  include <stddef.h>
+#include <stddef.h>
 
 namespace snmalloc
 {
-  namespace proxy
+  namespace stl
   {
     /**
      * Type identity metafunction.
@@ -102,10 +86,10 @@ namespace snmalloc
     public:
       static constexpr bool value = is_unqualified_any_of<
         T,
-#  ifdef __SIZEOF_INT128__
+#ifdef __SIZEOF_INT128__
         __int128_t,
         __uint128_t,
-#  endif
+#endif
         char,
         signed char,
         unsigned char,
@@ -126,10 +110,10 @@ namespace snmalloc
     /**
      * Remove all array extents.
      */
-#  if __has_builtin(__remove_all_extents)
+#if __has_builtin(__remove_all_extents)
     template<typename T>
     using remove_all_extents_t = __remove_all_extents(T);
-#  else
+#else
     template<class T>
     struct remove_all_extents
     {
@@ -150,7 +134,7 @@ namespace snmalloc
 
     template<class T>
     using remove_all_extents_t = typename remove_all_extents<T>::type;
-#  endif
+#endif
 
     /**
      * void_t
@@ -197,10 +181,10 @@ namespace snmalloc
     /**
      * add_lvalue_reference/add_rvalue_reference
      */
-#  if __has_builtin(__add_lvalue_reference)
+#if __has_builtin(__add_lvalue_reference)
     template<class T>
     using add_lvalue_reference_t = __add_lvalue_reference(T);
-#  else
+#else
     template<class T> // Note that `cv void&` is a substitution failure
     auto __add_lvalue_reference_impl(int) -> type_identity<T&>;
     template<class T> // Handle T = cv void case
@@ -211,12 +195,12 @@ namespace snmalloc
     {};
     template<class T>
     using add_lvalue_reference_t = typename add_lvalue_reference<T>::type;
-#  endif
+#endif
 
-#  if __has_builtin(__add_rvalue_reference)
+#if __has_builtin(__add_rvalue_reference)
     template<class T>
     using add_rvalue_reference_t = __add_rvalue_reference(T);
-#  else
+#else
     template<class T>
     auto __add_rvalue_reference_impl(int) -> type_identity<T&&>;
     template<class T>
@@ -228,7 +212,7 @@ namespace snmalloc
 
     template<class T>
     using add_rvalue_reference_t = typename add_rvalue_reference<T>::type;
-#  endif
+#endif
 
     /**
      * remove_reference
@@ -250,10 +234,10 @@ namespace snmalloc
     /**
      * add_pointer
      */
-#  if __has_builtin(__add_pointer)
+#if __has_builtin(__add_pointer)
     template<class T>
     using add_pointer_t = __add_pointer(T);
-#  else
+#else
     template<class T>
     auto __add_pointer_impl(int) -> type_identity<remove_reference_t<T>*>;
     template<class T>
@@ -265,7 +249,7 @@ namespace snmalloc
 
     template<class T>
     using add_pointer_t = typename add_pointer<T>::type;
-#  endif
+#endif
     /**
      * is_array
      */
@@ -282,10 +266,10 @@ namespace snmalloc
      * remove_extent
      */
 
-#  if __has_builtin(__remove_extent)
+#if __has_builtin(__remove_extent)
     template<class T>
     using remove_extent_t = __remove_extent(T);
-#  else
+#else
     template<class T>
     struct remove_extent
     {
@@ -306,12 +290,15 @@ namespace snmalloc
 
     template<class T>
     using remove_extent_t = typename remove_extent<T>::type;
-#  endif
+#endif
 
     /**
      * decay
      */
-
+#if __has_builtin(__decay)
+    template<class T>
+    using decay_t = __decay(T);
+#else
     template<class T>
     class decay
     {
@@ -326,11 +313,11 @@ namespace snmalloc
 
     template<class T>
     using decay_t = typename decay<T>::type;
+#endif
 
     /**
      * is_copy_assignable
      */
-
     template<class T>
     constexpr bool is_copy_assignable_v = __is_assignable(
       add_lvalue_reference_t<T>, add_lvalue_reference_t<const T>);
@@ -377,10 +364,10 @@ namespace snmalloc
     /**
      * remove_const
      */
-#  if __has_builtin(__remove_const)
+#if __has_builtin(__remove_const)
     template<class T>
     using remove_const_t = __remove_const(T);
-#  else
+#else
     template<class T>
     struct remove_const
     {
@@ -395,7 +382,7 @@ namespace snmalloc
 
     template<class T>
     using remove_const_t = typename remove_const<T>::type;
-#  endif
+#endif
 
     /**
      * add_const
@@ -403,54 +390,5 @@ namespace snmalloc
     template<class T>
     using add_const_t = const T;
 
-  } // namespace proxy
+  } // namespace stl
 } // namespace snmalloc
-
-#else
-
-#  include <type_traits>
-
-namespace snmalloc
-{
-  namespace proxy
-  {
-    using std::add_const_t;
-    using std::add_lvalue_reference_t;
-    using std::add_pointer_t;
-    using std::add_rvalue_reference_t;
-    using std::bool_constant;
-    using std::conditional;
-    using std::conditional_t;
-    using std::decay;
-    using std::decay_t;
-    using std::enable_if;
-    using std::enable_if_t;
-    using std::false_type;
-    using std::has_unique_object_representations_v;
-    using std::integral_constant;
-    using std::is_array_v;
-    using std::is_base_of_v;
-    using std::is_convertible_v;
-    using std::is_copy_assignable_v;
-    using std::is_copy_constructible_v;
-    using std::is_function_v;
-    using std::is_integral;
-    using std::is_integral_v;
-    using std::is_move_assignable_v;
-    using std::is_move_constructible_v;
-    using std::is_same;
-    using std::is_same_v;
-    using std::is_trivially_copyable_v;
-    using std::remove_all_extents_t;
-    using std::remove_const_t;
-    using std::remove_cv;
-    using std::remove_cv_t;
-    using std::remove_extent_t;
-    using std::remove_reference;
-    using std::remove_reference_t;
-    using std::true_type;
-    using std::void_t;
-  } // namespace proxy
-} // namespace snmalloc
-
-#endif

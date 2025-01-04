@@ -418,7 +418,7 @@ namespace snmalloc
 #elif defined(__powerpc64__)
     PPC64Arch
 #else
-    proxy::conditional_t<
+    stl::conditional_t<
       aal_supports<StrictProvenance>,
       GenericStrictProvenance,
       GenericArch>

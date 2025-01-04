@@ -30,16 +30,15 @@ namespace snmalloc
     class Atomic
     {
       static_assert(
-        proxy::is_trivially_copyable_v<T> &&
-          proxy::is_copy_constructible_v<T> &&
-          proxy::is_move_constructible_v<T> && proxy::is_copy_assignable_v<T> &&
-          proxy::is_move_assignable_v<T>,
+        stl::is_trivially_copyable_v<T> && stl::is_copy_constructible_v<T> &&
+          stl::is_move_constructible_v<T> && stl::is_copy_assignable_v<T> &&
+          stl::is_move_assignable_v<T>,
         "Atomic<T> requires T to be trivially copyable, copy "
         "constructible, move constructible, copy assignable, "
         "and move assignable.");
 
       static_assert(
-        proxy::has_unique_object_representations_v<T>,
+        stl::has_unique_object_representations_v<T>,
         "vendored Atomic only supports types with unique object "
         "representations");
 
@@ -182,48 +181,48 @@ namespace snmalloc
       SNMALLOC_FAST_PATH T
       fetch_add(T increment, MemoryOrder mem_ord = MemoryOrder::SEQ_CST)
       {
-        static_assert(proxy::is_integral_v<T>, "T must be an integral type.");
+        static_assert(stl::is_integral_v<T>, "T must be an integral type.");
         return __atomic_fetch_add(addressof(val), increment, order(mem_ord));
       }
 
       SNMALLOC_FAST_PATH T
       fetch_or(T mask, MemoryOrder mem_ord = MemoryOrder::SEQ_CST)
       {
-        static_assert(proxy::is_integral_v<T>, "T must be an integral type.");
+        static_assert(stl::is_integral_v<T>, "T must be an integral type.");
         return __atomic_fetch_or(addressof(val), mask, order(mem_ord));
       }
 
       SNMALLOC_FAST_PATH T
       fetch_and(T mask, MemoryOrder mem_ord = MemoryOrder::SEQ_CST)
       {
-        static_assert(proxy::is_integral_v<T>, "T must be an integral type.");
+        static_assert(stl::is_integral_v<T>, "T must be an integral type.");
         return __atomic_fetch_and(addressof(val), mask, order(mem_ord));
       }
 
       SNMALLOC_FAST_PATH T
       fetch_sub(T decrement, MemoryOrder mem_ord = MemoryOrder::SEQ_CST)
       {
-        static_assert(proxy::is_integral_v<T>, "T must be an integral type.");
+        static_assert(stl::is_integral_v<T>, "T must be an integral type.");
         return __atomic_fetch_sub(addressof(val), decrement, order(mem_ord));
       }
 
       SNMALLOC_FAST_PATH T operator++()
       {
-        static_assert(proxy::is_integral_v<T>, "T must be an integral type.");
+        static_assert(stl::is_integral_v<T>, "T must be an integral type.");
         return __atomic_add_fetch(
           addressof(val), 1, order(MemoryOrder::SEQ_CST));
       }
 
       SNMALLOC_FAST_PATH const T operator++(int)
       {
-        static_assert(proxy::is_integral_v<T>, "T must be an integral type.");
+        static_assert(stl::is_integral_v<T>, "T must be an integral type.");
         return __atomic_fetch_add(
           addressof(val), 1, order(MemoryOrder::SEQ_CST));
       }
 
       SNMALLOC_FAST_PATH T operator-=(T decrement)
       {
-        static_assert(proxy::is_integral_v<T>, "T must be an integral type.");
+        static_assert(stl::is_integral_v<T>, "T must be an integral type.");
         return __atomic_sub_fetch(
           addressof(val), decrement, order(MemoryOrder::SEQ_CST));
       }

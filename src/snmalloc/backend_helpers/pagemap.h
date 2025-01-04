@@ -29,11 +29,11 @@ namespace snmalloc
     using Entry = PagemapEntry;
 
     static_assert(
-      proxy::is_same_v<PagemapEntry, typename ConcreteMap::EntryType>,
+      stl::is_same_v<PagemapEntry, typename ConcreteMap::EntryType>,
       "BasicPagemap's PagemapEntry and ConcreteMap disagree!");
 
     static_assert(
-      proxy::is_base_of_v<MetaEntryBase, PagemapEntry>,
+      stl::is_base_of_v<MetaEntryBase, PagemapEntry>,
       "BasicPagemap's PagemapEntry type is not a MetaEntryBase");
 
     /**
@@ -115,7 +115,7 @@ namespace snmalloc
      */
     template<bool fixed_range_ = fixed_range>
     static SNMALLOC_FAST_PATH
-      proxy::enable_if_t<fixed_range_, std::pair<address_t, address_t>>
+      stl::enable_if_t<fixed_range_, std::pair<address_t, address_t>>
       get_bounds()
     {
       static_assert(fixed_range_ == fixed_range, "Don't set SFINAE parameter!");
