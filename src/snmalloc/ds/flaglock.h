@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../aal/aal.h"
-#include "../pal/pal.h"
+#include "snmalloc/ds_core/ds_core.h"
 #include "snmalloc/stl/atomic.h"
 
 namespace snmalloc
@@ -13,7 +13,7 @@ namespace snmalloc
    */
   struct DebugFlagWord
   {
-    using ThreadIdentity = DefaultPal::ThreadIdentity;
+    using ThreadIdentity = size_t;
 
     /**
      * @brief flag
@@ -69,7 +69,7 @@ namespace snmalloc
      */
     static ThreadIdentity get_thread_identity()
     {
-      return DefaultPal::get_tid();
+      return debug_get_tid();
     }
   };
 

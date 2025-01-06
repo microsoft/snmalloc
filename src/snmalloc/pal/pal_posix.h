@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../aal/aal.h"
-#include "pal_tid_default.h"
 #include "pal_timer_default.h"
 #if defined(SNMALLOC_BACKTRACE_HEADER)
 #  include SNMALLOC_BACKTRACE_HEADER
@@ -40,8 +39,7 @@ namespace snmalloc
    * working when an early-malloc error appears.
    */
   template<class OS, auto writev = ::writev, auto fsync = ::fsync>
-  class PALPOSIX : public PalTimerDefaultImpl<PALPOSIX<OS>>,
-                   public PalTidDefault
+  class PALPOSIX : public PalTimerDefaultImpl<PALPOSIX<OS>>
   {
     /**
      * Helper class to access the `default_mmap_flags` field of `OS` if one

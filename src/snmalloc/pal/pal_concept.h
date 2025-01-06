@@ -69,19 +69,6 @@ namespace snmalloc
                          };
 
   /**
-   * The Pal must provide a thread id for debugging.  It should not return
-   * the default value of ThreadIdentity, as that is used as not an tid in some
-   * places.
-   */
-  template<typename PAL>
-  concept IsPAL_tid =
-    requires() {
-      {
-        PAL::get_tid()
-        } noexcept -> ConceptSame<typename PAL::ThreadIdentity>;
-    };
-
-  /**
    * Absent any feature flags, the PAL must support a crude primitive allocator
    */
   template<typename PAL>
@@ -137,7 +124,6 @@ namespace snmalloc
     IsPAL_static_sizes<PAL> &&
     IsPAL_error<PAL> &&
     IsPAL_memops<PAL> &&
-    IsPAL_tid<PAL> &&
     (!pal_supports<Entropy, PAL> || IsPAL_get_entropy64<PAL>) &&
     (!pal_supports<LowMemoryNotification, PAL> || IsPAL_mem_low_notify<PAL>) &&
     (pal_supports<NoAllocation, PAL> ||
