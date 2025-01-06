@@ -259,12 +259,12 @@ jobs:
         include:
           - os: "ubuntu-latest"
             variant: "libc++ (TSan + UBSan)"
-            dependencies: "sudo apt install ninja-build"
+            dependencies: "sudo apt install ninja-build libc++-dev"
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-stdlib=\"libc++ -g\" -DSNMALLOC_SANITIZER=undefined,thread"
           # Also test specifically with clang-10 (on ubuntu-20.04)
           - os: "ubuntu-20.04"
             variant: "clang-10 libc++ (TSan + UBSan)"
-            dependencies: "sudo apt install ninja-build"
+            dependencies: "sudo apt install ninja-build libc++-dev"
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_CXX_FLAGS=-stdlib=\"libc++ -g\" -DSNMALLOC_SANITIZER=undefined,thread"
       # Don't abort runners if a single one fails
       fail-fast: false
