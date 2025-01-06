@@ -350,7 +350,7 @@ jobs:
         chmod +x ppc64.sh
     - name: Configure
       env:
-        SNMALLOC_CI_CLANG_VERSION: ${{ (matrix.arch.host-os == 'ubuntu-latest') && 14 || 13 }}
+        SNMALLOC_CI_CLANG_VERSION: ${{ (matrix.arch.host-os == 'ubuntu-latest') && 16 || 13 }}
         RTLD_NAME: ${{ matrix.arch.rtld }}
         ARCH: ${{ matrix.arch.system-processor }}
         TRIPLE: ${{ matrix.arch.triple}}
