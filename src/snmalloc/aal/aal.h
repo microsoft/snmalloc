@@ -69,10 +69,10 @@ namespace snmalloc
      * must explicitly give their address_t.
      *
      * This somewhat obtuse way of spelling the defaulting is necessary so
-     * that all arguments to std::conditional_t are valid, even if they
+     * that all arguments to stl::conditional_t are valid, even if they
      * wouldn't be valid in context.  One might rather wish to say
      *
-     *   std::conditional_t<..., uintptr_t, Arch::address_t>
+     *   stl::conditional_t<..., uintptr_t, Arch::address_t>
      *
      * but that requires that Arch::address_t always be given, precisely
      * the thing we're trying to avoid with the conditional.
@@ -83,7 +83,7 @@ namespace snmalloc
       using address_t = uintptr_t;
     };
 
-    using address_t = typename std::conditional_t<
+    using address_t = typename stl::conditional_t<
       (Arch::aal_features & IntegerPointers) != 0,
       default_address_t,
       Arch>::address_t;

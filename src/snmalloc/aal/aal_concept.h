@@ -4,8 +4,7 @@
 #  include "../ds_core/ds_core.h"
 #  include "aal_consts.h"
 
-#  include <cstdint>
-#  include <utility>
+#  include <stdint.h>
 
 namespace snmalloc
 {
@@ -16,10 +15,10 @@ namespace snmalloc
   template<typename AAL>
   concept IsAAL_static_members =
     requires() {
-      typename std::integral_constant<uint64_t, AAL::aal_features>;
-      typename std::integral_constant<int, AAL::aal_name>;
-      typename std::integral_constant<std::size_t, AAL::bits>;
-      typename std::integral_constant<std::size_t, AAL::address_bits>;
+      typename stl::integral_constant<uint64_t, AAL::aal_features>;
+      typename stl::integral_constant<int, AAL::aal_name>;
+      typename stl::integral_constant<size_t, AAL::bits>;
+      typename stl::integral_constant<size_t, AAL::address_bits>;
     };
 
   /**

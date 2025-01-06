@@ -7,13 +7,13 @@
 namespace snmalloc
 {
   template<typename PAL>
-  std::enable_if_t<pal_supports<Entropy, PAL>, uint64_t> get_entropy64()
+  stl::enable_if_t<pal_supports<Entropy, PAL>, uint64_t> get_entropy64()
   {
     return PAL::get_entropy64();
   }
 
   template<typename PAL>
-  std::enable_if_t<!pal_supports<Entropy, PAL>, uint64_t> get_entropy64()
+  stl::enable_if_t<!pal_supports<Entropy, PAL>, uint64_t> get_entropy64()
   {
 #ifdef SNMALLOC_PLATFORM_HAS_GETENTROPY
     return DefaultPal::get_entropy64();

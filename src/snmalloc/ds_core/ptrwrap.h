@@ -18,7 +18,7 @@ namespace snmalloc
    */
   template<typename T>
   SNMALLOC_FAST_PATH_INLINE uintptr_t
-  unsafe_to_uintptr(std::enable_if_t<true, T>* p)
+  unsafe_to_uintptr(stl::enable_if_t<true, T>* p)
   {
     return reinterpret_cast<uintptr_t>(p);
   }

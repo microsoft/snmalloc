@@ -75,7 +75,7 @@ namespace snmalloc
       CommitRange<PAL>,
       // In case of huge pages, we don't want to give each thread its own huge
       // page, so commit in the global range.
-      std::conditional_t<
+      stl::conditional_t<
         (max_page_chunk_size_bits > MIN_CHUNK_BITS),
         LargeBuddyRange<
           max_page_chunk_size_bits,

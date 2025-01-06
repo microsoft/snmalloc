@@ -1,6 +1,6 @@
 #pragma once
 
-#include <type_traits>
+#include "snmalloc/stl/type_traits.h"
 
 /**
  * C++20 concepts are referenced as if they were types in declarations within
@@ -20,31 +20,15 @@
 #ifdef __cpp_concepts
 namespace snmalloc
 {
-  /**
-   * C++20 concepts are more than just new syntax; there's a new support
-   * library specified as well.  As C++20 is quite new, however, there are some
-   * environments, notably Clang, that understand the syntax but do not yet
-   * offer the library.  Fortunately, alternate pronouciations are possible.
-   */
-#  ifdef _cpp_lib_concepts
-  /**
-   * ConceptSame<T,U> is true if T and U are the same type and false otherwise.
-   * When specifying a concept, use ConceptSame<U> to indicate that an
-   * expression must evaluate precisely to the type U.
-   */
   template<typename T, typename U>
-  concept ConceptSame = std::same_as<T, U>;
-#  else
-  template<typename T, typename U>
-  concept ConceptSame = std::is_same<T, U>::value;
-#  endif
+  concept ConceptSame = stl::is_same_v<T, U>;
 
   /**
-   * Equivalence mod std::remove_reference
+   * Equivalence mod stl::remove_reference
    */
   template<typename T, typename U>
   concept ConceptSameModRef =
-    ConceptSame<std::remove_reference_t<T>, std::remove_reference_t<U>>;
+    ConceptSame<stl::remove_reference_t<T>, stl::remove_reference_t<U>>;
 
   /**
    * Some of the types in snmalloc are circular in their definition and use
@@ -73,7 +57,7 @@ namespace snmalloc
   constexpr bool is_type_complete_v = false;
 
   template<typename T>
-  constexpr bool is_type_complete_v<T, std::void_t<decltype(sizeof(T))>> = true;
+  constexpr bool is_type_complete_v<T, stl::void_t<decltype(sizeof(T))>> = true;
 
 } // namespace snmalloc
 #endif

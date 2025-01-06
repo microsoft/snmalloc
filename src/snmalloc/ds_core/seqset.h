@@ -2,9 +2,9 @@
 
 #include "../aal/aal.h"
 #include "../ds_core/ds_core.h"
+#include "snmalloc/stl/type_traits.h"
 
 #include <cstdint>
-#include <type_traits>
 
 namespace snmalloc
 {
@@ -98,7 +98,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH bool is_empty()
     {
       static_assert(
-        std::is_same_v<Node, decltype(std::declval<T>().node)>,
+        stl::is_same_v<Node, decltype(std::declval<T>().node)>,
         "T->node must be Node for T");
       head.invariant();
       return head.next == &head;

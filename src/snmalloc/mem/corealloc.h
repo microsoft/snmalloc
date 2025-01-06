@@ -33,7 +33,7 @@ namespace snmalloc
    *   `init_message_queue`.
    */
   template<SNMALLOC_CONCEPT(IsConfigLazy) Config>
-  class CoreAllocator : public std::conditional_t<
+  class CoreAllocator : public stl::conditional_t<
                           Config::Options.CoreAllocIsPoolAllocated,
                           Pooled<CoreAllocator<Config>>,
                           Empty>
@@ -78,7 +78,7 @@ namespace snmalloc
      * Message queue for allocations being returned to this
      * allocator
      */
-    std::conditional_t<
+    stl::conditional_t<
       Config::Options.IsQueueInline,
       RemoteAllocator,
       RemoteAllocator*>
@@ -95,7 +95,7 @@ namespace snmalloc
      * core allocator owns the local state or indirect if it is owned
      * externally.
      */
-    std::conditional_t<
+    stl::conditional_t<
       Config::Options.CoreAllocOwnsLocalState,
       LocalState,
       LocalState*>
@@ -661,7 +661,7 @@ namespace snmalloc
      */
     template<
       typename Config_ = Config,
-      typename = std::enable_if_t<Config_::Options.CoreAllocOwnsLocalState>>
+      typename = stl::enable_if_t<Config_::Options.CoreAllocOwnsLocalState>>
     CoreAllocator(Range<capptr::bounds::Alloc>& spare)
     {
       init(spare);
@@ -676,7 +676,7 @@ namespace snmalloc
      */
     template<
       typename Config_ = Config,
-      typename = std::enable_if_t<!Config_::Options.CoreAllocOwnsLocalState>>
+      typename = stl::enable_if_t<!Config_::Options.CoreAllocOwnsLocalState>>
     CoreAllocator(
       Range<capptr::bounds::Alloc>& spare,
       LocalCache<Config_>* cache,
@@ -691,7 +691,7 @@ namespace snmalloc
      * configure the message queue for use.
      */
     template<bool InlineQueue = Config::Options.IsQueueInline>
-    std::enable_if_t<!InlineQueue> init_message_queue(RemoteAllocator* q)
+    stl::enable_if_t<!InlineQueue> init_message_queue(RemoteAllocator* q)
     {
       remote_alloc = q;
       init_message_queue();
