@@ -85,11 +85,6 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install build dependencies
       run: "sudo apt install ninja-build"
-    
-    - uses: mjp41/workaround8649@c8550b715ccdc17f89c8d5c28d7a48eeff9c94a8
-      with:
-        os: ${{ matrix.os }}
-
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.cmake-flags }} ${{ matrix.extra-cmake-flags }}
       # Build with a nice ninja status line
@@ -264,12 +259,12 @@ jobs:
         include:
           - os: "ubuntu-latest"
             variant: "libc++ (TSan + UBSan)"
-            dependencies: "sudo apt install ninja-build"
+            dependencies: "sudo apt install ninja-build libc++-dev"
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-stdlib=\"libc++ -g\" -DSNMALLOC_SANITIZER=undefined,thread"
           # Also test specifically with clang-10 (on ubuntu-20.04)
           - os: "ubuntu-20.04"
             variant: "clang-10 libc++ (TSan + UBSan)"
-            dependencies: "sudo apt install ninja-build"
+            dependencies: "sudo apt install ninja-build libc++-dev"
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_CXX_FLAGS=-stdlib=\"libc++ -g\" -DSNMALLOC_SANITIZER=undefined,thread"
       # Don't abort runners if a single one fails
       fail-fast: false
@@ -279,11 +274,6 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install build dependencies
       run: ${{ matrix.dependencies }}
-
-    - uses: mjp41/workaround8649@c8550b715ccdc17f89c8d5c28d7a48eeff9c94a8
-      with:
-        os: ${{ matrix.os }}
-  
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.build-type}} -G Ninja ${{ matrix.cmake-flags }} ${{ matrix.extra-cmake-flags }}
       # Build with a nice ninja status line
@@ -360,7 +350,7 @@ jobs:
         chmod +x ppc64.sh
     - name: Configure
       env:
-        SNMALLOC_CI_CLANG_VERSION: ${{ (matrix.arch.host-os == 'ubuntu-latest') && 14 || 13 }}
+        SNMALLOC_CI_CLANG_VERSION: ${{ (matrix.arch.host-os == 'ubuntu-latest') && 16 || 13 }}
         RTLD_NAME: ${{ matrix.arch.rtld }}
         ARCH: ${{ matrix.arch.system-processor }}
         TRIPLE: ${{ matrix.arch.triple}}
