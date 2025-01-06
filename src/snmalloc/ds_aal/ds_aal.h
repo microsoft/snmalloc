@@ -1,11 +1,9 @@
-#pragma once
 /**
- * The early data-structures for snmalloc.  These provide some basic helpers that do
- * not depend on anything except for a working C++ implementation and the Aal.
- *
- * Files in this directory may not include anything from any other directory in
- * snmalloc.
+ * Data structures used by snmalloc that only depend on the AAL (Architecture
+ * Abstraction Layer) and not on the platform. These structures can be used
+ * to implement the Pal.
  */
-
+#pragma once
+#include "../aal/aal.h"
 #include "flaglock.h"
 #include "singleton.h"
