@@ -206,6 +206,10 @@ else()
   target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_WAIT_ON_ADDRESS=0)
 endif()
 
+if(SNMALLOC_REMOTE_BATCH_PROCESS_SIZE)
+  target_compile_definitions(snmalloc INTERFACE SNMALLOC_REMOTE_BATCH_PROCESS_SIZE=${SNMALLOC_REMOTE_BATCH_PROCESS_SIZE})
+endif()
+
 if(SNMALLOC_USE_SELF_VENDORED_STL)
   target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_SELF_VENDORED_STL=1)
 else()
