@@ -229,17 +229,17 @@ namespace snmalloc
     static uint64_t internal_time_in_ms()
     {
       // Performance counter is a high-precision monotonic clock.
-      static proxy::Atomic<uint64_t> freq_cache = 0;
+      static stl::Atomic<uint64_t> freq_cache = 0;
       constexpr uint64_t ms_per_second = 1000;
-      LARGE_INTEGER buf;
-      auto freq = freq_cache.load(proxy::memory_order_relaxed);
+      SNMALLOC_UNINITIALISED LARGE_INTEGER buf;
+      auto freq = freq_cache.load(stl::memory_order_relaxed);
       if (SNMALLOC_UNLIKELY(freq == 0))
       {
         // On systems that run Windows XP or later, the function will always
         // succeed and will thus never return zero.
         ::QueryPerformanceFrequency(&buf);
         freq = static_cast<uint64_t>(buf.QuadPart);
-        freq_cache.store(freq, proxy::memory_order_relaxed);
+        freq_cache.store(freq, stl::memory_order_relaxed);
       }
       ::QueryPerformanceCounter(&buf);
       return (static_cast<uint64_t>(buf.QuadPart) * ms_per_second) / freq;
