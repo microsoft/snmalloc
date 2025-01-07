@@ -177,7 +177,7 @@ namespace snmalloc
   {
     MessageBuilder<BufferSize> msg{std::forward<Args>(args)...};
     MessageBuilder<BufferSize> msg_tid{
-      "{}: {}", DefaultPal::get_tid(), msg.get_message()};
+      "{}: {}", debug_get_tid(), msg.get_message()};
     DefaultPal::message(msg_tid.get_message());
   }
 } // namespace snmalloc

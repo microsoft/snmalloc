@@ -9,6 +9,7 @@ These are arranged in a hierarchy such that each of the directories may include 
  - `aal/` provides the architecture abstraction layer (AAL).
    This layer provides abstractions over CPU-specific intrinsics and defines things such as the virtual address-space size.
    There is a single AAL for an snmalloc instantiation.
+ - `ds_aal/` provides data structures that depend on the AAL.
  - `pal/` provides the platform abstraction layer (PAL).
    This exposes OS- or environment-specific abstractions into the rest of the code.
    An snmalloc instantiation may use more than one PAL, including ones provided by the user.

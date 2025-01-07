@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../aal/aal.h"
-#include "pal_tid_default.h"
 #include "pal_timer_default.h"
 
 #ifdef _WIN32
@@ -26,8 +25,7 @@
 
 namespace snmalloc
 {
-  class PALWindows : public PalTimerDefaultImpl<PALWindows>,
-                     public PalTidDefault
+  class PALWindows : public PalTimerDefaultImpl<PALWindows>
   {
     /**
      * A flag indicating that we have tried to register for low-memory

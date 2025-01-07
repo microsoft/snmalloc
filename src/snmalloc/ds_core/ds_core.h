@@ -15,3 +15,4 @@
 #include "ptrwrap.h"
 #include "redblacktree.h"
 #include "seqset.h"
+#include "tid.h"
