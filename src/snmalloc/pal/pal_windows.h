@@ -24,8 +24,6 @@
 #    endif
 #  endif
 
-#  include <chrono>
-
 namespace snmalloc
 {
   class PALWindows : public PalTimerDefaultImpl<PALWindows>,
@@ -230,10 +228,21 @@ namespace snmalloc
 
     static uint64_t internal_time_in_ms()
     {
-      return static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-          std::chrono::steady_clock::now().time_since_epoch())
-          .count());
+      // Performance counter is a high-precision monotonic clock.
+      static stl::Atomic<uint64_t> freq_cache = 0;
+      constexpr uint64_t ms_per_second = 1000;
+      SNMALLOC_UNINITIALISED LARGE_INTEGER buf;
+      auto freq = freq_cache.load(stl::memory_order_relaxed);
+      if (SNMALLOC_UNLIKELY(freq == 0))
+      {
+        // On systems that run Windows XP or later, the function will always
+        // succeed and will thus never return zero.
+        ::QueryPerformanceFrequency(&buf);
+        freq = static_cast<uint64_t>(buf.QuadPart);
+        freq_cache.store(freq, stl::memory_order_relaxed);
+      }
+      ::QueryPerformanceCounter(&buf);
+      return (static_cast<uint64_t>(buf.QuadPart) * ms_per_second) / freq;
     }
 
 #  ifdef PLATFORM_HAS_WAITONADDRESS
