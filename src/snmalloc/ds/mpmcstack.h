@@ -16,17 +16,17 @@ namespace snmalloc
 
 #ifdef SNMALLOC_THREAD_SANITIZER_ENABLED
     __attribute__((no_sanitize("thread"))) static T*
-    racy_read(std::atomic<T*>& ptr)
+    racy_read(stl::Atomic<T*>& ptr)
     {
       // reinterpret_cast is required as TSAN still instruments
-      // std::atomic operations, even if you disable TSAN on
+      // stl::Atomic operations, even if you disable TSAN on
       // the function.
       return *reinterpret_cast<T**>(&ptr);
     }
 #else
-    static T* racy_read(std::atomic<T*>& ptr)
+    static T* racy_read(stl::Atomic<T*>& ptr)
     {
-      return ptr.load(std::memory_order_relaxed);
+      return ptr.load(stl::memory_order_relaxed);
     }
 #endif
 
@@ -36,8 +36,8 @@ namespace snmalloc
     void push(T* item)
     {
       static_assert(
-        std::is_same<decltype(T::next), std::atomic<T*>>::value,
-        "T->next must be an std::atomic<T*>");
+        stl::is_same_v<decltype(T::next), stl::Atomic<T*>>,
+        "T->next must be an stl::Atomic<T*>");
 
       return push(item, item);
     }
@@ -50,7 +50,7 @@ namespace snmalloc
       do
       {
         auto top = cmp.ptr();
-        last->next.store(top, std::memory_order_release);
+        last->next.store(top, stl::memory_order_release);
       } while (!cmp.store_conditional(first));
     }
 

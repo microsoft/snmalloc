@@ -137,13 +137,13 @@ namespace snmalloc
     using WaitingWord = unsigned int;
 
     template<typename T>
-    static void wait_on_address(std::atomic<T>& addr, T expected)
+    static void wait_on_address(stl::Atomic<T>& addr, T expected)
     {
       static_assert(
         sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
         "T must be the same size and alignment as WaitingWord");
       int backup = errno;
-      while (addr.load(std::memory_order_relaxed) == expected)
+      while (addr.load(stl::memory_order_relaxed) == expected)
       {
         int ret = _umtx_op(
           &addr,
@@ -159,7 +159,7 @@ namespace snmalloc
     }
 
     template<typename T>
-    static void notify_one_on_address(std::atomic<T>& addr)
+    static void notify_one_on_address(stl::Atomic<T>& addr)
     {
       static_assert(
         sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
@@ -168,7 +168,7 @@ namespace snmalloc
     }
 
     template<typename T>
-    static void notify_all_on_address(std::atomic<T>& addr)
+    static void notify_all_on_address(stl::Atomic<T>& addr)
     {
       static_assert(
         sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),

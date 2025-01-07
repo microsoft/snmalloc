@@ -228,7 +228,7 @@ namespace snmalloc
        * covers the whole range.  Uses template insanity to make this work.
        */
       template<bool exists = MAX_SIZE_BITS != (bits::BITS - 1)>
-      std::enable_if_t<exists>
+      stl::enable_if_t<exists>
       parent_dealloc_range(capptr::Arena<void> base, size_t size)
       {
         static_assert(
@@ -343,7 +343,7 @@ namespace snmalloc
       /* The large buddy allocator always deals in Arena-bounded pointers. */
       using ChunkBounds = capptr::bounds::Arena;
       static_assert(
-        std::is_same_v<typename ParentRange::ChunkBounds, ChunkBounds>);
+        stl::is_same_v<typename ParentRange::ChunkBounds, ChunkBounds>);
 
       constexpr Type() = default;
 

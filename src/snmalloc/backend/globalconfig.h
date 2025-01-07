@@ -65,7 +65,7 @@ namespace snmalloc
     /**
      * Use one of the default range configurations
      */
-    using LocalState = std::conditional_t<
+    using LocalState = stl::conditional_t<
       mitigations(metadata_protection),
       MetaProtectedRangeLocalState<Pal, Pagemap, Base>,
       StandardLocalState<Pal, Pagemap, Base>>;
@@ -84,7 +84,7 @@ namespace snmalloc
      * Specifies if the Configuration has been initialised.
      */
     SNMALLOC_REQUIRE_CONSTINIT
-    inline static std::atomic<bool> initialised{false};
+    inline static stl::Atomic<bool> initialised{false};
 
     /**
      * Used to prevent two threads attempting to initialise the configuration
@@ -126,7 +126,7 @@ namespace snmalloc
           Authmap::init();
         }
 
-        initialised.store(true, std::memory_order_release);
+        initialised.store(true, stl::memory_order_release);
       });
     }
 
@@ -146,7 +146,7 @@ namespace snmalloc
     // and concurrency safe.
     SNMALLOC_FAST_PATH static void ensure_init()
     {
-      if (SNMALLOC_LIKELY(initialised.load(std::memory_order_acquire)))
+      if (SNMALLOC_LIKELY(initialised.load(stl::memory_order_acquire)))
         return;
 
       ensure_init_slow();

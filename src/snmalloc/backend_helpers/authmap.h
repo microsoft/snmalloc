@@ -31,7 +31,7 @@ namespace snmalloc
   struct BasicAuthmap
   {
     static_assert(
-      std::is_same_v<capptr::Arena<void>, typename ConcreteMap::EntryType>,
+      stl::is_same_v<capptr::Arena<void>, typename ConcreteMap::EntryType>,
       "BasicAuthmap's ConcreteMap must have capptr::Arena<void> element type!");
 
   private:
@@ -70,7 +70,7 @@ namespace snmalloc
    * Pick between the two above implementations based on StrictProvenance
    */
   template<typename CA>
-  using DefaultAuthmap = std::conditional_t<
+  using DefaultAuthmap = stl::conditional_t<
     aal_supports<StrictProvenance>,
     BasicAuthmap<CA>,
     DummyAuthmap>;

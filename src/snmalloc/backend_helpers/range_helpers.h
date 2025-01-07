@@ -89,7 +89,7 @@ namespace snmalloc
     template<typename Anc>
     Anc* ancestor()
     {
-      if constexpr (std::is_same_v<Anc, Parent>)
+      if constexpr (stl::is_same_v<Anc, Parent>)
       {
         return &parent;
       }
@@ -119,7 +119,7 @@ namespace snmalloc
     template<typename Anc>
     Anc* ancestor()
     {
-      if constexpr (std::is_same_v<Anc, Parent>)
+      if constexpr (stl::is_same_v<Anc, Parent>)
       {
         return &parent;
       }
@@ -150,7 +150,7 @@ namespace snmalloc
     template<typename Anc>
     Anc* ancestor()
     {
-      if constexpr (std::is_same_v<Anc, Parent>)
+      if constexpr (stl::is_same_v<Anc, Parent>)
       {
         return parent;
       }

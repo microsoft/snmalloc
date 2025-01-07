@@ -42,7 +42,7 @@ namespace snmalloc
       using ChunkBounds = typename ActualParentRange::ChunkBounds;
 
       static_assert(
-        std::is_same_v<ChunkBounds, typename ParentRange::ChunkBounds>,
+        stl::is_same_v<ChunkBounds, typename ParentRange::ChunkBounds>,
         "Grandparent and optional parent range chunk bounds must be equal");
 
       constexpr Type() = default;

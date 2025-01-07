@@ -2,8 +2,7 @@
 
 #include "concept.h"
 #include "defines.h"
-
-#include <atomic>
+#include "snmalloc/stl/atomic.h"
 
 namespace snmalloc
 {
@@ -19,7 +18,7 @@ namespace snmalloc
    */
   template<typename T>
   SNMALLOC_FAST_PATH_INLINE uintptr_t
-  unsafe_to_uintptr(std::enable_if_t<true, T>* p)
+  unsafe_to_uintptr(stl::enable_if_t<true, T>* p)
   {
     return reinterpret_cast<uintptr_t>(p);
   }
@@ -41,7 +40,7 @@ namespace snmalloc
   using Pointer = T*;
 
   template<typename T>
-  using AtomicPointer = std::atomic<T*>;
+  using AtomicPointer = stl::Atomic<T*>;
 
   /**
    * Summaries of StrictProvenance metadata.  We abstract away the particular
@@ -450,17 +449,17 @@ namespace snmalloc
 
   /**
    *
-   * Wrap a std::atomic<T*> with bounds annotation and speak in terms of
+   * Wrap a stl::Atomic<T*> with bounds annotation and speak in terms of
    * bounds-annotated pointers at the interface.
    *
    * Note the membranous sleight of hand being pulled here: this class puts
-   * annotations around an un-annotated std::atomic<T*>, to appease C++, yet
+   * annotations around an un-annotated stl::Atomic<T*>, to appease C++, yet
    * will expose or consume only CapPtr<T> with the same bounds annotation.
    */
   template<typename T, SNMALLOC_CONCEPT(capptr::IsBound) bounds>
   class AtomicCapPtr
   {
-    std::atomic<T*> unsafe_capptr;
+    stl::Atomic<T*> unsafe_capptr;
 
   public:
     /**
@@ -487,7 +486,7 @@ namespace snmalloc
       return CapPtr<T, bounds>(this->unsafe_capptr);
     }
 
-    // Our copy-assignment operator follows std::atomic and returns a copy of
+    // Our copy-assignment operator follows stl::Atomic and returns a copy of
     // the RHS.  Clang finds this surprising; we suppress the warning.
     // NOLINTNEXTLINE(misc-unconventional-assign-operator)
     SNMALLOC_FAST_PATH CapPtr<T, bounds> operator=(CapPtr<T, bounds> p) noexcept
@@ -497,21 +496,21 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH CapPtr<T, bounds>
-    load(std::memory_order order = std::memory_order_seq_cst) noexcept
+    load(stl::MemoryOrder order = stl::memory_order_seq_cst) noexcept
     {
       return CapPtr<T, bounds>::unsafe_from(this->unsafe_capptr.load(order));
     }
 
     SNMALLOC_FAST_PATH void store(
       CapPtr<T, bounds> desired,
-      std::memory_order order = std::memory_order_seq_cst) noexcept
+      stl::MemoryOrder order = stl::memory_order_seq_cst) noexcept
     {
       this->unsafe_capptr.store(desired.unsafe_ptr(), order);
     }
 
     SNMALLOC_FAST_PATH CapPtr<T, bounds> exchange(
       CapPtr<T, bounds> desired,
-      std::memory_order order = std::memory_order_seq_cst) noexcept
+      stl::MemoryOrder order = stl::memory_order_seq_cst) noexcept
     {
       return CapPtr<T, bounds>::unsafe_from(
         this->unsafe_capptr.exchange(desired.unsafe_ptr(), order));

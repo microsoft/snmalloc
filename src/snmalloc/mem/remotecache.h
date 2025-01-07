@@ -6,9 +6,9 @@
 #include "metadata.h"
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
+#include "snmalloc/stl/atomic.h"
 
 #include <array>
-#include <atomic>
 
 namespace snmalloc
 {
@@ -180,7 +180,7 @@ namespace snmalloc
   };
 
   template<typename Config>
-  using RemoteDeallocCacheBatchingImpl = std::conditional_t<
+  using RemoteDeallocCacheBatchingImpl = stl::conditional_t<
     (DEALLOC_BATCH_RINGS > 0),
     RemoteDeallocCacheBatching<Config, DEALLOC_BATCH_RINGS>,
     RemoteDeallocCacheNoBatching<Config>>;

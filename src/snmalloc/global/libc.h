@@ -182,7 +182,7 @@ namespace snmalloc::libc
     return ThreadAlloc::get().get_client_meta_data(p);
   }
 
-  inline std::add_const_t<typename snmalloc::Alloc::Config::ClientMeta::DataRef>
+  inline stl::add_const_t<typename snmalloc::Alloc::Config::ClientMeta::DataRef>
   get_client_meta_data_const(void* p)
   {
     return ThreadAlloc::get().get_client_meta_data_const(p);

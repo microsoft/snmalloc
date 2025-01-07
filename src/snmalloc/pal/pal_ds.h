@@ -1,8 +1,7 @@
 #pragma once
 
 #include "../ds_core/ds_core.h"
-
-#include <atomic>
+#include "snmalloc/stl/atomic.h"
 
 namespace snmalloc
 {
@@ -12,10 +11,10 @@ namespace snmalloc
     /**
      * List of callbacks to notify
      */
-    std::atomic<T*> elements{nullptr};
+    stl::Atomic<T*> elements{nullptr};
 
     static_assert(
-      std::is_same<decltype(T::pal_next), std::atomic<T*>>::value,
+      stl::is_same_v<decltype(T::pal_next), stl::Atomic<T*>>,
       "Required pal_next type.");
 
   public:
@@ -57,7 +56,7 @@ namespace snmalloc
    */
   struct PalNotificationObject
   {
-    std::atomic<PalNotificationObject*> pal_next = nullptr;
+    stl::Atomic<PalNotificationObject*> pal_next = nullptr;
 
     void (*pal_notify)(PalNotificationObject* self);
 
@@ -103,7 +102,7 @@ namespace snmalloc
     template<typename T>
     friend class PalList;
 
-    std::atomic<PalTimerObject*> pal_next;
+    stl::Atomic<PalTimerObject*> pal_next;
 
     void (*pal_notify)(PalTimerObject* self);
 
@@ -140,10 +139,10 @@ namespace snmalloc
 
     void check(uint64_t time_ms)
     {
-      static std::atomic_bool lock{false};
+      static stl::AtomicBool lock{false};
 
       // Deduplicate calls into here, and make single threaded.
-      if (lock.exchange(true, std::memory_order_acquire))
+      if (lock.exchange(true, stl::memory_order_acquire))
         return;
 
       timers.apply_all([time_ms](PalTimerObject* curr) {
@@ -155,7 +154,7 @@ namespace snmalloc
         }
       });
 
-      lock.store(false, std::memory_order_release);
+      lock.store(false, stl::memory_order_release);
     }
   };
 } // namespace snmalloc

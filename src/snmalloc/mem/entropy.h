@@ -2,9 +2,9 @@
 
 #include "../ds/ds.h"
 #include "../pal/pal.h"
+#include "snmalloc/stl/type_traits.h"
 
 #include <cstdint>
-#include <type_traits>
 
 namespace snmalloc
 {
