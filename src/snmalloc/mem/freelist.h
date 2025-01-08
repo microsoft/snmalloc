@@ -35,6 +35,7 @@
 
 #include "../ds/ds.h"
 #include "entropy.h"
+#include "snmalloc/stl/new.h"
 
 #include <cstdint>
 
@@ -265,7 +266,7 @@ namespace snmalloc
       static BHeadPtr<BView, BQueue> make(CapPtr<void, BView> p)
       {
         return CapPtr<Object::T<BQueue>, BView>::unsafe_from(
-          new (p.unsafe_ptr()) Object::T());
+          new (p.unsafe_ptr(), placement_token) Object::T());
       }
 
       /**
