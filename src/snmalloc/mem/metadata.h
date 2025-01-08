@@ -3,7 +3,7 @@
 #include "../ds/ds.h"
 #include "freelist.h"
 #include "sizeclasstable.h"
-#include "snmalloc/proxy/new.h"
+#include "snmalloc/stl/new.h"
 
 namespace snmalloc
 {

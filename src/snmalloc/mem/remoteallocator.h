@@ -1,7 +1,7 @@
 #pragma once
 
 #include "freelist_queue.h"
-#include "snmalloc/proxy/new.h"
+#include "snmalloc/stl/new.h"
 
 namespace snmalloc
 {

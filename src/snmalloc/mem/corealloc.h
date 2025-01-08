@@ -6,7 +6,7 @@
 #include "pool.h"
 #include "remotecache.h"
 #include "sizeclasstable.h"
-#include "snmalloc/proxy/new.h"
+#include "snmalloc/stl/new.h"
 #include "ticker.h"
 
 namespace snmalloc

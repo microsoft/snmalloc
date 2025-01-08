@@ -35,7 +35,7 @@
 
 #include "../ds/ds.h"
 #include "entropy.h"
-#include "snmalloc/proxy/new.h"
+#include "snmalloc/stl/new.h"
 
 #include <cstdint>
 
