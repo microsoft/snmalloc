@@ -891,8 +891,7 @@ namespace snmalloc
 #else
       constexpr address_t mask = static_cast<address_t>(-1);
       constexpr bool is_signed = mask < 0;
-      constexpr address_t sign_bit = static_cast<address_t>(1)
-        << (CHAR_BIT * sizeof(address_t) - 1);
+      constexpr address_t sign_bit = bits::one_at_bit<address_t>(CHAR_BIT * sizeof(address_t) - 1);
       if constexpr (is_signed)
       {
         return (mask ^ sign_bit) - p;
