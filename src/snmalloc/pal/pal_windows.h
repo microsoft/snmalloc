@@ -223,18 +223,21 @@ namespace snmalloc
     {
       initialise_readonly_av();
 
-      FlagLock lock(reserved_ranges_lock);
-      for (auto& r : reserved_ranges)
       {
-        if (r.first == 0)
+        FlagLock lock(reserved_ranges_lock);
+        for (auto& r : reserved_ranges)
         {
-          r.first = (address_t)p;
-          r.second = size;
-          return;
+          if (r.first == 0)
+          {
+            r.first = (address_t)p;
+            r.second = size;
+            return;
+          }
         }
       }
-    }
 
+      error("Implementation error: Too many lazy commit regions!");
+    }
     /// OS specific function for zeroing memory
     template<bool page_aligned = false>
     static void zero(void* p, size_t size) noexcept
