@@ -118,9 +118,9 @@
 namespace snmalloc
 {
 #ifdef NDEBUG
-  static constexpr bool DEBUG = false;
+  static constexpr bool Debug = false;
 #else
-  static constexpr bool DEBUG = true;
+  static constexpr bool Debug = true;
 #endif
 
   // Forwards reference so that the platform can define how to handle errors.

@@ -130,7 +130,7 @@ namespace snmalloc
 
       // Fill memory so that when we switch the pages back on we don't make
       // assumptions on the content.
-      if constexpr (DEBUG)
+      if constexpr (Debug)
         memset(p, 0x5a, size);
 
       madvise(p, size, madvise_free_flags);
