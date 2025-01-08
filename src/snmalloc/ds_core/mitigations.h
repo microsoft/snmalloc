@@ -19,7 +19,7 @@ namespace snmalloc
   {
     if (SNMALLOC_UNLIKELY(!test))
     {
-      if constexpr (!DEBUG)
+      if constexpr (!Debug)
       {
         UNUSED(str, args...);
         SNMALLOC_FAST_FAIL();

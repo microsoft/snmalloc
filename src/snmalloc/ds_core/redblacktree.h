@@ -86,7 +86,7 @@ namespace snmalloc
    */
   template<
     SNMALLOC_CONCEPT(RBRep) Rep,
-    bool run_checks = DEBUG,
+    bool run_checks = Debug,
     bool TRACE = false>
   class RBTree
   {

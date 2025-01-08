@@ -12,7 +12,7 @@ namespace snmalloc
 #ifdef SNMALLOC_CHECK_LOADS
     SNMALLOC_CHECK_LOADS
 #else
-    DEBUG
+    Debug
 #endif
     ;
 

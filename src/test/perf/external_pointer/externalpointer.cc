@@ -96,7 +96,7 @@ int main(int, char**)
 
   xoroshiro::p128r64 r;
 
-  size_t nn = snmalloc::DEBUG ? 30 : 3;
+  size_t nn = snmalloc::Debug ? 30 : 3;
 
   for (size_t n = 0; n < nn; n++)
     test::test_external_pointer(r);
