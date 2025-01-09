@@ -25,9 +25,13 @@ namespace snmalloc
   {
     auto r = finish_alloc_no_zero(p, sizeclass);
 
-    if constexpr (zero_mem == YesZero)
+    if constexpr (mitigations(scrub_free))
+    {
+      Config::Pal::zero(r.unsafe_ptr(), sizeof(freelist::Object::T<>));
+    }
+    else if constexpr (zero_mem == YesZero)
       Config::Pal::zero(r.unsafe_ptr(), sizeclass_to_size(sizeclass));
-
+    
     // TODO: Should this be zeroing the free Object state, in the non-zeroing
     // case?
 
