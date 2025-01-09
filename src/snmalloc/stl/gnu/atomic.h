@@ -1,5 +1,6 @@
 #pragma once
 
+#include "snmalloc/ds_core/defines.h"
 #include "snmalloc/stl/type_traits.h"
 
 #include <stddef.h>

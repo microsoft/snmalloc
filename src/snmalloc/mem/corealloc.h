@@ -222,7 +222,7 @@ namespace snmalloc
                pointer_offset(curr, rsize).template as_static<PreAllocObject>())
         {
           size_t insert_index = entropy.sample(count);
-          curr->next = std::exchange(
+          curr->next = stl::exchange(
             pointer_offset(bumpptr, insert_index * rsize)
               .template as_static<PreAllocObject>()
               ->next,

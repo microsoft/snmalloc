@@ -130,7 +130,8 @@ namespace snmalloc
 #define TOSTRING(expr) TOSTRING2(expr)
 #define TOSTRING2(expr) #expr
 
-#ifdef __cpp_lib_source_location
+#if defined(__cpp_lib_source_location) && \
+  !defined(SNMALLOC_USE_SELF_VENDORED_STL)
 #  include <source_location>
 #  define SNMALLOC_CURRENT_LINE std::source_location::current().line()
 #  define SNMALLOC_CURRENT_FILE std::source_location::current().file_name()
@@ -201,6 +202,13 @@ namespace snmalloc
 #  define SNMALLOC_UNINITIALISED [[clang::uninitialized]]
 #else
 #  define SNMALLOC_UNINITIALISED
+#endif
+
+// Check that the vendored STL is only used with GNU/Clang extensions.
+#ifdef SNMALLOC_USE_SELF_VENDORED_STL
+#  if !defined(__GNUC__) && !defined(__clang__)
+#    error "cannot use vendored STL without GNU/Clang extensions"
+#  endif
 #endif
 
 namespace snmalloc

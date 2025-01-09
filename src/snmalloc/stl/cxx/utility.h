@@ -5,6 +5,7 @@ namespace snmalloc
   namespace stl
   {
     using std::declval;
+    using std::exchange;
     using std::forward;
     using std::move;
     template<class T1, class T2>

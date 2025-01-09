@@ -276,7 +276,7 @@ namespace snmalloc
     /**
      * nullptr is implicitly constructable at any bounds type
      */
-    constexpr SNMALLOC_FAST_PATH CapPtr(const std::nullptr_t n)
+    constexpr SNMALLOC_FAST_PATH CapPtr(const decltype(nullptr) n)
     : unsafe_capptr(n)
     {}
 
@@ -465,7 +465,7 @@ namespace snmalloc
     /**
      * nullptr is constructable at any bounds type
      */
-    constexpr SNMALLOC_FAST_PATH AtomicCapPtr(const std::nullptr_t n)
+    constexpr SNMALLOC_FAST_PATH AtomicCapPtr(const decltype(nullptr) n)
     : unsafe_capptr(n)
     {}
 

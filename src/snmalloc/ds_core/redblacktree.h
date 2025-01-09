@@ -1,6 +1,7 @@
 #pragma once
 
-#include <array>
+#include "snmalloc/stl/array.h"
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -259,7 +260,7 @@ namespace snmalloc
     {
       friend class RBTree;
 
-      std::array<RBStep, 128> path;
+      stl::Array<RBStep, 128> path;
       size_t length = 0;
 
       RBPath(typename Rep::Handle root)

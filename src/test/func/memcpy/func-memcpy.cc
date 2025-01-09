@@ -30,6 +30,7 @@ int main()
 
 #  include <assert.h>
 #  include <csetjmp>
+#  include <initializer_list>
 #  include <stdio.h>
 #  include <stdlib.h>
 #  include <string.h>

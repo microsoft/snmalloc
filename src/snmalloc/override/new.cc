@@ -16,6 +16,8 @@
 #  endif
 #endif
 
+// only define these if we are not using the vendored STL
+#ifndef SNMALLOC_USE_SELF_VENDORED_STL
 void* operator new(size_t size)
 {
   return snmalloc::libc::malloc(size);
@@ -111,3 +113,4 @@ void operator delete[](void* p, size_t size, std::align_val_t val) EXCEPTSPEC
   size = snmalloc::aligned_size(size_t(val), size);
   snmalloc::libc::free_sized(p, size);
 }
+#endif

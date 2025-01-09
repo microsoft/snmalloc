@@ -6,9 +6,8 @@
 #include "metadata.h"
 #include "remoteallocator.h"
 #include "sizeclasstable.h"
+#include "snmalloc/stl/array.h"
 #include "snmalloc/stl/atomic.h"
-
-#include <array>
 
 namespace snmalloc
 {
@@ -33,8 +32,8 @@ namespace snmalloc
   {
     static_assert(RINGS > 0);
 
-    std::array<freelist::Builder<false, true>, RINGS> open_builder;
-    std::array<address_t, RINGS> open_meta = {0};
+    stl::Array<freelist::Builder<false, true>, RINGS> open_builder;
+    stl::Array<address_t, RINGS> open_meta = {0};
 
     SNMALLOC_FAST_PATH size_t
     ring_set(typename Config::PagemapEntry::SlabMetadata* meta)
@@ -191,7 +190,7 @@ namespace snmalloc
   template<typename Config>
   struct RemoteDeallocCache
   {
-    std::array<freelist::Builder<false>, REMOTE_SLOTS> list;
+    stl::Array<freelist::Builder<false>, REMOTE_SLOTS> list;
 
     RemoteDeallocCacheBatchingImpl<Config> batching;
 

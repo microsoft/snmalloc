@@ -1,5 +1,6 @@
 #pragma once
 
+#include "snmalloc/ds_core/defines.h"
 #include "snmalloc/stl/type_traits.h"
 
 // This is used by clang to provide better analysis of lifetimes.
@@ -64,5 +65,13 @@ namespace snmalloc
       T1 first;
       T2 second;
     };
+
+    template<typename A, typename B = A>
+    constexpr SNMALLOC_FAST_PATH A exchange(A& obj, B&& new_value)
+    {
+      A old_value = move(obj);
+      obj = forward<B>(new_value);
+      return old_value;
+    }
   } // namespace stl
 } // namespace snmalloc
