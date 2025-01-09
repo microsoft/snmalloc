@@ -87,7 +87,7 @@ namespace snmalloc
      *   (remote, sizeclass, slab_metadata)
      * where slab_metadata, is the second element of the pair return.
      */
-    static std::pair<capptr::Chunk<void>, SlabMetadata*> alloc_chunk(
+    static stl::Pair<capptr::Chunk<void>, SlabMetadata*> alloc_chunk(
       LocalState& local_state,
       size_t size,
       uintptr_t ras,

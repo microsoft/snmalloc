@@ -104,7 +104,7 @@ namespace snmalloc
     }
 
     template<SNMALLOC_CONCEPT(IsConfigLazy) Config, typename Domesticator_queue>
-    SNMALLOC_FAST_PATH static std::pair<freelist::HeadPtr, uint16_t>
+    SNMALLOC_FAST_PATH static stl::Pair<freelist::HeadPtr, uint16_t>
     open_free_ring(
       capptr::Alloc<BatchedRemoteMessage> m,
       size_t objsize,
@@ -242,7 +242,7 @@ namespace snmalloc
     }
 
     template<SNMALLOC_CONCEPT(IsConfigLazy) Config, typename Domesticator_queue>
-    SNMALLOC_FAST_PATH static std::pair<freelist::HeadPtr, uint16_t>
+    SNMALLOC_FAST_PATH static stl::Pair<freelist::HeadPtr, uint16_t>
     open_free_ring(
       capptr::Alloc<SingletonRemoteMessage> m,
       size_t,

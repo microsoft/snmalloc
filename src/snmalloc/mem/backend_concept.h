@@ -4,7 +4,7 @@
 #  include "../ds/ds.h"
 #  include "sizeclasstable.h"
 
-#  include <cstddef>
+#  include <stddef.h>
 
 namespace snmalloc
 {
@@ -107,7 +107,7 @@ namespace snmalloc
       {
         Backend::alloc_chunk(local_state, size, ras, sizeclass)
         } -> ConceptSame<
-          std::pair<capptr::Chunk<void>, typename Backend::SlabMetadata*>>;
+          stl::Pair<capptr::Chunk<void>, typename Backend::SlabMetadata*>>;
     } &&
     requires(LocalState* local_state, size_t size) {
       {

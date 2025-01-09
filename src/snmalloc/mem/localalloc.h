@@ -21,8 +21,9 @@
 #  include "external_alloc.h"
 #endif
 
+#include "snmalloc/stl/utility.h"
+
 #include <string.h>
-#include <utility>
 
 namespace snmalloc
 {
