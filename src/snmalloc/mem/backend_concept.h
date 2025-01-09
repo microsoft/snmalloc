@@ -4,7 +4,7 @@
 #  include "../ds/ds.h"
 #  include "sizeclasstable.h"
 
-#  include <cstddef>
+#  include <stddef.h>
 
 namespace snmalloc
 {
