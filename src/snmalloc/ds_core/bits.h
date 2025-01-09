@@ -373,7 +373,7 @@ namespace snmalloc
     /**
      * Implementation of `std::min`
      *
-     * `bits::min` is in `<algorithm>`, so pulls in a lot of unneccessary code
+     * `std::min` is in `<algorithm>`, so pulls in a lot of unneccessary code
      * We write our own to reduce the code that potentially needs reviewing.
      */
     template<typename T>
@@ -385,7 +385,7 @@ namespace snmalloc
     /**
      * Implementation of `std::max`
      *
-     * `bits::max` is in `<algorithm>`, so pulls in a lot of unneccessary code
+     * `std::max` is in `<algorithm>`, so pulls in a lot of unneccessary code
      * We write our own to reduce the code that potentially needs reviewing.
      */
     template<typename T>
