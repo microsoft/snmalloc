@@ -17,8 +17,8 @@ namespace snmalloc
    * it if it exists.
    */
   template<typename T>
-  SNMALLOC_FAST_PATH auto
-  call_is_initialised(T*, int) -> decltype(T::is_initialised())
+  SNMALLOC_FAST_PATH auto call_is_initialised(T*, int)
+    -> decltype(T::is_initialised())
   {
     return T::is_initialised();
   }
@@ -43,17 +43,16 @@ namespace snmalloc
       SNMALLOC_CONCEPT(IsConfigDomestication) Config,
       typename T,
       SNMALLOC_CONCEPT(capptr::IsBound) B>
-    constexpr SNMALLOC_FAST_PATH auto
-    has_domesticate(int) -> stl::enable_if_t<
-                           stl::is_same_v<
-                             decltype(Config::capptr_domesticate(
-                               stl::declval<typename Config::LocalState*>(),
-                               stl::declval<CapPtr<T, B>>())),
-                             CapPtr<
-                               T,
-                               typename B::template with_wildness<
-                                 capptr::dimension::Wildness::Tame>>>,
-                           bool>
+    constexpr SNMALLOC_FAST_PATH auto has_domesticate(int) -> stl::enable_if_t<
+      stl::is_same_v<
+        decltype(Config::capptr_domesticate(
+          stl::declval<typename Config::LocalState*>(),
+          stl::declval<CapPtr<T, B>>())),
+        CapPtr<
+          T,
+          typename B::template with_wildness<
+            capptr::dimension::Wildness::Tame>>>,
+      bool>
     {
       return true;
     }
