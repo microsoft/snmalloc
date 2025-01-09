@@ -50,7 +50,7 @@ namespace snmalloc
     };
 
     static constexpr size_t rlength = bits::next_pow2_const(length);
-    proxy::Array<TWrap, rlength> array;
+    stl::Array<TWrap, rlength> array;
 
   public:
     constexpr const T& operator[](const size_t i) const
@@ -65,7 +65,7 @@ namespace snmalloc
   };
 #else
   template<size_t length, typename T>
-  using ModArray = proxy::Array<T, length>;
+  using ModArray = stl::Array<T, length>;
 #endif
 
   /**
@@ -144,7 +144,7 @@ namespace snmalloc
     /**
      * The buffer that is used to store the formatted output.
      */
-    proxy::Array<char, BufferSize> buffer;
+    stl::Array<char, BufferSize> buffer;
 
     /**
      * Space in the buffer, excluding a trailing null terminator.
@@ -254,7 +254,7 @@ namespace snmalloc
         append_char('-');
         s = 0 - s;
       }
-      proxy::Array<char, 20> buf{{0}};
+      stl::Array<char, 20> buf{{0}};
       const char digits[] = "0123456789";
       for (long i = static_cast<long>(buf.size() - 1); i >= 0; i--)
       {
@@ -284,7 +284,7 @@ namespace snmalloc
     {
       append_char('0');
       append_char('x');
-      proxy::Array<char, 16> buf{{0}};
+      stl::Array<char, 16> buf{{0}};
       const char hexdigits[] = "0123456789abcdef";
       // Length of string including null terminator
       static_assert(sizeof(hexdigits) == 0x11);

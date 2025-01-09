@@ -1,29 +1,17 @@
 #pragma once
 
-#include "snmalloc/ds_core/defines.h"
-
-#ifndef SNMALLOC_USE_SELF_VENDORED_STL
-#  define SNMALLOC_USE_SELF_VENDORED_STL 0
-#endif
-
-#if SNMALLOC_USE_SELF_VENDORED_STL
-
-#  if !defined(__GNUC__) && !defined(__clang__)
-#    error "cannot use vendored STL without GNU/Clang extensions"
-#  endif
-
-#  include <stddef.h>
+#include <stddef.h>
 
 namespace snmalloc
 {
-  namespace proxy
+  namespace stl
   {
     template<typename T, size_t N>
     struct Array
     {
       // N is potentially 0, so we mark it with __extension__ attribute.
-      // expose this to public to allow aggregate initialization
-      __extension__ T storage[N];
+      // Expose this to public to allow aggregate initialization
+      __extension__ T _storage[N];
 
       [[nodiscard]] constexpr SNMALLOC_FAST_PATH size_t size() const
       {
@@ -32,12 +20,12 @@ namespace snmalloc
 
       constexpr T& operator[](size_t i)
       {
-        return storage[i];
+        return _storage[i];
       }
 
       constexpr const T& operator[](size_t i) const
       {
-        return storage[i];
+        return _storage[i];
       }
 
       using value_type = T;
@@ -47,32 +35,32 @@ namespace snmalloc
 
       [[nodiscard]] constexpr SNMALLOC_FAST_PATH iterator begin()
       {
-        return &storage[0];
+        return &_storage[0];
       }
 
       [[nodiscard]] constexpr SNMALLOC_FAST_PATH const_iterator begin() const
       {
-        return &storage[0];
+        return &_storage[0];
       }
 
       [[nodiscard]] constexpr SNMALLOC_FAST_PATH iterator end()
       {
-        return &storage[N];
+        return &_storage[N];
       }
 
       [[nodiscard]] constexpr SNMALLOC_FAST_PATH const_iterator end() const
       {
-        return &storage[N];
+        return &_storage[N];
       }
 
       [[nodiscard]] constexpr SNMALLOC_FAST_PATH T* data()
       {
-        return &storage[0];
+        return &_storage[0];
       }
 
       [[nodiscard]] constexpr SNMALLOC_FAST_PATH const T* data() const
       {
-        return &storage[0];
+        return &_storage[0];
       }
     };
 
@@ -123,20 +111,5 @@ namespace snmalloc
     {
       return &a[N];
     }
-  } // namespace proxy
+  } // namespace stl
 } // namespace snmalloc
-#else
-#  include <array>
-
-namespace snmalloc
-{
-  namespace proxy
-  {
-    template<typename T, size_t N>
-    using Array = std::array<T, N>;
-
-    using std::begin;
-    using std::end;
-  } // namespace proxy
-} // namespace snmalloc
-#endif

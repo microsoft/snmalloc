@@ -701,11 +701,11 @@ namespace snmalloc
        */
 
       // Pointer to the first element.
-      proxy::Array<void*, LENGTH> head{nullptr};
+      stl::Array<void*, LENGTH> head{nullptr};
       // Pointer to the reference to the last element.
       // In the empty case end[i] == &head[i]
       // This enables branch free enqueuing.
-      proxy::Array<void**, LENGTH> end{nullptr};
+      stl::Array<void**, LENGTH> end{nullptr};
 
       [[nodiscard]] Object::BQueuePtr<BQueue>* cast_end(uint32_t ix) const
       {
@@ -724,7 +724,7 @@ namespace snmalloc
       }
 
       SNMALLOC_NO_UNIQUE_ADDRESS
-      proxy::Array<uint16_t, RANDOM ? 2 : (TRACK_LENGTH ? 1 : 0)> length{};
+      stl::Array<uint16_t, RANDOM ? 2 : (TRACK_LENGTH ? 1 : 0)> length{};
 
     public:
       constexpr Builder() = default;

@@ -32,8 +32,8 @@ namespace snmalloc
   {
     static_assert(RINGS > 0);
 
-    proxy::Array<freelist::Builder<false, true>, RINGS> open_builder;
-    proxy::Array<address_t, RINGS> open_meta = {0};
+    stl::Array<freelist::Builder<false, true>, RINGS> open_builder;
+    stl::Array<address_t, RINGS> open_meta = {0};
 
     SNMALLOC_FAST_PATH size_t
     ring_set(typename Config::PagemapEntry::SlabMetadata* meta)
@@ -190,7 +190,7 @@ namespace snmalloc
   template<typename Config>
   struct RemoteDeallocCache
   {
-    proxy::Array<freelist::Builder<false>, REMOTE_SLOTS> list;
+    stl::Array<freelist::Builder<false>, REMOTE_SLOTS> list;
 
     RemoteDeallocCacheBatchingImpl<Config> batching;
 

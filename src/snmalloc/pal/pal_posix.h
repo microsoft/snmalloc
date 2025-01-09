@@ -418,8 +418,8 @@ namespace snmalloc
       auto fd = open("/dev/urandom", flags, 0);
       if (fd > 0)
       {
-        auto current = proxy::begin(buffer);
-        auto target = proxy::end(buffer);
+        auto current = stl::begin(buffer);
+        auto target = stl::end(buffer);
         while (auto length = static_cast<size_t>(target - current))
         {
           ret = read(fd, current, length);

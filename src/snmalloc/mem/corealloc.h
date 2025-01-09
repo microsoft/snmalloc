@@ -6,7 +6,6 @@
 #include "pool.h"
 #include "remotecache.h"
 #include "sizeclasstable.h"
-#include "snmalloc/stl/algorithm.h"
 #include "snmalloc/stl/new.h"
 #include "ticker.h"
 
@@ -223,7 +222,7 @@ namespace snmalloc
                pointer_offset(curr, rsize).template as_static<PreAllocObject>())
         {
           size_t insert_index = entropy.sample(count);
-          curr->next = proxy::exchange(
+          curr->next = stl::exchange(
             pointer_offset(bumpptr, insert_index * rsize)
               .template as_static<PreAllocObject>()
               ->next,
