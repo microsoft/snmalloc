@@ -238,6 +238,7 @@ namespace snmalloc
 
       error("Implementation error: Too many lazy commit regions!");
     }
+
     /// OS specific function for zeroing memory
     template<bool page_aligned = false>
     static void zero(void* p, size_t size) noexcept
