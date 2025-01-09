@@ -52,7 +52,7 @@ namespace snmalloc
     // A list of reserved ranges, used to handle lazy commit on readonly pages.
     // We currently only need one, so haven't implemented a backup if the
     // initial 16 is insufficient.
-    inline static stl::Array<std::pair<address_t, size_t>, 16> reserved_ranges;
+    inline static stl::Array<stl::Pair<address_t, size_t>, 16> reserved_ranges;
 
     // Lock for the reserved ranges.
     inline static FlagWord reserved_ranges_lock{};
