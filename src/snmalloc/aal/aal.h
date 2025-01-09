@@ -16,7 +16,7 @@
 #    define SNMALLOC_TICK_USE_CLOCK_GETTIME
 #  endif
 #endif
-#include <cstdint>
+#include <stdint.h>
 #include <utility>
 
 #ifndef SNMALLOC_TICK_USE_CLOCK_GETTIME

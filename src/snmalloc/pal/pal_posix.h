@@ -5,17 +5,18 @@
 #if defined(SNMALLOC_BACKTRACE_HEADER)
 #  include SNMALLOC_BACKTRACE_HEADER
 #endif
-#include <cstdlib>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/mman.h>
 #include <sys/uio.h>
 #include <unistd.h>
 #include <utility>
+
 #if __has_include(<sys/random.h>)
 #  include <sys/random.h>
 #endif

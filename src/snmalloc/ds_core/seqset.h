@@ -4,7 +4,7 @@
 #include "../ds_core/ds_core.h"
 #include "snmalloc/stl/type_traits.h"
 
-#include <cstdint>
+#include <stdint.h>
 
 namespace snmalloc
 {
