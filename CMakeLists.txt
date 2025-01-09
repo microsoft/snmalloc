@@ -211,9 +211,7 @@ if(SNMALLOC_REMOTE_BATCH_PROCESS_SIZE)
 endif()
 
 if(SNMALLOC_USE_SELF_VENDORED_STL)
-  target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_SELF_VENDORED_STL=1)
-else()
-  target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_SELF_VENDORED_STL=0)
+  target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_SELF_VENDORED_STL)
 endif()
 
 # https://learn.microsoft.com/en-us/cpp/build/reference/zc-cplusplus

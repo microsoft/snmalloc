@@ -1,5 +1,7 @@
 #pragma once
 
+#include "snmalloc/ds_core/defines.h"
+
 #include <stddef.h>
 
 namespace snmalloc

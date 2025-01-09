@@ -1,5 +1,6 @@
 #pragma once
 
+#include "snmalloc/ds_core/defines.h"
 #include "snmalloc/stl/type_traits.h"
 
 // This is used by clang to provide better analysis of lifetimes.

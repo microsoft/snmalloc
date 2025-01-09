@@ -16,12 +16,8 @@
 #  endif
 #endif
 
-#ifndef SNMALLOC_USE_SELF_VENDORED_STL
-#  define SNMALLOC_USE_SELF_VENDORED_STL 0
-#endif
-
 // only define these if we are not using the vendored STL
-#if !SNMALLOC_USE_SELF_VENDORED_STL
+#ifndef SNMALLOC_USE_SELF_VENDORED_STL
 void* operator new(size_t size)
 {
   return snmalloc::libc::malloc(size);
