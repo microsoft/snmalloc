@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../aal/aal.h"
+#include "../ds_aal/ds_aal.h"
 #include "pal_timer_default.h"
 
 #ifdef _WIN32
@@ -48,13 +49,76 @@ namespace snmalloc
       low_memory_callbacks.notify_all();
     }
 
+    // A list of reserved ranges, used to handle lazy commit on readonly pages.
+    // We currently only need one, so haven't implemented a backup if the
+    // initial 16 is insufficient.
+    inline static std::array<std::pair<address_t, size_t>, 16> reserved_ranges;
+
+    // Lock for the reserved ranges.
+    inline static FlagWord reserved_ranges_lock{};
+
+    // Exception handler for handling lazy commit on readonly pages.
+    static LONG NTAPI
+    HandleReadonlyLazyCommit(struct _EXCEPTION_POINTERS* ExceptionInfo)
+    {
+      // Check this is an AV
+      if (
+        ExceptionInfo->ExceptionRecord->ExceptionCode !=
+        EXCEPTION_ACCESS_VIOLATION)
+        return EXCEPTION_CONTINUE_SEARCH;
+
+      // Check this is a read access
+      if (ExceptionInfo->ExceptionRecord->ExceptionInformation[0] != 0)
+        return EXCEPTION_CONTINUE_SEARCH;
+
+      // Get faulting address from exception info.
+      snmalloc::address_t faulting_address =
+        ExceptionInfo->ExceptionRecord->ExceptionInformation[1];
+
+      bool found = false;
+      {
+        FlagLock lock(reserved_ranges_lock);
+        // Check if the address is in a reserved range.
+        for (auto& r : reserved_ranges)
+        {
+          if ((faulting_address - r.first) < r.second)
+          {
+            found = true;
+            break;
+          }
+        }
+      }
+
+      if (!found)
+        return EXCEPTION_CONTINUE_SEARCH;
+
+      // Commit the page as readonly
+      auto pagebase = snmalloc::bits::align_down(faulting_address, page_size);
+      VirtualAlloc((void*)pagebase, page_size, MEM_COMMIT, PAGE_READONLY);
+
+      // Resume execution
+      return EXCEPTION_CONTINUE_EXECUTION;
+    }
+
+    static void initialise_for_singleton(size_t*) noexcept
+    {
+      AddVectoredExceptionHandler(1, HandleReadonlyLazyCommit);
+    }
+
+    // Ensure the exception handler is registered.
+    static void initialise_readonly_av() noexcept
+    {
+      static Singleton<size_t, &initialise_for_singleton> init;
+      init.get();
+    }
+
   public:
     /**
      * Bitmap of PalFeatures flags indicating the optional features that this
      * PAL supports.  This PAL supports low-memory notifications.
      */
     static constexpr uint64_t pal_features = LowMemoryNotification | Entropy |
-      Time
+      Time | LazyCommit
 #  if defined(PLATFORM_HAS_VIRTUALALLOC2) && !defined(USE_SYSTEMATIC_TESTING)
       | AlignedAllocation
 #  endif
@@ -153,6 +217,26 @@ namespace snmalloc
       if (r == nullptr)
         report_fatal_error(
           "out of memory: {} ({}) could not be committed", p, size);
+    }
+
+    static void notify_using_readonly(void* p, size_t size) noexcept
+    {
+      initialise_readonly_av();
+
+      {
+        FlagLock lock(reserved_ranges_lock);
+        for (auto& r : reserved_ranges)
+        {
+          if (r.first == 0)
+          {
+            r.first = (address_t)p;
+            r.second = size;
+            return;
+          }
+        }
+      }
+
+      error("Implementation error: Too many lazy commit regions!");
     }
 
     /// OS specific function for zeroing memory
