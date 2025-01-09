@@ -18,9 +18,9 @@ namespace snmalloc
    */
   template<typename Rep>
   concept RBRepTypes = requires() {
-    typename Rep::Handle;
-    typename Rep::Contents;
-  };
+                         typename Rep::Handle;
+                         typename Rep::Contents;
+                       };
 
   /**
    * The representation must define operations on the holder and contents
@@ -41,17 +41,29 @@ namespace snmalloc
   template<typename Rep>
   concept RBRepMethods =
     requires(typename Rep::Handle hp, typename Rep::Contents k, bool b) {
-      { Rep::get(hp) } -> ConceptSame<typename Rep::Contents>;
-      { Rep::set(hp, k) } -> ConceptSame<void>;
-      { Rep::is_red(k) } -> ConceptSame<bool>;
-      { Rep::set_red(k, b) } -> ConceptSame<void>;
-      { Rep::ref(b, k) } -> ConceptSame<typename Rep::Handle>;
-      { Rep::null } -> ConceptSameModRef<const typename Rep::Contents>;
+      {
+        Rep::get(hp)
+        } -> ConceptSame<typename Rep::Contents>;
+      {
+        Rep::set(hp, k)
+        } -> ConceptSame<void>;
+      {
+        Rep::is_red(k)
+        } -> ConceptSame<bool>;
+      {
+        Rep::set_red(k, b)
+        } -> ConceptSame<void>;
+      {
+        Rep::ref(b, k)
+        } -> ConceptSame<typename Rep::Handle>;
+      {
+        Rep::null
+        } -> ConceptSameModRef<const typename Rep::Contents>;
       {
         typename Rep::Handle{const_cast<
           stl::remove_const_t<stl::remove_reference_t<decltype(Rep::root)>>*>(
           &Rep::root)}
-      } -> ConceptSame<typename Rep::Handle>;
+        } -> ConceptSame<typename Rep::Handle>;
     };
 
   template<typename Rep>
@@ -484,8 +496,7 @@ namespace snmalloc
        */
       path.move(true);
       while (path.move(false))
-      {
-      }
+      {}
 
       K curr = path.curr();
 
@@ -736,8 +747,7 @@ namespace snmalloc
 
       auto path = get_root_path();
       while (path.move(true))
-      {
-      }
+      {}
 
       K result = path.curr();
 
