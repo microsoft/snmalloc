@@ -329,8 +329,8 @@ namespace snmalloc
      * if it exists.
      */
     template<typename T>
-    SNMALLOC_FAST_PATH auto
-    call_ensure_init(T*, int) -> decltype(T::ensure_init())
+    SNMALLOC_FAST_PATH auto call_ensure_init(T*, int)
+      -> decltype(T::ensure_init())
     {
       T::ensure_init();
     }
