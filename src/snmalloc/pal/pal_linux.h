@@ -19,7 +19,7 @@
 #    include <linux/futex.h>
 #  endif
 
-extern "C" int puts(const char* str);
+#  include <stdio.h>
 
 namespace snmalloc
 {
