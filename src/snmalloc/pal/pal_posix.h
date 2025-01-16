@@ -23,8 +23,6 @@
 #  include <sys/random.h>
 #endif
 
-extern "C" int puts(const char* str);
-
 namespace snmalloc
 {
   /**
