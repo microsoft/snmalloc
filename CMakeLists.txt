@@ -473,7 +473,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       if (NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
         check_linker_flag(CXX "-nostdlib++" SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
         if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX AND NOT
-	    "${CMAKE_CXX_FLAGS}" MATCHES ".*_GLIBCXX_ASSERTIONS.*"))
+       	    "${CMAKE_CXX_FLAGS}" MATCHES ".*_GLIBCXX_ASSERTIONS.*")
           target_link_options(${name} PRIVATE -nostdlib++)
         else()
           set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
