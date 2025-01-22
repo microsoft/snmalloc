@@ -86,21 +86,36 @@ if (NOT CHECK_LINKER_FLAG)
   endfunction()
 endif ()
 
+# FORTIFY_SOURCE prevents overriding memcpy, disable memcpy if detected.
+# This checks if memcpy can be overridden.
+CHECK_CXX_SOURCE_COMPILES("
+#include <string.h>
+extern \"C\" void* memcpy(void *, const void*, size_t) {}
+int main() { return 0; }
+" SNMALLOC_MEMCPY_OVERRIDE)
+if (SNMALLOC_CHECK_LOADS AND NOT SNMALLOC_MEMCPY_OVERRIDE)
+  message(FATAL_ERROR "SNMALLOC_CHECK_LOADS is incompatible as memcpy could not be overridden. (possbily due to _FORTIFY_SOURCE)")
+endif()
+
+# Detect if nostdlib++ works
+# Use custom code to detect failure with glibcxx assertions define.
+set(CMAKE_REQUIRED_LINK_OPTIONS -nostdlib++)
+check_cxx_source_compiles("
+#include <array>
+
+char foo(std::array<int, 10> p, int i)
+{ return p[i]; }
+
+int main()
+{ return 0; }"
+ SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
+set(CMAKE_REQUIRED_LINK_OPTIONS "")
+
 if (NOT MSVC AND NOT (SNMALLOC_CLEANUP STREQUAL CXX11_DESTRUCTORS))
   # If the target compiler doesn't support -nostdlib++ then we must enable C at
   # the global scope for the fallbacks to work.
-  check_linker_flag(CXX "-nostdlib++" SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
   if (NOT SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX AND NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     enable_language(C)
-  endif()
-endif()
-
-# FORTIFY_SOURCE prevents overriding memcpy, disable memcpy if detected.
-if("${CMAKE_CXX_FLAGS}" MATCHES ".*_FORTIFY_SOURCE.*")
-  set(SNMALLOC_DISABLE_MEMCPY_OVERRIDE TRUE)
-  message(WARNING "Disabling memcpy override due to _FORTIFY_SOURCE")
-  if (SNMALLOC_CHECK_LOADS)
-    message(FATAL_ERROR "SNMALLOC_CHECK_LOADS is incompatible with _FORTIFY_SOURCE")
   endif()
 endif()
 
@@ -488,9 +503,7 @@ endif()
       # it.  Otherwise, fall back to linking the library as if it were C, which
       # has roughly the same effect.
       if (NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
-        check_linker_flag(CXX "-nostdlib++" SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
-        if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX AND NOT
-       	    "${CMAKE_CXX_FLAGS}" MATCHES ".*_GLIBCXX_ASSERTIONS.*")
+        if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
           target_link_options(${name} PRIVATE -nostdlib++)
         else()
           set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
@@ -522,7 +535,7 @@ endif()
 
   if(NOT WIN32)
     add_shim(snmallocshim SHARED ${SHIM_FILES})
-    if (NOT SNMALLOC_DISABLE_MEMCPY_OVERRIDE)
+    if (SNMALLOC_MEMCPY_OVERRIDE)
       add_shim(snmallocshim-checks-memcpy-only SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
       add_shim(snmallocshim-checks SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
     else()
