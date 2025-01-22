@@ -95,6 +95,15 @@ if (NOT MSVC AND NOT (SNMALLOC_CLEANUP STREQUAL CXX11_DESTRUCTORS))
   endif()
 endif()
 
+# FORTIFY_SOURCE prevents overriding memcpy, disable memcpy if detected.
+if("${CMAKE_CXX_FLAGS}" MATCHES ".*_FORTIFY_SOURCE.*")
+  set(SNMALLOC_DISABLE_MEMCPY_OVERRIDE TRUE)
+  message(WARNING "Disabling memcpy override due to _FORTIFY_SOURCE")
+  if (SNMALLOC_CHECK_LOADS)
+    message(FATAL_ERROR "SNMALLOC_CHECK_LOADS is incompatible with _FORTIFY_SOURCE")
+  endif()
+endif()
+
 # Define a generator expression for things that will be enabled in either CI
 # builds or debug mode.
 set(ci_or_debug "$<OR:$<BOOL:${SNMALLOC_CI_BUILD}>,$<CONFIG:Debug>>")
@@ -505,8 +514,12 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
   if(NOT WIN32)
     add_shim(snmallocshim SHARED ${SHIM_FILES})
-    add_shim(snmallocshim-checks-memcpy-only SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
-    add_shim(snmallocshim-checks SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
+    if (NOT SNMALLOC_DISABLE_MEMCPY_OVERRIDE)
+      add_shim(snmallocshim-checks-memcpy-only SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
+      add_shim(snmallocshim-checks SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
+    else()
+    add_shim(snmallocshim-checks SHARED ${SHIM_FILES})
+    endif()
     target_compile_definitions(snmallocshim-checks PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 
