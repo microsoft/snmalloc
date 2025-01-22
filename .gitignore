@@ -4,6 +4,7 @@
 /build*/
 /cmake-build-*/
 /out*/
+/dist/
 
 /tidy.fail
 
