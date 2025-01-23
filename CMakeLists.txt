@@ -93,8 +93,11 @@ CHECK_CXX_SOURCE_COMPILES("
 extern \"C\" void* memcpy(void *, const void*, size_t) {}
 int main() { return 0; }
 " SNMALLOC_MEMCPY_OVERRIDE)
-if (SNMALLOC_CHECK_LOADS AND NOT SNMALLOC_MEMCPY_OVERRIDE)
-  message(FATAL_ERROR "SNMALLOC_CHECK_LOADS is incompatible as memcpy could not be overridden. (possbily due to _FORTIFY_SOURCE)")
+if (NOT SNMALLOC_MEMCPY_OVERRIDE)
+  message(WARNING "Unable to override memcpy (possbily due to _FORTIFY_SOURCE).")
+  if (SNMALLOC_CHECK_LOADS)
+    message(FATAL_ERROR "SNMALLOC_CHECK_LOADS is incompatible as memcpy could not be overridden. (possbily due to _FORTIFY_SOURCE)")
+  endif()
 endif()
 
 # Detect if nostdlib++ works
