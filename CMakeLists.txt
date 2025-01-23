@@ -86,10 +86,37 @@ if (NOT CHECK_LINKER_FLAG)
   endfunction()
 endif ()
 
+# FORTIFY_SOURCE prevents overriding memcpy, disable memcpy if detected.
+# This checks if memcpy can be overridden.
+CHECK_CXX_SOURCE_COMPILES("
+#include <string.h>
+extern \"C\" void* memcpy(void *, const void*, size_t) {}
+int main() { return 0; }
+" SNMALLOC_MEMCPY_OVERRIDE)
+if (NOT SNMALLOC_MEMCPY_OVERRIDE)
+  message(WARNING "Unable to override memcpy (possbily due to _FORTIFY_SOURCE).")
+  if (SNMALLOC_CHECK_LOADS)
+    message(FATAL_ERROR "SNMALLOC_CHECK_LOADS is incompatible as memcpy could not be overridden. (possbily due to _FORTIFY_SOURCE)")
+  endif()
+endif()
+
+# Detect if nostdlib++ works
+# Use custom code to detect failure with glibcxx assertions define.
+set(CMAKE_REQUIRED_LINK_OPTIONS -nostdlib++)
+check_cxx_source_compiles("
+#include <array>
+
+char foo(std::array<int, 10> p, int i)
+{ return p[i]; }
+
+int main()
+{ return 0; }"
+ SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
+set(CMAKE_REQUIRED_LINK_OPTIONS "")
+
 if (NOT MSVC AND NOT (SNMALLOC_CLEANUP STREQUAL CXX11_DESTRUCTORS))
   # If the target compiler doesn't support -nostdlib++ then we must enable C at
   # the global scope for the fallbacks to work.
-  check_linker_flag(CXX "-nostdlib++" SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
   if (NOT SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX AND NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     enable_language(C)
   endif()
@@ -356,7 +383,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
   function(make_tests TAG DEFINES)
     foreach(TEST_CATEGORY ${TEST_CATEGORIES})
-      message(STATUS "Adding ${TAG}/${TEST_CATEGORY} tests")
+      message(VERBOSE "Adding ${TAG}/${TEST_CATEGORY} tests")
       subdirlist(TESTS ${TESTDIR}/${TEST_CATEGORY})
       foreach(TEST ${TESTS})
         unset(SRC)
@@ -430,6 +457,20 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     set(LLD_WORKS FALSE)
   endif()
 
+  if ((NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku") AND (NOT SNMALLOC_ENABLE_DYNAMIC_LOADING))
+    message(STATUS "snmalloc: Using static TLS model")
+    set (SNMALLOC_STATIC_MODE_TLS TRUE)
+  endif()
+
+  if(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE)
+    check_cxx_compiler_flag(-march=native SUPPORT_MARCH_NATIVE)
+    if (NOT SUPPORT_MARCH_NATIVE)
+      message_once(WARNING "Compiler does not support `-march=native` required by SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE")
+      set(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE FALSE)
+    endif()
+endif()
+
+
   function(add_shim name type)
     add_library(${name} ${type} ${ARGN})
     target_link_libraries(${name} snmalloc)
@@ -451,19 +492,13 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
         target_compile_options(${name} PRIVATE -mprfchw)
       endif()
       # Static TLS model is unsupported on Haiku.
-      if ((NOT CMAKE_SYSTEM_NAME STREQUAL "Haiku") AND (NOT SNMALLOC_ENABLE_DYNAMIC_LOADING))
-        message(STATUS "snmalloc: Using static TLS model")
+      if (SNMALLOC_STATIC_MODE_TLS)
         target_compile_options(${name} PRIVATE -ftls-model=initial-exec)
         target_compile_options(${name} PRIVATE $<$<BOOL:${SNMALLOC_CI_BUILD}>:-g>)
       endif()
 
       if(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE)
-        check_cxx_compiler_flag(-march=native SUPPORT_MARCH_NATIVE)
-        if (SUPPORT_MARCH_NATIVE)
-          target_compile_options(${name} PRIVATE -march=native)
-        else()
-          message(WARNING "Compiler does not support `-march=native` required by SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE")
-        endif()
+        target_compile_options(${name} PRIVATE -march=native)
       endif()
 
       # Ensure that we do not link against C++ stdlib when compiling shims.
@@ -471,9 +506,8 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       # it.  Otherwise, fall back to linking the library as if it were C, which
       # has roughly the same effect.
       if (NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
-        check_linker_flag(CXX "-nostdlib++" SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
         if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
-         target_link_options(${name} PRIVATE -nostdlib++)
+          target_link_options(${name} PRIVATE -nostdlib++)
         else()
           set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
         endif()
@@ -504,8 +538,12 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
   if(NOT WIN32)
     add_shim(snmallocshim SHARED ${SHIM_FILES})
-    add_shim(snmallocshim-checks-memcpy-only SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
-    add_shim(snmallocshim-checks SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
+    if (SNMALLOC_MEMCPY_OVERRIDE)
+      add_shim(snmallocshim-checks-memcpy-only SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
+      add_shim(snmallocshim-checks SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
+    else()
+    add_shim(snmallocshim-checks SHARED ${SHIM_FILES})
+    endif()
     target_compile_definitions(snmallocshim-checks PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 
