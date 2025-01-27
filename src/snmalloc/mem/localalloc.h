@@ -768,6 +768,9 @@ namespace snmalloc
 #ifdef SNMALLOC_PASS_THROUGH
       return external_alloc::malloc_usable_size(const_cast<void*>(p_raw));
 #else
+
+      if (SecondaryAllocator::has_secondary_ownership(p_raw))
+        return SecondaryAllocator::alloc_size(p_raw);
       // TODO What's the domestication policy here?  At the moment we just
       // probe the pagemap with the raw address, without checks.  There could
       // be implicit domestication through the `Config::Pagemap` or

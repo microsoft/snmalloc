@@ -32,9 +32,18 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH
-    static bool has_secondary_ownership([[maybe_unused]] void* pointer)
+    static bool has_secondary_ownership([[maybe_unused]] const void* pointer)
     {
       return false;
+    }
+
+    SNMALLOC_FAST_PATH
+    static size_t alloc_size([[maybe_unused]] const void* pointer)
+    {
+      SNMALLOC_ASSERT(
+        false &&
+        "secondary alloc_size should never be invoked with default setup");
+      return 0;
     }
   };
 } // namespace snmalloc

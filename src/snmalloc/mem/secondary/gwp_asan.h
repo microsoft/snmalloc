@@ -14,11 +14,6 @@ namespace snmalloc
     static inline gwp_asan::GuardedPoolAllocator singleton;
     static inline size_t max_allocation_size;
 
-    static gwp_asan::GuardedPoolAllocator& get()
-    {
-      return singleton;
-    }
-
   public:
     static void initialize() noexcept
     {
@@ -38,13 +33,12 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH static void* allocate(size_t size)
     {
-      auto& inner = get();
-      if (SNMALLOC_UNLIKELY(inner.shouldSample()))
+      if (SNMALLOC_UNLIKELY(singleton.shouldSample()))
       {
         if (size > max_allocation_size)
           return nullptr;
         auto alignment = natural_alignment(size);
-        return get().allocate(size, alignment);
+        return singleton.allocate(size, alignment);
       }
       return nullptr;
     }
@@ -55,19 +49,24 @@ namespace snmalloc
       if (SNMALLOC_LIKELY(pointer == nullptr))
         return;
 
-      auto& inner = get();
       snmalloc_check_client(
         mitigations(sanity_checks),
-        inner.pointerIsMine(pointer),
+        singleton.pointerIsMine(pointer),
         "Not allocated by snmalloc or secondary allocator");
 
-      inner.deallocate(pointer);
+      singleton.deallocate(pointer);
     }
 
     SNMALLOC_FAST_PATH
-    static bool has_secondary_ownership([[maybe_unused]] void* pointer)
+    static bool has_secondary_ownership([[maybe_unused]] const void* pointer)
     {
-      return get().pointerIsMine(pointer);
+      return singleton.pointerIsMine(pointer);
+    }
+
+    SNMALLOC_FAST_PATH
+    static size_t alloc_size(const void* pointer)
+    {
+      return singleton.getSize(pointer);
     }
   };
 } // namespace snmalloc
