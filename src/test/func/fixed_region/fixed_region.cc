@@ -1,3 +1,4 @@
+#include "snmalloc/mem/secondary.h"
 #include "test/setup.h"
 
 #include <iostream>
@@ -38,6 +39,10 @@ int main()
   while (true)
   {
     auto r1 = a.alloc(object_size);
+
+    if (SecondaryAllocator::has_secondary_ownership(r1))
+      continue;
+
     count += object_size;
     i++;
 

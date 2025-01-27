@@ -11,10 +11,16 @@ namespace snmalloc
 {
   class GwpAsanSecondaryAllocator
   {
-    static size_t max_allocation_size;
+    static inline gwp_asan::GuardedPoolAllocator singleton;
+    static inline size_t max_allocation_size;
 
-    static void
-    initialize_gwp_asan(gwp_asan::GuardedPoolAllocator* allocator) noexcept
+    static gwp_asan::GuardedPoolAllocator& get()
+    {
+      return singleton;
+    }
+
+  public:
+    static void initialize() noexcept
     {
       // for now, we use default options
       gwp_asan::options::Options opt;
@@ -25,19 +31,11 @@ namespace snmalloc
           ::backtrace(reinterpret_cast<void**>(buf), static_cast<int>(length)));
       };
 #endif
-      allocator->init(opt);
+      singleton.init(opt);
       max_allocation_size =
-        allocator->getAllocatorState()->maximumAllocationSize();
+        singleton.getAllocatorState()->maximumAllocationSize();
     }
 
-    static gwp_asan::GuardedPoolAllocator& get()
-    {
-      static Singleton<gwp_asan::GuardedPoolAllocator, initialize_gwp_asan>
-        singleton;
-      return singleton.get();
-    }
-
-  public:
     SNMALLOC_FAST_PATH static void* allocate(size_t size)
     {
       auto& inner = get();
@@ -72,6 +70,4 @@ namespace snmalloc
       return get().pointerIsMine(pointer);
     }
   };
-
-  inline size_t GwpAsanSecondaryAllocator::max_allocation_size;
 } // namespace snmalloc

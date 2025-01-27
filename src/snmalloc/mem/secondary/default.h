@@ -1,6 +1,7 @@
 #pragma once
 
 #include "snmalloc/ds/ds.h"
+#include "snmalloc/ds_core/defines.h"
 
 #include <stddef.h>
 
@@ -9,6 +10,9 @@ namespace snmalloc
   class DefaultSecondaryAllocator
   {
   public:
+    SNMALLOC_FAST_PATH
+    static void initialize() {}
+
     SNMALLOC_FAST_PATH
     static void* allocate([[maybe_unused]] size_t size)
     {

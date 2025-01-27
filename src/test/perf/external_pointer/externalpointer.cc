@@ -76,6 +76,8 @@ namespace test
         size_t rand = (size_t)r.next();
         size_t oid = rand & (((size_t)1 << count_log) - 1);
         size_t* external_ptr = objects[oid];
+        if (SecondaryAllocator::has_secondary_ownership(external_ptr))
+          continue;
         size_t size = *external_ptr;
         size_t offset = (size >> 4) * (rand & 15);
         void* interior_ptr = pointer_offset(external_ptr, offset);
