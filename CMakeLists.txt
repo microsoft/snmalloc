@@ -36,6 +36,12 @@ cmake_dependent_option(SNMALLOC_STATIC_LIBRARY "Build static libraries" ON "NOT 
 cmake_dependent_option(SNMALLOC_CHECK_LOADS "Perform bounds checks on the source argument to memcpy with heap objects" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE "Compile for current machine architecture" Off "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_PAGEID "Set an id to memory regions" OFF "NOT SNMALLOC_PAGEID" OFF)
+
+# GwpAsan secondary allocator
+option(SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION "Enable GwpAsan as a secondary allocator" OFF)
+set(SNMALLOC_GWP_ASAN_INCLUDE_PATH "" CACHE PATH "GwpAsan header directory")
+set(SNMALLOC_GWP_ASAN_LIBRARY_PATH "" CACHE PATH "GwpAsan library directory")
+
 if (NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   # Pick a sensible default for the thread cleanup mechanism
   if (${CMAKE_SYSTEM_NAME} STREQUAL FreeBSD)
@@ -239,6 +245,20 @@ endif()
 
 if(SNMALLOC_USE_SELF_VENDORED_STL)
   target_compile_definitions(snmalloc INTERFACE SNMALLOC_USE_SELF_VENDORED_STL)
+endif()
+
+if (SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION)
+  if (NOT EXISTS ${SNMALLOC_GWP_ASAN_INCLUDE_PATH})
+    message(FATAL_ERROR "GwpAsan cannot be enabled without setting SNMALLOC_GWP_ASAN_INCLUDE_PATH")
+  endif()
+  if (NOT EXISTS ${SNMALLOC_GWP_ASAN_LIBRARY_PATH})
+    message(FATAL_ERROR "GwpAsan cannot be enabled without setting SNMALLOC_GWP_ASAN_LIBRARY_PATH")
+  endif()
+  message(STATUS "GwpAsan is enabled: ${SNMALLOC_GWP_ASAN_LIBRARY_PATH}/libclang_rt.gwp_asan-${CMAKE_SYSTEM_PROCESSOR}.a")
+  target_include_directories(snmalloc INTERFACE ${SNMALLOC_GWP_ASAN_INCLUDE_PATH})
+  target_link_directories(snmalloc INTERFACE ${SNMALLOC_GWP_ASAN_LIBRARY_PATH})
+  target_compile_definitions(snmalloc INTERFACE -DSNMALLOC_ENABLE_GWP_ASAN_INTEGRATION)
+  target_link_libraries(snmalloc INTERFACE clang_rt.gwp_asan-${CMAKE_SYSTEM_PROCESSOR})
 endif()
 
 # https://learn.microsoft.com/en-us/cpp/build/reference/zc-cplusplus

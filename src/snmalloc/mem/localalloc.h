@@ -1,6 +1,7 @@
 #pragma once
 
 #include "snmalloc/aal/address.h"
+#include "snmalloc/mem/secondary.h"
 #if defined(_MSC_VER)
 #  define ALLOCATOR __declspec(allocator) __declspec(restrict)
 #elif __has_attribute(malloc)
@@ -185,6 +186,10 @@ namespace snmalloc
         // standard.
         return small_alloc<NoZero>(1);
       }
+
+      void* result = SecondaryAllocator::allocate(size);
+      if (result != nullptr)
+        return capptr::Alloc<void>::unsafe_from(result);
 
       return check_init([&](CoreAlloc* core_alloc) {
         if (size > bits::one_at_bit(bits::BITS - 1))
@@ -697,13 +702,7 @@ namespace snmalloc
         return;
       }
 
-      // If p_tame is not null, then dealloc has been call on something
-      // it shouldn't be called on.
-      // TODO: Should this be tested even in the !CHECK_CLIENT case?
-      snmalloc_check_client(
-        mitigations(sanity_checks),
-        p_tame == nullptr,
-        "Not allocated by snmalloc.");
+      SecondaryAllocator::deallocate(p_tame.unsafe_ptr());
 
 #  ifdef SNMALLOC_TRACING
       message<1024>("nullptr deallocation");
@@ -719,6 +718,8 @@ namespace snmalloc
 #else
       if constexpr (mitigations(sanity_checks))
       {
+        if (SecondaryAllocator::has_secondary_ownership(p))
+          return;
         size = size == 0 ? 1 : size;
         auto sc = size_to_sizeclass_full(size);
         auto pm_sc =

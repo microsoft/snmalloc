@@ -5,6 +5,7 @@
 #include "metadata.h"
 #include "pool.h"
 #include "remotecache.h"
+#include "secondary.h"
 #include "sizeclasstable.h"
 #include "snmalloc/stl/new.h"
 #include "ticker.h"
@@ -884,6 +885,10 @@ namespace snmalloc
       smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
+
+      void* result = SecondaryAllocator::allocate(rsize);
+      if (result != nullptr)
+        return capptr::Alloc<void>::unsafe_from(result);
 
       // No existing free list get a new slab.
       size_t slab_size = sizeclass_to_slab_size(sizeclass);

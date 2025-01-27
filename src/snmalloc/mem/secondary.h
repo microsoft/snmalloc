@@ -1,5 +1,5 @@
 #pragma once
-#ifdef SNMALLOC_ENABLE_GPW_ASAN_INTEGRATION
+#ifdef SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION
 #  include "snmalloc/mem/secondary/gwp_asan.h"
 
 namespace snmalloc

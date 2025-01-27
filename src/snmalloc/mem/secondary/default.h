@@ -8,6 +8,7 @@ namespace snmalloc
 {
   class DefaultSecondaryAllocator
   {
+  public:
     SNMALLOC_FAST_PATH
     static void* allocate([[maybe_unused]] size_t size)
     {
@@ -24,6 +25,12 @@ namespace snmalloc
         mitigations(sanity_checks),
         pointer == nullptr,
         "Not allocated by snmalloc.");
+    }
+
+    SNMALLOC_FAST_PATH
+    static bool has_secondary_ownership([[maybe_unused]] void* pointer)
+    {
+      return false;
     }
   };
 } // namespace snmalloc
