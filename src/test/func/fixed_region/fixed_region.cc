@@ -40,11 +40,14 @@ int main()
   {
     auto r1 = a.alloc(object_size);
 
-    if (SecondaryAllocator::has_secondary_ownership(r1))
-      continue;
-
     count += object_size;
     i++;
+
+    if (SecondaryAllocator::has_secondary_ownership(r1))
+    {
+      a.dealloc(r1);
+      continue;
+    }
 
     if (i == 1024)
     {
