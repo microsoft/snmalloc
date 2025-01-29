@@ -60,8 +60,9 @@ namespace snmalloc
         Aal::pause();
       }
 
-      // Finally set the flag that allows this thread to enter PreventFork regions
-      // This is safe as the only other calls here are to other prefork handlers.
+      // Finally set the flag that allows this thread to enter PreventFork
+      // regions This is safe as the only other calls here are to other prefork
+      // handlers.
       depth_of_prevention++;
     }
 
@@ -128,6 +129,7 @@ namespace snmalloc
   {
   public:
     static void init(size_t*) noexcept {}
+
     static void ensure_init();
   };
 } // namespace snmalloc
