@@ -127,7 +127,7 @@ namespace snmalloc
   class PreventFork
   {
   public:
-    static void init() {}
+    static void init(size_t*) noexcept {}
     static void ensure_init();
   };
 } // namespace snmalloc
