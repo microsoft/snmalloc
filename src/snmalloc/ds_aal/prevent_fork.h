@@ -128,6 +128,7 @@ namespace snmalloc
   {
   public:
     static void init() {}
+    static void ensure_init();
   };
 } // namespace snmalloc
 #endif
