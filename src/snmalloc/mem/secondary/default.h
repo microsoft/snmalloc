@@ -10,11 +10,15 @@ namespace snmalloc
   class DefaultSecondaryAllocator
   {
   public:
+    // This flag is used to turn off checks on fast paths if the secondary
+    // allocator does not own the memory at all.
+    static constexpr inline bool pass_through = true;
+
     SNMALLOC_FAST_PATH
     static void initialize() {}
 
-    SNMALLOC_FAST_PATH
-    static void* allocate([[maybe_unused]] size_t size)
+    template<class SizeAlign>
+    SNMALLOC_FAST_PATH static void* allocate(SizeAlign&&)
     {
       return nullptr;
     }
@@ -32,13 +36,7 @@ namespace snmalloc
     }
 
     SNMALLOC_FAST_PATH
-    static bool has_secondary_ownership([[maybe_unused]] const void* pointer)
-    {
-      return false;
-    }
-
-    SNMALLOC_FAST_PATH
-    static size_t alloc_size([[maybe_unused]] const void* pointer)
+    static size_t alloc_size(const void*)
     {
       SNMALLOC_ASSERT(
         false &&

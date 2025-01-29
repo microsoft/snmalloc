@@ -15,6 +15,8 @@ namespace snmalloc
     static inline size_t max_allocation_size;
 
   public:
+    static constexpr inline bool pass_through = false;
+
     static void initialize() noexcept
     {
       // for now, we use default options
@@ -31,10 +33,17 @@ namespace snmalloc
         singleton.getAllocatorState()->maximumAllocationSize();
     }
 
-    SNMALLOC_FAST_PATH static void* allocate(size_t size)
+    // Use thunk to avoid extra computation when allocation decision can be made
+    // before size and alignment are computed.
+    template<class SizeAlign>
+    SNMALLOC_FAST_PATH static void* allocate(SizeAlign&& getter)
     {
+      // TODO: this `shouldSample` is only triggered on snmalloc's slowpath,
+      // which may reduce the chance of error detection. We may reconsider
+      // the logic to improve the precision in future commits.
       if (SNMALLOC_UNLIKELY(singleton.shouldSample()))
       {
+        auto [size, align] = getter();
         if (size > max_allocation_size)
           return nullptr;
         auto alignment = natural_alignment(size);
@@ -46,21 +55,12 @@ namespace snmalloc
     SNMALLOC_FAST_PATH
     static void deallocate(void* pointer)
     {
-      if (SNMALLOC_LIKELY(pointer == nullptr))
-        return;
-
       snmalloc_check_client(
         mitigations(sanity_checks),
         singleton.pointerIsMine(pointer),
         "Not allocated by snmalloc or secondary allocator");
 
       singleton.deallocate(pointer);
-    }
-
-    SNMALLOC_FAST_PATH
-    static bool has_secondary_ownership([[maybe_unused]] const void* pointer)
-    {
-      return singleton.pointerIsMine(pointer);
     }
 
     SNMALLOC_FAST_PATH

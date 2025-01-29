@@ -818,6 +818,14 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH capptr::Alloc<void>
     small_alloc(smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
     {
+      void* result = SecondaryAllocator::allocate(
+        [sizeclass]() -> stl::Pair<size_t, size_t> {
+          auto size = sizeclass_to_size(sizeclass);
+          return {size, natural_alignment(size)};
+        });
+
+      if (result != nullptr)
+        return capptr::Alloc<void>::unsafe_from(result);
       // Look to see if we can grab a free list.
       auto& sl = alloc_classes[sizeclass].available;
       if (SNMALLOC_LIKELY(alloc_classes[sizeclass].length > 0))
@@ -885,10 +893,6 @@ namespace snmalloc
       smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
     {
       size_t rsize = sizeclass_to_size(sizeclass);
-
-      void* result = SecondaryAllocator::allocate(rsize);
-      if (result != nullptr)
-        return capptr::Alloc<void>::unsafe_from(result);
 
       // No existing free list get a new slab.
       size_t slab_size = sizeclass_to_slab_size(sizeclass);

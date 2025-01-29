@@ -586,7 +586,7 @@ jobs:
     - name: Test
       run: |
         cd ${{github.workspace}}/build
-        ctest --parallel
+        ctest --parallel --output-on-failure
 
   all-checks:
     # Currently FreeBSD and NetBSD CI are not working, so we do not require them to pass.

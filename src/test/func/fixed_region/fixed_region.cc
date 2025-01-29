@@ -43,7 +43,12 @@ int main()
     count += object_size;
     i++;
 
-    if (SecondaryAllocator::has_secondary_ownership(r1))
+    // Run until we exhaust the fixed region.
+    // This should return null.
+    if (r1 == nullptr)
+      break;
+
+    if (!a.check_domestication(r1))
     {
       a.dealloc(r1);
       continue;
@@ -54,10 +59,6 @@ int main()
       i = 0;
       std::cout << ".";
     }
-    // Run until we exhaust the fixed region.
-    // This should return null.
-    if (r1 == nullptr)
-      break;
 
     if (oe_base > r1)
     {
