@@ -789,7 +789,9 @@ namespace snmalloc
       return external_alloc::malloc_usable_size(const_cast<void*>(p_raw));
 #else
 
-      if (!SecondaryAllocator::pass_through && !check_domestication(p_raw))
+      if (
+        !SecondaryAllocator::pass_through && !check_domestication(p_raw) &&
+        p_raw != nullptr)
         return SecondaryAllocator::alloc_size(p_raw);
       // TODO What's the domestication policy here?  At the moment we just
       // probe the pagemap with the raw address, without checks.  There could
