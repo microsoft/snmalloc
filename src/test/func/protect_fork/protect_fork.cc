@@ -29,6 +29,7 @@ int main()
 
   pthread_atfork(simulate_allocation, simulate_allocation, simulate_allocation);
   {
+    // Cause initialisation of the PreventFork singleton to call pthread_atfork.
     snmalloc::PreventFork pf;
   }
   pthread_atfork(simulate_allocation, simulate_allocation, simulate_allocation);
