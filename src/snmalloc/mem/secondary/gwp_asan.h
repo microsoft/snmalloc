@@ -46,8 +46,7 @@ namespace snmalloc
         auto [size, align] = getter();
         if (size > max_allocation_size)
           return nullptr;
-        auto alignment = natural_alignment(size);
-        return singleton.allocate(size, alignment);
+        return singleton.allocate(size, align);
       }
       return nullptr;
     }
