@@ -1,5 +1,5 @@
-#include <snmalloc/snmalloc.h>
 #include <iostream>
+#include <snmalloc/snmalloc.h>
 
 #ifndef SNMALLOC_PTHREAD_ATFORK_WORKS
 int main()
@@ -9,9 +9,13 @@ int main()
 }
 #else
 
+#  include <pthread.h>
+#  include <thread>
 
-#include <pthread.h>
-#include <thread>
+void simulate_allocation()
+{
+  snmalloc::PreventFork pf;
+}
 
 int main()
 {
@@ -23,7 +27,13 @@ int main()
 
   size_t N = 3;
 
-  for (size_t i = 0; i < N; i ++)
+  pthread_atfork(simulate_allocation, simulate_allocation, simulate_allocation);
+  {
+    snmalloc::PreventFork pf;
+  }
+  pthread_atfork(simulate_allocation, simulate_allocation, simulate_allocation);
+
+  for (size_t i = 0; i < N; i++)
   {
     std::thread t([&block, &forking]() {
       {
@@ -41,7 +51,7 @@ int main()
     t.detach();
   }
 
-  while(block != N)
+  while (block != N)
     std::this_thread::yield();
 
   forking = true;
