@@ -59,12 +59,20 @@ namespace snmalloc
       {
         Aal::pause();
       }
+
+      // Finally set the flag that allows this thread to enter PreventFork regions
+      // This is safe as the only other calls here are to other prefork handlers.
+      depth_of_prevention++;
     }
 
     // Unsets the flag that allows threads to enter PreventFork regions
     // and for another thread to request a fork.
     static void postfork()
     {
+      // This thread is no longer preventing a fork, so decrement the counter.
+      depth_of_prevention--;
+
+      // Allow other threads to allocate
       threads_preventing_fork = 0;
     }
 
