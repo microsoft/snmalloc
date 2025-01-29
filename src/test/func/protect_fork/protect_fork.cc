@@ -27,24 +27,33 @@ int main()
 
   size_t N = 3;
 
+  snmalloc::message<1024>("Testing PreventFork");
+
+  snmalloc::message<1024>("Adding alternative calls to pthread_atfork");
   pthread_atfork(simulate_allocation, simulate_allocation, simulate_allocation);
+
+  snmalloc::message<1024>("Initialising PreventFork singleton");
   {
     // Cause initialisation of the PreventFork singleton to call pthread_atfork.
     snmalloc::PreventFork pf;
   }
+
+  snmalloc::message<1024>("Adding alternative calls to pthread_atfork");
   pthread_atfork(simulate_allocation, simulate_allocation, simulate_allocation);
 
+  snmalloc::message<1024>("Creating other threads");
   for (size_t i = 0; i < N; i++)
   {
-    std::thread t([&block, &forking]() {
+    std::thread t([&block, &forking, i]() {
       {
         snmalloc::PreventFork pf;
+        snmalloc::message<1024>("Thread {} blocking fork", i);
         block++;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         while (!forking)
           std::this_thread::yield();
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
+        snmalloc::message<1024>("Thread {} releasing block", i);
         block--;
       }
     });
@@ -52,11 +61,12 @@ int main()
     t.detach();
   }
 
+  snmalloc::message<1024>("Waiting for all threads to block fork");
   while (block != N)
     std::this_thread::yield();
 
+  snmalloc::message<1024>("Forking");
   forking = true;
-
   fork();
 
   if (block)
