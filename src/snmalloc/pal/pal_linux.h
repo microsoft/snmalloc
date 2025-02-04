@@ -255,7 +255,8 @@ namespace snmalloc
         "T must be the same size and alignment as WaitingWord");
       while (addr.load(stl::memory_order_relaxed) == expected)
       {
-        // Man page (https://www.man7.org/linux/man-pages/man2/futex.2.html#RETURN_VALUE)
+        // Man page
+        // (https://www.man7.org/linux/man-pages/man2/futex.2.html#RETURN_VALUE)
         // says:
         //  FUTEX_WAIT
         //    Returns 0 if the caller was woken up.  Note that a wake-up
