@@ -80,13 +80,14 @@ void looper(size_t iterations)
     for (size_t j = 0; j < 8; j++)
     {
       auto ptr = (int*)malloc(s * sizeof(int));
+      if (ptr == nullptr)
+        continue;
       *ptr = 1523;
       do_free(ptr);
     }
   }
 
   flush();
-  fflush(stdout);
 }
 
 int main()
