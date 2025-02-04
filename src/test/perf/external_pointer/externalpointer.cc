@@ -76,7 +76,7 @@ namespace test
         size_t rand = (size_t)r.next();
         size_t oid = rand & (((size_t)1 << count_log) - 1);
         size_t* external_ptr = objects[oid];
-        if (!alloc.check_domestication(external_ptr))
+        if (!alloc.is_snmalloc_owned(external_ptr))
           continue;
         size_t size = *external_ptr;
         size_t offset = (size >> 4) * (rand & 15);

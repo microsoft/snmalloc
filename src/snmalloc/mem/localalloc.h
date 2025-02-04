@@ -650,7 +650,7 @@ namespace snmalloc
     }
 
     // Check if a pointer is domestic to SnMalloc
-    SNMALLOC_FAST_PATH bool check_domestication(const void* p_raw)
+    SNMALLOC_FAST_PATH bool is_snmalloc_owned(const void* p_raw)
     {
       auto [_, entry] = get_domestic_info(p_raw);
       RemoteAllocator* remote = entry.get_remote();
@@ -738,7 +738,7 @@ namespace snmalloc
 #else
       if constexpr (mitigations(sanity_checks))
       {
-        if (!check_domestication(p))
+        if (!is_snmalloc_owned(p))
           return;
         size = size == 0 ? 1 : size;
         auto sc = size_to_sizeclass_full(size);
@@ -790,7 +790,7 @@ namespace snmalloc
 #else
 
       if (
-        !SecondaryAllocator::pass_through && !check_domestication(p_raw) &&
+        !SecondaryAllocator::pass_through && !is_snmalloc_owned(p_raw) &&
         p_raw != nullptr)
         return SecondaryAllocator::alloc_size(p_raw);
       // TODO What's the domestication policy here?  At the moment we just
