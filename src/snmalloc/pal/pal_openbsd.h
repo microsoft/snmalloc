@@ -37,15 +37,12 @@ namespace snmalloc
         "T must be the same size and alignment as WaitingWord");
       while (addr.load(std::memory_order_relaxed) == expected)
       {
-        long ret = futex(
+        futex(
           (uint32_t*)&addr,
           FUTEX_WAIT_PRIVATE,
           static_cast<int>(expected),
           nullptr,
           nullptr);
-
-        if (ret == 0)
-          break;
       }
       errno = backup;
     }
