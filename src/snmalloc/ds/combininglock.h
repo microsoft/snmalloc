@@ -141,6 +141,10 @@ namespace snmalloc
               expected, LockStatus::SLEEPING, stl::memory_order_acq_rel))
         {
           Pal::wait_on_address(status, LockStatus::SLEEPING);
+          if (status.load(stl::memory_order_acquire) == LockStatus::SLEEPING)
+          {
+            error("Corruption in core locking primitive. Aborting execution.");
+          }
         }
       }
     }
