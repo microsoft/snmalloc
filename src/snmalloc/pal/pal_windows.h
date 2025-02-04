@@ -336,8 +336,7 @@ namespace snmalloc
     {
       while (addr.load(stl::memory_order_relaxed) == expected)
       {
-        if (::WaitOnAddress(&addr, &expected, sizeof(T), INFINITE))
-          break;
+        ::WaitOnAddress(&addr, &expected, sizeof(T), INFINITE);
       }
     }
 

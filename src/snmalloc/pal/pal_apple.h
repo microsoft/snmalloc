@@ -327,24 +327,16 @@ namespace snmalloc
       while (addr.load(stl::memory_order_relaxed) == expected)
       {
 #  ifdef SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS
-        if (
-          os_sync_wait_on_address(
-            &addr, static_cast<uint64_t>(expected), sizeof(T), 0) != -1)
-        {
-          errno = errno_backup;
-          return;
-        }
+        os_sync_wait_on_address(
+          &addr, static_cast<uint64_t>(expected), sizeof(T), 0);
 #  else
-        if (
-          __ulock_wait(
-            UL_COMPARE_AND_WAIT | ULF_NO_ERRNO,
-            &addr,
-            static_cast<uint64_t>(expected),
-            0) != -1)
-        {
-          return;
-        }
-#  endif
+        __ulock_wait(
+          UL_COMPARE_AND_WAIT | ULF_NO_ERRNO,
+          &addr,
+          static_cast<uint64_t>(expected),
+          0);
+  #  endif
+        errno = errno_backup;
       }
     }
 

@@ -145,15 +145,12 @@ namespace snmalloc
       int backup = errno;
       while (addr.load(stl::memory_order_relaxed) == expected)
       {
-        int ret = _umtx_op(
+        _umtx_op(
           &addr,
           UMTX_OP_WAIT_UINT_PRIVATE,
           static_cast<unsigned long>(expected),
           nullptr,
           nullptr);
-
-        if (ret == 0)
-          break;
       }
       errno = backup;
     }
