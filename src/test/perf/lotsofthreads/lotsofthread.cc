@@ -54,7 +54,7 @@ void freeloop()
   }
 }
 
-void looper()
+void looper(size_t iterations)
 {
   std::vector<void*> tofree_list;
   auto flush = [&]() {
@@ -74,7 +74,7 @@ void looper()
     }
   };
 
-  for (int i = 0; i < 200000; ++i)
+  for (size_t i = 0; i < iterations; ++i)
   {
     size_t s = snmalloc::bits::one_at_bit(i % 20);
     for (size_t j = 0; j < 8; j++)
@@ -91,11 +91,19 @@ void looper()
 
 int main()
 {
+#ifdef SNMALLOC_THREAD_SANITIZER_ENABLED
+  size_t iterations = 50000;
+#elif defined(__APPLE__) && !defined(SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS)
+  size_t iterations = 50000;
+#else
+  size_t iterations = 200000;
+#endif
+
   int threadcount = 8;
   vector<thread> threads;
 
   for (int i = 0; i < threadcount; ++i)
-    threads.emplace_back(looper);
+    threads.emplace_back(looper, iterations);
 
   std::thread freeloop_thread(freeloop);
 
