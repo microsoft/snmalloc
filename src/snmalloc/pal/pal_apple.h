@@ -335,7 +335,7 @@ namespace snmalloc
           &addr,
           static_cast<uint64_t>(expected),
           0);
-  #  endif
+#  endif
         errno = errno_backup;
       }
     }
