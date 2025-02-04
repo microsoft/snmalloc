@@ -255,11 +255,22 @@ namespace snmalloc
         "T must be the same size and alignment as WaitingWord");
       while (addr.load(stl::memory_order_relaxed) == expected)
       {
-        long ret = syscall(
+        // Man page (https://www.man7.org/linux/man-pages/man2/futex.2.html#RETURN_VALUE)
+        // says:
+        //  FUTEX_WAIT
+        //    Returns 0 if the caller was woken up.  Note that a wake-up
+        //    can also be caused by common futex usage patterns in
+        //    unrelated code that happened to have previously used the
+        //    futex word's memory location (e.g., typical futex-based
+        //    implementations of Pthreads mutexes can cause this under
+        //    some conditions).  Therefore, callers should always
+        //    conservatively assume that a return value of 0 can mean a
+        //    spurious wake-up, and use the futex word's value (i.e., the
+        //    user-space synchronization scheme) to decide whether to
+        //    continue to block or not.
+        // We ignore the return and recheck.
+        syscall(
           SYS_futex, &addr, FUTEX_WAIT_PRIVATE, expected, nullptr, nullptr, 0);
-
-        if (ret == 0)
-          break;
       }
       errno = backup;
     }
