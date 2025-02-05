@@ -498,7 +498,7 @@ endif()
     target_compile_definitions(${name} PRIVATE "SNMALLOC_USE_${SNMALLOC_CLEANUP}")
 
     if(MSVC)
-      target_compile_definitions(${name} INTERFACE -D_HAS_EXCEPTIONS=0)
+      target_compile_definitions(${name} PRIVATE -D_HAS_EXCEPTIONS=0)
     endif()
 
     add_warning_flags(${name})
