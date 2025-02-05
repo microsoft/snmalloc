@@ -542,7 +542,52 @@ jobs:
       run: |
         cd ${{github.workspace}}/build
         ctest --parallel
-      
+
+  gwp-asan:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        profile: [RelWithDebInfo, Debug]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Ninja
+      run: |
+        sudo apt-get install -y ninja-build
+    - name: Install Compiler-RT
+      shell: bash
+      run: |
+        cd ..
+        git clone https://github.com/llvm/llvm-project --depth=1 -b llvmorg-19.1.7
+        mkdir compiler-rt
+        cmake -G Ninja \
+              -S llvm-project/runtimes \
+              -B llvm-project/build \
+              -DCMAKE_BUILD_TYPE=${{ matrix.profile }}\
+              -DLLVM_ENABLE_RUNTIMES=compiler-rt \
+              -DCMAKE_CXX_COMPILER=clang++-18 \
+              -DCMAKE_C_COMPILER=clang-18 \
+              -DCMAKE_INSTALL_PREFIX=$(realpath compiler-rt)
+        cmake --build llvm-project/build --parallel
+        cmake --build llvm-project/build --target=install
+    - name: Configure SnMalloc
+      run: >
+        cmake -GNinja
+        -B${{github.workspace}}/build
+        -DCMAKE_BUILD_TYPE=${{ matrix.profile }}
+        -DCMAKE_CXX_COMPILER=clang++-18
+        -DCMAKE_C_COMPILER=clang-18
+        -DSNMALLOC_ENABLE_GWP_ASAN_INTEGRATION=On
+        -DSNMALLOC_GWP_ASAN_INCLUDE_PATH=${{github.workspace}}/../llvm-project/compiler-rt/lib
+        -DSNMALLOC_GWP_ASAN_LIBRARY_PATH=${{github.workspace}}/../compiler-rt/lib/linux
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --parallel
+    - name: Test
+      run: |
+        cd ${{github.workspace}}/build
+        ctest --parallel --output-on-failure
+
   all-checks:
     # Currently FreeBSD and NetBSD CI are not working, so we do not require them to pass.
     # Add fuzzing back when the memove issue is fixed.

@@ -1,3 +1,4 @@
+#include "snmalloc/mem/secondary.h"
 #include "test/setup.h"
 
 #include <iostream>
@@ -38,18 +39,26 @@ int main()
   while (true)
   {
     auto r1 = a.alloc(object_size);
+
     count += object_size;
     i++;
+
+    // Run until we exhaust the fixed region.
+    // This should return null.
+    if (r1 == nullptr)
+      break;
+
+    if (!a.is_snmalloc_owned(r1))
+    {
+      a.dealloc(r1);
+      continue;
+    }
 
     if (i == 1024)
     {
       i = 0;
       std::cout << ".";
     }
-    // Run until we exhaust the fixed region.
-    // This should return null.
-    if (r1 == nullptr)
-      break;
 
     if (oe_base > r1)
     {

@@ -23,7 +23,8 @@ namespace snmalloc
 
 int main()
 {
-#ifdef SNMALLOC_PASS_THROUGH
+#if defined(SNMALLOC_PASS_THROUGH) || \
+  defined(SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION)
   // This test does not make sense in pass-through
   return 0;
 #else

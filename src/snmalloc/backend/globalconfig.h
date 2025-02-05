@@ -3,6 +3,7 @@
 #include "../backend_helpers/backend_helpers.h"
 #include "backend.h"
 #include "meta_protected_range.h"
+#include "snmalloc/mem/secondary.h"
 #include "standard_range.h"
 
 namespace snmalloc
@@ -106,6 +107,8 @@ namespace snmalloc
 
         if (initialised)
           return;
+
+        SecondaryAllocator::initialize();
 
         LocalEntropy entropy;
         entropy.init<Pal>();

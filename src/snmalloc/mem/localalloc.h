@@ -1,6 +1,8 @@
 #pragma once
 
 #include "snmalloc/aal/address.h"
+#include "snmalloc/mem/remoteallocator.h"
+#include "snmalloc/mem/secondary.h"
 #if defined(_MSC_VER)
 #  define ALLOCATOR __declspec(allocator) __declspec(restrict)
 #elif __has_attribute(malloc)
@@ -194,6 +196,15 @@ namespace snmalloc
           errno = ENOMEM;
           return capptr::Alloc<void>{nullptr};
         }
+
+        // Check if secondary allocator wants to offer the memory
+        void* result =
+          SecondaryAllocator::allocate([size]() -> stl::Pair<size_t, size_t> {
+            return {size, natural_alignment(size)};
+          });
+        if (result != nullptr)
+          return capptr::Alloc<void>::unsafe_from(result);
+
         // Grab slab of correct size
         // Set remote as large allocator remote.
         auto [chunk, meta] = Config::Backend::alloc_chunk(
@@ -606,17 +617,13 @@ namespace snmalloc
 #endif
     }
 
-    SNMALLOC_FAST_PATH void dealloc(void* p_raw)
-    {
-#ifdef SNMALLOC_PASS_THROUGH
-      external_alloc::free(p_raw);
-#else
-      // Care is needed so that dealloc(nullptr) works before init
-      //  The backend allocator must ensure that a minimal page map exists
-      //  before init, that maps null to a remote_deallocator that will never
-      //  be in thread local state.
+    // The domestic pointer with its origin allocator
+    using DomesticInfo = stl::Pair<capptr::Alloc<void>, const PagemapEntry&>;
 
-#  ifdef __CHERI_PURE_CAPABILITY__
+    // Check whether the raw pointer is owned by snmalloc
+    SNMALLOC_FAST_PATH_INLINE DomesticInfo get_domestic_info(const void* p_raw)
+    {
+#ifdef __CHERI_PURE_CAPABILITY__
       /*
        * On CHERI platforms, snap the provided pointer to its base, ignoring
        * any client-provided offset, which may have taken the pointer out of
@@ -632,10 +639,29 @@ namespace snmalloc
        * start of the allocation and so the offset is zero.
        */
       p_raw = __builtin_cheri_offset_set(p_raw, 0);
-#  endif
+#endif
+      capptr::AllocWild<void> p_wild =
+        capptr_from_client(const_cast<void*>(p_raw));
+      auto p_tame =
+        capptr_domesticate<Config>(core_alloc->backend_state_ptr(), p_wild);
+      const PagemapEntry& entry =
+        Config::Backend::get_metaentry(address_cast(p_tame));
+      return {p_tame, entry};
+    }
 
-      capptr::AllocWild<void> p_wild = capptr_from_client(p_raw);
+    // Check if a pointer is domestic to SnMalloc
+    SNMALLOC_FAST_PATH bool is_snmalloc_owned(const void* p_raw)
+    {
+      auto [_, entry] = get_domestic_info(p_raw);
+      RemoteAllocator* remote = entry.get_remote();
+      return remote != nullptr;
+    }
 
+    SNMALLOC_FAST_PATH void dealloc(void* p_raw)
+    {
+#ifdef SNMALLOC_PASS_THROUGH
+      external_alloc::free(p_raw);
+#else
       /*
        * p_tame may be nullptr, even if p_raw/p_wild are not, in the case
        * where domestication fails.  We exclusively use p_tame below so that
@@ -648,11 +674,7 @@ namespace snmalloc
        * well-formedness) of this pointer.  The remainder of the logic will
        * deal with the object's extent.
        */
-      capptr::Alloc<void> p_tame =
-        capptr_domesticate<Config>(core_alloc->backend_state_ptr(), p_wild);
-
-      const PagemapEntry& entry =
-        Config::Backend::get_metaentry(address_cast(p_tame));
+      auto [p_tame, entry] = get_domestic_info(p_raw);
 
       if (SNMALLOC_LIKELY(local_cache.remote_allocator == entry.get_remote()))
       {
@@ -697,18 +719,15 @@ namespace snmalloc
         return;
       }
 
-      // If p_tame is not null, then dealloc has been call on something
-      // it shouldn't be called on.
-      // TODO: Should this be tested even in the !CHECK_CLIENT case?
-      snmalloc_check_client(
-        mitigations(sanity_checks),
-        p_tame == nullptr,
-        "Not allocated by snmalloc.");
-
+      if (SNMALLOC_LIKELY(p_tame == nullptr))
+      {
 #  ifdef SNMALLOC_TRACING
-      message<1024>("nullptr deallocation");
+        message<1024>("nullptr deallocation");
 #  endif
-      return;
+        return;
+      }
+
+      SecondaryAllocator::deallocate(p_tame.unsafe_ptr());
 #endif
     }
 
@@ -719,6 +738,8 @@ namespace snmalloc
 #else
       if constexpr (mitigations(sanity_checks))
       {
+        if (!is_snmalloc_owned(p))
+          return;
         size = size == 0 ? 1 : size;
         auto sc = size_to_sizeclass_full(size);
         auto pm_sc =
@@ -767,6 +788,11 @@ namespace snmalloc
 #ifdef SNMALLOC_PASS_THROUGH
       return external_alloc::malloc_usable_size(const_cast<void*>(p_raw));
 #else
+
+      if (
+        !SecondaryAllocator::pass_through && !is_snmalloc_owned(p_raw) &&
+        p_raw != nullptr)
+        return SecondaryAllocator::alloc_size(p_raw);
       // TODO What's the domestication policy here?  At the moment we just
       // probe the pagemap with the raw address, without checks.  There could
       // be implicit domestication through the `Config::Pagemap` or

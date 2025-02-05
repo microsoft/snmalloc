@@ -4,6 +4,8 @@
 #include "defines.h"
 #include "snmalloc/stl/atomic.h"
 
+#include <stdint.h>
+
 namespace snmalloc
 {
   /*
