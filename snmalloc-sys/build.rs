@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use std::env;
-use std::fs;
 
 #[derive(Debug, PartialEq)]
 enum Compiler {
@@ -496,7 +495,7 @@ fn main() {
     println!("cargo:rustc-link-search={}/build", config.out_dir);
     println!("cargo:rustc-link-search={}/build/Debug", config.out_dir);
     println!("cargo:rustc-link-search={}/build/Release", config.out_dir);
-    let mut dst = config.builder.build_lib(&config.target_lib);
+    let mut _dst = config.builder.build_lib(&config.target_lib);
     println!("cargo:rustc-link-lib={}", config.target_lib);
     configure_linking(&config);
 }

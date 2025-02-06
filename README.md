@@ -47,7 +47,7 @@ To use `snmalloc-rs` add it as a dependency:
 ```toml
 # Cargo.toml
 [dependencies]
-snmalloc-rs = "0.3.4"
+snmalloc-rs = "0.3.8"
 ```
 
 To set `SnMalloc` as the global allocator add this to your project:
@@ -80,6 +80,15 @@ target.
   default)~~ (`libstdc++` is no longer a dependency)
 
 ## Changelog
+
+### 0.3.8
+
+- Tracking upstream to match version 0.7.1
+- Recommended to upgrade from 0.3.7 to get an important bug fix.
+
+### 0.3.7
+
+- Tracking upstream to match version 0.7
 
 ### 0.3.4
 - Tracking upstream to version 0.6.2.

@@ -1,5 +1,10 @@
 ## Changelog
 
+### 0.3.8
+
+- Tracking upstream to match version 0.7.1
+- Recommended to upgrade from 0.3.7 to get an important bug fix.
+
 ### 0.3.7
 
 - Tracking upstream to match version 0.7
