@@ -38,7 +38,8 @@ namespace snmalloc
     /**
      * Applies function to all the elements of the list
      */
-    void apply_all(function_ref<void(T*)> func)
+    template<typename F>
+    void apply_all(F func)
     {
       T* curr = elements;
       while (curr != nullptr)
