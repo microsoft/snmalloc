@@ -1,0 +1,49 @@
+name: Rust
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-14, macos-15, ubuntu-latest]
+        rust: [stable, nightly]
+    steps:
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+    - name: Checkout
+      uses: actions/checkout@v2
+      with:
+        submodules: recursive
+    - name: update dependency
+      run: |
+        if bash -c 'uname -s | grep 'Linux' >/dev/null'; then
+          sudo apt-get update -y && sudo apt-get --reinstall install -y libc6-dev
+        fi
+      shell: bash
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --all
+    - name: Run tests debug
+      run: cargo test --all --features debug
+    - name: Run tests check
+      run: cargo test --all --features check
+    - name: Run tests build_cc
+      run: cargo test --all --features "build_cc usecxx17"
+    - name: Run tests native-cpu
+      run: cargo test --all --features native-cpu
+    - name: Run tests local_dynamic_tls
+      run: cargo test --all --features local_dynamic_tls
+    - name: Run tests lto
+      run: cargo test --all --features lto

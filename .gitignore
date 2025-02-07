@@ -24,3 +24,7 @@
 
 # cache dirs
 .cache
+
+# rust related
+/target/
+/Cargo.lock
