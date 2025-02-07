@@ -33,15 +33,20 @@ namespace snmalloc
     // This is used to enable reentrant prevention of forking.
     static inline thread_local size_t depth_of_prevention{0};
 
+    // There could be multiple copies of the atfork handler installed.
+    // Only perform work for the first prefork and final postfork.
+    static inline thread_local size_t depth_of_handlers{0};
+
     // The function that notifies new threads not to enter PreventFork regions
     // It waits until all threads are no longer in a PreventFork region before
     // returning.
     static void prefork()
     {
+      if (depth_of_handlers++ != 0)
+        return;
+
       if (depth_of_prevention != 0)
-      {
         error("Fork attempted while in PreventFork region.");
-      }
 
       while (true)
       {
@@ -70,6 +75,9 @@ namespace snmalloc
     // and for another thread to request a fork.
     static void postfork()
     {
+      if (--depth_of_handlers != 0)
+        return;
+
       // This thread is no longer preventing a fork, so decrement the counter.
       depth_of_prevention--;
 
@@ -77,18 +85,19 @@ namespace snmalloc
       threads_preventing_fork = 0;
     }
 
-    // This is called by the Singleton class to ensure that it is
-    // only called once. Argument ignored, and only used for Singleton
-    // class design.
-    static void init(size_t*) noexcept
+    // This function ensures that the fork handler has been installed at least once.
+    // It might be installed more than once, this is safe. As subsequent calls would
+    // be ignored.
+    static void ensure_init()
     {
-      pthread_atfork(prefork, postfork, postfork);
-    }
+      static std::Atomic<bool> initialised{false};
 
-    // This function requires the Singleton class,
-    // which also depends on PreventFork. We define this
-    // implementation in singleton.h
-    static void ensure_init();
+      if (initialized.load(std::memory_order_acquire))
+        return;
+
+      pthread_atfork(prefork, postfork, postfork);
+      initialized.store(true, std::memory_order_release);
+    };
 
   public:
     PreventFork()
@@ -126,11 +135,6 @@ namespace snmalloc
 namespace snmalloc
 {
   class PreventFork
-  {
-  public:
-    static void init(size_t*) noexcept {}
-
-    static void ensure_init();
-  };
+  {};
 } // namespace snmalloc
 #endif

@@ -61,10 +61,4 @@ namespace snmalloc
       return obj;
     }
   };
-
-  inline void PreventFork::ensure_init()
-  {
-    static Singleton<size_t, &PreventFork::init> singleton;
-    singleton.get();
-  }
 } // namespace snmalloc
