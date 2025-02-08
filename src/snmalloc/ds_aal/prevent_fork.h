@@ -85,18 +85,18 @@ namespace snmalloc
       threads_preventing_fork = 0;
     }
 
-    // This function ensures that the fork handler has been installed at least once.
-    // It might be installed more than once, this is safe. As subsequent calls would
-    // be ignored.
+    // This function ensures that the fork handler has been installed at least
+    // once. It might be installed more than once, this is safe. As subsequent
+    // calls would be ignored.
     static void ensure_init()
     {
       static stl::Atomic<bool> initialised{false};
 
-      if (initialised.load(std::memory_order_acquire))
+      if (initialised.load(stl::memory_order_acquire))
         return;
 
       pthread_atfork(prefork, postfork, postfork);
-      initialised.store(true, std::memory_order_release);
+      initialised.store(true, stl::memory_order_release);
     };
 
   public:
