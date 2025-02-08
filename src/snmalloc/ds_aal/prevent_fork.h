@@ -92,11 +92,11 @@ namespace snmalloc
     {
       static stl::Atomic<bool> initialised{false};
 
-      if (initialized.load(std::memory_order_acquire))
+      if (initialised.load(std::memory_order_acquire))
         return;
 
       pthread_atfork(prefork, postfork, postfork);
-      initialized.store(true, std::memory_order_release);
+      initialised.store(true, std::memory_order_release);
     };
 
   public:
