@@ -90,7 +90,7 @@ namespace snmalloc
     // be ignored.
     static void ensure_init()
     {
-      static std::Atomic<bool> initialised{false};
+      static stl::Atomic<bool> initialised{false};
 
       if (initialized.load(std::memory_order_acquire))
         return;
