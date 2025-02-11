@@ -135,7 +135,8 @@ namespace snmalloc
       // Allow other threads to allocate
       // There could have been threads spinning in the prefork handler having
       // optimistically increasing thread_preventing_fork by 2, but now the
-      // threads do not exist due to the fork. So restart the counter in the child.
+      // threads do not exist due to the fork. So restart the counter in the
+      // child.
       threads_preventing_fork = 0;
     }
 
