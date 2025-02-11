@@ -64,15 +64,16 @@ namespace snmalloc
         ensure_init();
         while (true)
         {
-          auto current = threads_preventing_fork.load();
-
-          if (
-            (current % 2 == 0) &&
-            threads_preventing_fork.compare_exchange_weak(current, current + 2))
-          {
+          auto prev = threads_preventing_fork.fetch_add(2);
+          if (prev % 2 == 0)
             break;
+
+          threads_preventing_fork.fetch_sub(2);
+
+          while ((threads_preventing_fork.load() % 2) == 1)
+          {
+            Aal::pause();
           }
-          Aal::pause();
         };
       }
     }
@@ -132,13 +133,28 @@ namespace snmalloc
       depth_of_prevention--;
 
       // Allow other threads to allocate
+      // There could have been threads spinning in the prefork handler having
+      // optimistically increasing thread_preventing_fork by 2, but now the
+      // threads do not exist due to the fork. So restart the counter in the child.
       threads_preventing_fork = 0;
     }
 
+    // Unsets the flag that allows threads to enter PreventFork regions
+    // and for another thread to request a fork.
     static void postfork_parent()
     {
-      postfork_child();
-    }
+      // Count out the number of handlers that have been called, and
+      // only perform on the last.
+      if (--depth_of_handlers != 0)
+        return;
 
+      // This thread is no longer preventing a fork, so decrement the counter.
+      depth_of_prevention--;
+
+      // Allow other threads to allocate
+      // Just remove the bit, and let the potential other threads in prefork
+      // remove their counts.
+      threads_preventing_fork--;
+    }
   };
 } // namespace snmalloc
