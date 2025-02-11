@@ -101,15 +101,31 @@ namespace snmalloc
       return EXCEPTION_CONTINUE_EXECUTION;
     }
 
+    // Keep a handle for the exception handler, so we can remove it later
+    // when needed.
+    inline static PVOID g_Handler{};
+
     static void initialise_for_singleton(size_t*) noexcept
     {
-      AddVectoredExceptionHandler(1, HandleReadonlyLazyCommit);
+      if (!g_Handler)
+      {
+        g_Handler = AddVectoredExceptionHandler(1, HandleReadonlyLazyCommit);
+      }
+    }
+
+    static void deinitialise_for_singleton(size_t*) noexcept
+    {
+      if (g_Handler)
+      {
+        RemoveVectoredExceptionHandler(g_Handler);
+        g_Handler = NULL; // Prevent dangling pointer
+      }
     }
 
     // Ensure the exception handler is registered.
     static void initialise_readonly_av() noexcept
     {
-      static Singleton<size_t, &initialise_for_singleton> init;
+      static Singleton<size_t, &initialise_for_singleton, &deinitialise_for_singleton> init;
       init.get();
     }
 
