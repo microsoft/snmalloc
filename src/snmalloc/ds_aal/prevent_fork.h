@@ -6,6 +6,7 @@
 
 #ifdef SNMALLOC_PTHREAD_ATFORK_WORKS
 #  include <pthread.h>
+#endif
 
 namespace snmalloc
 {
@@ -36,6 +37,53 @@ namespace snmalloc
     // There could be multiple copies of the atfork handler installed.
     // Only perform work for the first prefork and final postfork.
     static inline thread_local size_t depth_of_handlers{0};
+
+    // This function ensures that the fork handler has been installed at least
+    // once. It might be installed more than once, this is safe. As subsequent
+    // calls would be ignored.
+    static void ensure_init()
+    {
+#ifdef SNMALLOC_PTHREAD_ATFORK_WORKS
+      static stl::Atomic<bool> initialised{false};
+
+      if (initialised.load(stl::memory_order_acquire))
+        return;
+
+      pthread_atfork(prefork, postfork_parent, postfork_child);
+      initialised.store(true, stl::memory_order_release);
+#endif
+    };
+
+  public:
+    PreventFork()
+    {
+      if (depth_of_prevention++ == 0)
+      {
+        // Ensure that the system is initialised before we start.
+        // Don't do this on nested Prevent calls.
+        ensure_init();
+        while (true)
+        {
+          auto current = threads_preventing_fork.load();
+
+          if (
+            (current % 2 == 0) &&
+            threads_preventing_fork.compare_exchange_weak(current, current + 2))
+          {
+            break;
+          }
+          Aal::pause();
+        };
+      }
+    }
+
+    ~PreventFork()
+    {
+      if (--depth_of_prevention == 0)
+      {
+        threads_preventing_fork -= 2;
+      }
+    }
 
     // The function that notifies new threads not to enter PreventFork regions
     // It waits until all threads are no longer in a PreventFork region before
@@ -73,8 +121,10 @@ namespace snmalloc
 
     // Unsets the flag that allows threads to enter PreventFork regions
     // and for another thread to request a fork.
-    static void postfork()
+    static void postfork_child()
     {
+      // Count out the number of handlers that have been called, and
+      // only perform on the last.
       if (--depth_of_handlers != 0)
         return;
 
@@ -85,56 +135,10 @@ namespace snmalloc
       threads_preventing_fork = 0;
     }
 
-    // This function ensures that the fork handler has been installed at least
-    // once. It might be installed more than once, this is safe. As subsequent
-    // calls would be ignored.
-    static void ensure_init()
+    static void postfork_parent()
     {
-      static stl::Atomic<bool> initialised{false};
-
-      if (initialised.load(stl::memory_order_acquire))
-        return;
-
-      pthread_atfork(prefork, postfork, postfork);
-      initialised.store(true, stl::memory_order_release);
-    };
-
-  public:
-    PreventFork()
-    {
-      if (depth_of_prevention++ == 0)
-      {
-        // Ensure that the system is initialised before we start.
-        // Don't do this on nested Prevent calls.
-        ensure_init();
-        while (true)
-        {
-          auto current = threads_preventing_fork.load();
-
-          if (
-            (current % 2 == 0) &&
-            threads_preventing_fork.compare_exchange_weak(current, current + 2))
-          {
-            break;
-          }
-          Aal::pause();
-        };
-      }
+      postfork_child();
     }
 
-    ~PreventFork()
-    {
-      if (--depth_of_prevention == 0)
-      {
-        threads_preventing_fork -= 2;
-      }
-    }
   };
 } // namespace snmalloc
-#else
-namespace snmalloc
-{
-  class PreventFork
-  {};
-} // namespace snmalloc
-#endif
