@@ -9,7 +9,7 @@ namespace snmalloc
    * initialised.  This singleton class is designed to not depend on the
    * runtime.
    */
-  template<class Object, void init(Object*) noexcept, void deinit(Object*) noexcept>
+  template<class Object, void init(Object*) noexcept>
   class Singleton
   {
     enum class State
@@ -23,14 +23,6 @@ namespace snmalloc
     inline static Object obj;
 
   public:
-    ~Singleton()
-    {
-      if(deinit)
-      {
-        deinit(&obj);
-      }
-    }
-
     /**
      * If argument is non-null, then it is assigned the value
      * true, if this is the first call to get.
