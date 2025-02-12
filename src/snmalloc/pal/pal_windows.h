@@ -103,7 +103,22 @@ namespace snmalloc
 
     static void initialise_for_singleton(size_t*) noexcept
     {
-      AddVectoredExceptionHandler(1, HandleReadonlyLazyCommit);
+      // Keep a handle for the exception handler, so we can remove it later
+      // when needed.
+      static PVOID g_Handler{};
+      // Destructor for removing exception handler.
+      static OnDestruct tidy([]() {
+        if (g_Handler)
+        {
+          RemoveVectoredExceptionHandler(g_Handler);
+          g_Handler = NULL; // Prevent dangling pointer
+        }
+      });
+      // Add exception handler for lazy commit.
+      if (!g_Handler)
+      {
+        g_Handler = AddVectoredExceptionHandler(1, HandleReadonlyLazyCommit);
+      }
     }
 
     // Ensure the exception handler is registered.
