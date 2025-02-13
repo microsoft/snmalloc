@@ -16,7 +16,7 @@ jobs:
     strategy:
       matrix:
         # Build each combination of OS and release/debug variants
-        os: [ "ubuntu-latest", "ubuntu-20.04" ]
+        os: [ "ubuntu-24.04", "ubuntu-22.04", "ubuntu-20.04", "ubuntu-24.04-arm" ]
         build-type: [ "Release", "Debug" ]
         # Extra cmake flags.  GitHub Actions matrix overloads `include` to mean
         # 'add extra things to a job' and 'add jobs'.  You can add extra things
@@ -39,24 +39,24 @@ jobs:
             extra-cmake-flags: "-DSNMALLOC_USE_CXX17=ON"
           # Add the self-host build, using the bounds-checked memcpy in
           # maximally paranoid mode (checking loads and stores)
-          - os: "ubuntu-latest"
+          - os: "ubuntu-24.04"
             build-type: Debug
             self-host: true
             extra-cmake-flags: "-DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON"
           # Extra build to check using pthread library for destructing local state.
-          - os: "ubuntu-latest"
+          - os: "ubuntu-24.04"
             variant: "with pthread destructors"
             build-type: Debug
             self-host: true
             extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On"
           # Extra build to check using individual mitigations works.
-          - os: "ubuntu-latest"
+          - os: "ubuntu-24.04"
             variant: "individual mitigations"
             build-type: Release
             self-host: true
             extra-cmake-flags: "-DSNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS=On -DSNMALLOC_BUILD_TESTING=Off"
           # Check that we can build specifically with libstdc++
-          - os: "ubuntu-latest"
+          - os: "ubuntu-24.04"
             variant: "libstdc++ (Build only)"
             build-type: Release
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
@@ -80,7 +80,7 @@ jobs:
       # Don't abort runners if a single one fails
       fail-fast: false
     runs-on: ${{ matrix.os }}
-    name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.variant }}
+    name: Ubuntu - ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.variant }}
     steps:
     - uses: actions/checkout@v4
     - name: Install build dependencies
@@ -116,7 +116,7 @@ jobs:
         extra-cmake-flags: [ "", "-DSNMALLOC_USE_CXX17=ON" ]
       fail-fast: false
     runs-on: ${{ matrix.os }}
-    name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.extra-cmake-flags }}
+    name: Mac OS ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.extra-cmake-flags }}
     steps:
     - uses: actions/checkout@v4
     - name: Install build dependencies
@@ -255,21 +255,20 @@ jobs:
       matrix:
         # Build just release variant as Debug is too slow.
         build-type: [ Release ]
-        os: ["ubuntu-latest", "ubuntu-20.04"]
+        os: ["ubuntu-24.04", "ubuntu-22.04"]
         include:
-          - os: "ubuntu-latest"
+          - os: "ubuntu-22.04"
             variant: "libc++ (TSan + UBSan)"
             dependencies: "sudo apt install ninja-build libc++-dev"
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-stdlib=\"libc++ -g\" -DSNMALLOC_SANITIZER=undefined,thread"
-          # Also test specifically with clang-10 (on ubuntu-20.04)
-          - os: "ubuntu-20.04"
-            variant: "clang-10 libc++ (TSan + UBSan)"
+          - os: "ubuntu-24.04"
+            variant: "libc++ (TSan + UBSan)"
             dependencies: "sudo apt install ninja-build libc++-dev"
-            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_CXX_FLAGS=-stdlib=\"libc++ -g\" -DSNMALLOC_SANITIZER=undefined,thread"
+            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-stdlib=\"libc++ -g\" -DSNMALLOC_SANITIZER=undefined,thread"
       # Don't abort runners if a single one fails
       fail-fast: false
     runs-on: ${{ matrix.os }}
-    name: ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.variant }}
+    name: Sanitizer - ${{ matrix.os }} ${{ matrix.build-type }} ${{ matrix.variant }}
     steps:
     - uses: actions/checkout@v4
     - name: Install build dependencies
@@ -294,13 +293,13 @@ jobs:
             triple: arm-linux-gnueabihf
             rtld: ld-linux-armhf.so.3
             ld-flavour: lld
-            host-os: ubuntu-latest
+            host-os: ubuntu-24.04
           - name: arm64
             system-processor: aarch64
             triple: aarch64-linux-gnu
             rtld: ld-linux-aarch64.so.1
             ld-flavour: lld
-            host-os: ubuntu-latest
+            host-os: ubuntu-24.04
           - name: ppc64el
             system-processor: powerpc64le
             triple: powerpc64le-linux-gnu
@@ -315,11 +314,11 @@ jobs:
             extra-packages: binutils-riscv64-linux-gnu
             ld-flavour: bfd
             ld: /usr/bin/riscv64-linux-gnu-ld.bfd
-            host-os: ubuntu-latest
+            host-os: ubuntu-24.04
       # Don't abort runners if a single one fails
       fail-fast: false
     runs-on: ${{matrix.arch.host-os}}
-    name: ${{matrix.build-type}} cross-build for ${{ matrix.arch.triple }}
+    name: Crossbuild - ${{matrix.build-type}} cross-build for ${{ matrix.arch.triple }}
     steps:
     - uses: actions/checkout@v4
     - name: "Install cross-compile toolchain and QEMU (ubuntu-20.04)"
@@ -332,8 +331,8 @@ jobs:
         sudo apt update
         sudo apt install libstdc++-9-dev-${{ matrix.arch.name }}-cross qemu-user ninja-build clang-13 lld-13
         sudo apt install ${{matrix.arch.extra-packages}}
-    - name: "Install cross-compile toolchain and QEMU (ubuntu-latest)"
-      if: matrix.arch.host-os == 'ubuntu-latest'
+    - name: "Install cross-compile toolchain and QEMU (ubuntu-24.04)"
+      if: matrix.arch.host-os == 'ubuntu-24.04'
       run: |
         sudo apt update
         sudo apt install libstdc++-12-dev-${{ matrix.arch.name }}-cross qemu-user ninja-build
@@ -350,7 +349,7 @@ jobs:
         chmod +x ppc64.sh
     - name: Configure
       env:
-        SNMALLOC_CI_CLANG_VERSION: ${{ (matrix.arch.host-os == 'ubuntu-latest') && 16 || 13 }}
+        SNMALLOC_CI_CLANG_VERSION: ${{ (matrix.arch.host-os == 'ubuntu-24.04') && 16 || 13 }}
         RTLD_NAME: ${{ matrix.arch.rtld }}
         ARCH: ${{ matrix.arch.system-processor }}
         TRIPLE: ${{ matrix.arch.triple}}
@@ -384,7 +383,7 @@ jobs:
     strategy:
       matrix:
         # Build each combination of OS and release/debug variants
-        os: [ windows-2019 ]
+        os: [ windows-2019, windows-2022, windows-2025 ]
         build-type: [ Release, Debug ]
         arch: [ Win32, x64 ]
         toolchain: [ "", "-T ClangCL" ]
@@ -439,7 +438,7 @@ jobs:
       # Don't abort runners if a single one fails
       fail-fast: false
     runs-on: ${{ matrix.os }}
-    name: ${{ matrix.os }} ${{ matrix.arch }} ${{ matrix.build-type }} ${{ matrix.toolchain }} ${{ matrix.variant }}
+    name: Windows - ${{ matrix.os }} ${{ matrix.arch }} ${{ matrix.build-type }} ${{ matrix.toolchain }} ${{ matrix.variant }}
     steps:
     - uses: actions/checkout@v4
     - name: Configure CMake
@@ -459,6 +458,7 @@ jobs:
   # Job to run clang-format and report errors
   format:
     runs-on: ubuntu-22.04
+    name: Format check
     # We don't need to do the build for this job, but we need to configure it to get the clang-format target
     steps:
     - uses: actions/checkout@v4
@@ -484,6 +484,7 @@ jobs:
         fi
 
   fuzzing:
+    name: Fuzzing
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
@@ -495,7 +496,6 @@ jobs:
       run: ${{github.workspace}}/build/fuzzing/snmalloc-fuzzer
 
   self-vendored:
-    name: Self Vendored STL Functionality
     strategy:
       fail-fast: false
       matrix:
@@ -513,6 +513,7 @@ jobs:
           cxx: clang++
           cc: clang 
     runs-on: ${{ matrix.os }}
+    name: Self Vendored STL - ${{ matrix.os }} ${{ matrix.cxx }}
     steps:
     - uses: actions/checkout@v4
     - name: Prepare Windows
@@ -592,7 +593,7 @@ jobs:
     # Currently FreeBSD and NetBSD CI are not working, so we do not require them to pass.
     # Add fuzzing back when the memove issue is fixed.
     needs: [ubuntu, macos, freebsd, netbsd, sanitizer, qemu-crossbuild, windows, format]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Dummy step
       run: true
