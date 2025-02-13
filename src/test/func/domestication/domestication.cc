@@ -121,7 +121,7 @@ namespace snmalloc
     }
   };
 
-  using Alloc = LocalAllocator<CustomConfig>;
+  using Config = CustomConfig;
 }
 
 #  define SNMALLOC_NAME_MANGLE(a) test_##a

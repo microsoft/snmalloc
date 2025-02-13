@@ -14,8 +14,8 @@
 namespace snmalloc
 {
   // Create an allocator that stores an std::atomic<size_t>> per allocation.
-  using Alloc = snmalloc::LocalAllocator<snmalloc::StandardConfigClientMeta<
-    ArrayClientMetaDataProvider<std::atomic<size_t>>>>;
+  using Config = snmalloc::StandardConfigClientMeta<
+    ArrayClientMetaDataProvider<std::atomic<size_t>>>;
 }
 
 #define SNMALLOC_PROVIDE_OWN_CONFIG

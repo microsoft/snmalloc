@@ -13,8 +13,8 @@
 
 namespace snmalloc
 {
-  using Alloc = snmalloc::LocalAllocator<
-    snmalloc::StandardConfigClientMeta<NoClientMetaDataProvider>>;
+  using Config = snmalloc::StandardConfigClientMeta<NoClientMetaDataProvider>;
+  using Alloc = snmalloc::LocalAllocator<Config>;
 }
 
 using namespace snmalloc;
