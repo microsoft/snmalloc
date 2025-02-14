@@ -1,22 +1,14 @@
 #include <iostream>
 
-#ifdef SNMALLOC_PASS_THROUGH
-// This test does not make sense in pass-through
-int main()
-{
-  return 0;
-}
-#else
-
 // #  define SNMALLOC_TRACING
 
-#  include <snmalloc/backend/backend.h>
-#  include <snmalloc/backend/standard_range.h>
-#  include <snmalloc/backend_helpers/backend_helpers.h>
-#  include <snmalloc/snmalloc_core.h>
+#include <snmalloc/backend/backend.h>
+#include <snmalloc/backend/standard_range.h>
+#include <snmalloc/backend_helpers/backend_helpers.h>
+#include <snmalloc/snmalloc_core.h>
 
 // Specify type of allocator
-#  define SNMALLOC_PROVIDE_OWN_CONFIG
+#define SNMALLOC_PROVIDE_OWN_CONFIG
 
 namespace snmalloc
 {
@@ -98,9 +90,9 @@ namespace snmalloc
       if (domesticate_trace)
       {
         std::cout << "Domesticating " << p.unsafe_ptr()
-#  if __has_builtin(__builtin_return_address)
+#if __has_builtin(__builtin_return_address)
                   << " from " << __builtin_return_address(0)
-#  endif
+#endif
                   << std::endl;
       }
 
@@ -124,8 +116,8 @@ namespace snmalloc
   using Config = CustomConfig;
 }
 
-#  define SNMALLOC_NAME_MANGLE(a) test_##a
-#  include <snmalloc/override/malloc.cc>
+#define SNMALLOC_NAME_MANGLE(a) test_##a
+#include <snmalloc/override/malloc.cc>
 
 int main()
 {
@@ -191,5 +183,3 @@ int main()
 
   return 0;
 }
-
-#endif

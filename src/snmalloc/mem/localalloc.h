@@ -18,11 +18,6 @@
 #include "pool.h"
 #include "remotecache.h"
 #include "sizeclasstable.h"
-
-#ifdef SNMALLOC_PASS_THROUGH
-#  include "external_alloc.h"
-#endif
-
 #include "snmalloc/stl/utility.h"
 
 #include <string.h>
@@ -449,16 +444,6 @@ namespace snmalloc
     template<ZeroMem zero_mem = NoZero>
     SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
     {
-#ifdef SNMALLOC_PASS_THROUGH
-      // snmalloc guarantees a lot of alignment, so we can depend on this
-      // make pass through call aligned_alloc with the alignment snmalloc
-      // would guarantee.
-      void* result = external_alloc::aligned_alloc(
-        natural_alignment(size), round_size(size));
-      if (zero_mem == YesZero && result != nullptr)
-        memset(result, 0, size);
-      return result;
-#else
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
       if (SNMALLOC_LIKELY(
@@ -470,7 +455,6 @@ namespace snmalloc
       }
 
       return capptr_reveal(alloc_not_small<zero_mem>(size));
-#endif
     }
 
     /**
@@ -659,9 +643,6 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH void dealloc(void* p_raw)
     {
-#ifdef SNMALLOC_PASS_THROUGH
-      external_alloc::free(p_raw);
-#else
       /*
        * p_tame may be nullptr, even if p_raw/p_wild are not, in the case
        * where domestication fails.  We exclusively use p_tame below so that
@@ -705,13 +686,13 @@ namespace snmalloc
         {
           local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
             entry.get_slab_metadata(), p_tame, &local_cache.entropy);
-#  ifdef SNMALLOC_TRACING
+#ifdef SNMALLOC_TRACING
           message<1024>(
             "Remote dealloc fast {} ({}, {})",
             address_cast(p_tame),
             alloc_size(p_tame.unsafe_ptr()),
             address_cast(entry.get_slab_metadata()));
-#  endif
+#endif
           return;
         }
 
@@ -721,21 +702,17 @@ namespace snmalloc
 
       if (SNMALLOC_LIKELY(p_tame == nullptr))
       {
-#  ifdef SNMALLOC_TRACING
+#ifdef SNMALLOC_TRACING
         message<1024>("nullptr deallocation");
-#  endif
+#endif
         return;
       }
 
       SecondaryAllocator::deallocate(p_tame.unsafe_ptr());
-#endif
     }
 
     void check_size(void* p, size_t size)
     {
-#ifdef SNMALLOC_PASS_THROUGH
-      UNUSED(p, size);
-#else
       if constexpr (mitigations(sanity_checks))
       {
         if (!is_snmalloc_owned(p))
@@ -755,7 +732,6 @@ namespace snmalloc
       }
       else
         UNUSED(p, size);
-#endif
     }
 
     SNMALLOC_FAST_PATH void dealloc(void* p, size_t s)
@@ -785,10 +761,6 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH size_t alloc_size(const void* p_raw)
     {
-#ifdef SNMALLOC_PASS_THROUGH
-      return external_alloc::malloc_usable_size(const_cast<void*>(p_raw));
-#else
-
       if (
         !SecondaryAllocator::pass_through && !is_snmalloc_owned(p_raw) &&
         p_raw != nullptr)
@@ -809,7 +781,6 @@ namespace snmalloc
         Config::Backend::get_metaentry(address_cast(p_raw));
 
       return sizeclass_full_to_size(entry.get_sizeclass());
-#endif
     }
 
     /**
@@ -909,26 +880,11 @@ namespace snmalloc
      */
     size_t remaining_bytes(address_t p)
     {
-#ifndef SNMALLOC_PASS_THROUGH
       const PagemapEntry& entry =
         Config::Backend::template get_metaentry<true>(p);
 
       auto sizeclass = entry.get_sizeclass();
       return snmalloc::remaining_bytes(sizeclass, p);
-#else
-      constexpr address_t mask = static_cast<address_t>(-1);
-      constexpr bool is_signed = mask < 0;
-      constexpr address_t sign_bit =
-        bits::one_at_bit<address_t>(CHAR_BIT * sizeof(address_t) - 1);
-      if constexpr (is_signed)
-      {
-        return (mask ^ sign_bit) - p;
-      }
-      else
-      {
-        return mask - p;
-      }
-#endif
     }
 
     bool check_bounds(const void* p, size_t s)
@@ -948,15 +904,11 @@ namespace snmalloc
      */
     size_t index_in_object(address_t p)
     {
-#ifndef SNMALLOC_PASS_THROUGH
       const PagemapEntry& entry =
         Config::Backend::template get_metaentry<true>(p);
 
       auto sizeclass = entry.get_sizeclass();
       return snmalloc::index_in_object(sizeclass, p);
-#else
-      return reinterpret_cast<size_t>(p);
-#endif
     }
 
     /**

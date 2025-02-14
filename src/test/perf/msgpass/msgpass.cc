@@ -36,28 +36,6 @@ void chatty(const char* p, ...)
   }
 }
 
-/*
- * Interpret SNMALLOC_PASS_THROUGH ourselves to make this a bit more fair of a
- * comparison, since relying of snmalloc itself to do the passing through
- * results in it imposing its own idea of alignment onto the underlying
- * allocator, which might result in it taking less optimized paths.
- */
-#ifdef SNMALLOC_PASS_THROUGH
-struct MyAlloc
-{
-  MyAlloc() {}
-
-  void* alloc(size_t sz)
-  {
-    return malloc(sz);
-  }
-
-  void dealloc(void* p)
-  {
-    free(p);
-  }
-};
-#else
 struct MyAlloc
 {
   snmalloc::Alloc& a;
@@ -74,7 +52,6 @@ struct MyAlloc
     a.dealloc(p);
   }
 };
-#endif
 
 /*
  * FreeListMPSCQ make for convenient MPSC queues, so we use those for sending

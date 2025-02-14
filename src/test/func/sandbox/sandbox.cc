@@ -1,4 +1,4 @@
-#if defined(SNMALLOC_PASS_THROUGH) || true
+#if true
 /*
  * This test does not make sense with malloc pass-through, skip it.
  */

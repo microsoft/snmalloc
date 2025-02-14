@@ -7,7 +7,6 @@ namespace snmalloc
   template<SNMALLOC_CONCEPT(IsConfig) Config = Config>
   inline static void cleanup_unused()
   {
-#ifndef SNMALLOC_PASS_THROUGH
     static_assert(
       Config::Options.CoreAllocIsPoolAllocated,
       "Global cleanup is available only for pool-allocated configurations");
@@ -30,7 +29,6 @@ namespace snmalloc
 
       AllocPool<Config>::restore(first, last);
     }
-#endif
   }
 
   /**
@@ -41,7 +39,6 @@ namespace snmalloc
   template<SNMALLOC_CONCEPT(IsConfig) Config = Config>
   inline static void debug_check_empty(bool* result = nullptr)
   {
-#ifndef SNMALLOC_PASS_THROUGH
     static_assert(
       Config::Options.CoreAllocIsPoolAllocated,
       "Global status is available only for pool-allocated configurations");
@@ -49,39 +46,39 @@ namespace snmalloc
     // allocators has been freed.
     auto* alloc = AllocPool<Config>::iterate();
 
-#  ifdef SNMALLOC_TRACING
+#ifdef SNMALLOC_TRACING
     message<1024>("debug check empty: first {}", alloc);
-#  endif
+#endif
     bool done = false;
     bool okay = true;
 
     while (!done)
     {
-#  ifdef SNMALLOC_TRACING
+#ifdef SNMALLOC_TRACING
       message<1024>("debug_check_empty: Check all allocators!");
-#  endif
+#endif
       done = true;
       alloc = AllocPool<Config>::iterate();
       okay = true;
 
       while (alloc != nullptr)
       {
-#  ifdef SNMALLOC_TRACING
+#ifdef SNMALLOC_TRACING
         message<1024>("debug check empty: {}", alloc);
-#  endif
+#endif
         // Check that the allocator has freed all memory.
         // repeat the loop if empty caused message sends.
         if (alloc->debug_is_empty(&okay))
         {
           done = false;
-#  ifdef SNMALLOC_TRACING
+#ifdef SNMALLOC_TRACING
           message<1024>("debug check empty: sent messages {}", alloc);
-#  endif
+#endif
         }
 
-#  ifdef SNMALLOC_TRACING
+#ifdef SNMALLOC_TRACING
         message<1024>("debug check empty: okay = {}", okay);
-#  endif
+#endif
         alloc = AllocPool<Config>::iterate(alloc);
       }
     }
@@ -102,9 +99,6 @@ namespace snmalloc
         alloc = AllocPool<Config>::iterate(alloc);
       }
     }
-#else
-    UNUSED(result);
-#endif
   }
 
   template<SNMALLOC_CONCEPT(IsConfig) Config = Config>

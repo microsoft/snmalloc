@@ -557,7 +557,6 @@ int main(int argc, char** argv)
   test_random_allocation();
   test_calloc();
   test_double_alloc();
-#ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
   test_remaining_bytes();
   test_static_sized_allocs();
   test_calloc_large_bug();
@@ -567,7 +566,6 @@ int main(int argc, char** argv)
   test_external_pointer();
   test_alloc_16M();
   test_calloc_16M();
-#endif
   test_consolidaton_bug();
   return 0;
 }

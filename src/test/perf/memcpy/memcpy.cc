@@ -108,7 +108,6 @@ void memcpy_platform_checked(void* dst, const void* src, size_t size)
 int main(int argc, char** argv)
 {
   opt::Opt opt(argc, argv);
-#ifndef SNMALLOC_PASS_THROUGH
   bool full_test = opt.has("--full_test");
 
   //  size_t size = 0;
@@ -182,8 +181,5 @@ int main(int argc, char** argv)
     stats_platform.clear();
     stats_platform_checked.clear();
   }
-#else
-  snmalloc::UNUSED(opt);
-#endif
   return 0;
 }

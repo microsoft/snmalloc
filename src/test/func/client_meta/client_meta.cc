@@ -23,9 +23,8 @@ namespace snmalloc
 
 int main()
 {
-#if defined(SNMALLOC_PASS_THROUGH) || \
-  defined(SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION)
-  // This test does not make sense in pass-through
+#if defined(SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION)
+  // This test does not make sense in GWP-ASan mode.
   return 0;
 #else
   // Allocate a bunch of objects, and store the index into the meta-data.

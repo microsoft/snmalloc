@@ -17,7 +17,6 @@ using FixedAlloc = LocalAllocator<CustomGlobals>;
 
 int main()
 {
-#ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
   setup();
 
   // 28 is large enough to produce a nested allocator.
@@ -77,5 +76,4 @@ int main()
             << std::endl;
 
   a.teardown();
-#endif
 }

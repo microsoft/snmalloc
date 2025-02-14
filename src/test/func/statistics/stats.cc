@@ -1,12 +1,6 @@
-#ifdef SNMALLOC_PASS_THROUGH // This test depends on snmalloc internals
-int main()
-{
-  return 0;
-}
-#else
-#  include <iostream>
-#  include <snmalloc/snmalloc.h>
-#  include <vector>
+#include <iostream>
+#include <snmalloc/snmalloc.h>
+#include <vector>
 
 template<size_t size>
 void debug_check_empty_1()
@@ -115,4 +109,3 @@ int main()
 
   return 0;
 }
-#endif
