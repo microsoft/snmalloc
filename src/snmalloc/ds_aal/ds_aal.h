@@ -6,4 +6,5 @@
 #pragma once
 #include "../aal/aal.h"
 #include "flaglock.h"
+#include "prevent_fork.h"
 #include "singleton.h"
