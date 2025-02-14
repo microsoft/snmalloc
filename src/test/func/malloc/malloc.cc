@@ -376,6 +376,6 @@ int main(int argc, char** argv)
     our_malloc_usable_size(nullptr) == 0,
     "malloc_usable_size(nullptr) should be zero");
 
-  snmalloc::debug_check_empty<snmalloc::Alloc::Config>();
+  snmalloc::debug_check_empty();
   return 0;
 }

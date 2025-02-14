@@ -149,7 +149,7 @@ void f(size_t size)
     t11.join();
     t12.join();
   } // Drops a.
-  //  snmalloc::current_alloc_pool()->debug_in_use(0);
+  snmalloc::debug_in_use(0);
   printf(".");
   fflush(stdout);
 }

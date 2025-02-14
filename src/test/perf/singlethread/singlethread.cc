@@ -60,7 +60,7 @@ void test_alloc_dealloc(size_t count, size_t size, bool write)
     }
   }
 
-  snmalloc::debug_check_empty<snmalloc::Alloc::Config>();
+  snmalloc::debug_check_empty();
 }
 
 int main(int, char**)
