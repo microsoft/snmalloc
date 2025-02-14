@@ -32,7 +32,7 @@ int main()
   for (size_t i = 0; i < 10000; i++)
   {
     auto p = snmalloc::libc::malloc(1024);
-    auto& meta = snmalloc::libc::get_client_meta_data(p);
+    auto& meta = snmalloc::get_client_meta_data(p);
     meta = i;
     ptrs.push_back(p);
     memset(p, (uint8_t)i, 1024);
@@ -43,7 +43,7 @@ int main()
   for (size_t i = 0; i < 10000; i++)
   {
     auto p = ptrs[i];
-    auto& meta = snmalloc::libc::get_client_meta_data(p);
+    auto& meta = snmalloc::get_client_meta_data(p);
     if (meta != i)
     {
       std::cout << "Failed at index " << i << std::endl;
@@ -62,7 +62,7 @@ int main()
 
   // Access in a read-only way meta-data associated with the stack.
   // This would fail if it was accessed for write.
-  auto& meta = snmalloc::libc::get_client_meta_data_const(&ptrs);
+  auto& meta = snmalloc::get_client_meta_data_const(&ptrs);
   std::cout << "meta for stack" << meta << std::endl;
 
   return 0;

@@ -1,4 +1,5 @@
 #pragma once
+#include "globalalloc.h"
 #include "threadalloc.h"
 
 namespace snmalloc
@@ -61,18 +62,17 @@ namespace snmalloc
     }
     else
     {
-      auto& alloc = ThreadAlloc::get();
       void* p = const_cast<void*>(ptr);
 
       auto range_end = pointer_offset(p, len);
-      auto object_end = alloc.template external_pointer<OnePastEnd>(p);
+      auto object_end = external_pointer<OnePastEnd>(p);
       report_fatal_error(
         "Fatal Error!\n{}: \n\trange [{}, {})\n\tallocation [{}, "
         "{})\nrange goes beyond allocation by {} bytes \n",
         msg,
         p,
         range_end,
-        alloc.template external_pointer<Start>(p),
+        external_pointer<Start>(p),
         object_end,
         pointer_diff(object_end, range_end));
     }
@@ -86,13 +86,16 @@ namespace snmalloc
    * The template parameter indicates whether the check should be performed.  It
    * defaults to true. If it is false, the check will always succeed.
    */
-  template<bool PerformCheck = true>
+  template<bool PerformCheck = true, SNMALLOC_CONCEPT(IsConfig) Config = Config>
   SNMALLOC_FAST_PATH_INLINE bool check_bounds(const void* ptr, size_t len)
   {
     if constexpr (PerformCheck)
     {
-      auto& alloc = ThreadAlloc::get();
-      return alloc.check_bounds(ptr, len);
+      if (SNMALLOC_LIKELY(Config::is_initialised()))
+      {
+        return remaining_bytes(address_cast(ptr)) >= len;
+      }
+      return true;
     }
     else
     {

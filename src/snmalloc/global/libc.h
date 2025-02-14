@@ -21,7 +21,7 @@ namespace snmalloc::libc
 
   inline void* __malloc_end_pointer(void* ptr)
   {
-    return ThreadAlloc::get().external_pointer<OnePastEnd>(ptr);
+    return snmalloc::external_pointer<OnePastEnd>(ptr);
   }
 
   SNMALLOC_FAST_PATH_INLINE void* malloc(size_t size)
@@ -168,17 +168,4 @@ namespace snmalloc::libc
     *memptr = p;
     return 0;
   }
-
-  inline typename snmalloc::Alloc::Config::ClientMeta::DataRef
-  get_client_meta_data(void* p)
-  {
-    return ThreadAlloc::get().get_client_meta_data(p);
-  }
-
-  inline stl::add_const_t<typename snmalloc::Alloc::Config::ClientMeta::DataRef>
-  get_client_meta_data_const(void* p)
-  {
-    return ThreadAlloc::get().get_client_meta_data_const(p);
-  }
-
 } // namespace snmalloc::libc

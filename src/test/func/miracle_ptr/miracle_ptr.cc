@@ -58,7 +58,7 @@ namespace snmalloc::miracle
     if (SNMALLOC_UNLIKELY(p == nullptr))
       return nullptr;
 
-    snmalloc::libc::get_client_meta_data(p) = 1;
+    snmalloc::get_client_meta_data(p) = 1;
     return p;
   }
 
@@ -68,8 +68,7 @@ namespace snmalloc::miracle
       return;
 
     // TODO could build a check into this that it is the start of the object?
-    auto previous =
-      snmalloc::libc::get_client_meta_data(ptr).fetch_add((size_t)-1);
+    auto previous = snmalloc::get_client_meta_data(ptr).fetch_add((size_t)-1);
 
     if (SNMALLOC_LIKELY(previous == 1))
     {
@@ -88,8 +87,7 @@ namespace snmalloc::miracle
 
   inline void acquire(void* p)
   {
-    auto previous =
-      snmalloc::libc::get_client_meta_data(p).fetch_add((size_t)2);
+    auto previous = snmalloc::get_client_meta_data(p).fetch_add((size_t)2);
 
     // Can we take new pointers to a deallocated object?
     check((previous & 1) == 1, "Acquiring a deallocated object");
@@ -97,8 +95,7 @@ namespace snmalloc::miracle
 
   inline void release(void* p)
   {
-    auto previous =
-      snmalloc::libc::get_client_meta_data(p).fetch_add((size_t)-2);
+    auto previous = snmalloc::get_client_meta_data(p).fetch_add((size_t)-2);
 
     if (previous > 2)
       return;
