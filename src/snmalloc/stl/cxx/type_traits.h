@@ -19,7 +19,6 @@ namespace snmalloc
     using std::has_unique_object_representations_v;
     using std::integral_constant;
     using std::is_base_of_v;
-    using std::is_convertible_v;
     using std::is_copy_assignable_v;
     using std::is_copy_constructible_v;
     using std::is_integral;

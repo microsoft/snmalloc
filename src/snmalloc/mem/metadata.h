@@ -708,9 +708,8 @@ namespace snmalloc
      * Ensure that the template parameter is valid.
      */
     static_assert(
-      stl::is_convertible_v<SlabMetadataType, FrontendSlabMetadata_Trait>,
-      "The front end requires that the back end provides slab metadata that is "
-      "compatible with the front-end's structure");
+      stl::is_base_of_v<FrontendSlabMetadata_Trait, SlabMetadataType>,
+      "Template should be a subclass of FrontendSlabMetadata");
 
   public:
     using SlabMetadata = SlabMetadataType;

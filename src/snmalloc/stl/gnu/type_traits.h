@@ -260,12 +260,6 @@ namespace snmalloc
       __is_constructible(T, add_rvalue_reference_t<T>);
 
     /**
-     * is_convertible
-     */
-    template<class From, class To>
-    inline constexpr bool is_convertible_v = __is_convertible(From, To);
-
-    /**
      * is_base_of
      */
     template<class Base, class Derived>
