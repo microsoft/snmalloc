@@ -249,14 +249,6 @@ namespace snmalloc
     }
 
     /**
-     * Send all remote deallocation to other threads.
-     */
-    void post_remote_cache()
-    {
-      core_alloc->post();
-    }
-
-    /**
      * Slow path for deallocation we do not have space for this remote
      * deallocation. This could be because,
      *   - we actually don't have space for this remote deallocation,
@@ -279,7 +271,8 @@ namespace snmalloc
 #endif
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
           entry.get_slab_metadata(), p, &local_cache.entropy);
-        post_remote_cache();
+
+        core_alloc->post();
         return;
       }
 
