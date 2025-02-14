@@ -289,15 +289,6 @@ namespace snmalloc
     }
 
     /**
-     * Abstracts access to the message queue to handle different
-     * layout configurations of the allocator.
-     */
-    auto& message_queue()
-    {
-      return local_cache.remote_allocator;
-    }
-
-    /**
      * Call `Config::is_initialised()` if it is implemented,
      * unconditionally returns true otherwise.
      */
