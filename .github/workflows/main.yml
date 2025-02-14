@@ -33,6 +33,10 @@ jobs:
         extra-cmake-flags: [ "" ]
         # Modify the complete matrix
         include:
+          - os: "ubuntu-22.04"
+            variant: "C++17"
+            build-type: "Debug"
+            extra-cmake-flags: "-DSNMALLOC_USE_CXX17=ON"
           - os: "ubuntu-20.04"
             variant: "C++17"
             build-type: "Debug"

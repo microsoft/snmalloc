@@ -1,5 +1,7 @@
 #include "snmalloc/snmalloc.h"
 
+#include <new>
+
 #ifdef _WIN32
 #  ifdef __clang__
 #    define EXCEPTSPEC noexcept
