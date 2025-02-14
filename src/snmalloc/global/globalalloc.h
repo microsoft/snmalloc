@@ -1,7 +1,6 @@
 #pragma once
 
-#include "../ds_core/ds_core.h"
-#include "localalloc.h"
+#include "../mem/mem.h"
 
 namespace snmalloc
 {

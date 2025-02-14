@@ -4,7 +4,6 @@
 #include "entropy.h"
 #include "external_alloc.h"
 #include "freelist.h"
-#include "globalalloc.h"
 #include "localalloc.h"
 #include "localcache.h"
 #include "metadata.h"
