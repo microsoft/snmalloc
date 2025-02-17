@@ -13,7 +13,7 @@ namespace test
   // Pre allocate all the objects
   size_t* objects[count];
 
-  NOINLINE void setup(xoroshiro::p128r64& r, Alloc& alloc)
+  NOINLINE void setup(xoroshiro::p128r64& r)
   {
     for (size_t i = 0; i < count; i++)
     {
@@ -31,20 +31,20 @@ namespace test
       if (size < 16)
         size = 16;
       // store object
-      objects[i] = (size_t*)alloc.alloc(size);
+      objects[i] = (size_t*)snmalloc::alloc(size);
       if (objects[i] == nullptr)
         abort();
       // Store allocators size for this object
-      *objects[i] = alloc.alloc_size(objects[i]);
+      *objects[i] = snmalloc::alloc_size(objects[i]);
     }
   }
 
-  NOINLINE void teardown(Alloc& alloc)
+  NOINLINE void teardown()
   {
     // Deallocate everything
     for (size_t i = 0; i < count; i++)
     {
-      alloc.dealloc(objects[i]);
+      snmalloc::dealloc(objects[i]);
     }
 
     snmalloc::debug_check_empty();
@@ -52,7 +52,6 @@ namespace test
 
   void test_external_pointer(xoroshiro::p128r64& r)
   {
-    auto& alloc = ThreadAlloc::get();
     // This is very slow on Windows at the moment.  Until this is fixed, help
     // CI terminate.
 #if defined(NDEBUG) && !defined(_MSC_VER)
@@ -66,7 +65,7 @@ namespace test
     static constexpr size_t iterations = 100000;
 #  endif
 #endif
-    setup(r, alloc);
+    setup(r);
 
     {
       MeasureTime m;
@@ -76,7 +75,7 @@ namespace test
         size_t rand = (size_t)r.next();
         size_t oid = rand & (((size_t)1 << count_log) - 1);
         size_t* external_ptr = objects[oid];
-        if (!alloc.is_snmalloc_owned(external_ptr))
+        if (!snmalloc::is_owned(external_ptr))
           continue;
         size_t size = *external_ptr;
         size_t offset = (size >> 4) * (rand & 15);
@@ -89,7 +88,7 @@ namespace test
       }
     }
 
-    teardown(alloc);
+    teardown();
   }
 }
 

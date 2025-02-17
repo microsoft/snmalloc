@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../mem/mem.h"
+#include "threadalloc.h"
 
 namespace snmalloc
 {
@@ -263,5 +264,59 @@ namespace snmalloc
     }
 
     return meta_slab->get_meta_for_object(index);
+  }
+
+  template<size_t size, ZeroMem zero_mem = NoZero, size_t align = 1>
+  SNMALLOC_FAST_PATH_INLINE void* alloc()
+  {
+    return ThreadAlloc::get().alloc<zero_mem>(aligned_size(align, size));
+  }
+
+  template<ZeroMem zero_mem = NoZero, size_t align = 1>
+  SNMALLOC_FAST_PATH_INLINE void* alloc(size_t size)
+  {
+    return ThreadAlloc::get().alloc<zero_mem>(aligned_size(align, size));
+  }
+
+  template<ZeroMem zero_mem = NoZero>
+  SNMALLOC_FAST_PATH_INLINE void* alloc_aligned(size_t align, size_t size)
+  {
+    return ThreadAlloc::get().alloc<zero_mem>(aligned_size(align, size));
+  }
+
+  SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
+  {
+    ThreadAlloc::get().dealloc(p);
+  }
+
+  SNMALLOC_FAST_PATH_INLINE void dealloc(void* p, size_t size)
+  {
+    ThreadAlloc::get().dealloc(p, size);
+  }
+
+  template<size_t size>
+  SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
+  {
+    ThreadAlloc::get().dealloc(p, size);
+  }
+
+  SNMALLOC_FAST_PATH_INLINE void dealloc(void* p, size_t size, size_t align)
+  {
+    ThreadAlloc::get().dealloc(p, aligned_size(size, align));
+  }
+
+  SNMALLOC_FAST_PATH_INLINE size_t alloc_size(const void* p)
+  {
+    return ThreadAlloc::get().alloc_size(p);
+  }
+
+  SNMALLOC_FAST_PATH_INLINE void debug_teardown()
+  {
+    return ThreadAlloc::get().teardown();
+  }
+
+  SNMALLOC_FAST_PATH_INLINE bool is_owned(void* p)
+  {
+    return ThreadAlloc::get().is_snmalloc_owned(p);
   }
 } // namespace snmalloc

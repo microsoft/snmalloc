@@ -6,10 +6,9 @@ template<size_t size>
 void debug_check_empty_1()
 {
   std::cout << "debug_check_empty_1 " << size << std::endl;
-  snmalloc::Alloc& a = snmalloc::ThreadAlloc::get();
   bool result;
 
-  auto r = a.alloc(size);
+  auto r = snmalloc::alloc(size);
 
   snmalloc::debug_check_empty(&result);
   if (result != false)
@@ -19,7 +18,7 @@ void debug_check_empty_1()
     abort();
   }
 
-  a.dealloc(r);
+  snmalloc::dealloc(r);
 
   snmalloc::debug_check_empty(&result);
   if (result != true)
@@ -28,7 +27,7 @@ void debug_check_empty_1()
     abort();
   }
 
-  r = a.alloc(size);
+  r = snmalloc::alloc(size);
 
   snmalloc::debug_check_empty(&result);
   if (result != false)
@@ -38,7 +37,7 @@ void debug_check_empty_1()
     abort();
   }
 
-  a.dealloc(r);
+  snmalloc::dealloc(r);
 
   snmalloc::debug_check_empty(&result);
   if (result != true)
@@ -52,7 +51,6 @@ template<size_t size>
 void debug_check_empty_2()
 {
   std::cout << "debug_check_empty_2 " << size << std::endl;
-  snmalloc::Alloc& a = snmalloc::ThreadAlloc::get();
   bool result;
   std::vector<void*> allocs;
   // 1GB of allocations
@@ -64,7 +62,7 @@ void debug_check_empty_2()
     {
       std::cout << "." << std::flush;
     }
-    auto r = a.alloc(size);
+    auto r = snmalloc::alloc(size);
     allocs.push_back(r);
     snmalloc::debug_check_empty(&result);
     if (result != false)
@@ -89,7 +87,7 @@ void debug_check_empty_2()
                 << std::endl;
       abort();
     }
-    a.dealloc(allocs[i]);
+    snmalloc::dealloc(allocs[i]);
   }
   std::cout << std::endl;
   snmalloc::debug_check_empty();
