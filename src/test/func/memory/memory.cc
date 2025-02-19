@@ -70,7 +70,7 @@ void test_limited(rlim64_t as_limit, size_t& count)
     std::cout << "trying to alloc " << upper_bound / KiB << " KiB" << std::endl;
 #  endif
     std::cout << "allocator initialised" << std::endl;
-    auto chunk = snmalloc::alloc.alloc(upper_bound);
+    auto chunk = snmalloc::alloc(upper_bound);
     snmalloc::dealloc(chunk);
     std::cout << "success" << std::endl;
     std::exit(0);
@@ -221,14 +221,14 @@ void test_double_alloc()
       while (!set1.empty())
       {
         auto it = set1.begin();
-        a2->dealloc(*it, 20);
+        a2->dealloc(*it);
         set1.erase(it);
       }
 
       while (!set2.empty())
       {
         auto it = set2.begin();
-        a1->dealloc(*it, 20);
+        a1->dealloc(*it);
         set2.erase(it);
       }
     }

@@ -266,7 +266,7 @@ namespace snmalloc
         message<1024>(
           "Remote dealloc post {} ({}, {})",
           p.unsafe_ptr(),
-          alloc_size(p.unsafe_ptr()),
+          sizeclass_full_to_size(entry.get_sizeclass()),
           address_cast(entry.get_slab_metadata()));
 #endif
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
@@ -487,7 +487,6 @@ namespace snmalloc
     {
       if (SNMALLOC_LIKELY(entry.is_owned()))
       {
-        RemoteAllocator* remote = entry.get_remote();
         dealloc_cheri_checks(p_tame.unsafe_ptr());
 
         // Detect double free of large allocations here.
@@ -505,7 +504,7 @@ namespace snmalloc
           message<1024>(
             "Remote dealloc fast {} ({}, {})",
             address_cast(p_tame),
-            alloc_size(p_tame.unsafe_ptr()),
+            sizeclass_full_to_size(entry.get_sizeclass()),
             address_cast(entry.get_slab_metadata()));
 #endif
           return;
@@ -527,42 +526,6 @@ namespace snmalloc
       SecondaryAllocator::deallocate(p_tame.unsafe_ptr());
     }
 
-    void check_size(void* p, size_t size)
-    {
-      if constexpr (mitigations(sanity_checks))
-      {
-        const auto& entry = Config::Backend::get_metaentry(address_cast(p));
-        if (!entry.is_owned(p))
-          return;
-        size = size == 0 ? 1 : size;
-        auto sc = size_to_sizeclass_full(size);
-        auto pm_sc = entry.get_sizeclass();
-        auto rsize = sizeclass_full_to_size(sc);
-        auto pm_size = sizeclass_full_to_size(pm_sc);
-        snmalloc_check_client(
-          mitigations(sanity_checks),
-          (sc == pm_sc) || (p == nullptr),
-          "Dealloc rounded size mismatch: {} != {}",
-          rsize,
-          pm_size);
-      }
-      else
-        UNUSED(p, size);
-    }
-
-    SNMALLOC_FAST_PATH void dealloc(void* p, size_t s)
-    {
-      check_size(p, s);
-      dealloc(p);
-    }
-
-    template<size_t size>
-    SNMALLOC_FAST_PATH void dealloc(void* p)
-    {
-      check_size(p, size);
-      dealloc(p);
-    }
-
     void teardown()
     {
 #ifdef SNMALLOC_TRACING
@@ -573,31 +536,6 @@ namespace snmalloc
       {
         flush();
       }
-    }
-
-    SNMALLOC_FAST_PATH size_t alloc_size(const void* p_raw)
-    {
-      const PagemapEntry& entry =
-        Config::Backend::get_metaentry(address_cast(p_raw));
-
-      if (SNMALLOC_UNLIKELY(
-            !SecondaryAllocator::pass_through && !entry.is_owned() &&
-            p_raw != nullptr))
-        return SecondaryAllocator::alloc_size(p_raw);
-      // TODO What's the domestication policy here?  At the moment we just
-      // probe the pagemap with the raw address, without checks.  There could
-      // be implicit domestication through the `Config::Pagemap` or
-      // we could just leave well enough alone.
-
-      // Note that alloc_size should return 0 for nullptr.
-      // Other than nullptr, we know the system will be initialised as it must
-      // be called with something we have already allocated.
-      //
-      // To handle this case we require the uninitialised pagemap contain an
-      // entry for the first chunk of memory, that states it represents a
-      // large object, so we can pull the check for null off the fast path.
-
-      return sizeclass_full_to_size(entry.get_sizeclass());
     }
 
     /**

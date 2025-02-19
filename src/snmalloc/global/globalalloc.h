@@ -266,6 +266,59 @@ namespace snmalloc
     return meta_slab->get_meta_for_object(index);
   }
 
+  /**
+   * @brief Checks that the supplied size of the allocation matches the size
+   * snmalloc believes the allocation is.  Only performs the check if
+   *     mitigations(sanity_checks)
+   * is enabled.
+   */
+  SNMALLOC_FAST_PATH_INLINE void check_size(void* p, size_t size)
+  {
+    if constexpr (mitigations(sanity_checks))
+    {
+      const auto& entry = Config::Backend::get_metaentry(address_cast(p));
+      if (!entry.is_owned())
+        return;
+      size = size == 0 ? 1 : size;
+      auto sc = size_to_sizeclass_full(size);
+      auto pm_sc = entry.get_sizeclass();
+      auto rsize = sizeclass_full_to_size(sc);
+      auto pm_size = sizeclass_full_to_size(pm_sc);
+      snmalloc_check_client(
+        mitigations(sanity_checks),
+        (sc == pm_sc) || (p == nullptr),
+        "Dealloc rounded size mismatch: {} != {}",
+        rsize,
+        pm_size);
+    }
+    else
+      UNUSED(p, size);
+  }
+
+  SNMALLOC_FAST_PATH_INLINE size_t alloc_size(const void* p_raw)
+  {
+    const auto& entry = Config::Backend::get_metaentry(address_cast(p_raw));
+
+    if (SNMALLOC_UNLIKELY(
+          !SecondaryAllocator::pass_through && !entry.is_owned() &&
+          p_raw != nullptr))
+      return SecondaryAllocator::alloc_size(p_raw);
+    // TODO What's the domestication policy here?  At the moment we just
+    // probe the pagemap with the raw address, without checks.  There could
+    // be implicit domestication through the `Config::Pagemap` or
+    // we could just leave well enough alone.
+
+    // Note that alloc_size should return 0 for nullptr.
+    // Other than nullptr, we know the system will be initialised as it must
+    // be called with something we have already allocated.
+    //
+    // To handle this case we require the uninitialised pagemap contain an
+    // entry for the first chunk of memory, that states it represents a
+    // large object, so we can pull the check for null off the fast path.
+
+    return sizeclass_full_to_size(entry.get_sizeclass());
+  }
+
   template<size_t size, ZeroMem zero_mem = NoZero, size_t align = 1>
   SNMALLOC_FAST_PATH_INLINE void* alloc()
   {
@@ -291,23 +344,22 @@ namespace snmalloc
 
   SNMALLOC_FAST_PATH_INLINE void dealloc(void* p, size_t size)
   {
-    ThreadAlloc::get().dealloc(p, size);
+    check_size(p, size);
+    ThreadAlloc::get().dealloc(p);
   }
 
   template<size_t size>
   SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
   {
-    ThreadAlloc::get().dealloc(p, size);
+    check_size(p, size);
+    ThreadAlloc::get().dealloc(p);
   }
 
   SNMALLOC_FAST_PATH_INLINE void dealloc(void* p, size_t size, size_t align)
   {
-    ThreadAlloc::get().dealloc(p, aligned_size(size, align));
-  }
-
-  SNMALLOC_FAST_PATH_INLINE size_t alloc_size(const void* p)
-  {
-    return ThreadAlloc::get().alloc_size(p);
+    auto rsize = aligned_size(align, size);
+    check_size(p, rsize);
+    ThreadAlloc::get().dealloc(p);
   }
 
   SNMALLOC_FAST_PATH_INLINE void debug_teardown()
@@ -317,6 +369,7 @@ namespace snmalloc
 
   SNMALLOC_FAST_PATH_INLINE bool is_owned(void* p)
   {
-    return ThreadAlloc::get().is_snmalloc_owned(p);
+    const auto& entry = Config::Backend::get_metaentry(address_cast(p));
+    return entry.is_owned();
   }
 } // namespace snmalloc
