@@ -208,6 +208,15 @@ namespace snmalloc
     }
 
     /**
+     * Returns true if this memory is owned by snmalloc.  Some backend memory
+     * may return false, but all frontend memory will return true.
+     */
+    [[nodiscard]] SNMALLOC_FAST_PATH bool is_owned() const
+    {
+      return get_remote() != nullptr;
+    }
+
+    /**
      * Return the sizeclass.
      *
      * This can be called irrespective of whether the corresponding meta entry

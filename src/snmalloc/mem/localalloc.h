@@ -456,14 +456,6 @@ namespace snmalloc
       return {p_tame, entry};
     }
 
-    // Check if a pointer is domestic to SnMalloc
-    SNMALLOC_FAST_PATH bool is_snmalloc_owned(const void* p_raw)
-    {
-      auto [_, entry] = get_domestic_info(p_raw);
-      RemoteAllocator* remote = entry.get_remote();
-      return remote != nullptr;
-    }
-
     SNMALLOC_FAST_PATH void dealloc(void* p_raw)
     {
       /*
@@ -493,9 +485,9 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void
     dealloc_remote(const PagemapEntry& entry, capptr::Alloc<void> p_tame)
     {
-      RemoteAllocator* remote = entry.get_remote();
-      if (SNMALLOC_LIKELY(remote != nullptr))
+      if (SNMALLOC_LIKELY(entry.is_owned()))
       {
+        RemoteAllocator* remote = entry.get_remote();
         dealloc_cheri_checks(p_tame.unsafe_ptr());
 
         // Detect double free of large allocations here.
@@ -539,12 +531,12 @@ namespace snmalloc
     {
       if constexpr (mitigations(sanity_checks))
       {
-        if (!is_snmalloc_owned(p))
+        const auto& entry = Config::Backend::get_metaentry(address_cast(p));
+        if (!entry.is_owned(p))
           return;
         size = size == 0 ? 1 : size;
         auto sc = size_to_sizeclass_full(size);
-        auto pm_sc =
-          Config::Backend::get_metaentry(address_cast(p)).get_sizeclass();
+        auto pm_sc = entry.get_sizeclass();
         auto rsize = sizeclass_full_to_size(sc);
         auto pm_size = sizeclass_full_to_size(pm_sc);
         snmalloc_check_client(
@@ -585,9 +577,12 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH size_t alloc_size(const void* p_raw)
     {
-      if (
-        !SecondaryAllocator::pass_through && !is_snmalloc_owned(p_raw) &&
-        p_raw != nullptr)
+      const PagemapEntry& entry =
+        Config::Backend::get_metaentry(address_cast(p_raw));
+
+      if (SNMALLOC_UNLIKELY(
+            !SecondaryAllocator::pass_through && !entry.is_owned() &&
+            p_raw != nullptr))
         return SecondaryAllocator::alloc_size(p_raw);
       // TODO What's the domestication policy here?  At the moment we just
       // probe the pagemap with the raw address, without checks.  There could
@@ -601,8 +596,6 @@ namespace snmalloc
       // To handle this case we require the uninitialised pagemap contain an
       // entry for the first chunk of memory, that states it represents a
       // large object, so we can pull the check for null off the fast path.
-      const PagemapEntry& entry =
-        Config::Backend::get_metaentry(address_cast(p_raw));
 
       return sizeclass_full_to_size(entry.get_sizeclass());
     }

@@ -47,7 +47,7 @@ int main()
     if (r1 == nullptr)
       break;
 
-    if (!a.is_snmalloc_owned(r1))
+    if (!snmalloc::is_owned(r1))
     {
       a.dealloc(r1);
       continue;
