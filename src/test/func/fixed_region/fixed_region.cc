@@ -17,7 +17,6 @@ using FixedAlloc = LocalAllocator<CustomGlobals>;
 
 int main()
 {
-#ifndef SNMALLOC_PASS_THROUGH // Depends on snmalloc specific features
   setup();
 
   // 28 is large enough to produce a nested allocator.
@@ -31,14 +30,14 @@ int main()
             << pointer_offset(oe_base, size) << std::endl;
 
   CustomGlobals::init(nullptr, oe_base, size);
-  FixedAlloc a;
+  auto a = get_scoped_allocator<FixedAlloc>();
 
   size_t object_size = 128;
   size_t count = 0;
   size_t i = 0;
   while (true)
   {
-    auto r1 = a.alloc(object_size);
+    auto r1 = a->alloc(object_size);
 
     count += object_size;
     i++;
@@ -48,9 +47,9 @@ int main()
     if (r1 == nullptr)
       break;
 
-    if (!a.is_snmalloc_owned(r1))
+    if (!snmalloc::is_owned<CustomGlobals>(r1))
     {
-      a.dealloc(r1);
+      a->dealloc(r1);
       continue;
     }
 
@@ -75,7 +74,4 @@ int main()
   std::cout << "Total allocated: " << count << " out of " << size << std::endl;
   std::cout << "Overhead: 1/" << (double)size / (double)(size - count)
             << std::endl;
-
-  a.teardown();
-#endif
 }

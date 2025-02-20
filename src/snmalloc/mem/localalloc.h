@@ -18,34 +18,12 @@
 #include "pool.h"
 #include "remotecache.h"
 #include "sizeclasstable.h"
-
-#ifdef SNMALLOC_PASS_THROUGH
-#  include "external_alloc.h"
-#endif
-
 #include "snmalloc/stl/utility.h"
 
 #include <string.h>
 
 namespace snmalloc
 {
-  enum Boundary
-  {
-    /**
-     * The location of the first byte of this allocation.
-     */
-    Start,
-    /**
-     * The location of the last byte of the allocation.
-     */
-    End,
-    /**
-     * The location one past the end of the allocation.  This is mostly useful
-     * for bounds checking, where anything less than this value is safe.
-     */
-    OnePastEnd
-  };
-
   /**
    * A local allocator contains the fast-path allocation routines and
    * encapsulates all of the behaviour of an allocator that is local to some
@@ -271,14 +249,6 @@ namespace snmalloc
     }
 
     /**
-     * Send all remote deallocation to other threads.
-     */
-    void post_remote_cache()
-    {
-      core_alloc->post();
-    }
-
-    /**
      * Slow path for deallocation we do not have space for this remote
      * deallocation. This could be because,
      *   - we actually don't have space for this remote deallocation,
@@ -296,12 +266,13 @@ namespace snmalloc
         message<1024>(
           "Remote dealloc post {} ({}, {})",
           p.unsafe_ptr(),
-          alloc_size(p.unsafe_ptr()),
+          sizeclass_full_to_size(entry.get_sizeclass()),
           address_cast(entry.get_slab_metadata()));
 #endif
         local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
           entry.get_slab_metadata(), p, &local_cache.entropy);
-        post_remote_cache();
+
+        core_alloc->post();
         return;
       }
 
@@ -315,15 +286,6 @@ namespace snmalloc
           return nullptr;
         },
         p);
-    }
-
-    /**
-     * Abstracts access to the message queue to handle different
-     * layout configurations of the allocator.
-     */
-    auto& message_queue()
-    {
-      return local_cache.remote_allocator;
     }
 
     /**
@@ -449,16 +411,6 @@ namespace snmalloc
     template<ZeroMem zero_mem = NoZero>
     SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
     {
-#ifdef SNMALLOC_PASS_THROUGH
-      // snmalloc guarantees a lot of alignment, so we can depend on this
-      // make pass through call aligned_alloc with the alignment snmalloc
-      // would guarantee.
-      void* result = external_alloc::aligned_alloc(
-        natural_alignment(size), round_size(size));
-      if (zero_mem == YesZero && result != nullptr)
-        memset(result, 0, size);
-      return result;
-#else
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
       if (SNMALLOC_LIKELY(
@@ -470,158 +422,9 @@ namespace snmalloc
       }
 
       return capptr_reveal(alloc_not_small<zero_mem>(size));
-#endif
     }
 
-    /**
-     * Allocate memory of a statically known size.
-     */
-    template<size_t size, ZeroMem zero_mem = NoZero>
-    SNMALLOC_FAST_PATH ALLOCATOR void* alloc()
-    {
-      return alloc<zero_mem>(size);
-    }
-
-    /*
-     * Many of these tests come with an "or is null" branch that they'd need to
-     * add if we did them up front.  Instead, defer them until we're past the
-     * point where we know, from the pagemap, or by explicitly testing, that the
-     * pointer under test is not nullptr.
-     */
-    SNMALLOC_FAST_PATH void dealloc_cheri_checks(void* p)
-    {
-#if defined(__CHERI_PURE_CAPABILITY__)
-      /*
-       * Enforce the use of an unsealed capability.
-       *
-       * TODO In CHERI+MTE, this, is part of the CAmoCDecVersion instruction;
-       * elide this test in that world.
-       */
-      snmalloc_check_client(
-        mitigations(cheri_checks),
-        !__builtin_cheri_sealed_get(p),
-        "Sealed capability in deallocation");
-
-      /*
-       * Enforce permissions on the returned pointer.  These pointers end up in
-       * free queues and will be cycled out to clients again, so try to catch
-       * erroneous behavior now, rather than later.
-       *
-       * TODO In the CHERI+MTE case, we must reconstruct the pointer for the
-       * free queues as part of the discovery of the start of the object (so
-       * that it has the correct version), and the CAmoCDecVersion call imposes
-       * its own requirements on the permissions (to ensure that it's at least
-       * not zero).  They are somewhat more lax than we might wish, so this test
-       * may remain, guarded by SNMALLOC_CHECK_CLIENT, but no explicit
-       * permissions checks are required in the non-SNMALLOC_CHECK_CLIENT case
-       * to defend ourselves or other clients against a misbehaving client.
-       */
-      static const size_t reqperm = CHERI_PERM_LOAD | CHERI_PERM_STORE |
-        CHERI_PERM_LOAD_CAP | CHERI_PERM_STORE_CAP;
-      snmalloc_check_client(
-        mitigations(cheri_checks),
-        (__builtin_cheri_perms_get(p) & reqperm) == reqperm,
-        "Insufficient permissions on capability in deallocation");
-
-      /*
-       * We check for a valid tag here, rather than in domestication, because
-       * domestication might be answering a slightly different question, about
-       * the plausibility of addresses rather than of exact pointers.
-       *
-       * TODO Further, in the CHERI+MTE case, the tag check will be implicit in
-       * a future CAmoCDecVersion instruction, and there should be no harm in
-       * the lookups we perform along the way to get there.  In that world,
-       * elide this test.
-       */
-      snmalloc_check_client(
-        mitigations(cheri_checks),
-        __builtin_cheri_tag_get(p),
-        "Untagged capability in deallocation");
-
-      /*
-       * Verify that the capability is not zero-length, ruling out the other
-       * edge case around monotonicity.
-       */
-      snmalloc_check_client(
-        mitigations(cheri_checks),
-        __builtin_cheri_length_get(p) > 0,
-        "Zero-length capability in deallocation");
-
-      /*
-       * At present we check for the pointer also being the start of an
-       * allocation closer to dealloc; for small objects, that happens in
-       * dealloc_local_object_fast, either below or *on the far end of message
-       * receipt*.  For large objects, it happens below by directly rounding to
-       * power of two rather than using the is_start_of_object helper.
-       * (XXX This does mean that we might end up threading our remote queue
-       * state somewhere slightly unexpected rather than at the head of an
-       * object.  That is perhaps fine for now?)
-       */
-
-      /*
-       * TODO
-       *
-       * We could enforce other policies here, including that the length exactly
-       * match the sizeclass.  At present, we bound caps we give for allocations
-       * to the underlying sizeclass, so even malloc(0) will have a non-zero
-       * length.  Monotonicity would then imply that the pointer must be the
-       * head of an object (modulo, perhaps, temporal aliasing if we somehow
-       * introduced phase shifts in heap layout like some allocators do).
-       *
-       * If we switched to bounding with upwards-rounded representable bounds
-       * (c.f., CRRL) rather than underlying object size, then we should,
-       * instead, in general require plausibility of p_raw by checking that its
-       * length is nonzero and the snmalloc size class associated with its
-       * length is the one for the slab in question... except for the added
-       * challenge of malloc(0).  Since 0 rounds up to 0, we might end up
-       * constructing zero-length caps to hand out, which we would then reject
-       * upon receipt.  Instead, as part of introducing CRRL bounds, we should
-       * introduce a sizeclass for slabs holding zero-size objects.  All told,
-       * we would want to check that
-       *
-       *   size_to_sizeclass(length) == entry.get_sizeclass()
-       *
-       * I believe a relaxed CRRL test of
-       *
-       *   length > 0 || (length == sizeclass_to_size(entry.get_sizeclass()))
-       *
-       * would also suffice and may be slightly less expensive than the test
-       * above, at the cost of not catching as many misbehaving clients.
-       *
-       * In either case, having bounded by CRRL bounds, we would need to be
-       * *reconstructing* the capabilities headed to our free lists to be given
-       * out to clients again; there are many more CRRL classes than snmalloc
-       * sizeclasses (this is the same reason that we can always get away with
-       * CSetBoundsExact in capptr_bound).  Switching to CRRL bounds, if that's
-       * ever a thing we want to do, will be easier after we've done the
-       * plumbing for CHERI+MTE.
-       */
-
-      /*
-       * TODO: Unsurprisingly, the CHERI+MTE case once again has something to
-       * say here.  In that world, again, we are certain to be reconstructing
-       * the capability for the free queue anyway, and so exactly what we wish
-       * to enforce, length-wise, of the provided capability, is somewhat more
-       * flexible.  Using the provided capability bounds when recoloring memory
-       * could be a natural way to enforce that it covers the entire object, at
-       * the cost of a more elaborate recovery story (as we risk aborting with a
-       * partially recolored object).  On non-SNMALLOC_CHECK_CLIENT builds, it
-       * likely makes sense to just enforce that length > 0 (*not* enforced by
-       * the CAmoCDecVersion instruction) and say that any authority-bearing
-       * interior pointer suffices to free the object.  I believe that to be an
-       * acceptable security posture for the allocator and between clients;
-       * misbehavior is confined to the misbehaving client.
-       */
-#else
-      UNUSED(p);
-#endif
-    }
-
-    // The domestic pointer with its origin allocator
-    using DomesticInfo = stl::Pair<capptr::Alloc<void>, const PagemapEntry&>;
-
-    // Check whether the raw pointer is owned by snmalloc
-    SNMALLOC_FAST_PATH_INLINE DomesticInfo get_domestic_info(const void* p_raw)
+    SNMALLOC_FAST_PATH void dealloc(void* p_raw)
     {
 #ifdef __CHERI_PURE_CAPABILITY__
       /*
@@ -646,22 +449,7 @@ namespace snmalloc
         capptr_domesticate<Config>(core_alloc->backend_state_ptr(), p_wild);
       const PagemapEntry& entry =
         Config::Backend::get_metaentry(address_cast(p_tame));
-      return {p_tame, entry};
-    }
 
-    // Check if a pointer is domestic to SnMalloc
-    SNMALLOC_FAST_PATH bool is_snmalloc_owned(const void* p_raw)
-    {
-      auto [_, entry] = get_domestic_info(p_raw);
-      RemoteAllocator* remote = entry.get_remote();
-      return remote != nullptr;
-    }
-
-    SNMALLOC_FAST_PATH void dealloc(void* p_raw)
-    {
-#ifdef SNMALLOC_PASS_THROUGH
-      external_alloc::free(p_raw);
-#else
       /*
        * p_tame may be nullptr, even if p_raw/p_wild are not, in the case
        * where domestication fails.  We exclusively use p_tame below so that
@@ -674,8 +462,6 @@ namespace snmalloc
        * well-formedness) of this pointer.  The remainder of the logic will
        * deal with the object's extent.
        */
-      auto [p_tame, entry] = get_domestic_info(p_raw);
-
       if (SNMALLOC_LIKELY(local_cache.remote_allocator == entry.get_remote()))
       {
         dealloc_cheri_checks(p_tame.unsafe_ptr());
@@ -689,8 +475,7 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void
     dealloc_remote(const PagemapEntry& entry, capptr::Alloc<void> p_tame)
     {
-      RemoteAllocator* remote = entry.get_remote();
-      if (SNMALLOC_LIKELY(remote != nullptr))
+      if (SNMALLOC_LIKELY(entry.is_owned()))
       {
         dealloc_cheri_checks(p_tame.unsafe_ptr());
 
@@ -705,13 +490,13 @@ namespace snmalloc
         {
           local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
             entry.get_slab_metadata(), p_tame, &local_cache.entropy);
-#  ifdef SNMALLOC_TRACING
+#ifdef SNMALLOC_TRACING
           message<1024>(
             "Remote dealloc fast {} ({}, {})",
             address_cast(p_tame),
-            alloc_size(p_tame.unsafe_ptr()),
+            sizeclass_full_to_size(entry.get_sizeclass()),
             address_cast(entry.get_slab_metadata()));
-#  endif
+#endif
           return;
         }
 
@@ -721,54 +506,14 @@ namespace snmalloc
 
       if (SNMALLOC_LIKELY(p_tame == nullptr))
       {
-#  ifdef SNMALLOC_TRACING
+#ifdef SNMALLOC_TRACING
         message<1024>("nullptr deallocation");
-#  endif
+#endif
         return;
       }
 
+      dealloc_cheri_checks(p_tame.unsafe_ptr());
       SecondaryAllocator::deallocate(p_tame.unsafe_ptr());
-#endif
-    }
-
-    void check_size(void* p, size_t size)
-    {
-#ifdef SNMALLOC_PASS_THROUGH
-      UNUSED(p, size);
-#else
-      if constexpr (mitigations(sanity_checks))
-      {
-        if (!is_snmalloc_owned(p))
-          return;
-        size = size == 0 ? 1 : size;
-        auto sc = size_to_sizeclass_full(size);
-        auto pm_sc =
-          Config::Backend::get_metaentry(address_cast(p)).get_sizeclass();
-        auto rsize = sizeclass_full_to_size(sc);
-        auto pm_size = sizeclass_full_to_size(pm_sc);
-        snmalloc_check_client(
-          mitigations(sanity_checks),
-          (sc == pm_sc) || (p == nullptr),
-          "Dealloc rounded size mismatch: {} != {}",
-          rsize,
-          pm_size);
-      }
-      else
-        UNUSED(p, size);
-#endif
-    }
-
-    SNMALLOC_FAST_PATH void dealloc(void* p, size_t s)
-    {
-      check_size(p, s);
-      dealloc(p);
-    }
-
-    template<size_t size>
-    SNMALLOC_FAST_PATH void dealloc(void* p)
-    {
-      check_size(p, size);
-      dealloc(p);
     }
 
     void teardown()
@@ -781,182 +526,6 @@ namespace snmalloc
       {
         flush();
       }
-    }
-
-    SNMALLOC_FAST_PATH size_t alloc_size(const void* p_raw)
-    {
-#ifdef SNMALLOC_PASS_THROUGH
-      return external_alloc::malloc_usable_size(const_cast<void*>(p_raw));
-#else
-
-      if (
-        !SecondaryAllocator::pass_through && !is_snmalloc_owned(p_raw) &&
-        p_raw != nullptr)
-        return SecondaryAllocator::alloc_size(p_raw);
-      // TODO What's the domestication policy here?  At the moment we just
-      // probe the pagemap with the raw address, without checks.  There could
-      // be implicit domestication through the `Config::Pagemap` or
-      // we could just leave well enough alone.
-
-      // Note that alloc_size should return 0 for nullptr.
-      // Other than nullptr, we know the system will be initialised as it must
-      // be called with something we have already allocated.
-      //
-      // To handle this case we require the uninitialised pagemap contain an
-      // entry for the first chunk of memory, that states it represents a
-      // large object, so we can pull the check for null off the fast path.
-      const PagemapEntry& entry =
-        Config::Backend::get_metaentry(address_cast(p_raw));
-
-      return sizeclass_full_to_size(entry.get_sizeclass());
-#endif
-    }
-
-    /**
-     * Returns the Start/End of an object allocated by this allocator
-     *
-     * It is valid to pass any pointer, if the object was not allocated
-     * by this allocator, then it give the start and end as the whole of
-     * the potential pointer space.
-     */
-    template<Boundary location = Start>
-    void* external_pointer(void* p)
-    {
-      /*
-       * Note that:
-       * * each case uses `pointer_offset`, so that on CHERI, our behaviour is
-       *   monotone with respect to the capability `p`.
-       *
-       * * the returned pointer could be outside the CHERI bounds of `p`, and
-       *   thus not something that can be followed.
-       *
-       * * we don't use capptr_from_client()/capptr_reveal(), to avoid the
-       *   syntactic clutter.  By inspection, `p` flows only to address_cast
-       *   and pointer_offset, and so there's no risk that we follow or act
-       *   to amplify the rights carried by `p`.
-       */
-      if constexpr (location == Start)
-      {
-        size_t index = index_in_object(address_cast(p));
-        return pointer_offset(p, 0 - index);
-      }
-      else if constexpr (location == End)
-      {
-        return pointer_offset(p, remaining_bytes(address_cast(p)) - 1);
-      }
-      else
-      {
-        return pointer_offset(p, remaining_bytes(address_cast(p)));
-      }
-    }
-
-    /**
-     * @brief Get the client meta data for the snmalloc allocation covering this
-     * pointer.
-     */
-    typename Config::ClientMeta::DataRef get_client_meta_data(void* p)
-    {
-      const PagemapEntry& entry =
-        Config::Backend::get_metaentry(address_cast(p));
-
-      size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
-
-      auto* meta_slab = entry.get_slab_metadata();
-
-      if (SNMALLOC_UNLIKELY(entry.is_backend_owned()))
-      {
-        error("Cannot access meta-data for write for freed memory!");
-      }
-
-      if (SNMALLOC_UNLIKELY(meta_slab == nullptr))
-      {
-        error(
-          "Cannot access meta-data for non-snmalloc object in writable form!");
-      }
-
-      return meta_slab->get_meta_for_object(index);
-    }
-
-    /**
-     * @brief Get the client meta data for the snmalloc allocation covering this
-     * pointer.
-     */
-    stl::add_const_t<typename Config::ClientMeta::DataRef>
-    get_client_meta_data_const(void* p)
-    {
-      const PagemapEntry& entry =
-        Config::Backend::template get_metaentry<true>(address_cast(p));
-
-      size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
-
-      auto* meta_slab = entry.get_slab_metadata();
-
-      if (SNMALLOC_UNLIKELY(
-            (meta_slab == nullptr) || (entry.is_backend_owned())))
-      {
-        static typename Config::ClientMeta::StorageType null_meta_store{};
-        return Config::ClientMeta::get(&null_meta_store, 0);
-      }
-
-      return meta_slab->get_meta_for_object(index);
-    }
-
-    /**
-     * Returns the number of remaining bytes in an object.
-     *
-     * auto p = (char*)malloc(size)
-     * remaining_bytes(p + n) == size - n     provided n < size
-     */
-    size_t remaining_bytes(address_t p)
-    {
-#ifndef SNMALLOC_PASS_THROUGH
-      const PagemapEntry& entry =
-        Config::Backend::template get_metaentry<true>(p);
-
-      auto sizeclass = entry.get_sizeclass();
-      return snmalloc::remaining_bytes(sizeclass, p);
-#else
-      constexpr address_t mask = static_cast<address_t>(-1);
-      constexpr bool is_signed = mask < 0;
-      constexpr address_t sign_bit =
-        bits::one_at_bit<address_t>(CHAR_BIT * sizeof(address_t) - 1);
-      if constexpr (is_signed)
-      {
-        return (mask ^ sign_bit) - p;
-      }
-      else
-      {
-        return mask - p;
-      }
-#endif
-    }
-
-    bool check_bounds(const void* p, size_t s)
-    {
-      if (SNMALLOC_LIKELY(Config::is_initialised()))
-      {
-        return remaining_bytes(address_cast(p)) >= s;
-      }
-      return true;
-    }
-
-    /**
-     * Returns the byte offset into an object.
-     *
-     * auto p = (char*)malloc(size)
-     * index_in_object(p + n) == n     provided n < size
-     */
-    size_t index_in_object(address_t p)
-    {
-#ifndef SNMALLOC_PASS_THROUGH
-      const PagemapEntry& entry =
-        Config::Backend::template get_metaentry<true>(p);
-
-      auto sizeclass = entry.get_sizeclass();
-      return snmalloc::index_in_object(sizeclass, p);
-#else
-      return reinterpret_cast<size_t>(p);
-#endif
     }
 
     /**

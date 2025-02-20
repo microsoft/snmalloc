@@ -15,12 +15,13 @@ namespace snmalloc
    * This does not depend on thread-local storage working, so can be used for
    * bootstrapping.
    */
+  template<typename SAlloc = Alloc>
   struct ScopedAllocator
   {
     /**
      * The allocator that this wrapper will use.
      */
-    Alloc alloc;
+    SAlloc alloc;
 
     /**
      * Constructor.  Claims an allocator from the global pool
@@ -66,7 +67,7 @@ namespace snmalloc
      * Arrow operator, allows methods exposed by `Alloc` to be called on the
      * wrapper.
      */
-    Alloc* operator->()
+    SAlloc* operator->()
     {
       return &alloc;
     }
@@ -76,7 +77,8 @@ namespace snmalloc
    * Returns a new scoped allocator.  When the `ScopedAllocator` goes out of
    * scope, the underlying `Alloc` will be returned to the pool.
    */
-  inline ScopedAllocator get_scoped_allocator()
+  template<typename SAlloc = Alloc>
+  inline ScopedAllocator<SAlloc> get_scoped_allocator()
   {
     return {};
   }

@@ -13,8 +13,8 @@
 
 namespace snmalloc
 {
-  using Alloc = snmalloc::LocalAllocator<
-    snmalloc::StandardConfigClientMeta<NoClientMetaDataProvider>>;
+  using Config = snmalloc::StandardConfigClientMeta<NoClientMetaDataProvider>;
+  using Alloc = snmalloc::LocalAllocator<Config>;
 }
 
 using namespace snmalloc;
@@ -65,16 +65,14 @@ int main()
   setup();
   allocator_thread_init();
 
-  auto& a = ThreadAlloc::get();
-
   for (size_t i = 0; i < 1000; i++)
   {
-    auto r1 = a.alloc(i);
+    auto r1 = snmalloc::alloc(i);
 
-    a.dealloc(r1);
+    snmalloc::dealloc(r1);
   }
 
-  ThreadAlloc::get().teardown();
+  snmalloc::debug_teardown();
 
   // This checks that the scoped allocator does not call
   // register clean up, as this configuration will fault

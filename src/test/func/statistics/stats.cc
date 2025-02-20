@@ -1,23 +1,16 @@
-#ifdef SNMALLOC_PASS_THROUGH // This test depends on snmalloc internals
-int main()
-{
-  return 0;
-}
-#else
-#  include <iostream>
-#  include <snmalloc/snmalloc.h>
-#  include <vector>
+#include <iostream>
+#include <snmalloc/snmalloc.h>
+#include <vector>
 
 template<size_t size>
 void debug_check_empty_1()
 {
   std::cout << "debug_check_empty_1 " << size << std::endl;
-  snmalloc::Alloc& a = snmalloc::ThreadAlloc::get();
   bool result;
 
-  auto r = a.alloc(size);
+  auto r = snmalloc::alloc(size);
 
-  snmalloc::debug_check_empty<snmalloc::Alloc::Config>(&result);
+  snmalloc::debug_check_empty(&result);
   if (result != false)
   {
     std::cout << "debug_check_empty failed to detect leaked memory:" << size
@@ -25,18 +18,18 @@ void debug_check_empty_1()
     abort();
   }
 
-  a.dealloc(r);
+  snmalloc::dealloc(r);
 
-  snmalloc::debug_check_empty<snmalloc::Alloc::Config>(&result);
+  snmalloc::debug_check_empty(&result);
   if (result != true)
   {
     std::cout << "debug_check_empty failed to say empty:" << size << std::endl;
     abort();
   }
 
-  r = a.alloc(size);
+  r = snmalloc::alloc(size);
 
-  snmalloc::debug_check_empty<snmalloc::Alloc::Config>(&result);
+  snmalloc::debug_check_empty(&result);
   if (result != false)
   {
     std::cout << "debug_check_empty failed to detect leaked memory:" << size
@@ -44,9 +37,9 @@ void debug_check_empty_1()
     abort();
   }
 
-  a.dealloc(r);
+  snmalloc::dealloc(r);
 
-  snmalloc::debug_check_empty<snmalloc::Alloc::Config>(&result);
+  snmalloc::debug_check_empty(&result);
   if (result != true)
   {
     std::cout << "debug_check_empty failed to say empty:" << size << std::endl;
@@ -58,7 +51,6 @@ template<size_t size>
 void debug_check_empty_2()
 {
   std::cout << "debug_check_empty_2 " << size << std::endl;
-  snmalloc::Alloc& a = snmalloc::ThreadAlloc::get();
   bool result;
   std::vector<void*> allocs;
   // 1GB of allocations
@@ -70,9 +62,9 @@ void debug_check_empty_2()
     {
       std::cout << "." << std::flush;
     }
-    auto r = a.alloc(size);
+    auto r = snmalloc::alloc(size);
     allocs.push_back(r);
-    snmalloc::debug_check_empty<snmalloc::Alloc::Config>(&result);
+    snmalloc::debug_check_empty(&result);
     if (result != false)
     {
       std::cout << "False empty after " << i << " allocations of " << size
@@ -88,17 +80,17 @@ void debug_check_empty_2()
     {
       std::cout << "." << std::flush;
     }
-    snmalloc::debug_check_empty<snmalloc::Alloc::Config>(&result);
+    snmalloc::debug_check_empty(&result);
     if (result != false)
     {
       std::cout << "False empty after " << i << " deallocations of " << size
                 << std::endl;
       abort();
     }
-    a.dealloc(allocs[i]);
+    snmalloc::dealloc(allocs[i]);
   }
   std::cout << std::endl;
-  snmalloc::debug_check_empty<snmalloc::Alloc::Config>();
+  snmalloc::debug_check_empty();
 }
 
 int main()
@@ -115,4 +107,3 @@ int main()
 
   return 0;
 }
-#endif

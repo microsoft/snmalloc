@@ -148,7 +148,7 @@ struct Result
   {
     auto alloc = snmalloc::get_scoped_allocator();
     if (ptr)
-      alloc->dealloc(ptr, size);
+      alloc->dealloc(ptr);
     ptr = nullptr;
   }
 };
