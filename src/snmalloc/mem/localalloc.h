@@ -424,11 +424,7 @@ namespace snmalloc
       return capptr_reveal(alloc_not_small<zero_mem>(size));
     }
 
-    // The domestic pointer with its origin allocator
-    using DomesticInfo = stl::Pair<capptr::Alloc<void>, const PagemapEntry&>;
-
-    // Check whether the raw pointer is owned by snmalloc
-    SNMALLOC_FAST_PATH_INLINE DomesticInfo get_domestic_info(const void* p_raw)
+    SNMALLOC_FAST_PATH void dealloc(void* p_raw)
     {
 #ifdef __CHERI_PURE_CAPABILITY__
       /*
@@ -453,11 +449,7 @@ namespace snmalloc
         capptr_domesticate<Config>(core_alloc->backend_state_ptr(), p_wild);
       const PagemapEntry& entry =
         Config::Backend::get_metaentry(address_cast(p_tame));
-      return {p_tame, entry};
-    }
 
-    SNMALLOC_FAST_PATH void dealloc(void* p_raw)
-    {
       /*
        * p_tame may be nullptr, even if p_raw/p_wild are not, in the case
        * where domestication fails.  We exclusively use p_tame below so that
@@ -470,8 +462,6 @@ namespace snmalloc
        * well-formedness) of this pointer.  The remainder of the logic will
        * deal with the object's extent.
        */
-      auto [p_tame, entry] = get_domestic_info(p_raw);
-
       if (SNMALLOC_LIKELY(local_cache.remote_allocator == entry.get_remote()))
       {
         dealloc_cheri_checks(p_tame.unsafe_ptr());
