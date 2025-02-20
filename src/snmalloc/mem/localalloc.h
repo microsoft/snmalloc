@@ -66,96 +66,18 @@ namespace snmalloc
     // Underlying allocator for most non-fast path operations.
     CoreAlloc* core_alloc{nullptr};
 
-    // As allocation and deallocation can occur during thread teardown
-    // we need to record if we are already in that state as we will not
-    // receive another teardown call, so each operation needs to release
-    // the underlying data structures after the call.
-    bool post_teardown{false};
-
-    /**
-     * Checks if the core allocator has been initialised, and runs the
-     * `action` with the arguments, args.
-     *
-     * If the core allocator is not initialised, then first initialise it,
-     * and then perform the action using the core allocator.
-     *
-     * This is an abstraction of the common pattern of check initialisation,
-     * and then performing the operations.  It is carefully crafted to tail
-     * call the continuations, and thus generate good code for the fast path.
-     */
-    template<typename Action, typename... Args>
-    SNMALLOC_FAST_PATH decltype(auto) check_init(Action action, Args... args)
+  public:
+    SNMALLOC_FAST_PATH bool is_init()
     {
-      if (SNMALLOC_LIKELY(core_alloc != nullptr))
-      {
-        return core_alloc->handle_message_queue(action, core_alloc, args...);
-      }
-      return lazy_init(action, args...);
+      return core_alloc != nullptr;
     }
 
-    /**
-     * This initialises the fast allocator by acquiring a core allocator, and
-     * setting up its local copy of data structures.
-     *
-     * If the allocator does not support lazy initialisation then this assumes
-     * that initialisation has already taken place and invokes the action
-     * immediately.
-     */
-    template<typename Action, typename... Args>
-    SNMALLOC_SLOW_PATH decltype(auto) lazy_init(Action action, Args... args)
-    {
-      SNMALLOC_ASSERT(core_alloc == nullptr);
-      if constexpr (!Config::Options.LocalAllocSupportsLazyInit)
-      {
-        SNMALLOC_CHECK(
-          false &&
-          "lazy_init called on an allocator that doesn't support lazy "
-          "initialisation");
-        // Unreachable, but needed to keep the type checker happy in deducing
-        // the return type of this function.
-        return static_cast<decltype(action(core_alloc, args...))>(nullptr);
-      }
-      else
-      {
-        // Initialise the thread local allocator
-        if constexpr (Config::Options.CoreAllocOwnsLocalState)
-        {
-          init();
-        }
-
-        // register_clean_up must be called after init.  register clean up may
-        // be implemented with allocation, so need to ensure we have a valid
-        // allocator at this point.
-        if (!post_teardown)
-          // Must be called at least once per thread.
-          // A pthread implementation only calls the thread destruction handle
-          // if the key has been set.
-          Config::register_clean_up();
-
-        // Perform underlying operation
-        auto r = action(core_alloc, args...);
-
-        // After performing underlying operation, in the case of teardown
-        // already having begun, we must flush any state we just acquired.
-        if (post_teardown)
-        {
-#ifdef SNMALLOC_TRACING
-          message<1024>("post_teardown flush()");
-#endif
-          // We didn't have an allocator because the thread is being torndown.
-          // We need to return any local state, so we don't leak it.
-          flush();
-        }
-
-        return r;
-      }
-    }
-
+  private:
     /**
      * Allocation that are larger than are handled by the fast allocator must be
      * passed to the core allocator.
      */
-    template<ZeroMem zero_mem>
+    template<ZeroMem zero_mem, typename CheckInit>
     SNMALLOC_SLOW_PATH capptr::Alloc<void> alloc_not_small(size_t size)
     {
       if (size == 0)
@@ -163,10 +85,10 @@ namespace snmalloc
         // Deal with alloc zero of with a small object here.
         // Alternative semantics giving nullptr is also allowed by the
         // standard.
-        return small_alloc<NoZero>(1);
+        return small_alloc<NoZero, CheckInit>(1);
       }
 
-      return check_init([&](CoreAlloc* core_alloc) {
+      auto fast_path = [this, size]() {
         if (size > bits::one_at_bit(bits::BITS - 1))
         {
           // Cannot allocate something that is more that half the size of the
@@ -212,39 +134,48 @@ namespace snmalloc
         }
 
         return capptr_chunk_is_alloc(capptr_to_user_address_control(chunk));
-      });
+      };
+
+      return CheckInit::check_init(
+        fast_path,
+        [](size_t size, LocalAllocator* self) {
+          return self->alloc_not_small<zero_mem, CheckInitDefault>(size);
+        },
+        size,
+        this);
     }
 
-    template<ZeroMem zero_mem>
+    template<ZeroMem zero_mem, typename CheckInit>
     SNMALLOC_FAST_PATH capptr::Alloc<void> small_alloc(size_t size)
     {
       auto domesticate =
         [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
           return capptr_domesticate<Config>(core_alloc->backend_state_ptr(), p);
         };
-      auto slowpath = [&](
-                        smallsizeclass_t sizeclass,
-                        freelist::Iter<>* fl) SNMALLOC_FAST_PATH_LAMBDA {
-        if (SNMALLOC_LIKELY(core_alloc != nullptr))
-        {
-          return core_alloc->handle_message_queue(
-            [](
-              CoreAlloc* core_alloc,
-              smallsizeclass_t sizeclass,
-              freelist::Iter<>* fl) {
-              return core_alloc->template small_alloc<zero_mem>(sizeclass, *fl);
-            },
-            core_alloc,
-            sizeclass,
-            fl);
-        }
-        return lazy_init(
-          [&](CoreAlloc*, smallsizeclass_t sizeclass) {
-            return small_alloc<zero_mem>(sizeclass_to_size(sizeclass));
-          },
-          sizeclass);
-      };
-
+      auto slowpath =
+        [&](smallsizeclass_t sizeclass, freelist::Iter<>* fl)
+          SNMALLOC_FAST_PATH_LAMBDA {
+            return CheckInit::check_init(
+              [this, sizeclass, fl]() {
+                return core_alloc->handle_message_queue(
+                  [](
+                    CoreAlloc* core_alloc,
+                    smallsizeclass_t sizeclass,
+                    freelist::Iter<>* fl) {
+                    return core_alloc->template small_alloc<zero_mem>(
+                      sizeclass, *fl);
+                  },
+                  core_alloc,
+                  sizeclass,
+                  fl);
+              },
+              [](smallsizeclass_t sizeclass, LocalAllocator* la) {
+                return la->template small_alloc<zero_mem, CheckInit>(
+                  sizeclass_to_size(sizeclass));
+              },
+              sizeclass,
+              this);
+          };
       return local_cache.template alloc<zero_mem>(domesticate, size, slowpath);
     }
 
@@ -257,35 +188,34 @@ namespace snmalloc
      * In the second case we need to recheck if this is a remote deallocation,
      * as we might acquire the originating allocator.
      */
+    template<typename CheckInit>
     SNMALLOC_SLOW_PATH void
     dealloc_remote_slow(const PagemapEntry& entry, capptr::Alloc<void> p)
     {
-      if (core_alloc != nullptr)
-      {
+      CheckInit::check_init(
+        [this, &entry, p]() {
 #ifdef SNMALLOC_TRACING
-        message<1024>(
-          "Remote dealloc post {} ({}, {})",
-          p.unsafe_ptr(),
-          sizeclass_full_to_size(entry.get_sizeclass()),
-          address_cast(entry.get_slab_metadata()));
+          message<1024>(
+            "Remote dealloc post {} ({}, {})",
+            p.unsafe_ptr(),
+            sizeclass_full_to_size(entry.get_sizeclass()),
+            address_cast(entry.get_slab_metadata()));
 #endif
-        local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
-          entry.get_slab_metadata(), p, &local_cache.entropy);
+          local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
+            entry.get_slab_metadata(), p, &local_cache.entropy);
 
-        core_alloc->post();
-        return;
-      }
-
-      // Recheck what kind of dealloc we should do in case the allocator we get
-      // from lazy_init is the originating allocator.  (TODO: but note that this
-      // can't suddenly become a large deallocation; the only distinction is
-      // between being ours to handle and something to post to a Remote.)
-      lazy_init(
-        [&](CoreAlloc*, CapPtr<void, capptr::bounds::Alloc> p) {
-          dealloc(p.unsafe_ptr()); // TODO don't double count statistics
-          return nullptr;
+          core_alloc->post();
         },
-        p);
+        [](void* p, LocalAllocator* la) {
+          // Recheck what kind of dealloc we should do in case the allocator we
+          // get from lazy_init is the originating allocator.  (TODO: but note
+          // that this can't suddenly become a large deallocation; the only
+          // distinction is between being ours to handle and something to post
+          // to a Remote.)
+          la->dealloc(p); // TODO don't double count statistics
+        },
+        p.unsafe_ptr(),
+        this);
     }
 
     /**
@@ -408,7 +338,7 @@ namespace snmalloc
     /**
      * Allocate memory of a dynamically known size.
      */
-    template<ZeroMem zero_mem = NoZero>
+    template<ZeroMem zero_mem = NoZero, typename CheckInit = CheckInitDefault>
     SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
     {
       // Perform the - 1 on size, so that zero wraps around and ends up on
@@ -418,12 +348,13 @@ namespace snmalloc
       {
         // Small allocations are more likely. Improve
         // branch prediction by placing this case first.
-        return capptr_reveal(small_alloc<zero_mem>(size));
+        return capptr_reveal(small_alloc<zero_mem, CheckInit>(size));
       }
 
-      return capptr_reveal(alloc_not_small<zero_mem>(size));
+      return capptr_reveal(alloc_not_small<zero_mem, CheckInit>(size));
     }
 
+    template<typename CheckInit = CheckInitDefault>
     SNMALLOC_FAST_PATH void dealloc(void* p_raw)
     {
 #ifdef __CHERI_PURE_CAPABILITY__
@@ -469,10 +400,11 @@ namespace snmalloc
         return;
       }
 
-      dealloc_remote(entry, p_tame);
+      dealloc_remote<CheckInit>(entry, p_tame);
     }
 
-    SNMALLOC_SLOW_PATH void
+    template<typename CheckInit>
+    SNMALLOC_FAST_PATH void
     dealloc_remote(const PagemapEntry& entry, capptr::Alloc<void> p_tame)
     {
       if (SNMALLOC_LIKELY(entry.is_owned()))
@@ -486,7 +418,8 @@ namespace snmalloc
           "Memory corruption detected");
 
         // Check if we have space for the remote deallocation
-        if (local_cache.remote_dealloc_cache.reserve_space(entry))
+        if (SNMALLOC_LIKELY(
+              local_cache.remote_dealloc_cache.reserve_space(entry)))
         {
           local_cache.remote_dealloc_cache.template dealloc<sizeof(CoreAlloc)>(
             entry.get_slab_metadata(), p_tame, &local_cache.entropy);
@@ -500,7 +433,7 @@ namespace snmalloc
           return;
         }
 
-        dealloc_remote_slow(entry, p_tame);
+        dealloc_remote_slow<CheckInit>(entry, p_tame);
         return;
       }
 
@@ -521,7 +454,6 @@ namespace snmalloc
 #ifdef SNMALLOC_TRACING
       message<1024>("Teardown: core_alloc={} @ {}", core_alloc, &local_cache);
 #endif
-      post_teardown = true;
       if (core_alloc != nullptr)
       {
         flush();

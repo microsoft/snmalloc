@@ -324,44 +324,47 @@ namespace snmalloc
   template<size_t size, ZeroMem zero_mem = NoZero, size_t align = 1>
   SNMALLOC_FAST_PATH_INLINE void* alloc()
   {
-    return ThreadAlloc::get().alloc<zero_mem>(aligned_size(align, size));
+    return ThreadAlloc::get().alloc<zero_mem, ThreadAlloc::CheckInit>(
+      aligned_size(align, size));
   }
 
   template<ZeroMem zero_mem = NoZero, size_t align = 1>
   SNMALLOC_FAST_PATH_INLINE void* alloc(size_t size)
   {
-    return ThreadAlloc::get().alloc<zero_mem>(aligned_size(align, size));
+    return ThreadAlloc::get().alloc<zero_mem, ThreadAlloc::CheckInit>(
+      aligned_size(align, size));
   }
 
   template<ZeroMem zero_mem = NoZero>
   SNMALLOC_FAST_PATH_INLINE void* alloc_aligned(size_t align, size_t size)
   {
-    return ThreadAlloc::get().alloc<zero_mem>(aligned_size(align, size));
+    return ThreadAlloc::get().alloc<zero_mem, ThreadAlloc::CheckInit>(
+      aligned_size(align, size));
   }
 
   SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
   {
-    ThreadAlloc::get().dealloc(p);
+    ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
   SNMALLOC_FAST_PATH_INLINE void dealloc(void* p, size_t size)
   {
     check_size(p, size);
-    ThreadAlloc::get().dealloc(p);
+    ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
   template<size_t size>
   SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
   {
     check_size(p, size);
-    ThreadAlloc::get().dealloc(p);
+    ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
   SNMALLOC_FAST_PATH_INLINE void dealloc(void* p, size_t size, size_t align)
   {
     auto rsize = aligned_size(align, size);
     check_size(p, rsize);
-    ThreadAlloc::get().dealloc(p);
+    ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
   SNMALLOC_FAST_PATH_INLINE void debug_teardown()
