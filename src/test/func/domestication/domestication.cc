@@ -133,7 +133,7 @@ int main()
   entropy.make_free_list_key(RemoteAllocator::key_global);
   entropy.make_free_list_key(freelist::Object::key_root);
 
-  auto alloc1 = new Alloc();
+  ScopedAllocator alloc1;
 
   // Allocate from alloc1; the size doesn't matter a whole lot, it just needs to
   // be a small object and so definitely owned by this allocator rather.
@@ -141,7 +141,7 @@ int main()
   std::cout << "Allocated p " << p << std::endl;
 
   // Put that free object on alloc1's remote queue
-  auto alloc2 = new Alloc();
+  ScopedAllocator alloc2;
   alloc2->dealloc(p);
   alloc2->flush();
 
@@ -176,10 +176,5 @@ int main()
   static constexpr size_t expected_count =
     snmalloc::CustomConfig::Options.QueueHeadsAreTame ? 2 : 3;
   SNMALLOC_CHECK(snmalloc::CustomConfig::domesticate_count == expected_count);
-
-  // Prevent the allocators from going out of scope during the above test
-  alloc1->flush();
-  alloc2->flush();
-
   return 0;
 }
