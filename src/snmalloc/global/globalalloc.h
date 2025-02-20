@@ -295,6 +295,7 @@ namespace snmalloc
       UNUSED(p, size);
   }
 
+  template<SNMALLOC_CONCEPT(IsConfig) Config = Config>
   SNMALLOC_FAST_PATH_INLINE size_t alloc_size(const void* p_raw)
   {
     const auto& entry = Config::Backend::get_metaentry(address_cast(p_raw));
@@ -367,6 +368,7 @@ namespace snmalloc
     return ThreadAlloc::get().teardown();
   }
 
+  template<SNMALLOC_CONCEPT(IsConfig) Config = Config>
   SNMALLOC_FAST_PATH_INLINE bool is_owned(void* p)
   {
     const auto& entry = Config::Backend::get_metaentry(address_cast(p));
