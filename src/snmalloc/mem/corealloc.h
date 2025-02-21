@@ -171,15 +171,6 @@ namespace snmalloc
       return *public_state();
     }
 
-    /**
-     * The message queue has non-trivial initialisation as it needs to
-     * be non-empty, so we prime it with a fake allocation.
-     */
-    void init_message_queue()
-    {
-      message_queue().init();
-    }
-
     static SNMALLOC_FAST_PATH void alloc_new_list(
       capptr::Chunk<void>& bumpptr,
       BackendSlabMetadata* meta,
@@ -483,25 +474,7 @@ namespace snmalloc
      */
     SNMALLOC_FAST_PATH bool has_messages()
     {
-      auto local_state = backend_state_ptr();
-      auto domesticate_head =
-        [local_state](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
-          if constexpr (Config::Options.QueueHeadsAreTame)
-          {
-            UNUSED(local_state);
-            return freelist::HeadPtr::unsafe_from(p.unsafe_ptr());
-          }
-          else
-          {
-            return capptr_domesticate<Config>(local_state, p);
-          }
-        };
-      auto domesticate_queue =
-        [local_state](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
-          return capptr_domesticate<Config>(local_state, p);
-        };
-
-      return message_queue().can_dequeue(domesticate_head, domesticate_queue);
+      return message_queue().can_dequeue();
     }
 
     /**
@@ -647,12 +620,6 @@ namespace snmalloc
 
       // Ignoring stats for now.
       //      stats().start();
-
-      if constexpr (Config::Options.IsQueueInline)
-      {
-        init_message_queue();
-        message_queue().invariant();
-      }
     }
 
   public:
@@ -698,8 +665,6 @@ namespace snmalloc
     stl::enable_if_t<!InlineQueue> init_message_queue(RemoteAllocator* q)
     {
       remote_alloc = q;
-      init_message_queue();
-      message_queue().invariant();
     }
 
     /**
@@ -1068,9 +1033,6 @@ namespace snmalloc
       {
         error(laden.peek());
       }
-
-      // Place the static stub message on the queue.
-      init_message_queue();
 
 #ifdef SNMALLOC_TRACING
       message<1024>("debug_is_empty - done");
