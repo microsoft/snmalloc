@@ -1,4 +1,4 @@
-#if defined(SNMALLOC_PASS_THROUGH) || true
+#if true
 /*
  * This test does not make sense with malloc pass-through, skip it.
  */
@@ -16,16 +16,6 @@ using namespace snmalloc;
 
 namespace
 {
-  /**
-   * Helper for Alloc that never needs lazy initialisation.
-   *
-   * CapPtr-vs-MSVC triggering; xref CapPtr's constructor
-   */
-  void no_op_register_clean_up()
-  {
-    SNMALLOC_CHECK(0 && "Should never be called!");
-  }
-
   /**
    * Sandbox class.  Allocates a memory region and an allocator that can
    * allocate into this from the outside.
@@ -74,8 +64,7 @@ namespace
     using ExternalCoreAlloc =
       Allocator<NoOpMemoryProvider, SNMALLOC_DEFAULT_CHUNKMAP, false>;
 
-    using ExternalAlloc =
-      LocalAllocator<ExternalCoreAlloc, no_op_register_clean_up>;
+    using ExternalAlloc = LocalAllocator<ExternalCoreAlloc>;
 
     /**
      * Proxy class that forwards requests for large allocations to the real
@@ -149,8 +138,7 @@ namespace
      * pagemap and would not be used outside of the sandbox.
      */
     using InternalCoreAlloc = Allocator<MemoryProviderProxy>;
-    using InternalAlloc =
-      LocalAllocator<InternalCoreAlloc, no_op_register_clean_up>;
+    using InternalAlloc = LocalAllocator<InternalCoreAlloc>;
 
     /**
      * The start of the sandbox memory region.
@@ -244,7 +232,7 @@ namespace
       // Use the outside-sandbox snmalloc to allocate memory, rather than using
       // the PAL directly, so that our out-of-sandbox can amplify sandbox
       // pointers
-      return ThreadAlloc::get().alloc(sb_size);
+      return snmalloc::alloc(sb_size);
     }
   };
 }
@@ -260,7 +248,7 @@ int main()
   auto check = [](Sandbox& sb, auto& alloc, size_t sz) {
     void* ptr = alloc.alloc(sz);
     SNMALLOC_CHECK(sb.is_in_sandbox_heap(ptr, sz));
-    ThreadAlloc::get().dealloc(ptr);
+    snmalloc::dealloc(ptr);
   };
   auto check_with_sb = [&](Sandbox& sb) {
     // Check with a range of sizes

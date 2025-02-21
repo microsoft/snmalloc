@@ -109,10 +109,10 @@ The additional meta-data size in snmalloc 0.6 was fixed and under a cache line i
 In snmalloc 0.7, we have made this meta-data size configurable.
 This allows developers to build new security features on top of snmalloc.
 
-For instance, building snmalloc with the following definition of `Alloc` will allow you to store a 64-bit counter for each allocation:
+For instance, building snmalloc with the following definition of `Config` will allow you to store a 64-bit counter for each allocation:
 ```cpp
-  using Alloc = snmalloc::LocalAllocator<snmalloc::StandardConfigClientMeta<
-    ArrayClientMetaDataProvider<std::atomic<size_t>>>>;
+  using Config = snmalloc::StandardConfigClientMeta<
+    ArrayClientMetaDataProvider<std::atomic<size_t>>>;
 ```
 
 This does not affect the underlying alignment of the allocations.

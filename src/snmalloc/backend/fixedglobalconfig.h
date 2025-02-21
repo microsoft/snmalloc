@@ -41,7 +41,7 @@ namespace snmalloc
   public:
     using LocalState = StandardLocalState<PAL, Pagemap>;
 
-    using GlobalPoolState = PoolState<CoreAllocator<FixedRangeConfig>>;
+    using GlobalPoolState = PoolState<Allocator<FixedRangeConfig>>;
 
     using Backend =
       BackendAllocator<PAL, PagemapEntry, Pagemap, Authmap, LocalState>;
@@ -74,15 +74,6 @@ namespace snmalloc
       opts.HasDomesticate = true;
       return opts;
     }();
-
-    // This needs to be a forward reference as the
-    // thread local state will need to know about this.
-    // This may allocate, so must be called once a thread
-    // local allocator exists.
-    static void register_clean_up()
-    {
-      snmalloc::register_clean_up();
-    }
 
     static void init(LocalState* local_state, void* base, size_t length)
     {

@@ -574,22 +574,9 @@ endif()
   endif()
 
   if (SNMALLOC_BUILD_TESTING)
-    if (WIN32
-    OR (CMAKE_SYSTEM_NAME STREQUAL NetBSD)
-    OR (CMAKE_SYSTEM_NAME STREQUAL OpenBSD)
-    OR (CMAKE_SYSTEM_NAME STREQUAL SunOS))
-    # Windows does not support aligned allocation well enough
-    # for pass through.
-    # NetBSD, OpenBSD and DragonFlyBSD do not support malloc*size calls.
-      set(FLAVOURS fast;check)
-    else()
-      set(FLAVOURS fast;check;malloc)
-    endif()
+    set(FLAVOURS fast;check)
 
     foreach(FLAVOUR ${FLAVOURS})
-      if (${FLAVOUR} STREQUAL "malloc")
-        set(DEFINES SNMALLOC_PASS_THROUGH)
-      endif()
       if (${FLAVOUR} STREQUAL "check")
         set(DEFINES SNMALLOC_CHECK_CLIENT)
       endif()

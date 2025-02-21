@@ -8,6 +8,8 @@ We give here some notes on the internal orchestration.
 Consider a first, "small" allocation (typically less than a platform page); such allocations showcase more of the machinery.
 For simplicity, we assume that
 
+TODO CoreAllocator rewrite here:
+
 - this is not an `OPEN_ENCLAVE` build,
 - the `BackendAllocator` has not been told to use a `fixed_range`,
 - this is not a `SNMALLOC_CHECK_CLIENT` build, and

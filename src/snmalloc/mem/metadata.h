@@ -208,6 +208,15 @@ namespace snmalloc
     }
 
     /**
+     * Returns true if this memory is owned by snmalloc.  Some backend memory
+     * may return false, but all frontend memory will return true.
+     */
+    [[nodiscard]] SNMALLOC_FAST_PATH bool is_owned() const
+    {
+      return get_remote() != nullptr;
+    }
+
+    /**
      * Return the sizeclass.
      *
      * This can be called irrespective of whether the corresponding meta entry
@@ -421,7 +430,7 @@ namespace snmalloc
 
     /**
      * Flag that is used to indicate that the slab is currently not active.
-     * I.e. it is not in a CoreAllocator cache for the appropriate sizeclass.
+     * I.e. it is not in a Allocator cache for the appropriate sizeclass.
      */
     bool sleeping_ = false;
 
@@ -708,9 +717,8 @@ namespace snmalloc
      * Ensure that the template parameter is valid.
      */
     static_assert(
-      stl::is_convertible_v<SlabMetadataType, FrontendSlabMetadata_Trait>,
-      "The front end requires that the back end provides slab metadata that is "
-      "compatible with the front-end's structure");
+      stl::is_base_of_v<FrontendSlabMetadata_Trait, SlabMetadataType>,
+      "Template should be a subclass of FrontendSlabMetadata");
 
   public:
     using SlabMetadata = SlabMetadataType;

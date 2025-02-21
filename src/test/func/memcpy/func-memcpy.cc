@@ -19,12 +19,7 @@ int main()
 #  endif
 #  define SNMALLOC_FAIL_FAST false
 #  define SNMALLOC_STATIC_LIBRARY_PREFIX my_
-#  ifndef SNMALLOC_PASS_THROUGH
-#    include "snmalloc/override/malloc.cc"
-#  else
-#    define my_malloc(x) malloc(x)
-#    define my_free(x) free(x)
-#  endif
+#  include "snmalloc/override/malloc.cc"
 #  include "snmalloc/override/memcpy.cc"
 #  include "test/helpers.h"
 
@@ -150,9 +145,6 @@ void check_bounds(size_t size, size_t out_of_bounds)
 
 int main()
 {
-  // Skip the checks that expect bounds checks to fail when we are not the
-  // malloc implementation.
-#  if !defined(SNMALLOC_PASS_THROUGH)
   // Some sizes to check for out-of-bounds access.  As we are only able to
   // catch overflows past the end of the sizeclass-padded allocation, make
   // sure we don't try to test on smaller allocations.
@@ -173,7 +165,6 @@ int main()
     // Check one object out of bounds
     check_bounds(sz, sz);
   }
-#  endif
   for (size_t x = 0; x < 2048; x++)
   {
     check_size(x);

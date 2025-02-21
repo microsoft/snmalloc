@@ -37,46 +37,6 @@ void chatty(const char* p, ...)
 }
 
 /*
- * Interpret SNMALLOC_PASS_THROUGH ourselves to make this a bit more fair of a
- * comparison, since relying of snmalloc itself to do the passing through
- * results in it imposing its own idea of alignment onto the underlying
- * allocator, which might result in it taking less optimized paths.
- */
-#ifdef SNMALLOC_PASS_THROUGH
-struct MyAlloc
-{
-  MyAlloc() {}
-
-  void* alloc(size_t sz)
-  {
-    return malloc(sz);
-  }
-
-  void dealloc(void* p)
-  {
-    free(p);
-  }
-};
-#else
-struct MyAlloc
-{
-  snmalloc::Alloc& a;
-
-  MyAlloc() : a(ThreadAlloc::get()) {}
-
-  void* alloc(size_t sz)
-  {
-    return a.alloc(sz);
-  }
-
-  void dealloc(void* p)
-  {
-    a.dealloc(p);
-  }
-};
-#endif
-
-/*
  * FreeListMPSCQ make for convenient MPSC queues, so we use those for sending
  * "messages".  Each consumer or proxy has its own (source) queue.
  */
@@ -106,7 +66,6 @@ freelist::HeadPtr domesticate_nop(freelist::QueuePtr p)
 
 void consumer(const struct params* param, size_t qix)
 {
-  MyAlloc a{};
   auto& myq = param->msgqueue[qix];
 
   chatty("Cl %zu q is %p\n", qix, &myq);
@@ -115,16 +74,14 @@ void consumer(const struct params* param, size_t qix)
   {
     size_t reap = 0;
 
-    if (myq.can_dequeue(domesticate_nop, domesticate_nop))
+    if (myq.can_dequeue())
     {
       myq.dequeue(
-        domesticate_nop,
-        domesticate_nop,
-        [qix, &a, &reap](freelist::HeadPtr o) {
+        domesticate_nop, domesticate_nop, [qix, &reap](freelist::HeadPtr o) {
           UNUSED(qix);
           auto p = o.as_void().unsafe_ptr();
           chatty("Cl %zu free %p\n", qix, p);
-          a.dealloc(p);
+          snmalloc::dealloc(p);
           reap++;
           return true;
         });
@@ -141,11 +98,11 @@ void consumer(const struct params* param, size_t qix)
       chatty("Cl %zu reap %zu\n", qix, reap);
     }
 
-  } while (myq.can_dequeue(domesticate_nop, domesticate_nop) ||
-           producers_live || (queue_gate > param->N_CONSUMER));
+  } while (myq.can_dequeue() || producers_live ||
+           (queue_gate > param->N_CONSUMER));
 
   chatty("Cl %zu fini\n", qix);
-  a.dealloc(myq.destroy().unsafe_ptr());
+  snmalloc::dealloc(myq.destroy().unsafe_ptr());
 }
 
 void proxy(const struct params* param, size_t qix)
@@ -158,7 +115,7 @@ void proxy(const struct params* param, size_t qix)
   xoroshiro::p128r32 r(1234 + qix, qix);
   do
   {
-    if (myq.can_dequeue(domesticate_nop, domesticate_nop))
+    if (myq.can_dequeue())
     {
       myq.dequeue(
         domesticate_nop, domesticate_nop, [qs, qix, &r](freelist::HeadPtr o) {
@@ -173,18 +130,16 @@ void proxy(const struct params* param, size_t qix)
     }
 
     std::this_thread::yield();
-  } while (myq.can_dequeue(domesticate_nop, domesticate_nop) ||
-           producers_live || (queue_gate > qix + 1));
+  } while (myq.can_dequeue() || producers_live || (queue_gate > qix + 1));
 
   chatty("Px %zu fini\n", qix);
 
-  MyAlloc().dealloc(myq.destroy().unsafe_ptr());
+  snmalloc::dealloc(myq.destroy().unsafe_ptr());
   queue_gate--;
 }
 
 void producer(const struct params* param, size_t pix)
 {
-  MyAlloc a{};
   static constexpr size_t msgsizes[] = {48, 64, 96, 128};
   static constexpr size_t nmsgsizes = sizeof(msgsizes) / sizeof(msgsizes[0]);
 
@@ -206,7 +161,7 @@ void producer(const struct params* param, size_t pix)
     /* Allocate batch and form list */
     for (size_t msgix = 0; msgix < nmsg; msgix++)
     {
-      auto msg = a.alloc(msgsize);
+      auto msg = snmalloc::alloc(msgsize);
       chatty("Pd %zu make %p\n", pix, msg);
 
       auto msgc = capptr::Alloc<void>::unsafe_from(msg)

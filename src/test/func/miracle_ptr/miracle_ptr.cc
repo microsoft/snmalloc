@@ -25,8 +25,8 @@ namespace snmalloc
 {
   // Instantiate the allocator with a client meta data provider that uses an
   // atomic size_t to store the reference count.
-  using Alloc = snmalloc::LocalAllocator<snmalloc::StandardConfigClientMeta<
-    ArrayClientMetaDataProvider<std::atomic<size_t>>>>;
+  using Config = snmalloc::StandardConfigClientMeta<
+    ArrayClientMetaDataProvider<std::atomic<size_t>>>;
 }
 
 #  define SNMALLOC_PROVIDE_OWN_CONFIG
@@ -58,7 +58,7 @@ namespace snmalloc::miracle
     if (SNMALLOC_UNLIKELY(p == nullptr))
       return nullptr;
 
-    snmalloc::libc::get_client_meta_data(p) = 1;
+    snmalloc::get_client_meta_data(p) = 1;
     return p;
   }
 
@@ -68,8 +68,7 @@ namespace snmalloc::miracle
       return;
 
     // TODO could build a check into this that it is the start of the object?
-    auto previous =
-      snmalloc::libc::get_client_meta_data(ptr).fetch_add((size_t)-1);
+    auto previous = snmalloc::get_client_meta_data(ptr).fetch_add((size_t)-1);
 
     if (SNMALLOC_LIKELY(previous == 1))
     {
@@ -88,8 +87,7 @@ namespace snmalloc::miracle
 
   inline void acquire(void* p)
   {
-    auto previous =
-      snmalloc::libc::get_client_meta_data(p).fetch_add((size_t)2);
+    auto previous = snmalloc::get_client_meta_data(p).fetch_add((size_t)2);
 
     // Can we take new pointers to a deallocated object?
     check((previous & 1) == 1, "Acquiring a deallocated object");
@@ -97,8 +95,7 @@ namespace snmalloc::miracle
 
   inline void release(void* p)
   {
-    auto previous =
-      snmalloc::libc::get_client_meta_data(p).fetch_add((size_t)-2);
+    auto previous = snmalloc::get_client_meta_data(p).fetch_add((size_t)-2);
 
     if (previous > 2)
       return;
@@ -185,7 +182,6 @@ void operator delete(void* p, size_t)
 
 int main()
 {
-#  ifndef SNMALLOC_PASS_THROUGH
   snmalloc::miracle::raw_ptr<int> p;
   {
     auto up1 = std::make_unique<int>(41);
@@ -199,7 +195,6 @@ int main()
   // raw_ptr has kept the memory live.
   // Current implementation zeros the memory when the unique_ptr is destroyed.
   check(*p == 0, "Failed to keep memory live");
-#  endif
   return 0;
 }
 #endif

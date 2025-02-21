@@ -4,9 +4,6 @@
 
 namespace snmalloc
 {
-  // Forward reference to thread local cleanup.
-  void register_clean_up();
-
   /**
    * Options for a specific snmalloc configuration.  Every globals object must
    * have one `constexpr` instance of this class called `Options`.  This should

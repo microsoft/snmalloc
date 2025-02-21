@@ -33,21 +33,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
   }
   const auto alloc_size = our_malloc_usable_size(p);
   auto expected_size = our_malloc_good_size(size);
-#ifdef SNMALLOC_PASS_THROUGH
-  // Calling system allocator may allocate a larger block than
-  // snmalloc. Note, we have called the system allocator with
-  // the size snmalloc would allocate, so it won't be smaller.
-  const auto exact_size = false;
-  // We allocate MIN_ALLOC_SIZE byte for 0-sized allocations (and so round_size
-  // will tell us that the minimum size is MIN_ALLOC_SIZE), but the system
-  // allocator may return a 0-sized allocation.
-  if (size == 0)
-  {
-    expected_size = 0;
-  }
-#else
   const auto exact_size = align == 1;
-#endif
 #ifdef __CHERI_PURE_CAPABILITY__
   const auto cheri_size = __builtin_cheri_length_get(p);
   if (cheri_size != alloc_size && (size != 0))
@@ -376,6 +362,6 @@ int main(int argc, char** argv)
     our_malloc_usable_size(nullptr) == 0,
     "malloc_usable_size(nullptr) should be zero");
 
-  snmalloc::debug_check_empty<snmalloc::Alloc::Config>();
+  snmalloc::debug_check_empty();
   return 0;
 }

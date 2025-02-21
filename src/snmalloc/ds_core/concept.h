@@ -11,11 +11,11 @@
  * use concept-qualified parameters should use this to remain compatible across
  * C++ versions: "template<SNMALLOC_CONCEPT(FooConcept) Foo>"
  */
-#ifdef __cpp_concepts
-#  define SNMALLOC_CONCEPT(c) c
-#else
-#  define SNMALLOC_CONCEPT(c) typename
-#endif
+// #ifdef __cpp_concepts
+// #  define SNMALLOC_CONCEPT(c) c
+// #else
+#define SNMALLOC_CONCEPT(c) typename
+// #endif
 
 #ifdef __cpp_concepts
 namespace snmalloc

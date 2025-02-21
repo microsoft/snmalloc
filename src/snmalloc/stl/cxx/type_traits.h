@@ -13,19 +13,14 @@ namespace snmalloc
     using std::bool_constant;
     using std::conditional;
     using std::conditional_t;
-    using std::decay;
-    using std::decay_t;
     using std::enable_if;
     using std::enable_if_t;
     using std::false_type;
     using std::has_unique_object_representations_v;
     using std::integral_constant;
-    using std::is_array_v;
     using std::is_base_of_v;
-    using std::is_convertible_v;
     using std::is_copy_assignable_v;
     using std::is_copy_constructible_v;
-    using std::is_function_v;
     using std::is_integral;
     using std::is_integral_v;
     using std::is_move_assignable_v;
@@ -37,7 +32,6 @@ namespace snmalloc
     using std::remove_const_t;
     using std::remove_cv;
     using std::remove_cv_t;
-    using std::remove_extent_t;
     using std::remove_reference;
     using std::remove_reference_t;
     using std::true_type;

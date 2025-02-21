@@ -20,7 +20,7 @@ These are arranged in a hierarchy such that each of the directories may include 
    This includes data structures such as pagemap implementations (efficient maps from a chunk address to associated metadata) and buddy allocators for managing address-space ranges.
  - `backend/` provides some example implementations for snmalloc embeddings that provide a global memory allocator for an address space.
    Users may ignore this entirely and use the types in `mem/` with a custom back end to expose an snmalloc instance with specific behaviour.
-   Layers above this can be used with a custom configuration by defining `SNMALLOC_PROVIDE_OWN_CONFIG` and exporting a type as `snmalloc::Alloc` that defines the type of an `snmalloc::LocalAllocator` template specialisation.
+   Layers above this can be used with a custom configuration by defining `SNMALLOC_PROVIDE_OWN_CONFIG` and exporting a type as `snmalloc::Config` that defines the configuration.
  - `global/` provides some front-end components that assume that snmalloc is available in a global configuration.
  - `override/` builds on top of `global/` to provide specific implementations with compatibility with external specifications (for example C `malloc`, C++ `operator new`, jemalloc's `*allocx`, or Rust's `std::alloc`).
 
