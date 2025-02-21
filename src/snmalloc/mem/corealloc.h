@@ -1,7 +1,8 @@
 #pragma once
 
 #include "../ds/ds.h"
-#include "localcache.h"
+#include "check_init.h"
+#include "freelist.h"
 #include "metadata.h"
 #include "pool.h"
 #include "remotecache.h"
@@ -10,22 +11,54 @@
 #include "snmalloc/stl/new.h"
 #include "ticker.h"
 
+#if defined(_MSC_VER)
+#  define ALLOCATOR __declspec(allocator) __declspec(restrict)
+#elif __has_attribute(malloc)
+#  define ALLOCATOR __attribute__((malloc))
+#else
+#  define ALLOCATOR
+#endif
+
 namespace snmalloc
 {
+  inline static SNMALLOC_FAST_PATH capptr::Alloc<void>
+  finish_alloc_no_zero(freelist::HeadPtr p, smallsizeclass_t sizeclass)
+  {
+    SNMALLOC_ASSERT(is_start_of_object(
+      sizeclass_t::from_small_class(sizeclass), address_cast(p)));
+    UNUSED(sizeclass);
+
+    return p.as_void();
+  }
+
+  template<ZeroMem zero_mem, typename Config>
+  inline static SNMALLOC_FAST_PATH capptr::Alloc<void>
+  finish_alloc(freelist::HeadPtr p, smallsizeclass_t sizeclass)
+  {
+    auto r = finish_alloc_no_zero(p, sizeclass);
+
+    if constexpr (zero_mem == YesZero)
+      Config::Pal::zero(r.unsafe_ptr(), sizeclass_to_size(sizeclass));
+
+    // TODO: Should this be zeroing the free Object state, in the non-zeroing
+    // case?
+
+    return r;
+  }
+
   /**
-   * The core, stateful, part of a memory allocator.  Each `LocalAllocator`
-   * owns one `CoreAllocator` once it is initialised.
+   * The core, stateful, part of a memory allocator.
    *
    * The template parameter provides all of the global configuration for this
    * instantiation of snmalloc.  This includes three options that apply to this
    * class:
    *
-   * - `CoreAllocIsPoolAllocated` defines whether this `CoreAlloc`
+   * - `CoreAllocIsPoolAllocated` defines whether this `Allocator`
    *   configuration should support pool allocation.  This defaults to true but
    *   a configuration that allocates allocators eagerly may opt out.
-   * - `CoreAllocOwnsLocalState` defines whether the `CoreAllocator` owns the
+   * - `CoreAllocOwnsLocalState` defines whether the `Allocator` owns the
    *   associated `LocalState` object.  If this is true (the default) then
-   *   `CoreAllocator` embeds the LocalState object.  If this is set to false
+   *   `Allocator` embeds the LocalState object.  If this is set to false
    *   then a `LocalState` object must be provided to the constructor.  This
    *   allows external code to provide explicit configuration of the address
    *   range managed by this object.
@@ -34,15 +67,16 @@ namespace snmalloc
    *   provided externally, then it must be set explicitly with
    *   `init_message_queue`.
    */
-  template<SNMALLOC_CONCEPT(IsConfigLazy) Config>
-  class CoreAllocator : public stl::conditional_t<
-                          Config::Options.CoreAllocIsPoolAllocated,
-                          Pooled<CoreAllocator<Config>>,
-                          Empty>
+  template<SNMALLOC_CONCEPT(IsConfigLazy) Config_>
+  class Allocator : public stl::conditional_t<
+                      Config_::Options.CoreAllocIsPoolAllocated,
+                      Pooled<Allocator<Config_>>,
+                      Empty>
   {
-    template<SNMALLOC_CONCEPT(IsConfig)>
-    friend class LocalAllocator;
+  public:
+    using Config = Config_;
 
+  private:
     /**
      * Define local names for specialised versions of various types that are
      * specialised for the back-end that we are using.
@@ -52,6 +86,16 @@ namespace snmalloc
     using PagemapEntry = typename Config::PagemapEntry;
 
     /// }@
+
+    // Free list per small size class.  These are used for
+    // allocation on the fast path. This part of the code is inspired by
+    // mimalloc.
+    freelist::Iter<> small_fast_free_lists[NUM_SMALL_SIZECLASSES] = {};
+
+    /**
+     * Remote deallocations for other threads
+     */
+    RemoteDeallocCache<Config> remote_dealloc_cache;
 
     /**
      * Per size class list of active slabs for this allocator.
@@ -102,12 +146,6 @@ namespace snmalloc
       LocalState,
       LocalState*>
       backend_state;
-
-    /**
-     * This is the thread local structure associated to this
-     * allocator.
-     */
-    LocalCache<Config>* attached_cache;
 
     /**
      * Ticker to query the clock regularly at a lower cost.
@@ -576,15 +614,12 @@ namespace snmalloc
         freelist::Object::key_root,
         entry.get_slab_metadata()->as_key_tweak(),
         domesticate);
-      if (
-        !need_post &&
-        !attached_cache->remote_dealloc_cache.reserve_space(entry, nelem))
+      if (!need_post && !remote_dealloc_cache.reserve_space(entry, nelem))
       {
         need_post = true;
       }
-      attached_cache->remote_dealloc_cache
-        .template forward<sizeof(CoreAllocator)>(
-          entry.get_remote()->trunc_id(), msg);
+      remote_dealloc_cache.template forward<sizeof(Allocator)>(
+        entry.get_remote()->trunc_id(), msg);
     }
 
     /**
@@ -592,17 +627,29 @@ namespace snmalloc
      * configurations.
      *
      * spare is the amount of space directly after the allocator that is
-     * reserved as meta-data, but is not required by this CoreAllocator.
+     * reserved as meta-data, but is not required by this Allocator.
      */
-    void init(Range<capptr::bounds::Alloc>& spare)
+    void init()
     {
 #ifdef SNMALLOC_TRACING
       message<1024>("Making an allocator.");
 #endif
+
       // Entropy must be first, so that all data-structures can use the key
       // it generates.
       // This must occur before any freelists are constructed.
       entropy.init<typename Config::Pal>();
+
+      // Ignoring stats for now.
+      //      stats().start();
+
+      // Initialise the remote cache
+      remote_dealloc_cache.init();
+    }
+
+    void init(Range<capptr::bounds::Alloc>& spare)
+    {
+      init();
 
       if (spare.length != 0)
       {
@@ -617,10 +664,10 @@ namespace snmalloc
         Config::Backend::dealloc_meta_data(
           get_backend_local_state(), spare.base, spare.length);
       }
-
-      // Ignoring stats for now.
-      //      stats().start();
     }
+
+    friend class ThreadAlloc;
+    constexpr Allocator(bool){};
 
   public:
     /**
@@ -628,12 +675,12 @@ namespace snmalloc
      * SFINAE disabled if the allocator does not own the local state.
      *
      * spare is the amount of space directly after the allocator that is
-     * reserved as meta-data, but is not required by this CoreAllocator.
+     * reserved as meta-data, but is not required by this Allocator.
      */
     template<
-      typename Config_ = Config,
-      typename = stl::enable_if_t<Config_::Options.CoreAllocOwnsLocalState>>
-    CoreAllocator(Range<capptr::bounds::Alloc>& spare)
+      typename Config__ = Config,
+      typename = stl::enable_if_t<Config__::Options.CoreAllocOwnsLocalState>>
+    Allocator(Range<capptr::bounds::Alloc>& spare)
     {
       init(spare);
     }
@@ -643,18 +690,24 @@ namespace snmalloc
      * state. SFINAE disabled if the allocator does own the local state.
      *
      * spare is the amount of space directly after the allocator that is
-     * reserved as meta-data, but is not required by this CoreAllocator.
+     * reserved as meta-data, but is not required by this Allocator.
      */
     template<
-      typename Config_ = Config,
-      typename = stl::enable_if_t<!Config_::Options.CoreAllocOwnsLocalState>>
-    CoreAllocator(
-      Range<capptr::bounds::Alloc>& spare,
-      LocalCache<Config_>* cache,
-      LocalState* backend = nullptr)
-    : backend_state(backend), attached_cache(cache)
+      typename Config__ = Config,
+      typename = stl::enable_if_t<!Config__::Options.CoreAllocOwnsLocalState>>
+    Allocator(
+      Range<capptr::bounds::Alloc>& spare, LocalState* backend = nullptr)
+    : backend_state(backend)
     {
       init(spare);
+    }
+
+    template<
+      typename Config__ = Config,
+      typename = stl::enable_if_t<Config__::Options.CoreAllocOwnsLocalState>>
+    Allocator()
+    {
+      init();
     }
 
     /**
@@ -677,9 +730,8 @@ namespace snmalloc
     {
       // stats().remote_post();  // TODO queue not in line!
       bool sent_something =
-        attached_cache->remote_dealloc_cache
-          .template post<sizeof(CoreAllocator)>(
-            backend_state_ptr(), public_state()->trunc_id());
+        remote_dealloc_cache.template post<sizeof(Allocator)>(
+          backend_state_ptr(), public_state()->trunc_id());
 
       return sent_something;
     }
@@ -906,6 +958,21 @@ namespace snmalloc
       return ticker.check_tick(r);
     }
 
+    template<ZeroMem zero_mem, typename Slowpath, typename Domesticator>
+    SNMALLOC_FAST_PATH capptr::Alloc<void>
+    alloc(Domesticator domesticate, size_t size, Slowpath slowpath)
+    {
+      auto& key = freelist::Object::key_root;
+      smallsizeclass_t sizeclass = size_to_sizeclass(size);
+      auto& fl = small_fast_free_lists[sizeclass];
+      if (SNMALLOC_LIKELY(!fl.empty()))
+      {
+        auto p = fl.take(key, domesticate);
+        return finish_alloc<zero_mem, Config>(p, sizeclass);
+      }
+      return slowpath(sizeclass, &fl);
+    }
+
     /**
      * Flush the cached state and delayed deallocations
      *
@@ -913,7 +980,6 @@ namespace snmalloc
      */
     bool flush(bool destroy_queue = false)
     {
-      SNMALLOC_ASSERT(attached_cache != nullptr);
       auto local_state = backend_state_ptr();
       auto domesticate = [local_state](freelist::QueuePtr p)
                            SNMALLOC_FAST_PATH_LAMBDA {
@@ -943,9 +1009,23 @@ namespace snmalloc
           handle_message_queue([]() {});
       }
 
-      auto posted = attached_cache->template flush<sizeof(CoreAllocator)>(
-        backend_state_ptr(),
-        [&](capptr::Alloc<void> p) { dealloc_local_object(p); });
+      auto& key = freelist::Object::key_root;
+
+      for (size_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
+      {
+        // TODO could optimise this, to return the whole list in one append
+        // call.
+        while (!small_fast_free_lists[i].empty())
+        {
+          auto p = small_fast_free_lists[i].take(key, domesticate);
+          SNMALLOC_ASSERT(is_start_of_object(
+            sizeclass_t::from_small_class(i), address_cast(p)));
+          dealloc_local_object(p.as_void());
+        }
+      }
+
+      auto posted = remote_dealloc_cache.template post<sizeof(Allocator)>(
+        local_state, get_trunc_id());
 
       // We may now have unused slabs, return to the global allocator.
       for (smallsizeclass_t sizeclass = 0; sizeclass < NUM_SMALL_SIZECLASSES;
@@ -963,34 +1043,280 @@ namespace snmalloc
           }
         });
 
+      // Set the remote_dealloc_cache to immediately slow path.
+      remote_dealloc_cache.capacity = 0;
+
       return posted;
     }
 
-    // This allows the caching layer to be attached to an underlying
-    // allocator instance.
-    void attach(LocalCache<Config>* c)
+    /**
+     * Allocation that are larger than are handled by the fast allocator must be
+     * passed to the core allocator.
+     */
+    template<ZeroMem zero_mem, typename CheckInit>
+    SNMALLOC_SLOW_PATH capptr::Alloc<void> alloc_not_small(size_t size)
     {
+      if (size == 0)
+      {
+        // Deal with alloc zero of with a small object here.
+        // Alternative semantics giving nullptr is also allowed by the
+        // standard.
+        return small_alloc<NoZero, CheckInit>(1);
+      }
+
+      auto fast_path = [this, size]() {
+        if (size > bits::one_at_bit(bits::BITS - 1))
+        {
+          // Cannot allocate something that is more that half the size of the
+          // address space
+          errno = ENOMEM;
+          return capptr::Alloc<void>{nullptr};
+        }
+
+        // Check if secondary allocator wants to offer the memory
+        void* result =
+          SecondaryAllocator::allocate([size]() -> stl::Pair<size_t, size_t> {
+            return {size, natural_alignment(size)};
+          });
+        if (result != nullptr)
+          return capptr::Alloc<void>::unsafe_from(result);
+
+        // Grab slab of correct size
+        // Set remote as large allocator remote.
+        auto [chunk, meta] = Config::Backend::alloc_chunk(
+          get_backend_local_state(),
+          large_size_to_chunk_size(size),
+          PagemapEntry::encode(public_state(), size_to_sizeclass_full(size)),
+          size_to_sizeclass_full(size));
+        // set up meta data so sizeclass is correct, and hence alloc size, and
+        // external pointer.
 #ifdef SNMALLOC_TRACING
-      message<1024>("Attach cache to {}", this);
+        message<1024>("size {} pow2size {}", size, bits::next_pow2_bits(size));
 #endif
-      attached_cache = c;
 
-      // Set up secrets.
-      c->entropy = entropy;
+        // Initialise meta data for a successful large allocation.
+        if (meta != nullptr)
+        {
+          meta->initialise_large(
+            address_cast(chunk), freelist::Object::key_root);
+          laden.insert(meta);
+        }
 
-      // Set up remote allocator.
-      c->remote_allocator = public_state();
+        if (zero_mem == YesZero && chunk.unsafe_ptr() != nullptr)
+        {
+          Config::Pal::template zero<false>(
+            chunk.unsafe_ptr(), bits::next_pow2(size));
+        }
 
-      // Set up remote cache.
-      c->remote_dealloc_cache.init();
+        return capptr_chunk_is_alloc(capptr_to_user_address_control(chunk));
+      };
+
+      return CheckInit::check_init(
+        fast_path,
+        [](Allocator* a, size_t size) {
+          return a->alloc_not_small<zero_mem, CheckInitDefault>(size);
+        },
+        size);
+    }
+
+    template<ZeroMem zero_mem, typename CheckInit>
+    SNMALLOC_FAST_PATH capptr::Alloc<void> small_alloc(size_t size)
+    {
+      auto domesticate =
+        [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+          return capptr_domesticate<Config>(backend_state_ptr(), p);
+        };
+      auto slowpath =
+        [&](smallsizeclass_t sizeclass, freelist::Iter<>* fl)
+          SNMALLOC_FAST_PATH_LAMBDA {
+            return CheckInit::check_init(
+              [this, sizeclass, fl]() {
+                return handle_message_queue(
+                  [](
+                    Allocator* alloc,
+                    smallsizeclass_t sizeclass,
+                    freelist::Iter<>* fl) {
+                    return alloc->small_alloc<zero_mem>(sizeclass, *fl);
+                  },
+                  this,
+                  sizeclass,
+                  fl);
+              },
+              [](Allocator* a, smallsizeclass_t sizeclass) {
+                return a->template small_alloc<zero_mem, CheckInit>(
+                  sizeclass_to_size(sizeclass));
+              },
+              sizeclass);
+          };
+      return alloc<zero_mem>(domesticate, size, slowpath);
     }
 
     /**
-     * Performs the work of checking if empty under the assumption that
-     * a local cache has been attached.
+     * Slow path for deallocation we do not have space for this remote
+     * deallocation. This could be because,
+     *   - we actually don't have space for this remote deallocation,
+     *     and need to send them on; or
+     *   - the allocator was not already initialised.
+     * In the second case we need to recheck if this is a remote deallocation,
+     * as we might acquire the originating allocator.
      */
-    bool debug_is_empty_impl(bool* result)
+    template<typename CheckInit>
+    SNMALLOC_SLOW_PATH void
+    dealloc_remote_slow(const PagemapEntry& entry, capptr::Alloc<void> p)
     {
+      CheckInit::check_init(
+        [this, &entry, p]() {
+#ifdef SNMALLOC_TRACING
+          message<1024>(
+            "Remote dealloc post {} ({}, {})",
+            p.unsafe_ptr(),
+            sizeclass_full_to_size(entry.get_sizeclass()),
+            address_cast(entry.get_slab_metadata()));
+#endif
+          remote_dealloc_cache.template dealloc<sizeof(Allocator)>(
+            entry.get_slab_metadata(), p, &entropy);
+
+          post();
+        },
+        [](Allocator* a, void* p) {
+          // Recheck what kind of dealloc we should do in case the allocator we
+          // get from lazy_init is the originating allocator.  (TODO: but note
+          // that this can't suddenly become a large deallocation; the only
+          // distinction is between being ours to handle and something to post
+          // to a Remote.)
+          a->dealloc(p); // TODO don't double count statistics
+        },
+        p.unsafe_ptr());
+    }
+
+    /**
+     * Allocate memory of a dynamically known size.
+     */
+    template<ZeroMem zero_mem = NoZero, typename CheckInit = CheckInitDefault>
+    SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
+    {
+      // Perform the - 1 on size, so that zero wraps around and ends up on
+      // slow path.
+      if (SNMALLOC_LIKELY(
+            (size - 1) <= (sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1) - 1)))
+      {
+        // Small allocations are more likely. Improve
+        // branch prediction by placing this case first.
+        return capptr_reveal(small_alloc<zero_mem, CheckInit>(size));
+      }
+
+      return capptr_reveal(alloc_not_small<zero_mem, CheckInit>(size));
+    }
+
+    template<typename CheckInit = CheckInitDefault>
+    SNMALLOC_FAST_PATH void dealloc(void* p_raw)
+    {
+#ifdef __CHERI_PURE_CAPABILITY__
+      /*
+       * On CHERI platforms, snap the provided pointer to its base, ignoring
+       * any client-provided offset, which may have taken the pointer out of
+       * bounds and so appear to designate a different object.  The base is
+       * is guaranteed by monotonicity either...
+       *  * to be within the bounds originally returned by alloc(), or
+       *  * one past the end (in which case, the capability length must be 0).
+       *
+       * Setting the offset does not trap on untagged capabilities, so the tag
+       * might be clear after this, as well.
+       *
+       * For a well-behaved client, this is a no-op: the base is already at the
+       * start of the allocation and so the offset is zero.
+       */
+      p_raw = __builtin_cheri_offset_set(p_raw, 0);
+#endif
+      capptr::AllocWild<void> p_wild =
+        capptr_from_client(const_cast<void*>(p_raw));
+      auto p_tame = capptr_domesticate<Config>(backend_state_ptr(), p_wild);
+      const PagemapEntry& entry =
+        Config::Backend::get_metaentry(address_cast(p_tame));
+
+      /*
+       * p_tame may be nullptr, even if p_raw/p_wild are not, in the case
+       * where domestication fails.  We exclusively use p_tame below so that
+       * such failures become no ops; in the nullptr path, which should be
+       * well off the fast path, we could be slightly more aggressive and test
+       * that p_raw is also nullptr and Pal::error() if not. (TODO)
+       *
+       * We do not rely on the bounds-checking ability of domestication here,
+       * and just check the address (and, on other architectures, perhaps
+       * well-formedness) of this pointer.  The remainder of the logic will
+       * deal with the object's extent.
+       */
+      if (SNMALLOC_LIKELY(public_state() == entry.get_remote()))
+      {
+        dealloc_cheri_checks(p_tame.unsafe_ptr());
+        dealloc_local_object(p_tame, entry);
+        return;
+      }
+
+      dealloc_remote<CheckInit>(entry, p_tame);
+    }
+
+    template<typename CheckInit>
+    SNMALLOC_FAST_PATH void
+    dealloc_remote(const PagemapEntry& entry, capptr::Alloc<void> p_tame)
+    {
+      if (SNMALLOC_LIKELY(entry.is_owned()))
+      {
+        dealloc_cheri_checks(p_tame.unsafe_ptr());
+
+        // Detect double free of large allocations here.
+        snmalloc_check_client(
+          mitigations(sanity_checks),
+          !entry.is_backend_owned(),
+          "Memory corruption detected");
+
+        // Check if we have space for the remote deallocation
+        if (SNMALLOC_LIKELY(remote_dealloc_cache.reserve_space(entry)))
+        {
+          remote_dealloc_cache.template dealloc<sizeof(Allocator)>(
+            entry.get_slab_metadata(), p_tame, &entropy);
+#ifdef SNMALLOC_TRACING
+          message<1024>(
+            "Remote dealloc fast {} ({}, {})",
+            address_cast(p_tame),
+            sizeclass_full_to_size(entry.get_sizeclass()),
+            address_cast(entry.get_slab_metadata()));
+#endif
+          return;
+        }
+
+        dealloc_remote_slow<CheckInit>(entry, p_tame);
+        return;
+      }
+
+      if (SNMALLOC_LIKELY(p_tame == nullptr))
+      {
+#ifdef SNMALLOC_TRACING
+        message<1024>("nullptr deallocation");
+#endif
+        return;
+      }
+
+      dealloc_cheri_checks(p_tame.unsafe_ptr());
+      SecondaryAllocator::deallocate(p_tame.unsafe_ptr());
+    }
+
+    /**
+     * If result parameter is non-null, then false is assigned into the
+     * the location pointed to by result if this allocator is non-empty.
+     *
+     * If result pointer is null, then this code raises a Pal::error on the
+     * particular check that fails, if any do fail.
+     *
+     * Do not run this while other thread could be deallocating as the
+     * message queue invariant is temporarily broken.
+     */
+    bool debug_is_empty(bool* result)
+    {
+#ifdef SNMALLOC_TRACING
+      message<1024>("debug_is_empty");
+#endif
+
       auto error = [&result](auto slab_metadata) {
         auto slab_interior =
           slab_metadata->get_slab_interior(freelist::Object::key_root);
@@ -1039,51 +1365,47 @@ namespace snmalloc
 #endif
       return sent_something;
     }
-
-    /**
-     * If result parameter is non-null, then false is assigned into the
-     * the location pointed to by result if this allocator is non-empty.
-     *
-     * If result pointer is null, then this code raises a Pal::error on the
-     * particular check that fails, if any do fail.
-     *
-     * Do not run this while other thread could be deallocating as the
-     * message queue invariant is temporarily broken.
-     */
-    bool debug_is_empty(bool* result)
-    {
-#ifdef SNMALLOC_TRACING
-      message<1024>("debug_is_empty");
-#endif
-      if (attached_cache == nullptr)
-      {
-        // We need a cache to perform some operations, so set one up
-        // temporarily
-        LocalCache<Config> temp(public_state());
-        attach(&temp);
-#ifdef SNMALLOC_TRACING
-        message<1024>("debug_is_empty - attach a cache");
-#endif
-        auto sent_something = debug_is_empty_impl(result);
-
-        // Remove cache from the allocator
-        flush();
-        attached_cache = nullptr;
-        return sent_something;
-      }
-
-      return debug_is_empty_impl(result);
-    }
   };
 
   template<typename Config>
-  class ConstructCoreAlloc
+  class ConstructAllocator
   {
-    using CA = CoreAllocator<Config>;
+    using CA = Allocator<Config>;
+
+    /**
+     * SFINAE helper.  Matched only if `T` implements `ensure_init`.  Calls it
+     * if it exists.
+     */
+    template<typename T>
+    static SNMALLOC_FAST_PATH auto call_ensure_init(T*, int)
+      -> decltype(T::ensure_init())
+    {
+      T::ensure_init();
+    }
+
+    /**
+     * SFINAE helper.  Matched only if `T` does not implement `ensure_init`.
+     * Does nothing if called.
+     */
+    template<typename T>
+    static SNMALLOC_FAST_PATH auto call_ensure_init(T*, long)
+    {}
+
+    /**
+     * Call `Config::ensure_init()` if it is implemented, do
+     * nothing otherwise.
+     */
+    SNMALLOC_FAST_PATH
+    static void ensure_config_init()
+    {
+      call_ensure_init<Config>(nullptr, 0);
+    }
 
   public:
     static capptr::Alloc<CA> make()
     {
+      ensure_config_init();
+
       size_t size = sizeof(CA);
       size_t round_sizeof = Aal::capptr_size_round(size);
       size_t request_size = bits::next_pow2(round_sizeof);
@@ -1114,5 +1436,5 @@ namespace snmalloc
    */
   template<typename Config>
   using AllocPool =
-    Pool<CoreAllocator<Config>, ConstructCoreAlloc<Config>, Config::pool>;
+    Pool<Allocator<Config>, ConstructAllocator<Config>, Config::pool>;
 } // namespace snmalloc

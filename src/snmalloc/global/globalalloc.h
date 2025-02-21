@@ -368,7 +368,7 @@ namespace snmalloc
 
   SNMALLOC_FAST_PATH_INLINE void debug_teardown()
   {
-    return ThreadAlloc::get().teardown();
+    return ThreadAlloc::teardown();
   }
 
   template<SNMALLOC_CONCEPT(IsConfig) Config = Config>
