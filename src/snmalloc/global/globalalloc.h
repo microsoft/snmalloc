@@ -5,17 +5,17 @@
 
 namespace snmalloc
 {
-  template<SNMALLOC_CONCEPT(IsConfig) Config = Config>
+  template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
   inline static void cleanup_unused()
   {
     static_assert(
-      Config::Options.CoreAllocIsPoolAllocated,
+      Config_::Options.CoreAllocIsPoolAllocated,
       "Global cleanup is available only for pool-allocated configurations");
     // Call this periodically to free and coalesce memory allocated by
     // allocators that are not currently in use by any thread.
     // One atomic operation to extract the stack, another to restore it.
     // Handling the message queue for each stack is non-atomic.
-    auto* first = AllocPool<Config>::extract();
+    auto* first = AllocPool<Config_>::extract();
     auto* alloc = first;
     decltype(alloc) last;
 
@@ -25,10 +25,10 @@ namespace snmalloc
       {
         alloc->flush();
         last = alloc;
-        alloc = AllocPool<Config>::extract(alloc);
+        alloc = AllocPool<Config_>::extract(alloc);
       }
 
-      AllocPool<Config>::restore(first, last);
+      AllocPool<Config_>::restore(first, last);
     }
   }
 
@@ -37,15 +37,15 @@ namespace snmalloc
     allocators are empty. If you don't pass a pointer to a bool, then will
     raise an error all the allocators are not empty.
    */
-  template<SNMALLOC_CONCEPT(IsConfig) Config = Config>
+  template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
   inline static void debug_check_empty(bool* result = nullptr)
   {
     static_assert(
-      Config::Options.CoreAllocIsPoolAllocated,
+      Config_::Options.CoreAllocIsPoolAllocated,
       "Global status is available only for pool-allocated configurations");
     // This is a debugging function. It checks that all memory from all
     // allocators has been freed.
-    auto* alloc = AllocPool<Config>::iterate();
+    auto* alloc = AllocPool<Config_>::iterate();
 
 #ifdef SNMALLOC_TRACING
     message<1024>("debug check empty: first {}", alloc);
@@ -59,7 +59,7 @@ namespace snmalloc
       message<1024>("debug_check_empty: Check all allocators!");
 #endif
       done = true;
-      alloc = AllocPool<Config>::iterate();
+      alloc = AllocPool<Config_>::iterate();
       okay = true;
 
       while (alloc != nullptr)
@@ -80,7 +80,7 @@ namespace snmalloc
 #ifdef SNMALLOC_TRACING
         message<1024>("debug check empty: okay = {}", okay);
 #endif
-        alloc = AllocPool<Config>::iterate(alloc);
+        alloc = AllocPool<Config_>::iterate(alloc);
       }
     }
 
@@ -93,22 +93,22 @@ namespace snmalloc
     // Redo check so abort is on allocator with allocation left.
     if (!okay)
     {
-      alloc = AllocPool<Config>::iterate();
+      alloc = AllocPool<Config_>::iterate();
       while (alloc != nullptr)
       {
         alloc->debug_is_empty(nullptr);
-        alloc = AllocPool<Config>::iterate(alloc);
+        alloc = AllocPool<Config_>::iterate(alloc);
       }
     }
   }
 
-  template<SNMALLOC_CONCEPT(IsConfig) Config = Config>
+  template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
   inline static void debug_in_use(size_t count)
   {
     static_assert(
-      Config::Options.CoreAllocIsPoolAllocated,
+      Config_::Options.CoreAllocIsPoolAllocated,
       "Global status is available only for pool-allocated configurations");
-    auto alloc = AllocPool<Config>::iterate();
+    auto alloc = AllocPool<Config_>::iterate();
     while (alloc != nullptr)
     {
       if (alloc->debug_is_in_use())
@@ -119,7 +119,7 @@ namespace snmalloc
         }
         count--;
       }
-      alloc = AllocPool<Config>::iterate(alloc);
+      alloc = AllocPool<Config_>::iterate(alloc);
 
       if (count != 0)
       {
@@ -134,10 +134,10 @@ namespace snmalloc
    * auto p = (char*)malloc(size)
    * remaining_bytes(p + n) == size - n     provided n < size
    */
-  template<SNMALLOC_CONCEPT(IsConfig) Config = Config>
+  template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
   size_t remaining_bytes(address_t p)
   {
-    const auto& entry = Config::Backend::template get_metaentry<true>(p);
+    const auto& entry = Config_::Backend::template get_metaentry<true>(p);
 
     auto sizeclass = entry.get_sizeclass();
     return snmalloc::remaining_bytes(sizeclass, p);
@@ -149,10 +149,10 @@ namespace snmalloc
    * auto p = (char*)malloc(size)
    * index_in_object(p + n) == n     provided n < size
    */
-  template<SNMALLOC_CONCEPT(IsConfig) Config = Config>
+  template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
   static inline size_t index_in_object(address_t p)
   {
-    const auto& entry = Config::Backend::template get_metaentry<true>(p);
+    const auto& entry = Config_::Backend::template get_metaentry<true>(p);
 
     auto sizeclass = entry.get_sizeclass();
     return snmalloc::index_in_object(sizeclass, p);
@@ -184,7 +184,7 @@ namespace snmalloc
    */
   template<
     Boundary location = Start,
-    SNMALLOC_CONCEPT(IsConfig) Config = Config>
+    SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
   inline static void* external_pointer(void* p)
   {
     /*
@@ -202,7 +202,7 @@ namespace snmalloc
      */
     if constexpr (location == Start)
     {
-      size_t index = index_in_object<Config>(address_cast(p));
+      size_t index = index_in_object<Config_>(address_cast(p));
       return pointer_offset(p, 0 - index);
     }
     else if constexpr (location == End)
@@ -219,10 +219,10 @@ namespace snmalloc
    * @brief Get the client meta data for the snmalloc allocation covering this
    * pointer.
    */
-  template<SNMALLOC_CONCEPT(IsConfig) Config = Config>
-  typename Config::ClientMeta::DataRef get_client_meta_data(void* p)
+  template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
+  typename Config_::ClientMeta::DataRef get_client_meta_data(void* p)
   {
-    const auto& entry = Config::Backend::get_metaentry(address_cast(p));
+    const auto& entry = Config_::Backend::get_metaentry(address_cast(p));
 
     size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
 
@@ -246,12 +246,12 @@ namespace snmalloc
    * @brief Get the client meta data for the snmalloc allocation covering this
    * pointer.
    */
-  template<SNMALLOC_CONCEPT(IsConfig) Config = Config>
-  stl::add_const_t<typename Config::ClientMeta::DataRef>
+  template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
+  stl::add_const_t<typename Config_::ClientMeta::DataRef>
   get_client_meta_data_const(void* p)
   {
     const auto& entry =
-      Config::Backend::template get_metaentry<true>(address_cast(p));
+      Config_::Backend::template get_metaentry<true>(address_cast(p));
 
     size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
 
@@ -259,8 +259,8 @@ namespace snmalloc
 
     if (SNMALLOC_UNLIKELY((meta_slab == nullptr) || (entry.is_backend_owned())))
     {
-      static typename Config::ClientMeta::StorageType null_meta_store{};
-      return Config::ClientMeta::get(&null_meta_store, 0);
+      static typename Config_::ClientMeta::StorageType null_meta_store{};
+      return Config_::ClientMeta::get(&null_meta_store, 0);
     }
 
     return meta_slab->get_meta_for_object(index);
@@ -272,11 +272,12 @@ namespace snmalloc
    *     mitigations(sanity_checks)
    * is enabled.
    */
+  template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
   SNMALLOC_FAST_PATH_INLINE void check_size(void* p, size_t size)
   {
     if constexpr (mitigations(sanity_checks))
     {
-      const auto& entry = Config::Backend::get_metaentry(address_cast(p));
+      const auto& entry = Config_::Backend::get_metaentry(address_cast(p));
       if (!entry.is_owned())
         return;
       size = size == 0 ? 1 : size;
@@ -295,10 +296,10 @@ namespace snmalloc
       UNUSED(p, size);
   }
 
-  template<SNMALLOC_CONCEPT(IsConfig) Config = Config>
+  template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
   SNMALLOC_FAST_PATH_INLINE size_t alloc_size(const void* p_raw)
   {
-    const auto& entry = Config::Backend::get_metaentry(address_cast(p_raw));
+    const auto& entry = Config_::Backend::get_metaentry(address_cast(p_raw));
 
     if (SNMALLOC_UNLIKELY(
           !SecondaryAllocator::pass_through && !entry.is_owned() &&
@@ -368,10 +369,10 @@ namespace snmalloc
     return ThreadAlloc::get().teardown();
   }
 
-  template<SNMALLOC_CONCEPT(IsConfig) Config = Config>
+  template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
   SNMALLOC_FAST_PATH_INLINE bool is_owned(void* p)
   {
-    const auto& entry = Config::Backend::get_metaentry(address_cast(p));
+    const auto& entry = Config_::Backend::get_metaentry(address_cast(p));
     return entry.is_owned();
   }
 } // namespace snmalloc
