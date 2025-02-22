@@ -214,10 +214,24 @@ namespace snmalloc
           addressof(val), 1, order(MemoryOrder::SEQ_CST));
       }
 
+      SNMALLOC_FAST_PATH T operator--()
+      {
+        static_assert(stl::is_integral_v<T>, "T must be an integral type.");
+        return __atomic_sub_fetch(
+          addressof(val), 1, order(MemoryOrder::SEQ_CST));
+      }
+
       SNMALLOC_FAST_PATH const T operator++(int)
       {
         static_assert(stl::is_integral_v<T>, "T must be an integral type.");
         return __atomic_fetch_add(
+          addressof(val), 1, order(MemoryOrder::SEQ_CST));
+      }
+
+      SNMALLOC_FAST_PATH const T operator--(int)
+      {
+        static_assert(stl::is_integral_v<T>, "T must be an integral type.");
+        return __atomic_fetch_sub(
           addressof(val), 1, order(MemoryOrder::SEQ_CST));
       }
 
