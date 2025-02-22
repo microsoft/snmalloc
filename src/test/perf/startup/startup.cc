@@ -77,8 +77,7 @@ int main()
   ParallelTest test(
     [](size_t id) {
       auto start = Aal::tick();
-      auto& alloc = snmalloc::ThreadAlloc::get();
-      alloc.dealloc(alloc.alloc(1));
+      snmalloc::dealloc(snmalloc::alloc(1));
       auto end = Aal::tick();
       counters[id] = end - start;
     },

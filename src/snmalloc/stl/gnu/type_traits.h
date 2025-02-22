@@ -232,90 +232,6 @@ namespace snmalloc
     using remove_reference_t = typename remove_reference<T>::type;
 
     /**
-     * add_pointer
-     */
-#if __has_builtin(__add_pointer)
-    template<class T>
-    using add_pointer_t = __add_pointer(T);
-#else
-    template<class T>
-    auto __add_pointer_impl(int) -> type_identity<remove_reference_t<T>*>;
-    template<class T>
-    auto __add_pointer_impl(...) -> type_identity<T>;
-
-    template<class T>
-    struct add_pointer : decltype(__add_pointer_impl<T>(0))
-    {};
-
-    template<class T>
-    using add_pointer_t = typename add_pointer<T>::type;
-#endif
-    /**
-     * is_array
-     */
-    template<class T>
-    inline constexpr bool is_array_v = __is_array(T);
-
-    /**
-     * is_function
-     */
-    template<typename T>
-    inline constexpr bool is_function_v = __is_function(T);
-
-    /**
-     * remove_extent
-     */
-
-#if __has_builtin(__remove_extent)
-    template<class T>
-    using remove_extent_t = __remove_extent(T);
-#else
-    template<class T>
-    struct remove_extent
-    {
-      using type = T;
-    };
-
-    template<class T>
-    struct remove_extent<T[]>
-    {
-      using type = T;
-    };
-
-    template<class T, size_t N>
-    struct remove_extent<T[N]>
-    {
-      using type = T;
-    };
-
-    template<class T>
-    using remove_extent_t = typename remove_extent<T>::type;
-#endif
-
-    /**
-     * decay
-     */
-#if __has_builtin(__decay)
-    template<class T>
-    using decay_t = __decay(T);
-#else
-    template<class T>
-    class decay
-    {
-      using U = remove_reference_t<T>;
-
-    public:
-      using type = conditional_t<
-        is_array_v<U>,
-        add_pointer_t<remove_extent_t<U>>,
-        conditional_t<is_function_v<U>, add_pointer_t<U>, remove_cv_t<U>>>;
-    };
-
-    template<class T>
-    using decay_t = typename decay<T>::type;
-#endif
-
-    /**
      * is_copy_assignable
      */
     template<class T>
@@ -342,12 +258,6 @@ namespace snmalloc
     template<class T>
     inline constexpr bool is_move_constructible_v =
       __is_constructible(T, add_rvalue_reference_t<T>);
-
-    /**
-     * is_convertible
-     */
-    template<class From, class To>
-    inline constexpr bool is_convertible_v = __is_convertible(From, To);
 
     /**
      * is_base_of

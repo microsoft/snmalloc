@@ -318,9 +318,6 @@ extern "C"
 
 int main()
 {
-#ifdef SNMALLOC_PASS_THROUGH
-  return 0;
-#endif
   check_lg_align_macro<63>();
   static_assert(
     OUR_MALLOCX_ZERO == MALLOCX_ZERO, "Our MALLOCX_ZERO macro is wrong");

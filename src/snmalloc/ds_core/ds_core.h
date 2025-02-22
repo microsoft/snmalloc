@@ -8,6 +8,7 @@
  */
 
 #include "bits.h"
+#include "cheri.h"
 #include "concept.h"
 #include "defines.h"
 #include "helpers.h"

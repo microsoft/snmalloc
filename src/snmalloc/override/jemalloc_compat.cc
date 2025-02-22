@@ -143,11 +143,11 @@ extern "C"
     }
     if (f.should_zero())
     {
-      *ptr = ThreadAlloc::get().alloc<ZeroMem::YesZero>(size);
+      *ptr = alloc<ZeroMem::YesZero>(size);
     }
     else
     {
-      *ptr = ThreadAlloc::get().alloc(size);
+      *ptr = alloc(size);
     }
     return (*ptr != nullptr) ? allocm_success : allocm_err_oom;
   }
@@ -164,12 +164,11 @@ extern "C"
     void** ptr, size_t* rsize, size_t size, size_t extra, int flags)
   {
     auto f = JEMallocFlags(flags);
-    auto alloc_size = f.aligned_size(size);
+    auto asize = f.aligned_size(size);
 
-    auto& a = ThreadAlloc::get();
-    size_t sz = a.alloc_size(*ptr);
+    size_t sz = alloc_size(*ptr);
     // Keep the current allocation if the given size is in the same sizeclass.
-    if (sz == round_size(alloc_size))
+    if (sz == round_size(asize))
     {
       if (rsize != nullptr)
       {
@@ -185,25 +184,24 @@ extern "C"
 
     if (SIZE_MAX - size > extra)
     {
-      alloc_size = f.aligned_size(size + extra);
+      asize = f.aligned_size(size + extra);
     }
 
-    void* p =
-      f.should_zero() ? a.alloc<YesZero>(alloc_size) : a.alloc(alloc_size);
+    void* p = f.should_zero() ? alloc<YesZero>(asize) : alloc(asize);
     if (SNMALLOC_LIKELY(p != nullptr))
     {
-      sz = bits::min(alloc_size, sz);
+      sz = bits::min(asize, sz);
       // Guard memcpy as GCC is assuming not nullptr for ptr after the memcpy
       // otherwise.
       if (sz != 0)
       {
         memcpy(p, *ptr, sz);
       }
-      a.dealloc(*ptr);
+      dealloc(*ptr);
       *ptr = p;
       if (rsize != nullptr)
       {
-        *rsize = alloc_size;
+        *rsize = asize;
       }
       return allocm_success;
     }
@@ -217,7 +215,7 @@ extern "C"
    */
   int SNMALLOC_NAME_MANGLE(sallocm)(const void* ptr, size_t* rsize, int)
   {
-    *rsize = ThreadAlloc::get().alloc_size(ptr);
+    *rsize = alloc_size(ptr);
     return allocm_success;
   }
 
@@ -228,7 +226,7 @@ extern "C"
    */
   int SNMALLOC_NAME_MANGLE(dallocm)(void* ptr, int)
   {
-    ThreadAlloc::get().dealloc(ptr);
+    dealloc(ptr);
     return allocm_success;
   }
 
@@ -257,9 +255,9 @@ extern "C"
     size = f.aligned_size(size);
     if (f.should_zero())
     {
-      return ThreadAlloc::get().alloc<ZeroMem::YesZero>(size);
+      return alloc<ZeroMem::YesZero>(size);
     }
-    return ThreadAlloc::get().alloc(size);
+    return alloc(size);
   }
 
   /**
@@ -274,8 +272,7 @@ extern "C"
     auto f = JEMallocFlags(flags);
     size = f.aligned_size(size);
 
-    auto& a = ThreadAlloc::get();
-    size_t sz = round_size(a.alloc_size(ptr));
+    size_t sz = round_size(alloc_size(ptr));
     // Keep the current allocation if the given size is in the same sizeclass.
     if (sz == size)
     {
@@ -292,7 +289,7 @@ extern "C"
     // allocations, because we get zeroed memory from the PAL and don't zero it
     // twice.  This is not profiled and so should be considered for refactoring
     // if anyone cares about the performance of these APIs.
-    void* p = f.should_zero() ? a.alloc<YesZero>(size) : a.alloc(size);
+    void* p = f.should_zero() ? alloc<YesZero>(size) : alloc(size);
     if (SNMALLOC_LIKELY(p != nullptr))
     {
       sz = bits::min(size, sz);
@@ -300,7 +297,7 @@ extern "C"
       // otherwise.
       if (sz != 0)
         memcpy(p, ptr, sz);
-      a.dealloc(ptr);
+      dealloc(ptr);
     }
     return p;
   }
@@ -313,8 +310,7 @@ extern "C"
    */
   size_t SNMALLOC_NAME_MANGLE(xallocx)(void* ptr, size_t, size_t, int)
   {
-    auto& a = ThreadAlloc::get();
-    return a.alloc_size(ptr);
+    return alloc_size(ptr);
   }
 
   /**
@@ -323,8 +319,7 @@ extern "C"
    */
   size_t SNMALLOC_NAME_MANGLE(sallocx)(const void* ptr, int)
   {
-    auto& a = ThreadAlloc::get();
-    return a.alloc_size(ptr);
+    return alloc_size(ptr);
   }
 
   /**
@@ -334,7 +329,7 @@ extern "C"
    */
   void SNMALLOC_NAME_MANGLE(dallocx)(void* ptr, int)
   {
-    ThreadAlloc::get().dealloc(ptr);
+    dealloc(ptr);
   }
 
   /**
@@ -347,7 +342,7 @@ extern "C"
    */
   void SNMALLOC_NAME_MANGLE(sdallocx)(void* ptr, size_t, int)
   {
-    ThreadAlloc::get().dealloc(ptr);
+    dealloc(ptr);
   }
 
   /**

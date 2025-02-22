@@ -1,6 +1,6 @@
 #include <iostream>
 
-#if defined(SNMALLOC_PASS_THROUGH) || !defined(__CHERI_PURE_CAPABILITY__)
+#if !defined(__CHERI_PURE_CAPABILITY__)
 // This test does not make sense in pass-through or w/o CHERI
 int main()
 {

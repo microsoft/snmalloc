@@ -52,7 +52,7 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(
         (address_cast(front.load()) == address_cast(&stub)) ||
-        (back != nullptr));
+        (back.load() != nullptr));
     }
 
     void init()

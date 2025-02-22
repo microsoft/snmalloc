@@ -109,7 +109,7 @@ extern "C"
 #if __has_include(<features.h>)
 #  include <features.h>
 #endif
-#if defined(__GLIBC__) && !defined(SNMALLOC_PASS_THROUGH)
+#if defined(__GLIBC__)
   // glibc uses these hooks to replace malloc.
   // This is required when RTL_DEEPBIND is used and the library is
   // LD_PRELOADed.
