@@ -129,17 +129,6 @@ namespace snmalloc
 
   using sizeclass_compress_t = uint8_t;
 
-  constexpr SNMALLOC_FAST_PATH static size_t
-  aligned_size(size_t alignment, size_t size)
-  {
-    // Client responsible for checking alignment is not zero
-    SNMALLOC_ASSERT(alignment != 0);
-    // Client responsible for checking alignment is a power of two
-    SNMALLOC_ASSERT(bits::is_pow2(alignment));
-
-    return ((alignment - 1) | (size - 1)) + 1;
-  }
-
   /**
    * This structure contains the fields required for fast paths for sizeclasses.
    */
@@ -534,5 +523,44 @@ namespace snmalloc
     if (size == 0)
       return 1;
     return bits::one_at_bit(bits::ctz(rsize));
+  }
+
+  constexpr SNMALLOC_FAST_PATH static size_t
+  aligned_size(size_t alignment, size_t size)
+  {
+    // Client responsible for checking alignment is not zero
+    SNMALLOC_ASSERT(alignment != 0);
+    // Client responsible for checking alignment is a power of two
+    SNMALLOC_ASSERT(bits::is_pow2(alignment));
+
+    // There are a class of corner cases to consider
+    //    alignment = 0x8
+    //    size = 0xfff...fff7
+    // for this result will be 0.  This should fail an allocation, so we need to
+    // check for this overflow.
+    // However,
+    //    alignment = 0x8
+    //    size      = 0x0
+    // will also result in 0, but this should be allowed to allocate.
+    // So we need to check for overflow, and return SIZE_MAX in this first case,
+    // and 0 in the second.
+    size_t result = ((alignment - 1) | (size - 1)) + 1;
+    // The following code is designed to fuse well with a subsequent
+    // sizeclass calculation.  We use the same fast path constant to
+    // move the case where result==0 to the slow path, and then check for which
+    // case we are in.
+    constexpr size_t SmallSizeClassUpperBound =
+      sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1) - 1;
+    if (SNMALLOC_LIKELY((result - 1) < SmallSizeClassUpperBound))
+      return result;
+
+    // We are in the slow path, so we need to check for overflow.
+    if (SNMALLOC_UNLIKELY(result == 0))
+    {
+      // Check for overflow and return the maximum size.
+      if (SNMALLOC_UNLIKELY(result < size))
+        return SIZE_MAX;
+    }
+    return result;
   }
 } // namespace snmalloc
