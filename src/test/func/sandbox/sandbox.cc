@@ -64,7 +64,7 @@ namespace
     using ExternalAlloc =
       Allocator<NoOpMemoryProvider, SNMALLOC_DEFAULT_CHUNKMAP, false>;
 
-    using ExternalAlloc = LocalAllocator<ExternalAlloc>;
+    using ExternalAlloc = Allocator<ExternalAlloc>;
 
     /**
      * Proxy class that forwards requests for large allocations to the real
