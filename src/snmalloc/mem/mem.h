@@ -4,8 +4,6 @@
 #include "corealloc.h"
 #include "entropy.h"
 #include "freelist.h"
-#include "localalloc.h"
-#include "localcache.h"
 #include "metadata.h"
 #include "pool.h"
 #include "pooled.h"

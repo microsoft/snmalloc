@@ -164,14 +164,14 @@ namespace snmalloc
     } &&
     (
                        requires() {
-                         Config::Options.CoreAllocIsPoolAllocated == true;
+                         Config::Options.AllocIsPoolAllocated == true;
                          typename Config::GlobalPoolState;
                          {
                            Config::pool()
                            } -> ConceptSame<typename Config::GlobalPoolState&>;
                        } ||
                        requires() {
-                         Config::Options.CoreAllocIsPoolAllocated == false;
+                         Config::Options.AllocIsPoolAllocated == false;
                        });
 
   /**

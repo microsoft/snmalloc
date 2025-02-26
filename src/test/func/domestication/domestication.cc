@@ -39,7 +39,7 @@ namespace snmalloc
 
     using LocalState = StandardLocalState<Pal, Pagemap, Base>;
 
-    using GlobalPoolState = PoolState<CoreAllocator<CustomConfig>>;
+    using GlobalPoolState = PoolState<Allocator<CustomConfig>>;
 
     using Backend =
       BackendAllocator<Pal, PagemapEntry, Pagemap, Authmap, LocalState>;
@@ -181,7 +181,8 @@ int main()
             << snmalloc::CustomConfig::domesticate_count << std::endl;
   // static constexpr size_t expected_count =
   //   snmalloc::CustomConfig::Options.QueueHeadsAreTame ? 5 : 6;
-  // SNMALLOC_CHECK(snmalloc::CustomConfig::domesticate_count == expected_count);
+  // SNMALLOC_CHECK(snmalloc::CustomConfig::domesticate_count ==
+  // expected_count);
 
   return 0;
 }

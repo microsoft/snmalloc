@@ -41,7 +41,7 @@ namespace snmalloc
   public:
     using LocalState = StandardLocalState<PAL, Pagemap>;
 
-    using GlobalPoolState = PoolState<CoreAllocator<FixedRangeConfig>>;
+    using GlobalPoolState = PoolState<Allocator<FixedRangeConfig>>;
 
     using Backend =
       BackendAllocator<PAL, PagemapEntry, Pagemap, Authmap, LocalState>;

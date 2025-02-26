@@ -9,7 +9,7 @@ namespace snmalloc
   inline static void cleanup_unused()
   {
     static_assert(
-      Config_::Options.CoreAllocIsPoolAllocated,
+      Config_::Options.AllocIsPoolAllocated,
       "Global cleanup is available only for pool-allocated configurations");
     // Call this periodically to free and coalesce memory allocated by
     // allocators that are not currently in use by any thread.
@@ -41,7 +41,7 @@ namespace snmalloc
   inline static void debug_check_empty(bool* result = nullptr)
   {
     static_assert(
-      Config_::Options.CoreAllocIsPoolAllocated,
+      Config_::Options.AllocIsPoolAllocated,
       "Global status is available only for pool-allocated configurations");
     // This is a debugging function. It checks that all memory from all
     // allocators has been freed.
@@ -106,7 +106,7 @@ namespace snmalloc
   inline static void debug_in_use(size_t count)
   {
     static_assert(
-      Config_::Options.CoreAllocIsPoolAllocated,
+      Config_::Options.AllocIsPoolAllocated,
       "Global status is available only for pool-allocated configurations");
     auto alloc = AllocPool<Config_>::iterate();
     while (alloc != nullptr)
@@ -369,7 +369,7 @@ namespace snmalloc
 
   SNMALLOC_FAST_PATH_INLINE void debug_teardown()
   {
-    return ThreadAlloc::get().teardown();
+    return ThreadAlloc::teardown();
   }
 
   template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
