@@ -12,7 +12,9 @@
  * C++ versions: "template<SNMALLOC_CONCEPT(FooConcept) Foo>"
  */
 #ifdef __cpp_concepts
-#  define SNMALLOC_CONCEPT(c) c
+// TODO having trouble with concepts so disable for now
+// #  define SNMALLOC_CONCEPT(c) c
+#  define SNMALLOC_CONCEPT(c) typename
 #else
 #  define SNMALLOC_CONCEPT(c) typename
 #endif
@@ -53,11 +55,11 @@ namespace snmalloc
    * this will instead have to be inlined at every definition (and referred to
    * explicitly at call sites) until C++23 or later.
    */
-  template<typename, typename = void>
-  constexpr bool is_type_complete_v = false;
+  template<typename, typename = bool>
+  constexpr bool is_type_complete_v{false};
 
   template<typename T>
-  constexpr bool is_type_complete_v<T, stl::void_t<decltype(sizeof(T))>> = true;
+  constexpr bool is_type_complete_v<T, stl::void_t<decltype(sizeof(T))>>{true};
 
 } // namespace snmalloc
 #endif

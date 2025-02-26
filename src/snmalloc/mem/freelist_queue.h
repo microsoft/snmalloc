@@ -46,12 +46,16 @@ namespace snmalloc
 
     constexpr FreeListMPSCQ() = default;
 
-    void invariant() {}
+    void invariant()
+    {
+      SNMALLOC_ASSERT(pointer_align_up(this, REMOTE_MIN_ALIGN) == this);
+    }
 
     void init()
     {
       back.store(nullptr);
       front.store(nullptr);
+      invariant();
     }
 
     freelist::QueuePtr destroy()
@@ -146,9 +150,11 @@ namespace snmalloc
 
       freelist::HeadPtr curr = domesticate_head(front.load());
       if (curr == nullptr)
+      {
         // First entry is still in progress of being added.
         // Nothing to do.
         return;
+      }
 
       // Use back to bound, so we don't handle new entries.
       auto b = back.load(stl::memory_order_relaxed);

@@ -25,8 +25,8 @@ namespace snmalloc
   template<typename ClientMetaDataProvider = NoClientMetaDataProvider>
   class StandardConfigClientMeta final : public CommonConfig
   {
-    using GlobalPoolState = PoolState<
-      CoreAllocator<StandardConfigClientMeta<ClientMetaDataProvider>>>;
+    using GlobalPoolState =
+      PoolState<Allocator<StandardConfigClientMeta<ClientMetaDataProvider>>>;
 
   public:
     using Pal = DefaultPal;

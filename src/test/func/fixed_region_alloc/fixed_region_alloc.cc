@@ -13,7 +13,7 @@
 using namespace snmalloc;
 
 using CustomGlobals = FixedRangeConfig<DefaultPal>;
-using FixedAlloc = LocalAllocator<CustomGlobals>;
+using FixedAlloc = Allocator<CustomGlobals>;
 
 // This is a variation on the fixed_alloc test
 // The only difference is that we use the normal PAL here

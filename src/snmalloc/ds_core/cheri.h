@@ -70,7 +70,7 @@ namespace snmalloc
     /*
      * At present we check for the pointer also being the start of an
      * allocation closer to dealloc; for small objects, that happens in
-     * dealloc_local_object_fast, either below or *on the far end of message
+     * dealloc_local_object, either below or *on the far end of message
      * receipt*.  For large objects, it happens below by directly rounding to
      * power of two rather than using the is_start_of_object helper.
      * (XXX This does mean that we might end up threading our remote queue

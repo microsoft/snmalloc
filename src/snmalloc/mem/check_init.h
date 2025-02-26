@@ -8,7 +8,7 @@ namespace snmalloc
    * state to inject code for correctly initialising the thread local state with
    * an allocator, but this check is performed off the fast path.
    */
-  class CheckInitDefault
+  class CheckInitNoOp
   {
   public:
     /**

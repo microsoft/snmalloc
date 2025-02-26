@@ -61,10 +61,10 @@ namespace
      * memory.  It (insecurely) routes messages to in-sandbox snmallocs,
      * though, so it can free any sandbox-backed snmalloc allocation.
      */
-    using ExternalCoreAlloc =
+    using ExternalAlloc =
       Allocator<NoOpMemoryProvider, SNMALLOC_DEFAULT_CHUNKMAP, false>;
 
-    using ExternalAlloc = LocalAllocator<ExternalCoreAlloc>;
+    using ExternalAlloc = Allocator<ExternalAlloc>;
 
     /**
      * Proxy class that forwards requests for large allocations to the real
@@ -137,8 +137,7 @@ namespace
      * Note that a real version of this would not have access to the shared
      * pagemap and would not be used outside of the sandbox.
      */
-    using InternalCoreAlloc = Allocator<MemoryProviderProxy>;
-    using InternalAlloc = LocalAllocator<InternalCoreAlloc>;
+    using InternalAlloc = Allocator<MemoryProviderProxy>;
 
     /**
      * The start of the sandbox memory region.
