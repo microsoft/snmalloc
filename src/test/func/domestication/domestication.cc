@@ -56,8 +56,7 @@ namespace snmalloc
      * C++, and not just its initializer fragment, to initialize a non-prefix
      * subset of the flags (in any order, at that).
      */
-    static constexpr Flags Options = []() constexpr
-    {
+    static constexpr Flags Options = []() constexpr {
       Flags opts = {};
       opts.QueueHeadsAreTame = false;
       opts.HasDomesticate = true;
@@ -182,7 +181,8 @@ int main()
             << snmalloc::CustomConfig::domesticate_count << std::endl;
   // static constexpr size_t expected_count =
   //   snmalloc::CustomConfig::Options.QueueHeadsAreTame ? 5 : 6;
-  // SNMALLOC_CHECK(snmalloc::CustomConfig::domesticate_count == expected_count);
+  // SNMALLOC_CHECK(snmalloc::CustomConfig::domesticate_count ==
+  // expected_count);
 
   return 0;
 }

@@ -939,10 +939,10 @@ namespace snmalloc
      *        if we should return slabs to the backend using dealloc_local_slabs
      *  - Otherwise, the object originated from another allocator, so we call
      *    - dealloc_remote(void*)
-     *      - If there is sufficient budget to put in the remote cache, we do that
-     *        and return.
+     *      - If there is sufficient budget to put in the remote cache, we do
+     *        that and return.
      *      - Otherwise, we need to create some space in the remote cache using
-     *        dealloc_remote_slow. This initially checks if we actually have a 
+     *        dealloc_remote_slow. This initially checks if we actually have a
      *        proper allocator.
      *        - If not, we acquire an allocator, and completely restart the
      *          deallocation process (we may acquire the originating allocator).
