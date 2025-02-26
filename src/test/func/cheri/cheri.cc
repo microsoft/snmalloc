@@ -131,7 +131,7 @@ int main()
   message("Grab Alloc from pool for inspection");
   {
     static_assert(
-      std::is_same_v<decltype(alloc.alloc), LocalAllocator<StandardConfig>>);
+      std::is_same_v<decltype(alloc.alloc), Allocator<StandardConfig>>);
 
     auto* ca = AllocPool<StandardConfig>::acquire();
 
