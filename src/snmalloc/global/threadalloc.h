@@ -44,9 +44,11 @@ namespace snmalloc
       return ThreadAllocExternal::get();
     }
 
+    static void teardown() {}
+
     // This will always call the success path as the client is responsible
     // handling the initialisation.
-    using CheckInit = CheckInitDefault;
+    using CheckInit = CheckInitNoOp;
   };
 
 #else
@@ -63,7 +65,10 @@ namespace snmalloc
    */
   class ThreadAlloc
   {
-    SNMALLOC_REQUIRE_CONSTINIT static inline thread_local Alloc alloc{};
+    SNMALLOC_REQUIRE_CONSTINIT static const inline Alloc default_alloc{true};
+
+    SNMALLOC_REQUIRE_CONSTINIT static inline thread_local Alloc* alloc{
+      const_cast<Alloc*>(&default_alloc)};
 
     // As allocation and deallocation can occur during thread teardown
     // we need to record if we are already in that state as we will not
@@ -81,7 +86,19 @@ namespace snmalloc
      */
     static SNMALLOC_FAST_PATH Alloc& get()
     {
-      return alloc;
+      return *alloc;
+    }
+
+    static void teardown()
+    {
+      // No work required for teardown.
+      if (alloc == &default_alloc)
+        return;
+
+      teardown_called = true;
+      alloc->flush();
+      AllocPool<Config>::release(alloc);
+      alloc = const_cast<Alloc*>(&default_alloc);
     }
 
     template<typename Subclass>
@@ -92,50 +109,33 @@ namespace snmalloc
       {
         bool post_teardown = teardown_called;
 
-        if constexpr (!Config::Options.LocalAllocSupportsLazyInit)
+        alloc = AllocPool<Config>::acquire();
+
+        // register_clean_up must be called after init.  register clean up
+        // may be implemented with allocation, so need to ensure we have a
+        // valid allocator at this point.
+        if (!post_teardown)
         {
-          SNMALLOC_CHECK(
-            false &&
-            "lazy_init called on an allocator that doesn't support lazy "
-            "initialisation");
-          // Unreachable, but needed to keep the type checker happy in deducing
-          // the return type of this function.
-          return static_cast<decltype(action(args...))>(nullptr);
-        }
-        else
-        {
-          // Initialise the thread local allocator
-          if constexpr (Config::Options.CoreAllocOwnsLocalState)
-          {
-            alloc.init();
-          }
-
-          // register_clean_up must be called after init.  register clean up
-          // may be implemented with allocation, so need to ensure we have a
-          // valid allocator at this point.
-          if (!post_teardown)
-          {
-            // Must be called at least once per thread.
-            // A pthread implementation only calls the thread destruction handle
-            // if the key has been set.
-            Subclass::register_clean_up();
-
-            // Perform underlying operation
-            return r(args...);
-          }
-
-          OnDestruct od([]() {
-#  ifdef SNMALLOC_TRACING
-            message<1024>("post_teardown flush()");
-#  endif
-            // We didn't have an allocator because the thread is being torndown.
-            // We need to return any local state, so we don't leak it.
-            alloc.teardown();
-          });
+          // Must be called at least once per thread.
+          // A pthread implementation only calls the thread destruction handle
+          // if the key has been set.
+          Subclass::register_clean_up();
 
           // Perform underlying operation
-          return r(args...);
+          return r(alloc, args...);
         }
+
+        OnDestruct od([]() {
+#  ifdef SNMALLOC_TRACING
+          message<1024>("post_teardown flush()");
+#  endif
+          // We didn't have an allocator because the thread is being torndown.
+          // We need to return any local state, so we don't leak it.
+          ThreadAlloc::teardown();
+        });
+
+        // Perform underlying operation
+        return r(alloc, args...);
       }
 
     public:
@@ -143,18 +143,12 @@ namespace snmalloc
       SNMALLOC_FAST_PATH static auto
       check_init(Success s, Restart r, Args... args)
       {
-        if (alloc.is_init())
+        if (alloc != &default_alloc)
         {
           return s();
         }
 
         return check_init_slow(r, args...);
-      }
-
-      static void teardown()
-      {
-        teardown_called = true;
-        alloc.teardown();
       }
     };
 #  ifdef SNMALLOC_USE_PTHREAD_DESTRUCTORS
@@ -162,7 +156,7 @@ namespace snmalloc
 #  elif defined(SNMALLOC_USE_CXX_THREAD_DESTRUCTORS)
     using CheckInit = CheckInitCXX;
 #  else
-    using CheckInit = CheckInitDefault;
+    using CheckInit = CheckInitNoOp;
 #  endif
   };
 
@@ -175,7 +169,7 @@ namespace snmalloc
      */
     static void pthread_cleanup(void*)
     {
-      teardown();
+      ThreadAlloc::teardown();
     }
 
     /**
@@ -183,7 +177,7 @@ namespace snmalloc
      */
     static void pthread_cleanup_main_thread()
     {
-      teardown();
+      ThreadAlloc::teardown();
     }
 
     /**
@@ -234,7 +228,7 @@ namespace snmalloc
      */
     static void register_clean_up()
     {
-      static thread_local OnDestruct dummy([]() { teardown(); });
+      static thread_local OnDestruct dummy([]() { ThreadAlloc::teardown(); });
       UNUSED(dummy);
 #    ifdef SNMALLOC_TRACING
       message<1024>("Using C++ destructor clean up");
@@ -253,6 +247,6 @@ namespace snmalloc
 SNMALLOC_USED_FUNCTION
 inline void _malloc_thread_cleanup()
 {
-  snmalloc::ThreadAlloc::get().teardown();
+  snmalloc::ThreadAlloc::teardown();
 }
 #endif

@@ -17,7 +17,7 @@ namespace snmalloc
   /**
    * Create allocator type for this configuration.
    */
-  using Alloc = snmalloc::LocalAllocator<Config>;
+  using Alloc = snmalloc::Allocator<Config>;
 } // namespace snmalloc
 
 // User facing API surface, needs to know what `Alloc` is.
