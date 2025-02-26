@@ -17,16 +17,6 @@ using namespace snmalloc;
 namespace
 {
   /**
-   * Helper for Alloc that never needs lazy initialisation.
-   *
-   * CapPtr-vs-MSVC triggering; xref CapPtr's constructor
-   */
-  void no_op_register_clean_up()
-  {
-    SNMALLOC_CHECK(0 && "Should never be called!");
-  }
-
-  /**
    * Sandbox class.  Allocates a memory region and an allocator that can
    * allocate into this from the outside.
    */
@@ -71,11 +61,10 @@ namespace
      * memory.  It (insecurely) routes messages to in-sandbox snmallocs,
      * though, so it can free any sandbox-backed snmalloc allocation.
      */
-    using ExternalCoreAlloc =
+    using ExternalAlloc =
       Allocator<NoOpMemoryProvider, SNMALLOC_DEFAULT_CHUNKMAP, false>;
 
-    using ExternalAlloc =
-      LocalAllocator<ExternalCoreAlloc, no_op_register_clean_up>;
+    using ExternalAlloc = Allocator<ExternalAlloc>;
 
     /**
      * Proxy class that forwards requests for large allocations to the real
@@ -148,9 +137,7 @@ namespace
      * Note that a real version of this would not have access to the shared
      * pagemap and would not be used outside of the sandbox.
      */
-    using InternalCoreAlloc = Allocator<MemoryProviderProxy>;
-    using InternalAlloc =
-      LocalAllocator<InternalCoreAlloc, no_op_register_clean_up>;
+    using InternalAlloc = Allocator<MemoryProviderProxy>;
 
     /**
      * The start of the sandbox memory region.
