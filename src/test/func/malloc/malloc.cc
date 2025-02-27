@@ -265,6 +265,9 @@ int main(int argc, char** argv)
     test_calloc(0, size, SUCCESS, false);
   }
 
+  // Check realloc(nullptr,0) behaves like malloc(1)
+  test_realloc(nullptr, 0, SUCCESS, false);
+
   for (smallsizeclass_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
   {
     const size_t size = sizeclass_to_size(sc);
@@ -277,6 +280,8 @@ int main(int argc, char** argv)
       test_realloc(our_malloc(size), size2, SUCCESS, false);
       test_realloc(our_malloc(size + 1), size2, SUCCESS, false);
     }
+    // Check realloc(p,0), behaves like free(p), if p != nullptr
+    test_realloc(our_malloc(size), 0, SUCCESS, true);
   }
 
   for (smallsizeclass_t sc = 0; sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
