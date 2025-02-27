@@ -52,6 +52,25 @@ namespace snmalloc::libc
 
   SNMALLOC_FAST_PATH_INLINE void* realloc(void* ptr, size_t size)
   {
+    // Glibc treats
+    //   realloc(p, 0) as free(p)
+    //   realloc(nullptr, s) as malloc(s)
+    // and for the overlap
+    //   realloc(nullptr, 0) as malloc(1)
+    // Without the first two we don't pass the glibc tests.
+    // The last one is required by various gnu utilities such as grep, sed.
+    if (SNMALLOC_UNLIKELY(!is_small_sizeclass(size)))
+    {
+      if (SNMALLOC_UNLIKELY(size == 0))
+      {
+        if (SNMALLOC_UNLIKELY(ptr == nullptr))
+          return malloc(1);
+
+        dealloc(ptr);
+        return nullptr;
+      }
+    }
+
     size_t sz = alloc_size(ptr);
     // Keep the current allocation if the given size is in the same sizeclass.
     if (sz == round_size(size))
@@ -72,13 +91,10 @@ namespace snmalloc::libc
       }
       dealloc(ptr);
     }
-    else if (SNMALLOC_LIKELY(size == 0))
-    {
-      dealloc(ptr);
-    }
     else
     {
-      return set_error();
+      // Error should be set by alloc on this path already.
+      SNMALLOC_ASSERT(errno == ENOMEM);
     }
     return p;
   }
