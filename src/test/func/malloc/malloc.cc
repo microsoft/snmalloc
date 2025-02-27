@@ -15,11 +15,7 @@ constexpr int SUCCESS = 0;
 void check_result(size_t size, size_t align, void* p, int err, bool null)
 {
   bool failed = false;
-  EXPECT(
-    (errno == err) || (err == SUCCESS),
-    "Expected error: {} but got {}",
-    err,
-    errno);
+  EXPECT((errno == err), "Expected error: {} but got {}", err, errno);
   if (null)
   {
     EXPECT(p == nullptr, "Expected null but got {}", p);
@@ -307,6 +303,9 @@ int main(int argc, char** argv)
   for (size_t align = sizeof(uintptr_t); align < MAX_SMALL_SIZECLASS_SIZE * 8;
        align <<= 1)
   {
+    // Check overflow with alignment taking it round to 0.
+    test_memalign(1 - align, align, ENOMEM, true);
+
     for (smallsizeclass_t sc = 0; sc < NUM_SMALL_SIZECLASSES - 6; sc++)
     {
       const size_t size = sizeclass_to_size(sc);

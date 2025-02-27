@@ -800,7 +800,7 @@ namespace snmalloc
         meta->as_key_tweak(),
         domesticate);
 
-      bytes_freed = objsize * length;
+      bytes_freed += objsize * length;
 
       // Update the head and the next pointer in the free list.
       meta->free_queue.append_segment(
