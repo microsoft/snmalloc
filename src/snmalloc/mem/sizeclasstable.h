@@ -457,6 +457,17 @@ namespace snmalloc
 
   constexpr SizeClassLookup sizeclass_lookup = SizeClassLookup();
 
+  /**
+   * @brief Returns true if the size is a small sizeclass. Note that
+   * 0 is not considered a small sizeclass.
+   */
+  constexpr bool is_small_sizeclass(size_t size)
+  {
+    // Perform the - 1 on size, so that zero wraps around and ends up on
+    // slow path.
+    return (size - 1) < sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1);
+  }
+
   constexpr smallsizeclass_t size_to_sizeclass(size_t size)
   {
     auto index = sizeclass_lookup_index(size);
@@ -482,7 +493,7 @@ namespace snmalloc
    */
   static inline sizeclass_t size_to_sizeclass_full(size_t size)
   {
-    if ((size - 1) < sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1))
+    if (is_small_sizeclass(size))
     {
       return sizeclass_t::from_small_class(size_to_sizeclass(size));
     }
@@ -493,26 +504,28 @@ namespace snmalloc
 
   inline SNMALLOC_FAST_PATH static size_t round_size(size_t size)
   {
-    if (size > sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1))
+    if (is_small_sizeclass(size))
     {
-      if (size > bits::one_at_bit(bits::BITS - 1))
-      {
-        // This size is too large, no rounding should occur as will result in a
-        // failed allocation later.
-        return size;
-      }
-      return bits::next_pow2(size);
+      return sizeclass_to_size(size_to_sizeclass(size));
     }
-    // If realloc(ptr, 0) returns nullptr, some consumers treat this as a
-    // reallocation failure and abort.  To avoid this, we round up the size of
-    // requested allocations to the smallest size class.  This can be changed
-    // on any platform that's happy to return nullptr from realloc(ptr,0) and
-    // should eventually become a configuration option.
+
     if (size == 0)
     {
+      // If realloc(ptr, 0) returns nullptr, some consumers treat this as a
+      // reallocation failure and abort.  To avoid this, we round up the size of
+      // requested allocations to the smallest size class.  This can be changed
+      // on any platform that's happy to return nullptr from realloc(ptr,0) and
+      // should eventually become a configuration option.
       return sizeclass_to_size(size_to_sizeclass(1));
     }
-    return sizeclass_to_size(size_to_sizeclass(size));
+
+    if (size > bits::one_at_bit(bits::BITS - 1))
+    {
+      // This size is too large, no rounding should occur as will result in a
+      // failed allocation later.
+      return size;
+    }
+    return bits::next_pow2(size);
   }
 
   /// Returns the alignment that this size naturally has, that is
@@ -549,9 +562,7 @@ namespace snmalloc
     // sizeclass calculation.  We use the same fast path constant to
     // move the case where result==0 to the slow path, and then check for which
     // case we are in.
-    constexpr size_t SmallSizeClassUpperBound =
-      sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1) - 1;
-    if (SNMALLOC_LIKELY((result - 1) < SmallSizeClassUpperBound))
+    if (is_small_sizeclass(result))
       return result;
 
     // We are in the slow path, so we need to check for overflow.
