@@ -9,7 +9,7 @@ namespace snmalloc
   inline static void cleanup_unused()
   {
     static_assert(
-      Config_::Options.CoreAllocIsPoolAllocated,
+      Config_::Options.AllocIsPoolAllocated,
       "Global cleanup is available only for pool-allocated configurations");
     // Call this periodically to free and coalesce memory allocated by
     // allocators that are not currently in use by any thread.
@@ -41,7 +41,7 @@ namespace snmalloc
   inline static void debug_check_empty(bool* result = nullptr)
   {
     static_assert(
-      Config_::Options.CoreAllocIsPoolAllocated,
+      Config_::Options.AllocIsPoolAllocated,
       "Global status is available only for pool-allocated configurations");
     // This is a debugging function. It checks that all memory from all
     // allocators has been freed.
@@ -106,7 +106,7 @@ namespace snmalloc
   inline static void debug_in_use(size_t count)
   {
     static_assert(
-      Config_::Options.CoreAllocIsPoolAllocated,
+      Config_::Options.AllocIsPoolAllocated,
       "Global status is available only for pool-allocated configurations");
     auto alloc = AllocPool<Config_>::iterate();
     while (alloc != nullptr)
@@ -324,49 +324,52 @@ namespace snmalloc
   template<size_t size, ZeroMem zero_mem = NoZero, size_t align = 1>
   SNMALLOC_FAST_PATH_INLINE void* alloc()
   {
-    return ThreadAlloc::get().alloc<zero_mem>(aligned_size(align, size));
+    return ThreadAlloc::get().alloc<zero_mem, ThreadAlloc::CheckInit>(
+      aligned_size(align, size));
   }
 
   template<ZeroMem zero_mem = NoZero, size_t align = 1>
   SNMALLOC_FAST_PATH_INLINE void* alloc(size_t size)
   {
-    return ThreadAlloc::get().alloc<zero_mem>(aligned_size(align, size));
+    return ThreadAlloc::get().alloc<zero_mem, ThreadAlloc::CheckInit>(
+      aligned_size(align, size));
   }
 
   template<ZeroMem zero_mem = NoZero>
   SNMALLOC_FAST_PATH_INLINE void* alloc_aligned(size_t align, size_t size)
   {
-    return ThreadAlloc::get().alloc<zero_mem>(aligned_size(align, size));
+    return ThreadAlloc::get().alloc<zero_mem, ThreadAlloc::CheckInit>(
+      aligned_size(align, size));
   }
 
   SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
   {
-    ThreadAlloc::get().dealloc(p);
+    ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
   SNMALLOC_FAST_PATH_INLINE void dealloc(void* p, size_t size)
   {
     check_size(p, size);
-    ThreadAlloc::get().dealloc(p);
+    ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
   template<size_t size>
   SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
   {
     check_size(p, size);
-    ThreadAlloc::get().dealloc(p);
+    ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
   SNMALLOC_FAST_PATH_INLINE void dealloc(void* p, size_t size, size_t align)
   {
     auto rsize = aligned_size(align, size);
     check_size(p, rsize);
-    ThreadAlloc::get().dealloc(p);
+    ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
   SNMALLOC_FAST_PATH_INLINE void debug_teardown()
   {
-    return ThreadAlloc::get().teardown();
+    return ThreadAlloc::teardown();
   }
 
   template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
