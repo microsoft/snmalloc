@@ -127,6 +127,7 @@ namespace snmalloc
 
     static void notify_not_using(void* p, size_t size) noexcept
     {
+      KeepErrno k;
       SNMALLOC_ASSERT(is_aligned_block<page_size>(p, size));
 
       // Fill memory so that when we switch the pages back on we don't make
@@ -147,6 +148,7 @@ namespace snmalloc
      */
     static void notify_do_dump(void* p, size_t size) noexcept
     {
+      KeepErrno k;
       madvise(p, size, MADV_DODUMP);
     }
 
@@ -155,11 +157,14 @@ namespace snmalloc
      */
     static void notify_do_not_dump(void* p, size_t size) noexcept
     {
+      KeepErrno k;
       madvise(p, size, MADV_DONTDUMP);
     }
 
     static uint64_t get_entropy64()
     {
+      KeepErrno k;
+
       // TODO: If the system call fails then the POSIX PAL calls libc
       // functions that can require malloc, which may result in deadlock.
 
@@ -249,7 +254,7 @@ namespace snmalloc
     template<class T>
     static void wait_on_address(stl::Atomic<T>& addr, T expected)
     {
-      int backup = errno;
+      KeepErrno k;
       static_assert(
         sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
         "T must be the same size and alignment as WaitingWord");
@@ -273,12 +278,12 @@ namespace snmalloc
         syscall(
           SYS_futex, &addr, FUTEX_WAIT_PRIVATE, expected, nullptr, nullptr, 0);
       }
-      errno = backup;
     }
 
     template<class T>
     static void notify_one_on_address(stl::Atomic<T>& addr)
     {
+      KeepErrno k;
       static_assert(
         sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
         "T must be the same size and alignment as WaitingWord");
@@ -288,6 +293,7 @@ namespace snmalloc
     template<class T>
     static void notify_all_on_address(stl::Atomic<T>& addr)
     {
+      KeepErrno k;
       static_assert(
         sizeof(T) == sizeof(WaitingWord) && alignof(T) == alignof(WaitingWord),
         "T must be the same size and alignment as WaitingWord");
