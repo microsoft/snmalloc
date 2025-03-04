@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../aal/aal.h"
+#include "prevent_fork.h"
 #include "snmalloc/ds_core/ds_core.h"
 #include "snmalloc/stl/atomic.h"
 
@@ -107,6 +108,10 @@ namespace snmalloc
   {
   private:
     FlagWord& lock;
+
+    // A unix fork while holding a lock can lead to deadlock. Protect against
+    // this by not allowing a fork while holding a lock.
+    PreventFork pf{};
 
   public:
     FlagLock(FlagWord& lock) : lock(lock)

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "prevent_fork.h"
 #include "snmalloc/stl/atomic.h"
 
 namespace snmalloc
@@ -36,6 +37,11 @@ namespace snmalloc
       auto state = initialised.load(stl::memory_order_acquire);
       if (SNMALLOC_UNLIKELY(state == State::Uninitialised))
       {
+        // A unix fork while initialising a singleton can lead to deadlock.
+        // Protect against this by not allowing a fork while attempting
+        // initialisation.
+        PreventFork pf;
+        snmalloc::UNUSED(pf);
         if (initialised.compare_exchange_strong(
               state, State::Initialising, stl::memory_order_relaxed))
         {

@@ -120,6 +120,19 @@ int main()
  SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
 set(CMAKE_REQUIRED_LINK_OPTIONS "")
 
+# Detect if pthread_atfork works
+CHECK_CXX_SOURCE_COMPILES("
+#include <pthread.h>
+void prepare() {}
+void parent() {}
+void child() {}
+int main() {
+  pthread_atfork(prepare, parent, child);
+  return 0;
+}
+" SNMALLOC_PTHREAD_ATFORK_WORKS)
+
+
 if (NOT MSVC AND NOT (SNMALLOC_CLEANUP STREQUAL CXX11_DESTRUCTORS))
   # If the target compiler doesn't support -nostdlib++ then we must enable C at
   # the global scope for the fallbacks to work.
@@ -320,6 +333,7 @@ add_as_define(SNMALLOC_QEMU_WORKAROUND)
 add_as_define(SNMALLOC_TRACING)
 add_as_define(SNMALLOC_CI_BUILD)
 add_as_define(SNMALLOC_PLATFORM_HAS_GETENTROPY)
+add_as_define(SNMALLOC_PTHREAD_ATFORK_WORKS)
 add_as_define(SNMALLOC_HAS_LINUX_RANDOM_H)
 add_as_define(SNMALLOC_HAS_LINUX_FUTEX_H)
 if (SNMALLOC_NO_REALLOCARRAY)

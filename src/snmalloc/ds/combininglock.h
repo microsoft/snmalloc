@@ -274,26 +274,32 @@ namespace snmalloc
   template<typename F>
   inline void with(CombiningLock& lock, F&& f)
   {
-    // Test if no one is waiting
-    if (SNMALLOC_LIKELY(lock.last.load(stl::memory_order_relaxed) == nullptr))
+    // A unix fork while holding a lock can lead to deadlock. Protect against
+    // this by not allowing a fork while holding a lock.
+    PreventFork pf;
+    snmalloc::UNUSED(pf);
     {
-      // No one was waiting so low contention. Attempt to acquire the flag
-      // lock.
-      if (SNMALLOC_LIKELY(
-            lock.flag.exchange(true, stl::memory_order_acquire) == false))
+      // Test if no one is waiting
+      if (SNMALLOC_LIKELY(lock.last.load(stl::memory_order_relaxed) == nullptr))
       {
-        // We grabbed the lock.
-        // Execute the thunk.
-        f();
+        // No one was waiting so low contention. Attempt to acquire the flag
+        // lock.
+        if (SNMALLOC_LIKELY(
+              lock.flag.exchange(true, stl::memory_order_acquire) == false))
+        {
+          // We grabbed the lock.
+          // Execute the thunk.
+          f();
 
-        // Release the lock
-        lock.release();
-        return;
+          // Release the lock
+          lock.release();
+          return;
+        }
       }
-    }
 
-    // There is contention for the lock, we need to take the slow path
-    // with the queue.
-    CombiningLockNodeTempl<F> node(lock, stl::forward<F>(f));
+      // There is contention for the lock, we need to take the slow path
+      // with the queue.
+      CombiningLockNodeTempl<F> node(lock, stl::forward<F>(f));
+    }
   }
 } // namespace snmalloc
