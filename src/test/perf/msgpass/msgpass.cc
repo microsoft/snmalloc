@@ -74,7 +74,7 @@ void consumer(const struct params* param, size_t qix)
   {
     size_t reap = 0;
 
-    if (myq.can_dequeue(domesticate_nop, domesticate_nop))
+    if (myq.can_dequeue())
     {
       myq.dequeue(
         domesticate_nop, domesticate_nop, [qix, &reap](freelist::HeadPtr o) {
@@ -98,8 +98,8 @@ void consumer(const struct params* param, size_t qix)
       chatty("Cl %zu reap %zu\n", qix, reap);
     }
 
-  } while (myq.can_dequeue(domesticate_nop, domesticate_nop) ||
-           producers_live || (queue_gate > param->N_CONSUMER));
+  } while (myq.can_dequeue() || producers_live ||
+           (queue_gate > param->N_CONSUMER));
 
   chatty("Cl %zu fini\n", qix);
   snmalloc::dealloc(myq.destroy().unsafe_ptr());
@@ -115,7 +115,7 @@ void proxy(const struct params* param, size_t qix)
   xoroshiro::p128r32 r(1234 + qix, qix);
   do
   {
-    if (myq.can_dequeue(domesticate_nop, domesticate_nop))
+    if (myq.can_dequeue())
     {
       myq.dequeue(
         domesticate_nop, domesticate_nop, [qs, qix, &r](freelist::HeadPtr o) {
@@ -130,8 +130,7 @@ void proxy(const struct params* param, size_t qix)
     }
 
     std::this_thread::yield();
-  } while (myq.can_dequeue(domesticate_nop, domesticate_nop) ||
-           producers_live || (queue_gate > qix + 1));
+  } while (myq.can_dequeue() || producers_live || (queue_gate > qix + 1));
 
   chatty("Px %zu fini\n", qix);
 

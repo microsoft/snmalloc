@@ -14,7 +14,7 @@
 namespace snmalloc
 {
   using Config = snmalloc::StandardConfigClientMeta<NoClientMetaDataProvider>;
-  using Alloc = snmalloc::LocalAllocator<Config>;
+  using Alloc = snmalloc::Allocator<Config>;
 }
 
 using namespace snmalloc;
@@ -47,13 +47,12 @@ void allocator_thread_init(void)
   }
   // Initialize the thread-local allocator
   ThreadAllocExternal::get_inner() = new (aptr) snmalloc::Alloc();
-  ThreadAllocExternal::get().init();
 }
 
 void allocator_thread_cleanup(void)
 {
   // Teardown the thread-local allocator
-  ThreadAllocExternal::get().teardown();
+  ThreadAlloc::teardown();
   // Need a bootstrap allocator to deallocate the thread-local allocator
   auto a = snmalloc::ScopedAllocator();
   // Deallocate the storage for the thread local allocator
