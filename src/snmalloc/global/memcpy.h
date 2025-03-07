@@ -161,9 +161,9 @@ namespace snmalloc
     /**
      * Hook for architecture-specific optimisations.
      */
-    static SNMALLOC_FAST_PATH_INLINE void
-    copy(void* dst, const void* src, size_t len)
+    static void* copy(void* dst, const void* src, size_t len)
     {
+      auto orig_dst = dst;
       // If this is a small size, use a jump table for small sizes.
       if (len <= LargestRegisterSize)
       {
@@ -175,6 +175,7 @@ namespace snmalloc
         block_copy<LargestRegisterSize>(dst, src, len);
         copy_end<LargestRegisterSize>(dst, src, len);
       }
+      return orig_dst;
     }
   };
 
@@ -197,9 +198,9 @@ namespace snmalloc
 
     static constexpr size_t LargestRegisterSize = 16;
 
-    static SNMALLOC_FAST_PATH_INLINE void
-    copy(void* dst, const void* src, size_t len)
+    static void* copy(void* dst, const void* src, size_t len)
     {
+      auto orig_dst = dst;
       /*
        * As a function of misalignment relative to pointers, how big do we need
        * to be such that the span could contain an aligned pointer?  We'd need
@@ -306,6 +307,7 @@ namespace snmalloc
         block_copy<LargestRegisterSize>(dst, src, len);
         copy_end<LargestRegisterSize>(dst, src, len);
       }
+      return orig_dst;
     }
   };
 
@@ -331,9 +333,9 @@ namespace snmalloc
     /**
      * Platform-specific copy hook.  For large copies, use `rep movsb`.
      */
-    static SNMALLOC_FAST_PATH_INLINE void
-    copy(void* dst, const void* src, size_t len)
+    static inline void* copy(void* dst, const void* src, size_t len)
     {
+      auto orig_dst = dst;
       // If this is a small size, use a jump table for small sizes, like on the
       // generic architecture case above.
       if (len <= LargestRegisterSize)
@@ -370,6 +372,7 @@ namespace snmalloc
         block_copy<LargestRegisterSize>(dst, src, len);
         copy_end<LargestRegisterSize>(dst, src, len);
       }
+      return orig_dst;
     }
   };
 #endif
@@ -386,9 +389,9 @@ namespace snmalloc
      * For large copies (128 bytes or above), use a copy loop that moves up to
      * 128 bytes at once with pre-loop alignment up to 64 bytes.
      */
-    static SNMALLOC_FAST_PATH_INLINE void
-    copy(void* dst, const void* src, size_t len)
+    static void* copy(void* dst, const void* src, size_t len)
     {
+      auto orig_dst = dst;
       if (len < LargestRegisterSize)
       {
         block_copy<1>(dst, src, len);
@@ -408,6 +411,7 @@ namespace snmalloc
         block_copy<LargestRegisterSize>(dst, src, len);
         copy_end<LargestRegisterSize>(dst, src, len);
       }
+      return orig_dst;
     }
   };
 #endif
@@ -441,24 +445,13 @@ namespace snmalloc
     typename Arch = DefaultArch>
   SNMALLOC_FAST_PATH_INLINE void* memcpy(void* dst, const void* src, size_t len)
   {
-    auto orig_dst = dst;
-    // 0 is a very common size for memcpy and we don't need to do external
-    // pointer checks if we hit it.  It's also the fastest case, to encourage
-    // the compiler to favour the other cases.
-    if (SNMALLOC_UNLIKELY(len == 0))
-    {
-      return dst;
-    }
-
-    // Check the bounds of the arguments.
-    if (SNMALLOC_UNLIKELY(!check_bounds<(Checked && ReadsChecked)>(src, len)))
-      return report_fatal_bounds_error(
-        src, len, "memcpy with source out of bounds of heap allocation");
-    if (SNMALLOC_UNLIKELY(!check_bounds<Checked>(dst, len)))
-      return report_fatal_bounds_error(
-        dst, len, "memcpy with destination out of bounds of heap allocation");
-
-    Arch::copy(dst, src, len);
-    return orig_dst;
+    return check_bound<(Checked && ReadsChecked)>(
+      src, len, "memcpy with source out of bounds of heap allocation", [&]() {
+        return check_bound<Checked>(
+          dst,
+          len,
+          "memcpy with destination out of bounds of heap allocation",
+          [&]() { return Arch::copy(dst, src, len); });
+      });
   }
 } // namespace snmalloc

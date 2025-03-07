@@ -135,7 +135,7 @@ namespace snmalloc
    * remaining_bytes(p + n) == size - n     provided n < size
    */
   template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
-  size_t remaining_bytes(address_t p)
+  size_t SNMALLOC_FAST_PATH_INLINE remaining_bytes(address_t p)
   {
     const auto& entry = Config_::Backend::template get_metaentry<true>(p);
 

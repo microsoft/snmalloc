@@ -81,26 +81,33 @@ namespace snmalloc
   /**
    * Check whether a pointer + length is in the same object as the pointer.
    *
-   * Returns true if the checks succeeds.
+   * Returns the result of the supplied continuation
    *
    * The template parameter indicates whether the check should be performed.  It
-   * defaults to true. If it is false, the check will always succeed.
+   * defaults to true. If it is false, it short cuts to calling the continuation
+   * directly.
    */
-  template<bool PerformCheck = true, SNMALLOC_CONCEPT(IsConfig) Config = Config>
-  SNMALLOC_FAST_PATH_INLINE bool check_bounds(const void* ptr, size_t len)
+  template<
+    bool PerformCheck = true,
+    typename F,
+    SNMALLOC_CONCEPT(IsConfig) Config = Config>
+  SNMALLOC_FAST_PATH_INLINE auto check_bound(
+    const void* ptr, size_t len, const char* msg, F f = []() {})
   {
     if constexpr (PerformCheck)
     {
-      if (SNMALLOC_LIKELY(Config::is_initialised()))
+      if (SNMALLOC_LIKELY(len != 0))
       {
-        return remaining_bytes(address_cast(ptr)) >= len;
+        if (SNMALLOC_UNLIKELY(remaining_bytes<Config>(address_cast(ptr)) < len))
+        {
+          return report_fatal_bounds_error(ptr, len, msg);
+        }
       }
-      return true;
     }
     else
     {
-      UNUSED(ptr, len);
-      return true;
+      UNUSED(ptr, len, msg);
     }
+    return f();
   }
 } // namespace snmalloc

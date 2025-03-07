@@ -94,15 +94,13 @@ void memcpy_unchecked(void* dst, const void* src, size_t size)
 }
 
 NOINLINE
-void memcpy_platform_checked(void* dst, const void* src, size_t size)
+void* memcpy_platform_checked(void* dst, const void* src, size_t size)
 {
-  if (SNMALLOC_UNLIKELY(!check_bounds(dst, size)))
-  {
-    report_fatal_bounds_error(dst, size, "");
-    return;
-  }
-
-  memcpy(dst, src, size);
+  return check_bound(
+    dst,
+    size,
+    "memcpy with destination out of bounds of heap allocation",
+    [&]() { return memcpy(dst, src, size); });
 }
 
 int main(int argc, char** argv)
