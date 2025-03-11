@@ -59,6 +59,14 @@ namespace snmalloc
     {
       SNMALLOC_ASSERT(is_initialised());
 
+      if constexpr (has_bounds)
+      {
+        if ((p - base >= size) || (p + length - base >= size))
+        {
+          p = p - base;
+        }
+      }
+
       // Calculate range in pagemap that is associated to this space.
       auto first = &body[p >> SHIFT];
       auto last = &body[(p + length + bits::one_at_bit(SHIFT) - 1) >> SHIFT];
