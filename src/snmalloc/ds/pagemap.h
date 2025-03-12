@@ -61,10 +61,11 @@ namespace snmalloc
 
       if constexpr (has_bounds)
       {
-        if ((p - base >= size) || (p + length - base >= size))
+        if ((p - base >= size) || (p + length - base > size))
         {
-          p = p - base;
+          PAL::error("Internal error: Pagemap registering out of range.");
         }
+        p = p - base;
       }
 
       // Calculate range in pagemap that is associated to this space.
