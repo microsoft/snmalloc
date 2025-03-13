@@ -483,14 +483,13 @@ void test_remaining_bytes()
         snmalloc::remaining_bytes(address_cast(pointer_offset(p, offset)));
       if (rem != (size - offset))
       {
-        printf(
-          "Allocation size: %zu,  Offset: %zu,  Remaining bytes: %zu, "
-          "Expected: %zu\n",
+        report_fatal_error(
+          "Allocation size: {},  Offset: {},  Remaining bytes: {}, "
+          "Expected: {}",
           size,
           offset,
           rem,
           size - offset);
-        abort();
       }
     }
     snmalloc::dealloc(p);
