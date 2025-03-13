@@ -541,19 +541,33 @@ int main(int argc, char** argv)
 #else
   UNUSED(argc, argv);
 #endif
+  std::cout << "test_alloc_dealloc_64k" << std::endl;
   test_alloc_dealloc_64k();
+  std::cout << "test_random_allocation" << std::endl;
   test_random_allocation();
+  std::cout << "test_calloc" << std::endl;
   test_calloc();
+  std::cout << "test_double_alloc" << std::endl;
   test_double_alloc();
+  std::cout << "test_remaining_bytes" << std::endl;
   test_remaining_bytes();
+  std::cout << "test_static_sized_allocs" << std::endl;
   test_static_sized_allocs();
+  std::cout << "test_calloc_large_bug" << std::endl;
   test_calloc_large_bug();
+  std::cout << "test_external_pointer_stack" << std::endl;
   test_external_pointer_stack();
+  std::cout << "test_external_pointer_dealloc_bug" << std::endl;
   test_external_pointer_dealloc_bug();
+  std::cout << "test_external_pointer_large" << std::endl;
   test_external_pointer_large();
+  std::cout << "test_external_pointer" << std::endl;
   test_external_pointer();
+  std::cout << "test_alloc_16M" << std::endl;
   test_alloc_16M();
+  std::cout << "test_calloc_16M" << std::endl;
   test_calloc_16M();
+  std::cout << "test_consolidation_bug" << std::endl;
   test_consolidaton_bug();
   return 0;
 }
