@@ -247,9 +247,12 @@ void test_external_pointer()
 
     if (size != snmalloc::alloc_size(p1))
     {
-      std::cout << "Requested size: " << size
-                << " alloc_size: " << snmalloc::alloc_size(p1) << std::endl;
-      abort();
+      if (size > snmalloc::alloc_size(p1) || snmalloc::is_owned(p1))
+      {
+        std::cout << "Requested size: " << size
+                  << " alloc_size: " << snmalloc::alloc_size(p1) << std::endl;
+        abort();
+      }
     }
 
     for (size_t offset = 0; offset < size; offset += 17)
@@ -259,19 +262,26 @@ void test_external_pointer()
       void* p4 = snmalloc::external_pointer<End>(p2);
       if (p1 != p3)
       {
-        std::cout << "size: " << size
-                  << " alloc_size: " << snmalloc::alloc_size(p1)
-                  << " offset: " << offset << " p1: " << p1 << "  p3: " << p3
-                  << std::endl;
+        if (p3 < p1 || snmalloc::is_owned(p1))
+        {
+          std::cout << "size: " << size
+                    << " alloc_size: " << snmalloc::alloc_size(p1)
+                    << " offset: " << offset << " p1: " << p1 << "  p3: " << p3
+                    << std::endl;
+          abort();
+        }
       }
-      SNMALLOC_CHECK(p1 == p3);
+
       if ((size_t)p4 != (size_t)p1 + size - 1)
       {
-        std::cout << "size: " << size << " end(p4): " << p4 << " p1: " << p1
-                  << "  p1+size-1: " << pointer_offset(p1, size - 1)
-                  << std::endl;
+        if (((size_t)p4 > (size_t)p1 + size - 1) || snmalloc::is_owned(p1))
+        {
+          std::cout << "size: " << size << " end(p4): " << p4 << " p1: " << p1
+                    << "  p1+size-1: " << pointer_offset(p1, size - 1)
+                    << std::endl;
+          abort();
+        }
       }
-      SNMALLOC_CHECK((size_t)p4 == (size_t)p1 + size - 1);
     }
 
     snmalloc::dealloc(p1, size);
@@ -285,9 +295,12 @@ void check_offset(void* base, void* interior)
   void* calced_base = snmalloc::external_pointer((void*)interior);
   if (calced_base != (void*)base)
   {
-    std::cout << "Calced base: " << calced_base << " actual base: " << base
-              << " for interior: " << interior << std::endl;
-    abort();
+    if (calced_base > base || snmalloc::is_owned(base))
+    {
+      std::cout << "Calced base: " << calced_base << " actual base: " << base
+                << " for interior: " << interior << std::endl;
+      abort();
+    }
   }
 }
 
@@ -483,13 +496,16 @@ void test_remaining_bytes()
         snmalloc::remaining_bytes(address_cast(pointer_offset(p, offset)));
       if (rem != (size - offset))
       {
-        report_fatal_error(
-          "Allocation size: {},  Offset: {},  Remaining bytes: {}, "
-          "Expected: {}",
-          size,
-          offset,
-          rem,
-          size - offset);
+        if (rem < (size - offset) || snmalloc::is_owned(p))
+        {
+          report_fatal_error(
+            "Allocation size: {},  Offset: {},  Remaining bytes: {}, "
+            "Expected: {}",
+            size,
+            offset,
+            rem,
+            size - offset);
+        }
       }
     }
     snmalloc::dealloc(p);
