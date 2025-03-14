@@ -274,7 +274,7 @@ void test_external_pointer()
 
       if ((size_t)p4 != (size_t)p1 + size - 1)
       {
-        if (((size_t)p4 > (size_t)p1 + size - 1) || snmalloc::is_owned(p1))
+        if (((size_t)p4 < (size_t)p1 + size - 1) || snmalloc::is_owned(p1))
         {
           std::cout << "size: " << size << " end(p4): " << p4 << " p1: " << p1
                     << "  p1+size-1: " << pointer_offset(p1, size - 1)
