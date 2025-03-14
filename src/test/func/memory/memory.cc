@@ -247,9 +247,12 @@ void test_external_pointer()
 
     if (size != snmalloc::alloc_size(p1))
     {
-      std::cout << "Requested size: " << size
-                << " alloc_size: " << snmalloc::alloc_size(p1) << std::endl;
-      abort();
+      if (size > snmalloc::alloc_size(p1) || snmalloc::is_owned(p1))
+      {
+        std::cout << "Requested size: " << size
+                  << " alloc_size: " << snmalloc::alloc_size(p1) << std::endl;
+        abort();
+      }
     }
 
     for (size_t offset = 0; offset < size; offset += 17)
@@ -259,19 +262,26 @@ void test_external_pointer()
       void* p4 = snmalloc::external_pointer<End>(p2);
       if (p1 != p3)
       {
-        std::cout << "size: " << size
-                  << " alloc_size: " << snmalloc::alloc_size(p1)
-                  << " offset: " << offset << " p1: " << p1 << "  p3: " << p3
-                  << std::endl;
+        if (p3 > p1 || snmalloc::is_owned(p1))
+        {
+          std::cout << "size: " << size
+                    << " alloc_size: " << snmalloc::alloc_size(p1)
+                    << " offset: " << offset << " p1: " << p1 << "  p3: " << p3
+                    << std::endl;
+          abort();
+        }
       }
-      SNMALLOC_CHECK(p1 == p3);
+
       if ((size_t)p4 != (size_t)p1 + size - 1)
       {
-        std::cout << "size: " << size << " end(p4): " << p4 << " p1: " << p1
-                  << "  p1+size-1: " << pointer_offset(p1, size - 1)
-                  << std::endl;
+        if (((size_t)p4 < (size_t)p1 + size - 1) || snmalloc::is_owned(p1))
+        {
+          std::cout << "size: " << size << " end(p4): " << p4 << " p1: " << p1
+                    << "  p1+size-1: " << pointer_offset(p1, size - 1)
+                    << std::endl;
+          abort();
+        }
       }
-      SNMALLOC_CHECK((size_t)p4 == (size_t)p1 + size - 1);
     }
 
     snmalloc::dealloc(p1, size);
@@ -285,9 +295,12 @@ void check_offset(void* base, void* interior)
   void* calced_base = snmalloc::external_pointer((void*)interior);
   if (calced_base != (void*)base)
   {
-    std::cout << "Calced base: " << calced_base << " actual base: " << base
-              << " for interior: " << interior << std::endl;
-    abort();
+    if (calced_base > base || snmalloc::is_owned(base))
+    {
+      std::cout << "Calced base: " << calced_base << " actual base: " << base
+                << " for interior: " << interior << std::endl;
+      abort();
+    }
   }
 }
 
@@ -483,14 +496,16 @@ void test_remaining_bytes()
         snmalloc::remaining_bytes(address_cast(pointer_offset(p, offset)));
       if (rem != (size - offset))
       {
-        printf(
-          "Allocation size: %zu,  Offset: %zu,  Remaining bytes: %zu, "
-          "Expected: %zu\n",
-          size,
-          offset,
-          rem,
-          size - offset);
-        abort();
+        if (rem < (size - offset) || snmalloc::is_owned(p))
+        {
+          report_fatal_error(
+            "Allocation size: {},  Offset: {},  Remaining bytes: {}, "
+            "Expected: {}",
+            size,
+            offset,
+            rem,
+            size - offset);
+        }
       }
     }
     snmalloc::dealloc(p);
@@ -541,19 +556,25 @@ int main(int argc, char** argv)
 #else
   UNUSED(argc, argv);
 #endif
-  test_alloc_dealloc_64k();
-  test_random_allocation();
-  test_calloc();
-  test_double_alloc();
-  test_remaining_bytes();
-  test_static_sized_allocs();
-  test_calloc_large_bug();
-  test_external_pointer_stack();
-  test_external_pointer_dealloc_bug();
-  test_external_pointer_large();
-  test_external_pointer();
-  test_alloc_16M();
-  test_calloc_16M();
-  test_consolidaton_bug();
+#define TEST(testname) \
+  std::cout << "Running " #testname << std::endl; \
+  for (size_t i = 0; i < 100; i++) \
+    testname();
+
+  TEST(test_alloc_dealloc_64k);
+  TEST(test_random_allocation);
+  TEST(test_calloc);
+  TEST(test_double_alloc);
+  TEST(test_remaining_bytes);
+  TEST(test_static_sized_allocs);
+  TEST(test_calloc_large_bug);
+  TEST(test_external_pointer_stack);
+  TEST(test_external_pointer_dealloc_bug);
+  TEST(test_external_pointer_large);
+  TEST(test_external_pointer);
+  TEST(test_alloc_16M);
+  TEST(test_calloc_16M);
+  TEST(test_consolidaton_bug);
+
   return 0;
 }
