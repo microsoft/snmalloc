@@ -262,7 +262,7 @@ void test_external_pointer()
       void* p4 = snmalloc::external_pointer<End>(p2);
       if (p1 != p3)
       {
-        if (p3 < p1 || snmalloc::is_owned(p1))
+        if (p3 > p1 || snmalloc::is_owned(p1))
         {
           std::cout << "size: " << size
                     << " alloc_size: " << snmalloc::alloc_size(p1)
