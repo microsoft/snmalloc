@@ -19,9 +19,9 @@ void debug_check_empty_1()
     abort();
   }
 
-snmalloc::print_alloc_stats();
+  snmalloc::print_alloc_stats();
 
-snmalloc::dealloc(r);
+  snmalloc::dealloc(r);
 
   snmalloc::print_alloc_stats();
 
