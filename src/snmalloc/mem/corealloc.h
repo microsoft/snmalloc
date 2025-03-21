@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds/ds.h"
+#include "allocstats.h"
 #include "check_init.h"
 #include "freelist.h"
 #include "metadata.h"
@@ -46,6 +47,9 @@ namespace snmalloc
         // Zero the memory if requested.
         return ::memset(p, 0, round_size(size));
       }
+
+      auto sc = size_to_sizeclass_full(size);
+      self->stats[sc].objects_allocated++;
 
       return p;
     }
@@ -180,6 +184,11 @@ namespace snmalloc
      * Ticker to query the clock regularly at a lower cost.
      */
     Ticker<typename Config::Pal> ticker;
+
+    /**
+     * Tracks this allocators memory usage
+     */
+    AllocStats stats;
 
     /**
      * The message queue needs to be accessible from other threads
@@ -462,6 +471,9 @@ namespace snmalloc
         post();
       }
 
+      // Push size to global statistics
+      RemoteDeallocCache<Config>::remote_inflight -= bytes_freed;
+
       return action(args...);
     }
 
@@ -513,16 +525,15 @@ namespace snmalloc
         freelist::Object::key_root,
         entry.get_slab_metadata()->as_key_tweak(),
         domesticate);
-      if (!need_post && !remote_dealloc_cache.reserve_space(entry, nelem))
-      {
-        need_post = true;
-      }
+
+      need_post |= remote_dealloc_cache.reserve_space(entry, nelem);
+
       remote_dealloc_cache.template forward<sizeof(Allocator)>(
         entry.get_remote()->trunc_id(), msg);
     }
 
     template<typename Domesticator>
-    SNMALLOC_FAST_PATH static auto dealloc_local_objects_fast(
+    SNMALLOC_FAST_PATH auto dealloc_local_objects_fast(
       capptr::Alloc<RemoteMessage> msg,
       const PagemapEntry& entry,
       BackendSlabMetadata* meta,
@@ -547,6 +558,8 @@ namespace snmalloc
         domesticate);
 
       bytes_freed += objsize * length;
+
+      stats[entry.get_sizeclass()].objects_deallocated += static_cast<size_t>(length);
 
       // Update the head and the next pointer in the free list.
       meta->free_queue.append_segment(
@@ -636,6 +649,7 @@ namespace snmalloc
       if (SNMALLOC_LIKELY(!fl->empty()))
       {
         auto p = fl->take(key, domesticate);
+        stats[sizeclass].objects_allocated++;
         return finish_alloc<Conts>(p, size);
       }
 
@@ -720,6 +734,9 @@ namespace snmalloc
                 meta->initialise_large(
                   address_cast(chunk), freelist::Object::key_root);
                 self->laden.insert(meta);
+
+                auto sc = size_to_sizeclass_full(size);
+                self->stats[sc].slabs_allocated++;
 
                 // Make capptr system happy we are allowed to pass this to
                 // `success`.
@@ -866,6 +883,7 @@ namespace snmalloc
           }
 
           auto r = finish_alloc<Conts>(p, size);
+          stats[sizeclass].slabs_allocated++;
           return ticker.check_tick(r);
         },
         [](Allocator* a, size_t size) SNMALLOC_FAST_PATH_LAMBDA {
@@ -1039,6 +1057,7 @@ namespace snmalloc
        */
       if (SNMALLOC_LIKELY(public_state() == entry.get_remote()))
       {
+        stats[entry.get_sizeclass()].objects_deallocated++;
         dealloc_cheri_checks(p_tame.unsafe_ptr());
         dealloc_local_object(p_tame, entry);
         return;
@@ -1106,6 +1125,8 @@ namespace snmalloc
 
         // Remove from set of fully used slabs.
         meta->node.remove();
+
+        stats[entry.get_sizeclass()].slabs_deallocated++;
 
         Config::Backend::dealloc_chunk(
           get_backend_local_state(), *meta, p, size, entry.get_sizeclass());
@@ -1206,6 +1227,8 @@ namespace snmalloc
         // TODO delay the clear to the next user of the slab, or teardown so
         // don't touch the cache lines at this point in snmalloc_check_client.
         auto start = clear_slab(meta, sizeclass);
+
+        stats[sizeclass].slabs_deallocated++;
 
         Config::Backend::dealloc_chunk(
           get_backend_local_state(),
@@ -1375,7 +1398,7 @@ namespace snmalloc
                              return capptr_domesticate<Config>(local_state, p);
                            };
 
-      size_t bytes_flushed = 0; // Not currently used.
+      size_t bytes_flushed = 0;
 
       if (destroy_queue)
       {
@@ -1387,6 +1410,8 @@ namespace snmalloc
             handle_dealloc_remote(
               entry, m, need_post, domesticate, bytes_flushed);
           };
+
+        RemoteDeallocCache<Config>::remote_inflight -= bytes_flushed;
 
         message_queue().destroy_and_iterate(domesticate, cb);
       }
@@ -1438,8 +1463,6 @@ namespace snmalloc
             }
           });
       }
-      // Set the remote_dealloc_cache to immediately slow path.
-      remote_dealloc_cache.capacity = 0;
 
       return posted;
     }
@@ -1507,6 +1530,11 @@ namespace snmalloc
       message<1024>("debug_is_empty - done");
 #endif
       return sent_something;
+    }
+
+    const AllocStats& get_stats()
+    {
+      return stats;
     }
   };
 
