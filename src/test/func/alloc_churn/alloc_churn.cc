@@ -23,7 +23,8 @@ int main()
 {
   for (size_t i = 0; i < 10000; i++)
   {
-    if (i % 1000 == 0) {
+    if (i % 1000 == 0)
+    {
       std::cout << "Step " << i << std::endl;
       snmalloc::print_alloc_stats();
     }

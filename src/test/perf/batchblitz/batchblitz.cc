@@ -87,8 +87,6 @@ int main()
   }
   stop = true;
 
-
-
   for (auto& t : thread_pool)
     t.join();
 }

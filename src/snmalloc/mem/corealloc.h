@@ -559,7 +559,8 @@ namespace snmalloc
 
       bytes_freed += objsize * length;
 
-      stats[entry.get_sizeclass()].objects_deallocated += static_cast<size_t>(length);
+      stats[entry.get_sizeclass()].objects_deallocated +=
+        static_cast<size_t>(length);
 
       // Update the head and the next pointer in the free list.
       meta->free_queue.append_segment(
