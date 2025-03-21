@@ -236,8 +236,7 @@ namespace snmalloc
     {
       static_assert(sizeof(n) * 8 > MAX_CAPACITY_BITS);
 
-      auto size =
-        n * static_cast<int64_t>(sizeclass_full_to_size(entry.get_sizeclass()));
+      size_t size = n * sizeclass_full_to_size(entry.get_sizeclass());
 
       cache_bytes += size;
       return cache_bytes < REMOTE_CACHE;
