@@ -107,6 +107,14 @@ jobs:
         mkdir libs
         cp libsnmallocshim*.so libs
         for lib in `ls libs`; do echo; echo Testing $lib; ninja clean; LD_PRELOAD=libs/$lib ninja libsnmallocshim.so; done
+    - uses: bazelbuild/setup-bazelisk@v3
+    - name: Mount bazel cache  # Optional
+      uses: actions/cache@v4
+      with:
+        path: "~/.cache/bazel"
+        key: bazel
+    - run: bazel build -c opt //:snmalloc
+    - run: bazel build -c opt //:snmalloc-rs
 
   # If this looks remarkably familiar, that's because it is.  Sigh.
   macos:
@@ -151,6 +159,14 @@ jobs:
         mkdir libs
         cp libsnmallocshim*.so libs
         for lib in `ls libs`; do echo; echo Testing $lib; ninja clean; LD_PRELOAD=libs/$lib ninja libsnmallocshim.so; done
+    - uses: bazelbuild/setup-bazelisk@v3
+    - name: Mount bazel cache  # Optional
+      uses: actions/cache@v4
+      with:
+        path: "~/.cache/bazel"
+        key: bazel
+    - run: bazel build -c opt //:snmalloc
+    - run: bazel build -c opt //:snmalloc-rs
 
 
   # GitHub doesn't natively support *BSD, but we can run them in VMs on Mac /
@@ -447,6 +463,19 @@ jobs:
       working-directory: ${{ github.workspace }}/build
       run: ctest -j 2 --interactive-debug-mode 0 --output-on-failure -C ${{ matrix.build-type }} --timeout 400
       timeout-minutes: 20
+    - uses: bazelbuild/setup-bazelisk@v3
+    - name: Mount bazel cache  # Optional
+      uses: actions/cache@v4
+      with:
+        path: "~/.cache/bazel"
+        key: bazel
+    - name: Bazel build
+      run: bazel build -c opt //:snmalloc
+      shell: bash
+    - name: Bazel build with rust
+      run: bazel build -c opt //:snmalloc-rs
+      shell: bash
+
 
 
   # Job to run clang-format and report errors
@@ -488,6 +517,13 @@ jobs:
       run: cmake --build ${{github.workspace}}/build --target snmalloc-fuzzer
     - name: Test
       run: ${{github.workspace}}/build/fuzzing/snmalloc-fuzzer
+    - uses: bazelbuild/setup-bazelisk@v3
+    - name: Mount bazel cache  # Optional
+      uses: actions/cache@v4
+      with:
+        path: "~/.cache/bazel"
+        key: bazel
+    - run: bazel test -c opt --config=asan //fuzzing:snmalloc_fuzzer
 
   self-vendored:
     strategy:
