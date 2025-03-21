@@ -26,11 +26,14 @@ cmake(
     generate_args = ["-G Ninja"],
     lib_source = ":srcs",
     out_headers_only = False,
-    out_shared_libs = [
-        "libsnmallocshim-checks-memcpy-only.dylib",
-        "libsnmallocshim-checks.dylib",
-        "libsnmallocshim.dylib",
-    ],
+    out_shared_libs = select({
+        "@bazel_tools//src/conditions:linux": [],
+        "//conditions:default": [
+            "libsnmallocshim-checks-memcpy-only.dylib",
+            "libsnmallocshim-checks.dylib",
+            "libsnmallocshim.dylib",
+        ],
+    }),
     out_static_libs = [
         "libsnmallocshim-static.a",
         "libsnmalloc-new-override.a",
