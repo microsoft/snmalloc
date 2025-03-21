@@ -16,10 +16,10 @@ For simplicity, we assume that
 Since this is the first allocation, all the internal caches will be empty, and so we will hit all the slow paths.
 For simplicity, we gloss over much of the "lazy initialization" that would actually be implied by a first allocation.
 
-1. The `LocalAlloc::small_alloc` finds that it cannot satisfy the request because its `LocalCache` lacks a free list for this size class.
-   The request is delegated, unchanged, to `CoreAllocator::small_alloc`.
+1. The `Allocator::small_alloc` finds that it cannot satisfy the request because its lacks a fast free list for this size class.
+   The request is delegated, unchanged, to `Allocator::small_refill`.
 
-2. The `CoreAllocator` has no active slab for this sizeclass, so `CoreAllocator::small_alloc_slow` delegates to `BackendAllocator::alloc_chunk`.
+2. The `Allocator` has no active slab for this sizeclass, so `Allocator::small_refill_slow` delegates to `BackendAllocator::alloc_chunk`.
    At this point, the allocation request is enlarged to one or a few chunks (a small counting number multiple of `MIN_CHUNK_SIZE`, which is typically 16KiB); see `sizeclass_to_slab_size`.
 
 3. `BackendAllocator::alloc_chunk` at this point splits the allocation request in two, allocating both the chunk's metadata structure (of size `PAGEMAP_METADATA_STRUCT_SIZE`) and the chunk itself (a multiple of `MIN_CHUNK_SIZE`).

@@ -4,9 +4,6 @@
 
 namespace snmalloc
 {
-  // Forward reference to thread local cleanup.
-  void register_clean_up();
-
   /**
    * Options for a specific snmalloc configuration.  Every globals object must
    * have one `constexpr` instance of this class called `Options`.  This should
@@ -33,50 +30,27 @@ namespace snmalloc
   {
     /**
      * Should allocators have inline message queues?  If this is true then
-     * the `CoreAllocator` is responsible for allocating the
+     * the `Allocator` is responsible for allocating the
      * `RemoteAllocator` that contains its message queue.  If this is false
      * then the `RemoteAllocator` must be separately allocated and provided
-     * to the `CoreAllocator` before it is used.
-     *
-     * Setting this to `false` currently requires also setting
-     * `LocalAllocSupportsLazyInit` to false so that the `CoreAllocator` can
-     * be provided to the `LocalAllocator` fully initialised but in the
-     * future it may be possible to allocate the `RemoteAllocator` via
-     * `alloc_meta_data` or a similar API in the back end.
+     * to the `Allocator` before it is used.
      */
     bool IsQueueInline = true;
 
     /**
-     * Does the `CoreAllocator` own a `Backend::LocalState` object?  If this is
-     * true then the `CoreAllocator` is responsible for allocating and
+     * Does the `Allocator` own a `Backend::LocalState` object?  If this is
+     * true then the `Allocator` is responsible for allocating and
      * deallocating a local state object, otherwise the surrounding code is
      * responsible for creating it.
-     *
-     * Use cases that set this to false will probably also need to set
-     * `LocalAllocSupportsLazyInit` to false so that they can provide the local
-     * state explicitly during allocator creation.
      */
-    bool CoreAllocOwnsLocalState = true;
+    bool AllocOwnsLocalState = true;
 
     /**
-     * Are `CoreAllocator` allocated by the pool allocator?  If not then the
+     * Are `Allocator` allocated by the pool allocator?  If not then the
      * code embedding this snmalloc configuration is responsible for allocating
-     * `CoreAllocator` instances.
-     *
-     * Users setting this flag must also set `LocalAllocSupportsLazyInit` to
-     * false currently because there is no alternative mechanism for allocating
-     * core allocators.  This may change in future versions.
+     * `Allocator` instances.
      */
-    bool CoreAllocIsPoolAllocated = true;
-
-    /**
-     * Do `LocalAllocator` instances in this configuration support lazy
-     * initialisation?  If so, then the first exit from a fast path will
-     * trigger allocation of a `CoreAllocator` and associated state.  If not
-     * then the code embedding this configuration of snmalloc is responsible
-     * for allocating core allocators.
-     */
-    bool LocalAllocSupportsLazyInit = true;
+    bool AllocIsPoolAllocated = true;
 
     /**
      * Are the front and back pointers to the message queue in a RemoteAllocator

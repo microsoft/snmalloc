@@ -327,11 +327,9 @@ namespace snmalloc
       return list.destroy_and_iterate(domesticate, cbwrap);
     }
 
-    template<typename Domesticator_head, typename Domesticator_queue>
-    inline bool can_dequeue(
-      Domesticator_head domesticate_head, Domesticator_queue domesticate_queue)
+    inline bool can_dequeue()
     {
-      return list.can_dequeue(domesticate_head, domesticate_queue);
+      return list.can_dequeue();
     }
 
     /**

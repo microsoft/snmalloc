@@ -21,14 +21,14 @@ namespace snmalloc
     /**
      * The allocator that this wrapper will use.
      */
-    SAlloc alloc;
+    SAlloc* alloc;
 
     /**
      * Constructor.  Claims an allocator from the global pool
      */
     ScopedAllocator()
     {
-      alloc.init();
+      alloc = AllocPool<typename SAlloc::Config>::acquire();
     };
 
     /**
@@ -60,7 +60,12 @@ namespace snmalloc
      */
     ~ScopedAllocator()
     {
-      alloc.flush();
+      if (alloc != nullptr)
+      {
+        alloc->flush();
+        AllocPool<typename SAlloc::Config>::release(alloc);
+        alloc = nullptr;
+      }
     }
 
     /**
@@ -69,7 +74,7 @@ namespace snmalloc
      */
     SAlloc* operator->()
     {
-      return &alloc;
+      return alloc;
     }
   };
 

@@ -117,6 +117,5 @@ int main()
   freeloop_thread.join();
 
   puts("Done!");
-
   return 0;
 }

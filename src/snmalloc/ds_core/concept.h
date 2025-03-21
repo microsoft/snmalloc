@@ -54,10 +54,11 @@ namespace snmalloc
    * explicitly at call sites) until C++23 or later.
    */
   template<typename, typename = void>
-  constexpr bool is_type_complete_v = false;
+  constexpr bool is_type_complete_v{false};
 
   template<typename T>
-  constexpr bool is_type_complete_v<T, stl::void_t<decltype(sizeof(T))>> = true;
-
+  constexpr bool
+    is_type_complete_v<T, stl::void_t<decltype(stl::is_base_of_v<size_t, T>)>>{
+      false};
 } // namespace snmalloc
 #endif
