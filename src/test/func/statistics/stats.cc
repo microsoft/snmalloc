@@ -11,6 +11,7 @@ void debug_check_empty_1()
   auto r = snmalloc::alloc(size);
 
   snmalloc::debug_check_empty(&result);
+  snmalloc::print_alloc_stats();
   if (result != false)
   {
     std::cout << "debug_check_empty failed to detect leaked memory:" << size
@@ -18,7 +19,11 @@ void debug_check_empty_1()
     abort();
   }
 
-  snmalloc::dealloc(r);
+snmalloc::print_alloc_stats();
+
+snmalloc::dealloc(r);
+
+  snmalloc::print_alloc_stats();
 
   snmalloc::debug_check_empty(&result);
   if (result != true)
@@ -26,9 +31,13 @@ void debug_check_empty_1()
     std::cout << "debug_check_empty failed to say empty:" << size << std::endl;
     abort();
   }
+
+  snmalloc::print_alloc_stats();
 
   r = snmalloc::alloc(size);
 
+  snmalloc::print_alloc_stats();
+
   snmalloc::debug_check_empty(&result);
   if (result != false)
   {
@@ -37,7 +46,11 @@ void debug_check_empty_1()
     abort();
   }
 
+  snmalloc::print_alloc_stats();
+
   snmalloc::dealloc(r);
+
+  snmalloc::print_alloc_stats();
 
   snmalloc::debug_check_empty(&result);
   if (result != true)
@@ -45,6 +58,8 @@ void debug_check_empty_1()
     std::cout << "debug_check_empty failed to say empty:" << size << std::endl;
     abort();
   }
+
+  snmalloc::print_alloc_stats();
 }
 
 template<size_t size>
