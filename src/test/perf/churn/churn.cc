@@ -65,7 +65,8 @@ int main()
       count++;
       std::this_thread::sleep_for(std::chrono::seconds(1));
       // std::cout << "Inflight:            " <<
-      // snmalloc::RemoteDeallocCache<snmalloc::Config>::remote_inflight << std::endl; std::cout
+      // snmalloc::RemoteDeallocCache<snmalloc::Config>::remote_inflight <<
+      // std::endl; std::cout
       // << "Current reservation: " << snmalloc::Globals::get_current_usage() <<
       // std::endl; std::cout << "Peak reservation:    " <<
       // snmalloc::Globals::get_peak_usage() << std::endl; std::cout <<
@@ -73,14 +74,16 @@ int main()
       // std::endl; std::cout << "Running threads:     " << running <<
       // std::endl; std::cout << "Index:               " << count << std::endl;
       // std::cout << "------------------------------------------" << std::endl;
-      std::cout << count << ","
-                << snmalloc::Alloc::Config::Backend::get_peak_usage() << ","
-                << snmalloc::Alloc::Config::Backend::get_current_usage() << ","
-                << requests.get_curr() << "," << requests.get_peak() << ","
-                << snmalloc::RemoteDeallocCache<snmalloc::Config>::remote_inflight.get_peak()
-                << ","
-                << snmalloc::RemoteDeallocCache<snmalloc::Config>::remote_inflight.get_curr()
-                << std::endl;
+      std::cout
+        << count << "," << snmalloc::Alloc::Config::Backend::get_peak_usage()
+        << "," << snmalloc::Alloc::Config::Backend::get_current_usage() << ","
+        << requests.get_curr() << "," << requests.get_peak() << ","
+        << snmalloc::RemoteDeallocCache<snmalloc::Config>::remote_inflight
+             .get_peak()
+        << ","
+        << snmalloc::RemoteDeallocCache<snmalloc::Config>::remote_inflight
+             .get_curr()
+        << std::endl;
       snmalloc::print_alloc_stats();
     }
   }).join();
