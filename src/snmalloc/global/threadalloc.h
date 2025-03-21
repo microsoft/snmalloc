@@ -102,6 +102,11 @@ namespace snmalloc
       alloc = const_cast<Alloc*>(&default_alloc);
     }
 
+    /**
+     * This provides the basic functionality of checking for initialisation,
+     * and providing an outlined slow path that performs that and calls the
+     * specialisations register_clean_up function: Subclass::register_clean_up.
+     */
     template<typename Subclass>
     class CheckInitBase
     {

@@ -225,9 +225,6 @@ namespace snmalloc
     /**
      * Initialiser, shared code between the constructors for different
      * configurations.
-     *
-     * spare is the amount of space directly after the allocator that is
-     * reserved as meta-data, but is not required by this Allocator.
      */
     void init()
     {
@@ -247,6 +244,13 @@ namespace snmalloc
       remote_dealloc_cache.init();
     }
 
+    /**
+     * Initialiser, shared code between the constructors for different
+     * configurations.
+     *
+     * spare is the amount of space directly after the allocator that is
+     * reserved as meta-data, but is not required by this Allocator.
+     */
     void init(Range<capptr::bounds::Alloc>& spare)
     {
       init();
@@ -302,6 +306,12 @@ namespace snmalloc
       init(spare);
     }
 
+    /**
+     * Constructor for the case that the core allocator does not owns the local
+     * state. SFINAE disabled if the allocator does own the local state.
+     *
+     * This constructor is used when the allocator is not pool allocated.
+     */
     template<
       typename Config__ = Config,
       typename = stl::enable_if_t<Config__::Options.AllocOwnsLocalState>>
@@ -511,7 +521,6 @@ namespace snmalloc
         meta->as_key_tweak(),
         domesticate);
 
-      // TODO this should be fixed in a separate PR.
       bytes_freed += objsize * length;
 
       // Update the head and the next pointer in the free list.
@@ -550,12 +559,14 @@ namespace snmalloc
      *    - static alloc_not_small(size_t, Allocator*)
      *      - If size is zero, call small_alloc(1) - this deals with the
      *        annoying case of zero off the fast path.
-     *      - Otherwise, call backend to allocate a large allocation.
+     *      - Otherwise,
+     *        - Check for initialisation, and
+     *        - call backend to allocate a large allocation.
      *************************************************************************/
 
     /**
      * Allocates a block of memory of the given size.
-     * * @param size The size of the block to allocate.
+     * @param size The size of the block to allocate.
      * @return A pointer to the allocated block, or nullptr if the allocation
      *        failed.
      * @tparam zero_mem Whether to zero the allocated memory.
@@ -609,7 +620,7 @@ namespace snmalloc
     }
 
     /**
-     * Allocation that are larger than will result in an allocation directly
+     * Allocation that are larger that will result in an allocation directly
      * from the backend. This additionally checks for 0 size allocations and
      * handles checking for messages and initialisation.
      *
@@ -661,14 +672,15 @@ namespace snmalloc
                 PagemapEntry::encode(
                   self->public_state(), size_to_sizeclass_full(size)),
                 size_to_sizeclass_full(size));
-          // set up meta data so sizeclass is correct, and hence alloc size, and
-          // external pointer.
+
 #ifdef SNMALLOC_TRACING
               message<1024>(
                 "size {} pow2size {}", size, bits::next_pow2_bits(size));
 #endif
 
-              // Initialise meta data for a successful large allocation.
+              // set up meta data so sizeclass is correct, and hence alloc size,
+              // and external pointer. Initialise meta data for a successful
+              // large allocation.
               if (meta != nullptr)
               {
                 meta->initialise_large(
@@ -709,6 +721,11 @@ namespace snmalloc
         if constexpr (zero_mem == YesZero)
           Config::Pal::zero(result, sizeclass_to_size(sizeclass));
 
+        // We need to check for initialisation here in the case where
+        // this is the first allocation in the system, so snmalloc has
+        // not initialised the pagemap.  If this allocation is subsequently
+        // deallocated, before snmalloc is initialised, then it will fail
+        // to access the pagemap.
         return CheckInit::check_init(
           [result]() { return capptr::Alloc<void>::unsafe_from(result); },
           [](Allocator*, void* result) {
@@ -922,13 +939,13 @@ namespace snmalloc
      *
      * The main deallocation code is in dealloc.  This, like alloc, takes a
      * template to initialise the state of the allocator.  It is possible for
-     *the first operation on a thread to be a deallocation.
+     * the first operation on a thread to be a deallocation.
      *
      * The algorithm is
      * - dealloc(void*)
      *  - If object, originated from this allocator, then
      *    - dealloc_local_object(void*) which returns the object to the free
-     *list.
+     *      list.
      *      - the free list length is updated, which can trigger a slow path for
      *        * large objects (dealloc_local_object_slow)
      *        * completely full list
@@ -1300,10 +1317,7 @@ namespace snmalloc
         },
         [](Allocator* a, void* p) {
           // Recheck what kind of dealloc we should do in case the allocator
-          // we get from lazy_init is the originating allocator.  (TODO: but
-          // note that this can't suddenly become a large deallocation; the
-          // only distinction is between being ours to handle and something to
-          // post to a Remote.)
+          // we get from lazy_init is the originating allocator.
           a->dealloc(p); // TODO don't double count statistics
         },
         p.unsafe_ptr());
@@ -1507,11 +1521,11 @@ namespace snmalloc
         Config::Pal::error("Failed to initialise thread local allocator.");
       }
 
-      capptr::Alloc<void> alloc_start = pointer_offset(raw, spare);
-      Range<capptr::bounds::Alloc> r{raw, spare};
+      capptr::Alloc<void> spare_start = pointer_offset(raw, round_sizeof);
+      Range<capptr::bounds::Alloc> r{spare_start, spare};
 
       auto p = capptr::Alloc<CA>::unsafe_from(
-        new (alloc_start.unsafe_ptr(), placement_token) CA(r));
+        new (raw.unsafe_ptr(), placement_token) CA(r));
 
       // Remove excess from the bounds.
       p = Aal::capptr_bound<CA, capptr::bounds::Alloc>(p, round_sizeof);
