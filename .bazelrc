@@ -1,6 +1,6 @@
 common --enable_platform_specific_config
 
-build --cxxopt=-std=c++20
+build --cxxopt=-std=c++2a
 
 # Show everything when running tests.
 test --test_output=streamed

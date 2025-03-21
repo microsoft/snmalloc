@@ -27,34 +27,22 @@ cmake(
     lib_source = ":srcs",
     out_headers_only = False,
     out_shared_libs = select({
-        "@bazel_tools//src/conditions:windows": [
-            "libsnmallocshim-checks-memcpy-only.dll",
-            "libsnmallocshim-checks.dll",
-            "libsnmallocshim.dll",
-        ],
-        "@bazel_tools//src/conditions:macos": [
+        "@bazel_tools//src/conditions:darwin": [
             "libsnmallocshim-checks-memcpy-only.dylib",
             "libsnmallocshim-checks.dylib",
             "libsnmallocshim.dylib",
         ],
         "//conditions:default": [],
     }),
-    out_static_libs = select({
-        "@bazel_tools//src/conditions:windows": [
-            "libsnmallocshim-static.lib",
-            "libsnmalloc-new-override.lib",
-        ],
-        "//conditions:default": [
-            "libsnmallocshim-static.a",
-            "libsnmalloc-new-override.a",
-        ],
-    }),
+    out_static_libs = [
+        "libsnmallocshim-static.a",
+        "libsnmalloc-new-override.a",
+    ],
     postfix_script = "ninja",
     visibility = ["//visibility:public"],
 )
 
 cmake(
-    exe,
     name = "snmalloc-rs",
     build_args = [
         "-j12",
@@ -70,28 +58,17 @@ cmake(
     lib_source = ":srcs",
     out_headers_only = False,
     out_shared_libs = select({
-        "@bazel_tools//src/conditions:windows": [
-            "libsnmallocshim-checks-memcpy-only.dll",
-            "libsnmallocshim-checks.dll",
-            "libsnmallocshim.dll",
-        ],
-        "@bazel_tools//src/conditions:macos": [
+        "@bazel_tools//src/conditions:darwin": [
             "libsnmallocshim-checks-memcpy-only.dylib",
             "libsnmallocshim-checks.dylib",
             "libsnmallocshim.dylib",
         ],
         "//conditions:default": [],
     }),
-    out_static_libs = select({
-        "@bazel_tools//src/conditions:windows": [
-            "libsnmallocshim-static.lib",
-            "libsnmalloc-new-override.lib",
-        ],
-        "//conditions:default": [
-            "libsnmallocshim-static.a",
-            "libsnmalloc-new-override.a",
-        ],
-    }),
+    out_static_libs = [
+        "libsnmallocshim-static.a",
+        "libsnmalloc-new-override.a",
+    ],
     postfix_script = "ninja",
     visibility = ["//visibility:public"],
 )
