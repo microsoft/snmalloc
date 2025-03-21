@@ -92,15 +92,13 @@ void looper(size_t iterations)
 
 int main()
 {
-#ifdef DISABLED_TEST
-#  ifdef SNMALLOC_THREAD_SANITIZER_ENABLED
-  size_t iterations = 5000;
-#  elif defined(__APPLE__) && \
-    !defined(SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS)
-  size_t iterations = 5000;
-#  else
-  size_t iterations = 20000;
-#  endif
+#ifdef SNMALLOC_THREAD_SANITIZER_ENABLED
+  size_t iterations = 50000;
+#elif defined(__APPLE__) && !defined(SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS)
+  size_t iterations = 50000;
+#else
+  size_t iterations = 200000;
+#endif
 
   int threadcount = 8;
   vector<thread> threads;
@@ -119,6 +117,5 @@ int main()
   freeloop_thread.join();
 
   puts("Done!");
-#endif
   return 0;
 }
