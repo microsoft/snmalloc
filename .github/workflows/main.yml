@@ -1,5 +1,11 @@
 name: snmalloc CI
 
+# The following should ensure that the workflow only runs a single set of actions
+# for each PR. But it will not apply this to pushes to the main branch.
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 # Controls when the workflow will run
 on:
   # Triggers the workflow on push or pull request events but only for the master branch
