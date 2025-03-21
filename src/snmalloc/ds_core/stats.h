@@ -1,7 +1,8 @@
-#include "defines.h"
+#pragma once
 
-#include <atomic>
-#include <cstddef>
+#include "defines.h"
+#include "snmalloc/stl/atomic.h"
+#include "stddef.h"
 
 namespace snmalloc
 {
