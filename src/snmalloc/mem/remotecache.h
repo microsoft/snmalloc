@@ -206,9 +206,7 @@ namespace snmalloc
      */
     size_t cache_bytes{REMOTE_CACHE};
 
-#ifndef NDEBUG
     bool initialised = false;
-#endif
 
     /// Used to find the index into the array of queues for remote
     /// deallocation
@@ -238,8 +236,21 @@ namespace snmalloc
 
       size_t size = n * sizeclass_full_to_size(entry.get_sizeclass());
 
-      cache_bytes += size;
-      return cache_bytes < REMOTE_CACHE;
+      size_t new_cache_bytes = cache_bytes + size;
+      if (SNMALLOC_UNLIKELY(new_cache_bytes > REMOTE_CACHE))
+      {
+        // Check if this is the default allocator, and if not, we
+        // can update the state.
+        if (initialised)
+        {
+          cache_bytes = new_cache_bytes;
+        }
+
+        return false;
+      }
+
+      cache_bytes = new_cache_bytes;
+      return true;
     }
 
     template<size_t allocator_size>
@@ -376,9 +387,8 @@ namespace snmalloc
      */
     void init()
     {
-#ifndef NDEBUG
       initialised = true;
-#endif
+
       for (auto& l : list)
       {
         // We do not need to initialise with a particular slab, so pass
