@@ -1,7 +1,7 @@
+#include "alloc.h"
 #include "backend_concept.h"
 #include "backend_wrappers.h"
 #include "check_init.h"
-#include "corealloc.h"
 #include "entropy.h"
 #include "freelist.h"
 #include "metadata.h"

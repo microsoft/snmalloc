@@ -81,7 +81,7 @@ namespace snmalloc
    * The third template argument is a method to retrieve the actual PoolState.
    *
    * For the pool of allocators, refer to the AllocPool alias defined in
-   * corealloc.h.
+   * alloc.h.
    *
    * For a pool of another type, it is recommended to leave the
    * third template argument with its default value. The SingletonPoolState
