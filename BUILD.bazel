@@ -1,0 +1,68 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+
+filegroup(
+    name = "srcs",
+    srcs = glob(
+        [
+            "src/snmalloc/**/*",
+            "src/test/*.h",
+            "CMakeLists.txt",
+        ],
+    ),
+    visibility = ["//visibility:private"],
+)
+
+cmake(
+    name = "snmalloc",
+    build_args = [
+        "-j12",
+        "--parallel",
+    ],
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE": "ON",
+        "SNMALLOC_USE_SELF_VENDORED_STL": "OFF",
+    },
+    generate_args = ["-G Ninja"],
+    lib_source = ":srcs",
+    out_headers_only = False,
+    out_shared_libs = [
+        "libsnmallocshim-checks-memcpy-only.dylib",
+        "libsnmallocshim-checks.dylib",
+        "libsnmallocshim.dylib",
+    ],
+    out_static_libs = [
+        "libsnmallocshim-static.a",
+        "libsnmalloc-new-override.a",
+    ],
+    postfix_script = "ninja",
+    visibility = ["//visibility:public"],
+)
+
+cmake(
+    name = "snmalloc-rs",
+    build_args = [
+        "-j12",
+        "--parallel",
+    ],
+    cache_entries = {
+        "CMAKE_BUILD_TYPE": "Release",
+        "SNMALLOC_RUST_SUPPORT": "ON",
+        "SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE": "ON",
+        "SNMALLOC_USE_SELF_VENDORED_STL": "OFF",
+    },
+    generate_args = ["-G Ninja"],
+    lib_source = ":srcs",
+    out_headers_only = False,
+    out_shared_libs = [
+        "libsnmallocshim-checks-memcpy-only.dylib",
+        "libsnmallocshim-checks.dylib",
+        "libsnmallocshim.dylib",
+    ],
+    out_static_libs = [
+        "libsnmallocshim-static.a",
+        "libsnmalloc-new-override.a",
+    ],
+    postfix_script = "ninja",
+    visibility = ["//visibility:public"],
+)
