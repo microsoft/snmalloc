@@ -32,14 +32,14 @@ namespace snmalloc
 
     FlagWord lock{};
     capptr::Alloc<T> list{nullptr};
-    std::atomic<size_t> count{0};
+    stl::Atomic<size_t> count{0};
 
   public:
     constexpr PoolState() = default;
 
     size_t get_count()
     {
-      return count.load(std::memory_order_relaxed);
+      return count.load(stl::memory_order_relaxed);
     }
   };
 

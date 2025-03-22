@@ -18,8 +18,9 @@ namespace snmalloc
   public:
     void increase(size_t amount)
     {
-      size_t c = (curr += amount);
-      size_t p = peak.load(std::memory_order_relaxed);
+      size_t old = curr.fetch_add(amount);
+      size_t c = old + amount;
+      size_t p = peak.load(stl::memory_order_relaxed);
       while (c > p)
       {
         if (peak.compare_exchange_strong(p, c))
@@ -37,12 +38,12 @@ namespace snmalloc
 
     size_t get_curr()
     {
-      return curr.load(std::memory_order_relaxed);
+      return curr.load(stl::memory_order_relaxed);
     }
 
     size_t get_peak()
     {
-      return peak.load(std::memory_order_relaxed);
+      return peak.load(stl::memory_order_relaxed);
     }
 
     void operator+=(size_t amount)
@@ -71,28 +72,28 @@ namespace snmalloc
    */
   class MonotoneLocalStat
   {
-    std::atomic<size_t> value{0};
+    stl::Atomic<size_t> value{0};
 
   public:
     void operator++(int)
     {
-      value.fetch_add(1, std::memory_order_relaxed);
+      value.fetch_add(1, stl::memory_order_relaxed);
     }
 
     void operator+=(const MonotoneLocalStat& other)
     {
-      auto v = other.value.load(std::memory_order_relaxed);
-      value.fetch_add(v, std::memory_order_relaxed);
+      auto v = other.value.load(stl::memory_order_relaxed);
+      value.fetch_add(v, stl::memory_order_relaxed);
     }
 
     void operator+=(size_t v)
     {
-      value.fetch_add(v, std::memory_order_relaxed);
+      value.fetch_add(v, stl::memory_order_relaxed);
     }
 
     size_t operator*()
     {
-      return value.load(std::memory_order_relaxed);
+      return value.load(stl::memory_order_relaxed);
     }
   };
 } // namespace snmalloc
