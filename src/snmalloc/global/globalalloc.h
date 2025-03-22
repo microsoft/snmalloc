@@ -147,7 +147,7 @@ namespace snmalloc
   template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
   inline static void print_alloc_stats()
   {
-    static std::atomic<size_t> dump{0};
+    static stl::Atomic<size_t> dump{0};
 
     auto l_dump = dump++;
     if (l_dump == 0)
