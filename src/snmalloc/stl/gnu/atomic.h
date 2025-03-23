@@ -94,7 +94,8 @@ namespace snmalloc
         return load();
       }
 
-      SNMALLOC_FAST_PATH T load(MemoryOrder mem_ord = MemoryOrder::SEQ_CST) const
+      SNMALLOC_FAST_PATH T
+      load(MemoryOrder mem_ord = MemoryOrder::SEQ_CST) const
       {
         T res;
         __atomic_load(addressof(val), addressof(res), order(mem_ord));
