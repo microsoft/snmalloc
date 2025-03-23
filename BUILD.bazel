@@ -14,14 +14,11 @@ filegroup(
 
 cmake(
     name = "snmalloc",
-    build_args = [
-        "-j12",
-        "--parallel",
-    ],
     cache_entries = {
         "CMAKE_BUILD_TYPE": "Release",
         "SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE": "ON",
         "SNMALLOC_USE_SELF_VENDORED_STL": "OFF",
+        "SNMALLOC_IPO": "ON",
     },
     generate_args = ["-G Ninja"],
     lib_source = ":srcs",
@@ -44,15 +41,12 @@ cmake(
 
 cmake(
     name = "snmalloc-rs",
-    build_args = [
-        "-j12",
-        "--parallel",
-    ],
     cache_entries = {
         "CMAKE_BUILD_TYPE": "Release",
         "SNMALLOC_RUST_SUPPORT": "ON",
         "SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE": "ON",
         "SNMALLOC_USE_SELF_VENDORED_STL": "OFF",
+        "SNMALLOC_IPO": "ON",
     },
     generate_args = ["-G Ninja"],
     lib_source = ":srcs",
