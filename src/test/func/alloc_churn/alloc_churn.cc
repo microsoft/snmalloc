@@ -27,6 +27,7 @@ int main()
     {
       std::cout << "Step " << i << std::endl;
       snmalloc::print_alloc_stats();
+      snmalloc::debug_check_empty();
     }
     test_step();
   }

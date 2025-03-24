@@ -84,10 +84,14 @@ namespace snmalloc
       }
     }
 
-    // Check why this doesn't hold.
-    // if (result == nullptr)
-    //   SNMALLOC_CHECK(
-    //     RemoteDeallocCache<Config_>::remote_inflight.get_curr() == 0);
+    if (
+      result == nullptr &&
+      RemoteDeallocCache<Config_>::remote_inflight.get_curr() != 0)
+    {
+      report_fatal_error(
+        "debug_check_empty: remote inflight deallocations left {}}",
+        RemoteDeallocCache<Config_>::remote_inflight.get_curr());
+    }
 
     if (result != nullptr)
     {
