@@ -503,6 +503,13 @@ jobs:
       run: cmake --build ${{github.workspace}}/build --target snmalloc-fuzzer
     - name: Test
       run: ${{github.workspace}}/build/fuzzing/snmalloc-fuzzer
+    - uses: bazelbuild/setup-bazelisk@v3
+    - name: Mount bazel cache  # Optional
+      uses: actions/cache@v4
+      with:
+        path: "~/.cache/bazel"
+        key: bazel
+    - run: bazel test -c opt --config=asan //fuzzing:snmalloc_fuzzer
 
   self-vendored:
     strategy:
