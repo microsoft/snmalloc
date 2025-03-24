@@ -123,15 +123,15 @@ int main()
   }
 
   /*
-   * Grab another CoreAlloc pointer from the pool and examine it.
+   * Grab another Alloc pointer from the pool and examine it.
    *
-   * CoreAlloc-s come from the metadata pools of snmalloc, and so do not flow
+   * Alloc-s come from the metadata pools of snmalloc, and so do not flow
    * through the usual allocation machinery.
    */
-  message("Grab CoreAlloc from pool for inspection");
+  message("Grab Alloc from pool for inspection");
   {
     static_assert(
-      std::is_same_v<decltype(alloc.alloc), LocalAllocator<StandardConfig>>);
+      std::is_same_v<decltype(alloc.alloc), Allocator<StandardConfig>>);
 
     auto* ca = AllocPool<StandardConfig>::acquire();
 

@@ -43,33 +43,29 @@ namespace snmalloc
     // Store the two ends on different cache lines as access by different
     // threads.
     alignas(CACHELINE_SIZE) freelist::AtomicQueuePtr front{nullptr};
-    // Fake first entry
-    freelist::Object::T<capptr::bounds::AllocWild> stub{};
 
     constexpr FreeListMPSCQ() = default;
 
     void invariant()
     {
-      SNMALLOC_ASSERT(
-        (address_cast(front.load()) == address_cast(&stub)) ||
-        (back.load() != nullptr));
+      SNMALLOC_ASSERT(pointer_align_up(this, REMOTE_MIN_ALIGN) == this);
     }
 
     void init()
     {
-      freelist::HeadPtr stub_ptr = freelist::HeadPtr::unsafe_from(&stub);
-      freelist::Object::atomic_store_null(stub_ptr, Key, Key_tweak);
-      front.store(freelist::QueuePtr::unsafe_from(&stub));
-      back.store(nullptr, stl::memory_order_relaxed);
+      back.store(nullptr);
+      front.store(nullptr);
       invariant();
     }
 
     freelist::QueuePtr destroy()
     {
+      if (back.load(stl::memory_order_relaxed) == nullptr)
+        return nullptr;
+
       freelist::QueuePtr fnt = front.load();
       back.store(nullptr, stl::memory_order_relaxed);
-      if (address_cast(front.load()) == address_cast(&stub))
-        return nullptr;
+      front.store(nullptr, stl::memory_order_relaxed);
       return fnt;
     }
 
@@ -86,12 +82,10 @@ namespace snmalloc
       }
     }
 
-    template<typename Domesticator_head, typename Domesticator_queue>
-    inline bool can_dequeue(
-      Domesticator_head domesticate_head, Domesticator_queue domesticate_queue)
+    inline bool can_dequeue()
     {
-      return domesticate_head(front.load())
-               ->atomic_read_next(Key, Key_tweak, domesticate_queue) != nullptr;
+      return front.load(stl::memory_order_relaxed) !=
+        back.load(stl::memory_order_relaxed);
     }
 
     /**
@@ -153,11 +147,17 @@ namespace snmalloc
       Cb cb)
     {
       invariant();
-      SNMALLOC_ASSERT(front.load() != nullptr);
+
+      freelist::HeadPtr curr = domesticate_head(front.load());
+      if (curr == nullptr)
+      {
+        // First entry is still in progress of being added.
+        // Nothing to do.
+        return;
+      }
 
       // Use back to bound, so we don't handle new entries.
       auto b = back.load(stl::memory_order_relaxed);
-      freelist::HeadPtr curr = domesticate_head(front.load());
 
       while (address_cast(curr) != address_cast(b))
       {
