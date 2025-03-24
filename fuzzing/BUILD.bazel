@@ -10,7 +10,7 @@ cc_test(
         "-fsanitize=address",
     ] + select({
         "@bazel_tools//tools/cpp:clang-cl": ["-fexperimental-library"], # needed for std::execution::unseq,
-        "//conditions:default": ["-mcx16"],
+        "//conditions:default": ["-mcx16", "-stdlib=libc++"],
     }),
     defines = [
         "SNMALLOC_USE_WAIT_ON_ADDRESS=0",
