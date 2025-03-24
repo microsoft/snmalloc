@@ -12,26 +12,45 @@ filegroup(
     visibility = ["//visibility:private"],
 )
 
+config_setting(
+    name = "release_with_debug",
+    values = {
+        "compilation_mode": "fastbuild",
+    },
+)
+
+config_setting(
+    name = "release",
+    values = {
+        "compilation_mode": "opt",
+    },
+)
+
+config_setting(
+    name = "debug",
+    values = {
+        "compilation_mode": "dbg",
+    },
+)
+
+CMAKE_FLAGS = {
+    "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "TRUE",
+    "SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE": "ON",
+    "SNMALLOC_USE_SELF_VENDORED_STL": "OFF",
+    "SNMALLOC_IPO": "ON",
+    "USE_SNMALLOC_STATS": "ON",
+} | select({
+    ":release_with_debug": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"},
+    ":release": {"CMAKE_BUILD_TYPE": "Release"},
+    ":debug": {"CMAKE_BUILD_TYPE": "Debug"},
+    "//conditions:default": {"CMAKE_BUILD_TYPE": "Release"},
+})
+
 cmake(
     name = "snmalloc",
-    cache_entries = {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "TRUE",
-        "SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE": "ON",
-        "SNMALLOC_USE_SELF_VENDORED_STL": "OFF",
-        "SNMALLOC_IPO": "ON",
-        "USE_SNMALLOC_STATS": "ON",
-    },
-    copts = [
-        "-fuse-ld=lld",
-        "-stdlib=libc++",
-        "-mcx16",
-        "-Wno-error=unknown-pragmas",
-        "-Qunused-arguments",
-    ],
+    cache_entries = CMAKE_FLAGS,
     generate_args = ["-G Ninja"],
     lib_source = ":srcs",
-    out_headers_only = False,
     out_shared_libs = select({
         "@bazel_tools//src/conditions:darwin": [
             "libsnmallocshim-checks-memcpy-only.dylib",
@@ -50,25 +69,11 @@ cmake(
 
 cmake(
     name = "snmalloc-rs",
-    cache_entries = {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "TRUE",
+    cache_entries = CMAKE_FLAGS | {
         "SNMALLOC_RUST_SUPPORT": "ON",
-        "SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE": "ON",
-        "SNMALLOC_USE_SELF_VENDORED_STL": "OFF",
-        "SNMALLOC_IPO": "ON",
-        "USE_SNMALLOC_STATS": "ON",
     },
-    copts = [
-        "-fuse-ld=lld",
-        "-stdlib=libc++",
-        "-mcx16",
-        "-Wno-error=unknown-pragmas",
-        "-Qunused-arguments",
-    ],
     generate_args = ["-G Ninja"],
     lib_source = ":srcs",
-    out_headers_only = False,
     out_shared_libs = select({
         "@bazel_tools//src/conditions:darwin": [
             "libsnmallocshim-checks-memcpy-only.dylib",
