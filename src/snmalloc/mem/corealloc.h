@@ -526,6 +526,10 @@ namespace snmalloc
         entry.get_slab_metadata()->as_key_tweak(),
         domesticate);
 
+      // Need to account for forwarded bytes.
+      size_t size = nelem * sizeclass_full_to_size(entry.get_sizeclass());
+      bytes_returned += size;
+
       need_post |= remote_dealloc_cache.reserve_space(entry, nelem);
 
       remote_dealloc_cache.template forward<sizeof(Allocator)>(
@@ -1399,10 +1403,10 @@ namespace snmalloc
                              return capptr_domesticate<Config>(local_state, p);
                            };
 
-      size_t bytes_flushed = 0;
-
       if (destroy_queue)
       {
+        size_t bytes_flushed = 0;
+
         auto cb =
           [this, domesticate, &bytes_flushed](capptr::Alloc<RemoteMessage> m) {
             bool need_post = true; // Always going to post, so ignore.
