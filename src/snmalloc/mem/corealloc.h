@@ -1412,9 +1412,9 @@ namespace snmalloc
               entry, m, need_post, domesticate, bytes_flushed);
           };
 
-        RemoteDeallocCache<Config>::remote_inflight -= bytes_flushed;
-
         message_queue().destroy_and_iterate(domesticate, cb);
+
+        RemoteDeallocCache<Config>::remote_inflight -= bytes_flushed;
       }
       else
       {
