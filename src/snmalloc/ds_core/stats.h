@@ -77,7 +77,8 @@ namespace snmalloc
   public:
     void operator++(int)
     {
-      value.fetch_add(1, stl::memory_order_relaxed);
+      auto old = value.load(stl::memory_order_relaxed);
+      value.store(old + 1, stl::memory_order_relaxed);
     }
 
     void operator+=(const MonotoneLocalStat& other)
@@ -88,7 +89,8 @@ namespace snmalloc
 
     void operator+=(size_t v)
     {
-      value.fetch_add(v, stl::memory_order_relaxed);
+      auto old = value.load(stl::memory_order_relaxed);
+      value.store(old + v, stl::memory_order_relaxed);
     }
 
     size_t operator*()
