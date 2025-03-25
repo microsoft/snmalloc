@@ -33,7 +33,7 @@ namespace snmalloc
   }
 
   template<ZeroMem zero_mem, typename Config>
-  inline static SNMALLOC_FAST_PATH capptr::Alloc<void>
+  inline static SNMALLOC_FAST_PATH void*
   finish_alloc(freelist::HeadPtr p, smallsizeclass_t sizeclass)
   {
     auto r = finish_alloc_no_zero(p, sizeclass);
@@ -44,7 +44,7 @@ namespace snmalloc
     // TODO: Should this be zeroing the free Object state, in the non-zeroing
     // case?
 
-    return r;
+    return capptr_reveal(r);
   }
 
   struct FastFreeLists
@@ -598,17 +598,17 @@ namespace snmalloc
       {
         // Small allocations are more likely. Improve
         // branch prediction by placing this case first.
-        return capptr_reveal(small_alloc<zero_mem, CheckInit>(size));
+        return small_alloc<zero_mem, CheckInit>(size);
       }
 
-      return capptr_reveal(alloc_not_small<zero_mem, CheckInit>(size, this));
+      return alloc_not_small<zero_mem, CheckInit>(size, this);
     }
 
     /**
      * Fast allocation for small objects.
      */
     template<ZeroMem zero_mem, typename CheckInit>
-    SNMALLOC_FAST_PATH capptr::Alloc<void> small_alloc(size_t size)
+    SNMALLOC_FAST_PATH void* small_alloc(size_t size)
     {
       auto domesticate =
         [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
@@ -627,7 +627,7 @@ namespace snmalloc
 
       return handle_message_queue(
         [](Allocator* alloc, smallsizeclass_t sizeclass, freelist::Iter<>* fl)
-          -> capptr::Alloc<void> {
+          -> void* {
           return alloc->small_refill<zero_mem, CheckInit>(sizeclass, *fl);
         },
         this,
@@ -645,7 +645,7 @@ namespace snmalloc
      * register.
      */
     template<ZeroMem zero_mem, typename CheckInit>
-    static SNMALLOC_SLOW_PATH capptr::Alloc<void>
+    static SNMALLOC_SLOW_PATH void*
     alloc_not_small(size_t size, Allocator* self)
     {
       if (size == 0)
@@ -657,15 +657,15 @@ namespace snmalloc
       }
 
       return self->handle_message_queue(
-        [](Allocator* self, size_t size) -> capptr::Alloc<void> {
+        [](Allocator* self, size_t size) -> void* {
           return CheckInit::check_init(
-            [self, size]() {
+            [self, size]() -> void* {
               if (size > bits::one_at_bit(bits::BITS - 1))
               {
                 // Cannot allocate something that is more that half the size of
                 // the address space
                 errno = ENOMEM;
-                return capptr::Alloc<void>{nullptr};
+                return nullptr;
               }
 
               // Check if secondary allocator wants to offer the memory
@@ -677,7 +677,7 @@ namespace snmalloc
               {
                 if constexpr (zero_mem == YesZero)
                   Config::Pal::zero(result, size);
-                return capptr::Alloc<void>::unsafe_from(result);
+                return result;
               }
 
               // Grab slab of correct size
@@ -717,10 +717,10 @@ namespace snmalloc
                 self->stats[sc].slabs_allocated++;
               }
 
-              return capptr_chunk_is_alloc(
-                capptr_to_user_address_control(chunk));
+              return capptr_reveal(capptr_chunk_is_alloc(
+                capptr_to_user_address_control(chunk)));
             },
-            [](Allocator* a, size_t size) {
+            [](Allocator* a, size_t size) -> void* {
               return alloc_not_small<zero_mem, CheckInitNoOp>(size, a);
             },
             size);
@@ -730,7 +730,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, typename CheckInit>
-    SNMALLOC_FAST_PATH capptr::Alloc<void>
+    SNMALLOC_FAST_PATH void*
     small_refill(smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
     {
       void* result = SecondaryAllocator::allocate(
@@ -750,9 +750,9 @@ namespace snmalloc
         // deallocated, before snmalloc is initialised, then it will fail
         // to access the pagemap.
         return CheckInit::check_init(
-          [result]() { return capptr::Alloc<void>::unsafe_from(result); },
+          [result]() { return result; },
           [](Allocator*, void* result) {
-            return capptr::Alloc<void>::unsafe_from(result);
+            return result;
           },
           result);
       }
@@ -804,11 +804,11 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, typename CheckInit>
-    SNMALLOC_SLOW_PATH capptr::Alloc<void> small_refill_slow(
+    SNMALLOC_SLOW_PATH void* small_refill_slow(
       smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
     {
       return CheckInit::check_init(
-        [this, sizeclass, &fast_free_list]() -> capptr::Alloc<void> {
+        [this, sizeclass, &fast_free_list]() -> void* {
           size_t rsize = sizeclass_to_size(sizeclass);
 
           // No existing free list get a new slab.
