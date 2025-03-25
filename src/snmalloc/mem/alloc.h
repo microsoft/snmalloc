@@ -561,7 +561,7 @@ namespace snmalloc
      *  - alloc(size_t)
      *    - small_alloc(size_t)
      *      - gets allocation from a fast free list and is done.
-     *      - if no fast free list,
+     *      - otherwise no fast free list and calls small_alloc_slow
      *         - check for message queue
      *         - small_refill(size_t)
      *           - If another free list is available, use it.
@@ -625,6 +625,13 @@ namespace snmalloc
         return finish_alloc<zero_mem, Config>(p, sizeclass);
       }
 
+      return small_alloc_slow<zero_mem, CheckInit>(sizeclass, fl);
+    }
+
+    template<ZeroMem zero_mem, typename CheckInit>
+    SNMALLOC_SLOW_PATH void*
+    small_alloc_slow(smallsizeclass_t sizeclass, freelist::Iter<>* fl)
+    {
       return handle_message_queue(
         [](Allocator* alloc, smallsizeclass_t sizeclass, freelist::Iter<>* fl)
           -> void* {
@@ -717,8 +724,8 @@ namespace snmalloc
                 self->stats[sc].slabs_allocated++;
               }
 
-              return capptr_reveal(capptr_chunk_is_alloc(
-                capptr_to_user_address_control(chunk)));
+              return capptr_reveal(
+                capptr_chunk_is_alloc(capptr_to_user_address_control(chunk)));
             },
             [](Allocator* a, size_t size) -> void* {
               return alloc_not_small<zero_mem, CheckInitNoOp>(size, a);
@@ -751,9 +758,7 @@ namespace snmalloc
         // to access the pagemap.
         return CheckInit::check_init(
           [result]() { return result; },
-          [](Allocator*, void* result) {
-            return result;
-          },
+          [](Allocator*, void* result) { return result; },
           result);
       }
 
