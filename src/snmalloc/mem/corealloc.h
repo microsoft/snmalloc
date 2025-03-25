@@ -589,7 +589,7 @@ namespace snmalloc
      *  - alloc(size_t)
      *    - small_alloc(size_t)
      *      - gets allocation from a fast free list and is done.
-     *      - if no fast free list,
+     *      - otherwise no fast free list and calls small_alloc_slow
      *         - check for message queue
      *         - small_refill(size_t)
      *           - If another free list is available, use it.
