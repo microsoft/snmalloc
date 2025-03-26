@@ -1,4 +1,13 @@
-#if defined(__linux__) && !__has_feature(address_sanitizer)
+#ifndef __has_feature
+#  define __has_feature(x) 0
+#endif
+
+#if defined(__linux__) && !__has_feature(address_sanitizer) && \
+  !defined(__SANITIZE_ADDRESS__)
+#  define RUN_TEST
+#endif
+
+#ifdef RUN_TEST
 #  include <snmalloc/snmalloc.h>
 #  include <stdlib.h>
 
@@ -23,7 +32,7 @@ extern "C" void free(void* p)
 
 int main()
 {
-#if defined(__linux__) && !__has_feature(address_sanitizer)
+#ifdef RUN_TEST
   for (int i = 0; i < 8192; ++i)
     atexit(do_nothing);
 #endif
