@@ -180,6 +180,9 @@ namespace snmalloc
 
     /**
      * Used to give correct signature to teardown required by atexit.
+     * If [[gnu::destructor]] is available, we use the attribute to register
+     * the finalization statically. In VERY rare cases, dynamic registration
+     * can trigger deadlocks.
      */
 #if __has_attribute(destructor)
     [[gnu::destructor]]
@@ -215,11 +218,6 @@ namespace snmalloc
      */
     static void register_clean_up()
     {
-      thread_local bool called = false;
-      if (called)
-        return;
-      write(STDOUT_FILENO, "register_clean_up\n", 18);
-      // called = true;
       Singleton<pthread_key_t, &pthread_create> p_key;
       // We need to set a non-null value, so that the destructor is called,
       // we never look at the value.
