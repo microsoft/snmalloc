@@ -3,6 +3,10 @@
 #  include <stdlib.h>
 
 void do_nothing() {}
+
+// We only selectively override these functions. Otherwise, malloc may be called
+// before atexit triggers the first initialization attempt.
+
 extern "C" void * calloc(size_t num, size_t size) {
   return snmalloc::libc::calloc(num, size);
 }
@@ -10,6 +14,7 @@ extern "C" void * calloc(size_t num, size_t size) {
 extern "C" void free(void * p) {
   if (snmalloc::is_owned(p))
     return snmalloc::libc::free(p);
+  // otherwise, just leak the memory
 }
 
 #endif
