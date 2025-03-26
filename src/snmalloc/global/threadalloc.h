@@ -181,7 +181,7 @@ namespace snmalloc
     /**
      * Used to give correct signature to teardown required by atexit.
      * If [[gnu::destructor]] is available, we use the attribute to register
-     * the finalization statically. In VERY rare cases, dynamic registration
+     * the finalisation statically. In VERY rare cases, dynamic registration
      * can trigger deadlocks.
      */
 #if __has_attribute(destructor)
