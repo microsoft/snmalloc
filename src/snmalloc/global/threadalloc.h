@@ -184,10 +184,11 @@ namespace snmalloc
      * the finalisation statically. In VERY rare cases, dynamic registration
      * can trigger deadlocks.
      */
-#if __has_attribute(destructor)
+#    if __has_attribute(destructor)
     [[gnu::destructor]]
-#endif
-    static void pthread_cleanup_main_thread()
+#    endif
+    static void
+    pthread_cleanup_main_thread()
     {
       ThreadAlloc::teardown();
     }
@@ -204,9 +205,9 @@ namespace snmalloc
       // run at least once.  If the main thread exits with `pthread_exit` then
       // it will be called twice but this case is already handled because other
       // destructors can cause the per-thread allocator to be recreated.
-#if !__has_attribute(destructor)
+#    if !__has_attribute(destructor)
       atexit(&pthread_cleanup_main_thread);
-#endif
+#    endif
     }
 
   public:

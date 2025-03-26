@@ -7,11 +7,13 @@ void do_nothing() {}
 // We only selectively override these functions. Otherwise, malloc may be called
 // before atexit triggers the first initialization attempt.
 
-extern "C" void * calloc(size_t num, size_t size) {
+extern "C" void* calloc(size_t num, size_t size)
+{
   return snmalloc::libc::calloc(num, size);
 }
 
-extern "C" void free(void * p) {
+extern "C" void free(void* p)
+{
   if (snmalloc::is_owned(p))
     return snmalloc::libc::free(p);
   // otherwise, just leak the memory
@@ -19,7 +21,8 @@ extern "C" void free(void * p) {
 
 #endif
 
-int main() {
+int main()
+{
 #if defined(__linux__) && !__has_feature(address_sanitizer)
   for (int i = 0; i < 8192; ++i)
     atexit(do_nothing);
