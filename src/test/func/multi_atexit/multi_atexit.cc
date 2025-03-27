@@ -3,7 +3,10 @@
 #endif
 
 #if defined(__linux__) && !__has_feature(address_sanitizer) && \
-  !defined(__SANITIZE_ADDRESS__)
+  !__has_feature(thread_sanitizer) && \
+  !__has_feature(undefined_behavior_sanitizer) && \
+  !defined(__SANITIZE_ADDRESS__) && !defined(__SANITIZE_THREAD__) && \
+  !defined(__SANITIZE_UNDEFINED__)
 #  define RUN_TEST
 #endif
 
