@@ -21,6 +21,15 @@
 #  endif
 #endif
 
+#if defined(SNMALLOC_USE_CXX11_THREAD_ATEXIT_DIRECT)
+#  if defined(SNMALLOC_THREAD_TEARDOWN_DEFINED)
+#    error At most one out of method of thread teardown can be specified.
+#  endif
+#  define SNMALLOC_THREAD_TEARDOWN_DEFINED
+extern "C" int __cxa_thread_atexit_impl(void (func)(void*), void*, void*);
+extern "C" void* __dso_handle;
+#endif
+
 #if !defined(SNMALLOC_THREAD_TEARDOWN_DEFINED)
 #  define SNMALLOC_USE_CXX_THREAD_DESTRUCTORS
 #endif
@@ -56,6 +65,7 @@ namespace snmalloc
   class CheckInitPthread;
   class CheckInitCXX;
   class CheckInitThreadCleanup;
+  class CheckInitCXXAtExitDirect;
 
   /**
    * Holds the thread local state for the allocator.  The state is constant
@@ -159,8 +169,10 @@ namespace snmalloc
     };
 #  ifdef SNMALLOC_USE_PTHREAD_DESTRUCTORS
     using CheckInit = CheckInitPthread;
-#  elif defined(SNMALLOC_USE_CXX_THREAD_DESTRUCTORS)
+#  elif defined(SNMALLOC_USE_CXX11_THREAD_DESTRUCTORS)
     using CheckInit = CheckInitCXX;
+#  elif defined(SNMALLOC_USE_CXX11_THREAD_ATEXIT_DIRECT)
+    using CheckInit = CheckInitCXXAtExitDirect;
 #  else
     using CheckInit = CheckInitThreadCleanup;
 #  endif
@@ -229,7 +241,31 @@ namespace snmalloc
 #    endif
     }
   };
-#  elif defined(SNMALLOC_USE_CXX_THREAD_DESTRUCTORS)
+#  elif defined(SNMALLOC_USE_CXX11_THREAD_ATEXIT_DIRECT)
+  class CheckInitCXXAtExitDirect
+  : public ThreadAlloc::CheckInitBase<CheckInitCXXAtExitDirect>
+  {
+    static void cleanup(void*)
+    {
+      ThreadAlloc::teardown();
+    }
+
+  public:
+    /**
+     * This function is called by each thread once it starts using the
+     * thread local allocator.
+     *
+     * This implementation depends on the libstdc++ requirement on libc
+     * that provides the functionality to register a destructor for the
+     * thread locals.  This allows to not require either pthread or
+     * C++ std lib.
+     */
+    static void register_clean_up()
+    {
+      __cxa_thread_atexit_impl(cleanup, nullptr, &__dso_handle);
+    }
+  };
+#  elif defined(SNMALLOC_USE_CXX11_THREAD_DESTRUCTORS)
   class CheckInitCXX : public ThreadAlloc::CheckInitBase<CheckInitCXX>
   {
   public:
