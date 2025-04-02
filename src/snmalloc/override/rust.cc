@@ -1,7 +1,7 @@
 #define SNMALLOC_NAME_MANGLE(a) sn_##a
 
+// The libc API provided by malloc.cc will always be mangled per above.
 #ifdef SNMALLOC_RUST_LIBC_API
-#  define SNMALLOC_NAME_MANGLE(a) sn_##a
 #  include "malloc.cc"
 #else
 #  include "snmalloc/snmalloc.h"
