@@ -1,0 +1,91 @@
+load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+
+filegroup(
+    name = "srcs",
+    srcs = glob(
+        [
+            "src/snmalloc/**/*",
+            "src/test/*.h",
+            "CMakeLists.txt",
+        ],
+    ),
+    visibility = ["//visibility:private"],
+)
+
+config_setting(
+    name = "release_with_debug",
+    values = {
+        "compilation_mode": "fastbuild",
+    },
+)
+
+config_setting(
+    name = "release",
+    values = {
+        "compilation_mode": "opt",
+    },
+)
+
+config_setting(
+    name = "debug",
+    values = {
+        "compilation_mode": "dbg",
+    },
+)
+
+CMAKE_FLAGS = {
+    "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "TRUE",
+    "SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE": "ON",
+    "SNMALLOC_USE_SELF_VENDORED_STL": "OFF",
+    "SNMALLOC_IPO": "ON",
+    "USE_SNMALLOC_STATS": "ON",
+} | select({
+    ":release_with_debug": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"},
+    ":release": {"CMAKE_BUILD_TYPE": "Release"},
+    ":debug": {"CMAKE_BUILD_TYPE": "Debug"},
+    "//conditions:default": {"CMAKE_BUILD_TYPE": "Release"},
+})
+
+cmake(
+    name = "snmalloc",
+    cache_entries = CMAKE_FLAGS,
+    generate_args = ["-G Ninja"],
+    lib_source = ":srcs",
+    out_shared_libs = select({
+        "@bazel_tools//src/conditions:darwin": [
+            "libsnmallocshim-checks-memcpy-only.dylib",
+            "libsnmallocshim-checks.dylib",
+            "libsnmallocshim.dylib",
+        ],
+        "//conditions:default": [],
+    }),
+    out_static_libs = [
+        "libsnmallocshim-static.a",
+        "libsnmalloc-new-override.a",
+    ],
+    postfix_script = "ninja",
+    visibility = ["//visibility:public"],
+)
+
+cmake(
+    name = "snmalloc-rs",
+    cache_entries = CMAKE_FLAGS | {
+        "SNMALLOC_RUST_SUPPORT": "ON",
+    },
+    generate_args = ["-G Ninja"],
+    lib_source = ":srcs",
+    out_shared_libs = select({
+        "@bazel_tools//src/conditions:darwin": [
+            "libsnmallocshim-checks-memcpy-only.dylib",
+            "libsnmallocshim-checks.dylib",
+            "libsnmallocshim.dylib",
+        ],
+        "//conditions:default": [],
+    }),
+    out_static_libs = [
+        "libsnmallocshim-static.a",
+        "libsnmalloc-new-override.a",
+    ],
+    postfix_script = "ninja",
+    visibility = ["//visibility:public"],
+)
