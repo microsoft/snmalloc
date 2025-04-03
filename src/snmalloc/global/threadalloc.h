@@ -180,8 +180,15 @@ namespace snmalloc
 
     /**
      * Used to give correct signature to teardown required by atexit.
+     * If [[gnu::destructor]] is available, we use the attribute to register
+     * the finalisation statically. In VERY rare cases, dynamic registration
+     * can trigger deadlocks.
      */
-    static void pthread_cleanup_main_thread()
+#    if __has_attribute(destructor)
+    [[gnu::destructor]]
+#    endif
+    static void
+    pthread_cleanup_main_thread()
     {
       ThreadAlloc::teardown();
     }
@@ -198,7 +205,9 @@ namespace snmalloc
       // run at least once.  If the main thread exits with `pthread_exit` then
       // it will be called twice but this case is already handled because other
       // destructors can cause the per-thread allocator to be recreated.
+#    if !__has_attribute(destructor)
       atexit(&pthread_cleanup_main_thread);
+#    endif
     }
 
   public:
