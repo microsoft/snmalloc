@@ -39,6 +39,7 @@ are listed at
 - `lto`: Links with InterProceduralOptimization/LinkTimeOptimization
 - `notls`: Enables to be loaded dynamically, thus disable tls.
 - `stats`: Enables allocation statistics.
+- `libc-api`: Enables libc API backed by snmalloc.
 
 **To get the crates compiled, you need to choose either `1mib` or `16mib` to determine the chunk configuration**
 

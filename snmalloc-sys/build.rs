@@ -60,6 +60,7 @@ struct BuildFeatures {
     stats: bool,
     android_lld: bool,
     local_dynamic_tls: bool,
+    libc_api: bool,
 }
 
 impl BuildConfig {
@@ -277,6 +278,7 @@ impl BuildFeatures {
             stats: cfg!(feature = "stats"),
             android_lld: cfg!(feature = "android-lld"),
             local_dynamic_tls: cfg!(feature = "local_dynamic_tls"),
+            libc_api: cfg!(feature = "libc-api"),
         }
     }
 }
@@ -378,7 +380,8 @@ fn configure_platform(config: &mut BuildConfig) {
         .define("SNMALLOC_QEMU_WORKAROUND", if config.features.qemu { "ON" } else { "OFF" })
         .define("SNMALLOC_ENABLE_DYNAMIC_LOADING", if config.features.notls { "ON" } else { "OFF" })
         .define("SNMALLOC_USE_WAIT_ON_ADDRESS", if config.features.wait_on_address { "1" } else { "0" })
-        .define("USE_SNMALLOC_STATS", if config.features.stats { "ON" } else { "OFF" });
+        .define("USE_SNMALLOC_STATS", if config.features.stats { "ON" } else { "OFF" })
+        .define("SNMALLOC_RUST_LIBC_API", if config.features.libc_api { "ON" } else { "OFF" });
 
     // Android configuration
     if config.target.contains("android") {

@@ -39,15 +39,21 @@ extern "C" {
         new_size: usize,
     ) -> *mut c_void;
 
+    /// Return the available bytes in a memory block.
+    pub fn sn_rust_usable_size(p: *const c_void) -> usize;
+}
+
+#[cfg(feature = "libc-api")]
+extern "C" {
     /// Allocate `count` items of `size` length each.
     /// Returns `null` if `count * size` overflows or on out-of-memory.
     /// All items are initialized to zero.
-    pub fn calloc(count: usize, size: usize) -> *mut c_void;
+    pub fn sn_calloc(count: usize, size: usize) -> *mut c_void;
 
     /// Allocate `size` bytes.
     /// Returns pointer to the allocated memory or null if out of memory.
     /// Returns a unique pointer if called with `size` 0.
-    pub fn malloc(size: usize) -> *mut c_void;
+    pub fn sn_malloc(size: usize) -> *mut c_void;
 
     /// Re-allocate memory to `newsize` bytes.
     /// Return pointer to the allocated memory or null if out of memory. If null
@@ -57,18 +63,19 @@ extern "C" {
     /// If `p` is null, it behaves as [`sn_malloc`]. If `newsize` is larger than
     /// the original `size` allocated for `p`, the bytes after `size` are
     /// uninitialized.
-    pub fn realloc(p: *mut c_void, newsize: usize) -> *mut c_void;
+    pub fn sn_realloc(p: *mut c_void, newsize: usize) -> *mut c_void;
 
     /// Free previously allocated memory.
     /// The pointer `p` must have been allocated before (or be null).
-    pub fn free(p: *mut c_void);
+    pub fn sn_free(p: *mut c_void);
 
     /// Return the available bytes in a memory block.
-    pub fn sn_rust_usable_size(p: *const c_void) -> usize;
+    pub fn sn_malloc_usable_size(p: *const c_void) -> usize;
+    
 }
 
 #[cfg(test)]
-mod tests {
+mod rust_tests {
     use super::*;
 
     #[test]
@@ -88,19 +95,6 @@ mod tests {
             assert_eq!(*ptr, 127)
         };
         unsafe { sn_rust_dealloc(ptr as *mut c_void, 8, 8) };
-    }
-
-    #[test]
-    fn it_frees_memory_sn_malloc() {
-        let ptr = unsafe { malloc(8) } as *mut u8;
-        unsafe { free(ptr as *mut c_void) };
-    }
-
-    #[test]
-    fn it_frees_memory_sn_realloc() {
-        let ptr = unsafe { malloc(8) } as *mut u8;
-        let ptr = unsafe { realloc(ptr as *mut c_void, 8) } as *mut u8;
-        unsafe { free(ptr as *mut c_void) };
     }
 
     #[test]
@@ -124,5 +118,34 @@ mod tests {
             "usable_size should at least equal to the allocated size"
         );
         unsafe { sn_rust_dealloc(ptr as *mut c_void, 32, 8) };
+    }
+}
+
+#[cfg(all(test, feature = "libc-api"))]
+mod libc_tests {
+    use super::*;
+
+    #[test]
+    fn it_frees_memory_sn_malloc() {
+        let ptr = unsafe { sn_malloc(8) } as *mut u8;
+        unsafe { sn_free(ptr as *mut c_void) };
+    }
+
+    #[test]
+    fn it_frees_memory_sn_realloc() {
+        let ptr = unsafe { sn_malloc(8) } as *mut u8;
+        let ptr = unsafe { sn_realloc(ptr as *mut c_void, 8) } as *mut u8;
+        unsafe { sn_free(ptr as *mut c_void) };
+    }
+    
+    #[test]
+    fn it_calculates_malloc_usable_size() {
+        let ptr = unsafe { sn_malloc(32) } as *mut u8;
+        let usable_size = unsafe { sn_malloc_usable_size(ptr as *mut c_void) };
+        assert!(
+            usable_size >= 32,
+            "usable_size should at least equal to the allocated size"
+        );
+        unsafe { sn_free(ptr as *mut c_void) };
     }
 }
