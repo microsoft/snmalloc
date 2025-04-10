@@ -15,5 +15,5 @@
 #include "mitigations.h"
 #include "ptrwrap.h"
 #include "redblacktree.h"
-#include "seqset.h"
+#include "stats.h"
 #include "tid.h"

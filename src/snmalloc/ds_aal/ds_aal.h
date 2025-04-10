@@ -7,4 +7,5 @@
 #include "../aal/aal.h"
 #include "flaglock.h"
 #include "prevent_fork.h"
+#include "seqset.h"
 #include "singleton.h"
