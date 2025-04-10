@@ -42,16 +42,14 @@ struct PoolLargeEntry : Pooled<PoolLargeEntry>
 
 using PoolLarge = Pool<PoolLargeEntry>;
 
-template<bool order>
-struct PoolSortEntry : Pooled<PoolSortEntry<order>>
+struct PoolSortEntry : Pooled<PoolSortEntry>
 {
   int field;
 
   PoolSortEntry() : field(1){};
 };
 
-template<bool order>
-using PoolSort = Pool<PoolSortEntry<order>>;
+using PoolSort = Pool<PoolSortEntry>;
 
 void test_alloc()
 {
@@ -159,15 +157,14 @@ void test_large()
  * This test confirms that the pool is sorted consistently with
  * respect to the iterator after a call to sort.
  */
-template<bool order>
 void test_sort()
 {
-  auto position = [](PoolSortEntry<order>* ptr) {
+  auto position = [](PoolSortEntry* ptr) {
     size_t i = 0;
-    auto curr = PoolSort<order>::iterate();
+    auto curr = PoolSort::iterate();
     while (ptr != curr)
     {
-      curr = PoolSort<order>::iterate(curr);
+      curr = PoolSort::iterate(curr);
       ++i;
     }
     return i;
@@ -175,34 +172,71 @@ void test_sort()
 
   // This test checks that `sort` puts the elements in the right order,
   // so it is the same as if they had been allocated in that order.
-  auto a1 = PoolSort<order>::acquire();
-  auto a2 = PoolSort<order>::acquire();
+  auto a1 = PoolSort::acquire();
+  auto a2 = PoolSort::acquire();
+  auto a3 = PoolSort::acquire();
 
   auto position1 = position(a1);
   auto position2 = position(a2);
+  auto position3 = position(a3);
 
-  // Release in either order.
-  if (order)
+  PoolSort::release(a1);
+  PoolSort::release(a2);
+  PoolSort::release(a3);
+  PoolSort::sort();
+
+  // Repeat the test to ensure it re-establishes the order.
+  for (size_t i = 0; i < 12; i++)
   {
-    PoolSort<order>::release(a1);
-    PoolSort<order>::release(a2);
+    auto b1 = PoolSort::acquire();
+    auto b2 = PoolSort::acquire();
+    auto b3 = PoolSort::acquire();
+
+    auto new_position1 = position(b1);
+    auto new_position2 = position(b2);
+    auto new_position3 = position(b3);
+
+    SNMALLOC_CHECK(new_position1 == position1);
+    SNMALLOC_CHECK(new_position2 == position2);
+    SNMALLOC_CHECK(new_position3 == position3);
+
+    // Release in either order.
+    switch (i % 6)
+    {
+      case 0:
+        PoolSort::release(b1);
+        PoolSort::release(b2);
+        PoolSort::release(b3);
+        break;
+      case 1:
+        PoolSort::release(b1);
+        PoolSort::release(b3);
+        PoolSort::release(b2);
+        break;
+      case 2:
+        PoolSort::release(b2);
+        PoolSort::release(b1);
+        PoolSort::release(b3);
+        break;
+      case 3:
+        PoolSort::release(b2);
+        PoolSort::release(b3);
+        PoolSort::release(b1);
+        break;
+      case 4:
+        PoolSort::release(b3);
+        PoolSort::release(b1);
+        PoolSort::release(b2);
+        break;
+      case 5:
+        PoolSort::release(b3);
+        PoolSort::release(b2);
+        PoolSort::release(b1);
+        break;
+    }
+
+    PoolSort::sort();
   }
-  else
-  {
-    PoolSort<order>::release(a2);
-    PoolSort<order>::release(a1);
-  }
-
-  PoolSort<order>::sort();
-
-  auto b1 = PoolSort<order>::acquire();
-  auto b2 = PoolSort<order>::acquire();
-
-  SNMALLOC_CHECK(position1 == position(b1));
-  SNMALLOC_CHECK(position2 == position(b2));
-
-  PoolSort<order>::release(b1);
-  PoolSort<order>::release(b2);
 }
 
 int main(int argc, char** argv)
@@ -230,9 +264,7 @@ int main(int argc, char** argv)
   std::cout << "test_iterator passed" << std::endl;
   test_large();
   std::cout << "test_large passed" << std::endl;
-  test_sort<false>();
-  std::cout << "test_sort<false> passed" << std::endl;
-  test_sort<true>();
-  std::cout << "test_sort<true> passed" << std::endl;
+  test_sort();
+  std::cout << "test_sort passed" << std::endl;
   return 0;
 }
