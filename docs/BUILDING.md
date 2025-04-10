@@ -128,3 +128,23 @@ likewise for `reallocarr`.
 -DSNMALLOC_NO_REALLOCARR=OFF
 ```
 
+# Building with Bazel
+This target is specifically provided for bazel users to add this repository as a dependency directly using the following `MODULE.bazel`:
+```
+bazel_dep(name = "snmalloc", version = "")
+git_override(
+    module_name = "snmalloc",
+    commit = "<specific commit>",
+    remote = "https://github.com/microsoft/snmalloc",
+)
+```
+
+To build the compiler, run: `bazel build -c opt //:snmalloc`
+
+To build the compiler with rust support, run: `bazel build -c opt //:snmalloc-rs`
+
+Testing: `bazel test -c opt --config=asan //fuzzing:snmalloc_fuzzer`
+
+Building with bazel will take longer than building with CMake and Ninja directly. 
+Bazel needs to pull in multiple dependencies before it can build the targets because it tries to be hermetic with dependencies.
+Independent artifacts are built in parallel, but because of hermetic dependencies, the build will take longer.
