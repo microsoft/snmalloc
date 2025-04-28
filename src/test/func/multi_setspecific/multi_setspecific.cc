@@ -1,5 +1,3 @@
-#include <thread>
-#include <array>
 #ifndef __has_feature
 #  define __has_feature(x) 0
 #endif
@@ -10,8 +8,10 @@
 #endif
 
 #ifdef RUN_TEST
+#  include <array>
 #  include <snmalloc/snmalloc.h>
 #  include <stdlib.h>
+#  include <thread>
 
 // A key in the second "second level" block of the pthread key table.
 // First second level block is statically allocated.
@@ -42,8 +42,6 @@ extern "C" void free(void* p)
     return snmalloc::libc::free(p);
 }
 
-#endif
-
 void callback(void*)
 {
   snmalloc::message("callback");
@@ -58,18 +56,27 @@ int main()
     pthread_key_create(&key, callback);
   }
 
-  // The first calloc occurs here, after the first [0, 32] keys have been created
-  // thus snmalloc will choose the key 33, `key` contains the key `32` and snmalloc `33`.
-  // Both of these keys are not in the statically allocated part of the pthread key space.
+  // The first calloc occurs here, after the first [0, 32] keys have been
+  // created thus snmalloc will choose the key 33, `key` contains the key `32`
+  // and snmalloc `33`. Both of these keys are not in the statically allocated
+  // part of the pthread key space.
   std::thread(thread_setspecific).join();
 
   // There should be a single allocator that can be extracted.
   if (snmalloc::AllocPool<snmalloc::Config>::extract() == nullptr)
   {
     // The thread has not torn down its allocator.
-    snmalloc::report_fatal_error("Teardown of thread allocator has not occurred.");
+    snmalloc::report_fatal_error(
+      "Teardown of thread allocator has not occurred.");
     return 1;
   }
 
   return 0;
 }
+#else
+int main()
+{
+  // This test is not run, but it is used to check that the code compiles.
+  return 0;
+}
+#endif

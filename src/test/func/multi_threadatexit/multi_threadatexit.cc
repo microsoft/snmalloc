@@ -17,16 +17,15 @@ template<size_t N, size_t M = 0>
 void thread_destruct()
 {
   snmalloc::message("thread_destruct<{}, {}> start", N, M);
-  static thread_local snmalloc::OnDestruct destruct{[](){
-    snmalloc::message("thread_destruct<{}, {}> destructor", N, M);
-  }};
+  static thread_local snmalloc::OnDestruct destruct{
+    []() { snmalloc::message("thread_destruct<{}, {}> destructor", N, M); }};
   snmalloc::message("thread_destruct<{}, {}> end", N, M);
 
   if constexpr (N > M + 1)
   {
     // destructor
-    thread_destruct<N, (M + N)/2>();
-    thread_destruct<(M + N)/2, M>();
+    thread_destruct<N, (M + N) / 2>();
+    thread_destruct<(M + N) / 2, M>();
   }
 }
 

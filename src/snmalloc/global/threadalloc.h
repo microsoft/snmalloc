@@ -26,7 +26,7 @@
 #    error At most one out of method of thread teardown can be specified.
 #  endif
 #  define SNMALLOC_THREAD_TEARDOWN_DEFINED
-extern "C" int __cxa_thread_atexit_impl(void (func)(void*), void*, void*);
+extern "C" int __cxa_thread_atexit_impl(void(func)(void*), void*, void*);
 extern "C" void* __dso_handle;
 #endif
 
