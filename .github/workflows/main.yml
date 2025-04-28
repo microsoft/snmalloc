@@ -301,13 +301,16 @@ jobs:
             rtld: ld-linux-aarch64.so.1
             ld-flavour: lld
             host-os: ubuntu-24.04
-          - name: ppc64el
-            system-processor: powerpc64le
-            triple: powerpc64le-linux-gnu
-            rtld: ld64.so.2
-            ld-flavour: lld
-            # See https://github.com/microsoft/snmalloc/issues/576
-            host-os: ubuntu-24.04
+          # DISABLED as 20.04 is not supported anymore,
+          # and it appears the qemu bug persists in 24.04
+          # See https://github.com/microsoft/snmalloc/issues/576
+          # - name: ppc64el
+          #   system-processor: powerpc64le
+          #   triple: powerpc64le-linux-gnu
+          #   rtld: ld64.so.2
+          #   ld-flavour: lld
+          #   # See https://github.com/microsoft/snmalloc/issues/576
+          #   host-os: ubuntu-24.04
           - name: riscv64
             system-processor: riscv64
             triple: riscv64-linux-gnu
