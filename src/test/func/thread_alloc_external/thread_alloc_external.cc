@@ -4,6 +4,9 @@
 #ifdef SNMALLOC_USE_CXX11_THREAD_ATEXIT_DIRECT
 #  undef SNMALLOC_USE_CXX11_THREAD_ATEXIT_DIRECT
 #endif
+#ifdef SNMALLOC_USE_CXX11_DESTRUCTORS
+#  undef SNMALLOC_USE_CXX11_DESTRUCTORS
+#endif
 
 #include <new>
 #include <snmalloc/snmalloc_core.h>
