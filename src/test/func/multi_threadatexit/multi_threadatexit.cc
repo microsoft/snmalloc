@@ -46,9 +46,13 @@ extern "C" void free(void* p)
   // otherwise, just leak the memory
 }
 
-#endif
-
 int main()
 {
   std::thread(thread_destruct<1000>).join();
 }
+#else
+int main()
+{
+  return 0;
+}
+#endif
