@@ -326,7 +326,7 @@ jobs:
       if: matrix.arch.host-os == 'ubuntu-24.04'
       run: |
         sudo apt update
-        sudo apt install libstdc++-12-dev-${{ matrix.arch.name }}-cross qemu-user ninja-build
+        sudo apt install libstdc++-12-dev-${{ matrix.arch.name }}-cross qemu-user ninja-build binfmt-support
         sudo apt install ${{matrix.arch.extra-packages}}
     - name: Reconfigure for PowerPC64LE
       if: startsWith(matrix.arch.triple, 'powerpc64le')
