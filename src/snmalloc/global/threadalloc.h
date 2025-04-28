@@ -30,8 +30,16 @@ extern "C" int __cxa_thread_atexit_impl(void(func)(void*), void*, void*);
 extern "C" void* __dso_handle;
 #endif
 
+#if defined(SNMALLOC_USE_CXX11_DESTRUCTORS)
+#  if defined(SNMALLOC_THREAD_TEARDOWN_DEFINED)
+#    error At most one out of method of thread teardown can be specified.
+#  endif
+#  define SNMALLOC_THREAD_TEARDOWN_DEFINED
+#endif
+
 #if !defined(SNMALLOC_THREAD_TEARDOWN_DEFINED)
-#  define SNMALLOC_USE_CXX_THREAD_DESTRUCTORS
+// Default to C++11 destructors if nothing has been specified.
+#  define SNMALLOC_USE_CXX11_DESTRUCTORS
 #endif
 extern "C" void _malloc_thread_cleanup();
 
@@ -169,7 +177,7 @@ namespace snmalloc
     };
 #  ifdef SNMALLOC_USE_PTHREAD_DESTRUCTORS
     using CheckInit = CheckInitPthread;
-#  elif defined(SNMALLOC_USE_CXX11_THREAD_DESTRUCTORS)
+#  elif defined(SNMALLOC_USE_CXX11_DESTRUCTORS)
     using CheckInit = CheckInitCXX;
 #  elif defined(SNMALLOC_USE_CXX11_THREAD_ATEXIT_DIRECT)
     using CheckInit = CheckInitCXXAtExitDirect;
@@ -265,7 +273,7 @@ namespace snmalloc
       __cxa_thread_atexit_impl(cleanup, nullptr, &__dso_handle);
     }
   };
-#  elif defined(SNMALLOC_USE_CXX11_THREAD_DESTRUCTORS)
+#  elif defined(SNMALLOC_USE_CXX11_DESTRUCTORS)
   class CheckInitCXX : public ThreadAlloc::CheckInitBase<CheckInitCXX>
   {
   public:
