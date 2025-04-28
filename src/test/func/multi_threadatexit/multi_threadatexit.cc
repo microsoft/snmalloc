@@ -4,8 +4,13 @@
 #  define __has_feature(x) 0
 #endif
 
+// These test partially override the libc malloc/free functions to test
+// interesting corner cases.  This breaks the sanitizers as they will be
+// partially overridden.  So we disable the tests if any of the sanitizers are
+// enabled.
 #if defined(__linux__) && !__has_feature(address_sanitizer) && \
-  !defined(__SANITIZE_ADDRESS__)
+  !defined(__SANITIZE_ADDRESS__) && !defined(__SANITIZE_THREAD__) && \
+  !defined(SNMALLOC_THREAD_SANITIZER_ENABLED)
 #  define RUN_TEST
 #endif
 
