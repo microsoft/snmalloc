@@ -22,7 +22,7 @@ jobs:
     strategy:
       matrix:
         # Build each combination of OS and release/debug variants
-        os: [ "ubuntu-24.04", "ubuntu-22.04", "ubuntu-20.04", "ubuntu-24.04-arm" ]
+        os: [ "ubuntu-24.04", "ubuntu-22.04", "ubuntu-24.04-arm" ]
         build-type: [ "Release", "Debug" ]
         # Extra cmake flags.  GitHub Actions matrix overloads `include` to mean
         # 'add extra things to a job' and 'add jobs'.  You can add extra things
@@ -40,10 +40,6 @@ jobs:
         # Modify the complete matrix
         include:
           - os: "ubuntu-22.04"
-            variant: "C++17"
-            build-type: "Debug"
-            extra-cmake-flags: "-DSNMALLOC_USE_CXX17=ON"
-          - os: "ubuntu-20.04"
             variant: "C++17"
             build-type: "Debug"
             extra-cmake-flags: "-DSNMALLOC_USE_CXX17=ON"
@@ -72,20 +68,15 @@ jobs:
             extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
             build-only: yes
           # Replay some of the above tests with clang-10 specifically
-          - os: "ubuntu-20.04"
-            variant: "clang-10 (with pthread destructors)."
-            build-type: Debug
-            self-host: true
-            extra-cmake-flags: "-DSNMALLOC_USE_PTHREAD_DESTRUCTORS=On -DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10"
-          - os: "ubuntu-20.04"
+          - os: "ubuntu-22.04"
             variant: "Traced Build"
             build-type: Release
             extra-cmake-flags: "-DSNMALLOC_TRACING=On"
             build-only: yes
-          - os: "ubuntu-20.04"
-            variant: "clang-10 libstdc++ (Build only)"
+          - os: "ubuntu-22.04"
+            variant: "clang + libstdc++ (Build only)"
             build-type: Release
-            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++-10 -DCMAKE_C_COMPILER=clang-10 -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
+            extra-cmake-flags: "-DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_FLAGS=-stdlib=libstdc++"
             build-only: yes
       # Don't abort runners if a single one fails
       fail-fast: false
@@ -316,7 +307,7 @@ jobs:
             rtld: ld64.so.2
             ld-flavour: lld
             # See https://github.com/microsoft/snmalloc/issues/576
-            host-os: ubuntu-20.04
+            host-os: ubuntu-24.04
           - name: riscv64
             system-processor: riscv64
             triple: riscv64-linux-gnu
@@ -331,16 +322,6 @@ jobs:
     name: Crossbuild - ${{matrix.build-type}} cross-build for ${{ matrix.arch.triple }}
     steps:
     - uses: actions/checkout@v4
-    - name: "Install cross-compile toolchain and QEMU (ubuntu-20.04)"
-      # Install the dependencies and clang 13.  Earlier versions of clang don't
-      # find the multilib things for this week's Ubuntu filesystem layout.
-      if: matrix.arch.host-os == 'ubuntu-20.04'
-      run: |
-        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-        sudo add-apt-repository "deb http://apt.llvm.org/focal/     llvm-toolchain-focal-13  main"
-        sudo apt update
-        sudo apt install libstdc++-9-dev-${{ matrix.arch.name }}-cross qemu-user ninja-build clang-13 lld-13
-        sudo apt install ${{matrix.arch.extra-packages}}
     - name: "Install cross-compile toolchain and QEMU (ubuntu-24.04)"
       if: matrix.arch.host-os == 'ubuntu-24.04'
       run: |
