@@ -21,8 +21,25 @@
 #  endif
 #endif
 
+#if defined(SNMALLOC_USE_CXX11_THREAD_ATEXIT_DIRECT)
+#  if defined(SNMALLOC_THREAD_TEARDOWN_DEFINED)
+#    error At most one out of method of thread teardown can be specified.
+#  endif
+#  define SNMALLOC_THREAD_TEARDOWN_DEFINED
+extern "C" int __cxa_thread_atexit_impl(void(func)(void*), void*, void*);
+extern "C" void* __dso_handle;
+#endif
+
+#if defined(SNMALLOC_USE_CXX11_DESTRUCTORS)
+#  if defined(SNMALLOC_THREAD_TEARDOWN_DEFINED)
+#    error At most one out of method of thread teardown can be specified.
+#  endif
+#  define SNMALLOC_THREAD_TEARDOWN_DEFINED
+#endif
+
 #if !defined(SNMALLOC_THREAD_TEARDOWN_DEFINED)
-#  define SNMALLOC_USE_CXX_THREAD_DESTRUCTORS
+// Default to C++11 destructors if nothing has been specified.
+#  define SNMALLOC_USE_CXX11_DESTRUCTORS
 #endif
 extern "C" void _malloc_thread_cleanup();
 
@@ -56,6 +73,7 @@ namespace snmalloc
   class CheckInitPthread;
   class CheckInitCXX;
   class CheckInitThreadCleanup;
+  class CheckInitCXXAtExitDirect;
 
   /**
    * Holds the thread local state for the allocator.  The state is constant
@@ -159,8 +177,10 @@ namespace snmalloc
     };
 #  ifdef SNMALLOC_USE_PTHREAD_DESTRUCTORS
     using CheckInit = CheckInitPthread;
-#  elif defined(SNMALLOC_USE_CXX_THREAD_DESTRUCTORS)
+#  elif defined(SNMALLOC_USE_CXX11_DESTRUCTORS)
     using CheckInit = CheckInitCXX;
+#  elif defined(SNMALLOC_USE_CXX11_THREAD_ATEXIT_DIRECT)
+    using CheckInit = CheckInitCXXAtExitDirect;
 #  else
     using CheckInit = CheckInitThreadCleanup;
 #  endif
@@ -180,8 +200,15 @@ namespace snmalloc
 
     /**
      * Used to give correct signature to teardown required by atexit.
+     * If [[gnu::destructor]] is available, we use the attribute to register
+     * the finalisation statically. In VERY rare cases, dynamic registration
+     * can trigger deadlocks.
      */
-    static void pthread_cleanup_main_thread()
+#    if __has_attribute(destructor)
+    [[gnu::destructor]]
+#    endif
+    static void
+    pthread_cleanup_main_thread()
     {
       ThreadAlloc::teardown();
     }
@@ -198,7 +225,9 @@ namespace snmalloc
       // run at least once.  If the main thread exits with `pthread_exit` then
       // it will be called twice but this case is already handled because other
       // destructors can cause the per-thread allocator to be recreated.
+#    if !__has_attribute(destructor)
       atexit(&pthread_cleanup_main_thread);
+#    endif
     }
 
   public:
@@ -220,7 +249,31 @@ namespace snmalloc
 #    endif
     }
   };
-#  elif defined(SNMALLOC_USE_CXX_THREAD_DESTRUCTORS)
+#  elif defined(SNMALLOC_USE_CXX11_THREAD_ATEXIT_DIRECT)
+  class CheckInitCXXAtExitDirect
+  : public ThreadAlloc::CheckInitBase<CheckInitCXXAtExitDirect>
+  {
+    static void cleanup(void*)
+    {
+      ThreadAlloc::teardown();
+    }
+
+  public:
+    /**
+     * This function is called by each thread once it starts using the
+     * thread local allocator.
+     *
+     * This implementation depends on the libstdc++ requirement on libc
+     * that provides the functionality to register a destructor for the
+     * thread locals.  This allows to not require either pthread or
+     * C++ std lib.
+     */
+    static void register_clean_up()
+    {
+      __cxa_thread_atexit_impl(cleanup, nullptr, &__dso_handle);
+    }
+  };
+#  elif defined(SNMALLOC_USE_CXX11_DESTRUCTORS)
   class CheckInitCXX : public ThreadAlloc::CheckInitBase<CheckInitCXX>
   {
   public:
