@@ -1,0 +1,25 @@
+load("@rules_cc//cc:defs.bzl", "cc_test")
+
+# will raise `ERROR: AddressSanitizer: SEGV on unknown address` if run without -c opt
+# --config=asan adds AddressSanitizer libs
+# bazel test -c opt --config=asan //fuzzing:snmalloc_fuzzer
+cc_test(
+    name = "snmalloc_fuzzer",
+    srcs = ["snmalloc-fuzzer.cpp"],
+    copts = [
+        "-fsanitize=address",
+    ] + select({
+        "@bazel_tools//tools/cpp:clang-cl": ["-fexperimental-library"],  # needed for std::execution::unseq,
+        "//conditions:default": ["-mcx16"],
+    }),
+    defines = [
+        "SNMALLOC_USE_WAIT_ON_ADDRESS=0",
+        "ADDRESS_SANITIZER",
+    ],
+    linkstatic = True,
+    malloc = "//:snmalloc",
+    deps = [
+        "@fuzztest//fuzztest",
+        "@fuzztest//fuzztest:fuzztest_gtest_main",
+    ],
+)

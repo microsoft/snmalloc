@@ -1,0 +1,11 @@
+common --enable_platform_specific_config
+
+build --cxxopt=-std=c++2a
+
+# Show everything when running tests.
+test --test_output=streamed
+
+build:macos --macos_minimum_os=10.15
+build:macos --no@fuzztest//fuzztest:use_riegeli
+
+try-import %workspace%/fuzztest.bazelrc

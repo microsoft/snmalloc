@@ -659,11 +659,16 @@ install(TARGETS EXPORT snmallocConfig DESTINATION ${CMAKE_INSTALL_LIBDIR}
   PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/snmalloc)
 
 install(DIRECTORY src/snmalloc/aal DESTINATION include/snmalloc)
-install(DIRECTORY src/snmalloc/ds DESTINATION include/snmalloc)
-install(DIRECTORY src/snmalloc/override DESTINATION include/snmalloc)
 install(DIRECTORY src/snmalloc/backend DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/backend_helpers DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/ds DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/ds_aal DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/ds_core DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/global DESTINATION include/snmalloc)
 install(DIRECTORY src/snmalloc/mem DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/override DESTINATION include/snmalloc)
 install(DIRECTORY src/snmalloc/pal DESTINATION include/snmalloc)
+install(DIRECTORY src/snmalloc/stl DESTINATION include/snmalloc)
 install(FILES
     src/test/measuretime.h
     src/test/opt.h
@@ -671,7 +676,7 @@ install(FILES
     src/test/usage.h
     src/test/xoroshiro.h
   DESTINATION include/snmalloc/test
-  )
+)
 install(FILES src/snmalloc/snmalloc.h;src/snmalloc/snmalloc_core.h;src/snmalloc/snmalloc_front.h DESTINATION include/snmalloc)
 
 install(EXPORT snmallocConfig
