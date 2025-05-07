@@ -302,20 +302,6 @@ namespace
   }
 }
 
-extern "C"
-{
-  /**
-   * The jemalloc 3.x experimental APIs are gone from the headers in newer
-   * versions, but are still present in FreeBSD libc, so declare them here
-   * for testing.
-   */
-  int allocm(void**, size_t*, size_t, int);
-  int rallocm(void**, size_t*, size_t, size_t, int);
-  int sallocm(const void*, size_t*, int);
-  int dallocm(void*, int);
-  int nallocm(size_t*, size_t, int);
-}
-
 int main()
 {
   check_lg_align_macro<63>();
@@ -363,6 +349,5 @@ int main()
   test_size<mallocx, dallocx, sallocx, nallocx>();
   test_zeroing<mallocx, dallocx, rallocx>();
   test_xallocx<mallocx, dallocx, xallocx>();
-  test_legacy_experimental_apis<allocm, rallocm, sallocm, dallocm, nallocm>();
 #endif
 }
