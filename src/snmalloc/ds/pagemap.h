@@ -93,7 +93,10 @@ namespace snmalloc
      */
     ~FlatPagemap()
     {
-      PAL::notify_release(body);
+      if constexpr (pal_supports<Release, PAL>)
+      {
+        PAL::notify_release(body);
+      }
     }
 
     /**

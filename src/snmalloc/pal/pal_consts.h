@@ -64,6 +64,11 @@ namespace snmalloc
      * This Pal provides a way for parking threads at a specific address.
      */
     WaitOnAddress = (1 << 7),
+
+    /**
+     * This Pal provides a way for releasing the the body allocation for a pagemap.
+     */
+    Release = (1 << 8),
   };
 
   /**
