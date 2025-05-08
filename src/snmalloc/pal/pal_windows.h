@@ -223,6 +223,17 @@ namespace snmalloc
         error("VirtualFree failed");
     }
 
+    /// Notify platform that we will release these pages
+    static void notify_release(void* p) noexcept
+    {
+      BOOL ok = VirtualFree(p, 0, MEM_RELEASE);
+
+      if (!ok)
+      {
+        error("VirtualFree failed");
+      }
+    }
+
     /// Notify platform that we will be using these pages
     template<ZeroMem zero_mem>
     static void notify_using(void* p, size_t size) noexcept
