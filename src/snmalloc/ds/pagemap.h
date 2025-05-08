@@ -86,6 +86,20 @@ namespace snmalloc
     constexpr FlatPagemap() = default;
 
     /**
+     * Destructor to free the pagemap body
+     *
+     * When the pagemap is destroyed, make sure that the memory reserved
+     * in the init function gets released back to the OS.
+     */
+    ~FlatPagemap()
+    {
+      if constexpr (pal_supports<Release, PAL>)
+      {
+        PAL::notify_release(body);
+      }
+    }
+
+    /**
      * For pagemaps that cover an entire fixed address space, return the size
      * that they must be.  This allows the caller to allocate the correct
      * amount of memory to be passed to `init`.  This is not available for

@@ -136,7 +136,7 @@ namespace snmalloc
      * PAL supports.  This PAL supports low-memory notifications.
      */
     static constexpr uint64_t pal_features = LowMemoryNotification | Entropy |
-      Time | LazyCommit
+      Time | LazyCommit | Release
 #  if defined(PLATFORM_HAS_VIRTUALALLOC2) && !defined(USE_SYSTEMATIC_TESTING)
       | AlignedAllocation
 #  endif
@@ -221,6 +221,17 @@ namespace snmalloc
 
       if (!ok)
         error("VirtualFree failed");
+    }
+
+    /// Notify platform that we will release these pages
+    static void notify_release(void* p) noexcept
+    {
+      BOOL ok = VirtualFree(p, 0, MEM_RELEASE);
+
+      if (!ok)
+      {
+        error("VirtualFree failed");
+      }
     }
 
     /// Notify platform that we will be using these pages
