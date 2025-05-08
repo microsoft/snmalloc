@@ -66,7 +66,8 @@ namespace snmalloc
     WaitOnAddress = (1 << 7),
 
     /**
-     * This Pal provides a way for releasing the the body allocation for a pagemap.
+     * This Pal provides a way for releasing the the body allocation for a
+     * pagemap.
      */
     Release = (1 << 8),
   };
