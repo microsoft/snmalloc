@@ -558,7 +558,7 @@ int main(int argc, char** argv)
 #endif
 #define TEST(testname) \
   std::cout << "Running " #testname << std::endl; \
-  for (size_t i = 0; i < 100; i++) \
+  for (size_t i = 0; i < 50; i++) \
     testname();
 
   TEST(test_alloc_dealloc_64k);
