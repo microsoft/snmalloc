@@ -114,7 +114,7 @@ jobs:
         path: "~/.cache/bazel"
         key: bazel
     - run: bazel build -c opt //:snmalloc
-    - run: bazel build -c opt //:snmalloc-rs
+    - run: bazel build -c opt //:snmalloc-rust-support
 
   # If this looks remarkably familiar, that's because it is.  Sigh.
   macos:
@@ -166,7 +166,7 @@ jobs:
         path: "~/.cache/bazel"
         key: bazel
     - run: bazel build -c opt //:snmalloc
-    - run: bazel build -c opt //:snmalloc-rs
+    - run: bazel build -c opt //:snmalloc-rust-support
 
 
   # GitHub doesn't natively support *BSD, but we can run them in VMs on Mac /
