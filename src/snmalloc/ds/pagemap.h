@@ -43,6 +43,12 @@ namespace snmalloc
     T* body_opt{nullptr};
 
     /**
+     * The base address returned from PAL::reserve. This is
+     * used to release the allocation on destruct
+     */
+    void* body_allocation_base{nullptr};
+
+    /**
      * If `has_bounds` is set, then these should contain the
      * bounds of the heap that is being managed by this pagemap.
      */
@@ -84,6 +90,23 @@ namespace snmalloc
     }
 
     constexpr FlatPagemap() = default;
+
+    /**
+     * Destructor to free the pagemap body
+     *
+     * When the pagemap is destroyed, make sure that the memory reserved
+     * in the init function gets released back to the OS.
+     */
+    ~FlatPagemap()
+    {
+      if (!is_initialised())
+        return;
+
+      if constexpr (pal_supports<Release, PAL>)
+      {
+        PAL::notify_release(body_allocation_base);
+      }
+    }
 
     /**
      * For pagemaps that cover an entire fixed address space, return the size
@@ -203,15 +226,15 @@ namespace snmalloc
 #endif
       size_t request_size = REQUIRED_SIZE + additional_size;
 
-      auto new_body_untyped = PAL::reserve(request_size);
+      body_allocation_base = PAL::reserve(request_size);
 
       if constexpr (pal_supports<CoreDump, PAL>)
       {
         // Pagemap should not be in core dump except where it is non-zero.
-        PAL::notify_do_not_dump(new_body_untyped, request_size);
+        PAL::notify_do_not_dump(body_allocation_base, request_size);
       }
 
-      if (new_body_untyped == nullptr)
+      if (body_allocation_base == nullptr)
       {
         PAL::error("Failed to initialise snmalloc.");
       }
@@ -224,7 +247,7 @@ namespace snmalloc
         // space.
         static_assert(bits::is_pow2(sizeof(T)), "Next line assumes this.");
         size_t offset = get_entropy64<PAL>() & (additional_size - sizeof(T));
-        new_body = pointer_offset<T>(new_body_untyped, offset);
+        new_body = pointer_offset<T>(body_allocation_base, offset);
 
         if constexpr (pal_supports<LazyCommit, PAL>)
         {
@@ -242,9 +265,9 @@ namespace snmalloc
       {
         if constexpr (pal_supports<LazyCommit, PAL>)
         {
-          PAL::notify_using_readonly(new_body_untyped, REQUIRED_SIZE);
+          PAL::notify_using_readonly(body_allocation_base, REQUIRED_SIZE);
         }
-        new_body = static_cast<T*>(new_body_untyped);
+        new_body = static_cast<T*>(body_allocation_base);
       }
       // Ensure bottom page is committed
       // ASSUME: new memory is zeroed.
