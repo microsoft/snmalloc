@@ -226,6 +226,9 @@ namespace snmalloc
     /// Notify platform that we will release these pages
     static void notify_release(void* p) noexcept
     {
+      if (p == nullptr)
+        return;
+
       BOOL ok = VirtualFree(p, 0, MEM_RELEASE);
 
       if (!ok)
