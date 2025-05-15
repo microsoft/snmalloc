@@ -104,7 +104,7 @@ namespace snmalloc
 
       if constexpr (pal_supports<Release, PAL>)
       {
-       PAL::notify_release(body_allocation_base);
+        PAL::notify_release(body_allocation_base);
       }
     }
 
