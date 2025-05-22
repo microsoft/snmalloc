@@ -30,20 +30,21 @@
 /**
  * In order to properly cleanup our pagemap reservation,
  * we need to make sure we do it is done after all other
- * allocations have been freed. 
+ * allocations have been freed.
  *
  * One way to guarantee that the reservations get released
  * at the absolute end of the program is to use atexit.
  * The atexit() takes function pointers which are called
  * during exit in LIFO order. To make sure that we are
- * the first call in the atexit chain, we use the pragma 
- * init_seg(".CRT$XCB")  which ensures that statics in 
+ * the first call in the atexit chain, we use the pragma
+ * init_seg(".CRT$XCB")  which ensures that statics in
  * this translation unit get initialized first and that
  * atexit() in the constructor gets called first. Then,
  * on program or DLL exit, we know that our function will
  * be called last.
  */
-#pragma init_seg(".CRT$XCB")
+#  pragma warning(disable : 4075)
+#  pragma init_seg(".CRT$XCB")
 
 // Simple max function (avoiding <algorithm>)
 static size_t max_size_t(size_t a, size_t b)
@@ -54,9 +55,9 @@ static size_t max_size_t(size_t a, size_t b)
 /**
  * This VirtualVector class is an implementation of
  * a vector, but does not use new/malloc or any other
- * STL containers. These cannot be used in the 
+ * STL containers. These cannot be used in the
  * function given to atexit() when the pragma
- * init_seg(".CRT$XCB") is used, because the CRT 
+ * init_seg(".CRT$XCB") is used, because the CRT
  * might not be fully initialized yet. The segments
  * compiler, lib, user cannot be used because of
  * CRT internals like std::locale facets
@@ -242,7 +243,7 @@ static inline VirtualVector<void*> reservations;
 * This is the function that gets provided to atexit, and
 * calls VirtualFree on all the reservations.
 */
-void ReservationsCleanup()
+static inline void ReservationsCleanup()
 {
 for (size_t i = reservations.get_size(); i > 0; i--)
 {
@@ -251,9 +252,9 @@ for (size_t i = reservations.get_size(); i > 0; i--)
     continue;
 
     BOOL ok = VirtualFree(reservations[index], 0, MEM_RELEASE);
-      
+
     reservations[index] = nullptr;
-      
+
     if (!ok)
     {
         fputs("VirtualFree failed\n", stderr);
@@ -281,7 +282,7 @@ ReservationsCleanupHandler()
 * ReservationsCleanup with atexit(). This is done before
 * all other statics because of init_seg(".CRT$XCB").
 */
-ReservationsCleanupHandler cleanup_handler;
+static inline ReservationsCleanupHandler cleanup_handler;
 
 namespace snmalloc
 {
