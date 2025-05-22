@@ -97,7 +97,7 @@ public:
   void push_back(T&& value)
   {
     ensure_capacity();
-    new (&data[size]) T((T&&)value);
+    new (&data[size]) T((T &&) value);
     ++size;
   }
 
@@ -178,7 +178,7 @@ private:
 
     for (size_t i = 0; i < size; ++i)
     {
-      new (&new_block[i]) T((T&&)data[i]);
+      new (&new_block[i]) T((T &&) data[i]);
       data[i].~T();
     }
 
@@ -250,11 +250,11 @@ static inline void ReservationsCleanup()
     volatile size_t index = i - 1;
     if (reservations[index] == nullptr)
       continue;
-    
+
     BOOL ok = VirtualFree(reservations[index], 0, MEM_RELEASE);
-    
+
     reservations[index] = nullptr;
-    
+
     if (!ok)
     {
       fputs("VirtualFree failed\n", stderr);
