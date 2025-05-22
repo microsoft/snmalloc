@@ -231,57 +231,57 @@ public:
 };
 
 /**
-* atexit takes only function pointers that have no arguments
-* and return void. So we create this reservations vector with
-* static storage duration and internal linkage so it is visible
-* only to this translation unit and can be deleted by the
-* ReservationsCleanup
-*/
+ * atexit takes only function pointers that have no arguments
+ * and return void. So we create this reservations vector with
+ * static storage duration and internal linkage so it is visible
+ * only to this translation unit and can be deleted by the
+ * ReservationsCleanup
+ */
 static inline VirtualVector<void*> reservations;
 
 /**
-* This is the function that gets provided to atexit, and
-* calls VirtualFree on all the reservations.
-*/
+ * This is the function that gets provided to atexit, and
+ * calls VirtualFree on all the reservations.
+ */
 static inline void ReservationsCleanup()
 {
-for (size_t i = reservations.get_size(); i > 0; i--)
-{
+  for (size_t i = reservations.get_size(); i > 0; i--)
+  {
     volatile size_t index = i - 1;
     if (reservations[index] == nullptr)
-    continue;
-
+      continue;
+    
     BOOL ok = VirtualFree(reservations[index], 0, MEM_RELEASE);
-
+    
     reservations[index] = nullptr;
-
+    
     if (!ok)
     {
-        fputs("VirtualFree failed\n", stderr);
-        fflush(stderr);
-        abort();
+      fputs("VirtualFree failed\n", stderr);
+      fflush(stderr);
+      abort();
     }
-}
+  }
 }
 
 /**
-* The ReservationsCleanupHandler's constructor registers the
-* cleanup function with atexit.
-*/
+ * The ReservationsCleanupHandler's constructor registers the
+ * cleanup function with atexit.
+ */
 struct ReservationsCleanupHandler
 {
-ReservationsCleanupHandler()
-{
+  ReservationsCleanupHandler()
+  {
     atexit(ReservationsCleanup);
-}
+  }
 };
 
 /**
-* We create a static instance of the cleanup handler,
-* which will call the constructor and register the
-* ReservationsCleanup with atexit(). This is done before
-* all other statics because of init_seg(".CRT$XCB").
-*/
+ * We create a static instance of the cleanup handler,
+ * which will call the constructor and register the
+ * ReservationsCleanup with atexit(). This is done before
+ * all other statics because of init_seg(".CRT$XCB").
+ */
 static inline ReservationsCleanupHandler cleanup_handler;
 
 namespace snmalloc
