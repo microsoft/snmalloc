@@ -27,6 +27,262 @@
 #    endif
 #  endif
 
+/**
+ * In order to properly cleanup our pagemap reservation,
+ * we need to make sure we do it is done after all other
+ * allocations have been freed. 
+ *
+ * One way to guarantee that the reservations get released
+ * at the absolute end of the program is to use atexit.
+ * The atexit() takes function pointers which are called
+ * during exit in LIFO order. To make sure that we are
+ * the first call in the atexit chain, we use the pragma 
+ * init_seg(".CRT$XCB")  which ensures that statics in 
+ * this translation unit get initialized first and that
+ * atexit() in the constructor gets called first. Then,
+ * on program or DLL exit, we know that our function will
+ * be called last.
+ */
+#pragma init_seg(".CRT$XCB")
+
+// Simple max function (avoiding <algorithm>)
+static size_t max_size_t(size_t a, size_t b)
+{
+  return a > b ? a : b;
+}
+
+/**
+ * This VirtualVector class is an implementation of
+ * a vector, but does not use new/malloc or any other
+ * STL containers. These cannot be used in the 
+ * function given to atexit() when the pragma
+ * init_seg(".CRT$XCB") is used, because the CRT 
+ * might not be fully initialized yet. The segments
+ * compiler, lib, user cannot be used because of
+ * CRT internals like std::locale facets
+ */
+template<typename T>
+class VirtualVector
+{
+  T* data = nullptr;
+  size_t size = 0;
+  size_t committed_elements = 0;
+  size_t reserved_elements = 0;
+
+public:
+  VirtualVector(size_t reserve_elems = 64, size_t initial_commit = 32)
+  {
+    reserve_and_commit(reserve_elems, initial_commit);
+  }
+
+  ~VirtualVector()
+  {
+    if (data)
+    {
+      for (size_t i = 0; i < size; ++i)
+        data[i].~T();
+
+      VirtualFree(data, 0, MEM_RELEASE);
+    }
+  }
+
+  void push_back(const T& value)
+  {
+    ensure_capacity();
+    new (&data[size]) T(value);
+    ++size;
+  }
+
+  void push_back(T&& value)
+  {
+    ensure_capacity();
+    new (&data[size]) T((T&&)value);
+    ++size;
+  }
+
+private:
+  void ensure_capacity()
+  {
+    if (size >= committed_elements)
+    {
+      size_t grow = max_size_t(64, committed_elements / 2);
+      commit_more(committed_elements + grow);
+    }
+
+    if (size >= reserved_elements)
+    {
+      grow_reserved();
+    }
+  }
+
+  void reserve_and_commit(size_t reserve_elems, size_t commit_elems)
+  {
+    size_t reserve_bytes = reserve_elems * sizeof(T);
+    T* new_block =
+      (T*)VirtualAlloc(nullptr, reserve_bytes, MEM_RESERVE, PAGE_READWRITE);
+    if (!new_block)
+      throw std::bad_alloc();
+
+    size_t commit_bytes = commit_elems * sizeof(T);
+    if (!VirtualAlloc(new_block, commit_bytes, MEM_COMMIT, PAGE_READWRITE))
+    {
+      VirtualFree(new_block, 0, MEM_RELEASE);
+      throw std::bad_alloc();
+    }
+
+    data = new_block;
+    reserved_elements = reserve_elems;
+    committed_elements = commit_elems;
+  }
+
+  void commit_more(size_t new_commit_elements)
+  {
+    if (new_commit_elements > reserved_elements)
+    {
+      grow_reserved();
+      return;
+    }
+
+    size_t old_bytes = committed_elements * sizeof(T);
+    size_t new_bytes = new_commit_elements * sizeof(T);
+    size_t commit_bytes = new_bytes - old_bytes;
+
+    if (commit_bytes > 0)
+    {
+      void* result = VirtualAlloc(
+        (char*)data + old_bytes, commit_bytes, MEM_COMMIT, PAGE_READWRITE);
+      if (!result)
+        throw std::bad_alloc();
+
+      committed_elements = new_commit_elements;
+    }
+  }
+
+  void grow_reserved()
+  {
+    size_t new_reserved = reserved_elements == 0 ? 64 : reserved_elements * 2;
+    size_t new_commit = max_size_t(committed_elements, size + 64);
+
+    T* new_block = (T*)VirtualAlloc(
+      nullptr, new_reserved * sizeof(T), MEM_RESERVE, PAGE_READWRITE);
+    if (!new_block)
+      throw std::bad_alloc();
+
+    if (!VirtualAlloc(
+          new_block, new_commit * sizeof(T), MEM_COMMIT, PAGE_READWRITE))
+    {
+      VirtualFree(new_block, 0, MEM_RELEASE);
+      throw std::bad_alloc();
+    }
+
+    for (size_t i = 0; i < size; ++i)
+    {
+      new (&new_block[i]) T((T&&)data[i]);
+      data[i].~T();
+    }
+
+    VirtualFree(data, 0, MEM_RELEASE);
+    data = new_block;
+    reserved_elements = new_reserved;
+    committed_elements = new_commit;
+  }
+
+public:
+  T& operator[](size_t index)
+  {
+    return data[index];
+  }
+
+  const T& operator[](size_t index) const
+  {
+    return data[index];
+  }
+
+  size_t get_size() const
+  {
+    return size;
+  }
+
+  size_t get_capacity() const
+  {
+    return committed_elements;
+  }
+
+  T* begin()
+  {
+    return data;
+  }
+
+  T* end()
+  {
+    return data + size;
+  }
+
+  const T* begin() const
+  {
+    return data;
+  }
+
+  const T* end() const
+  {
+    return data + size;
+  }
+};
+
+/**
+* atexit takes only function pointers that have no arguments
+* and return void. So we create this reservations vector with
+* static storage duration and internal linkage so it is visible
+* only to this translation unit and can be deleted by the
+* ReservationsCleanup
+*/
+static inline VirtualVector<void*> reservations;
+
+/**
+* This is the function that gets provided to atexit, and
+* calls VirtualFree on all the reservations.
+*/
+void ReservationsCleanup()
+{
+for (size_t i = reservations.get_size(); i > 0; i--)
+{
+    volatile size_t index = i - 1;
+    if (reservations[index] == nullptr)
+    continue;
+
+    BOOL ok = VirtualFree(reservations[index], 0, MEM_RELEASE);
+      
+    reservations[index] = nullptr;
+      
+    if (!ok)
+    {
+        fputs("VirtualFree failed\n", stderr);
+        fflush(stderr);
+        abort();
+    }
+}
+}
+
+/**
+* The ReservationsCleanupHandler's constructor registers the
+* cleanup function with atexit.
+*/
+struct ReservationsCleanupHandler
+{
+ReservationsCleanupHandler()
+{
+    atexit(ReservationsCleanup);
+}
+};
+
+/**
+* We create a static instance of the cleanup handler,
+* which will call the constructor and register the
+* ReservationsCleanup with atexit(). This is done before
+* all other statics because of init_seg(".CRT$XCB").
+*/
+ReservationsCleanupHandler cleanup_handler;
+
 namespace snmalloc
 {
   class PALWindows : public PalTimerDefaultImpl<PALWindows>
@@ -298,6 +554,9 @@ namespace snmalloc
         nullptr, nullptr, size, flags, PAGE_READWRITE, &param, 1);
       if (ret == nullptr)
         errno = ENOMEM;
+
+      reservations.push_back(ret);
+
       return ret;
     }
 #  endif
@@ -307,6 +566,9 @@ namespace snmalloc
       void* ret = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
       if (ret == nullptr)
         errno = ENOMEM;
+
+      reservations.push_back(ret);
+
       return ret;
     }
 
