@@ -376,7 +376,9 @@ namespace snmalloc
     inline static snmalloc::FlagWord push_back_lock{};
 
   public:
-    VirtualVector(size_t reserve_elems = snmalloc::PALWindows::page_size, size_t initial_commit = 32)
+    VirtualVector(
+      size_t reserve_elems = snmalloc::PALWindows::page_size, 
+      size_t initial_commit = 32)
     {
       reserve_and_commit(reserve_elems, initial_commit);
     }
