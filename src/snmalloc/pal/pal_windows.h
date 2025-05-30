@@ -376,7 +376,7 @@ namespace snmalloc
     inline static snmalloc::FlagWord push_back_lock{};
 
   public:
-    VirtualVector(size_t reserve_elems = 64, size_t initial_commit = 32)
+    VirtualVector(size_t reserve_elems = snmalloc::PALWindows::page_size, size_t initial_commit = 32)
     {
       reserve_and_commit(reserve_elems, initial_commit);
     }
@@ -477,7 +477,7 @@ namespace snmalloc
         void* result = VirtualAlloc(
           (char*)data + old_bytes, commit_bytes, MEM_COMMIT, PAGE_READWRITE);
         if (!result)
-          throw std::bad_alloc();
+          error("VirtualAlloc failed");
 
         committed_elements = new_commit_elements;
       }
@@ -491,13 +491,13 @@ namespace snmalloc
       void** new_block = (void**)VirtualAlloc(
         nullptr, new_reserved * sizeof(void*), MEM_RESERVE, PAGE_READWRITE);
       if (!new_block)
-        throw std::bad_alloc();
+        error("VirtualAlloc failed");
 
       if (!VirtualAlloc(
             new_block, new_commit * sizeof(void*), MEM_COMMIT, PAGE_READWRITE))
       {
         VirtualFree(new_block, 0, MEM_RELEASE);
-        throw std::bad_alloc();
+        error("VirtualAlloc failed");
       }
 
       // Copy existing values
