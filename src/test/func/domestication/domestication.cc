@@ -5,6 +5,7 @@
 #include <snmalloc/backend/backend.h>
 #include <snmalloc/backend/standard_range.h>
 #include <snmalloc/backend_helpers/backend_helpers.h>
+#include <snmalloc/mem/secondary/default.h>
 #include <snmalloc/snmalloc_core.h>
 
 // Specify type of allocator
@@ -18,6 +19,7 @@ namespace snmalloc
     using Pal = DefaultPal;
     using PagemapEntry = DefaultPagemapEntry<NoClientMetaDataProvider>;
     using ClientMeta = NoClientMetaDataProvider;
+    using SecondaryAllocator = DefaultSecondaryAllocator;
 
   private:
     using ConcretePagemap =

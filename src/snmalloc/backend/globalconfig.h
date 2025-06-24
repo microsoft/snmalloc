@@ -3,7 +3,7 @@
 #include "../backend_helpers/backend_helpers.h"
 #include "backend.h"
 #include "meta_protected_range.h"
-#include "snmalloc/mem/secondary.h"
+#include "snmalloc/mem/secondary/default.h"
 #include "standard_range.h"
 
 namespace snmalloc
@@ -22,16 +22,19 @@ namespace snmalloc
    * The Configuration sets up a Pagemap for the backend to use, and the state
    * required to build new allocators (GlobalPoolState).
    */
-  template<typename ClientMetaDataProvider = NoClientMetaDataProvider>
+  template<
+    typename ClientMetaDataProvider = NoClientMetaDataProvider,
+    typename SecondaryAllocator_ = DefaultSecondaryAllocator>
   class StandardConfigClientMeta final : public CommonConfig
   {
-    using GlobalPoolState =
-      PoolState<Allocator<StandardConfigClientMeta<ClientMetaDataProvider>>>;
+    using GlobalPoolState = PoolState<Allocator<
+      StandardConfigClientMeta<ClientMetaDataProvider, SecondaryAllocator_>>>;
 
   public:
     using Pal = DefaultPal;
     using PagemapEntry = DefaultPagemapEntry<ClientMetaDataProvider>;
     using ClientMeta = ClientMetaDataProvider;
+    using SecondaryAllocator = SecondaryAllocator_;
 
   private:
     using ConcretePagemap =

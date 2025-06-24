@@ -6,7 +6,6 @@
 #include "metadata.h"
 #include "pool.h"
 #include "remotecache.h"
-#include "secondary.h"
 #include "sizeclasstable.h"
 #include "snmalloc/stl/new.h"
 #include "ticker.h"
@@ -653,7 +652,7 @@ namespace snmalloc
               }
 
               // Check if secondary allocator wants to offer the memory
-              void* result = SecondaryAllocator::allocate(
+              void* result = Config::SecondaryAllocator::allocate(
                 [size]() -> stl::Pair<size_t, size_t> {
                   return {size, natural_alignment(size)};
                 });
@@ -710,7 +709,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH capptr::Alloc<void>
     small_refill(smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
     {
-      void* result = SecondaryAllocator::allocate(
+      void* result = Config::SecondaryAllocator::allocate(
         [sizeclass]() -> stl::Pair<size_t, size_t> {
           auto size = sizeclass_to_size(sizeclass);
           return {size, natural_alignment(size)};
@@ -1285,7 +1284,7 @@ namespace snmalloc
       }
 
       dealloc_cheri_checks(p_tame.unsafe_ptr());
-      SecondaryAllocator::deallocate(p_tame.unsafe_ptr());
+      Config::SecondaryAllocator::deallocate(p_tame.unsafe_ptr());
     }
 
     /**

@@ -1,4 +1,3 @@
-#include "snmalloc/mem/secondary.h"
 #include "test/setup.h"
 
 #include <iostream>
