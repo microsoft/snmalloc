@@ -382,8 +382,7 @@ namespace snmalloc
 
   public:
     VirtualVector(
-      size_t reserve_elems = MinReserve, 
-      size_t initial_commit = MinCommit)
+      size_t reserve_elems = MinReserve, size_t initial_commit = MinCommit)
     {
       reserve_and_commit(reserve_elems, initial_commit);
     }
