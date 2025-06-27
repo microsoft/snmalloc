@@ -372,13 +372,18 @@ namespace snmalloc
     size_t committed_elements = 0;
     size_t reserved_elements = 0;
 
+    static constexpr size_t MinCommit =
+      snmalloc::PALWindows::page_size / sizeof(void*);
+    static constexpr size_t MinReserve =
+      16 * snmalloc::PALWindows::page_size / sizeof(void*);
+
     // Lock for the reserved ranges.
     inline static snmalloc::FlagWord push_back_lock{};
 
   public:
     VirtualVector(
-      size_t reserve_elems = snmalloc::PALWindows::page_size,
-      size_t initial_commit = 32)
+      size_t reserve_elems = MinReserve, 
+      size_t initial_commit = MinCommit)
     {
       reserve_and_commit(reserve_elems, initial_commit);
     }
@@ -432,7 +437,7 @@ namespace snmalloc
     {
       if (size >= committed_elements)
       {
-        size_t grow = max_size_t(64, committed_elements / 2);
+        size_t grow = max_size_t(MinCommit, committed_elements / 2);
         commit_more(committed_elements + grow);
       }
 
@@ -487,8 +492,9 @@ namespace snmalloc
 
     void grow_reserved()
     {
-      size_t new_reserved = reserved_elements == 0 ? 64 : reserved_elements * 2;
-      size_t new_commit = max_size_t(committed_elements, size + 64);
+      size_t new_reserved =
+        reserved_elements == 0 ? MinReserve : reserved_elements * 2;
+      size_t new_commit = max_size_t(committed_elements, size + MinCommit);
 
       void** new_block = (void**)VirtualAlloc(
         nullptr, new_reserved * sizeof(void*), MEM_RESERVE, PAGE_READWRITE);
