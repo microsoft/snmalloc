@@ -27,6 +27,23 @@
 #    endif
 #  endif
 
+/**
+ * In order to properly cleanup our pagemap reservation,
+ * we need to make sure we do it is done after all other
+ * allocations have been freed.
+ *
+ * One way to guarantee that the reservations get released
+ * at the absolute end of the program is to force them to
+ * be initialized first. Statics and globals get destroyed
+ * in FILO order of when they were initialized. The pragma
+ * init_seg makes sure the statics and globals in this
+ * file are handled first, and thus will be the last to
+ * be destroyed when the program exits or the DLL is
+ * unloaded.
+ */
+#  pragma warning(disable : 4075)
+#  pragma init_seg(".CRT$XCB")
+
 namespace snmalloc
 {
   class PALWindows : public PalTimerDefaultImpl<PALWindows>
@@ -273,42 +290,10 @@ namespace snmalloc
 
 #  ifdef PLATFORM_HAS_VIRTUALALLOC2
     template<bool state_using>
-    static void* reserve_aligned(size_t size) noexcept
-    {
-      SNMALLOC_ASSERT(bits::is_pow2(size));
-      SNMALLOC_ASSERT(size >= minimum_alloc_size);
-
-      DWORD flags = MEM_RESERVE;
-
-      if (state_using)
-        flags |= MEM_COMMIT;
-
-      // If we're on Windows 10 or newer, we can use the VirtualAlloc2
-      // function.  The FromApp variant is useable by UWP applications and
-      // cannot allocate executable memory.
-      MEM_ADDRESS_REQUIREMENTS addressReqs = {NULL, NULL, size};
-
-      MEM_EXTENDED_PARAMETER param = {
-        {MemExtendedParameterAddressRequirements, 0}, {0}};
-      // Separate assignment as MSVC doesn't support .Pointer in the
-      // initialisation list.
-      param.Pointer = &addressReqs;
-
-      void* ret = VirtualAlloc2FromApp(
-        nullptr, nullptr, size, flags, PAGE_READWRITE, &param, 1);
-      if (ret == nullptr)
-        errno = ENOMEM;
-      return ret;
-    }
+    static void* reserve_aligned(size_t size) noexcept;
 #  endif
 
-    static void* reserve(size_t size) noexcept
-    {
-      void* ret = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
-      if (ret == nullptr)
-        errno = ENOMEM;
-      return ret;
-    }
+    static void* reserve(size_t size) noexcept;
 
     /**
      * Source of Entropy
@@ -370,5 +355,262 @@ namespace snmalloc
     }
 #  endif
   };
+
+  /**
+   * This VirtualVector class is an implementation of
+   * a vector, but does not use new/malloc or any other
+   * STL containers. We cannot use these after
+   * init_seg(".CRT$XCB") usage, because the CRT
+   * might not be fully initialized yet. The segments
+   * compiler, lib, user cannot be used because of
+   * CRT internals like std::locale facets
+   */
+  class VirtualVector
+  {
+    void** data = nullptr;
+    size_t size = 0;
+    size_t committed_elements = 0;
+    size_t reserved_elements = 0;
+
+    static constexpr size_t MinCommit =
+      snmalloc::PALWindows::page_size / sizeof(void*);
+    static constexpr size_t MinReserve =
+      16 * snmalloc::PALWindows::page_size / sizeof(void*);
+
+    // Lock for the reserved ranges.
+    inline static snmalloc::FlagWord push_back_lock{};
+
+  public:
+    VirtualVector(
+      size_t reserve_elems = MinReserve, size_t initial_commit = MinCommit)
+    {
+      reserve_and_commit(reserve_elems, initial_commit);
+    }
+
+    ~VirtualVector()
+    {
+      if (data)
+      {
+        for (size_t i = size; i > 0; i--)
+        {
+          size_t index = i - 1;
+          if (data[index] == nullptr)
+            continue;
+
+          BOOL ok = VirtualFree(data[index], 0, MEM_RELEASE);
+
+          data[index] = nullptr;
+
+          if (!ok)
+          {
+            snmalloc::PALWindows::error("VirtualFree failed");
+          }
+        }
+
+        BOOL ok = VirtualFree(data, 0, MEM_RELEASE);
+
+        data = nullptr;
+
+        if (!ok)
+        {
+          snmalloc::PALWindows::error("VirtualFree failed");
+        }
+      }
+    }
+
+    void push_back(void* value)
+    {
+      snmalloc::FlagLock lock(push_back_lock);
+      ensure_capacity();
+      data[size++] = value;
+    }
+
+  private:
+    // Simple max function (avoiding <algorithm>)
+    static size_t max_size_t(size_t a, size_t b)
+    {
+      return a > b ? a : b;
+    }
+
+    void ensure_capacity()
+    {
+      if (size >= committed_elements)
+      {
+        size_t grow = max_size_t(MinCommit, committed_elements / 2);
+        commit_more(committed_elements + grow);
+      }
+
+      if (size >= reserved_elements)
+      {
+        grow_reserved();
+      }
+    }
+
+    void reserve_and_commit(size_t reserve_elems, size_t commit_elems)
+    {
+      size_t reserve_bytes = reserve_elems * sizeof(void*);
+      void** new_block = (void**)VirtualAlloc(
+        nullptr, reserve_bytes, MEM_RESERVE, PAGE_READWRITE);
+      if (!new_block)
+        snmalloc::PALWindows::error("VirtualAlloc failed");
+
+      size_t commit_bytes = commit_elems * sizeof(void*);
+      if (!VirtualAlloc(new_block, commit_bytes, MEM_COMMIT, PAGE_READWRITE))
+      {
+        VirtualFree(new_block, 0, MEM_RELEASE);
+        snmalloc::PALWindows::error("VirtualAlloc failed");
+      }
+
+      data = new_block;
+      reserved_elements = reserve_elems;
+      committed_elements = commit_elems;
+    }
+
+    void commit_more(size_t new_commit_elements)
+    {
+      if (new_commit_elements > reserved_elements)
+      {
+        grow_reserved();
+        return;
+      }
+
+      size_t old_bytes = committed_elements * sizeof(void*);
+      size_t new_bytes = new_commit_elements * sizeof(void*);
+      size_t commit_bytes = new_bytes - old_bytes;
+
+      if (commit_bytes > 0)
+      {
+        void* result = VirtualAlloc(
+          (char*)data + old_bytes, commit_bytes, MEM_COMMIT, PAGE_READWRITE);
+        if (!result)
+          error("VirtualAlloc failed");
+
+        committed_elements = new_commit_elements;
+      }
+    }
+
+    void grow_reserved()
+    {
+      size_t new_reserved =
+        reserved_elements == 0 ? MinReserve : reserved_elements * 2;
+      size_t new_commit = max_size_t(committed_elements, size + MinCommit);
+
+      void** new_block = (void**)VirtualAlloc(
+        nullptr, new_reserved * sizeof(void*), MEM_RESERVE, PAGE_READWRITE);
+      if (!new_block)
+        error("VirtualAlloc failed");
+
+      if (!VirtualAlloc(
+            new_block, new_commit * sizeof(void*), MEM_COMMIT, PAGE_READWRITE))
+      {
+        VirtualFree(new_block, 0, MEM_RELEASE);
+        error("VirtualAlloc failed");
+      }
+
+      // Copy existing values
+      for (size_t i = 0; i < size; ++i)
+      {
+        new_block[i] = data[i];
+      }
+
+      VirtualFree(data, 0, MEM_RELEASE);
+      data = new_block;
+      reserved_elements = new_reserved;
+      committed_elements = new_commit;
+    }
+
+  public:
+    void*& operator[](size_t index)
+    {
+      return data[index];
+    }
+
+    const void* operator[](size_t index) const
+    {
+      return data[index];
+    }
+
+    size_t get_size() const
+    {
+      return size;
+    }
+
+    size_t get_capacity() const
+    {
+      return committed_elements;
+    }
+
+    void** begin()
+    {
+      return data;
+    }
+
+    void** end()
+    {
+      return data + size;
+    }
+
+    const void* const* begin() const
+    {
+      return data;
+    }
+
+    const void* const* end() const
+    {
+      return data + size;
+    }
+  };
+
+  /**
+   * This will be destroyed last of all of the
+   * statics and globals due to init_seg
+   */
+  static inline VirtualVector reservations;
+
+#  ifdef PLATFORM_HAS_VIRTUALALLOC2
+  template<bool state_using>
+  void* PALWindows::reserve_aligned(size_t size) noexcept
+  {
+    SNMALLOC_ASSERT(bits::is_pow2(size));
+    SNMALLOC_ASSERT(size >= minimum_alloc_size);
+
+    DWORD flags = MEM_RESERVE;
+
+    if (state_using)
+      flags |= MEM_COMMIT;
+
+    // If we're on Windows 10 or newer, we can use the VirtualAlloc2
+    // function.  The FromApp variant is useable by UWP applications and
+    // cannot allocate executable memory.
+    MEM_ADDRESS_REQUIREMENTS addressReqs = {NULL, NULL, size};
+
+    MEM_EXTENDED_PARAMETER param = {
+      {MemExtendedParameterAddressRequirements, 0}, {0}};
+    // Separate assignment as MSVC doesn't support .Pointer in the
+    // initialisation list.
+    param.Pointer = &addressReqs;
+
+    void* ret = VirtualAlloc2FromApp(
+      nullptr, nullptr, size, flags, PAGE_READWRITE, &param, 1);
+    if (ret == nullptr)
+      errno = ENOMEM;
+
+    reservations.push_back(ret);
+
+    return ret;
+  }
+#  endif
+
+  void* PALWindows::reserve(size_t size) noexcept
+  {
+    void* ret = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
+    if (ret == nullptr)
+      errno = ENOMEM;
+
+    reservations.push_back(ret);
+
+    return ret;
+  }
+
 }
 #endif

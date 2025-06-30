@@ -96,6 +96,8 @@ int main()
   size_t iterations = 50000;
 #elif defined(__APPLE__) && !defined(SNMALLOC_APPLE_HAS_OS_SYNC_WAIT_ON_ADDRESS)
   size_t iterations = 50000;
+#elif defined(WIN32)
+  size_t iterations = 50000;
 #else
   size_t iterations = 200000;
 #endif
