@@ -117,6 +117,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: Bazel - ${{ matrix.os }} ${{ matrix.build-type }}
     steps:
+    - uses: actions/checkout@v4
     - uses: bazelbuild/setup-bazelisk@v3
     - name: Mount bazel cache  # Optional
       uses: actions/cache@v4
