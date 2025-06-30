@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds/ds.h"
+#include "allocstats.h"
 #include "check_init.h"
 #include "freelist.h"
 #include "metadata.h"
@@ -32,7 +33,7 @@ namespace snmalloc
   }
 
   template<ZeroMem zero_mem, typename Config>
-  inline static SNMALLOC_FAST_PATH capptr::Alloc<void>
+  inline static SNMALLOC_FAST_PATH void*
   finish_alloc(freelist::HeadPtr p, smallsizeclass_t sizeclass)
   {
     auto r = finish_alloc_no_zero(p, sizeclass);
@@ -43,7 +44,7 @@ namespace snmalloc
     // TODO: Should this be zeroing the free Object state, in the non-zeroing
     // case?
 
-    return r;
+    return capptr_reveal(r);
   }
 
   struct FastFreeLists
@@ -155,6 +156,11 @@ namespace snmalloc
      * Ticker to query the clock regularly at a lower cost.
      */
     Ticker<typename Config::Pal> ticker;
+
+    /**
+     * Tracks this allocators memory usage
+     */
+    AllocStats stats;
 
     /**
      * The message queue needs to be accessible from other threads
@@ -437,6 +443,9 @@ namespace snmalloc
         post();
       }
 
+      // Push size to global statistics
+      RemoteDeallocCache<Config>::remote_inflight -= bytes_freed;
+
       return action(args...);
     }
 
@@ -488,16 +497,19 @@ namespace snmalloc
         freelist::Object::key_root,
         entry.get_slab_metadata()->as_key_tweak(),
         domesticate);
-      if (!need_post && !remote_dealloc_cache.reserve_space(entry, nelem))
-      {
-        need_post = true;
-      }
+
+      // Need to account for forwarded bytes.
+      size_t size = nelem * sizeclass_full_to_size(entry.get_sizeclass());
+      bytes_returned += size;
+
+      need_post |= remote_dealloc_cache.reserve_space(entry, nelem);
+
       remote_dealloc_cache.template forward<sizeof(Allocator)>(
         entry.get_remote()->trunc_id(), msg);
     }
 
     template<typename Domesticator>
-    SNMALLOC_FAST_PATH static auto dealloc_local_objects_fast(
+    SNMALLOC_FAST_PATH auto dealloc_local_objects_fast(
       capptr::Alloc<RemoteMessage> msg,
       const PagemapEntry& entry,
       BackendSlabMetadata* meta,
@@ -523,6 +535,9 @@ namespace snmalloc
 
       bytes_freed += objsize * length;
 
+      stats[entry.get_sizeclass()].objects_deallocated +=
+        static_cast<size_t>(length);
+
       // Update the head and the next pointer in the free list.
       meta->free_queue.append_segment(
         curr,
@@ -546,7 +561,7 @@ namespace snmalloc
      *  - alloc(size_t)
      *    - small_alloc(size_t)
      *      - gets allocation from a fast free list and is done.
-     *      - if no fast free list,
+     *      - otherwise no fast free list and calls small_alloc_slow
      *         - check for message queue
      *         - small_refill(size_t)
      *           - If another free list is available, use it.
@@ -583,17 +598,17 @@ namespace snmalloc
       {
         // Small allocations are more likely. Improve
         // branch prediction by placing this case first.
-        return capptr_reveal(small_alloc<zero_mem, CheckInit>(size));
+        return small_alloc<zero_mem, CheckInit>(size);
       }
 
-      return capptr_reveal(alloc_not_small<zero_mem, CheckInit>(size, this));
+      return alloc_not_small<zero_mem, CheckInit>(size, this);
     }
 
     /**
      * Fast allocation for small objects.
      */
     template<ZeroMem zero_mem, typename CheckInit>
-    SNMALLOC_FAST_PATH capptr::Alloc<void> small_alloc(size_t size)
+    SNMALLOC_FAST_PATH void* small_alloc(size_t size)
     {
       auto domesticate =
         [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
@@ -606,12 +621,20 @@ namespace snmalloc
       if (SNMALLOC_LIKELY(!fl->empty()))
       {
         auto p = fl->take(key, domesticate);
+        stats[sizeclass].objects_allocated++;
         return finish_alloc<zero_mem, Config>(p, sizeclass);
       }
 
+      return small_alloc_slow<zero_mem, CheckInit>(sizeclass, fl);
+    }
+
+    template<ZeroMem zero_mem, typename CheckInit>
+    SNMALLOC_SLOW_PATH void*
+    small_alloc_slow(smallsizeclass_t sizeclass, freelist::Iter<>* fl)
+    {
       return handle_message_queue(
         [](Allocator* alloc, smallsizeclass_t sizeclass, freelist::Iter<>* fl)
-          -> capptr::Alloc<void> {
+          -> void* {
           return alloc->small_refill<zero_mem, CheckInit>(sizeclass, *fl);
         },
         this,
@@ -629,7 +652,7 @@ namespace snmalloc
      * register.
      */
     template<ZeroMem zero_mem, typename CheckInit>
-    static SNMALLOC_SLOW_PATH capptr::Alloc<void>
+    static SNMALLOC_SLOW_PATH void*
     alloc_not_small(size_t size, Allocator* self)
     {
       if (size == 0)
@@ -641,15 +664,15 @@ namespace snmalloc
       }
 
       return self->handle_message_queue(
-        [](Allocator* self, size_t size) -> capptr::Alloc<void> {
+        [](Allocator* self, size_t size) -> void* {
           return CheckInit::check_init(
-            [self, size]() {
+            [self, size]() -> void* {
               if (size > bits::one_at_bit(bits::BITS - 1))
               {
                 // Cannot allocate something that is more that half the size of
                 // the address space
                 errno = ENOMEM;
-                return capptr::Alloc<void>{nullptr};
+                return nullptr;
               }
 
               // Check if secondary allocator wants to offer the memory
@@ -661,7 +684,7 @@ namespace snmalloc
               {
                 if constexpr (zero_mem == YesZero)
                   Config::Pal::zero(result, size);
-                return capptr::Alloc<void>::unsafe_from(result);
+                return result;
               }
 
               // Grab slab of correct size
@@ -694,10 +717,17 @@ namespace snmalloc
                   chunk.unsafe_ptr(), bits::next_pow2(size));
               }
 
-              return capptr_chunk_is_alloc(
-                capptr_to_user_address_control(chunk));
+              if (chunk.unsafe_ptr() != nullptr)
+              {
+                auto sc = size_to_sizeclass_full(size);
+                self->stats[sc].objects_allocated++;
+                self->stats[sc].slabs_allocated++;
+              }
+
+              return capptr_reveal(
+                capptr_chunk_is_alloc(capptr_to_user_address_control(chunk)));
             },
-            [](Allocator* a, size_t size) {
+            [](Allocator* a, size_t size) -> void* {
               return alloc_not_small<zero_mem, CheckInitNoOp>(size, a);
             },
             size);
@@ -707,7 +737,7 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, typename CheckInit>
-    SNMALLOC_FAST_PATH capptr::Alloc<void>
+    SNMALLOC_FAST_PATH void*
     small_refill(smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
     {
       void* result = SecondaryAllocator::allocate(
@@ -727,10 +757,8 @@ namespace snmalloc
         // deallocated, before snmalloc is initialised, then it will fail
         // to access the pagemap.
         return CheckInit::check_init(
-          [result]() { return capptr::Alloc<void>::unsafe_from(result); },
-          [](Allocator*, void* result) {
-            return capptr::Alloc<void>::unsafe_from(result);
-          },
+          [result]() { return result; },
+          [](Allocator*, void* result) { return result; },
           result);
       }
 
@@ -773,6 +801,7 @@ namespace snmalloc
           laden.insert(meta);
         }
 
+        stats[sizeclass].objects_allocated++;
         auto r = finish_alloc<zero_mem, Config>(p, sizeclass);
         return ticker.check_tick(r);
       }
@@ -780,11 +809,11 @@ namespace snmalloc
     }
 
     template<ZeroMem zero_mem, typename CheckInit>
-    SNMALLOC_SLOW_PATH capptr::Alloc<void> small_refill_slow(
+    SNMALLOC_SLOW_PATH void* small_refill_slow(
       smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
     {
       return CheckInit::check_init(
-        [this, sizeclass, &fast_free_list]() -> capptr::Alloc<void> {
+        [this, sizeclass, &fast_free_list]() -> void* {
           size_t rsize = sizeclass_to_size(sizeclass);
 
           // No existing free list get a new slab.
@@ -830,6 +859,9 @@ namespace snmalloc
           {
             laden.insert(meta);
           }
+
+          stats[sizeclass].slabs_allocated++;
+          stats[sizeclass].objects_allocated++;
 
           auto r = finish_alloc<zero_mem, Config>(p, sizeclass);
           return ticker.check_tick(r);
@@ -1006,6 +1038,7 @@ namespace snmalloc
        */
       if (SNMALLOC_LIKELY(public_state() == entry.get_remote()))
       {
+        stats[entry.get_sizeclass()].objects_deallocated++;
         dealloc_cheri_checks(p_tame.unsafe_ptr());
         dealloc_local_object(p_tame, entry);
         return;
@@ -1073,6 +1106,8 @@ namespace snmalloc
 
         // Remove from set of fully used slabs.
         meta->node.remove();
+
+        stats[entry.get_sizeclass()].slabs_deallocated++;
 
         Config::Backend::dealloc_chunk(
           get_backend_local_state(), *meta, p, size, entry.get_sizeclass());
@@ -1169,6 +1204,8 @@ namespace snmalloc
         // TODO delay the clear to the next user of the slab, or teardown so
         // don't touch the cache lines at this point in snmalloc_check_client.
         auto start = clear_slab(meta, sizeclass);
+
+        stats[sizeclass].slabs_deallocated++;
 
         Config::Backend::dealloc_chunk(
           get_backend_local_state(),
@@ -1336,10 +1373,10 @@ namespace snmalloc
                              return capptr_domesticate<Config>(local_state, p);
                            };
 
-      size_t bytes_flushed = 0; // Not currently used.
-
       if (destroy_queue)
       {
+        size_t bytes_flushed = 0;
+
         auto cb =
           [this, domesticate, &bytes_flushed](capptr::Alloc<RemoteMessage> m) {
             bool need_post = true; // Always going to post, so ignore.
@@ -1350,6 +1387,8 @@ namespace snmalloc
           };
 
         message_queue().destroy_and_iterate(domesticate, cb);
+
+        RemoteDeallocCache<Config>::remote_inflight -= bytes_flushed;
       }
       else
       {
@@ -1397,8 +1436,9 @@ namespace snmalloc
           }
         });
 
-      // Set the remote_dealloc_cache to immediately slow path.
-      remote_dealloc_cache.capacity = 0;
+      // TODO: I don't think this is needed.
+      // // Set the remote_dealloc_cache to immediately slow path.
+      // remote_dealloc_cache.cache_bytes = REMOTE_CACHE;
 
       return posted;
     }
@@ -1466,6 +1506,11 @@ namespace snmalloc
       message<1024>("debug_is_empty - done");
 #endif
       return sent_something;
+    }
+
+    const AllocStats& get_stats()
+    {
+      return stats;
     }
   };
 

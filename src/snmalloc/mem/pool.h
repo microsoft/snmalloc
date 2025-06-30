@@ -32,9 +32,15 @@ namespace snmalloc
 
     FlagWord lock{};
     capptr::Alloc<T> list{nullptr};
+    stl::Atomic<size_t> count{0};
 
   public:
     constexpr PoolState() = default;
+
+    size_t get_count()
+    {
+      return count.load(stl::memory_order_relaxed);
+    }
   };
 
   /**
@@ -81,7 +87,7 @@ namespace snmalloc
    * The third template argument is a method to retrieve the actual PoolState.
    *
    * For the pool of allocators, refer to the AllocPool alias defined in
-   * corealloc.h.
+   * alloc.h.
    *
    * For a pool of another type, it is recommended to leave the
    * third template argument with its default value. The SingletonPoolState
@@ -123,6 +129,8 @@ namespace snmalloc
       with(pool.lock, [&]() {
         p->list_next = pool.list;
         pool.list = p;
+
+        pool.count++;
 
         p->set_in_use();
       });
