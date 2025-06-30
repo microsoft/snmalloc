@@ -107,6 +107,16 @@ jobs:
         mkdir libs
         cp libsnmallocshim*.so libs
         for lib in `ls libs`; do echo; echo Testing $lib; ninja clean; LD_PRELOAD=libs/$lib ninja libsnmallocshim.so; done
+
+  bazel:
+    strategy:
+      matrix:
+        # Build each combination of OS and release/debug variants
+        os: [ "ubuntu-24.04", "ubuntu-22.04", "ubuntu-24.04-arm",  "macos-13", "macos-14", "macos-15"  ]
+        build-type: [ "Release", "Debug" ]
+    runs-on: ${{ matrix.os }}
+    name: Bazel - ${{ matrix.os }} ${{ matrix.build-type }}
+    steps:
     - uses: bazelbuild/setup-bazelisk@v3
     - name: Mount bazel cache  # Optional
       uses: actions/cache@v4
@@ -115,6 +125,7 @@ jobs:
         key: bazel
     - run: bazel build -c opt //:snmalloc
     - run: bazel build -c opt //:snmalloc-rs
+    - run: bazel test -c opt --config=asan //fuzzing:snmalloc_fuzzer
 
   # If this looks remarkably familiar, that's because it is.  Sigh.
   macos:
@@ -159,15 +170,6 @@ jobs:
         mkdir libs
         cp libsnmallocshim*.so libs
         for lib in `ls libs`; do echo; echo Testing $lib; ninja clean; LD_PRELOAD=libs/$lib ninja libsnmallocshim.so; done
-    - uses: bazelbuild/setup-bazelisk@v3
-    - name: Mount bazel cache  # Optional
-      uses: actions/cache@v4
-      with:
-        path: "~/.cache/bazel"
-        key: bazel
-    - run: bazel build -c opt //:snmalloc
-    - run: bazel build -c opt //:snmalloc-rs
-
 
   # GitHub doesn't natively support *BSD, but we can run them in VMs on Mac /
   # Linux runners
@@ -503,13 +505,6 @@ jobs:
       run: cmake --build ${{github.workspace}}/build --target snmalloc-fuzzer
     - name: Test
       run: ${{github.workspace}}/build/fuzzing/snmalloc-fuzzer
-    - uses: bazelbuild/setup-bazelisk@v3
-    - name: Mount bazel cache  # Optional
-      uses: actions/cache@v4
-      with:
-        path: "~/.cache/bazel"
-        key: bazel
-    - run: bazel test -c opt --config=asan //fuzzing:snmalloc_fuzzer
 
   self-vendored:
     strategy:
