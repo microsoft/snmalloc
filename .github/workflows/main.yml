@@ -535,7 +535,7 @@ jobs:
     - name: Prepare Windows
       if: runner.os == 'Windows'
       run: |
-        choco install ninja
+        choco install ninja clang-19
     - name: Prepare macOS
       if: runner.os == 'macOS'
       run: |
