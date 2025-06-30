@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../backend_helpers/backend_helpers.h"
+#include "../mem/secondary/default.h"
 #include "snmalloc/stl/type_traits.h"
 #include "standard_range.h"
 
@@ -13,12 +14,14 @@ namespace snmalloc
    */
   template<
     SNMALLOC_CONCEPT(IsPAL) PAL,
-    typename ClientMetaDataProvider = NoClientMetaDataProvider>
+    typename ClientMetaDataProvider = NoClientMetaDataProvider,
+    typename SecondaryAllocator_ = DefaultSecondaryAllocator>
   class FixedRangeConfig final : public CommonConfig
   {
   public:
     using PagemapEntry = DefaultPagemapEntry<ClientMetaDataProvider>;
     using ClientMeta = ClientMetaDataProvider;
+    using SecondaryAllocator = SecondaryAllocator_;
 
   private:
     using ConcretePagemap =

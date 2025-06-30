@@ -302,9 +302,9 @@ namespace snmalloc
     const auto& entry = Config_::Backend::get_metaentry(address_cast(p_raw));
 
     if (SNMALLOC_UNLIKELY(
-          !SecondaryAllocator::pass_through && !entry.is_owned() &&
+          !Config::SecondaryAllocator::pass_through && !entry.is_owned() &&
           p_raw != nullptr))
-      return SecondaryAllocator::alloc_size(p_raw);
+      return Config::SecondaryAllocator::alloc_size(p_raw);
     // TODO What's the domestication policy here?  At the moment we just
     // probe the pagemap with the raw address, without checks.  There could
     // be implicit domestication through the `Config::Pagemap` or
