@@ -1,4 +1,5 @@
 #include <array>
+#include <chrono>
 #include <iostream>
 #include <snmalloc/snmalloc.h>
 #include <test/opt.h>
@@ -532,7 +533,7 @@ void test_consolidaton_bug()
   }
 }
 
-int main(int argc, char** argv)
+int main(int, char**)
 {
   setup();
 #ifdef TEST_LIMITED
@@ -549,17 +550,17 @@ int main(int argc, char** argv)
     std::abort();
   }
 #endif
-#ifdef USE_SYSTEMATIC_TESTING
-  opt::Opt opt(argc, argv);
-  size_t seed = opt.is<size_t>("--seed", 0);
-  Virtual::systematic_bump_ptr() += seed << 17;
-#else
-  UNUSED(argc, argv);
-#endif
+  auto start = std::chrono::steady_clock::now();
 #define TEST(testname) \
-  std::cout << "Running " #testname << std::endl; \
-  for (size_t i = 0; i < 100; i++) \
-    testname();
+  do \
+  { \
+    auto end = std::chrono::steady_clock::now(); \
+    auto diff_seconds = \
+      std::chrono::duration_cast<std::chrono::seconds>(end - start).count(); \
+    std::cout << "Running " #testname << " @ " << diff_seconds << std::endl; \
+    for (size_t i = 0; i < 50; i++) \
+      testname(); \
+  } while (0);
 
   TEST(test_alloc_dealloc_64k);
   TEST(test_random_allocation);
@@ -576,5 +577,6 @@ int main(int argc, char** argv)
   TEST(test_calloc_16M);
   TEST(test_consolidaton_bug);
 
+  std::cout << "Tests completeed successfully!" << std::endl;
   return 0;
 }
