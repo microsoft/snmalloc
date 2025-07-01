@@ -125,7 +125,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: "~/.cache/bazel"
-        key: bazel
+        key: bazel-${{ matrix.os }}-${{ matrix.build-type }}
     - run: bazel build -c opt //:snmalloc
     - run: bazel build -c opt //:snmalloc-rs
     - run: bazel test -c opt --config=asan //fuzzing:snmalloc_fuzzer
