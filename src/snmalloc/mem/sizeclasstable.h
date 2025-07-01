@@ -32,7 +32,7 @@ namespace snmalloc
   }
 
   constexpr size_t NUM_SMALL_SIZECLASSES =
-    size_to_sizeclass_const(MAX_SMALL_SIZECLASS_SIZE);
+    size_to_sizeclass_const(MAX_SMALL_SIZECLASS_SIZE) + 1;
 
   // Large classes range from [MAX_SMALL_SIZECLASS_SIZE, ADDRESS_SPACE).
   constexpr size_t NUM_LARGE_CLASSES =
@@ -41,7 +41,7 @@ namespace snmalloc
   // How many bits are required to represent either a large or a small
   // sizeclass.
   constexpr size_t TAG_SIZECLASS_BITS = bits::max<size_t>(
-    bits::next_pow2_bits_const(NUM_SMALL_SIZECLASSES + 1),
+    bits::next_pow2_bits_const(NUM_SMALL_SIZECLASSES),
     bits::next_pow2_bits_const(NUM_LARGE_CLASSES + 1));
 
   // Number of bits required to represent a tagged sizeclass that can be
@@ -410,7 +410,7 @@ namespace snmalloc
   }
 
   constexpr size_t sizeclass_lookup_size =
-    sizeclass_lookup_index(MAX_SMALL_SIZECLASS_SIZE);
+    sizeclass_lookup_index(MAX_SMALL_SIZECLASS_SIZE) + 1;
 
   /**
    * This struct is used to statically initialise a table for looking up
@@ -470,9 +470,10 @@ namespace snmalloc
 
   constexpr smallsizeclass_t size_to_sizeclass(size_t size)
   {
-    auto index = sizeclass_lookup_index(size);
-    if (index < sizeclass_lookup_size)
+    if (SNMALLOC_LIKELY(is_small_sizeclass(size)))
     {
+      auto index = sizeclass_lookup_index(size);
+      SNMALLOC_ASSERT(index < sizeclass_lookup_size);
       return sizeclass_lookup.table[index];
     }
 
