@@ -91,7 +91,7 @@ int main()
   {
     static const size_t sz = 1024 * 1024;
     errno = 0;
-    void* olarge = alloc->alloc<YesZero>(sz);
+    void* olarge = alloc->alloc<Zero>(sz);
     int err = errno;
 
     SNMALLOC_CHECK(alarge == address_cast(olarge));

@@ -178,7 +178,7 @@ void test_calloc()
     memset(p, 0xFF, size);
     snmalloc::dealloc(p, size);
 
-    p = snmalloc::alloc<YesZero>(size);
+    p = snmalloc::alloc<Zero>(size);
 
     for (size_t i = 0; i < size; i++)
     {
@@ -417,7 +417,7 @@ void test_calloc_16M()
   // sizes >= 16M use large_alloc
   const size_t size = 16'000'000;
 
-  void* p1 = snmalloc::alloc<YesZero>(size);
+  void* p1 = snmalloc::alloc<Zero>(size);
   SNMALLOC_CHECK(snmalloc::alloc_size(snmalloc::external_pointer(p1)) >= size);
   snmalloc::dealloc(p1);
 }
@@ -430,7 +430,7 @@ void test_calloc_large_bug()
   // not a multiple of page size.
   const size_t size = (MAX_SMALL_SIZECLASS_SIZE << 3) - 7;
 
-  void* p1 = snmalloc::alloc<YesZero>(size);
+  void* p1 = snmalloc::alloc<Zero>(size);
   SNMALLOC_CHECK(snmalloc::alloc_size(snmalloc::external_pointer(p1)) >= size);
   snmalloc::dealloc(p1);
 }

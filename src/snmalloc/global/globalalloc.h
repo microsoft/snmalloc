@@ -321,24 +321,24 @@ namespace snmalloc
     return sizeclass_full_to_size(entry.get_sizeclass());
   }
 
-  template<size_t size, ZeroMem zero_mem = NoZero, size_t align = 1>
+  template<size_t size, typename Conts = Uninit, size_t align = 1>
   SNMALLOC_FAST_PATH_INLINE void* alloc()
   {
-    return ThreadAlloc::get().alloc<zero_mem, ThreadAlloc::CheckInit>(
+    return ThreadAlloc::get().alloc<Conts, ThreadAlloc::CheckInit>(
       aligned_size(align, size));
   }
 
-  template<ZeroMem zero_mem = NoZero, size_t align = 1>
+  template<typename Conts = Uninit, size_t align = 1>
   SNMALLOC_FAST_PATH_INLINE void* alloc(size_t size)
   {
-    return ThreadAlloc::get().alloc<zero_mem, ThreadAlloc::CheckInit>(
+    return ThreadAlloc::get().alloc<Conts, ThreadAlloc::CheckInit>(
       aligned_size(align, size));
   }
 
-  template<ZeroMem zero_mem = NoZero>
+  template<typename Conts = Uninit>
   SNMALLOC_FAST_PATH_INLINE void* alloc_aligned(size_t align, size_t size)
   {
-    return ThreadAlloc::get().alloc<zero_mem, ThreadAlloc::CheckInit>(
+    return ThreadAlloc::get().alloc<Conts, ThreadAlloc::CheckInit>(
       aligned_size(align, size));
   }
 

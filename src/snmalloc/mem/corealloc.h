@@ -20,29 +20,55 @@
 
 namespace snmalloc
 {
-  inline static SNMALLOC_FAST_PATH capptr::Alloc<void>
-  finish_alloc_no_zero(freelist::HeadPtr p, smallsizeclass_t sizeclass)
+  /**
+   * @brief This is the default continuation class used for handling successful,
+   * and failing allocations.
+   *
+   * @tparam zero_mem  Specifies whether the allocated memory should be zeroed.
+   *
+   * The failure case sets errno to ENOMEM, as per the C standard.
+   */
+  template<ZeroMem zero_mem = ZeroMem::NoZero>
+  class DefaultConts
   {
-    SNMALLOC_ASSERT(is_start_of_object(
-      sizeclass_t::from_small_class(sizeclass), address_cast(p)));
-    UNUSED(sizeclass);
+  public:
+    static void* success(void* p, size_t size, bool secondary_allocator = false)
+    {
+      UNUSED(secondary_allocator);
+      SNMALLOC_ASSERT(p != nullptr);
 
-    return p.as_void();
-  }
+      SNMALLOC_ASSERT(
+        secondary_allocator ||
+        is_start_of_object(size_to_sizeclass_full(size), address_cast(p)));
 
-  template<ZeroMem zero_mem, typename Config>
-  inline static SNMALLOC_FAST_PATH capptr::Alloc<void>
-  finish_alloc(freelist::HeadPtr p, smallsizeclass_t sizeclass)
+      if (zero_mem == ZeroMem::YesZero)
+      {
+        // Zero the memory if requested.
+        return ::memset(p, 0, round_size(size));
+      }
+
+      return p;
+    }
+
+    static void* failure(size_t size)
+    {
+      UNUSED(size);
+      // If we are here, then the allocation failed.
+      // Set errno to ENOMEM, as per the C standard.
+      errno = ENOMEM;
+      // Return nullptr on failure.
+      return nullptr;
+    }
+  };
+
+  using Zero = DefaultConts<ZeroMem::YesZero>;
+  using Uninit = DefaultConts<ZeroMem::NoZero>;
+
+  template<typename Conts>
+  inline static SNMALLOC_FAST_PATH void*
+  finish_alloc(freelist::HeadPtr p, size_t size)
   {
-    auto r = finish_alloc_no_zero(p, sizeclass);
-
-    if constexpr (zero_mem == YesZero)
-      Config::Pal::zero(r.unsafe_ptr(), sizeclass_to_size(sizeclass));
-
-    // TODO: Should this be zeroing the free Object state, in the non-zeroing
-    // case?
-
-    return r;
+    return Conts::success(capptr_reveal(p.as_void()), size, false);
   }
 
   struct FastFreeLists
@@ -568,11 +594,14 @@ namespace snmalloc
      * @param size The size of the block to allocate.
      * @return A pointer to the allocated block, or nullptr if the allocation
      *        failed.
-     * @tparam zero_mem Whether to zero the allocated memory.
+     * @tparam Conts : Carries two function success and failure, that are used
+     * to either apply additional operations in the case of success, such as
+     * zeroing, or to handle the failure case, such as set_new_handler, or
+     * throwing an exception or setting errno to ENOMEM.
      * @tparam CheckInit is a class that can handle lazy initiasation if
      * required. It is defaulted to do nothing.
      */
-    template<ZeroMem zero_mem = NoZero, typename CheckInit = CheckInitNoOp>
+    template<typename Conts = Uninit, typename CheckInit = CheckInitNoOp>
     SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
     {
       // Perform the - 1 on size, so that zero wraps around and ends up on
@@ -582,17 +611,17 @@ namespace snmalloc
       {
         // Small allocations are more likely. Improve
         // branch prediction by placing this case first.
-        return capptr_reveal(small_alloc<zero_mem, CheckInit>(size));
+        return small_alloc<Conts, CheckInit>(size);
       }
 
-      return capptr_reveal(alloc_not_small<zero_mem, CheckInit>(size, this));
+      return alloc_not_small<Conts, CheckInit>(size, this);
     }
 
     /**
      * Fast allocation for small objects.
      */
-    template<ZeroMem zero_mem, typename CheckInit>
-    SNMALLOC_FAST_PATH capptr::Alloc<void> small_alloc(size_t size)
+    template<typename Conts, typename CheckInit>
+    SNMALLOC_FAST_PATH void* small_alloc(size_t size)
     {
       auto domesticate =
         [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
@@ -605,17 +634,21 @@ namespace snmalloc
       if (SNMALLOC_LIKELY(!fl->empty()))
       {
         auto p = fl->take(key, domesticate);
-        return finish_alloc<zero_mem, Config>(p, sizeclass);
+        return finish_alloc<Conts>(p, size);
       }
 
       return handle_message_queue(
-        [](Allocator* alloc, smallsizeclass_t sizeclass, freelist::Iter<>* fl)
-          -> capptr::Alloc<void> {
-          return alloc->small_refill<zero_mem, CheckInit>(sizeclass, *fl);
+        [](
+          Allocator* alloc,
+          smallsizeclass_t sizeclass,
+          freelist::Iter<>* fl,
+          size_t size) -> void* {
+          return alloc->small_refill<Conts, CheckInit>(sizeclass, *fl, size);
         },
         this,
         sizeclass,
-        fl);
+        fl,
+        size);
     }
 
     /**
@@ -627,8 +660,8 @@ namespace snmalloc
      * code quality as the calling code already has size in the first argument
      * register.
      */
-    template<ZeroMem zero_mem, typename CheckInit>
-    static SNMALLOC_SLOW_PATH capptr::Alloc<void>
+    template<typename Conts, typename CheckInit>
+    static SNMALLOC_SLOW_PATH void*
     alloc_not_small(size_t size, Allocator* self)
     {
       if (size == 0)
@@ -636,19 +669,18 @@ namespace snmalloc
         // Deal with alloc zero of with a small object here.
         // Alternative semantics giving nullptr is also allowed by the
         // standard.
-        return self->small_alloc<NoZero, CheckInit>(1);
+        return self->small_alloc<Conts, CheckInit>(1);
       }
 
       return self->handle_message_queue(
-        [](Allocator* self, size_t size) -> capptr::Alloc<void> {
+        [](Allocator* self, size_t size) -> void* {
           return CheckInit::check_init(
             [self, size]() {
               if (size > bits::one_at_bit(bits::BITS - 1))
               {
                 // Cannot allocate something that is more that half the size of
                 // the address space
-                errno = ENOMEM;
-                return capptr::Alloc<void>{nullptr};
+                return Conts::failure(size);
               }
 
               // Check if secondary allocator wants to offer the memory
@@ -658,9 +690,7 @@ namespace snmalloc
                 });
               if (result != nullptr)
               {
-                if constexpr (zero_mem == YesZero)
-                  Config::Pal::zero(result, size);
-                return capptr::Alloc<void>::unsafe_from(result);
+                return Conts::success(result, size, true);
               }
 
               // Grab slab of correct size
@@ -677,6 +707,9 @@ namespace snmalloc
                 "size {} pow2size {}", size, bits::next_pow2_bits(size));
 #endif
 
+              SNMALLOC_ASSERT(
+                (chunk.unsafe_ptr() == nullptr) == (meta == nullptr));
+
               // set up meta data so sizeclass is correct, and hence alloc size,
               // and external pointer. Initialise meta data for a successful
               // large allocation.
@@ -685,19 +718,18 @@ namespace snmalloc
                 meta->initialise_large(
                   address_cast(chunk), freelist::Object::key_root);
                 self->laden.insert(meta);
+
+                // Make capptr system happy we are allowed to pass this to
+                // `success`.
+                auto p = capptr_reveal(
+                  capptr_chunk_is_alloc(capptr_to_user_address_control(chunk)));
+                return Conts::success(p, size);
               }
 
-              if (zero_mem == YesZero && chunk.unsafe_ptr() != nullptr)
-              {
-                Config::Pal::template zero<false>(
-                  chunk.unsafe_ptr(), bits::next_pow2(size));
-              }
-
-              return capptr_chunk_is_alloc(
-                capptr_to_user_address_control(chunk));
+              return Conts::failure(size);
             },
             [](Allocator* a, size_t size) {
-              return alloc_not_small<zero_mem, CheckInitNoOp>(size, a);
+              return alloc_not_small<Conts, CheckInitNoOp>(size, a);
             },
             size);
         },
@@ -705,20 +737,18 @@ namespace snmalloc
         size);
     }
 
-    template<ZeroMem zero_mem, typename CheckInit>
-    SNMALLOC_FAST_PATH capptr::Alloc<void>
-    small_refill(smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
+    template<typename Conts, typename CheckInit>
+    SNMALLOC_FAST_PATH void* small_refill(
+      smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list, size_t size)
     {
       void* result = Config::SecondaryAllocator::allocate(
-        [sizeclass]() -> stl::Pair<size_t, size_t> {
-          auto size = sizeclass_to_size(sizeclass);
+        [size]() -> stl::Pair<size_t, size_t> {
           return {size, natural_alignment(size)};
         });
 
       if (result != nullptr)
       {
-        if constexpr (zero_mem == YesZero)
-          Config::Pal::zero(result, sizeclass_to_size(sizeclass));
+        result = Conts::success(result, size, true);
 
         // We need to check for initialisation here in the case where
         // this is the first allocation in the system, so snmalloc has
@@ -726,10 +756,8 @@ namespace snmalloc
         // deallocated, before snmalloc is initialised, then it will fail
         // to access the pagemap.
         return CheckInit::check_init(
-          [result]() { return capptr::Alloc<void>::unsafe_from(result); },
-          [](Allocator*, void* result) {
-            return capptr::Alloc<void>::unsafe_from(result);
-          },
+          [result]() { return result; },
+          [](Allocator*, void* result) { return result; },
           result);
       }
 
@@ -743,8 +771,8 @@ namespace snmalloc
           if (SNMALLOC_UNLIKELY(alloc_classes[sizeclass].length == 1))
           {
             if (entropy.next_bit() == 0)
-              return small_refill_slow<zero_mem, CheckInit>(
-                sizeclass, fast_free_list);
+              return small_refill_slow<Conts, CheckInit>(
+                sizeclass, fast_free_list, size);
           }
         }
 
@@ -772,18 +800,19 @@ namespace snmalloc
           laden.insert(meta);
         }
 
-        auto r = finish_alloc<zero_mem, Config>(p, sizeclass);
+        auto r = finish_alloc<Conts>(p, size);
         return ticker.check_tick(r);
       }
-      return small_refill_slow<zero_mem, CheckInit>(sizeclass, fast_free_list);
+      return small_refill_slow<Conts, CheckInit>(
+        sizeclass, fast_free_list, size);
     }
 
-    template<ZeroMem zero_mem, typename CheckInit>
-    SNMALLOC_SLOW_PATH capptr::Alloc<void> small_refill_slow(
-      smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list)
+    template<typename Conts, typename CheckInit>
+    SNMALLOC_SLOW_PATH void* small_refill_slow(
+      smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list, size_t size)
     {
       return CheckInit::check_init(
-        [this, sizeclass, &fast_free_list]() -> capptr::Alloc<void> {
+        [this, size, sizeclass, &fast_free_list]() -> void* {
           size_t rsize = sizeclass_to_size(sizeclass);
 
           // No existing free list get a new slab.
@@ -803,7 +832,7 @@ namespace snmalloc
 
           if (slab == nullptr)
           {
-            return nullptr;
+            return Conts::failure(sizeclass_to_size(sizeclass));
           }
 
           // Set meta slab to empty.
@@ -830,14 +859,13 @@ namespace snmalloc
             laden.insert(meta);
           }
 
-          auto r = finish_alloc<zero_mem, Config>(p, sizeclass);
+          auto r = finish_alloc<Conts>(p, size);
           return ticker.check_tick(r);
         },
-        [](Allocator* a, smallsizeclass_t sizeclass) {
-          return a->small_alloc<zero_mem, CheckInitNoOp>(
-            sizeclass_to_size(sizeclass));
+        [](Allocator* a, size_t size) {
+          return a->small_alloc<Conts, CheckInitNoOp>(size);
         },
-        sizeclass);
+        size);
     }
 
     static SNMALLOC_FAST_PATH void alloc_new_list(
@@ -1191,8 +1219,10 @@ namespace snmalloc
                            SNMALLOC_FAST_PATH_LAMBDA {
                              return capptr_domesticate<Config>(local_state, p);
                            };
-      capptr::Alloc<void> p = finish_alloc_no_zero(
-        fl.take(freelist::Object::key_root, domesticate), sizeclass);
+      capptr::Alloc<void> p =
+        fl.take(freelist::Object::key_root, domesticate).as_void();
+      SNMALLOC_ASSERT(is_start_of_object(
+        sizeclass_t::from_small_class(sizeclass), address_cast(p)));
 
       // If clear_meta is requested, we should also walk the free list to clear
       // it.

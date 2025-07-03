@@ -592,8 +592,6 @@ namespace snmalloc
 
     void* ret = VirtualAlloc2FromApp(
       nullptr, nullptr, size, flags, PAGE_READWRITE, &param, 1);
-    if (ret == nullptr)
-      errno = ENOMEM;
 
     reservations.push_back(ret);
 
@@ -604,8 +602,6 @@ namespace snmalloc
   void* PALWindows::reserve(size_t size) noexcept
   {
     void* ret = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
-    if (ret == nullptr)
-      errno = ENOMEM;
 
     reservations.push_back(ret);
 

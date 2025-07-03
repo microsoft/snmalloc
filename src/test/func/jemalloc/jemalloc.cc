@@ -173,10 +173,12 @@ namespace
         size * 2);
       EXPECT(
         ptr[size] == 0,
-        "Memory not zero initialised for {} byte reallocation from {} "
+        "Memory not zero initialised for {} byte reallocation from {} with "
+        "align {}"
         "byte allocation",
         size * 2,
-        size);
+        size,
+        align);
       // The second time we run this test, we if we're allocating from a free
       // list then we will reuse this, so make sure it requires explicit
       // zeroing.

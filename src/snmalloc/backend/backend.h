@@ -59,7 +59,6 @@ namespace snmalloc
 
       if (p == nullptr)
       {
-        errno = ENOMEM;
         return nullptr;
       }
 
@@ -112,7 +111,6 @@ namespace snmalloc
 
       if (meta == nullptr)
       {
-        errno = ENOMEM;
         return {nullptr, nullptr};
       }
 
@@ -124,7 +122,6 @@ namespace snmalloc
       if (p == nullptr)
       {
         local_state.get_meta_range().dealloc_range(meta_cap, meta_size);
-        errno = ENOMEM;
 #ifdef SNMALLOC_TRACING
         message<1024>("Out of memory");
 #endif

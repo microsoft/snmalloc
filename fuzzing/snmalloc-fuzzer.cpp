@@ -166,7 +166,7 @@ void snmalloc_random_walk(
       case EventKind::AllocZero:
       {
         auto ptr =
-          static_cast<char*>(scoped->alloc<snmalloc::YesZero>(e.size_or_index));
+          static_cast<char*>(scoped->alloc<snmalloc::Zero>(e.size_or_index));
         results.emplace_back(0, ptr, e.size_or_index);
         break;
       }
@@ -174,7 +174,7 @@ void snmalloc_random_walk(
       case EventKind::AllocNoZero:
       {
         auto ptr =
-          static_cast<char*>(scoped->alloc<snmalloc::NoZero>(e.size_or_index));
+          static_cast<char*>(scoped->alloc<snmalloc::Uninit>(e.size_or_index));
         std::fill(ptr, ptr + e.size_or_index, e.filler);
         results.emplace_back(e.filler, ptr, e.size_or_index);
         break;
