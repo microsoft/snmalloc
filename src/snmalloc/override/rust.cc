@@ -24,7 +24,7 @@ SNMALLOC_NAME_MANGLE(rust_alloc)(size_t alignment, size_t size)
 extern "C" SNMALLOC_EXPORT void*
 SNMALLOC_NAME_MANGLE(rust_alloc_zeroed)(size_t alignment, size_t size)
 {
-  return alloc<YesZero>(aligned_size(alignment, size));
+  return alloc<Zero>(aligned_size(alignment, size));
 }
 
 extern "C" SNMALLOC_EXPORT void

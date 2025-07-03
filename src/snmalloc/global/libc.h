@@ -47,7 +47,7 @@ namespace snmalloc::libc
     {
       return set_error();
     }
-    return alloc<ZeroMem::YesZero>(sz);
+    return alloc<Zero>(sz);
   }
 
   SNMALLOC_FAST_PATH_INLINE void* realloc(void* ptr, size_t size)

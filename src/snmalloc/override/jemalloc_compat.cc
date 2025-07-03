@@ -143,7 +143,7 @@ extern "C"
     }
     if (f.should_zero())
     {
-      *ptr = alloc<ZeroMem::YesZero>(size);
+      *ptr = alloc<Zero>(size);
     }
     else
     {
@@ -187,7 +187,7 @@ extern "C"
       asize = f.aligned_size(size + extra);
     }
 
-    void* p = f.should_zero() ? alloc<YesZero>(asize) : alloc(asize);
+    void* p = f.should_zero() ? alloc<Zero>(asize) : alloc(asize);
     if (SNMALLOC_LIKELY(p != nullptr))
     {
       sz = bits::min(asize, sz);
@@ -255,7 +255,7 @@ extern "C"
     size = f.aligned_size(size);
     if (f.should_zero())
     {
-      return alloc<ZeroMem::YesZero>(size);
+      return alloc<Zero>(size);
     }
     return alloc(size);
   }
@@ -289,7 +289,7 @@ extern "C"
     // allocations, because we get zeroed memory from the PAL and don't zero it
     // twice.  This is not profiled and so should be considered for refactoring
     // if anyone cares about the performance of these APIs.
-    void* p = f.should_zero() ? alloc<YesZero>(size) : alloc(size);
+    void* p = f.should_zero() ? alloc<Zero>(size) : alloc(size);
     if (SNMALLOC_LIKELY(p != nullptr))
     {
       sz = bits::min(size, sz);
@@ -376,7 +376,7 @@ extern "C"
     }
     // Include size 0 in the first sizeclass.
     sz = ((sz - 1) >> (bits::BITS - 1)) + sz;
-    return get_scoped_allocator()->alloc<ZeroMem::YesZero>(sz);
+    return get_scoped_allocator()->alloc<Zero>(sz);
   }
 
   void __je_bootstrap_free(void* ptr)
