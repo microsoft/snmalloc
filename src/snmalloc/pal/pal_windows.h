@@ -41,8 +41,10 @@
  * be destroyed when the program exits or the DLL is
  * unloaded.
  */
+#  pragma warning(push)
 #  pragma warning(disable : 4075)
 #  pragma init_seg(".CRT$XCB")
+#  pragma warning(pop)
 
 namespace snmalloc
 {
