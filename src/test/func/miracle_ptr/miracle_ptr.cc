@@ -18,8 +18,26 @@ int main()
 #  include <atomic>
 #  include <iostream>
 #  include <memory>
+#  include <new>
 #  include <snmalloc/backend/globalconfig.h>
 #  include <snmalloc/snmalloc_core.h>
+
+// This code makes the delete overloads build with the correct noexcept spec.
+#  ifdef _WIN32
+#    ifdef __clang__
+#      define EXCEPTSPEC noexcept
+#    else
+#      define EXCEPTSPEC
+#    endif
+#  else
+#    ifdef _GLIBCXX_USE_NOEXCEPT
+#      define EXCEPTSPEC _GLIBCXX_USE_NOEXCEPT
+#    elif defined(_NOEXCEPT)
+#      define EXCEPTSPEC _NOEXCEPT
+#    else
+#      define EXCEPTSPEC
+#    endif
+#  endif
 
 namespace snmalloc
 {
@@ -170,12 +188,12 @@ void* operator new(size_t size)
   return snmalloc::miracle::malloc(size);
 }
 
-void operator delete(void* p)
+void operator delete(void* p) EXCEPTSPEC
 {
   snmalloc::miracle::free(p);
 }
 
-void operator delete(void* p, size_t)
+void operator delete(void* p, size_t) EXCEPTSPEC
 {
   snmalloc::miracle::free(p);
 }

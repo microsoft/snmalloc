@@ -379,7 +379,7 @@ endif()
 function(add_warning_flags name)
   target_compile_options(${name} PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/Zi /W4 /WX /wd4127 /wd4324 /wd4201>
-    $<$<NOT:$<OR:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_CXX_SIMULATE_ID},MSVC>>>:-fno-exceptions -fno-rtti -Wall -Wextra -Werror -Wundef>
+    $<$<NOT:$<OR:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_CXX_SIMULATE_ID},MSVC>>>:-fno-rtti -Wall -Wextra -Werror -Wundef>
     $<$<CXX_COMPILER_ID:Clang>:-Wsign-conversion -Wconversion>)
   target_link_options(${name} PRIVATE 
     $<$<BOOL:${SNMALLOC_LINKER_SUPPORT_NO_ALLOW_SHLIB_UNDEF}>:-Wl,--no-undefined>
@@ -540,13 +540,13 @@ endif()
       # If the compiler supports excluding the C++ stdlib implementation, use
       # it.  Otherwise, fall back to linking the library as if it were C, which
       # has roughly the same effect.
-      if (NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
-        if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
-          target_link_options(${name} PRIVATE -nostdlib++)
-        else()
-          set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
-        endif()
-      endif()
+      # if (NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
+      #   if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
+      #     target_link_options(${name} PRIVATE -nostdlib++)
+      #   else()
+      #     set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
+      #   endif()
+      # endif()
       # Remove all the duplicate new/malloc and free/delete definitions
       target_link_options(${name} PRIVATE $<$<BOOL:${LLD_WORKS}>:$<$<BOOL:${SNMALLOC_LINK_ICF}>:-Wl,--icf=all> -fuse-ld=lld>)
     endif()
