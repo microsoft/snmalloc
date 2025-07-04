@@ -20,24 +20,90 @@
 
 // only define these if we are not using the vendored STL
 #ifndef SNMALLOC_USE_SELF_VENDORED_STL
+
+namespace snmalloc
+{
+  template<bool ShouldThrow = true>
+  class SetHandlerContinuations
+  {
+  public:
+    static void* success(void* p, size_t size, bool secondary_allocator = false)
+    {
+      UNUSED(secondary_allocator, size);
+      SNMALLOC_ASSERT(p != nullptr);
+
+      SNMALLOC_ASSERT(
+        secondary_allocator ||
+        is_start_of_object(size_to_sizeclass_full(size), address_cast(p)));
+
+      return p;
+    }
+
+    static void* failure(size_t size)
+    {
+      UNUSED(size);
+
+      auto new_handler = std::get_new_handler();
+      if (new_handler != nullptr)
+      {
+        if constexpr (ShouldThrow)
+        {
+          try
+          {
+            // Call the new handler, which may throw an exception.
+            new_handler();
+          }
+          catch (...)
+          {
+            // If the new handler throws, we just return nullptr.
+            return nullptr;
+          }
+        }
+        // Retry now new_handler has been called.
+        // I dislike the unbounded retrying here, but that seems to be what
+        // other implementations do.
+        return snmalloc::alloc<SetHandlerContinuations<ShouldThrow>>(size);
+      }
+
+      if constexpr (ShouldThrow)
+      {
+        // Throw std::bad_alloc on failure.
+        throw std::bad_alloc();
+      }
+      else
+      {
+        // If we are here, then the allocation failed.
+        // Set errno to ENOMEM, as per the C standard.
+        errno = ENOMEM;
+
+        // Return nullptr on failure.
+        return nullptr;
+      }
+    }
+  };
+
+  using NoThrow = SetHandlerContinuations<false>;
+  using Throw = SetHandlerContinuations<true>;
+} // namespace snmalloc
+
 void* operator new(size_t size)
 {
-  return snmalloc::libc::malloc(size);
+  return snmalloc::alloc<snmalloc::Throw>(size);
 }
 
 void* operator new[](size_t size)
 {
-  return snmalloc::libc::malloc(size);
+  return snmalloc::alloc<snmalloc::Throw>(size);
 }
 
 void* operator new(size_t size, std::nothrow_t&)
 {
-  return snmalloc::libc::malloc(size);
+  return snmalloc::alloc<snmalloc::NoThrow>(size);
 }
 
 void* operator new[](size_t size, std::nothrow_t&)
 {
-  return snmalloc::libc::malloc(size);
+  return snmalloc::alloc<snmalloc::NoThrow>(size);
 }
 
 void operator delete(void* p) EXCEPTSPEC
@@ -73,25 +139,25 @@ void operator delete[](void* p, std::nothrow_t&)
 void* operator new(size_t size, std::align_val_t val)
 {
   size = snmalloc::aligned_size(size_t(val), size);
-  return snmalloc::libc::malloc(size);
+  return snmalloc::alloc<snmalloc::Throw>(size);
 }
 
 void* operator new[](size_t size, std::align_val_t val)
 {
   size = snmalloc::aligned_size(size_t(val), size);
-  return snmalloc::libc::malloc(size);
+  return snmalloc::alloc<snmalloc::Throw>(size);
 }
 
 void* operator new(size_t size, std::align_val_t val, std::nothrow_t&)
 {
   size = snmalloc::aligned_size(size_t(val), size);
-  return snmalloc::libc::malloc(size);
+  return snmalloc::alloc<snmalloc::NoThrow>(size);
 }
 
 void* operator new[](size_t size, std::align_val_t val, std::nothrow_t&)
 {
   size = snmalloc::aligned_size(size_t(val), size);
-  return snmalloc::libc::malloc(size);
+  return snmalloc::alloc<snmalloc::NoThrow>(size);
 }
 
 void operator delete(void* p, std::align_val_t) EXCEPTSPEC
