@@ -242,19 +242,17 @@ namespace snmalloc
 
     /// Notify platform that we will be using these pages
     template<ZeroMem zero_mem>
-    static void notify_using(void* p, size_t size) noexcept
+    static bool notify_using(void* p, size_t size) noexcept
     {
       SNMALLOC_ASSERT(
         is_aligned_block<page_size>(p, size) || (zero_mem == NoZero));
 
       void* r = VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE);
 
-      if (r == nullptr)
-        report_fatal_error(
-          "out of memory: {} ({}) could not be committed", p, size);
+      return r != nullptr;
     }
 
-    static void notify_using_readonly(void* p, size_t size) noexcept
+    static bool notify_using_readonly(void* p, size_t size) noexcept
     {
       initialise_readonly_av();
 
@@ -266,7 +264,7 @@ namespace snmalloc
           {
             r.first = (address_t)p;
             r.second = size;
-            return;
+            return true;
           }
         }
       }

@@ -77,7 +77,7 @@ namespace snmalloc
      * This is a no-op in this stub, except for zeroing memory if required.
      */
     template<ZeroMem zero_mem>
-    static void notify_using(void* p, size_t size) noexcept
+    static bool notify_using(void* p, size_t size) noexcept
     {
       if constexpr (zero_mem == YesZero)
       {
@@ -87,6 +87,7 @@ namespace snmalloc
       {
         UNUSED(p, size);
       }
+      return true;
     }
 
     /**

@@ -13,8 +13,10 @@ namespace snmalloc
   {
     static SNMALLOC_FAST_PATH void init() {}
 
-    static SNMALLOC_FAST_PATH void register_range(capptr::Arena<void>, size_t)
-    {}
+    static SNMALLOC_FAST_PATH bool register_range(capptr::Arena<void>, size_t)
+    {
+      return true;
+    }
 
     template<bool potentially_out_of_range = false>
     static SNMALLOC_FAST_PATH capptr::Arena<void> amplify(capptr::Alloc<void> c)
@@ -44,7 +46,7 @@ namespace snmalloc
       concreteAuthmap.template init</* randomize_location */ false>();
     }
 
-    static SNMALLOC_FAST_PATH void
+    static SNMALLOC_FAST_PATH bool
     register_range(capptr::Arena<void> base, size_t size)
     {
       concreteAuthmap.register_range(address_cast(base), size);
@@ -55,6 +57,7 @@ namespace snmalloc
       {
         concreteAuthmap.set(a, base);
       }
+      return true;
     }
 
     template<bool potentially_out_of_range = false>
