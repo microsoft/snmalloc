@@ -61,7 +61,7 @@ namespace snmalloc
   concept IsPagemapWithRegister = requires(capptr::Arena<void> p, size_t sz) {
                                     {
                                       Pagemap::register_range(p, sz)
-                                      } -> ConceptSame<void>;
+                                      } -> ConceptSame<bool>;
                                   };
 
   /**

@@ -53,10 +53,10 @@ namespace snmalloc
 
                            {
                              PAL::template notify_using<NoZero>(vp, sz)
-                             } noexcept -> ConceptSame<void>;
+                             } noexcept -> ConceptSame<bool>;
                            {
                              PAL::template notify_using<YesZero>(vp, sz)
-                             } noexcept -> ConceptSame<void>;
+                             } noexcept -> ConceptSame<bool>;
 
                            {
                              PAL::template zero<false>(vp, sz)

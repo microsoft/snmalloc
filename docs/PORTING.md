@@ -38,15 +38,17 @@ The state for a particular region of memory is set with
 static void notify_not_using(void* p, size_t size) noexcept;
 
 template<ZeroMem zero_mem>
-static void notify_using(void* p, size_t size) noexcept;
+static bool notify_using(void* p, size_t size) noexcept;
 
-static void notify_using_readonly(void* p, size_t size) noexcept;
+static bool notify_using_readonly(void* p, size_t size) noexcept;
 ```
 These functions notify the system that the range of memory from `p` to `p` + 
 `size` is in the relevant state.
 
 If the template parameter is set to `YesZero` then `notify_using` must ensure
 the range is full of zeros.
+
+The function should return `true` if the memory is now in the requested state, and `false` if it failed to make the memory useable.
 
 ```c++
 template<bool page_aligned = false>

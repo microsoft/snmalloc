@@ -51,14 +51,15 @@ namespace snmalloc
 
     /// Notify platform that we will be using these pages
     template<ZeroMem zero_mem>
-    static void notify_using(void* p, size_t size)
+    static bool notify_using(void* p, size_t size)
     {
       vm_offset_t addr = get_vm_offset(p);
       int flags = M_WAITOK | ((zero_mem == YesZero) ? M_ZERO : 0);
       if (kmem_back(kernel_object, addr, size, flags) != KERN_SUCCESS)
       {
-        error("Out of memory");
+        return false;
       }
+      return true;
     }
 
     /// OS specific function for zeroing memory

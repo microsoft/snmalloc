@@ -96,15 +96,22 @@ namespace snmalloc
      * Mark the MetaEntry at the bottom of the range as a boundary, preventing
      * consolidation with a lower range, unless CONSOLIDATE_PAL_ALLOCS.
      */
-    static void register_range(capptr::Arena<void> p, size_t sz)
+    static bool register_range(capptr::Arena<void> p, size_t sz)
     {
-      concretePagemap.register_range(address_cast(p), sz);
+      auto result = concretePagemap.register_range(address_cast(p), sz);
+
+      if (!result)
+      {
+        return false;
+      }
+
       if constexpr (!CONSOLIDATE_PAL_ALLOCS)
       {
         // Mark start of allocation in pagemap.
         auto& entry = get_metaentry_mut(address_cast(p));
         entry.set_boundary();
       }
+      return true;
     }
 
     /**

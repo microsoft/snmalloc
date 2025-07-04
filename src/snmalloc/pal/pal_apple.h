@@ -189,7 +189,7 @@ namespace snmalloc
      *
      */
     template<ZeroMem zero_mem>
-    static void notify_using(void* p, size_t size) noexcept
+    static bool notify_using(void* p, size_t size) noexcept
     {
       KeepErrno e;
       SNMALLOC_ASSERT(
@@ -207,7 +207,7 @@ namespace snmalloc
 
         if (SNMALLOC_LIKELY(r != MAP_FAILED))
         {
-          return;
+          return true;
         }
       }
 
@@ -232,6 +232,7 @@ namespace snmalloc
       {
         ::bzero(p, size);
       }
+      return true;
     }
 
     // Apple's `mmap` doesn't support user-specified alignment and only
