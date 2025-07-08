@@ -642,7 +642,7 @@ namespace snmalloc
           Allocator* alloc,
           smallsizeclass_t sizeclass,
           freelist::Iter<>* fl,
-          size_t size) -> void* {
+          size_t size) SNMALLOC_FAST_PATH_LAMBDA{
           return alloc->small_refill<Conts, CheckInit>(sizeclass, *fl, size);
         },
         this,
@@ -673,9 +673,9 @@ namespace snmalloc
       }
 
       return self->handle_message_queue(
-        [](Allocator* self, size_t size) -> void* {
+        [](Allocator* self, size_t size) SNMALLOC_FAST_PATH_LAMBDA {
           return CheckInit::check_init(
-            [self, size]() {
+            [self, size]() SNMALLOC_FAST_PATH_LAMBDA {
               if (size > bits::one_at_bit(bits::BITS - 1))
               {
                 // Cannot allocate something that is more that half the size of
@@ -728,7 +728,7 @@ namespace snmalloc
 
               return Conts::failure(size);
             },
-            [](Allocator* a, size_t size) {
+            [](Allocator* a, size_t size) SNMALLOC_FAST_PATH_LAMBDA {
               return alloc_not_small<Conts, CheckInitNoOp>(size, a);
             },
             size);
@@ -812,7 +812,7 @@ namespace snmalloc
       smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list, size_t size)
     {
       return CheckInit::check_init(
-        [this, size, sizeclass, &fast_free_list]() -> void* {
+        [this, size, sizeclass, &fast_free_list]() SNMALLOC_FAST_PATH_LAMBDA {
           size_t rsize = sizeclass_to_size(sizeclass);
 
           // No existing free list get a new slab.
@@ -862,7 +862,7 @@ namespace snmalloc
           auto r = finish_alloc<Conts>(p, size);
           return ticker.check_tick(r);
         },
-        [](Allocator* a, size_t size) {
+        [](Allocator* a, size_t size) SNMALLOC_FAST_PATH_LAMBDA {
           return a->small_alloc<Conts, CheckInitNoOp>(size);
         },
         size);
