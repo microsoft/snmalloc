@@ -108,7 +108,7 @@ namespace snmalloc
       // // but could lead to a remote list become completely detached
       // // during a fork in a multi-threaded process. This would lead
       // // to a memory leak, which is probably the least of your problems
-      // // if you forked in during a deallocation.  We can prevent this 
+      // // if you forked in during a deallocation.  We can prevent this
       // // with the following code, but it is not currently enabled as it
       // // has negative performance impact.
       // // An alternative would be to reset the queue on the child postfork

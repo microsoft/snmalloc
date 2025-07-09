@@ -642,7 +642,7 @@ namespace snmalloc
           Allocator* alloc,
           smallsizeclass_t sizeclass,
           freelist::Iter<>* fl,
-          size_t size) SNMALLOC_FAST_PATH_LAMBDA{
+          size_t size) SNMALLOC_FAST_PATH_LAMBDA {
           return alloc->small_refill<Conts, CheckInit>(sizeclass, *fl, size);
         },
         this,
