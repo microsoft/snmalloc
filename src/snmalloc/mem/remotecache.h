@@ -268,7 +268,7 @@ namespace snmalloc
         entropy,
         [this](
           RemoteAllocator::alloc_id_t target_id,
-          capptr::Alloc<RemoteMessage> msg) {
+          capptr::Alloc<RemoteMessage> msg) SNMALLOC_FAST_PATH_LAMBDA {
           forward<allocator_size>(target_id, msg);
         });
     }

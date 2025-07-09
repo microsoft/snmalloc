@@ -104,13 +104,17 @@ namespace snmalloc
       invariant();
       freelist::Object::atomic_store_null(last, Key, Key_tweak);
 
-      // The following non-linearisable effect is normally benign,
-      // but could lead to a remote list become completely detached
-      // during a fork in a multi-threaded process. This would lead
-      // to a memory leak, which is probably the least of your problems
-      // if you forked in during a deallocation.
-      PreventFork pf;
-      snmalloc::UNUSED(pf);
+      // // The following non-linearisable effect is normally benign,
+      // // but could lead to a remote list become completely detached
+      // // during a fork in a multi-threaded process. This would lead
+      // // to a memory leak, which is probably the least of your problems
+      // // if you forked in during a deallocation.  We can prevent this
+      // // with the following code, but it is not currently enabled as it
+      // // has negative performance impact.
+      // // An alternative would be to reset the queue on the child postfork
+      // // handler to ensure that the queue has not been blackholed.
+      // PreventFork pf;
+      // snmalloc::UNUSED(pf);
 
       // Exchange needs to be acq_rel.
       // *  It needs to be a release, so nullptr in next is visible.
