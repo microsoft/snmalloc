@@ -245,7 +245,7 @@ namespace snmalloc
             start_page, pointer_diff(start_page, end_page));
           if (!result)
           {
-            error("Failed to initialise snmalloc.");
+            PAL::error("Failed to initialise snmalloc.");
           }
         }
       }
