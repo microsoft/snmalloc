@@ -112,7 +112,7 @@ namespace snmalloc
       // // with the following code, but it is not currently enabled as it
       // // has negative performance impact.
       // // An alternative would be to reset the queue on the child postfork
-      // // handler to ensure that the queue has not be blackholed.
+      // // handler to ensure that the queue has not been blackholed.
       // PreventFork pf;
       // snmalloc::UNUSED(pf);
 
