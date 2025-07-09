@@ -503,29 +503,30 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       message(WARNING "Compiler does not support `-march=native` required by SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE")
       set(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE FALSE)
     endif()
-endif()
+  endif()
 
 
-  function(add_shim name type)
-    add_library(${name} ${type} ${ARGN})
+  function(compile_object name ${ARGN})
+    add_library(${name} OBJECT ${ARGN})
     target_link_libraries(${name} snmalloc)
     set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden INTERPROCEDURAL_OPTIMIZATION ${SNMALLOC_COMPILER_SUPPORT_IPO})
     target_compile_definitions(${name} PRIVATE "SNMALLOC_USE_${SNMALLOC_CLEANUP}")
 
-    if(MSVC)
-      target_compile_definitions(${name} PRIVATE -D_HAS_EXCEPTIONS=0)
-    endif()
-
     add_warning_flags(${name})
     if(NOT MSVC)
       target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
-      target_compile_options(${name} PRIVATE
-        -fomit-frame-pointer -ffunction-sections)
+      set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden INTERPROCEDURAL_OPTIMIZATION ${SNMALLOC_COMPILER_SUPPORT_IPO})
+      # Make debugging harder, and code faster.
+      target_compile_options(${name} PRIVATE -fomit-frame-pointer)
 
+      set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+      # Check for prefetch write support.
       check_cxx_compiler_flag("-Werror -Wextra -Wall -mprfchw" SUPPORT_PREFETCH_WRITE)
       if (SUPPORT_PREFETCH_WRITE)
         target_compile_options(${name} PRIVATE -mprfchw)
       endif()
+
       # Static TLS model is unsupported on Haiku.
       if (SNMALLOC_STATIC_MODE_TLS)
         target_compile_options(${name} PRIVATE -ftls-model=initial-exec)
@@ -536,18 +537,8 @@ endif()
         target_compile_options(${name} PRIVATE -march=native)
       endif()
 
-      # Ensure that we do not link against C++ stdlib when compiling shims.
-      # If the compiler supports excluding the C++ stdlib implementation, use
-      # it.  Otherwise, fall back to linking the library as if it were C, which
-      # has roughly the same effect.
-      # if (NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
-      #   if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
-      #     target_link_options(${name} PRIVATE -nostdlib++)
-      #   else()
-      #     set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
-      #   endif()
-      # endif()
       # Remove all the duplicate new/malloc and free/delete definitions
+      target_compile_options(${name} PRIVATE -ffunction-sections)
       target_link_options(${name} PRIVATE $<$<BOOL:${LLD_WORKS}>:$<$<BOOL:${SNMALLOC_LINK_ICF}>:-Wl,--icf=all> -fuse-ld=lld>)
     endif()
 
@@ -556,40 +547,80 @@ endif()
     target_compile_definitions(${name} PRIVATE
       SNMALLOC_PAGEID=$<IF:$<BOOL:${SNMALLOC_PAGEID}>,true,false>)
 
+    if (SNMALLOC_RUST_LIBC_API)
+      target_compile_definitions(${name} PRIVATE SNMALLOC_RUST_LIBC_API)
+    endif()
     install(TARGETS ${name} EXPORT snmallocConfig)
-
   endfunction()
 
-  set(SHIM_FILES src/snmalloc/override/malloc.cc src/snmalloc/override/new.cc)
-  set(SHIM_FILES_MEMCPY src/snmalloc/override/memcpy.cc)
+  function(compile_object_noexc name ${ARGN})
+    compile_object(${name} ${ARGN})
 
-  add_shim(snmalloc-new-override STATIC src/snmalloc/override/new.cc)
+    if(MSVC)
+      target_compile_definitions(${name} PRIVATE -D_HAS_EXCEPTIONS=0)
+    else()
+      # Ensure that we do not link against C++ stdlib when compiling shims.
+      # If the compiler supports excluding the C++ stdlib implementation, use
+      # it.  Otherwise, fall back to linking the library as if it were C, which
+      # has roughly the same effect.
+      if (NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
+        if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
+          target_link_options(${name} PRIVATE -nostdlib++)
+        else()
+          set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
+        endif()
+      endif()
+    endif()
+  endfunction()
+
+  function(add_shim name type)
+    add_library(${name} ${type})
+    target_link_libraries(${name} ${ARGN})
+    install(TARGETS ${name} EXPORT snmallocConfig)
+  endfunction()
+
+  compile_object(snmalloc_exception_handler src/snmalloc/override/failure.cc)
+  compile_object_noexc(snmalloc_core src/snmalloc/override/malloc.cc)
+  compile_object_noexc(snmalloc_new src/snmalloc/override/new.cc)
+  compile_object_noexc(snmalloc_memcpy src/snmalloc/override/memcpy.cc)
+  compile_object_noexc(snmalloc_rust src/snmalloc/override/rust.cc)
+
+  compile_object(snmalloc_exception_handler_checks src/snmalloc/override/failure.cc)
+  target_compile_definitions(snmalloc_exception_handler_checks PRIVATE SNMALLOC_CHECK_CLIENT)
+  compile_object_noexc(snmalloc_core_checks src/snmalloc/override/malloc.cc)
+  target_compile_definitions(snmalloc_core_checks PRIVATE SNMALLOC_CHECK_CLIENT)
+  compile_object_noexc(snmalloc_new_checks src/snmalloc/override/new.cc)
+  target_compile_definitions(snmalloc_new_checks PRIVATE SNMALLOC_CHECK_CLIENT)  
+  compile_object_noexc(snmalloc_memcpy_checks src/snmalloc/override/memcpy.cc)
+  target_compile_definitions(snmalloc_memcpy_checks PRIVATE SNMALLOC_CHECK_CLIENT)
+  compile_object_noexc(snmalloc_rust_checks src/snmalloc/override/rust.cc)
+  target_compile_definitions(snmalloc_rust_checks PRIVATE SNMALLOC_CHECK_CLIENT)
+
+  add_shim(snmalloc-new-override STATIC snmalloc_new snmalloc_exception_handler)
 
   if (SNMALLOC_STATIC_LIBRARY)
-    add_shim(snmallocshim-static STATIC ${SHIM_FILES})
+    add_shim(snmallocshim-static STATIC snmalloc_core snmalloc_exception_handler snmalloc_new snmalloc_memcpy)
     target_compile_definitions(snmallocshim-static PRIVATE
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
   endif ()
 
+  set(SNMALLOC_UNCHECK_OBJECTS snmalloc_core snmalloc_exception_handler snmalloc_new)
+  set(SNMALLOC_CHECK_OBJECTS snmalloc_core_checks snmalloc_exception_handler_checks snmalloc_new_checks)
+
   if(NOT WIN32)
-    add_shim(snmallocshim SHARED ${SHIM_FILES})
+    add_shim(snmallocshim SHARED ${SNMALLOC_UNCHECK_OBJECTS})
     if (SNMALLOC_MEMCPY_OVERRIDE)
-      add_shim(snmallocshim-checks-memcpy-only SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
-      add_shim(snmallocshim-checks SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
+      add_shim(snmallocshim-checks-memcpy-only SHARED ${SNMALLOC_UNCHECK_OBJECTS} snmalloc_memcpy)
+      add_shim(snmallocshim-checks SHARED ${SNMALLOC_CHECK_OBJECTS} snmalloc_new_checks snmalloc_memcpy_checks)
     else()
-    add_shim(snmallocshim-checks SHARED ${SHIM_FILES})
+      add_shim(snmallocshim-checks SHARED ${SNMALLOC_CHECK_OBJECTS})
     endif()
-    target_compile_definitions(snmallocshim-checks PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 
   if(SNMALLOC_RUST_SUPPORT)
-    add_shim(snmallocshim-rust STATIC src/snmalloc/override/rust.cc)
-    add_shim(snmallocshim-checks-rust STATIC src/snmalloc/override/rust.cc)
+    add_shim(snmallocshim-rust STATIC snmalloc_rust)
+    add_shim(snmallocshim-checks-rust STATIC snmalloc_rust_checks)
     target_compile_definitions(snmallocshim-checks-rust PRIVATE SNMALLOC_CHECK_CLIENT)
-    if (SNMALLOC_RUST_LIBC_API)
-      target_compile_definitions(snmallocshim-rust PRIVATE SNMALLOC_RUST_LIBC_API)
-      target_compile_definitions(snmallocshim-checks-rust PRIVATE SNMALLOC_RUST_LIBC_API)
-    endif()
   endif()
 
   if (SNMALLOC_BUILD_TESTING)
