@@ -30,7 +30,13 @@ namespace snmalloc
 
         if (base != nullptr)
         {
-          Pagemap::register_range(base, size);
+          auto result = Pagemap::register_range(base, size);
+          if (!result)
+          {
+            // If register_range fails, typically there is no recovery from this
+            // so just return nullptr.
+            return CapPtr<void, ChunkBounds>(nullptr);
+          }
         }
 
         return base;

@@ -16,7 +16,7 @@ namespace snmalloc
 
     // Notify platform that we will not be using these pages
     template<ZeroMem zero_mem>
-    static void notify_using(void* p, size_t size) noexcept
+    static bool notify_using(void* p, size_t size) noexcept
     {
       if constexpr (zero_mem == YesZero)
       {
@@ -26,6 +26,7 @@ namespace snmalloc
       {
         UNUSED(p, size);
       }
+      return true;
     }
   };
 } // namespace snmalloc

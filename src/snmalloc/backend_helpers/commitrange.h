@@ -34,7 +34,17 @@ namespace snmalloc
           PAL::page_size);
         auto range = parent.alloc_range(size);
         if (range != nullptr)
-          PAL::template notify_using<NoZero>(range.unsafe_ptr(), size);
+        {
+          auto result =
+            PAL::template notify_using<NoZero>(range.unsafe_ptr(), size);
+          if (!result)
+          {
+            // If notify_using fails, we deallocate the range and return
+            // nullptr.
+            parent.dealloc_range(range, size);
+            return CapPtr<void, ChunkBounds>(nullptr);
+          }
+        }
         return range;
       }
 
