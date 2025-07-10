@@ -549,7 +549,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
     if(MSVC)
     else()
-      # We can't do --notstdlib++ as we are using exceptions, but we 
+      # We can't do --nostdlib++ as we are using exceptions, but we 
       # can make it a static dependency, which we aren't really using
       # as the interesting stuff for exceptions is in libgcc_s
       target_link_options(${name} PRIVATE -static-libstdc++)
@@ -576,6 +576,8 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
   endif ()
 
+  compile(snmalloc-new-override STATIC ${NEW})
+
   if(NOT WIN32)
     compile(snmallocshim SHARED ${ALLOC})
 
@@ -586,6 +588,11 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       compile(snmallocshim-checks SHARED ${ALLOC})
     endif()
     target_compile_definitions(snmallocshim-checks PRIVATE SNMALLOC_CHECK_CLIENT)
+  
+    compile(snmallocshim-minimal SHARED ${MALLOC})
+    if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
+      target_link_options(snmallocshim-minimal PRIVATE -nostdlib++)
+    endif ()
   endif()
 
   if(SNMALLOC_RUST_SUPPORT)
