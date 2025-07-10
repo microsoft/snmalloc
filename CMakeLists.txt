@@ -506,8 +506,8 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   endif()
 
 
-  function(compile_object name ${ARGN})
-    add_library(${name} OBJECT ${ARGN})
+  function(compile name TYPE ${ARGN})
+    add_library(${name} ${TYPE} ${ARGN})
     target_link_libraries(${name} snmalloc)
     set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden INTERPROCEDURAL_OPTIMIZATION ${SNMALLOC_COMPILER_SUPPORT_IPO})
     target_compile_definitions(${name} PRIVATE "SNMALLOC_USE_${SNMALLOC_CLEANUP}")
@@ -553,12 +553,14 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     install(TARGETS ${name} EXPORT snmallocConfig)
   endfunction()
 
-  function(compile_object_noexc name ${ARGN})
-    compile_object(${name} ${ARGN})
+  function(compile_noexc name TYPE ${ARGN})
+    compile(${name} ${TYPE} ${ARGN})
 
+    target_compile_definitionS(${name} PRIVATE -DSNMALLOC_NOEXC)
     if(MSVC)
       target_compile_definitions(${name} PRIVATE -D_HAS_EXCEPTIONS=0)
     else()
+      target_compile_options(${name} PRIVATE -fno-exceptions)
       # Ensure that we do not link against C++ stdlib when compiling shims.
       # If the compiler supports excluding the C++ stdlib implementation, use
       # it.  Otherwise, fall back to linking the library as if it were C, which
@@ -573,53 +575,51 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     endif()
   endfunction()
 
-  function(add_shim name type)
-    add_library(${name} ${type})
-    target_link_libraries(${name} ${ARGN})
-    install(TARGETS ${name} EXPORT snmallocConfig)
-  endfunction()
+  # Various files for overriding libc/rust behaviours.
+  set(MALLOC src/snmalloc/override/malloc.cc)
+  set(NEW src/snmalloc/override/new.cc)
+  set(MEMCPY src/snmalloc/override/memcpy.cc)
+  set(RUST src/snmalloc/override/rust.cc)
 
-  compile_object(snmalloc_exception_handler src/snmalloc/override/failure.cc)
-  compile_object_noexc(snmalloc_core src/snmalloc/override/malloc.cc)
-  compile_object_noexc(snmalloc_new src/snmalloc/override/new.cc)
-  compile_object_noexc(snmalloc_memcpy src/snmalloc/override/memcpy.cc)
-  compile_object_noexc(snmalloc_rust src/snmalloc/override/rust.cc)
+  set(ALLOC ${MALLOC} ${NEW})
+  set(ALL ${ALLOC} ${MEMCPY})
 
-  compile_object(snmalloc_exception_handler_checks src/snmalloc/override/failure.cc)
-  target_compile_definitions(snmalloc_exception_handler_checks PRIVATE SNMALLOC_CHECK_CLIENT)
-  compile_object_noexc(snmalloc_core_checks src/snmalloc/override/malloc.cc)
-  target_compile_definitions(snmalloc_core_checks PRIVATE SNMALLOC_CHECK_CLIENT)
-  compile_object_noexc(snmalloc_new_checks src/snmalloc/override/new.cc)
-  target_compile_definitions(snmalloc_new_checks PRIVATE SNMALLOC_CHECK_CLIENT)  
-  compile_object_noexc(snmalloc_memcpy_checks src/snmalloc/override/memcpy.cc)
-  target_compile_definitions(snmalloc_memcpy_checks PRIVATE SNMALLOC_CHECK_CLIENT)
-  compile_object_noexc(snmalloc_rust_checks src/snmalloc/override/rust.cc)
-  target_compile_definitions(snmalloc_rust_checks PRIVATE SNMALLOC_CHECK_CLIENT)
+  # Exception handler code needs to be compiled with exceptions enabled.
+  compile(snmalloc_exception_handler OBJECT src/snmalloc/override/failure.cc)
 
-  add_shim(snmalloc-new-override STATIC snmalloc_new snmalloc_exception_handler)
+  # Compile a versions without exceptions as that is what snmalloc previously did.
+  compile_noexc(snmalloc_exception_handler_noexc OBJECT src/snmalloc/override/failure.cc)
+
+  compile_noexc(snmalloc-new-override STATIC ${NEW})
+  target_link_libraries(snmalloc-new-override snmalloc_exception_handler)
 
   if (SNMALLOC_STATIC_LIBRARY)
-    add_shim(snmallocshim-static STATIC snmalloc_core snmalloc_exception_handler snmalloc_new snmalloc_memcpy)
+    compile_noexc(snmallocshim-static STATIC src/snmalloc/override/malloc.cc src/snmalloc/override/new.cc src/snmalloc/override/memcpy.cc)
     target_compile_definitions(snmallocshim-static PRIVATE
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
   endif ()
 
-  set(SNMALLOC_UNCHECK_OBJECTS snmalloc_core snmalloc_exception_handler snmalloc_new)
-  set(SNMALLOC_CHECK_OBJECTS snmalloc_core_checks snmalloc_exception_handler_checks snmalloc_new_checks)
-
   if(NOT WIN32)
-    add_shim(snmallocshim SHARED ${SNMALLOC_UNCHECK_OBJECTS})
+    compile_noexc(snmallocshim SHARED ${ALLOC})
+    target_link_libraries(snmallocshim snmalloc_exception_handler_noexc)
+
+    compile(snmallocnew SHARED ${ALLOC})
+    target_link_libraries(snmallocnew snmalloc_exception_handler)
+
     if (SNMALLOC_MEMCPY_OVERRIDE)
-      add_shim(snmallocshim-checks-memcpy-only SHARED ${SNMALLOC_UNCHECK_OBJECTS} snmalloc_memcpy)
-      add_shim(snmallocshim-checks SHARED ${SNMALLOC_CHECK_OBJECTS} snmalloc_new_checks snmalloc_memcpy_checks)
+      compile(snmallocshim-checks-memcpy-only SHARED ${ALL})
+      target_link_libraries(snmallocshim-checks-memcpy-only snmalloc_exception_handler)
+      compile(snmallocshim-checks SHARED ${ALL})
     else()
-      add_shim(snmallocshim-checks SHARED ${SNMALLOC_CHECK_OBJECTS})
+      compile(snmallocshim-checks SHARED ${MALLOC})
     endif()
+    target_compile_definitions(snmallocshim-checks PRIVATE SNMALLOC_CHECK_CLIENT)
+    target_link_libraries(snmallocshim-checks snmalloc_exception_handler)
   endif()
 
   if(SNMALLOC_RUST_SUPPORT)
-    add_shim(snmallocshim-rust STATIC snmalloc_rust)
-    add_shim(snmallocshim-checks-rust STATIC snmalloc_rust_checks)
+    compile_noexc(snmallocshim-rust STATIC ${RUST})
+    compile_noexc(snmallocshim-checks-rust STATIC ${RUST})
     target_compile_definitions(snmallocshim-checks-rust PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 

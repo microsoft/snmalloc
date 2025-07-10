@@ -7,9 +7,28 @@ namespace snmalloc
   void* alloc_nothrow(size_t size);
   void* alloc_throw(size_t size);
 
-  template<bool ShouldThrow>
-  class SetHandlerContinuations;
+#ifdef SNMALLOC_NOEXC
+  // If we are compiling without exceptions, we cannot usefully use
+  // new_handlers to retry allocations, so we just ignore them and
+  // return nullptr on failure.
+  void* failure_throw(std::size_t)
+  {
+    // If we are here, then the allocation failed.
+    // Set errno to ENOMEM, as per the C standard.
+    errno = ENOMEM;
+    // Return nullptr on failure.
+    return nullptr;
+  }
 
+  void* failure_nothrow(std::size_t)
+  {
+    // If we are here, then the allocation failed.
+    // Set errno to ENOMEM, as per the C standard.
+    errno = ENOMEM;
+    // Return nullptr on failure.
+    return nullptr;
+  }
+#else
   void* failure_throw(std::size_t size)
   {
     auto new_handler = std::get_new_handler();
@@ -20,7 +39,7 @@ namespace snmalloc
       // Retry now new_handler has been called.
       // I dislike the unbounded retrying here, but that seems to be what
       // other implementations do.
-      return alloc_nothrow(size);
+      return alloc_throw(size);
     }
 
     // Throw std::bad_alloc on failure.
@@ -45,7 +64,6 @@ namespace snmalloc
       // Retry now new_handler has been called.
       return alloc_nothrow(size);
     }
-
     // If we are here, then the allocation failed.
     // Set errno to ENOMEM, as per the C standard.
     errno = ENOMEM;
@@ -53,4 +71,6 @@ namespace snmalloc
     // Return nullptr on failure.
     return nullptr;
   }
+#endif
 }
+
