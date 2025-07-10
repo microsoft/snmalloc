@@ -584,37 +584,26 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   set(ALLOC ${MALLOC} ${NEW})
   set(ALL ${ALLOC} ${MEMCPY})
 
-  # Exception handler code needs to be compiled with exceptions enabled.
-  compile(snmalloc_exception_handler OBJECT src/snmalloc/override/failure.cc)
-
-  # Compile a versions without exceptions as that is what snmalloc previously did.
-  compile_noexc(snmalloc_exception_handler_noexc OBJECT src/snmalloc/override/failure.cc)
-
   compile_noexc(snmalloc-new-override STATIC ${NEW})
   target_link_libraries(snmalloc-new-override snmalloc_exception_handler)
 
   if (SNMALLOC_STATIC_LIBRARY)
-    compile_noexc(snmallocshim-static STATIC src/snmalloc/override/malloc.cc src/snmalloc/override/new.cc src/snmalloc/override/memcpy.cc)
+    compile_noexc(snmallocshim-static STATIC ${ALL})
     target_compile_definitions(snmallocshim-static PRIVATE
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
   endif ()
 
   if(NOT WIN32)
     compile_noexc(snmallocshim SHARED ${ALLOC})
-    target_link_libraries(snmallocshim snmalloc_exception_handler_noexc)
-
     compile(snmallocnew SHARED ${ALLOC})
-    target_link_libraries(snmallocnew snmalloc_exception_handler)
 
     if (SNMALLOC_MEMCPY_OVERRIDE)
       compile(snmallocshim-checks-memcpy-only SHARED ${ALL})
-      target_link_libraries(snmallocshim-checks-memcpy-only snmalloc_exception_handler)
       compile(snmallocshim-checks SHARED ${ALL})
     else()
       compile(snmallocshim-checks SHARED ${MALLOC})
     endif()
     target_compile_definitions(snmallocshim-checks PRIVATE SNMALLOC_CHECK_CLIENT)
-    target_link_libraries(snmallocshim-checks snmalloc_exception_handler)
   endif()
 
   if(SNMALLOC_RUST_SUPPORT)
