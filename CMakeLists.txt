@@ -552,9 +552,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       # We can't do --notstdlib++ as we are using exceptions, but we 
       # can make it a static dependency, which we aren't really using
       # as the interesting stuff for exceptions is in libgcc_s
-      if (NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
-        target_link_options(${name} PRIVATE -static-libstdc++)
-      endif()
+      target_link_options(${name} PRIVATE -static-libstdc++)
     endif()
 
     if (SNMALLOC_RUST_LIBC_API)
@@ -573,7 +571,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   set(ALL ${ALLOC} ${MEMCPY})
 
   if (SNMALLOC_STATIC_LIBRARY)
-    compile(snmallocshim-static STATIC ${ALL})
+    compile(snmallocshim-static STATIC ${ALLOC})
     target_compile_definitions(snmallocshim-static PRIVATE
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
   endif ()
@@ -585,7 +583,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       compile(snmallocshim-checks-memcpy-only SHARED ${ALL})
       compile(snmallocshim-checks SHARED ${ALL})
     else()
-      compile(snmallocshim-checks SHARED ${MALLOC})
+      compile(snmallocshim-checks SHARED ${ALLOC})
     endif()
     target_compile_definitions(snmallocshim-checks PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
