@@ -589,9 +589,10 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     endif()
     target_compile_definitions(snmallocshim-checks PRIVATE SNMALLOC_CHECK_CLIENT)
   
-    compile(snmallocshim-minimal SHARED ${MALLOC})
-    if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
-      target_link_options(snmallocshim-minimal PRIVATE -nostdlib++)
+    compile(snmalloc-minimal SHARED ${MALLOC})
+    target_compile_options(snmalloc-minimal PRIVATE -fno-exceptions)
+    if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX AND NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
+      target_compile_options(snmalloc-minimal PRIVATE -fno-exceptions -nostdlib++)
     endif ()
   endif()
 
