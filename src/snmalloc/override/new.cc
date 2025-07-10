@@ -70,7 +70,7 @@ namespace snmalloc
     return alloc<Throw>(size);
   }
 
-#ifdef SNMALLOC_NOEXC
+#  ifdef SNMALLOC_NOEXC
   // If we are compiling without exceptions, we cannot usefully use
   // new_handlers to retry allocations, so we just ignore them and
   // return nullptr on failure.
@@ -91,7 +91,7 @@ namespace snmalloc
     // Return nullptr on failure.
     return nullptr;
   }
-#else
+#  else
   void* failure_throw(std::size_t size)
   {
     auto new_handler = std::get_new_handler();
@@ -134,7 +134,7 @@ namespace snmalloc
     // Return nullptr on failure.
     return nullptr;
   }
-#endif
+#  endif
 } // namespace snmalloc
 
 void* operator new(size_t size)
