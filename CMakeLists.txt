@@ -506,7 +506,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   endif()
 
 
-  function(compile_core name TYPE ${ARGN})
+  function(compile name TYPE ${ARGN})
     add_library(${name} ${TYPE} ${ARGN})
     target_link_libraries(${name} snmalloc)
     set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden INTERPROCEDURAL_OPTIMIZATION ${SNMALLOC_COMPILER_SUPPORT_IPO})
@@ -547,46 +547,20 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     target_compile_definitions(${name} PRIVATE
       SNMALLOC_PAGEID=$<IF:$<BOOL:${SNMALLOC_PAGEID}>,true,false>)
 
-    if (SNMALLOC_RUST_LIBC_API)
-      target_compile_definitions(${name} PRIVATE SNMALLOC_RUST_LIBC_API)
-    endif()
-    install(TARGETS ${name} EXPORT snmallocConfig)
-  endfunction()
-
-  function(compile_noexc name TYPE ${ARGN})
-    compile_core(${name} ${TYPE} ${ARGN})
-
-    target_compile_definitionS(${name} PRIVATE -DSNMALLOC_NOEXC)
-    if(MSVC)
-      target_compile_definitions(${name} PRIVATE -D_HAS_EXCEPTIONS=0)
-    else()
-      target_compile_options(${name} PRIVATE -fno-exceptions)
-      # Ensure that we do not link against C++ stdlib when compiling shims.
-      # If the compiler supports excluding the C++ stdlib implementation, use
-      # it.  Otherwise, fall back to linking the library as if it were C, which
-      # has roughly the same effect.
-      if (NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
-        if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
-          target_link_options(${name} PRIVATE -nostdlib++)
-        else()
-          set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
-        endif()
-      endif()
-    endif()
-  endfunction()
-
-  function(compile name TYPE ${ARGN})
-    compile_core(${name} ${TYPE} ${ARGN})
-
     if(MSVC)
     else()
-      # We can't dp --notstdlib++ as we are using exceptions, but we 
+      # We can't do --notstdlib++ as we are using exceptions, but we 
       # can make it a static dependency, which we aren't really using
       # as the interesting stuff for exceptions is in libgcc_s
       if (NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
         target_link_options(${name} PRIVATE -static-libstdc++)
       endif()
     endif()
+
+    if (SNMALLOC_RUST_LIBC_API)
+      target_compile_definitions(${name} PRIVATE SNMALLOC_RUST_LIBC_API)
+    endif()
+    install(TARGETS ${name} EXPORT snmallocConfig)
   endfunction()
 
   # Various files for overriding libc/rust behaviours.
@@ -598,18 +572,14 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   set(ALLOC ${MALLOC} ${NEW})
   set(ALL ${ALLOC} ${MEMCPY})
 
-  compile_noexc(snmalloc-new-override STATIC ${NEW})
-  target_link_libraries(snmalloc-new-override snmalloc_exception_handler)
-
   if (SNMALLOC_STATIC_LIBRARY)
-    compile_noexc(snmallocshim-static STATIC ${ALL})
+    compile(snmallocshim-static STATIC ${ALL})
     target_compile_definitions(snmallocshim-static PRIVATE
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
   endif ()
 
   if(NOT WIN32)
-    compile_noexc(snmallocshim SHARED ${ALLOC})
-    compile(snmallocnew SHARED ${ALLOC})
+    compile(snmallocshim SHARED ${ALLOC})
 
     if (SNMALLOC_MEMCPY_OVERRIDE)
       compile(snmallocshim-checks-memcpy-only SHARED ${ALL})
@@ -621,8 +591,8 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   endif()
 
   if(SNMALLOC_RUST_SUPPORT)
-    compile_noexc(snmallocshim-rust STATIC ${RUST})
-    compile_noexc(snmallocshim-checks-rust STATIC ${RUST})
+    compile(snmallocshim-rust STATIC ${RUST})
+    compile(snmallocshim-checks-rust STATIC ${RUST})
     target_compile_definitions(snmallocshim-checks-rust PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 
