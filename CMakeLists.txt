@@ -509,7 +509,6 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   function(compile name TYPE ${ARGN})
     add_library(${name} ${TYPE} ${ARGN})
     target_link_libraries(${name} snmalloc)
-    set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden INTERPROCEDURAL_OPTIMIZATION ${SNMALLOC_COMPILER_SUPPORT_IPO})
     target_compile_definitions(${name} PRIVATE "SNMALLOC_USE_${SNMALLOC_CLEANUP}")
 
     add_warning_flags(${name})
