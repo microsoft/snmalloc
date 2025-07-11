@@ -50,7 +50,7 @@ namespace snmalloc
       return p;
     }
 
-    static void* failure(size_t size)
+    static void* failure(size_t size) noexcept
     {
       UNUSED(size);
       // If we are here, then the allocation failed.
@@ -401,9 +401,9 @@ namespace snmalloc
      * the stack as often closing over the arguments would cause less good
      * codegen.
      */
-    template<typename Action, typename... Args>
+    template<bool noexc, typename Action, typename... Args>
     SNMALLOC_FAST_PATH decltype(auto)
-    handle_message_queue(Action action, Args... args)
+    handle_message_queue(Action action, Args... args) noexcept(noexc)
     {
       // Inline the empty check, but not necessarily the full queue handling.
       if (SNMALLOC_LIKELY(!has_messages()))
@@ -411,15 +411,15 @@ namespace snmalloc
         return action(args...);
       }
 
-      return handle_message_queue_slow(action, args...);
+      return handle_message_queue_slow<noexc>(action, args...);
     }
 
     /**
      * Process remote frees into this allocator.
      */
-    template<typename Action, typename... Args>
+    template<bool noexc, typename Action, typename... Args>
     SNMALLOC_SLOW_PATH decltype(auto)
-    handle_message_queue_slow(Action action, Args... args)
+    handle_message_queue_slow(Action action, Args... args) noexcept(noexc)
     {
       bool need_post = false;
       size_t bytes_freed = 0;
@@ -621,7 +621,8 @@ namespace snmalloc
      * Fast allocation for small objects.
      */
     template<typename Conts, typename CheckInit>
-    SNMALLOC_FAST_PATH void* small_alloc(size_t size)
+    SNMALLOC_FAST_PATH void*
+    small_alloc(size_t size) noexcept(noexcept(Conts::failure))
     {
       auto domesticate =
         [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
@@ -637,7 +638,7 @@ namespace snmalloc
         return finish_alloc<Conts>(p, size);
       }
 
-      return handle_message_queue(
+      return handle_message_queue<noexcept(Conts::failure)>(
         [](
           Allocator* alloc,
           smallsizeclass_t sizeclass,
@@ -661,8 +662,8 @@ namespace snmalloc
      * register.
      */
     template<typename Conts, typename CheckInit>
-    static SNMALLOC_SLOW_PATH void*
-    alloc_not_small(size_t size, Allocator* self)
+    static SNMALLOC_SLOW_PATH void* alloc_not_small(
+      size_t size, Allocator* self) noexcept(noexcept(Conts::failure))
     {
       if (size == 0)
       {
@@ -672,7 +673,7 @@ namespace snmalloc
         return self->small_alloc<Conts, CheckInit>(1);
       }
 
-      return self->handle_message_queue(
+      return self->template handle_message_queue<noexcept(Conts::failure)>(
         [](Allocator* self, size_t size) SNMALLOC_FAST_PATH_LAMBDA {
           return CheckInit::check_init(
             [self, size]() SNMALLOC_FAST_PATH_LAMBDA {
@@ -739,7 +740,9 @@ namespace snmalloc
 
     template<typename Conts, typename CheckInit>
     SNMALLOC_FAST_PATH void* small_refill(
-      smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list, size_t size)
+      smallsizeclass_t sizeclass,
+      freelist::Iter<>& fast_free_list,
+      size_t size) noexcept(noexcept(Conts::failure))
     {
       void* result = Config::SecondaryAllocator::allocate(
         [size]() -> stl::Pair<size_t, size_t> {
@@ -809,7 +812,9 @@ namespace snmalloc
 
     template<typename Conts, typename CheckInit>
     SNMALLOC_SLOW_PATH void* small_refill_slow(
-      smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list, size_t size)
+      smallsizeclass_t sizeclass,
+      freelist::Iter<>& fast_free_list,
+      size_t size) noexcept(noexcept(Conts::failure))
     {
       return CheckInit::check_init(
         [this, size, sizeclass, &fast_free_list]() SNMALLOC_FAST_PATH_LAMBDA {
@@ -1385,7 +1390,7 @@ namespace snmalloc
         // Process incoming message queue
         // Loop as normally only processes a batch
         while (has_messages())
-          handle_message_queue([]() {});
+          handle_message_queue<true>([]() {});
       }
 
       auto& key = freelist::Object::key_root;

@@ -67,7 +67,7 @@ namespace snmalloc
     class NoThrow : public Base
     {
     public:
-      static void* failure(size_t size)
+      static void* failure(size_t size) noexcept
       {
         auto new_handler = std::get_new_handler();
         if (new_handler != nullptr)
