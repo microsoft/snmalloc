@@ -28,7 +28,8 @@ namespace snmalloc
     class Base
     {
     public:
-      static void* success(void* p, size_t size, bool secondary_allocator = false)
+      static void*
+      success(void* p, size_t size, bool secondary_allocator = false)
       {
         UNUSED(secondary_allocator, size);
         SNMALLOC_ASSERT(p != nullptr);
