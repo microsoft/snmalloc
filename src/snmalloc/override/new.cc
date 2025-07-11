@@ -155,15 +155,15 @@ void* operator new[](size_t size, std::align_val_t val)
   return snmalloc::alloc<snmalloc::Throw>(size);
 }
 
-void* operator new(size_t size, std::align_val_t val, const std::nothrow_t&) noexcept
-  EXCEPTSPEC
+void* operator new(
+  size_t size, std::align_val_t val, const std::nothrow_t&) noexcept
 {
   size = snmalloc::aligned_size(size_t(val), size);
   return snmalloc::alloc<snmalloc::NoThrow>(size);
 }
 
-void* operator new[](size_t size, std::align_val_t val, const std::nothrow_t&) noexcept
-  EXCEPTSPEC
+void* operator new[](
+  size_t size, std::align_val_t val, const std::nothrow_t&) noexcept
 {
   size = snmalloc::aligned_size(size_t(val), size);
   return snmalloc::alloc<snmalloc::NoThrow>(size);
