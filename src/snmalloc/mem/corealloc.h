@@ -602,7 +602,8 @@ namespace snmalloc
      * required. It is defaulted to do nothing.
      */
     template<typename Conts = Uninit, typename CheckInit = CheckInitNoOp>
-    SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
+    SNMALLOC_FAST_PATH ALLOCATOR void*
+    alloc(size_t size) noexcept(noexcept(Conts::failure(0)))
     {
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
@@ -622,7 +623,7 @@ namespace snmalloc
      */
     template<typename Conts, typename CheckInit>
     SNMALLOC_FAST_PATH void*
-    small_alloc(size_t size) noexcept(noexcept(Conts::failure))
+    small_alloc(size_t size) noexcept(noexcept(Conts::failure(0)))
     {
       auto domesticate =
         [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
@@ -638,7 +639,7 @@ namespace snmalloc
         return finish_alloc<Conts>(p, size);
       }
 
-      return handle_message_queue<noexcept(Conts::failure)>(
+      return handle_message_queue<noexcept(Conts::failure(0))>(
         [](
           Allocator* alloc,
           smallsizeclass_t sizeclass,
@@ -663,7 +664,7 @@ namespace snmalloc
      */
     template<typename Conts, typename CheckInit>
     static SNMALLOC_SLOW_PATH void* alloc_not_small(
-      size_t size, Allocator* self) noexcept(noexcept(Conts::failure))
+      size_t size, Allocator* self) noexcept(noexcept(Conts::failure(0)))
     {
       if (size == 0)
       {
@@ -673,7 +674,7 @@ namespace snmalloc
         return self->small_alloc<Conts, CheckInit>(1);
       }
 
-      return self->template handle_message_queue<noexcept(Conts::failure)>(
+      return self->template handle_message_queue<noexcept(Conts::failure(0))>(
         [](Allocator* self, size_t size) SNMALLOC_FAST_PATH_LAMBDA {
           return CheckInit::check_init(
             [self, size]() SNMALLOC_FAST_PATH_LAMBDA {
@@ -742,7 +743,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH void* small_refill(
       smallsizeclass_t sizeclass,
       freelist::Iter<>& fast_free_list,
-      size_t size) noexcept(noexcept(Conts::failure))
+      size_t size) noexcept(noexcept(Conts::failure(0)))
     {
       void* result = Config::SecondaryAllocator::allocate(
         [size]() -> stl::Pair<size_t, size_t> {
@@ -814,7 +815,7 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void* small_refill_slow(
       smallsizeclass_t sizeclass,
       freelist::Iter<>& fast_free_list,
-      size_t size) noexcept(noexcept(Conts::failure))
+      size_t size) noexcept(noexcept(Conts::failure(0)))
     {
       return CheckInit::check_init(
         [this, size, sizeclass, &fast_free_list]() SNMALLOC_FAST_PATH_LAMBDA {
