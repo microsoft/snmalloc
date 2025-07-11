@@ -103,12 +103,12 @@ void* operator new[](size_t size)
   return snmalloc::alloc<snmalloc::Throw>(size);
 }
 
-void* operator new(size_t size, const std::nothrow_t&) EXCEPTSPEC
+void* operator new(size_t size, const std::nothrow_t&) noexcept
 {
   return snmalloc::alloc<snmalloc::NoThrow>(size);
 }
 
-void* operator new[](size_t size, const std::nothrow_t&) EXCEPTSPEC
+void* operator new[](size_t size, const std::nothrow_t&) noexcept
 {
   return snmalloc::alloc<snmalloc::NoThrow>(size);
 }
@@ -123,7 +123,7 @@ void operator delete(void* p, size_t size) EXCEPTSPEC
   snmalloc::libc::free_sized(p, size);
 }
 
-void operator delete(void* p, const std::nothrow_t&) EXCEPTSPEC
+void operator delete(void* p, const std::nothrow_t&) noexcept
 {
   snmalloc::libc::free(p);
 }
@@ -138,7 +138,7 @@ void operator delete[](void* p, size_t size) EXCEPTSPEC
   snmalloc::libc::free_sized(p, size);
 }
 
-void operator delete[](void* p, const std::nothrow_t&) EXCEPTSPEC
+void operator delete[](void* p, const std::nothrow_t&) noexcept
 {
   snmalloc::libc::free(p);
 }
@@ -155,14 +155,14 @@ void* operator new[](size_t size, std::align_val_t val)
   return snmalloc::alloc<snmalloc::Throw>(size);
 }
 
-void* operator new(size_t size, std::align_val_t val, const std::nothrow_t&)
+void* operator new(size_t size, std::align_val_t val, const std::nothrow_t&) noexcept
   EXCEPTSPEC
 {
   size = snmalloc::aligned_size(size_t(val), size);
   return snmalloc::alloc<snmalloc::NoThrow>(size);
 }
 
-void* operator new[](size_t size, std::align_val_t val, const std::nothrow_t&)
+void* operator new[](size_t size, std::align_val_t val, const std::nothrow_t&) noexcept
   EXCEPTSPEC
 {
   size = snmalloc::aligned_size(size_t(val), size);
