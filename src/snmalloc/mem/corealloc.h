@@ -1273,8 +1273,8 @@ namespace snmalloc
     }
 
     template<typename CheckInit>
-    SNMALLOC_FAST_PATH void
-    dealloc_remote(const PagemapEntry& entry, capptr::Alloc<void> p_tame) noexcept
+    SNMALLOC_FAST_PATH void dealloc_remote(
+      const PagemapEntry& entry, capptr::Alloc<void> p_tame) noexcept
     {
       if (SNMALLOC_LIKELY(entry.is_owned()))
       {
@@ -1327,8 +1327,8 @@ namespace snmalloc
      * as we might acquire the originating allocator.
      */
     template<typename CheckInit>
-    SNMALLOC_SLOW_PATH void
-    dealloc_remote_slow(const PagemapEntry& entry, capptr::Alloc<void> p) noexcept
+    SNMALLOC_SLOW_PATH void dealloc_remote_slow(
+      const PagemapEntry& entry, capptr::Alloc<void> p) noexcept
     {
       CheckInit::check_init(
         [this, &entry, p]() SNMALLOC_FAST_PATH_LAMBDA {
