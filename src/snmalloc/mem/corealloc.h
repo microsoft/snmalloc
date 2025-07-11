@@ -50,7 +50,7 @@ namespace snmalloc
       return p;
     }
 
-    static void* failure(size_t size)
+    static void* failure(size_t size) noexcept
     {
       UNUSED(size);
       // If we are here, then the allocation failed.
@@ -401,9 +401,9 @@ namespace snmalloc
      * the stack as often closing over the arguments would cause less good
      * codegen.
      */
-    template<typename Action, typename... Args>
+    template<bool noexc, typename Action, typename... Args>
     SNMALLOC_FAST_PATH decltype(auto)
-    handle_message_queue(Action action, Args... args)
+    handle_message_queue(Action action, Args... args) noexcept(noexc)
     {
       // Inline the empty check, but not necessarily the full queue handling.
       if (SNMALLOC_LIKELY(!has_messages()))
@@ -411,15 +411,15 @@ namespace snmalloc
         return action(args...);
       }
 
-      return handle_message_queue_slow(action, args...);
+      return handle_message_queue_slow<noexc>(action, args...);
     }
 
     /**
      * Process remote frees into this allocator.
      */
-    template<typename Action, typename... Args>
+    template<bool noexc, typename Action, typename... Args>
     SNMALLOC_SLOW_PATH decltype(auto)
-    handle_message_queue_slow(Action action, Args... args)
+    handle_message_queue_slow(Action action, Args... args) noexcept(noexc)
     {
       bool need_post = false;
       size_t bytes_freed = 0;
@@ -602,7 +602,8 @@ namespace snmalloc
      * required. It is defaulted to do nothing.
      */
     template<typename Conts = Uninit, typename CheckInit = CheckInitNoOp>
-    SNMALLOC_FAST_PATH ALLOCATOR void* alloc(size_t size)
+    SNMALLOC_FAST_PATH ALLOCATOR void*
+    alloc(size_t size) noexcept(noexcept(Conts::failure(0)))
     {
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
@@ -621,7 +622,8 @@ namespace snmalloc
      * Fast allocation for small objects.
      */
     template<typename Conts, typename CheckInit>
-    SNMALLOC_FAST_PATH void* small_alloc(size_t size)
+    SNMALLOC_FAST_PATH void*
+    small_alloc(size_t size) noexcept(noexcept(Conts::failure(0)))
     {
       auto domesticate =
         [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
@@ -637,7 +639,7 @@ namespace snmalloc
         return finish_alloc<Conts>(p, size);
       }
 
-      return handle_message_queue(
+      return handle_message_queue<noexcept(Conts::failure(0))>(
         [](
           Allocator* alloc,
           smallsizeclass_t sizeclass,
@@ -661,8 +663,8 @@ namespace snmalloc
      * register.
      */
     template<typename Conts, typename CheckInit>
-    static SNMALLOC_SLOW_PATH void*
-    alloc_not_small(size_t size, Allocator* self)
+    static SNMALLOC_SLOW_PATH void* alloc_not_small(
+      size_t size, Allocator* self) noexcept(noexcept(Conts::failure(0)))
     {
       if (size == 0)
       {
@@ -672,7 +674,7 @@ namespace snmalloc
         return self->small_alloc<Conts, CheckInit>(1);
       }
 
-      return self->handle_message_queue(
+      return self->template handle_message_queue<noexcept(Conts::failure(0))>(
         [](Allocator* self, size_t size) SNMALLOC_FAST_PATH_LAMBDA {
           return CheckInit::check_init(
             [self, size]() SNMALLOC_FAST_PATH_LAMBDA {
@@ -739,7 +741,9 @@ namespace snmalloc
 
     template<typename Conts, typename CheckInit>
     SNMALLOC_FAST_PATH void* small_refill(
-      smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list, size_t size)
+      smallsizeclass_t sizeclass,
+      freelist::Iter<>& fast_free_list,
+      size_t size) noexcept(noexcept(Conts::failure(0)))
     {
       void* result = Config::SecondaryAllocator::allocate(
         [size]() -> stl::Pair<size_t, size_t> {
@@ -809,7 +813,9 @@ namespace snmalloc
 
     template<typename Conts, typename CheckInit>
     SNMALLOC_SLOW_PATH void* small_refill_slow(
-      smallsizeclass_t sizeclass, freelist::Iter<>& fast_free_list, size_t size)
+      smallsizeclass_t sizeclass,
+      freelist::Iter<>& fast_free_list,
+      size_t size) noexcept(noexcept(Conts::failure(0)))
     {
       return CheckInit::check_init(
         [this, size, sizeclass, &fast_free_list]() SNMALLOC_FAST_PATH_LAMBDA {
@@ -994,7 +1000,7 @@ namespace snmalloc
      *          deallocation to the other allocators.
      ***************************************************************************/
     template<typename CheckInit = CheckInitNoOp>
-    SNMALLOC_FAST_PATH void dealloc(void* p_raw)
+    SNMALLOC_FAST_PATH void dealloc(void* p_raw) noexcept
     {
 #ifdef __CHERI_PURE_CAPABILITY__
       /*
@@ -1043,7 +1049,7 @@ namespace snmalloc
 
     SNMALLOC_FAST_PATH void dealloc_local_object(
       CapPtr<void, capptr::bounds::Alloc> p,
-      const typename Config::PagemapEntry& entry)
+      const typename Config::PagemapEntry& entry) noexcept
     {
       auto meta = entry.get_slab_metadata();
 
@@ -1078,7 +1084,7 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH void dealloc_local_object_slow(
       capptr::Alloc<void> p,
       const PagemapEntry& entry,
-      BackendSlabMetadata* meta)
+      BackendSlabMetadata* meta) noexcept
     {
       // TODO: Handle message queue on this path?
 
@@ -1273,8 +1279,8 @@ namespace snmalloc
     }
 
     template<typename CheckInit>
-    SNMALLOC_FAST_PATH void
-    dealloc_remote(const PagemapEntry& entry, capptr::Alloc<void> p_tame)
+    SNMALLOC_FAST_PATH void dealloc_remote(
+      const PagemapEntry& entry, capptr::Alloc<void> p_tame) noexcept
     {
       if (SNMALLOC_LIKELY(entry.is_owned()))
       {
@@ -1327,8 +1333,8 @@ namespace snmalloc
      * as we might acquire the originating allocator.
      */
     template<typename CheckInit>
-    SNMALLOC_SLOW_PATH void
-    dealloc_remote_slow(const PagemapEntry& entry, capptr::Alloc<void> p)
+    SNMALLOC_SLOW_PATH void dealloc_remote_slow(
+      const PagemapEntry& entry, capptr::Alloc<void> p) noexcept
     {
       CheckInit::check_init(
         [this, &entry, p]() SNMALLOC_FAST_PATH_LAMBDA {
@@ -1344,7 +1350,7 @@ namespace snmalloc
 
           post();
         },
-        [](Allocator* a, void* p) {
+        [](Allocator* a, void* p) SNMALLOC_FAST_PATH_LAMBDA {
           // Recheck what kind of dealloc we should do in case the allocator
           // we get from lazy_init is the originating allocator.
           a->dealloc(p); // TODO don't double count statistics
@@ -1385,7 +1391,7 @@ namespace snmalloc
         // Process incoming message queue
         // Loop as normally only processes a batch
         while (has_messages())
-          handle_message_queue([]() {});
+          handle_message_queue<true>([]() {});
       }
 
       auto& key = freelist::Object::key_root;

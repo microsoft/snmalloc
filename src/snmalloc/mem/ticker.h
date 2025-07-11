@@ -41,7 +41,7 @@ namespace snmalloc
      * how many calls for the next time we hit the slow path.
      */
     template<typename T = void*>
-    SNMALLOC_SLOW_PATH T check_tick_slow(T p = nullptr)
+    SNMALLOC_SLOW_PATH T check_tick_slow(T p = nullptr) noexcept
     {
       uint64_t now_ms = PAL::time_in_ms();
 
