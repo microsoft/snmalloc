@@ -379,7 +379,7 @@ endif()
 function(add_warning_flags name)
   target_compile_options(${name} PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/Zi /W4 /WX /wd4127 /wd4324 /wd4201>
-    $<$<NOT:$<OR:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_CXX_SIMULATE_ID},MSVC>>>:-fno-exceptions -fno-rtti -Wall -Wextra -Werror -Wundef>
+    $<$<NOT:$<OR:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_CXX_SIMULATE_ID},MSVC>>>:-fno-rtti -Wall -Wextra -Werror -Wundef>
     $<$<CXX_COMPILER_ID:Clang>:-Wsign-conversion -Wconversion>)
   target_link_options(${name} PRIVATE 
     $<$<BOOL:${SNMALLOC_LINKER_SUPPORT_NO_ALLOW_SHLIB_UNDEF}>:-Wl,--no-undefined>
@@ -503,29 +503,29 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       message(WARNING "Compiler does not support `-march=native` required by SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE")
       set(SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE FALSE)
     endif()
-endif()
+  endif()
 
 
-  function(add_shim name type)
-    add_library(${name} ${type} ${ARGN})
+  function(compile name TYPE ${ARGN})
+    add_library(${name} ${TYPE} ${ARGN})
     target_link_libraries(${name} snmalloc)
-    set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden INTERPROCEDURAL_OPTIMIZATION ${SNMALLOC_COMPILER_SUPPORT_IPO})
     target_compile_definitions(${name} PRIVATE "SNMALLOC_USE_${SNMALLOC_CLEANUP}")
-
-    if(MSVC)
-      target_compile_definitions(${name} PRIVATE -D_HAS_EXCEPTIONS=0)
-    endif()
 
     add_warning_flags(${name})
     if(NOT MSVC)
       target_compile_definitions(${name} PRIVATE "SNMALLOC_EXPORT=__attribute__((visibility(\"default\")))")
-      target_compile_options(${name} PRIVATE
-        -fomit-frame-pointer -ffunction-sections)
+      set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET hidden INTERPROCEDURAL_OPTIMIZATION ${SNMALLOC_COMPILER_SUPPORT_IPO})
+      # Make debugging harder, and code faster.
+      target_compile_options(${name} PRIVATE -fomit-frame-pointer)
 
+      set_property(TARGET ${name} PROPERTY POSITION_INDEPENDENT_CODE ON)
+
+      # Check for prefetch write support.
       check_cxx_compiler_flag("-Werror -Wextra -Wall -mprfchw" SUPPORT_PREFETCH_WRITE)
       if (SUPPORT_PREFETCH_WRITE)
         target_compile_options(${name} PRIVATE -mprfchw)
       endif()
+
       # Static TLS model is unsupported on Haiku.
       if (SNMALLOC_STATIC_MODE_TLS)
         target_compile_options(${name} PRIVATE -ftls-model=initial-exec)
@@ -536,18 +536,8 @@ endif()
         target_compile_options(${name} PRIVATE -march=native)
       endif()
 
-      # Ensure that we do not link against C++ stdlib when compiling shims.
-      # If the compiler supports excluding the C++ stdlib implementation, use
-      # it.  Otherwise, fall back to linking the library as if it were C, which
-      # has roughly the same effect.
-      if (NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
-        if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX)
-          target_link_options(${name} PRIVATE -nostdlib++)
-        else()
-          set_target_properties(${name} PROPERTIES LINKER_LANGUAGE C)
-        endif()
-      endif()
       # Remove all the duplicate new/malloc and free/delete definitions
+      target_compile_options(${name} PRIVATE -ffunction-sections)
       target_link_options(${name} PRIVATE $<$<BOOL:${LLD_WORKS}>:$<$<BOOL:${SNMALLOC_LINK_ICF}>:-Wl,--icf=all> -fuse-ld=lld>)
     endif()
 
@@ -556,40 +546,59 @@ endif()
     target_compile_definitions(${name} PRIVATE
       SNMALLOC_PAGEID=$<IF:$<BOOL:${SNMALLOC_PAGEID}>,true,false>)
 
-    install(TARGETS ${name} EXPORT snmallocConfig)
+    if(MSVC)
+    else()
+      # We can't do --nostdlib++ as we are using exceptions, but we 
+      # can make it a static dependency, which we aren't really using
+      # as the interesting stuff for exceptions is in libgcc_s
+      target_link_options(${name} PRIVATE -static-libstdc++)
+    endif()
 
+    if (SNMALLOC_RUST_LIBC_API)
+      target_compile_definitions(${name} PRIVATE SNMALLOC_RUST_LIBC_API)
+    endif()
+    install(TARGETS ${name} EXPORT snmallocConfig)
   endfunction()
 
-  set(SHIM_FILES src/snmalloc/override/malloc.cc src/snmalloc/override/new.cc)
-  set(SHIM_FILES_MEMCPY src/snmalloc/override/memcpy.cc)
+  # Various files for overriding libc/rust behaviours.
+  set(MALLOC src/snmalloc/override/malloc.cc)
+  set(NEW src/snmalloc/override/new.cc)
+  set(MEMCPY src/snmalloc/override/memcpy.cc)
+  set(RUST src/snmalloc/override/rust.cc)
 
-  add_shim(snmalloc-new-override STATIC src/snmalloc/override/new.cc)
+  set(ALLOC ${MALLOC} ${NEW})
+  set(ALL ${ALLOC} ${MEMCPY})
 
   if (SNMALLOC_STATIC_LIBRARY)
-    add_shim(snmallocshim-static STATIC ${SHIM_FILES})
+    compile(snmallocshim-static STATIC ${ALLOC})
     target_compile_definitions(snmallocshim-static PRIVATE
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
   endif ()
 
+  compile(snmalloc-new-override STATIC ${NEW})
+
   if(NOT WIN32)
-    add_shim(snmallocshim SHARED ${SHIM_FILES})
+    compile(snmallocshim SHARED ${ALLOC})
+
     if (SNMALLOC_MEMCPY_OVERRIDE)
-      add_shim(snmallocshim-checks-memcpy-only SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
-      add_shim(snmallocshim-checks SHARED ${SHIM_FILES} ${SHIM_FILES_MEMCPY})
+      compile(snmallocshim-checks-memcpy-only SHARED ${ALL})
+      compile(snmallocshim-checks SHARED ${ALL})
     else()
-    add_shim(snmallocshim-checks SHARED ${SHIM_FILES})
+      compile(snmallocshim-checks SHARED ${ALLOC})
     endif()
     target_compile_definitions(snmallocshim-checks PRIVATE SNMALLOC_CHECK_CLIENT)
+  
+    compile(snmalloc-minimal SHARED ${MALLOC})
+    target_compile_options(snmalloc-minimal PRIVATE -fno-exceptions)
+    if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX AND NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
+      target_compile_options(snmalloc-minimal PRIVATE -fno-exceptions -nostdlib++)
+    endif ()
   endif()
 
   if(SNMALLOC_RUST_SUPPORT)
-    add_shim(snmallocshim-rust STATIC src/snmalloc/override/rust.cc)
-    add_shim(snmallocshim-checks-rust STATIC src/snmalloc/override/rust.cc)
+    compile(snmallocshim-rust STATIC ${RUST})
+    compile(snmallocshim-checks-rust STATIC ${RUST})
     target_compile_definitions(snmallocshim-checks-rust PRIVATE SNMALLOC_CHECK_CLIENT)
-    if (SNMALLOC_RUST_LIBC_API)
-      target_compile_definitions(snmallocshim-rust PRIVATE SNMALLOC_RUST_LIBC_API)
-      target_compile_definitions(snmallocshim-checks-rust PRIVATE SNMALLOC_RUST_LIBC_API)
-    endif()
   endif()
 
   if (SNMALLOC_BUILD_TESTING)
@@ -625,7 +634,7 @@ endif()
 
     foreach (MITIGATION ${MITIGATIONS})
       set(DEFINES "SNMALLOC_CHECK_CLIENT_MITIGATIONS=${MITIGATION}")
-      add_shim(snmallocshim-${MITIGATION} SHARED ${SHIM_FILES})
+      compile(snmallocshim-${MITIGATION} SHARED ${ALLOC})
       target_compile_definitions(snmallocshim-${MITIGATION} PRIVATE ${DEFINES})
       if (SNMALLOC_BUILD_TESTING)
         make_tests(${MITIGATION} ${DEFINES})
@@ -640,7 +649,7 @@ endif()
       set(MITIGATIONSET "${MITIGATIONSET}+${MITIGATION}")
       message(STATUS "MITIGATIONSET: ${COUNT} -> ${MITIGATIONSET}")
       set(DEFINES "-DSNMALLOC_CHECK_CLIENT_MITIGATIONS=${MITIGATIONSET}")
-      add_shim(snmallocshim-${MITIGATIONNAME} SHARED ${SHIM_FILES})
+      compile(snmallocshim-${MITIGATIONNAME} SHARED ${ALLOC})
       target_compile_definitions(snmallocshim-${MITIGATIONNAME} PRIVATE ${DEFINES})
       if (SNMALLOC_BUILD_TESTING)
         make_tests(${MITIGATIONNAME} ${DEFINES})
