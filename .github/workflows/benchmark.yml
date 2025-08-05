@@ -3,7 +3,7 @@ name: snmalloc Benchmarking CI
 # The following should ensure that the workflow only runs a single set of actions
 # for each PR. But it will not apply this to pushes to the main branch.
 concurrency:
-  group: ${{ github.ref }}
+  group: benchmarking${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # Controls when the workflow will run
