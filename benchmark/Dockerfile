@@ -41,5 +41,6 @@ ARG repeats=1
 WORKDIR /mimalloc-bench/out/bench
 RUN ../../bench.sh --external=/allocs.txt $benchs -r=$repeats
 
+RUN apt-get update && apt-get install --no-install-recommends -y python3 python3-pip
 RUN pip3 install --no-cache-dir numpy
 RUN python3 /snmalloc/benchmark/bencher.dev.py /mimalloc-bench/out/benchres.csv > results.json
