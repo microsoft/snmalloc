@@ -1,7 +1,7 @@
 FROM ubuntu:24.04
 
 # Pull mimalloc-bench
-RUN apt-get update && apt-get install -y --no-install-recommends git gpg ca-certificates
+RUN apt-get update && apt-get install -y --no-install-recommends git gpg ca-certificates python3-numpy
 RUN git clone https://github.com/daanx/mimalloc-bench &&\
     cd mimalloc-bench && \
     git reset --hard ffa530dbbe046532dfcb4a1b58ffc06e144aee60
@@ -41,5 +41,4 @@ ARG repeats=1
 WORKDIR /mimalloc-bench/out/bench
 RUN ../../bench.sh --external=/allocs.txt $benchs -r=$repeats
 
-RUN apt-get update && apt-get install --no-install-recommends -y python3 python3-numpy
 RUN python3 /snmalloc/benchmark/bencher.dev.py /mimalloc-bench/out/bench/benchres.csv > /results.json
