@@ -38,4 +38,6 @@ RUN ninja libsnmallocshim.so
 # Run benchmarks
 ARG benchs=allt
 WORKDIR /mimalloc-bench/out/bench
-RUN ../../bench.sh --external=/allocs.txt $benchs
+RUN ../../bench.sh --external=/allocs.txt $benchs -r=2
+
+RUN python3 /snmalloc/benchmark/bencher.dev.py /mimalloc-bench/out/benchres.csv > results.json
