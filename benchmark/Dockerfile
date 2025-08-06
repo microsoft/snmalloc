@@ -35,3 +35,5 @@ RUN ninja libsnmallocshim.so
 ARG benchs=allt
 WORKDIR /mimalloc-bench/out/bench
 RUN ../../bench.sh --external=/allocs.txt $benchs
+
+RUN du -m /mimalloc-bench
