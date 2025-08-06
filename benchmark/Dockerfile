@@ -19,6 +19,9 @@ RUN ./build-bench-env.sh rocksdb
 
 RUN ./build-bench-env.sh lean
 
+# Tidy up apt cache
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
 RUN echo "sn /snmalloc/build/libsnmallocshim.so" > /allocs.txt
 
 # Build allocator
