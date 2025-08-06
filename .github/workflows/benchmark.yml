@@ -64,7 +64,7 @@ jobs:
           bencher run \
           --project snmalloc \
           --token '${{ secrets.BENCHER_DEV_API_TOKEN }}' \
-          --branch main \
+          --branch ${{ github.ref_name }} \
           --adapter json \
           --err \
           --file results.json
