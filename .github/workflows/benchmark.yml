@@ -40,7 +40,7 @@ jobs:
           load: true
           tags: snmalloc-bench
           build-args: |
-            benchs=cfrac
+            benchs=allt
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
