@@ -22,10 +22,12 @@ RUN ./build-bench-env.sh lean
 # Tidy up apt cache
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Remove rocksdb .o files to compact image
+RUN find /mimalloc-bench/extern/rocksdb -name "*.o" -delete
+
 RUN echo "sn /snmalloc/build/libsnmallocshim.so" > /allocs.txt
 
 # Build allocator
-ARG allocator=mi
 RUN mkdir -p /snmalloc
 COPY . /snmalloc
 
