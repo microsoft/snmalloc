@@ -24,7 +24,7 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Remove rocksdb .o files to compact image
 RUN apt-get install findutils
-RUN find /mimalloc-bench/extern/rocksdb -name "*.o" -delete
+RUN find /mimalloc-bench/extern/rocksdb-8.1.1 -name "*.o" -delete
 
 RUN echo "sn /snmalloc/build/libsnmallocshim.so" > /allocs.txt
 
