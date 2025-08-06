@@ -46,7 +46,7 @@ jobs:
       # Extracts the benchmark results from the Docker container
       - name: Extract Benchmark Results
         run: |
-          docker cp `${{steps.build.outputs.imageid}}`:/mimalloc-bench/out/bench/benchres.csv benchres.csv
+          docker cp `docker run -d ${{steps.build.outputs.imageid}}`:/mimalloc-bench/out/bench/benchres.csv benchres.csv
 
       # Uploads the benchmark results as an artifact
       - name: Upload Benchmark Results
