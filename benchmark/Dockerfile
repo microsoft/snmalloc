@@ -10,21 +10,19 @@ WORKDIR /mimalloc-bench
 # Install dependencies
 RUN ./build-bench-env.sh packages
 
+# Tidy up apt cache
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Build benchmarks
 RUN ./build-bench-env.sh bench
 
 RUN ./build-bench-env.sh redis
 
-RUN ./build-bench-env.sh rocksdb
+RUN ./build-bench-env.sh rocksdb \
+  && find /mimalloc-bench/extern/rocksdb-8.1.1 -name "*.o" -delete
 
-RUN ./build-bench-env.sh lean
-
-# Tidy up apt cache
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Remove rocksdb .o files to compact image
-RUN apt-get install findutils
-RUN find /mimalloc-bench/extern/rocksdb-8.1.1 -name "*.o" -delete
+RUN ./build-bench-env.sh lean \
+  && find /mimalloc-bench/extern/lean -name "*.o" -delete
 
 RUN echo "sn /snmalloc/build/libsnmallocshim.so" > /allocs.txt
 
@@ -41,5 +39,3 @@ RUN ninja libsnmallocshim.so
 ARG benchs=allt
 WORKDIR /mimalloc-bench/out/bench
 RUN ../../bench.sh --external=/allocs.txt $benchs
-
-RUN du -m /mimalloc-bench
