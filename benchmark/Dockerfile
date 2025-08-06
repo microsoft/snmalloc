@@ -42,4 +42,4 @@ WORKDIR /mimalloc-bench/out/bench
 RUN ../../bench.sh --external=/allocs.txt $benchs -r=$repeats
 
 RUN apt-get update && apt-get install --no-install-recommends -y python3 python3-numpy
-RUN python3 /snmalloc/benchmark/bencher.dev.py /mimalloc-bench/out/benchres.csv > results.json
+RUN python3 /snmalloc/benchmark/bencher.dev.py /mimalloc-bench/out/bench/benchres.csv > results.json
