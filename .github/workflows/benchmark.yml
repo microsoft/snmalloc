@@ -19,7 +19,7 @@ on:
 
 jobs:
   benchmark:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, 1ES.Pool=snmalloc-perf]
 
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
