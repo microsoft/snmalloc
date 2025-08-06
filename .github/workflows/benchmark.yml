@@ -40,7 +40,8 @@ jobs:
           load: true
           tags: snmalloc-bench
           build-args: |
-            benchs=allt
+            benchs=cfrac
+            repeats=1
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -55,3 +56,15 @@ jobs:
         with:
           name: benchmark-results
           path: results.json
+
+      # Upload to graphing service
+      - uses: bencherdev/bencher@main
+      - name: Upload benchmark results to Bencher
+        run: |
+          bencher run \
+          --project snmalloc \
+          --token '${{ secrets.BENCHER_DEV_API_TOKEN }}' \
+          --branch main \
+          --adapter json \
+          --err \
+          --file results.json
