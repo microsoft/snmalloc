@@ -36,7 +36,7 @@ jobs:
         with:
           context: .
           file: benchmark/Dockerfile
-          push: true
+          push: false
           tags: snmalloc-bench
           build-args: |
             benchs=cfrac
