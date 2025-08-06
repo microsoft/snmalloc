@@ -31,7 +31,7 @@ jobs:
         uses: docker/setup-buildx-action@v2
 
       - name: Build and Push Docker Image
-        id: build
+        id: docker_build
         uses: docker/build-push-action@v4
         with:
           context: .
@@ -46,7 +46,7 @@ jobs:
       # Extracts the benchmark results from the Docker container
       - name: Extract Benchmark Results
         run: |
-          docker cp `docker run -d ${{steps.build.outputs.imageid}}`:/mimalloc-bench/out/bench/benchres.csv benchres.csv
+          docker cp `docker run -d ${ steps.docker_build.outputs.imageid }}`:/mimalloc-bench/out/bench/benchres.csv benchres.csv
 
       # Uploads the benchmark results as an artifact
       - name: Upload Benchmark Results
