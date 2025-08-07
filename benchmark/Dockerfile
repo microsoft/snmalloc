@@ -41,4 +41,4 @@ ARG repeats=1
 WORKDIR /mimalloc-bench/out/bench
 RUN ../../bench.sh --external=/allocs.txt $benchs -r=$repeats
 
-RUN python3 /snmalloc/benchmark/bencher.dev.py /mimalloc-bench/out/bench/benchres.csv > /results.json
+RUN python3 /snmalloc/benchmark/bencher.dev.py /mimalloc-bench/out/bench/benchres.csv

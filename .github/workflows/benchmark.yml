@@ -50,14 +50,14 @@ jobs:
       # Extracts the benchmark results from the Docker container
       - name: Extract Benchmark Results
         run: |
-          docker cp `docker run -d ${{ steps.docker_build.outputs.imageid }}`:/results.json .
+          docker cp `docker run -d ${{ steps.docker_build.outputs.imageid }}`:/bencher.dev.sn.json .
 
       # Uploads the benchmark results as an artifact
       - name: Upload Benchmark Results
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
-          path: results.json
+          path: bencher.dev.sn.json
 
       # Upload to graphing service
       - uses: bencherdev/bencher@main
@@ -69,4 +69,4 @@ jobs:
           --branch ${{ github.ref_name }} \
           --adapter json \
           --err \
-          --file results.json
+          --file bencher.dev.sn.json

@@ -57,19 +57,23 @@ with open(sys.argv[1]) as f:
 
 import json
 
-output = {}
-for test_name in test_names:
-    output[test_name] = {
-        "memory": {
-            "value": float(np.mean([d["Memory"] for d in data if d["Benchmark"] == test_name])),
-            "high-value": float(np.max([d["Memory"] for d in data if d["Benchmark"] == test_name])),
-            "low-value": float(np.min([d["Memory"] for d in data if d["Benchmark"] == test_name])),
-        },
-        "time": {
-            "value": float(np.mean([d["Time"] for d in data if d["Benchmark"] == test_name])),
-            "high-value": float(np.max([d["Time"] for d in data if d["Benchmark"] == test_name])),
-            "low-value": float(np.min([d["Time"] for d in data if d["Benchmark"] == test_name])),
+for alloc in set(d["Allocator"] for d in data if d["Benchmark"] == test_name):
+    output = {}
+    for test_name in test_names:
+        output[test_name] = {
+            "memory": {
+                "value": float(np.mean([d["Memory"] for d in data if d["Benchmark"] == test_name])),
+                "high-value": float(np.max([d["Memory"] for d in data if d["Benchmark"] == test_name])),
+                "low-value": float(np.min([d["Memory"] for d in data if d["Benchmark"] == test_name])),
+            },
+            "time": {
+                "value": float(np.mean([d["Time"] for d in data if d["Benchmark"] == test_name])),
+                "high-value": float(np.max([d["Time"] for d in data if d["Benchmark"] == test_name])),
+                "low-value": float(np.min([d["Time"] for d in data if d["Benchmark"] == test_name])),
+            }
         }
-    }
+    result = json.dumps(output, indent=2)
+    with open(f"bencher.dev.{alloc}.json", "w") as f:
+        f.write(result)
+    print(f"Output written to bencher.dev.{alloc}.json")
 
-print(json.dumps(output, indent=2))
