@@ -42,4 +42,4 @@ WORKDIR /mimalloc-bench/out/bench
 RUN ../../bench.sh --external=/allocs.txt $benchs -r=$repeats
 
 WORKDIR /
-RUN python3 /mimalloc-bench/script/bencher.dev.py /mimalloc-bench/out/bench/benchres.csv
+RUN python3 /mimalloc-bench/scripts/bencher.dev.py /mimalloc-bench/out/bench/benchres.csv
