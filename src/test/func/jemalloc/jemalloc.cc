@@ -1,65 +1,71 @@
-#include <functional>
-#include <limits.h>
-#include <stdio.h>
-#include <test/helpers.h>
-#include <test/setup.h>
+#if defined(SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION)
+int main()
+{
+  return 0;
+}
+#else
+#  include <functional>
+#  include <limits.h>
+#  include <stdio.h>
+#  include <test/helpers.h>
+#  include <test/setup.h>
 
-#define SNMALLOC_NAME_MANGLE(a) our_##a
-#undef SNMALLOC_NO_REALLOCARRAY
-#undef SNMALLOC_NO_REALLOCARR
-#define SNMALLOC_BOOTSTRAP_ALLOCATOR
-#define SNMALLOC_JEMALLOC3_EXPERIMENTAL
-#define SNMALLOC_JEMALLOC_NONSTANDARD
-#include <snmalloc/override/jemalloc_compat.cc>
-#include <snmalloc/override/malloc.cc>
+#  define SNMALLOC_NAME_MANGLE(a) our_##a
+#  undef SNMALLOC_NO_REALLOCARRAY
+#  undef SNMALLOC_NO_REALLOCARR
+#  define SNMALLOC_BOOTSTRAP_ALLOCATOR
+#  define SNMALLOC_JEMALLOC3_EXPERIMENTAL
+#  define SNMALLOC_JEMALLOC_NONSTANDARD
+#  include <snmalloc/override/jemalloc_compat.cc>
+#  include <snmalloc/override/malloc.cc>
 
-#if __has_include(<malloc_np.h>)
-#  include <malloc_np.h>
-#endif
+#  if __has_include(<malloc_np.h>)
+#    include <malloc_np.h>
+#  endif
 
-#ifdef __FreeBSD__
+#  ifdef __FreeBSD__
 /**
  * Enable testing against the versions that we get from libc or elsewhere.
  * Enabled by default on FreeBSD where all of the jemalloc functions are
  * exported from libc.
  */
-#  define TEST_JEMALLOC_MALLOCX
-#endif
+#    define TEST_JEMALLOC_MALLOCX
+#  endif
 
-#define OUR_MALLOCX_LG_ALIGN(la) (static_cast<int>(la))
-#define OUR_MALLOCX_ZERO (one_at_bit<int>(6))
+#  define OUR_MALLOCX_LG_ALIGN(la) (static_cast<int>(la))
+#  define OUR_MALLOCX_ZERO (one_at_bit<int>(6))
 
-#define OUR_ALLOCM_NO_MOVE (one_at_bit<int>(7))
+#  define OUR_ALLOCM_NO_MOVE (one_at_bit<int>(7))
 
-#define OUR_ALLOCM_SUCCESS 0
-#define OUR_ALLOCM_ERR_OOM 1
-#define OUR_ALLOCM_ERR_NOT_MOVED 2
+#  define OUR_ALLOCM_SUCCESS 0
+#  define OUR_ALLOCM_ERR_OOM 1
+#  define OUR_ALLOCM_ERR_NOT_MOVED 2
 
-#ifndef MALLOCX_LG_ALIGN
-#  define MALLOCX_LG_ALIGN(la) OUR_MALLOCX_LG_ALIGN(la)
-#endif
-#ifndef MALLOCX_ZERO
-#  define MALLOCX_ZERO OUR_MALLOCX_ZERO
-#endif
+#  ifndef MALLOCX_LG_ALIGN
+#    define MALLOCX_LG_ALIGN(la) OUR_MALLOCX_LG_ALIGN(la)
+#  endif
+#  ifndef MALLOCX_ZERO
+#    define MALLOCX_ZERO OUR_MALLOCX_ZERO
+#  endif
 
-#ifndef ALLOCM_LG_ALIGN
-#  define ALLOCM_LG_ALIGN(la) OUR_MALLOCX_LG_ALIGN(la)
-#endif
-#ifndef ALLOCM_ZERO
-#  define ALLOCM_ZERO OUR_MALLOCX_ZERO
-#endif
-#ifndef ALLOCM_NO_MOVE
-#  define ALLOCM_NO_MOVE OUR_ALLOCM_NO_MOVE
-#endif
-#ifndef ALLOCM_SUCCESS
-#  define ALLOCM_SUCCESS OUR_ALLOCM_SUCCESS
-#endif
-#ifndef ALLOCM_ERR_OOM
-#  define ALLOCM_ERR_OOM OUR_ALLOCM_ERR_OOM
-#endif
-#ifndef ALLOCM_ERR_NOT_MOVED
-#  define ALLOCM_ERR_NOT_MOVED OUR_ALLOCM_ERR_NOT_MOVED
-#endif
+#  ifndef ALLOCM_LG_ALIGN
+#    define ALLOCM_LG_ALIGN(la) OUR_MALLOCX_LG_ALIGN(la)
+#  endif
+#  ifndef ALLOCM_ZERO
+#    define ALLOCM_ZERO OUR_MALLOCX_ZERO
+#  endif
+#  ifndef ALLOCM_NO_MOVE
+#    define ALLOCM_NO_MOVE OUR_ALLOCM_NO_MOVE
+#  endif
+#  ifndef ALLOCM_SUCCESS
+#    define ALLOCM_SUCCESS OUR_ALLOCM_SUCCESS
+#  endif
+#  ifndef ALLOCM_ERR_OOM
+#    define ALLOCM_ERR_OOM OUR_ALLOCM_ERR_OOM
+#  endif
+#  ifndef ALLOCM_ERR_NOT_MOVED
+#    define ALLOCM_ERR_NOT_MOVED OUR_ALLOCM_ERR_NOT_MOVED
+#  endif
 
 using namespace snmalloc;
 using namespace snmalloc::bits;
@@ -335,21 +341,22 @@ int main()
     our_dallocm,
     our_nallocm>();
 
-#ifndef __PIC__
+#  ifndef __PIC__
   void* bootstrap = __je_bootstrap_malloc(42);
   if (bootstrap == nullptr)
   {
     printf("Failed to allocate from bootstrap malloc\n");
   }
   __je_bootstrap_free(bootstrap);
-#endif
+#  endif
 
   // These tests are for jemalloc compatibility and so should work with
   // jemalloc's implementation of these functions.  If TEST_JEMALLOC is
   // defined then we try
-#ifdef TEST_JEMALLOC_MALLOCX
+#  ifdef TEST_JEMALLOC_MALLOCX
   test_size<mallocx, dallocx, sallocx, nallocx>();
   test_zeroing<mallocx, dallocx, rallocx>();
   test_xallocx<mallocx, dallocx, xallocx>();
-#endif
+#  endif
 }
+#endif // SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION

@@ -1,0 +1,72 @@
+name: snmalloc Benchmarking CI
+
+# The following should ensure that the workflow only runs a single set of actions
+# for each PR. But it will not apply this to pushes to the main branch.
+concurrency:
+  group: benchmarking${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# Controls when the workflow will run
+on:
+  schedule:
+    - cron: "0 0 * * 1"  # Runs every Monday at midnight UTC
+  # Triggers the workflow on push or pull request events but only for the master branch
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: [self-hosted, 1ES.Pool=snmalloc-perf]
+
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # Setup docker buildx
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and run benchmarks in Docker
+        id: docker_build
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: benchmark/Dockerfile
+          push: false
+          load: true
+          tags: snmalloc-bench
+          build-args: |
+            benchs=allt
+            repeats=5
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Extracts the benchmark results from the Docker container
+      - name: Extract Benchmark Results
+        run: |
+          docker cp `docker run -d ${{ steps.docker_build.outputs.imageid }}`:/bencher.dev.sn.json .
+
+      # Uploads the benchmark results as an artifact
+      - name: Upload Benchmark Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: bencher.dev.sn.json
+
+      # Upload to graphing service
+      - uses: bencherdev/bencher@main
+      - name: Upload benchmark results to Bencher
+        run: |
+          bencher run \
+          --project snmalloc \
+          --token '${{ secrets.BENCHER_DEV_API_TOKEN }}' \
+          --branch main \
+          --adapter json \
+          --err \
+          --file bencher.dev.sn.json
