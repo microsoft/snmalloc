@@ -403,7 +403,7 @@ jobs:
         build-type: [ Release, Debug ]
         arch: [ Win32, x64 ]
         toolchain: [ "", "-T ClangCL" ]
-        extra-cmake-flags: [ "" ]
+        extra-cmake-flags: [ "", "-S src/windows" ]
         # Add an extra check for the Windows 8 compatible PAL
         include:
           - os: windows-2022
