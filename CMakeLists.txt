@@ -506,8 +506,10 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   endif()
 
 
-  function(compile name TYPE ${ARGN})
-    add_library(${name} ${TYPE} ${ARGN})
+  function(compile name TYPE EXPORT_CONFIG)
+    # Get remaining arguments as source files
+    set(source_files ${ARGN})
+    add_library(${name} ${TYPE} ${source_files})
     target_link_libraries(${name} PRIVATE snmalloc)
     target_compile_definitions(${name} PRIVATE "SNMALLOC_USE_${SNMALLOC_CLEANUP}")
 
@@ -557,7 +559,13 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     if (SNMALLOC_RUST_LIBC_API)
       target_compile_definitions(${name} PRIVATE SNMALLOC_RUST_LIBC_API)
     endif()
-    install(TARGETS ${name} EXPORT snmallocConfig)
+    
+    # Install the target with the specified export config
+    if(NOT "${EXPORT_CONFIG}" STREQUAL "")
+      install(TARGETS ${name} EXPORT ${EXPORT_CONFIG}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    endif()
   endfunction()
 
   # Various files for overriding libc/rust behaviours.
@@ -570,25 +578,25 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   set(ALL ${ALLOC} ${MEMCPY})
 
   if (SNMALLOC_STATIC_LIBRARY)
-    compile(snmallocshim-static STATIC ${ALLOC})
+    compile(snmallocshim-static STATIC snmallocStaticConfig ${ALLOC})
     target_compile_definitions(snmallocshim-static PRIVATE
             SNMALLOC_STATIC_LIBRARY_PREFIX=${SNMALLOC_STATIC_LIBRARY_PREFIX})
   endif ()
 
-  compile(snmalloc-new-override STATIC ${NEW})
+  compile(snmalloc-new-override STATIC snmallocStaticConfig ${NEW})
 
   if(NOT WIN32)
-    compile(snmallocshim SHARED ${ALLOC})
+    compile(snmallocshim SHARED snmallocSharedConfig ${ALLOC})
 
     if (SNMALLOC_MEMCPY_OVERRIDE)
-      compile(snmallocshim-checks-memcpy-only SHARED ${ALL})
-      compile(snmallocshim-checks SHARED ${ALL})
+      compile(snmallocshim-checks-memcpy-only SHARED snmallocSharedConfig ${ALL})
+      compile(snmallocshim-checks SHARED snmallocSharedConfig ${ALL})
     else()
-      compile(snmallocshim-checks SHARED ${ALLOC})
+      compile(snmallocshim-checks SHARED snmallocSharedConfig ${ALLOC})
     endif()
     target_compile_definitions(snmallocshim-checks PRIVATE SNMALLOC_CHECK_CLIENT)
   
-    compile(snmalloc-minimal SHARED ${MALLOC})
+    compile(snmalloc-minimal SHARED snmallocSharedConfig ${MALLOC})
     target_compile_options(snmalloc-minimal PRIVATE -fno-exceptions)
     if (SNMALLOC_LINKER_SUPPORT_NOSTDLIBXX AND NOT ${SNMALLOC_CLEANUP} STREQUAL CXX11_DESTRUCTORS)
       target_compile_options(snmalloc-minimal PRIVATE -fno-exceptions -nostdlib++)
@@ -596,8 +604,8 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   endif()
 
   if(SNMALLOC_RUST_SUPPORT)
-    compile(snmallocshim-rust STATIC ${RUST})
-    compile(snmallocshim-checks-rust STATIC ${RUST})
+    compile(snmallocshim-rust STATIC snmallocStaticConfig ${RUST})
+    compile(snmallocshim-checks-rust STATIC snmallocStaticConfig ${RUST})
     target_compile_definitions(snmallocshim-checks-rust PRIVATE SNMALLOC_CHECK_CLIENT)
   endif()
 
@@ -634,7 +642,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
     foreach (MITIGATION ${MITIGATIONS})
       set(DEFINES "SNMALLOC_CHECK_CLIENT_MITIGATIONS=${MITIGATION}")
-      compile(snmallocshim-${MITIGATION} SHARED ${ALLOC})
+      compile(snmallocshim-${MITIGATION} SHARED snmallocSharedConfig ${ALLOC})
       target_compile_definitions(snmallocshim-${MITIGATION} PRIVATE ${DEFINES})
       if (SNMALLOC_BUILD_TESTING)
         make_tests(${MITIGATION} ${DEFINES})
@@ -649,7 +657,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
       set(MITIGATIONSET "${MITIGATIONSET}+${MITIGATION}")
       message(STATUS "MITIGATIONSET: ${COUNT} -> ${MITIGATIONSET}")
       set(DEFINES "-DSNMALLOC_CHECK_CLIENT_MITIGATIONS=${MITIGATIONSET}")
-      compile(snmallocshim-${MITIGATIONNAME} SHARED ${ALLOC})
+      compile(snmallocshim-${MITIGATIONNAME} SHARED snmallocSharedConfig ${ALLOC})
       target_compile_definitions(snmallocshim-${MITIGATIONNAME} PRIVATE ${DEFINES})
       if (SNMALLOC_BUILD_TESTING)
         make_tests(${MITIGATIONNAME} ${DEFINES})
@@ -662,10 +670,8 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   endif ()
 endif()
 
+# Install the main interface library with headers
 install(TARGETS snmalloc EXPORT snmallocConfig)
-
-install(TARGETS EXPORT snmallocConfig DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/snmalloc)
 
 install(DIRECTORY src/snmalloc/aal DESTINATION include/snmalloc)
 install(DIRECTORY src/snmalloc/backend DESTINATION include/snmalloc)
@@ -688,11 +694,28 @@ install(FILES
 )
 install(FILES src/snmalloc/snmalloc.h;src/snmalloc/snmalloc_core.h;src/snmalloc/snmalloc_front.h DESTINATION include/snmalloc)
 
+# Install separate export configurations
 install(EXPORT snmallocConfig
   FILE snmalloc-config.cmake
   NAMESPACE snmalloc::
   DESTINATION "share/snmalloc"
 )
+
+if (NOT SNMALLOC_HEADER_ONLY_LIBRARY)
+  install(EXPORT snmallocStaticConfig
+    FILE snmalloc-static-config.cmake
+    NAMESPACE snmalloc::
+    DESTINATION "share/snmalloc"
+  )
+
+  if(NOT WIN32)
+    install(EXPORT snmallocSharedConfig
+      FILE snmalloc-shared-config.cmake
+      NAMESPACE snmalloc::
+      DESTINATION "share/snmalloc"
+    )
+  endif()
+endif()
 
 if (SNMALLOC_ENABLE_FUZZING)
   add_subdirectory(fuzzing)
