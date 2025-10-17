@@ -508,7 +508,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
   function(compile name TYPE ${ARGN})
     add_library(${name} ${TYPE} ${ARGN})
-    target_link_libraries(${name} snmalloc)
+    target_link_libraries(${name} PRIVATE snmalloc)
     target_compile_definitions(${name} PRIVATE "SNMALLOC_USE_${SNMALLOC_CLEANUP}")
 
     add_warning_flags(${name})
