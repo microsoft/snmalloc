@@ -10,11 +10,13 @@ concurrency:
 on:
   schedule:
     - cron: "0 0 * * 1"  # Runs every Monday at midnight UTC
-  # Triggers the workflow on push or pull request events but only for the master branch
+  # Triggers the workflow on push to main or any branch starting bench.
+  # The bench/** branches can be used for test before merge any PR that
+  # might regress performance.
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches:
+      - 'main'
+      - 'bench/**'
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
