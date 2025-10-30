@@ -9,7 +9,7 @@ cc_test(
     copts = [
         "-fsanitize=address",
     ] + select({
-        "@bazel_tools//tools/cpp:clang-cl": ["-fexperimental-library"],  # needed for std::execution::unseq,
+        "@bazel_tools//src/conditions:darwin": ["-fexperimental-library"],
         "//conditions:default": ["-mcx16"],
     }),
     defines = [

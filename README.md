@@ -3,7 +3,7 @@
 snmalloc is a high-performance allocator. 
 snmalloc can be used directly in a project as a header-only C++ library, 
 it can be `LD_PRELOAD`ed on Elf platforms (e.g. Linux, BSD),
-and there is a [crate](https://crates.io/crates/snmalloc-rs) to use it from Rust.
+and there is a [crate](https://crates.io/crates/snmalloc_rs) to use it from Rust.
 
 Its key design features are:
 
