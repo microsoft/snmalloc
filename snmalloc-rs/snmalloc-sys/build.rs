@@ -210,6 +210,7 @@ trait BuilderDefine {
     fn build_lib(&mut self, target_lib: &str) -> std::path::PathBuf;
     fn configure_output_dir(&mut self, out_dir: &str) -> &mut Self;
     fn configure_cpp(&mut self, debug: bool) -> &mut Self;
+    fn compiler_define(&mut self, key: &str, value: &str) -> &mut Self;
 }
 
 #[cfg(feature = "build_cc")]
@@ -238,6 +239,10 @@ impl BuilderDefine for cc::Build {
             .debug(debug)
             .static_crt(true)
     }
+
+    fn compiler_define(&mut self, key: &str, value: &str) -> &mut Self {
+        self.define(key, Some(value))
+    }
 }
 
 #[cfg(not(feature = "build_cc"))]
@@ -265,6 +270,11 @@ impl BuilderDefine for cmake::Config {
             .define("CMAKE_SH", "CMAKE_SH-NOTFOUND")
             .always_configure(true)
             .static_crt(true)
+    }
+
+    fn compiler_define(&mut self, key: &str, value: &str) -> &mut Self {
+        self.cxxflag(format!("-D{}={}", key, value))
+            .cflag(format!("-D{}={}", key, value))
     }
 }
 
@@ -330,13 +340,13 @@ fn configure_platform(config: &mut BuildConfig) {
             // Ensure consistent Windows version targeting
             if config.features.win8compat {
                 // Windows 8.1 (0x0603) for compatibility mode
-                config.builder.define("WINVER", "0x0603");
-                config.builder.define("_WIN32_WINNT", "0x0603");
+                config.builder.compiler_define("WINVER", "0x0603");
+                config.builder.compiler_define("_WIN32_WINNT", "0x0603");
             } else {
                 // Windows 10 (0x0A00) default to enable VirtualAlloc2 and WaitOnAddress
                 // snmalloc requires NTDDI_WIN10_RS5 logic for these features in pal_windows.h
-                config.builder.define("WINVER", "0x0A00");
-                config.builder.define("_WIN32_WINNT", "0x0A00");
+                config.builder.compiler_define("WINVER", "0x0A00");
+                config.builder.compiler_define("_WIN32_WINNT", "0x0A00");
             }
 
             if config.is_msvc() {
