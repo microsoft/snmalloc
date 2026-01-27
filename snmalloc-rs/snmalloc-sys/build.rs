@@ -61,6 +61,12 @@ struct BuildFeatures {
     android_lld: bool,
     local_dynamic_tls: bool,
     libc_api: bool,
+    tracing: bool,
+    fuzzing: bool,
+    vendored_stl: bool,
+    check_loads: bool,
+    pageid: bool,
+    gwp_asan: bool,
 }
 
 impl BuildConfig {
@@ -280,6 +286,12 @@ impl BuildFeatures {
             android_lld: cfg!(feature = "android-lld"),
             local_dynamic_tls: cfg!(feature = "local_dynamic_tls"),
             libc_api: cfg!(feature = "libc-api"),
+            tracing: cfg!(feature = "tracing"),
+            fuzzing: cfg!(feature = "fuzzing"),
+            vendored_stl: cfg!(feature = "vendored-stl"),
+            check_loads: cfg!(feature = "check-loads"),
+            pageid: cfg!(feature = "pageid"),
+            gwp_asan: cfg!(feature = "gwp-asan"),
         }
     }
 }
@@ -300,6 +312,12 @@ fn configure_platform(config: &mut BuildConfig) {
         config.builder.define("SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE", "ON");
         #[cfg(feature = "build_cc")]
         config.builder.flag_if_supported("-march=native");
+    }
+
+    // GCC LTO support - ensure fat LTO objects are created so they can be used by linkers that don't support LTO plugin
+    if config.features.lto && matches!(config.compiler, Compiler::Gcc) && !config.is_msvc() {
+        #[cfg(feature = "build_cc")]
+        config.builder.flag_if_supported("-ffat-lto-objects");
     }
 
     // Platform-specific configurations
@@ -379,9 +397,71 @@ fn configure_platform(config: &mut BuildConfig) {
     config.builder
         .define("SNMALLOC_QEMU_WORKAROUND", if config.features.qemu { "ON" } else { "OFF" })
         .define("SNMALLOC_ENABLE_DYNAMIC_LOADING", if config.features.notls { "ON" } else { "OFF" })
-        .define("SNMALLOC_USE_WAIT_ON_ADDRESS", if config.features.wait_on_address { "1" } else { "0" })
         .define("USE_SNMALLOC_STATS", if config.features.stats { "ON" } else { "OFF" })
-        .define("SNMALLOC_RUST_LIBC_API", if config.features.libc_api { "ON" } else { "OFF" });
+        .define("SNMALLOC_RUST_LIBC_API", if config.features.libc_api { "ON" } else { "OFF" })
+        .define("SNMALLOC_USE_CXX17", if cfg!(feature = "usecxx17") { "ON" } else { "OFF" });
+
+    if config.features.tracing {
+        config.builder.define("SNMALLOC_TRACING", "ON");
+    }
+    if config.features.fuzzing {
+        config.builder.define("SNMALLOC_ENABLE_FUZZING", "ON");
+    }
+    if config.features.vendored_stl {
+        #[cfg(feature = "build_cc")]
+        config.builder.define("SNMALLOC_USE_SELF_VENDORED_STL", "1");
+        #[cfg(not(feature = "build_cc"))]
+        config.builder.define("SNMALLOC_USE_SELF_VENDORED_STL", "ON");
+    }
+    
+    if config.features.check_loads {
+        #[cfg(feature = "build_cc")]
+        config.builder.define("SNMALLOC_CHECK_LOADS", "true");
+        #[cfg(not(feature = "build_cc"))]
+        config.builder.define("SNMALLOC_CHECK_LOADS", "ON");
+    } else {
+        #[cfg(feature = "build_cc")]
+        config.builder.define("SNMALLOC_CHECK_LOADS", "false");
+        #[cfg(not(feature = "build_cc"))]
+        config.builder.define("SNMALLOC_CHECK_LOADS", "OFF");
+    }
+
+    if config.features.pageid {
+        #[cfg(feature = "build_cc")]
+        config.builder.define("SNMALLOC_PAGEID", "true");
+        #[cfg(not(feature = "build_cc"))]
+        config.builder.define("SNMALLOC_PAGEID", "ON");
+    } else {
+        #[cfg(feature = "build_cc")]
+        config.builder.define("SNMALLOC_PAGEID", "false");
+        #[cfg(not(feature = "build_cc"))]
+        config.builder.define("SNMALLOC_PAGEID", "OFF");
+    }
+
+    if config.features.gwp_asan {
+        config.builder.define("SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION", "ON");
+        if let Ok(path) = env::var("SNMALLOC_GWP_ASAN_INCLUDE_PATH") {
+            config.builder.define("SNMALLOC_GWP_ASAN_INCLUDE_PATH", path.as_str());
+        }
+        if let Ok(path) = env::var("SNMALLOC_GWP_ASAN_LIBRARY_PATH") {
+            config.builder.define("SNMALLOC_GWP_ASAN_LIBRARY_PATH", path.as_str());
+        }
+    }
+
+    // Handle wait_on_address configuration for different build systems
+    if config.features.wait_on_address {
+        #[cfg(feature = "build_cc")]
+        config.builder.define("SNMALLOC_USE_WAIT_ON_ADDRESS", "1");
+        
+        #[cfg(not(feature = "build_cc"))]
+        config.builder.define("SNMALLOC_ENABLE_WAIT_ON_ADDRESS", "ON");
+    } else {
+        #[cfg(feature = "build_cc")]
+        config.builder.define("SNMALLOC_USE_WAIT_ON_ADDRESS", "0");
+        
+        #[cfg(not(feature = "build_cc"))]
+        config.builder.define("SNMALLOC_ENABLE_WAIT_ON_ADDRESS", "OFF");
+    }
 
     // Android configuration
     if config.target.contains("android") {
@@ -460,6 +540,9 @@ fn configure_linking(config: &BuildConfig) {
             println!("cargo:rustc-link-lib=dl");
             println!("cargo:rustc-link-lib=m");
             
+            // Force rust-lld
+            println!("cargo:rustc-link-arg=-fuse-ld=lld");
+
             if cfg!(feature = "usecxx17") && !config.is_clang_msys() {
                 println!("cargo:rustc-link-lib=gcc");
             }
@@ -503,6 +586,16 @@ fn main() {
     println!("cargo:rustc-link-search={}/build/Debug", config.out_dir);
     println!("cargo:rustc-link-search={}/build/Release", config.out_dir);
     let mut _dst = config.builder.build_lib(&config.target_lib);
-    println!("cargo:rustc-link-lib={}", config.target_lib);
+    
+    if config.is_linux() {
+        // Use whole-archive to ensure all symbols (including FFI exports) are included
+        // This is critical for LTO and ensuring sn_rust_* symbols are available
+        println!("cargo:rustc-link-arg=-Wl,--whole-archive");
+        println!("cargo:rustc-link-lib=static={}", config.target_lib);
+        println!("cargo:rustc-link-arg=-Wl,--no-whole-archive");
+    } else {
+        println!("cargo:rustc-link-lib={}", config.target_lib);
+    }
+
     configure_linking(&config);
 }
