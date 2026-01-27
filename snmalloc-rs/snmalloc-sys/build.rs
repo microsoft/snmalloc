@@ -70,7 +70,7 @@ impl BuildConfig {
         let builder = cc::Build::new();
         
         #[cfg(not(feature = "build_cc"))]
-        let builder = Config::new("snmalloc");
+        let builder = Config::new("../..");
 
         let mut config = Self {
             debug,
@@ -226,8 +226,8 @@ impl BuilderDefine for cc::Build {
     }
 
     fn configure_cpp(&mut self, debug: bool) -> &mut Self {
-        self.include("snmalloc/src")
-            .file("snmalloc/src/snmalloc/override/rust.cc")
+        self.include("../../src")
+            .file("../../src/snmalloc/override/rust.cc")
             .cpp(true)
             .debug(debug)
             .static_crt(true)

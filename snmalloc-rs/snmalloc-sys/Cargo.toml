@@ -8,7 +8,7 @@ description = "rust raw bindings of snmalloc."
 keywords = ["snmalloc", "allocator"]
 categories = ["memory-management", "api-bindings"]
 homepage = "https://github.com/microsoft/snmalloc"
-repository = "https://github.com/SchrodingerZhu/snmalloc-rs"
+repository = "https://github.com/microsoft/snmalloc"
 build = "build.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
