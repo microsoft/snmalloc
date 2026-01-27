@@ -327,6 +327,18 @@ fn configure_platform(config: &mut BuildConfig) {
             for flag in common_flags {
                 config.builder.flag_if_supported(flag);
             }
+            // Ensure consistent Windows version targeting
+            if config.features.win8compat {
+                // Windows 8.1 (0x0603) for compatibility mode
+                config.builder.define("WINVER", "0x0603");
+                config.builder.define("_WIN32_WINNT", "0x0603");
+            } else {
+                // Windows 10 (0x0A00) default to enable VirtualAlloc2 and WaitOnAddress
+                // snmalloc requires NTDDI_WIN10_RS5 logic for these features in pal_windows.h
+                config.builder.define("WINVER", "0x0A00");
+                config.builder.define("_WIN32_WINNT", "0x0A00");
+            }
+
             if config.is_msvc() {
                 let msvc_flags = vec![
                     "/nologo", "/W4", "/WX", "/wd4127", "/wd4324", "/wd4201",
