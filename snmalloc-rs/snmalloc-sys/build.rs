@@ -390,6 +390,12 @@ fn configure_platform(config: &mut BuildConfig) {
                 config.builder.flag_if_supported(flag);
             }
 
+            if config.target_os == "linux" || config.target_os == "android" {
+                config.builder.define("SNMALLOC_HAS_LINUX_FUTEX_H", None);
+                config.builder.define("SNMALLOC_HAS_LINUX_RANDOM_H", None);
+                config.builder.define("SNMALLOC_PLATFORM_HAS_GETENTROPY", None);
+            }
+
             if config.target_os != "haiku" {
                 let tls_model = if config.features.local_dynamic_tls { "-ftls-model=local-dynamic" } else { "-ftls-model=initial-exec" };
                 config.builder.flag_if_supported(tls_model);
