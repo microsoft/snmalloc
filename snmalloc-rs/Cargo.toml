@@ -13,7 +13,7 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-members = ["snmalloc-sys"]
+members = ["snmalloc-sys", "xtask"]
 
 [dependencies]
 snmalloc-sys = { version = "0.3.8", path = "snmalloc-sys", default-features = false }

@@ -1,0 +1,10 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+xshell = "0.2"
+clap = { version = "4.0", features = ["derive"] }
+regex = "1"
+anyhow = "1.0"
