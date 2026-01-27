@@ -302,6 +302,11 @@ fn configure_platform(config: &mut BuildConfig) {
         .flag_if_supported(&config.optim_level)
         .flag_if_supported("-fomit-frame-pointer");
 
+    // Define NDEBUG for release builds to disable assertions and expensive checks
+    if !cfg!(feature = "debug") {
+        config.builder.define("NDEBUG", None);
+    }
+
     // C++ standard flags
     for std in config.get_cpp_flags() {
         config.builder.flag_if_supported(std);
