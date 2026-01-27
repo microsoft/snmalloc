@@ -1,10 +1,18 @@
-name: Rust
+name: snmalloc-rs CI
+
+# The following should ensure that the workflow only runs a single set of actions
+# for each PR. But it will not apply this to pushes to the main branch.
+concurrency:
+  group: ${{ github.ref }}-rust
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
+
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,18 +21,44 @@ jobs:
   build:
 
     runs-on: ${{ matrix.os }}
+    name: "${{ matrix.os }}-${{ matrix.release.name }}-${{ matrix.rust }} (features: ${{ matrix.features.name }})"
+    defaults:
+      run:
+        shell: bash
+        working-directory:
+          ./snmalloc-rs
     strategy:
       matrix:
         os: [windows-latest, macos-14, macos-15, ubuntu-latest]
         rust: [stable, nightly]
+        release:
+          - name: release
+            flag: "--release"
+          - name: debug
+            flag: ""
+        features:
+          - name: default
+            args: ""
+          - name: debug
+            args: "--features debug"
+          - name: check
+            args: "--features check"
+          - name: build_cc
+            args: '--features "build_cc usecxx17"'
+          - name: native-cpu
+            args: "--features native-cpu"
+          - name: local_dynamic_tls
+            args: "--features local_dynamic_tls"
+          - name: lto
+            args: "--features lto"
+      # Don't abort runners if a single one fails
+      fail-fast: false
     steps:
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: ${{ matrix.rust }}
     - name: Checkout
-      uses: actions/checkout@v2
-      with:
-        submodules: recursive
+      uses: actions/checkout@v4
     - name: update dependency
       run: |
         if bash -c 'uname -s | grep 'Linux' >/dev/null'; then
@@ -32,18 +66,6 @@ jobs:
         fi
       shell: bash
     - name: Build
-      run: cargo build --verbose
+      run: cargo build ${{ matrix.release.flag }} --verbose ${{ matrix.features.args }}
     - name: Run tests
-      run: cargo test --all
-    - name: Run tests debug
-      run: cargo test --all --features debug
-    - name: Run tests check
-      run: cargo test --all --features check
-    - name: Run tests build_cc
-      run: cargo test --all --features "build_cc usecxx17"
-    - name: Run tests native-cpu
-      run: cargo test --all --features native-cpu
-    - name: Run tests local_dynamic_tls
-      run: cargo test --all --features local_dynamic_tls
-    - name: Run tests lto
-      run: cargo test --all --features lto
+      run: cargo test ${{ matrix.release.flag }} --all ${{ matrix.features.args }}
