@@ -112,7 +112,7 @@ jobs:
     strategy:
       matrix:
         # Build each combination of OS and release/debug variants
-        os: [ "ubuntu-24.04", "ubuntu-22.04", "macos-13", "macos-14", "macos-15"  ]
+        os: [ "ubuntu-24.04", "ubuntu-22.04", "macos-14", "macos-15"  ]
         build-type: [ "Release", "Debug" ]
       # Don't abort runners if a single one fails
       fail-fast: false
@@ -129,13 +129,13 @@ jobs:
     - run: bazel build -c opt //:snmalloc
     - run: bazel build -c opt //:snmalloc-rs
     - run: bazel test -c opt --config=asan //fuzzing:snmalloc_fuzzer
-      if: ${{ matrix.os != 'macos-13' && matrix.os != 'macos-14' && matrix.os != 'macos-15' }}
+      if: ${{ matrix.os != 'macos-14' && matrix.os != 'macos-15' }}
 
   # If this looks remarkably familiar, that's because it is.  Sigh.
   macos:
     strategy:
       matrix:
-        os: [ "macos-13", "macos-14", "macos-15" ]
+        os: [ "macos-14", "macos-15" ]
         build-type: [ "Release", "Debug" ]
         extra-cmake-flags: [ "", "-DSNMALLOC_USE_CXX17=ON" ]
       fail-fast: false
