@@ -252,7 +252,8 @@ impl BuilderDefine for cmake::Config {
         self.out_dir(out_dir)
     }
 
-    fn configure_cpp(&mut self, _debug: bool) -> &mut Self {
+    fn configure_cpp(&mut self, debug: bool) -> &mut Self {
+        self.profile(if debug { "Debug" } else { "Release" });
         self.define("SNMALLOC_RUST_SUPPORT", "ON")
             .very_verbose(true)
             .define("CMAKE_SH", "CMAKE_SH-NOTFOUND")
@@ -308,8 +309,29 @@ fn configure_platform(config: &mut BuildConfig) {
             for flag in common_flags {
                 config.builder.flag_if_supported(flag);
             }
-
-            if let Some(msystem) = &config.msystem {
+            if config.is_msvc() {
+                let msvc_flags = vec![
+                    "/nologo", "/W4", "/WX", "/wd4127", "/wd4324", "/wd4201",
+                    "/Ob2", "/DNDEBUG", "/EHsc", "/Gd", "/TP", "/Gm-", "/GS",
+                    "/fp:precise", "/Zc:wchar_t", "/Zc:forScope", "/Zc:inline"
+                ];
+                for flag in msvc_flags {
+                    config.builder.flag_if_supported(flag);
+                }
+                
+                if config.features.lto {
+                    config.builder
+                        .flag_if_supported("/GL")
+                        .define("CMAKE_INTERPROCEDURAL_OPTIMIZATION", "TRUE")
+                        .define("SNMALLOC_IPO", "ON");
+                    println!("cargo:rustc-link-arg=/LTCG");
+                }
+                
+                config.builder
+                    .define("CMAKE_CXX_FLAGS_RELEASE", "/O2 /Ob2 /DNDEBUG /EHsc")
+                    .define("CMAKE_C_FLAGS_RELEASE", "/O2 /Ob2 /DNDEBUG /EHsc");
+            }
+            else if let Some(msystem) = &config.msystem {
                 match msystem.as_str() {
                     "CLANG64" | "CLANGARM64" => {
                         let defines = vec![
@@ -338,28 +360,6 @@ fn configure_platform(config: &mut BuildConfig) {
                     _ => {}
                 }
             }
-        }
-        _ if config.is_msvc() => {
-            let msvc_flags = vec![
-                "/nologo", "/W4", "/WX", "/wd4127", "/wd4324", "/wd4201",
-                "/Ob2", "/DNDEBUG", "/EHsc", "/Gd", "/TP", "/Gm-", "/GS",
-                "/fp:precise", "/Zc:wchar_t", "/Zc:forScope", "/Zc:inline"
-            ];
-            for flag in msvc_flags {
-                config.builder.flag_if_supported(flag);
-            }
-            
-            if config.features.lto {
-                config.builder
-                    .flag_if_supported("/GL")
-                    .define("CMAKE_INTERPROCEDURAL_OPTIMIZATION", "TRUE")
-                    .define("SNMALLOC_IPO", "ON");
-                println!("cargo:rustc-link-arg=/LTCG");
-            }
-            
-            config.builder
-                .define("CMAKE_CXX_FLAGS_RELEASE", "/O2 /Ob2 /DNDEBUG /EHsc")
-                .define("CMAKE_C_FLAGS_RELEASE", "/O2 /Ob2 /DNDEBUG /EHsc");
         }
         _ if config.is_unix() => {
             let unix_flags = vec!["-fPIC", "-pthread", "-fno-exceptions", "-fno-rtti", "-mcx16", "-Wno-unused-parameter"];
@@ -426,7 +426,11 @@ fn configure_linking(config: &BuildConfig) {
             println!("cargo:rustc-link-lib=ws2_32");
             println!("cargo:rustc-link-lib=userenv");
             println!("cargo:rustc-link-lib=bcrypt");
-            println!("cargo:rustc-link-lib=msvcrt");
+            if config.debug {
+                println!("cargo:rustc-link-lib=msvcrtd");
+            } else {
+                println!("cargo:rustc-link-lib=msvcrt");
+            }
         }
         _ if config.is_windows() && config.is_gnu() => {
             println!("cargo:rustc-link-lib=kernel32");
