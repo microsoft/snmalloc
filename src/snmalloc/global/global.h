@@ -1,3 +1,5 @@
+#pragma once
+
 #include "bounds_checks.h"
 #include "globalalloc.h"
 #include "libc.h"

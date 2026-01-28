@@ -9,20 +9,9 @@
 #include "../ds_core/ds_core.h"
 #include "aal_concept.h"
 #include "aal_consts.h"
-
-#if __has_include(<time.h>)
-#  include <time.h>
-#  ifdef CLOCK_MONOTONIC
-#    define SNMALLOC_TICK_USE_CLOCK_GETTIME
-#  endif
-#endif
 #include "snmalloc/stl/utility.h"
 
 #include <stdint.h>
-
-#ifndef SNMALLOC_TICK_USE_CLOCK_GETTIME
-#  include <chrono>
-#endif
 
 #if ( \
   defined(__i386__) || defined(_M_IX86) || defined(_X86_) || \
@@ -169,37 +158,17 @@ namespace snmalloc
     /**
      * Return an architecture-specific cycle counter.
      *
-     * If the compiler provides a portable prefetch builtin, use it directly,
-     * otherwise delegate to the architecture-specific layer.  This allows new
-     * architectures to avoid needing to implement a custom `tick` method
-     * if they are used only with a compiler that provides the builtin.
+     * If the architecture reports that CPU cycle counters are unavailable,
+     * use any architecture-specific implementation that exists, otherwise
+     * fall back to zero. When counters are available, prefer a compiler
+     * builtin and then the architecture-specific implementation.
      */
     static inline uint64_t tick() noexcept
     {
       if constexpr (
         (Arch::aal_features & NoCpuCycleCounters) == NoCpuCycleCounters)
       {
-#ifdef SNMALLOC_TICK_USE_CLOCK_GETTIME
-        // the buf is populated by clock_gettime
-        SNMALLOC_UNINITIALISED timespec buf;
-        // we can skip the error checking here:
-        // * EFAULT: for out-of-bound pointers (buf is always valid stack
-        // memory)
-        // * EINVAL: for invalid clock_id (we only use CLOCK_MONOTONIC enforced
-        // by POSIX.1)
-        // Notice that clock_gettime is a usually a vDSO call, so the overhead
-        // is minimal.
-        ::clock_gettime(CLOCK_MONOTONIC, &buf);
-        return static_cast<uint64_t>(buf.tv_sec) * 1000'000'000 +
-          static_cast<uint64_t>(buf.tv_nsec);
-#  undef SNMALLOC_TICK_USE_CLOCK_GETTIME
-#else
-        auto tick = std::chrono::high_resolution_clock::now();
-        return static_cast<uint64_t>(
-          std::chrono::duration_cast<std::chrono::nanoseconds>(
-            tick.time_since_epoch())
-            .count());
-#endif
+        return 0;
       }
       else
       {
