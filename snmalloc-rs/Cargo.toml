@@ -1,0 +1,36 @@
+[package]
+name = "snmalloc-rs"
+version = "0.3.8"
+authors = ["schrodingerzhu <i@zhuyi.fan>"]
+edition = "2021"
+license = "MIT"
+description = "rust bindings of snmalloc."
+keywords = ["snmalloc", "allocator"]
+categories = ["memory-management", "api-bindings"]
+homepage = "https://github.com/microsoft/snmalloc"
+repository = "https://github.com/microsoft/snmalloc"
+readme = "README.md"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[workspace]
+members = ["snmalloc-sys"]
+
+[dependencies]
+snmalloc-sys = { version = "0.3.8", path = "snmalloc-sys", default-features = false }
+
+[features]
+default = ["snmalloc-sys/build_cmake", "snmalloc-sys/usewait-on-address"]
+build_cc = ["snmalloc-sys/build_cc"]
+qemu = ["snmalloc-sys/qemu"]
+debug = ["snmalloc-sys/debug"]
+android-lld = ["snmalloc-sys/android-lld"]
+native-cpu = ["snmalloc-sys/native-cpu"]
+local_dynamic_tls = ["snmalloc-sys/local_dynamic_tls"]
+win8compat = ["snmalloc-sys/win8compat"]
+usecxx17 = ["snmalloc-sys/usecxx17"]
+check = ["snmalloc-sys/check"]
+lto = ["snmalloc-sys/lto"]
+notls = ["snmalloc-sys/notls"]
+stats = ["snmalloc-sys/stats"]
+usewait-on-address = ["snmalloc-sys/usewait-on-address"]
+libc-api = ["snmalloc-sys/libc-api"]
