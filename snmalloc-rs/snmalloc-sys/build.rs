@@ -331,8 +331,45 @@ fn configure_platform(config: &mut BuildConfig) {
     }
 
     // Platform-specific configurations
-    match () {
-        _ if config.is_windows() => {
+    if config.is_windows() {
+        if config.features.win8compat {
+            // Windows 8.1 (0x0603) for compatibility mode
+            config.builder.compiler_define("WINVER", "0x0603");
+            config.builder.compiler_define("_WIN32_WINNT", "0x0603");
+        } else {
+            // Windows 10 (0x0A00) default to enable VirtualAlloc2 and WaitOnAddress
+            // snmalloc requires NTDDI_WIN10_RS5 logic for these features in pal_windows.h
+            config.builder.compiler_define("WINVER", "0x0A00");
+            config.builder.compiler_define("_WIN32_WINNT", "0x0A00");
+        }
+
+        if config.is_msvc() {
+            let msvc_flags = vec![
+                "/nologo", "/W4", "/WX", "/wd4127", "/wd4324", "/wd4201",
+                "/Ob2", "/EHsc", "/Gd", "/TP", "/Gm-", "/GS",
+                "/fp:precise", "/Zc:wchar_t", "/Zc:forScope", "/Zc:inline"
+            ];
+            for flag in msvc_flags {
+                config.builder.flag_if_supported(flag);
+            }
+            
+            if !config.debug {
+                #[cfg(feature = "build_cc")]
+                config.builder.define("NDEBUG", None);
+            }
+            
+            if config.features.lto {
+                config.builder
+                    .flag_if_supported("/GL")
+                    .define("CMAKE_INTERPROCEDURAL_OPTIMIZATION", "TRUE")
+                    .define("SNMALLOC_IPO", "ON");
+                println!("cargo:rustc-link-arg=/LTCG");
+            }
+            
+            config.builder
+                .define("CMAKE_CXX_FLAGS_RELEASE", "/O2 /Ob2 /DNDEBUG /EHsc")
+                .define("CMAKE_C_FLAGS_RELEASE", "/O2 /Ob2 /DNDEBUG /EHsc");
+        } else {
             let common_flags = vec!["-mcx16", "-fno-exceptions", "-fno-rtti", "-pthread"];
             for flag in common_flags {
                 config.builder.flag_if_supported(flag);
@@ -349,29 +386,7 @@ fn configure_platform(config: &mut BuildConfig) {
                 config.builder.compiler_define("_WIN32_WINNT", "0x0A00");
             }
 
-            if config.is_msvc() {
-                let msvc_flags = vec![
-                    "/nologo", "/W4", "/WX", "/wd4127", "/wd4324", "/wd4201",
-                    "/Ob2", "/DNDEBUG", "/EHsc", "/Gd", "/TP", "/Gm-", "/GS",
-                    "/fp:precise", "/Zc:wchar_t", "/Zc:forScope", "/Zc:inline"
-                ];
-                for flag in msvc_flags {
-                    config.builder.flag_if_supported(flag);
-                }
-                
-                if config.features.lto {
-                    config.builder
-                        .flag_if_supported("/GL")
-                        .define("CMAKE_INTERPROCEDURAL_OPTIMIZATION", "TRUE")
-                        .define("SNMALLOC_IPO", "ON");
-                    println!("cargo:rustc-link-arg=/LTCG");
-                }
-                
-                config.builder
-                    .define("CMAKE_CXX_FLAGS_RELEASE", "/O2 /Ob2 /DNDEBUG /EHsc")
-                    .define("CMAKE_C_FLAGS_RELEASE", "/O2 /Ob2 /DNDEBUG /EHsc");
-            }
-            else if let Some(msystem) = &config.msystem {
+            if let Some(msystem) = &config.msystem {
                 match msystem.as_str() {
                     "CLANG64" | "CLANGARM64" => {
                         let defines = vec![
@@ -401,25 +416,27 @@ fn configure_platform(config: &mut BuildConfig) {
                 }
             }
         }
-        _ if config.is_unix() => {
-            let unix_flags = vec!["-fPIC", "-pthread", "-fno-exceptions", "-fno-rtti", "-mcx16", "-Wno-unused-parameter"];
-            for flag in unix_flags {
-                config.builder.flag_if_supported(flag);
-            }
-
-            if config.target_os != "haiku" {
-                let tls_model = if config.features.local_dynamic_tls { "-ftls-model=local-dynamic" } else { "-ftls-model=initial-exec" };
-                config.builder.flag_if_supported(tls_model);
-            }
-            
-            #[cfg(feature = "build_cc")]
-            if config.target_os == "linux" || config.target_os == "android" {
-                config.builder.define("SNMALLOC_HAS_LINUX_FUTEX_H", None);
-                config.builder.define("SNMALLOC_HAS_LINUX_RANDOM_H", None);
-                config.builder.define("SNMALLOC_PLATFORM_HAS_GETENTROPY", None);
-            }
+    } else if config.is_unix() {
+        let unix_flags = vec!["-fPIC", "-pthread", "-fno-exceptions", "-fno-rtti", "-mcx16", "-Wno-unused-parameter"];
+        for flag in unix_flags {
+            config.builder.flag_if_supported(flag);
         }
-        _ => {}
+
+        if config.target_os == "freebsd" {
+            config.builder.flag_if_supported("-w");
+        }
+
+        if config.target_os != "haiku" {
+            let tls_model = if config.features.local_dynamic_tls { "-ftls-model=local-dynamic" } else { "-ftls-model=initial-exec" };
+            config.builder.flag_if_supported(tls_model);
+        }
+        
+        #[cfg(feature = "build_cc")]
+        if config.target_os == "linux" || config.target_os == "android" {
+            config.builder.define("SNMALLOC_HAS_LINUX_FUTEX_H", None);
+            config.builder.define("SNMALLOC_HAS_LINUX_RANDOM_H", None);
+            config.builder.define("SNMALLOC_PLATFORM_HAS_GETENTROPY", None);
+        }
     }
 
     // Feature configurations

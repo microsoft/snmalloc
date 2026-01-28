@@ -33,7 +33,6 @@ notls = []
 stats = []
 usewait-on-address = []
 libc-api = []
-# New features synchronized with CMakeLists.txt
 tracing = []
 fuzzing = []
 vendored-stl = []
