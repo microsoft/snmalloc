@@ -1,3 +1,5 @@
+#pragma once
+
 #include "mitigations.h"
 
 namespace snmalloc

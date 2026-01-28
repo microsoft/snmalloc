@@ -7,8 +7,8 @@
 #ifdef _WIN32
 #  ifndef _MSC_VER
 #    include <errno.h>
-#    include <stdio.h>
 #  endif
+#  include <cstdio>
 #  ifndef WIN32_LEAN_AND_MEAN
 #    define WIN32_LEAN_AND_MEAN
 #  endif
@@ -309,12 +309,11 @@ namespace snmalloc
       return result;
     }
 
-    static uint64_t internal_time_in_ms()
+    static uint64_t performance_counter_frequency()
     {
-      // Performance counter is a high-precision monotonic clock.
       static stl::Atomic<uint64_t> freq_cache = 0;
-      constexpr uint64_t ms_per_second = 1000;
       SNMALLOC_UNINITIALISED LARGE_INTEGER buf;
+
       auto freq = freq_cache.load(stl::memory_order_relaxed);
       if (SNMALLOC_UNLIKELY(freq == 0))
       {
@@ -324,8 +323,34 @@ namespace snmalloc
         freq = static_cast<uint64_t>(buf.QuadPart);
         freq_cache.store(freq, stl::memory_order_relaxed);
       }
+
+      return freq;
+    }
+
+    static uint64_t internal_time_in_ms()
+    {
+      constexpr uint64_t ms_per_second = 1000;
+      SNMALLOC_UNINITIALISED LARGE_INTEGER buf;
+      auto freq = performance_counter_frequency();
       ::QueryPerformanceCounter(&buf);
       return (static_cast<uint64_t>(buf.QuadPart) * ms_per_second) / freq;
+    }
+
+    static uint64_t tick()
+    {
+      if constexpr (
+        (Aal::aal_features & NoCpuCycleCounters) != NoCpuCycleCounters)
+      {
+        return Aal::tick();
+      }
+      else
+      {
+        constexpr uint64_t ns_per_second = 1'000'000'000;
+        SNMALLOC_UNINITIALISED LARGE_INTEGER buf;
+        auto freq = performance_counter_frequency();
+        ::QueryPerformanceCounter(&buf);
+        return (static_cast<uint64_t>(buf.QuadPart) * ns_per_second) / freq;
+      }
     }
 
 #  ifdef PLATFORM_HAS_WAITONADDRESS

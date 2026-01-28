@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../mem/mem.h"
 #include "authmap.h"
 #include "buddy.h"

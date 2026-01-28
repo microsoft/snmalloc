@@ -1,3 +1,5 @@
+#pragma once
+
 #include "backend_concept.h"
 #include "backend_wrappers.h"
 #include "check_init.h"

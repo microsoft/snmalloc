@@ -17,6 +17,7 @@
 #include <strings.h>
 #include <sys/mman.h>
 #include <sys/uio.h>
+#include <time.h>
 #include <unistd.h>
 
 #if __has_include(<sys/random.h>)
@@ -402,6 +403,28 @@ namespace snmalloc
 
       return (static_cast<uint64_t>(ts.tv_sec) * 1000) +
         (static_cast<uint64_t>(ts.tv_nsec) / 1000000);
+    }
+
+    static uint64_t tick()
+    {
+      if constexpr (
+        (Aal::aal_features & NoCpuCycleCounters) != NoCpuCycleCounters)
+      {
+        return Aal::tick();
+      }
+      else
+      {
+        auto hold = KeepErrno();
+
+        struct timespec ts;
+        if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1)
+        {
+          error("Failed to get monotonic time");
+        }
+
+        return (static_cast<uint64_t>(ts.tv_sec) * 1'000'000'000) +
+          static_cast<uint64_t>(ts.tv_nsec);
+      }
     }
 
     static uint64_t dev_urandom()
