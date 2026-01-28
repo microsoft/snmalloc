@@ -1,0 +1,7 @@
+target
+Cargo.lock
+.idea
+
+# vscode dirs
+.vscode/
+.vs/
