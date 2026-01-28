@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <snmalloc/pal/pal.h>
 #include <snmalloc/snmalloc.h>
 #include <thread>
 #include <vector>
@@ -30,7 +31,7 @@ private:
     auto prev = ready.fetch_add(1);
     if (prev + 1 == cores)
     {
-      start = Aal::tick();
+      start = DefaultPal::tick();
       flag = true;
     }
     while (!flag)
@@ -41,7 +42,7 @@ private:
     prev = complete.fetch_add(1);
     if (prev + 1 == cores)
     {
-      end = Aal::tick();
+      end = DefaultPal::tick();
     }
   }
 
@@ -76,9 +77,9 @@ int main()
 
   ParallelTest test(
     [](size_t id) {
-      auto start = Aal::tick();
+      auto start = DefaultPal::tick();
       snmalloc::dealloc(snmalloc::alloc(1));
-      auto end = Aal::tick();
+      auto end = DefaultPal::tick();
       counters[id] = end - start;
     },
     nthreads);
