@@ -71,7 +71,10 @@ struct BuildFeatures {
 
 impl BuildConfig {
     fn new() -> Self {
-        let debug = cfg!(feature = "debug");
+        let feature_debug = cfg!(feature = "debug");
+        let cargo_debug = env::var("DEBUG").map(|v| v == "true").unwrap_or(false);
+        let debug = feature_debug || cargo_debug;
+
         #[cfg(feature = "build_cc")]
         let builder = cc::Build::new();
         
@@ -80,7 +83,9 @@ impl BuildConfig {
 
         let mut config = Self {
             debug,
-            optim_level: (if debug { "-O0" } else { "-O3" }).to_string(),
+            optim_level: env::var("OPT_LEVEL")
+                .map(|v| format!("-O{}", v))
+                .unwrap_or_else(|_| (if debug { "-O0" } else { "-O3" }).to_string()),
             target_os: env::var("CARGO_CFG_TARGET_OS").expect("target_os not defined!"),
             target_env: env::var("CARGO_CFG_TARGET_ENV").expect("target_env not defined!"),
             target_family: env::var("CARGO_CFG_TARGET_FAMILY").expect("target family not set"),
@@ -264,12 +269,12 @@ impl BuilderDefine for cmake::Config {
     }
 
     fn configure_cpp(&mut self, debug: bool) -> &mut Self {
-        self.profile(if debug { "Debug" } else { "Release" });
         self.define("SNMALLOC_RUST_SUPPORT", "ON")
             .very_verbose(true)
             .define("CMAKE_SH", "CMAKE_SH-NOTFOUND")
             .always_configure(true)
             .static_crt(true)
+            .profile(if debug { "Debug" } else { "Release" })
     }
 
     fn compiler_define(&mut self, key: &str, value: &str) -> &mut Self {
