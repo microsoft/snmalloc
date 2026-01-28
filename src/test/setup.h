@@ -1,3 +1,5 @@
+#pragma once
+
 #if defined(SNMALLOC_CI_BUILD)
 #  include <snmalloc/pal/pal.h>
 #  if defined(WIN32)
