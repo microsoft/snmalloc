@@ -1,7 +1,6 @@
 # snmalloc-rs
 
-CI: [![Actions Status](https://github.com/schrodingerzhu/snmalloc-rs/workflows/rust/badge.svg)](https://github.com/microsoft/snmalloc-rs/actions)
-
+[![snmalloc-rs CI](https://github.com/microsoft/snmalloc/actions/workflows/rust.yml/badge.svg)](https://github.com/microsoft/snmalloc/actions/workflows/rust.yml)
 
 `snmalloc-rs` provides a wrapper for [`microsoft/snmalloc`](https://github.com/microsoft/snmalloc) to make it usable as
 a global allocator for rust. snmalloc is a research allocator. Its key design features are:
