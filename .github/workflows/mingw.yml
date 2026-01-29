@@ -48,7 +48,7 @@ jobs:
           --parallel
       
       - name: Test
-        run: >
+        run: |
           cd ${{github.workspace}}/build
           ctest
         

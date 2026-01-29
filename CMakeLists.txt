@@ -381,9 +381,11 @@ function(add_warning_flags name)
     $<$<CXX_COMPILER_ID:MSVC>:/Zi /W4 /WX /wd4127 /wd4324 /wd4201>
     $<$<NOT:$<OR:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_CXX_SIMULATE_ID},MSVC>>>:-fno-rtti -Wall -Wextra -Werror -Wundef>
     $<$<CXX_COMPILER_ID:Clang>:-Wsign-conversion -Wconversion>)
-  target_link_options(${name} PRIVATE 
-    $<$<BOOL:${SNMALLOC_LINKER_SUPPORT_NO_ALLOW_SHLIB_UNDEF}>:-Wl,--no-undefined>
-    $<$<PLATFORM_ID:Windows>:$<${ci_or_debug}:/DEBUG>>)
+  if (NOT MINGW)
+    target_link_options(${name} PRIVATE 
+      $<$<BOOL:${SNMALLOC_LINKER_SUPPORT_NO_ALLOW_SHLIB_UNDEF}>:-Wl,--no-undefined>
+      $<$<PLATFORM_ID:Windows>:$<${ci_or_debug}:/DEBUG>>)
+  endif()
 endfunction()
 
 # To build with just the header library target define SNMALLOC_HEADER_ONLY_LIBRARY
