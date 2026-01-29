@@ -13,7 +13,7 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [workspace]
-members = ["snmalloc-sys"]
+members = ["snmalloc-sys", "xtask"]
 
 [dependencies]
 snmalloc-sys = { version = "0.3.8", path = "snmalloc-sys", default-features = false }
@@ -34,3 +34,9 @@ notls = ["snmalloc-sys/notls"]
 stats = ["snmalloc-sys/stats"]
 usewait-on-address = ["snmalloc-sys/usewait-on-address"]
 libc-api = ["snmalloc-sys/libc-api"]
+tracing = ["snmalloc-sys/tracing"]
+fuzzing = ["snmalloc-sys/fuzzing"]
+vendored-stl = ["snmalloc-sys/vendored-stl"]
+check-loads = ["snmalloc-sys/check-loads"]
+pageid = ["snmalloc-sys/pageid"]
+gwp-asan = ["snmalloc-sys/gwp-asan"]
