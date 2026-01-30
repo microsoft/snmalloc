@@ -1,11 +1,6 @@
 # snmalloc-rs
 
-**Notice: MinGW Build is broken and may not be fixed in a near future.
-See [this PR](https://github.com/microsoft/snmalloc/pull/217) in the upstream.**
-
-MSVC/MinGW/Linux/MacOS: [![Actions Status](https://github.com/schrodingerzhu/snmalloc-rs/workflows/Rust/badge.svg)](https://github.com/schrodingerzhu/snmalloc-rs/actions)
-
-FreeBSD: [![Build Status](https://api.cirrus-ci.com/github/SchrodingerZhu/snmalloc-rs.svg)](https://cirrus-ci.com/github/SchrodingerZhu/snmalloc-rs)
+[![snmalloc-rs CI](https://github.com/microsoft/snmalloc/actions/workflows/rust.yml/badge.svg)](https://github.com/microsoft/snmalloc/actions/workflows/rust.yml)
 
 `snmalloc-rs` provides a wrapper for [`microsoft/snmalloc`](https://github.com/microsoft/snmalloc) to make it usable as
 a global allocator for rust. snmalloc is a research allocator. Its key design features are:
@@ -16,9 +11,9 @@ a global allocator for rust. snmalloc is a research allocator. Its key design fe
 - The allocator uses large ranges of pages to reduce the amount of meta-data required.
 
 Some old benchmark results are available in
-the [`snmalloc` paper](https://github.com/microsoft/snmalloc/blob/master/snmalloc.pdf). Some recent benchmark results
-are listed at
-[bench_suite](https://github.com/SchrodingerZhu/bench_suite). There are following features defined in this crate:
+the [`snmalloc` paper](https://github.com/microsoft/snmalloc/blob/master/snmalloc.pdf). 
+
+There are the following features defined in this crate:
 
 - `debug`: Enable the `Debug` mode in `snmalloc`. This is also automatically enabled if Cargo's `DEBUG` environment variable is set to `true`.
 - `native-cpu`: Optimize `snmalloc` for the native CPU of the host machine. (this is not a default behavior
@@ -71,19 +66,6 @@ To set `SnMalloc` as the global allocator add this to your project:
 static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
 ```
 
-## For MinGW Users
-
-`mingw` version is only tested on nightly branch with MSYS environment. We are using dynamic linking method. Hence,
-please make sure the following libs are in your `PATH`:
-
-- `winpthread`
-- `atomic`
-- `stdc++`
-- `gcc_s`
-
-**Notice:** since version `0.2.12`, we no longer require you to provide additional environment variables for `mingw`
-target.
-
 ## For Android Cross-Compilation
 
 - `ANDROID_NDK` must be provided as an environment variable
@@ -94,6 +76,11 @@ target.
   default)~~ (`libstdc++` is no longer a dependency)
 
 ## Changelog
+
+### 0.7.4
+
+- Tracking upstream to match version 0.7.4.
+- SnMalloc has been moved to upstream repository. Future releases will track upstream release directly.
 
 ### 0.3.8
 
