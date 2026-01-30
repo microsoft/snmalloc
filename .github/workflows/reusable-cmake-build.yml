@@ -1,0 +1,138 @@
+name: Reusable CMake Build
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+        description: 'Runner OS (e.g., ubuntu-24.04, macos-14, windows-2022)'
+      build-type:
+        required: true
+        type: string
+        description: 'CMake build type (Release, Debug)'
+      cmake-config:
+        required: false
+        type: string
+        default: '-G Ninja'
+        description: 'CMake configuration options (-G, -A, -T, compiler flags)'
+      extra-cmake-flags:
+        required: false
+        type: string
+        default: ''
+        description: 'Additional CMake flags for the project'
+      dependencies:
+        required: false
+        type: string
+        default: ''
+        description: 'Command to install dependencies'
+      build-only:
+        required: false
+        type: boolean
+        default: false
+        description: 'Skip tests if true'
+      self-host:
+        required: false
+        type: boolean
+        default: false
+        description: 'Run self-hosting test'
+      check-binary-size:
+        required: false
+        type: boolean
+        default: true
+        description: 'Check binary size is reasonable'
+      test-exclude-pattern:
+        required: false
+        type: string
+        default: ''
+        description: 'Regex pattern for tests to exclude'
+      test-extra-args:
+        required: false
+        type: string
+        default: ''
+        description: 'Extra arguments for ctest'
+      use-msbuild:
+        required: false
+        type: boolean
+        default: false
+        description: 'Use MSBuild instead of Ninja for building'
+      timeout-minutes:
+        required: false
+        type: number
+        default: 30
+        description: 'Job timeout in minutes'
+
+jobs:
+  build:
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      if: inputs.dependencies != ''
+      run: ${{ inputs.dependencies }}
+      shell: bash
+
+    - name: Pick the latest XCode (macOS)
+      if: startsWith(inputs.os, 'macos')
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+
+    - name: Configure CMake
+      run: >
+        cmake -DSNMALLOC_CI_BUILD=ON -B ${{ github.workspace }}/build
+        ${{ inputs.cmake-config }}
+        ${{ inputs.extra-cmake-flags }}
+        ${{ !inputs.use-msbuild && format('-DCMAKE_BUILD_TYPE={0}', inputs.build-type) || '' }}
+
+    - name: Build (MSBuild)
+      if: inputs.use-msbuild
+      working-directory: ${{ github.workspace }}/build
+      run: cmake --build . -- /m /p:Configuration=${{ inputs.build-type }}
+
+    - name: Build (Ninja/Make)
+      if: ${{ !inputs.use-msbuild }}
+      working-directory: ${{ github.workspace }}/build
+      run: cmake --build . --config ${{ inputs.build-type }}
+      env:
+        NINJA_STATUS: "%p [%f:%s/%t] %o/s, %es "
+
+    - name: Check binary size
+      if: inputs.check-binary-size && !startsWith(inputs.os, 'windows')
+      working-directory: ${{ github.workspace }}/build
+      run: |
+        ls -l libsnmallocshim.* || true
+        if ls libsnmallocshim.* 1>/dev/null 2>&1; then
+          [ $(ls -l libsnmallocshim.* | head -1 | awk '{ print $5}') -lt 10000000 ]
+        fi
+
+    - name: Test (Windows)
+      if: ${{ !inputs.build-only && startsWith(inputs.os, 'windows') }}
+      working-directory: ${{ github.workspace }}/build
+      run: >
+        ctest --output-on-failure -j 4 -C ${{ inputs.build-type }} --timeout 400
+        ${{ inputs.test-exclude-pattern && format('-E "{0}"', inputs.test-exclude-pattern) || '' }}
+        ${{ inputs.test-extra-args }}
+
+    - name: Test (Unix)
+      if: ${{ !inputs.build-only && !startsWith(inputs.os, 'windows') }}
+      working-directory: ${{ github.workspace }}/build
+      run: >
+        ctest --output-on-failure -j 4 -C ${{ inputs.build-type }} --timeout 400
+        ${{ inputs.test-exclude-pattern && format('-E "{0}"', inputs.test-exclude-pattern) || '' }}
+        ${{ inputs.test-extra-args }}
+
+    - name: Self-host test
+      if: inputs.self-host
+      working-directory: ${{ github.workspace }}/build
+      run: |
+        mkdir -p libs
+        cp libsnmallocshim*.so libs 2>/dev/null || cp libsnmallocshim*.dylib libs 2>/dev/null || true
+        for lib in $(ls libs 2>/dev/null); do
+          echo
+          echo "Testing $lib"
+          ninja clean
+          LD_PRELOAD=libs/$lib ninja libsnmallocshim.so || DYLD_INSERT_LIBRARIES=libs/$lib ninja libsnmallocshim.dylib
+        done
