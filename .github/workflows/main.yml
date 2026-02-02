@@ -252,10 +252,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install cross-compile toolchain and QEMU
-      run: |
-        sudo apt update
-        sudo apt install libstdc++-12-dev-${{ matrix.arch.name }}-cross qemu-user ninja-build binfmt-support
-        sudo apt install ${{matrix.arch.extra-packages}}
+      run: >
+        sudo apt update &&
+        sudo apt install
+        libstdc++-12-dev-${{ matrix.arch.name }}-cross
+        qemu-user ninja-build
+        binfmt-support
+        ${{matrix.arch.extra-packages}}
     - name: Configure
       env:
         SNMALLOC_CI_CLANG_VERSION: 16
