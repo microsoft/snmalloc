@@ -1,0 +1,94 @@
+name: Reusable VM Build
+
+on:
+  workflow_call:
+    inputs:
+      vm-type:
+        required: true
+        type: string
+        description: 'VM type (freebsd, netbsd, openbsd)'
+      vm-version:
+        required: true
+        type: string
+        description: 'VM version'
+      build-type:
+        required: true
+        type: string
+        description: 'CMake build type'
+      dependencies:
+        required: true
+        type: string
+        description: 'Commands to install dependencies'
+      cmake-flags:
+        required: false
+        type: string
+        default: ''
+        description: 'Additional CMake flags'
+      host-os:
+        required: false
+        type: string
+        default: 'ubuntu-22.04'
+        description: 'Host runner OS'
+      timeout-minutes:
+        required: false
+        type: number
+        default: 25
+        description: 'Job timeout in minutes'
+
+jobs:
+  build:
+    runs-on: ${{ inputs.host-os }}
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Build on FreeBSD
+      if: inputs.vm-type == 'freebsd'
+      uses: vmactions/freebsd-vm@v1
+      with:
+        release: ${{ inputs.vm-version }}
+        usesh: true
+        mem: 8192
+        copyback: false
+        prepare: |
+          ${{ inputs.dependencies }}
+        run: |
+          set -e
+          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }}
+          cd ${{ github.workspace }}/build
+          NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+          ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+
+    - name: Build on NetBSD
+      if: inputs.vm-type == 'netbsd'
+      uses: vmactions/netbsd-vm@v1
+      with:
+        release: ${{ inputs.vm-version }}
+        usesh: true
+        mem: 8192
+        copyback: false
+        prepare: |
+          ${{ inputs.dependencies }}
+        run: |
+          set -e
+          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }}
+          cd ${{ github.workspace }}/build
+          NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+          ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+
+    - name: Build on OpenBSD
+      if: inputs.vm-type == 'openbsd'
+      uses: vmactions/openbsd-vm@v0
+      with:
+        release: ${{ inputs.vm-version }}
+        usesh: true
+        mem: 8192
+        copyback: false
+        prepare: |
+          ${{ inputs.dependencies }}
+        run: |
+          set -e
+          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }}
+          cd ${{ github.workspace }}/build
+          NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+          ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
