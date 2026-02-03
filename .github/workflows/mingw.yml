@@ -34,6 +34,7 @@ jobs:
             mingw-w64-clang-x86_64-ninja
 
       - name: Configure
+        shell: msys2 {0}
         run: >
           cmake -GNinja
           -B${{github.workspace}}/build
@@ -42,12 +43,14 @@ jobs:
           -DCMAKE_C_COMPILER=clang
 
       - name: Build
+        shell: msys2 {0}
         run: >
           cmake 
           --build ${{github.workspace}}/build
           --parallel
       
       - name: Test
+        shell: msys2 {0}
         run: |
           cd ${{github.workspace}}/build
           ctest
