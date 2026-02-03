@@ -1,7 +1,7 @@
 #include <iostream>
 #include <snmalloc/snmalloc.h>
 
-#if defined(SNMALLOC_PTHREAD_ATFORK_WORKS) || defined(__MINGW32__)
+#if !defined(SNMALLOC_PTHREAD_ATFORK_WORKS) || defined(__MINGW32__)
 int main()
 {
   std::cout << "Test did not run" << std::endl;
