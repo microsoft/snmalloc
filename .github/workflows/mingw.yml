@@ -37,7 +37,7 @@ jobs:
         shell: msys2 {0}
         run: >
           cmake -GNinja
-          -B${{github.workspace}}/build
+          -B"$(cygpath -u "$GITHUB_WORKSPACE")/build"
           -DCMAKE_BUILD_TYPE=${{ matrix.profile }}
           -DCMAKE_CXX_COMPILER=clang++
           -DCMAKE_C_COMPILER=clang
@@ -46,13 +46,12 @@ jobs:
         shell: msys2 {0}
         run: >
           cmake 
-          --build ${{github.workspace}}/build
+          --build "$(cygpath -u "$GITHUB_WORKSPACE")/build"
           --parallel
       
       - name: Test
         shell: msys2 {0}
         run: |
-          ls $(cygpath -u "$GITHUB_WORKSPACE")
           cd "$(cygpath -u "$GITHUB_WORKSPACE")/build"
           ctest
         
