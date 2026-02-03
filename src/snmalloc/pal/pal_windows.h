@@ -41,8 +41,10 @@
  * be destroyed when the program exits or the DLL is
  * unloaded.
  */
-#  pragma warning(disable : 4075)
-#  pragma init_seg(".CRT$XCB")
+#  ifndef __MINGW32__
+#    pragma warning(disable : 4075)
+#    pragma init_seg(".CRT$XCB")
+#  endif
 
 namespace snmalloc
 {
