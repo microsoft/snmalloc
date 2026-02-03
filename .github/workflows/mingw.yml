@@ -1,0 +1,57 @@
+name: MinGW Clang64 Full Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [RelWithDebInfo, Debug]
+
+    name: MinGW Clang64 Build (${{ matrix.profile }})
+    runs-on: windows-2025
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+
+      - name: Setup MSYS2
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: clang64
+          update: true
+          install: >-
+            git
+            mingw-w64-clang-x86_64-toolchain
+            mingw-w64-clang-x86_64-cmake
+            mingw-w64-clang-x86_64-ninja
+
+      - name: Configure
+        shell: msys2 {0}
+        run: >
+          cmake -GNinja
+          -B"$(cygpath -u "$GITHUB_WORKSPACE")/build"
+          -DCMAKE_BUILD_TYPE=${{ matrix.profile }}
+          -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_C_COMPILER=clang
+
+      - name: Build
+        shell: msys2 {0}
+        run: >
+          cmake 
+          --build "$(cygpath -u "$GITHUB_WORKSPACE")/build"
+          --parallel
+      
+      - name: Test
+        shell: msys2 {0}
+        run: |
+          cd "$(cygpath -u "$GITHUB_WORKSPACE")/build"
+          ctest
+        
