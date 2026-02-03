@@ -52,6 +52,6 @@ jobs:
       - name: Test
         shell: msys2 {0}
         run: |
-          cd ${{github.workspace}}/build
+          cd build
           ctest
         
