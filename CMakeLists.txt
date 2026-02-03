@@ -280,6 +280,12 @@ if(MSVC)
   target_compile_options(snmalloc INTERFACE "/Zc:__cplusplus")
 endif()
 
+if(MINGW)
+  if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(snmalloc INTERFACE "-fms-extensions")
+  endif()
+endif()
+
 if (CMAKE_SYSTEM_NAME STREQUAL NetBSD)
 	target_include_directories(snmalloc INTERFACE /usr/pkg/include)
 	target_link_directories(snmalloc INTERFACE /usr/pkg/lib)
