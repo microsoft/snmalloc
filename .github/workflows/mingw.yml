@@ -52,6 +52,7 @@ jobs:
       - name: Test
         shell: msys2 {0}
         run: |
+          ls $(cygpath -u "$GITHUB_WORKSPACE")
           cd "$(cygpath -u "$GITHUB_WORKSPACE")/build"
           ctest
         
