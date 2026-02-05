@@ -1169,6 +1169,10 @@ namespace snmalloc
     template<bool check_slabs = false>
     SNMALLOC_SLOW_PATH void dealloc_local_slabs(smallsizeclass_t sizeclass)
     {
+      if constexpr (!check_slabs)
+        if (alloc_classes[sizeclass].unused == 0)
+          return;
+
       // Return unused slabs of sizeclass_t back to global allocator
       alloc_classes[sizeclass].available.iterate([this, sizeclass](auto* meta) {
         auto domesticate =
@@ -1420,18 +1424,20 @@ namespace snmalloc
       for (smallsizeclass_t sizeclass = 0; sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
       {
-        dealloc_local_slabs<true>(sizeclass);
+        dealloc_local_slabs<mitigations(freelist_teardown_validate)>(sizeclass);
       }
 
-      laden.iterate(
-        [domesticate](BackendSlabMetadata* meta) SNMALLOC_FAST_PATH_LAMBDA {
-          if (!meta->is_large())
-          {
-            meta->free_queue.validate(
-              freelist::Object::key_root, meta->as_key_tweak(), domesticate);
-          }
-        });
-
+      if constexpr (mitigations(freelist_teardown_validate))
+      {
+        laden.iterate(
+          [domesticate](BackendSlabMetadata* meta) SNMALLOC_FAST_PATH_LAMBDA {
+            if (!meta->is_large())
+            {
+              meta->free_queue.validate(
+                freelist::Object::key_root, meta->as_key_tweak(), domesticate);
+            }
+          });
+      }
       // Set the remote_dealloc_cache to immediately slow path.
       remote_dealloc_cache.capacity = 0;
 

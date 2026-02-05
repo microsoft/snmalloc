@@ -93,7 +93,7 @@ namespace snmalloc
     // we need to record if we are already in that state as we will not
     // receive another teardown call, so each operation needs to release
     // the underlying data structures after the call.
-    static inline thread_local bool teardown_called{false};
+    static inline thread_local size_t times_teardown_called{0};
 
   public:
     /**
@@ -114,8 +114,9 @@ namespace snmalloc
       if (alloc == &default_alloc)
         return;
 
-      teardown_called = true;
-      alloc->flush();
+      times_teardown_called++;
+      if (bits::is_pow2(times_teardown_called) || times_teardown_called < 128)
+        alloc->flush();
       AllocPool<Config>::release(alloc);
       alloc = const_cast<Alloc*>(&default_alloc);
     }
@@ -131,7 +132,7 @@ namespace snmalloc
       template<typename Restart, typename... Args>
       SNMALLOC_SLOW_PATH static auto check_init_slow(Restart r, Args... args)
       {
-        bool post_teardown = teardown_called;
+        bool post_teardown = times_teardown_called > 0;
 
         alloc = AllocPool<Config>::acquire();
 
