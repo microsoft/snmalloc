@@ -161,7 +161,7 @@ namespace snmalloc
     }
   };
 #else
-  // The fork protection can cost a lot and it generally not required.
+  // The fork protection can cost a lot and it is generally not required.
   // This is a dummy implementation of the PreventFork class that does nothing.
   class PreventFork
   {
