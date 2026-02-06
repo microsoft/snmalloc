@@ -10,6 +10,8 @@
 
 namespace snmalloc
 {
+
+#ifdef SNMALLOC_PTHREAD_FORK_PROTECTION
   // This is a simple implementation of a class that can be
   // used to prevent a process from forking. Holding a lock
   // in the allocator while forking can lead to deadlocks.
@@ -158,4 +160,15 @@ namespace snmalloc
       threads_preventing_fork--;
     }
   };
+#else
+  // The fork protection can cost a lot and it generally not required.
+  // This is a dummy implementation of the PreventFork class that does nothing.
+  class PreventFork
+  {
+  public:
+    PreventFork() {}
+
+    ~PreventFork() {}
+  };
+#endif
 } // namespace snmalloc
