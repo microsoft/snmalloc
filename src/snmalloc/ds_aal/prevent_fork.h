@@ -45,7 +45,7 @@ namespace snmalloc
     // calls would be ignored.
     static void ensure_init()
     {
-#ifdef SNMALLOC_PTHREAD_ATFORK_WORKS
+#  ifdef SNMALLOC_PTHREAD_ATFORK_WORKS
       static stl::Atomic<bool> initialised{false};
 
       if (initialised.load(stl::memory_order_acquire))
@@ -53,7 +53,7 @@ namespace snmalloc
 
       pthread_atfork(prefork, postfork_parent, postfork_child);
       initialised.store(true, stl::memory_order_release);
-#endif
+#  endif
     };
 
   public:
