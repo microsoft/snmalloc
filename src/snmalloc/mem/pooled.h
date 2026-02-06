@@ -51,13 +51,21 @@ namespace snmalloc
   public:
     void set_in_use()
     {
-      if (in_use.exchange(true))
+#ifndef NDEBUG
+      if (in_use.exchange(true, stl::memory_order_acq_rel))
         error("Critical error: double use of Pooled Type!");
+#else
+      in_use.store(true, stl::memory_order_relaxed);
+#endif
     }
 
     void reset_in_use()
     {
-      in_use.store(false);
+#ifndef NDEBUG
+      in_use.store(false, stl::memory_order_release);
+#else
+      in_use.store(false, stl::memory_order_relaxed);
+#endif
     }
 
     bool debug_is_in_use()
