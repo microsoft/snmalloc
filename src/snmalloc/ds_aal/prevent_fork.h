@@ -10,6 +10,8 @@
 
 namespace snmalloc
 {
+
+#ifdef SNMALLOC_PTHREAD_FORK_PROTECTION
   // This is a simple implementation of a class that can be
   // used to prevent a process from forking. Holding a lock
   // in the allocator while forking can lead to deadlocks.
@@ -43,7 +45,7 @@ namespace snmalloc
     // calls would be ignored.
     static void ensure_init()
     {
-#ifdef SNMALLOC_PTHREAD_ATFORK_WORKS
+#  ifdef SNMALLOC_PTHREAD_ATFORK_WORKS
       static stl::Atomic<bool> initialised{false};
 
       if (initialised.load(stl::memory_order_acquire))
@@ -51,7 +53,7 @@ namespace snmalloc
 
       pthread_atfork(prefork, postfork_parent, postfork_child);
       initialised.store(true, stl::memory_order_release);
-#endif
+#  endif
     };
 
   public:
@@ -158,4 +160,15 @@ namespace snmalloc
       threads_preventing_fork--;
     }
   };
+#else
+  // The fork protection can cost a lot and it is generally not required.
+  // This is a dummy implementation of the PreventFork class that does nothing.
+  class PreventFork
+  {
+  public:
+    PreventFork() {}
+
+    ~PreventFork() {}
+  };
+#endif
 } // namespace snmalloc

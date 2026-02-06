@@ -28,6 +28,7 @@ option(SNMALLOC_IPO "Link with IPO/LTO support" OFF)
 option(SNMALLOC_BENCHMARK_INDIVIDUAL_MITIGATIONS "Build tests and ld_preload for individual mitigations" OFF)
 option(SNMALLOC_ENABLE_DYNAMIC_LOADING "Build such that snmalloc can be dynamically loaded. This is not required for LD_PRELOAD, and will harm performance if enabled." OFF)
 option(SNMALLOC_ENABLE_WAIT_ON_ADDRESS "Use wait on address backoff strategy if it is available" ON)
+option(SNMALLOC_PTHREAD_FORK_PROTECTION "Guard against forking while allocator locks are held using pthread_atfork hooks" OFF)
 option(SNMALLOC_ENABLE_FUZZING "Enable fuzzing instrumentation tests" OFF)
 option(SNMALLOC_USE_SELF_VENDORED_STL "Avoid using system STL" OFF)
 # Options that apply only if we're not building the header-only library
@@ -133,6 +134,9 @@ int main() {
 }
 " SNMALLOC_PTHREAD_ATFORK_WORKS)
 
+if (SNMALLOC_PTHREAD_FORK_PROTECTION AND NOT SNMALLOC_PTHREAD_ATFORK_WORKS)
+  message(FATAL_ERROR "SNMALLOC_PTHREAD_FORK_PROTECTION requires working pthread_atfork support")
+endif()
 
 if (NOT MSVC AND NOT (SNMALLOC_CLEANUP STREQUAL CXX11_DESTRUCTORS))
   # If the target compiler doesn't support -nostdlib++ then we must enable C at
@@ -333,6 +337,7 @@ endfunction()
 add_as_define(SNMALLOC_QEMU_WORKAROUND)
 add_as_define(SNMALLOC_TRACING)
 add_as_define(SNMALLOC_CI_BUILD)
+add_as_define(SNMALLOC_PTHREAD_FORK_PROTECTION)
 add_as_define(SNMALLOC_PLATFORM_HAS_GETENTROPY)
 add_as_define(SNMALLOC_PTHREAD_ATFORK_WORKS)
 add_as_define(SNMALLOC_HAS_LINUX_RANDOM_H)

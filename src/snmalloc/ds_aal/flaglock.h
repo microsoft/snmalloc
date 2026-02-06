@@ -116,7 +116,8 @@ namespace snmalloc
   public:
     FlagLock(FlagWord& lock) : lock(lock)
     {
-      while (lock.flag.exchange(true, stl::memory_order_acquire))
+      while (
+        SNMALLOC_UNLIKELY(lock.flag.exchange(true, stl::memory_order_acquire)))
       {
         // assert_not_owned_by_current_thread is only called when the first
         // acquiring is failed; which means the lock is already held somewhere
@@ -124,7 +125,7 @@ namespace snmalloc
         lock.assert_not_owned_by_current_thread();
         // This loop is better for spin-waiting because it won't issue
         // expensive write operation (xchg for example).
-        while (lock.flag.load(stl::memory_order_relaxed))
+        while (SNMALLOC_UNLIKELY(lock.flag.load(stl::memory_order_relaxed)))
         {
           Aal::pause();
         }
