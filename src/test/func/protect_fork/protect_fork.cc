@@ -1,6 +1,4 @@
 #include <iostream>
-#include <snmalloc/snmalloc.h>
-
 #ifndef SNMALLOC_PTHREAD_ATFORK_WORKS
 int main()
 {
@@ -9,6 +7,8 @@ int main()
 }
 #else
 
+#  define SNMALLOC_PTHREAD_FORK_PROTECTION
+#  include <snmalloc/snmalloc.h>
 #  include <pthread.h>
 #  include <thread>
 
