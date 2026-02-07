@@ -1,0 +1,65 @@
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_test")
+load("@rules_rust_bindgen//:defs.bzl", "rust_bindgen_library")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "wrapper",
+    hdrs = ["wrapper.h"],
+    defines = ["SNMALLOC_USE_WAIT_ON_ADDRESS"],
+    linkstatic = True,
+    visibility = ["//visibility:private"],
+    deps = ["//:snmalloc-rust-support"],
+)
+
+rust_bindgen_library(
+    name = "snmalloc_sys",
+    bindgen_flags = [
+        "--allowlist-function=aligned_alloc",
+        "--allowlist-function=calloc",
+        "--allowlist-function=get_malloc_info_v1",  # getting mangles
+        "--allowlist-function=malloc",
+        "--allowlist-function=malloc_usable_size",  # getting mangles
+        "--allowlist-function=realloc",
+        "--allowlist-function=free",
+        # comment out the above and uncomment the two lines below to generate bindings for everything
+        # "--opaque-type=std::.*",
+        # "--blocklist-item=std::value",
+        "--use-core",  # don't compile with std, allows baremetal envs
+    ],
+    cc_lib = ":wrapper",
+    clang_flags = [
+        # "-v",  # enable for debugging
+        "-x",
+        "c++",
+        "-std=c++20",
+        "-I",
+    ],
+    header = ":wrapper.h",
+)
+
+rust_library(
+    name = "snmalloc_rs",
+    srcs = ["lib.rs"],
+    visibility = ["//visibility:public"],
+    deps = [":snmalloc_sys"],
+)
+
+# bazel test //src/snmalloc_rs/... --extra_toolchains=@llvm_toolchain//:cc-toolchain-x86_64-linux
+rust_test(
+    name = "test",
+    size = "small",
+    crate = ":snmalloc_rs",
+)
+
+# bazel run //snmalloc_rs:main --extra_toolchains=@llvm_toolchain//:cc-toolchain-x86_64-linux
+rust_binary(
+    name = "main",
+    srcs = ["main.rs"],
+    rustc_flags = [
+        "-Ccodegen-units=1",
+        "-Copt-level=3",
+        "-Cstrip=symbols",
+    ],
+    deps = [":snmalloc_rs"],
+)
