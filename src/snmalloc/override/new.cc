@@ -29,8 +29,8 @@ namespace snmalloc
     {
     public:
       template<typename Alloc>
-      SNMALLOC_FAST_PATH static void*
-      success(Alloc* self, void* p, size_t size, bool secondary_allocator = false)
+      SNMALLOC_FAST_PATH static void* success(
+        Alloc* self, void* p, size_t size, bool secondary_allocator = false)
       {
         UNUSED(secondary_allocator, size);
         SNMALLOC_ASSERT(p != nullptr);

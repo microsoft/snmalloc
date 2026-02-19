@@ -34,7 +34,8 @@ namespace snmalloc
   {
   public:
     template<typename Alloc>
-    SNMALLOC_FAST_PATH static void* success(Alloc* self, void* p, size_t size, bool secondary_allocator = false)
+    SNMALLOC_FAST_PATH static void*
+    success(Alloc* self, void* p, size_t size, bool secondary_allocator = false)
     {
       UNUSED(secondary_allocator);
       SNMALLOC_ASSERT(p != nullptr);
@@ -783,7 +784,9 @@ namespace snmalloc
         // deallocated, before snmalloc is initialised, then it will fail
         // to access the pagemap.
         return CheckInit::check_init(
-          [result, this, size]() { return Conts::success(this, result, size, true); },
+          [result, this, size]() {
+            return Conts::success(this, result, size, true);
+          },
           [](Allocator* self, void* result, size_t size) {
             return Conts::success(self, result, size, true);
           },
