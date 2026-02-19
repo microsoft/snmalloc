@@ -173,7 +173,7 @@ namespace snmalloc
           return s();
         }
 
-        return check_init_slow(r, args...);
+        return check_init_slow<Restart, Args...>(r, args...);
       }
     };
 #  ifdef SNMALLOC_USE_PTHREAD_DESTRUCTORS
