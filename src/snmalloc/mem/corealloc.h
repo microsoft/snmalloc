@@ -33,7 +33,8 @@ namespace snmalloc
   class DefaultConts
   {
   public:
-    static void* success(void* p, size_t size, bool secondary_allocator = false)
+    template<typename Alloc>
+    SNMALLOC_FAST_PATH static void* success(Alloc* self, void* p, size_t size, bool secondary_allocator = false)
     {
       UNUSED(secondary_allocator);
       SNMALLOC_ASSERT(p != nullptr);
@@ -54,7 +55,7 @@ namespace snmalloc
       return p;
     }
 
-    static void* failure(size_t size) noexcept
+    SNMALLOC_FAST_PATH static void* failure(size_t size) noexcept
     {
       UNUSED(size);
       // If we are here, then the allocation failed.
@@ -68,11 +69,11 @@ namespace snmalloc
   using Zero = DefaultConts<ZeroMem::YesZero>;
   using Uninit = DefaultConts<ZeroMem::NoZero>;
 
-  template<typename Conts>
+  template<typename Conts, typename Alloc>
   inline static SNMALLOC_FAST_PATH void*
-  finish_alloc(freelist::HeadPtr p, size_t size)
+  finish_alloc(Alloc* self, freelist::HeadPtr p, size_t size)
   {
-    return Conts::success(capptr_reveal(p.as_void()), size, false);
+    return Conts::success(self, capptr_reveal(p.as_void()), size, false);
   }
 
   struct FastFreeLists
@@ -185,11 +186,13 @@ namespace snmalloc
      */
     Ticker<typename Config::Pal> ticker;
 
+  public:
     /**
      * Tracks this allocators memory usage
      */
     AllocStats stats;
 
+  private:
     /**
      * The message queue needs to be accessible from other threads
      *
@@ -655,7 +658,7 @@ namespace snmalloc
       {
         auto p = fl->take(key, domesticate);
         stats[sizeclass].objects_allocated++;
-        return finish_alloc<Conts>(p, size);
+        return finish_alloc<Conts>(this, p, size);
       }
 
       return handle_message_queue<noexcept(Conts::failure(0))>(
@@ -711,7 +714,7 @@ namespace snmalloc
                 });
               if (result != nullptr)
               {
-                return Conts::success(result, size, true);
+                return Conts::success(self, result, size, true);
               }
 
               // Grab slab of correct size
@@ -747,7 +750,7 @@ namespace snmalloc
                 // `success`.
                 auto p = capptr_reveal(
                   capptr_chunk_is_alloc(capptr_to_user_address_control(chunk)));
-                return Conts::success(p, size);
+                return Conts::success(self, p, size);
               }
 
               return Conts::failure(size);
@@ -774,17 +777,18 @@ namespace snmalloc
 
       if (result != nullptr)
       {
-        result = Conts::success(result, size, true);
-
         // We need to check for initialisation here in the case where
         // this is the first allocation in the system, so snmalloc has
         // not initialised the pagemap.  If this allocation is subsequently
         // deallocated, before snmalloc is initialised, then it will fail
         // to access the pagemap.
         return CheckInit::check_init(
-          [result]() { return result; },
-          [](Allocator*, void* result) { return result; },
-          result);
+          [result, this, size]() { return Conts::success(this, result, size, true); },
+          [](Allocator* self, void* result, size_t size) {
+            return Conts::success(self, result, size, true);
+          },
+          result,
+          size);
       }
 
       // Look to see if we can grab a free list.
@@ -826,7 +830,7 @@ namespace snmalloc
           laden.insert(meta);
         }
 
-        auto r = finish_alloc<Conts>(p, size);
+        auto r = finish_alloc<Conts>(this, p, size);
         return ticker.check_tick(r);
       }
       return small_refill_slow<Conts, CheckInit>(
@@ -887,7 +891,7 @@ namespace snmalloc
             laden.insert(meta);
           }
 
-          auto r = finish_alloc<Conts>(p, size);
+          auto r = finish_alloc<Conts>(this, p, size);
           stats[sizeclass].slabs_allocated++;
           return ticker.check_tick(r);
         },

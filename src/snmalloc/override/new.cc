@@ -28,11 +28,15 @@ namespace snmalloc
     class Base
     {
     public:
-      static void*
-      success(void* p, size_t size, bool secondary_allocator = false)
+      template<typename Alloc>
+      SNMALLOC_FAST_PATH static void*
+      success(Alloc* self, void* p, size_t size, bool secondary_allocator = false)
       {
         UNUSED(secondary_allocator, size);
         SNMALLOC_ASSERT(p != nullptr);
+
+        auto sc = size_to_sizeclass_full(size);
+        self->stats[sc].objects_allocated++;
 
         SNMALLOC_ASSERT(
           secondary_allocator ||
@@ -45,7 +49,7 @@ namespace snmalloc
     class Throw : public Base
     {
     public:
-      static void* failure(size_t size)
+      SNMALLOC_FAST_PATH static void* failure(size_t size)
       {
         // Throw std::bad_alloc on failure.
         auto new_handler = std::get_new_handler();
@@ -67,7 +71,7 @@ namespace snmalloc
     class NoThrow : public Base
     {
     public:
-      static void* failure(size_t size) noexcept
+      SNMALLOC_FAST_PATH static void* failure(size_t size) noexcept
       {
         auto new_handler = std::get_new_handler();
         if (new_handler != nullptr)

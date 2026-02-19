@@ -75,25 +75,25 @@ namespace snmalloc
     stl::Atomic<size_t> value{0};
 
   public:
-    void operator++(int)
+    SNMALLOC_FAST_PATH void operator++(int)
     {
       auto old = value.load(stl::memory_order_relaxed);
       value.store(old + 1, stl::memory_order_relaxed);
     }
 
-    void operator+=(const MonotoneLocalStat& other)
+    SNMALLOC_FAST_PATH void operator+=(const MonotoneLocalStat& other)
     {
       auto v = other.value.load(stl::memory_order_relaxed);
       value.fetch_add(v, stl::memory_order_relaxed);
     }
 
-    void operator+=(size_t v)
+    SNMALLOC_FAST_PATH void operator+=(size_t v)
     {
       auto old = value.load(stl::memory_order_relaxed);
       value.store(old + v, stl::memory_order_relaxed);
     }
 
-    size_t operator*()
+    SNMALLOC_FAST_PATH size_t operator*()
     {
       return value.load(stl::memory_order_relaxed);
     }
