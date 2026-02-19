@@ -56,7 +56,7 @@ namespace snmalloc
       return p;
     }
 
-    SNMALLOC_FAST_PATH static void* failure(size_t size) noexcept
+    static void* failure(size_t size) noexcept
     {
       UNUSED(size);
       // If we are here, then the allocation failed.

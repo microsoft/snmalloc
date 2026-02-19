@@ -49,7 +49,7 @@ namespace snmalloc
     class Throw : public Base
     {
     public:
-      SNMALLOC_FAST_PATH static void* failure(size_t size)
+      static void* failure(size_t size)
       {
         // Throw std::bad_alloc on failure.
         auto new_handler = std::get_new_handler();
@@ -71,7 +71,7 @@ namespace snmalloc
     class NoThrow : public Base
     {
     public:
-      SNMALLOC_FAST_PATH static void* failure(size_t size) noexcept
+      static void* failure(size_t size) noexcept
       {
         auto new_handler = std::get_new_handler();
         if (new_handler != nullptr)
