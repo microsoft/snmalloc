@@ -98,7 +98,12 @@ int main()
 #ifndef _WIN32
   {
     pid_t pid = fork();
-    if (pid == 0)
+    if (pid < 0)
+    {
+      // fork() failed; report this as a test failure.
+      EXPECT(false, "fork() failed");
+    }
+    else if (pid == 0)
     {
       // Child — will abort inside iterate().
       iterate_corrupted_seqset();
