@@ -160,6 +160,9 @@ namespace snmalloc
 
       while (curr != &head)
       {
+        SNMALLOC_CHECK_MSG(
+          curr->next->prev == curr,
+          "Cycle detected in SeqSet, aborting to prevent infinite loop.");
         // Read next first, as f may remove curr.
         auto next = curr->next;
         f(containing(curr));
