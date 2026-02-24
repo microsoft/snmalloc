@@ -1,6 +1,6 @@
-#include <snmalloc/snmalloc.h>
 #include <test/measuretime.h>
 #include <test/setup.h>
+#include <test/snmalloc_testlib.h>
 #include <test/xoroshiro.h>
 #include <unordered_set>
 
@@ -19,7 +19,7 @@ namespace test
     {
       size_t rand = (size_t)r.next();
       size_t offset = bits::clz(rand);
-      if constexpr (DefaultPal::address_bits > 32)
+      if (snmalloc::pal_address_bits() > 32)
       {
         if (offset > 30)
           offset = 30;

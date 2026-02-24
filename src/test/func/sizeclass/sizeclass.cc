@@ -1,6 +1,7 @@
 #include <iostream>
-#include <snmalloc/snmalloc.h>
+#include <snmalloc/snmalloc_core.h>
 #include <test/setup.h>
+#include <test/snmalloc_testlib.h>
 
 NOINLINE
 snmalloc::smallsizeclass_t size_to_sizeclass(size_t size)

@@ -66,9 +66,15 @@ namespace snmalloc
 #  error Unsupported platform
 #endif
 
-  [[noreturn]] SNMALLOC_SLOW_PATH inline void error(const char* const str)
+  [[noreturn]] SNMALLOC_SLOW_PATH SNMALLOC_USED_FUNCTION inline void
+  error(const char* const str)
   {
     DefaultPal::error(str);
+  }
+
+  SNMALLOC_USED_FUNCTION inline void message_impl(const char* const str)
+  {
+    DefaultPal::message(str);
   }
 
   // Used to keep Superslab metadata committed.
@@ -149,35 +155,4 @@ namespace snmalloc
     "Page size from system header does not match snmalloc config page size.");
 #endif
 
-  /**
-   * Report a fatal error via a PAL-specific error reporting mechanism.  This
-   * takes a format string and a set of arguments.  The format string indicates
-   * the remaining arguments with "{}".  This could be extended later to
-   * support indexing fairly easily, if we ever want to localise these error
-   * messages.
-   *
-   * The following are supported as arguments:
-   *
-   *  - Characters (`char`), printed verbatim.
-   *  - Strings Literals (`const char*` or `const char[]`), printed verbatim.
-   *  - Raw pointers (void*), printed as hex strings.
-   *  - Integers (convertible to `size_t`), printed as hex strings.
-   *
-   *  These types should be sufficient for allocator-related error messages.
-   */
-  template<size_t BufferSize, typename... Args>
-  [[noreturn]] inline void report_fatal_error(Args... args)
-  {
-    MessageBuilder<BufferSize> msg{stl::forward<Args>(args)...};
-    DefaultPal::error(msg.get_message());
-  }
-
-  template<size_t BufferSize, typename... Args>
-  inline void message(Args... args)
-  {
-    MessageBuilder<BufferSize> msg{stl::forward<Args>(args)...};
-    MessageBuilder<BufferSize> msg_tid{
-      "{}: {}", debug_get_tid(), msg.get_message()};
-    DefaultPal::message(msg_tid.get_message());
-  }
 } // namespace snmalloc

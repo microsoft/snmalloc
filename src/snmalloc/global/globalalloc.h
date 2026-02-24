@@ -342,12 +342,13 @@ namespace snmalloc
       aligned_size(align, size));
   }
 
-  SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
   {
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
-  SNMALLOC_FAST_PATH_INLINE void dealloc(void* p, size_t size)
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void
+  dealloc(void* p, size_t size)
   {
     check_size(p, size);
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
@@ -360,14 +361,15 @@ namespace snmalloc
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
-  SNMALLOC_FAST_PATH_INLINE void dealloc(void* p, size_t size, size_t align)
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void
+  dealloc(void* p, size_t size, size_t align)
   {
     auto rsize = aligned_size(align, size);
     check_size(p, rsize);
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
-  SNMALLOC_FAST_PATH_INLINE void debug_teardown()
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void debug_teardown()
   {
     return ThreadAlloc::teardown();
   }

@@ -1,7 +1,6 @@
 #pragma once
 
-#include "../ds/ds.h"
-#include "backend_concept.h"
+#include "ds.h"
 
 namespace snmalloc
 {

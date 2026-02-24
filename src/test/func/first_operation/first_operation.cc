@@ -8,7 +8,7 @@
 #include "test/setup.h"
 
 #include <iostream>
-#include <snmalloc/snmalloc.h>
+#include <test/snmalloc_testlib.h>
 #include <thread>
 
 void alloc1(size_t size)
@@ -109,7 +109,7 @@ int main(int, char**)
   f(5);
   f(7);
   printf("\n");
-  for (size_t exp = 1; exp < snmalloc::MAX_SMALL_SIZECLASS_BITS; exp++)
+  for (size_t exp = 1; exp < snmalloc::max_small_sizeclass_bits(); exp++)
   {
     auto shifted = [exp](size_t v) { return v << exp; };
 

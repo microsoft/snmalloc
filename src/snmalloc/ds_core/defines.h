@@ -123,8 +123,11 @@ namespace snmalloc
   static constexpr bool Debug = true;
 #endif
 
-  // Forwards reference so that the platform can define how to handle errors.
+  // Forward references so that the platform can define how to handle
+  // errors and messages.  Definitions are provided in pal/pal.h once
+  // DefaultPal is known.
   [[noreturn]] SNMALLOC_COLD void error(const char* const str);
+  void message_impl(const char* const str);
 } // namespace snmalloc
 
 #define TOSTRING(expr) TOSTRING2(expr)
@@ -213,21 +216,21 @@ namespace snmalloc
 
 namespace snmalloc
 {
+  template<typename... Args>
+  SNMALLOC_FAST_PATH_INLINE void UNUSED(Args&&...)
+  {}
+
   /**
-   * Forward declaration so that this can be called before the pal header is
-   * included.
+   * Forward declaration so that this can be called before helpers.h is
+   * included (e.g. in SNMALLOC_ASSERT macros expanded inside bits.h).
    */
   template<size_t BufferSize = 1024, typename... Args>
   [[noreturn]] inline void report_fatal_error(Args... args);
 
   /**
-   * Forward declaration so that this can be called before the pal header is
+   * Forward declaration so that this can be called before helpers.h is
    * included.
    */
   template<size_t BufferSize = 1024, typename... Args>
   inline void message(Args... args);
-
-  template<typename... Args>
-  SNMALLOC_FAST_PATH_INLINE void UNUSED(Args&&...)
-  {}
 } // namespace snmalloc

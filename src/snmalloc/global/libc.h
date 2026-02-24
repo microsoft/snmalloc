@@ -24,22 +24,24 @@ namespace snmalloc::libc
     return snmalloc::external_pointer<OnePastEnd>(ptr);
   }
 
-  SNMALLOC_FAST_PATH_INLINE void* malloc(size_t size)
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void* malloc(size_t size)
   {
     return snmalloc::alloc(size);
   }
 
-  SNMALLOC_FAST_PATH_INLINE void free(void* ptr)
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void free(void* ptr)
   {
     dealloc(ptr);
   }
 
-  SNMALLOC_FAST_PATH_INLINE void free_sized(void* ptr, size_t size)
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void
+  free_sized(void* ptr, size_t size)
   {
     dealloc(ptr, size);
   }
 
-  SNMALLOC_FAST_PATH_INLINE void* calloc(size_t nmemb, size_t size)
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void*
+  calloc(size_t nmemb, size_t size)
   {
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
@@ -50,7 +52,8 @@ namespace snmalloc::libc
     return alloc<Zero>(sz);
   }
 
-  SNMALLOC_FAST_PATH_INLINE void* realloc(void* ptr, size_t size)
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void*
+  realloc(void* ptr, size_t size)
   {
     // Glibc treats
     //   realloc(p, 0) as free(p)

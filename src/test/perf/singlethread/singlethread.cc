@@ -1,6 +1,6 @@
-#include <snmalloc/snmalloc.h>
 #include <test/measuretime.h>
 #include <test/setup.h>
+#include <test/snmalloc_testlib.h>
 #include <unordered_set>
 
 using namespace snmalloc;

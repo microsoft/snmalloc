@@ -1,8 +1,8 @@
 #include <array>
 #include <iostream>
-#include <snmalloc/snmalloc.h>
-#include <test/opt.h>
+#include <snmalloc/ds/pool.h>
 #include <test/setup.h>
+#include <test/snmalloc_testlib.h>
 #include <unordered_set>
 
 using namespace snmalloc;
@@ -56,7 +56,7 @@ void test_alloc()
   auto ptr = PoolA::acquire();
   SNMALLOC_CHECK(ptr != nullptr);
   // Pool allocations should not be visible to debug_check_empty.
-  snmalloc::debug_check_empty<Alloc::Config>();
+  snmalloc::debug_check_empty();
   PoolA::release(ptr);
 }
 
@@ -242,13 +242,7 @@ void test_sort()
 int main(int argc, char** argv)
 {
   setup();
-#ifdef USE_SYSTEMATIC_TESTING
-  opt::Opt opt(argc, argv);
-  size_t seed = opt.is<size_t>("--seed", 0);
-  Virtual::systematic_bump_ptr() += seed << 17;
-#else
   UNUSED(argc, argv);
-#endif
 
   test_double_alloc();
   std::cout << "test_double_alloc passed" << std::endl;

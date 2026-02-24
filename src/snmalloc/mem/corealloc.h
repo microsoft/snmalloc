@@ -4,7 +4,6 @@
 #include "check_init.h"
 #include "freelist.h"
 #include "metadata.h"
-#include "pool.h"
 #include "remotecache.h"
 #include "sizeclasstable.h"
 #include "snmalloc/stl/new.h"

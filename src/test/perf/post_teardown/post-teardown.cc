@@ -1,7 +1,7 @@
 #include <cstdlib>
-#include <snmalloc/snmalloc.h>
 #include <test/measuretime.h>
 #include <test/setup.h>
+#include <test/snmalloc_testlib.h>
 #include <vector>
 
 using namespace snmalloc;
@@ -41,7 +41,7 @@ int main(int, char**)
 
   // Simulate the allocator already being torn down before remaining frees
   // (post-main / static destruction path from #809).
-  ThreadAlloc::teardown();
+  snmalloc::debug_teardown();
 
   fill(ptrs, alloc_count, obj_size);
   drain("Immediate dealloc after teardown", ptrs, obj_size);

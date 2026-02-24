@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../ds/ds.h"
+#include "ds.h"
 #include "pooled.h"
 
 namespace snmalloc
