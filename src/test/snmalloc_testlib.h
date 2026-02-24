@@ -117,9 +117,13 @@ namespace snmalloc
   template<size_t size>
   void dealloc(void* p);
 
-  // -- 1-param template forwarding to 2-param (specialised in testlib.cc) --
+  // -- external_pointer: declared here, defined + explicitly instantiated in
+  // .cc
   template<Boundary location = Start>
   void* external_pointer(void* p);
+  extern template void* external_pointer<Start>(void* p);
+  extern template void* external_pointer<End>(void* p);
+  extern template void* external_pointer<OnePastEnd>(void* p);
 
   // -- libc namespace ------------------------------------------------------
   namespace libc

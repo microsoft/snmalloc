@@ -102,12 +102,13 @@ namespace snmalloc::libc
     return p;
   }
 
-  inline size_t malloc_usable_size(const void* ptr)
+  SNMALLOC_USED_FUNCTION inline size_t malloc_usable_size(const void* ptr)
   {
     return alloc_size(ptr);
   }
 
-  inline void* reallocarray(void* ptr, size_t nmemb, size_t size)
+  SNMALLOC_USED_FUNCTION inline void*
+  reallocarray(void* ptr, size_t nmemb, size_t size)
   {
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
@@ -118,7 +119,8 @@ namespace snmalloc::libc
     return realloc(ptr, sz);
   }
 
-  inline int reallocarr(void* ptr_, size_t nmemb, size_t size)
+  SNMALLOC_USED_FUNCTION inline int
+  reallocarr(void* ptr_, size_t nmemb, size_t size)
   {
     int err = errno;
     bool overflow = false;
@@ -153,7 +155,7 @@ namespace snmalloc::libc
     return 0;
   }
 
-  inline void* memalign(size_t alignment, size_t size)
+  SNMALLOC_USED_FUNCTION inline void* memalign(size_t alignment, size_t size)
   {
     if (SNMALLOC_UNLIKELY(alignment == 0 || !bits::is_pow2(alignment)))
     {
@@ -163,12 +165,14 @@ namespace snmalloc::libc
     return alloc_aligned(alignment, size);
   }
 
-  inline void* aligned_alloc(size_t alignment, size_t size)
+  SNMALLOC_USED_FUNCTION inline void*
+  aligned_alloc(size_t alignment, size_t size)
   {
     return memalign(alignment, size);
   }
 
-  inline int posix_memalign(void** memptr, size_t alignment, size_t size)
+  SNMALLOC_USED_FUNCTION inline int
+  posix_memalign(void** memptr, size_t alignment, size_t size)
   {
     if (SNMALLOC_UNLIKELY(
           (alignment < sizeof(uintptr_t) || !bits::is_pow2(alignment))))

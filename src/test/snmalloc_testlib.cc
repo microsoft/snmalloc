@@ -159,28 +159,18 @@ namespace snmalloc
     Aal::pause();
   }
 
-  // -- external_pointer: 1-param template forwarding to 2-param template ---
+  // -- external_pointer: 1-param template defined here, explicitly
+  // instantiated
 
   template<Boundary location>
-  void* external_pointer(void* p);
-
-  template<>
-  void* external_pointer<Start>(void* p)
+  void* external_pointer(void* p)
   {
-    return external_pointer<Start, Config>(p);
+    return external_pointer<location, Config>(p);
   }
 
-  template<>
-  void* external_pointer<End>(void* p)
-  {
-    return external_pointer<End, Config>(p);
-  }
-
-  template<>
-  void* external_pointer<OnePastEnd>(void* p)
-  {
-    return external_pointer<OnePastEnd, Config>(p);
-  }
+  template void* external_pointer<Start>(void* p);
+  template void* external_pointer<End>(void* p);
+  template void* external_pointer<OnePastEnd>(void* p);
 
 } // namespace snmalloc
 
