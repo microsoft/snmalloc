@@ -67,7 +67,11 @@ void debug_check_empty_2()
     {
       std::cout << "Allocation failed at " << i << " allocations of " << size
                 << std::endl;
-      break;
+      for (size_t j = 0; j < i; j++)
+      {
+        snmalloc::dealloc(allocs[j]);
+      }
+      return;
     }
     allocs.push_back(r);
     snmalloc::debug_check_empty(&result);
