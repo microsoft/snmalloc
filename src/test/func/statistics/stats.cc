@@ -63,6 +63,12 @@ void debug_check_empty_2()
       std::cout << "." << std::flush;
     }
     auto r = snmalloc::alloc(size);
+    if (r == nullptr)
+    {
+      std::cout << "Allocation failed at " << i << " allocations of " << size
+                << std::endl;
+      break;
+    }
     allocs.push_back(r);
     snmalloc::debug_check_empty(&result);
     if (result != false)
