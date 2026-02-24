@@ -117,13 +117,21 @@ namespace snmalloc
   template<size_t size>
   void dealloc(void* p);
 
-  // -- external_pointer: declared here, defined + explicitly instantiated in
-  // .cc
+  // -- external_pointer: non-template helpers + inline dispatch template ---
+  void* external_pointer_start(void* p);
+  void* external_pointer_end(void* p);
+  void* external_pointer_one_past_end(void* p);
+
   template<Boundary location = Start>
-  void* external_pointer(void* p);
-  extern template void* external_pointer<Start>(void* p);
-  extern template void* external_pointer<End>(void* p);
-  extern template void* external_pointer<OnePastEnd>(void* p);
+  inline void* external_pointer(void* p)
+  {
+    if constexpr (location == Start)
+      return external_pointer_start(p);
+    else if constexpr (location == End)
+      return external_pointer_end(p);
+    else
+      return external_pointer_one_past_end(p);
+  }
 
   // -- libc namespace ------------------------------------------------------
   namespace libc
