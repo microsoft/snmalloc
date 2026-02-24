@@ -155,7 +155,7 @@ namespace snmalloc
     static constexpr uint64_t pal_features = LowMemoryNotification | Entropy |
       Time | LazyCommit
 #  if defined(PLATFORM_HAS_VIRTUALALLOC2) && !defined(USE_SYSTEMATIC_TESTING)
-      | AlignedAllocation
+//      | AlignedAllocation
 #  endif
 #  if defined(PLATFORM_HAS_WAITONADDRESS)
       | WaitOnAddress
