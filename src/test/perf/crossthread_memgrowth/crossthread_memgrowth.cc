@@ -316,13 +316,13 @@ int main(int argc, char** argv)
        total_frees.load(std::memory_order_relaxed),
        get_committed(),
        get_peak()});
-    auto s = samples.back();
-    snmalloc::message<128>("Sample at {}s: allocs={}, frees={}, committed={} bytes, peak={} bytes",
-      s.second,
-      s.allocs_total,
-      s.frees_total,
-      s.committed_bytes,
-      s.peak_bytes);
+    // auto s = samples.back();
+    // snmalloc::message<128>("Sample at {}s: allocs={}, frees={}, committed={} bytes, peak={} bytes",
+    //   s.second,
+    //   s.allocs_total,
+    //   s.frees_total,
+    //   s.committed_bytes,
+    //   s.peak_bytes);
   }
 
   // --- Shut down workers and drain remaining allocations ---
