@@ -17,15 +17,16 @@
  * the expected committed footprint) is bounded too.
  *
  * The test samples snmalloc's committed memory once per second for the
- * configured duration, then compares the average committed memory in the first
- * quarter of the run against the last quarter.  If committed memory grew by
- * more than 1.5x, the test fails (exit code 1) indicating a possible
- * regression.  Otherwise it passes (exit code 0).
+ * configured duration, then compares the average committed memory in the
+ * 2nd quarter of the run (after warm-up) against the 4th quarter (end of
+ * run).  If committed memory grew by more than 1.5x, the test fails
+ * (exit code 1) indicating a possible regression.  Otherwise it passes
+ * (exit code 0).
  *
  *   Usage:
  *     crossthread_memgrowth
  *       [--workers   N]     # worker threads     (default: 8)
- *       [--duration  N]     # run time seconds   (default: 30)
+ *       [--duration  N]     # run time seconds   (default: 60)
  *       [--min-size  N]     # min alloc bytes    (default: 524288 = 512KB)
  *       [--max-size  N]     # max alloc bytes    (default: 16777216 = 16MB)
  *       [--queue-cap N]     # per-worker queue   (default: 16)
@@ -263,7 +264,7 @@ int main(int argc, char** argv)
 
   opt::Opt o(argc, argv);
   size_t n_workers = o.is<size_t>("--workers", 8);
-  size_t duration_s = o.is<size_t>("--duration", 30);
+  size_t duration_s = o.is<size_t>("--duration", 60);
   size_t min_size = o.is<size_t>("--min-size", 512 * 1024);       // 512 KB
   size_t max_size = o.is<size_t>("--max-size", 16 * 1024 * 1024); // 16 MB
   size_t queue_cap = o.is<size_t>("--queue-cap", 16);
@@ -382,33 +383,34 @@ int main(int argc, char** argv)
 
   // ──────────── Growth analysis ────────────
   //
-  // Compare average committed memory in the first quarter of the run
-  // against the last quarter.  If the ratio exceeds 1.5, committed memory
-  // is growing significantly over time — flag this as a regression.
+  // Compare average committed memory in the 2nd quarter (after warm-up)
+  // against the 4th quarter (end of run).  Skipping the 1st quarter avoids
+  // counting the initial ramp-up.  If the ratio exceeds 1.5, committed
+  // memory is growing significantly over time — flag this as a regression.
   int exit_code = 0;
 
   if (samples.size() >= 8)
   {
     size_t n = samples.size() - 1; // exclude final (post-drain) sample
-    size_t q1_lo = 1, q1_hi = n / 4;
+    size_t q2_lo = n / 4, q2_hi = n / 2;
     size_t q4_lo = 3 * n / 4, q4_hi = n - 1;
 
-    double q1_avg = 0, q4_avg = 0;
-    for (size_t i = q1_lo; i <= q1_hi; ++i)
-      q1_avg += static_cast<double>(samples[i].committed_bytes);
-    q1_avg /= static_cast<double>(q1_hi - q1_lo + 1);
+    double q2_avg = 0, q4_avg = 0;
+    for (size_t i = q2_lo; i <= q2_hi; ++i)
+      q2_avg += static_cast<double>(samples[i].committed_bytes);
+    q2_avg /= static_cast<double>(q2_hi - q2_lo + 1);
 
     for (size_t i = q4_lo; i <= q4_hi; ++i)
       q4_avg += static_cast<double>(samples[i].committed_bytes);
     q4_avg /= static_cast<double>(q4_hi - q4_lo + 1);
 
-    double growth = (q1_avg > 0) ? (q4_avg / q1_avg) : 0.0;
+    double growth = (q2_avg > 0) ? (q4_avg / q2_avg) : 0.0;
 
-    std::cout << "\n  Avg committed (first quarter) : "
-              << to_mb(static_cast<size_t>(q1_avg)) << " MB\n"
-              << "  Avg committed (last quarter)  : "
+    std::cout << "\n  Avg committed (2nd quarter)   : "
+              << to_mb(static_cast<size_t>(q2_avg)) << " MB\n"
+              << "  Avg committed (4th quarter)   : "
               << to_mb(static_cast<size_t>(q4_avg)) << " MB\n"
-              << "  Growth ratio (last/first)     : " << growth << "\n";
+              << "  Growth ratio (Q4/Q2)          : " << growth << "\n";
 
     if (growth > 1.5)
     {
