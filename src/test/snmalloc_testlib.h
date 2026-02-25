@@ -154,13 +154,16 @@ namespace snmalloc
 #include <snmalloc/override/malloc-extensions.h>
 
 // -- override/malloc.cc functions with testlib_ prefix ----------------------
+#ifndef MALLOC_USABLE_SIZE_QUALIFIER
+#  define MALLOC_USABLE_SIZE_QUALIFIER
+#endif
 extern "C"
 {
   void* testlib_malloc(size_t size);
   void testlib_free(void* ptr);
   void testlib_cfree(void* ptr);
   void* testlib_calloc(size_t nmemb, size_t size);
-  size_t testlib_malloc_usable_size(const void* ptr);
+  size_t testlib_malloc_usable_size(MALLOC_USABLE_SIZE_QUALIFIER void* ptr);
   size_t testlib_malloc_good_size(size_t size);
   void* testlib_realloc(void* ptr, size_t size);
   void* testlib_reallocarray(void* ptr, size_t nmemb, size_t size);
