@@ -13,6 +13,7 @@ int main()
 #  include <pthread.h>
 #  include <snmalloc/ds_aal/prevent_fork.h>
 #  include <thread>
+#  include <unistd.h>
 
 void simulate_allocation()
 {
