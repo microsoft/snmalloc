@@ -11,7 +11,7 @@ void fill(std::vector<void*>& out, size_t count, size_t size)
   out.reserve(count);
   for (size_t i = 0; i < count; i++)
   {
-    out.push_back(snmalloc::alloc<Uninit>(size));
+    out.push_back(snmalloc::alloc<ZeroMem::NoZero>(size));
   }
 }
 

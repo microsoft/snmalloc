@@ -59,7 +59,7 @@ void check_calloc(void* p, size_t size)
 void calloc1(size_t size)
 {
   trigger_teardown();
-  void* r = snmalloc::alloc<snmalloc::Zero>(size);
+  void* r = snmalloc::alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
   snmalloc::dealloc(r);
 }
@@ -67,7 +67,7 @@ void calloc1(size_t size)
 void calloc2(size_t size)
 {
   trigger_teardown();
-  void* r = snmalloc::alloc<snmalloc::Zero>(size);
+  void* r = snmalloc::alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
   snmalloc::dealloc(r, size);
 }

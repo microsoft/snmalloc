@@ -19,6 +19,8 @@
 #include <errno.h>
 #include <snmalloc/ds_core/defines.h>
 #include <snmalloc/ds_core/helpers.h>
+#include <snmalloc/ds_core/sizeclassstatic.h>
+#include <snmalloc/pal/pal_consts.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -28,9 +30,6 @@ namespace snmalloc
   // address_t: uintptr_t on all non-CHERI platforms.
   using address_t = uintptr_t;
 
-  // ZeroMem has a fixed underlying type (int) so it can be forward-declared
-  // here without conflicting with the full definition in pal_consts.h.
-  enum ZeroMem : int;
   template<ZeroMem>
   class DefaultConts;
   // Uninit / Zero are usable as template arguments even without the full
@@ -49,6 +48,13 @@ namespace snmalloc
   void dealloc(void* p);
   void dealloc(void* p, size_t size);
   void dealloc(void* p, size_t size, size_t align);
+
+  template<size_t size>
+  inline void dealloc(void* p)
+  {
+    dealloc(p, size);
+  }
+
   void debug_teardown();
 
   // -- Non-template wrappers for Config-templated functions ----------------
@@ -76,8 +82,8 @@ namespace snmalloc
     ~ScopedAllocHandle();
     ScopedAllocHandle(const ScopedAllocHandle&) = delete;
     ScopedAllocHandle& operator=(const ScopedAllocHandle&) = delete;
-
     void* alloc(size_t size);
+
     void dealloc(void* p);
     void dealloc(void* p, size_t size);
 
@@ -102,25 +108,20 @@ namespace snmalloc
     return static_cast<void*>(static_cast<char*>(base) + diff);
   }
 
-  // -- Templates on user-visible params (explicit instantiations in .cc) ---
-  template<typename Conts = Uninit, size_t align = 1>
+  template<ZeroMem zero_mem = ZeroMem::NoZero>
   void* alloc(size_t size);
-  extern template void* alloc<Uninit, 1>(size_t);
-  extern template void* alloc<Zero, 1>(size_t);
+  extern template void* alloc<ZeroMem::YesZero>(size_t);
+  extern template void* alloc<ZeroMem::NoZero>(size_t);
 
-  template<size_t size, typename Conts = Uninit, size_t align = 1>
-  void* alloc();
-
-  template<typename Conts = Uninit>
+  template<ZeroMem zero_mem = ZeroMem::NoZero>
   void* alloc_aligned(size_t align, size_t size);
-
-  template<size_t size>
-  void dealloc(void* p);
 
   // -- libc namespace ------------------------------------------------------
   namespace libc
   {
     void* malloc(size_t size);
+    void* malloc_small(smallsizeclass_t sizeclass);
+    void* malloc_small_zero(smallsizeclass_t sizeclass);
     void free(void* ptr);
     void* calloc(size_t nmemb, size_t size);
     void* realloc(void* ptr, size_t size);
@@ -135,6 +136,32 @@ namespace snmalloc
     void* __malloc_end_pointer(void* ptr);
   } // namespace libc
 
+  /**
+   * Compile-time size alloc.  When the size (after alignment) is a small
+   * sizeclass the sizeclass is computed at compile time and the allocation
+   * goes straight to the sizeclass-based fast path.  Otherwise falls back
+   * to the dynamic alloc.
+   */
+  template<size_t size, ZeroMem zero_mem = ZeroMem::NoZero>
+  inline void* alloc()
+  {
+    if constexpr (is_small_sizeclass(size))
+    {
+      constexpr auto sc = size_to_sizeclass_const(size);
+      if constexpr (zero_mem == ZeroMem::YesZero)
+      {
+        return libc::malloc_small_zero(sc);
+      }
+      else
+      {
+        return libc::malloc_small(sc);
+      }
+    }
+    else
+    {
+      return alloc<zero_mem>(size);
+    }
+  }
 } // namespace snmalloc
 
 // -- malloc-extensions struct and function ----------------------------------

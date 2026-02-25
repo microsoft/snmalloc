@@ -1,7 +1,7 @@
 #include <array>
 #include <chrono>
 #include <iostream>
-#include <snmalloc/snmalloc.h>
+#include <test/snmalloc_testlib.h>
 #include <test/opt.h>
 #include <test/setup.h>
 #include <test/xoroshiro.h>
@@ -178,7 +178,7 @@ void test_calloc()
     memset(p, 0xFF, size);
     snmalloc::dealloc(p, size);
 
-    p = snmalloc::alloc<Zero>(size);
+    p = snmalloc::alloc<ZeroMem::YesZero>(size);
 
     for (size_t i = 0; i < size; i++)
     {
@@ -239,11 +239,11 @@ void test_double_alloc()
 
 void test_external_pointer()
 {
-  for (snmalloc::smallsizeclass_t sc = size_to_sizeclass(MIN_ALLOC_SIZE);
+  for (snmalloc::smallsizeclass_t sc = size_to_sizeclass_const(MIN_ALLOC_SIZE);
        sc < NUM_SMALL_SIZECLASSES;
        sc++)
   {
-    size_t size = sizeclass_to_size(sc);
+    size_t size = sizeclass_to_size_const(sc);
     void* p1 = snmalloc::alloc(size);
 
     if (size != snmalloc::alloc_size(p1))
@@ -320,10 +320,10 @@ void test_external_pointer_large()
 {
   xoroshiro::p128r64 r;
 
-  constexpr size_t count_log = DefaultPal::address_bits > 32 ? 5 : 3;
-  constexpr size_t count = 1 << count_log;
+  const size_t count_log = pal_address_bits() > 32 ? 5 : 3;
+  const size_t count = size_t(1) << count_log;
   // Pre allocate all the objects
-  size_t* objects[count];
+  size_t* objects[1 << 5]; // max possible count
 
   size_t total_size = 0;
 
@@ -376,7 +376,7 @@ void test_external_pointer_dealloc_bug()
 
   for (size_t i = 0; i < count; i++)
   {
-    snmalloc::external_pointer(allocs[i]);
+    snmalloc::libc::__malloc_start_pointer(allocs[i]);
   }
 
   snmalloc::dealloc(allocs[0]);
@@ -419,7 +419,7 @@ void test_calloc_16M()
   // sizes >= 16M use large_alloc
   const size_t size = 16'000'000;
 
-  void* p1 = snmalloc::alloc<Zero>(size);
+  void* p1 = snmalloc::alloc<ZeroMem::YesZero>(size);
   SNMALLOC_CHECK(
     snmalloc::alloc_size(snmalloc::libc::__malloc_start_pointer(p1)) >= size);
   snmalloc::dealloc(p1);
@@ -433,7 +433,7 @@ void test_calloc_large_bug()
   // not a multiple of page size.
   const size_t size = (MAX_SMALL_SIZECLASS_SIZE << 3) - 7;
 
-  void* p1 = snmalloc::alloc<Zero>(size);
+  void* p1 = snmalloc::alloc<ZeroMem::YesZero>(size);
   SNMALLOC_CHECK(
     snmalloc::alloc_size(snmalloc::libc::__malloc_start_pointer(p1)) >= size);
   snmalloc::dealloc(p1);
@@ -489,16 +489,16 @@ void test_static_sized_allocs()
 
 void test_remaining_bytes()
 {
-  for (snmalloc::smallsizeclass_t sc = size_to_sizeclass(MIN_ALLOC_SIZE);
+  for (snmalloc::smallsizeclass_t sc = size_to_sizeclass_const(MIN_ALLOC_SIZE);
        sc < NUM_SMALL_SIZECLASSES;
        sc++)
   {
-    auto size = sizeclass_to_size(sc);
+    auto size = sizeclass_to_size_const(sc);
     char* p = (char*)snmalloc::alloc(size);
     for (size_t offset = 0; offset < size; offset++)
     {
       auto rem =
-        snmalloc::remaining_bytes(address_cast(pointer_offset(p, offset)));
+        snmalloc::remaining_bytes((address_t)pointer_offset(p, offset));
       if (rem != (size - offset))
       {
         if (rem < (size - offset) || snmalloc::is_owned(p))

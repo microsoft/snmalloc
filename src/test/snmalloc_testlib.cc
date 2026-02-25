@@ -26,11 +26,21 @@
 
 namespace snmalloc
 {
-  // -- B: Explicit instantiation of non-Config templates -------------------
+  template<ZeroMem zero_mem>
+  void* alloc(size_t size)
+  {
+    if constexpr (zero_mem == ZeroMem::YesZero)
+    {
+      return alloc<Zero>(size);
+    }
+    else
+    {
+      return alloc<Uninit>(size);
+    }
+  }
 
-  template void* alloc<Uninit, 1>(size_t);
-  template void* alloc<Zero, 1>(size_t);
-
+  template void* alloc<ZeroMem::YesZero>(size_t size);
+  template void* alloc<ZeroMem::NoZero>(size_t size);
   // -- C: Non-template wrappers for Config-templated functions -------------
 
   // Config-templated functions:
