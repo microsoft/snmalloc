@@ -158,24 +158,6 @@ namespace snmalloc
   {
     Aal::pause();
   }
-
-  // -- external_pointer: non-template helpers calling 2-param template -----
-
-  void* external_pointer_start(void* p)
-  {
-    return external_pointer<Start, Config>(p);
-  }
-
-  void* external_pointer_end(void* p)
-  {
-    return external_pointer<End, Config>(p);
-  }
-
-  void* external_pointer_one_past_end(void* p)
-  {
-    return external_pointer<OnePastEnd, Config>(p);
-  }
-
 } // namespace snmalloc
 
 // -- override/malloc.cc symbols with testlib_ prefix -----------------------

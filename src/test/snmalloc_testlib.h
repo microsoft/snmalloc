@@ -117,22 +117,6 @@ namespace snmalloc
   template<size_t size>
   void dealloc(void* p);
 
-  // -- external_pointer: non-template helpers + inline dispatch template ---
-  void* external_pointer_start(void* p);
-  void* external_pointer_end(void* p);
-  void* external_pointer_one_past_end(void* p);
-
-  template<Boundary location = Start>
-  inline void* external_pointer(void* p)
-  {
-    if constexpr (location == Start)
-      return external_pointer_start(p);
-    else if constexpr (location == End)
-      return external_pointer_end(p);
-    else
-      return external_pointer_one_past_end(p);
-  }
-
   // -- libc namespace ------------------------------------------------------
   namespace libc
   {
@@ -146,6 +130,9 @@ namespace snmalloc
     int posix_memalign(void** memptr, size_t alignment, size_t size);
     void* reallocarray(void* ptr, size_t nmemb, size_t size);
     int reallocarr(void* ptr_, size_t nmemb, size_t size);
+    void *__malloc_start_pointer(void* ptr);
+    void *__malloc_last_byte_pointer(void* ptr);
+    void *__malloc_end_pointer(void* ptr);
   } // namespace libc
 
 } // namespace snmalloc

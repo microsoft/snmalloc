@@ -19,9 +19,19 @@ namespace snmalloc::libc
     return err;
   }
 
-  inline void* __malloc_end_pointer(void* ptr)
+  SNMALLOC_USED_FUNCTION inline void* __malloc_end_pointer(void* ptr)
   {
     return snmalloc::external_pointer<OnePastEnd>(ptr);
+  }
+
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void* __malloc_start_pointer(void* ptr)
+  {
+    return snmalloc::external_pointer<Start>(ptr);
+  }
+
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void* __malloc_last_byte_pointer(void* ptr)
+  {
+    return snmalloc::external_pointer<End>(ptr);
   }
 
   SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void* malloc(size_t size)
