@@ -130,9 +130,9 @@ namespace snmalloc
     int posix_memalign(void** memptr, size_t alignment, size_t size);
     void* reallocarray(void* ptr, size_t nmemb, size_t size);
     int reallocarr(void* ptr_, size_t nmemb, size_t size);
-    void *__malloc_start_pointer(void* ptr);
-    void *__malloc_last_byte_pointer(void* ptr);
-    void *__malloc_end_pointer(void* ptr);
+    void* __malloc_start_pointer(void* ptr);
+    void* __malloc_last_byte_pointer(void* ptr);
+    void* __malloc_end_pointer(void* ptr);
   } // namespace libc
 
 } // namespace snmalloc

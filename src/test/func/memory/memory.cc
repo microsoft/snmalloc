@@ -394,7 +394,8 @@ void test_external_pointer_stack()
     if (snmalloc::libc::__malloc_start_pointer(&stack[i]) > &stack[i])
     {
       std::cout << "Stack pointer: " << &stack[i] << " external pointer: "
-                << snmalloc::libc::__malloc_start_pointer(&stack[i]) << std::endl;
+                << snmalloc::libc::__malloc_start_pointer(&stack[i])
+                << std::endl;
       abort();
     }
   }
@@ -408,7 +409,8 @@ void test_alloc_16M()
   const size_t size = 16'000'000;
 
   void* p1 = snmalloc::alloc(size);
-  SNMALLOC_CHECK(snmalloc::alloc_size(snmalloc::libc::__malloc_start_pointer(p1)) >= size);
+  SNMALLOC_CHECK(
+    snmalloc::alloc_size(snmalloc::libc::__malloc_start_pointer(p1)) >= size);
   snmalloc::dealloc(p1);
 }
 
@@ -418,7 +420,8 @@ void test_calloc_16M()
   const size_t size = 16'000'000;
 
   void* p1 = snmalloc::alloc<Zero>(size);
-  SNMALLOC_CHECK(snmalloc::alloc_size(snmalloc::libc::__malloc_start_pointer(p1)) >= size);
+  SNMALLOC_CHECK(
+    snmalloc::alloc_size(snmalloc::libc::__malloc_start_pointer(p1)) >= size);
   snmalloc::dealloc(p1);
 }
 
@@ -431,7 +434,8 @@ void test_calloc_large_bug()
   const size_t size = (MAX_SMALL_SIZECLASS_SIZE << 3) - 7;
 
   void* p1 = snmalloc::alloc<Zero>(size);
-  SNMALLOC_CHECK(snmalloc::alloc_size(snmalloc::libc::__malloc_start_pointer(p1)) >= size);
+  SNMALLOC_CHECK(
+    snmalloc::alloc_size(snmalloc::libc::__malloc_start_pointer(p1)) >= size);
   snmalloc::dealloc(p1);
 }
 
