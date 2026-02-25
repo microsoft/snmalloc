@@ -487,7 +487,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
   function(build_test_library TAG DEFINES)
     set(LIBNAME snmalloc-testlib-${TAG})
-    add_library(${LIBNAME} STATIC src/test/snmalloc_testlib.cc)
+    add_library(${LIBNAME} STATIC ${CMAKE_CURRENT_SOURCE_DIR}/src/test/snmalloc_testlib.cc)
     target_link_libraries(${LIBNAME} PRIVATE snmalloc)
     set_target_properties(${LIBNAME} PROPERTIES INTERFACE_LINK_LIBRARIES "")
     target_compile_definitions(${LIBNAME} PRIVATE "SNMALLOC_USE_${TEST_CLEANUP}")
