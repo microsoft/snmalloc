@@ -170,9 +170,19 @@ namespace snmalloc
     Aal::pause();
   }
 
-  // -- libc wrappers (force emission for MSVC where USED_FUNCTION is empty) -
-  // Taking the address of each inline function forces the compiler to emit
-  // a definition in this TU, making it available to testlib consumers.
+  // -- Force emission of inline functions for MSVC (where USED_FUNCTION is
+  // empty). Taking the address of each inline function forces the compiler to
+  // emit a definition in this TU, making it available to testlib consumers.
+
+  SNMALLOC_USED_FUNCTION static const volatile void* force_emit_global[] = {
+    reinterpret_cast<volatile void*>(
+      static_cast<void (*)(void*)>(&dealloc)),
+    reinterpret_cast<volatile void*>(
+      static_cast<void (*)(void*, size_t)>(&dealloc)),
+    reinterpret_cast<volatile void*>(
+      static_cast<void (*)(void*, size_t, size_t)>(&dealloc)),
+    reinterpret_cast<volatile void*>(&debug_teardown),
+  };
 
   namespace libc
   {
