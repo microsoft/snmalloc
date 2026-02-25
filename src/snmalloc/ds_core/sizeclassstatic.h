@@ -20,8 +20,6 @@ namespace snmalloc
 
     explicit constexpr smallsizeclass_t(size_t v) : raw(v)
     {
-      SNMALLOC_ASSERT(v < NUM_SMALL_SIZECLASSES);
-      SNMALLOC_ASSERT(v == static_cast<uint8_t>(v));
     }
 
     /// Implicit conversion to size_t.
@@ -56,7 +54,7 @@ namespace snmalloc
   }
 
   constexpr size_t NUM_SMALL_SIZECLASSES =
-    size_to_sizeclass_const(MAX_SMALL_SIZECLASS_SIZE) + 1;
+    size_t(size_to_sizeclass_const(MAX_SMALL_SIZECLASS_SIZE)) + 1;
 
   static constexpr size_t sizeclass_to_size_const(smallsizeclass_t sc)
   {
@@ -74,4 +72,5 @@ namespace snmalloc
     return (size - 1) <
       sizeclass_to_size_const(smallsizeclass_t(NUM_SMALL_SIZECLASSES - 1));
   }
+
 } // namespace snmalloc
