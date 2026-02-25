@@ -16,7 +16,7 @@ namespace snmalloc
   {
   public:
     /*
-     * The values we store in our rbtree are the addresses of (combined spans
+     * The values we store in our RedBlackTree are the addresses of (combined spans
      * of) chunks of the address space; as such, bits in (MIN_CHUNK_SIZE - 1)
      * are unused and so the RED_BIT is packed therein.  However, in practice,
      * these are not "just any" uintptr_t-s, but specifically the uintptr_t-s
@@ -87,19 +87,19 @@ namespace snmalloc
       return entry.get_backend_word(Pagemap::Entry::Word::Two);
     }
 
-    static bool is_red(Contents k)
+    static bool tree_tag(Contents k)
     {
       return (ref(true, k).get() & RED_BIT) == RED_BIT;
     }
 
-    static void set_red(Contents k, bool new_is_red)
+    static void set_tree_tag(Contents k, bool new_tree_tag)
     {
-      if (new_is_red != is_red(k))
+      if (new_tree_tag != tree_tag(k))
       {
         auto v = ref(true, k);
         v = v.get() ^ RED_BIT;
       }
-      SNMALLOC_ASSERT(is_red(k) == new_is_red);
+      SNMALLOC_ASSERT(tree_tag(k) == new_tree_tag);
     }
 
     static Contents offset(Contents k, size_t size)

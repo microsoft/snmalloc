@@ -135,7 +135,7 @@ The following cases apply:
    The `MetaEntry`...
    * has `REMOTE_BACKEND_MARKER` asserted in `remote_and_sizeclass`.
    * has "small" sizeclass 0, which has size 0.
-   * the remainder of its `MetaEntry` structure will be a Large Buddy Allocator rbtree node.
+   * the remainder of its `MetaEntry` structure will be a Large Buddy Allocator RedBlackTree node.
    * has no associated metadata structure.
 
 3. The address is part of a free chunk inside a backend's Small Buddy Allocator:

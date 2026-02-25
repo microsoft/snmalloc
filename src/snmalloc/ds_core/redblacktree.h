@@ -7,73 +7,6 @@
 
 namespace snmalloc
 {
-#ifdef __cpp_concepts
-  /**
-   * The representation must define two types.  `Contents` defines some
-   * identifier that can be mapped to a node as a value type.  `Handle` defines
-   * a reference to the storage, which can be used to update it.
-   *
-   * Conceptually, `Contents` is a node ID and `Handle` is a pointer to a node
-   * ID.
-   */
-  template<typename Rep>
-  concept RBRepTypes = requires() {
-                         typename Rep::Handle;
-                         typename Rep::Contents;
-                       };
-
-  /**
-   * The representation must define operations on the holder and contents
-   * types.  It must be able to 'dereference' a holder with `get`, assign to it
-   * with `set`, set and query the red/black colour of a node with `set_red` and
-   * `is_red`.
-   *
-   * The `ref` method provides uniform access to the children of a node,
-   * returning a holder pointing to either the left or right child, depending on
-   * the direction parameter.
-   *
-   * The backend must also provide two constant values.
-   * `Rep::null` defines a value that, if returned from `get`, indicates a null
-   * value. `Rep::root` defines a value that, if constructed directly, indicates
-   * a null value and can therefore be used as the initial raw bit pattern of
-   * the root node.
-   */
-  template<typename Rep>
-  concept RBRepMethods =
-    requires(typename Rep::Handle hp, typename Rep::Contents k, bool b) {
-      {
-        Rep::get(hp)
-        } -> ConceptSame<typename Rep::Contents>;
-      {
-        Rep::set(hp, k)
-        } -> ConceptSame<void>;
-      {
-        Rep::is_red(k)
-        } -> ConceptSame<bool>;
-      {
-        Rep::set_red(k, b)
-        } -> ConceptSame<void>;
-      {
-        Rep::ref(b, k)
-        } -> ConceptSame<typename Rep::Handle>;
-      {
-        Rep::null
-        } -> ConceptSameModRef<const typename Rep::Contents>;
-      {
-        typename Rep::Handle{const_cast<
-          stl::remove_const_t<stl::remove_reference_t<decltype(Rep::root)>>*>(
-          &Rep::root)}
-        } -> ConceptSame<typename Rep::Handle>;
-    };
-
-  template<typename Rep>
-  concept RBRep = //
-    RBRepTypes<Rep> //
-    && RBRepMethods<Rep> //
-    &&
-    ConceptSame<decltype(Rep::null), stl::add_const_t<typename Rep::Contents>>;
-#endif
-
   /**
    * Contains a self balancing binary tree.
    *
@@ -89,7 +22,7 @@ namespace snmalloc
     SNMALLOC_CONCEPT(RBRep) Rep,
     bool run_checks = Debug,
     bool TRACE = false>
-  class RBTree
+  class RedBlackTree
   {
     using H = typename Rep::Handle;
     using K = typename Rep::Contents;
@@ -203,9 +136,9 @@ namespace snmalloc
         }
 
         if (
-          Rep::is_red(curr) &&
-          (Rep::is_red(get_dir(true, curr)) ||
-           Rep::is_red(get_dir(false, curr))))
+          Rep::tree_tag(curr) &&
+          (Rep::tree_tag(get_dir(true, curr)) ||
+           Rep::tree_tag(get_dir(false, curr))))
         {
           report_fatal_error(
             "Invariant failed: {} is red and has red child",
@@ -222,7 +155,7 @@ namespace snmalloc
             Rep::printable(curr));
         }
 
-        if (Rep::is_red(curr))
+        if (Rep::tree_tag(curr))
           return left_inv;
 
         return left_inv + 1;
@@ -258,7 +191,7 @@ namespace snmalloc
     // externally.
     class RBPath
     {
-      friend class RBTree;
+      friend class RedBlackTree;
 
       stl::Array<RBStep, 128> path;
       size_t length = 0;
@@ -405,7 +338,7 @@ namespace snmalloc
     }
 
   public:
-    constexpr RBTree() = default;
+    constexpr RedBlackTree() = default;
 
     void print()
     {
@@ -423,10 +356,10 @@ namespace snmalloc
         }
 
 #ifdef _MSC_VER
-        auto colour = Rep::is_red(curr) ? "R-" : "B-";
+        auto colour = Rep::tree_tag(curr) ? "R-" : "B-";
         auto reset = "";
 #else
-        auto colour = Rep::is_red(curr) ? "\e[1;31m" : "\e[1;34m";
+        auto colour = Rep::tree_tag(curr) ? "\e[1;31m" : "\e[1;34m";
         auto reset = "\e[0m";
 #endif
 
@@ -508,13 +441,13 @@ namespace snmalloc
         path.curr() = child;
       }
 
-      bool leaf_red = Rep::is_red(curr);
+      bool leaf_red = Rep::tree_tag(curr);
 
       if (path.curr() != splice)
       {
         // If we had a left child, replace ourselves with the extracted value
         // from above
-        Rep::set_red(curr, Rep::is_red(splice));
+        Rep::set_tree_tag(curr, Rep::tree_tag(splice));
         get_dir(true, curr) = K{get_dir(true, splice)};
         get_dir(false, curr) = K{get_dir(false, splice)};
         splice = curr;
@@ -555,14 +488,14 @@ namespace snmalloc
          *
          * By invariant we know that p, n and m are all initially black.
          */
-        if (Rep::is_red(sibling))
+        if (Rep::tree_tag(sibling))
         {
           debug_log("Red sibling", path, path.parent());
           K nibling = get_dir(cur_dir, sibling);
           get_dir(!cur_dir, parent) = nibling;
           get_dir(cur_dir, sibling) = parent;
-          Rep::set_red(parent, true);
-          Rep::set_red(sibling, false);
+          Rep::set_tree_tag(parent, true);
+          Rep::set_tree_tag(sibling, false);
           path.parent() = sibling;
           // Manually fix path.  Using path.fixup would alter the complexity
           // class.
@@ -581,7 +514,7 @@ namespace snmalloc
          *            / \              / \
          *          on   rn           c   on
          */
-        if (Rep::is_red(get_dir(!cur_dir, sibling)))
+        if (Rep::tree_tag(get_dir(!cur_dir, sibling)))
         {
           debug_log("Red nibling 1", path, path.parent());
           K r_nibling = get_dir(!cur_dir, sibling);
@@ -589,9 +522,9 @@ namespace snmalloc
           get_dir(cur_dir, sibling) = parent;
           get_dir(!cur_dir, parent) = o_nibling;
           path.parent() = sibling;
-          Rep::set_red(r_nibling, false);
-          Rep::set_red(sibling, Rep::is_red(parent));
-          Rep::set_red(parent, false);
+          Rep::set_tree_tag(r_nibling, false);
+          Rep::set_tree_tag(sibling, Rep::tree_tag(parent));
+          Rep::set_tree_tag(parent, false);
           debug_log("Red nibling 1 - done", path, path.parent());
           break;
         }
@@ -605,7 +538,7 @@ namespace snmalloc
          *         / \
          *       rno  rns
          */
-        if (Rep::is_red(get_dir(cur_dir, sibling)))
+        if (Rep::tree_tag(get_dir(cur_dir, sibling)))
         {
           debug_log("Red nibling 2", path, path.parent());
           K r_nibling = get_dir(cur_dir, sibling);
@@ -616,18 +549,18 @@ namespace snmalloc
           get_dir(cur_dir, r_nibling) = parent;
           get_dir(!cur_dir, r_nibling) = sibling;
           path.parent() = r_nibling;
-          Rep::set_red(r_nibling, Rep::is_red(parent));
-          Rep::set_red(parent, false);
+          Rep::set_tree_tag(r_nibling, Rep::tree_tag(parent));
+          Rep::set_tree_tag(parent, false);
           debug_log("Red nibling 2 - done", path, path.parent());
           break;
         }
 
         // Handle black sibling and niblings, and red parent.
-        if (Rep::is_red(parent))
+        if (Rep::tree_tag(parent))
         {
           debug_log("Black sibling and red parent case", path, path.parent());
-          Rep::set_red(parent, false);
-          Rep::set_red(sibling, true);
+          Rep::set_tree_tag(parent, false);
+          Rep::set_tree_tag(sibling, true);
           debug_log(
             "Black sibling and red parent case - done", path, path.parent());
           break;
@@ -635,7 +568,7 @@ namespace snmalloc
         // Handle black sibling and niblings and black parent.
         debug_log(
           "Black sibling, niblings and black parent case", path, path.parent());
-        Rep::set_red(sibling, true);
+        Rep::set_tree_tag(sibling, true);
         path.pop();
         invariant(path.curr());
         debug_log(
@@ -653,17 +586,17 @@ namespace snmalloc
       path.curr() = value;
       get_dir(true, path.curr()) = Rep::null;
       get_dir(false, path.curr()) = Rep::null;
-      Rep::set_red(value, true);
+      Rep::set_tree_tag(value, true);
 
       debug_log("Insert ", path);
 
       // Propogate double red up to rebalance.
       // These notes were particularly clear for explaining insert
-      // https://www.cs.cmu.edu/~fp/courses/15122-f10/lectures/17-rbtrees.pdf
+      // https://www.cs.cmu.edu/~fp/courses/15122-f10/lectures/17-RedBlackTrees.pdf
       while (path.curr() != get_root())
       {
-        SNMALLOC_ASSERT(Rep::is_red(path.curr()));
-        if (!Rep::is_red(path.parent()))
+        SNMALLOC_ASSERT(Rep::tree_tag(path.curr()));
+        if (!Rep::tree_tag(path.parent()))
         {
           invariant();
           return;
@@ -672,7 +605,7 @@ namespace snmalloc
         K curr = path.curr();
         K parent = path.parent();
         K grand_parent = path.grand_parent();
-        SNMALLOC_ASSERT(!Rep::is_red(grand_parent));
+        SNMALLOC_ASSERT(!Rep::tree_tag(grand_parent));
         if (path.parent_dir() == curr_dir)
         {
           debug_log("Insert - double red case 1", path, path.grand_parent());
@@ -689,7 +622,7 @@ namespace snmalloc
            *    S   C         A   S
            */
           K sibling = get_dir(!curr_dir, parent);
-          Rep::set_red(curr, false);
+          Rep::set_tree_tag(curr, false);
           get_dir(curr_dir, grand_parent) = sibling;
           get_dir(!curr_dir, parent) = grand_parent;
           path.grand_parent() = parent;
@@ -716,7 +649,7 @@ namespace snmalloc
           K child_g = get_dir(curr_dir, curr);
           K child_p = get_dir(!curr_dir, curr);
 
-          Rep::set_red(parent, false);
+          Rep::set_tree_tag(parent, false);
           path.grand_parent() = curr;
           get_dir(curr_dir, curr) = grand_parent;
           get_dir(!curr_dir, curr) = parent;
@@ -731,7 +664,7 @@ namespace snmalloc
         path.pop();
         invariant(path.curr());
       }
-      Rep::set_red(get_root(), false);
+      Rep::set_tree_tag(get_root(), false);
       invariant();
     }
 

@@ -18,7 +18,7 @@ namespace snmalloc
   };
 
   /**
-   * Class for using the allocations own space to store in the RBTree.
+   * Class for using the allocations own space to store in the RedBlackTree.
    */
   template<SNMALLOC_CONCEPT(capptr::IsBound) bounds>
   class BuddyInplaceRep
@@ -57,21 +57,21 @@ namespace snmalloc
       return &r->right;
     }
 
-    static bool is_red(Contents k)
+    static bool tree_tag(Contents k)
     {
       if (k == nullptr)
         return false;
       return (address_cast(*ref(false, k)) & MASK) == MASK;
     }
 
-    static void set_red(Contents k, bool new_is_red)
+    static void set_tree_tag(Contents k, bool new_tree_tag)
     {
-      if (new_is_red != is_red(k))
+      if (new_tree_tag != tree_tag(k))
       {
         auto r = ref(false, k);
         auto old_addr = pointer_align_down<2, FreeChunk<bounds>>(r->as_void());
 
-        if (new_is_red)
+        if (new_tree_tag)
         {
           if (old_addr == nullptr)
             *r = CapPtr<FreeChunk<bounds>, bounds>::unsafe_from(
@@ -84,7 +84,7 @@ namespace snmalloc
         {
           *r = old_addr;
         }
-        SNMALLOC_ASSERT(is_red(k) == new_is_red);
+        SNMALLOC_ASSERT(tree_tag(k) == new_tree_tag);
       }
     }
 
