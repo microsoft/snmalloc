@@ -21,7 +21,7 @@ namespace snmalloc
     if (alloc == nullptr)
       return;
 
-    decltype(alloc) last;
+    decltype(alloc) last = alloc;
     while (alloc != nullptr)
     {
       alloc->flush();
