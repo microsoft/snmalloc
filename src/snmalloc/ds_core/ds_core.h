@@ -7,6 +7,7 @@
  * snmalloc.
  */
 
+#include "allocconfig.h"
 #include "bits.h"
 #include "cheri.h"
 #include "concept.h"
@@ -15,4 +16,5 @@
 #include "mitigations.h"
 #include "ptrwrap.h"
 #include "redblacktree.h"
+#include "sizeclassstatic.h"
 #include "tid.h"

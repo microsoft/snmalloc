@@ -5,7 +5,6 @@
 #include "freelist.h"
 #include "metadata.h"
 #include "remoteallocator.h"
-#include "sizeclasstable.h"
 #include "snmalloc/stl/array.h"
 #include "snmalloc/stl/atomic.h"
 

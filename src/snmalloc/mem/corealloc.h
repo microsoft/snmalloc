@@ -5,7 +5,6 @@
 #include "freelist.h"
 #include "metadata.h"
 #include "remotecache.h"
-#include "sizeclasstable.h"
 #include "snmalloc/stl/new.h"
 #include "ticker.h"
 

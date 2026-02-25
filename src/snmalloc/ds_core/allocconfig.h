@@ -1,5 +1,8 @@
 #pragma once
 
+#include "bits.h"
+#include "mitigations.h"
+
 namespace snmalloc
 {
   // 0 intermediate bits results in power of 2 small allocs. 1 intermediate

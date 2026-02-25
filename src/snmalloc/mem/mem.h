@@ -9,5 +9,4 @@
 #include "metadata.h"
 #include "remoteallocator.h"
 #include "remotecache.h"
-#include "sizeclasstable.h"
 #include "ticker.h"
