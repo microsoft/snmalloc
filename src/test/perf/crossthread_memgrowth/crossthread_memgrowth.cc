@@ -26,7 +26,7 @@
  *   Usage:
  *     crossthread_memgrowth
  *       [--workers   N]     # worker threads     (default: 8)
- *       [--duration  N]     # run time seconds   (default: 60)
+ *       [--duration  N]     # run time seconds   (default: 120)
  *       [--min-size  N]     # min alloc bytes    (default: 524288 = 512KB)
  *       [--max-size  N]     # max alloc bytes    (default: 16777216 = 16MB)
  *       [--queue-cap N]     # per-worker queue   (default: 16)
@@ -152,7 +152,8 @@ struct Sample
   size_t second;
   size_t allocs_total;
   size_t frees_total;
-  size_t committed_bytes;
+  size_t live_requested_bytes; // alloc'd - freed (client's view of live data)
+  size_t committed_bytes;      // snmalloc's committed memory
   size_t peak_bytes;
 };
 
@@ -174,6 +175,30 @@ static std::atomic<size_t> total_frees{0};
 static std::atomic<size_t> total_allocated_bytes{0};
 static std::atomic<size_t> total_freed_bytes{0};
 
+/// Per-worker allocation statistics.  Each worker tracks the bytes it has
+/// requested (via alloc) and the bytes it has returned (via dealloc) on
+/// that thread, regardless of which thread originally allocated the memory.
+struct alignas(64) WorkerStats
+{
+  std::atomic<size_t> requested_bytes{0}; // cumulative bytes alloc'd on this thread
+  std::atomic<size_t> returned_bytes{0};  // cumulative bytes freed on this thread
+};
+
+/// Returns the net live requested bytes across all workers:
+/// sum(alloc'd) - sum(freed).  This is the client's view of in-use memory
+/// and represents the minimum the allocator must have committed.
+static size_t
+get_live_requested(std::vector<WorkerStats>& stats, size_t n_workers)
+{
+  size_t total_req = 0, total_ret = 0;
+  for (size_t i = 0; i < n_workers; ++i)
+  {
+    total_req += stats[i].requested_bytes.load(std::memory_order_relaxed);
+    total_ret += stats[i].returned_bytes.load(std::memory_order_relaxed);
+  }
+  return (total_req >= total_ret) ? (total_req - total_ret) : 0;
+}
+
 // ──────────────────────── Worker thread ────────────────────────
 
 /**
@@ -186,6 +211,7 @@ static std::atomic<size_t> total_freed_bytes{0};
  */
 void worker_thread(
   std::vector<std::unique_ptr<Mailbox>>& mailboxes,
+  std::vector<WorkerStats>& stats,
   size_t n_workers,
   size_t min_size,
   size_t max_size,
@@ -208,6 +234,7 @@ void worker_thread(
       if (size > 1)
         reinterpret_cast<volatile char*>(ptr)[size - 1] = 'Z';
     }
+    stats[id].requested_bytes.fetch_add(size, std::memory_order_relaxed);
     total_allocated_bytes.fetch_add(size, std::memory_order_relaxed);
     total_allocs.fetch_add(1, std::memory_order_relaxed);
 
@@ -230,6 +257,7 @@ void worker_thread(
       // All targets full — free the allocation ourselves to avoid deadlock.
       // This should be rare at steady state.
       snmalloc::dealloc(ptr);
+      stats[id].returned_bytes.fetch_add(size, std::memory_order_relaxed);
       total_freed_bytes.fetch_add(size, std::memory_order_relaxed);
       total_frees.fetch_add(1, std::memory_order_relaxed);
     }
@@ -240,6 +268,7 @@ void worker_thread(
     for (auto& a : to_free)
     {
       snmalloc::dealloc(a.ptr);
+      stats[id].returned_bytes.fetch_add(a.size, std::memory_order_relaxed);
       total_freed_bytes.fetch_add(a.size, std::memory_order_relaxed);
       total_frees.fetch_add(1, std::memory_order_relaxed);
     }
@@ -251,6 +280,7 @@ void worker_thread(
   for (auto& a : to_free)
   {
     snmalloc::dealloc(a.ptr);
+    stats[id].returned_bytes.fetch_add(a.size, std::memory_order_relaxed);
     total_freed_bytes.fetch_add(a.size, std::memory_order_relaxed);
     total_frees.fetch_add(1, std::memory_order_relaxed);
   }
@@ -264,7 +294,7 @@ int main(int argc, char** argv)
 
   opt::Opt o(argc, argv);
   size_t n_workers = o.is<size_t>("--workers", 8);
-  size_t duration_s = o.is<size_t>("--duration", 60);
+  size_t duration_s = o.is<size_t>("--duration", 120);
   size_t min_size = o.is<size_t>("--min-size", 512 * 1024);       // 512 KB
   size_t max_size = o.is<size_t>("--max-size", 16 * 1024 * 1024); // 16 MB
   size_t queue_cap = o.is<size_t>("--queue-cap", 16);
@@ -288,11 +318,14 @@ int main(int argc, char** argv)
   for (size_t i = 0; i < n_workers; ++i)
     mailboxes.push_back(std::make_unique<Mailbox>(queue_cap));
 
+  // Per-worker allocation tracking.
+  std::vector<WorkerStats> worker_stats(n_workers);
+
   std::vector<Sample> samples;
   samples.reserve(duration_s + 2);
 
   // Record baseline.
-  samples.push_back({0, 0, 0, get_committed(), get_peak()});
+  samples.push_back({0, 0, 0, 0, get_committed(), get_peak()});
 
   // --- Launch workers ---
   std::vector<std::thread> workers;
@@ -301,6 +334,7 @@ int main(int argc, char** argv)
     workers.emplace_back(
       worker_thread,
       std::ref(mailboxes),
+      std::ref(worker_stats),
       n_workers,
       min_size,
       max_size,
@@ -314,6 +348,7 @@ int main(int argc, char** argv)
       {r,
        total_allocs.load(std::memory_order_relaxed),
        total_frees.load(std::memory_order_relaxed),
+       get_live_requested(worker_stats, n_workers),
        get_committed(),
        get_peak()});
     // auto s = samples.back();
@@ -355,6 +390,7 @@ int main(int argc, char** argv)
     {duration_s + 1,
      total_allocs.load(),
      total_frees.load(),
+     get_live_requested(worker_stats, n_workers),
      get_committed(),
      get_peak()});
 
@@ -366,14 +402,16 @@ int main(int argc, char** argv)
 
   std::cout << std::fixed << std::setprecision(2);
   std::cout << std::setw(6) << "Time" << std::setw(12) << "Allocs"
-            << std::setw(12) << "Frees" << std::setw(16) << "Committed(MB)"
+            << std::setw(12) << "Frees" << std::setw(12) << "Live(MB)"
+            << std::setw(16) << "Committed(MB)"
             << std::setw(12) << "Peak(MB)" << "\n";
-  std::cout << std::string(58, '-') << "\n";
+  std::cout << std::string(70, '-') << "\n";
 
   for (const auto& s : samples)
   {
     std::cout << std::setw(6) << s.second << std::setw(12) << s.allocs_total
-              << std::setw(12) << s.frees_total << std::setw(16)
+              << std::setw(12) << s.frees_total << std::setw(12)
+              << to_mb(s.live_requested_bytes) << std::setw(16)
               << to_mb(s.committed_bytes) << std::setw(12)
               << to_mb(s.peak_bytes) << "\n";
   }
