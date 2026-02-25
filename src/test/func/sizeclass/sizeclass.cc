@@ -18,9 +18,7 @@ void test_align_size()
 
   SNMALLOC_CHECK(snmalloc::aligned_size(128, 160) == 256);
 
-  for (size_t size = 1;
-       size < snmalloc::sizeclass_to_size(snmalloc::NUM_SMALL_SIZECLASSES - 1);
-       size++)
+  for (size_t size = 1; snmalloc::is_small_sizeclass(size); size++)
   {
     size_t rsize = snmalloc::round_size(size);
 
@@ -86,7 +84,7 @@ int main(int, char**)
   std::cout << "sizeclass |-> [size_low, size_high] " << std::endl;
 
   size_t slab_size = 0;
-  for (snmalloc::smallsizeclass_t sz = 0; sz < snmalloc::NUM_SMALL_SIZECLASSES;
+  for (snmalloc::smallsizeclass_t sz(0); sz < snmalloc::NUM_SMALL_SIZECLASSES;
        sz++)
   {
     if (

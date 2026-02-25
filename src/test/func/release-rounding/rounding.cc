@@ -18,9 +18,9 @@ int main(int argc, char** argv)
 
   bool failed = false;
 
-  for (size_t size_class = 0; size_class < NUM_SMALL_SIZECLASSES; size_class++)
+  for (smallsizeclass_t size_class; size_class < NUM_SMALL_SIZECLASSES; size_class++)
   {
-    size_t rsize = sizeclass_to_size((uint8_t)size_class);
+    size_t rsize = sizeclass_to_size(size_class);
     size_t max_offset = sizeclass_to_slab_size(size_class);
     sizeclass_t sc = sizeclass_t::from_small_class(size_class);
     for (size_t offset = 0; offset < max_offset; offset++)

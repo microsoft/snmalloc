@@ -80,7 +80,7 @@ namespace snmalloc
     constexpr smallsizeclass_t as_small()
     {
       SNMALLOC_ASSERT(is_small());
-      return value & (TAG - 1);
+      return smallsizeclass_t(value & (TAG - 1));
     }
 
     constexpr chunksizeclass_t as_large()
@@ -181,7 +181,7 @@ namespace snmalloc
     {
       size_t max_capacity = 0;
 
-      for (sizeclass_compress_t sizeclass = 0;
+      for (smallsizeclass_t sizeclass(0);
            sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
       {
@@ -213,7 +213,7 @@ namespace snmalloc
       // Get maximum precision to calculate largest division range.
       DIV_MULT_SHIFT = bits::BITS - bits::next_pow2_bits_const(max_capacity);
 
-      for (sizeclass_compress_t sizeclass = 0;
+      for (smallsizeclass_t sizeclass(0);
            sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
       {
@@ -417,7 +417,7 @@ namespace snmalloc
       sizeclass_compress_t sizeclass = 0;
       for (; sizeclass < minimum_class; sizeclass++)
       {
-        for (; curr <= sizeclass_metadata.fast_small(sizeclass).size;
+        for (; curr <= sizeclass_metadata.fast_small(smallsizeclass_t(sizeclass)).size;
              curr += MIN_ALLOC_STEP_SIZE)
         {
           table[sizeclass_lookup_index(curr)] = minimum_class;
@@ -426,7 +426,7 @@ namespace snmalloc
 
       for (; sizeclass < NUM_SMALL_SIZECLASSES; sizeclass++)
       {
-        for (; curr <= sizeclass_metadata.fast_small(sizeclass).size;
+        for (; curr <= sizeclass_metadata.fast_small(smallsizeclass_t(sizeclass)).size;
              curr += MIN_ALLOC_STEP_SIZE)
         {
           auto i = sizeclass_lookup_index(curr);
@@ -446,13 +446,13 @@ namespace snmalloc
     {
       auto index = sizeclass_lookup_index(size);
       SNMALLOC_ASSERT(index < sizeclass_lookup_size);
-      return sizeclass_lookup.table[index];
+      return smallsizeclass_t(sizeclass_lookup.table[index]);
     }
 
     // Check this is not called on large sizes.
     SNMALLOC_ASSERT(size == 0);
     // Map size == 0 to the first sizeclass.
-    return 0;
+    return smallsizeclass_t(0);
   }
 
   /**

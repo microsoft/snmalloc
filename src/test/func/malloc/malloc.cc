@@ -226,7 +226,7 @@ int main(int argc, char** argv)
   check_result(too_big_size, 1, testlib_malloc(too_big_size), ENOMEM, true);
   errno = SUCCESS;
 
-  for (smallsizeclass_t sc = 0; sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
+  for (smallsizeclass_t sc(0); sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
   {
     const size_t size = bits::one_at_bit(sc);
     START_TEST("malloc: {}", size);
@@ -243,7 +243,7 @@ int main(int argc, char** argv)
   test_calloc(1, too_big_size, ENOMEM, true);
   errno = SUCCESS;
 
-  for (smallsizeclass_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
+  for (smallsizeclass_t sc(0); sc < NUM_SMALL_SIZECLASSES; sc++)
   {
     const size_t size = sizeclass_to_size(sc);
 
@@ -264,13 +264,13 @@ int main(int argc, char** argv)
   // Check realloc(nullptr,0) behaves like malloc(1)
   test_realloc(nullptr, 0, SUCCESS, false);
 
-  for (smallsizeclass_t sc = 0; sc < NUM_SMALL_SIZECLASSES; sc++)
+  for (smallsizeclass_t sc(0); sc < NUM_SMALL_SIZECLASSES; sc++)
   {
     const size_t size = sizeclass_to_size(sc);
     test_realloc(testlib_malloc(size), size, SUCCESS, false);
     test_realloc(nullptr, size, SUCCESS, false);
     test_realloc(testlib_malloc(size), too_big_size, ENOMEM, true);
-    for (smallsizeclass_t sc2 = 0; sc2 < NUM_SMALL_SIZECLASSES; sc2++)
+    for (smallsizeclass_t sc2(0); sc2 < NUM_SMALL_SIZECLASSES; sc2++)
     {
       const size_t size2 = sizeclass_to_size(sc2);
       test_realloc(testlib_malloc(size), size2, SUCCESS, false);
@@ -280,13 +280,13 @@ int main(int argc, char** argv)
     test_realloc(testlib_malloc(size), 0, SUCCESS, true);
   }
 
-  for (smallsizeclass_t sc = 0; sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
+  for (smallsizeclass_t sc(0); sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
   {
     const size_t size = bits::one_at_bit(sc);
     test_realloc(testlib_malloc(size), size, SUCCESS, false);
     test_realloc(nullptr, size, SUCCESS, false);
     test_realloc(testlib_malloc(size), too_big_size, ENOMEM, true);
-    for (smallsizeclass_t sc2 = 0; sc2 < (MAX_SMALL_SIZECLASS_BITS + 4); sc2++)
+    for (smallsizeclass_t sc2(0); sc2 < (MAX_SMALL_SIZECLASS_BITS + 4); sc2++)
     {
       const size_t size2 = bits::one_at_bit(sc2);
       INFO("size1: {}, size2:{}\n", size, size2);
@@ -307,7 +307,7 @@ int main(int argc, char** argv)
     // Check overflow with alignment taking it round to 0.
     test_memalign(1 - align, align, ENOMEM, true);
 
-    for (smallsizeclass_t sc = 0; sc < NUM_SMALL_SIZECLASSES - 6; sc++)
+    for (smallsizeclass_t sc(0); sc < NUM_SMALL_SIZECLASSES - 6; sc++)
     {
       const size_t size = sizeclass_to_size(sc);
       test_posix_memalign(size, align, SUCCESS, false);
@@ -320,14 +320,14 @@ int main(int argc, char** argv)
   }
 
   test_reallocarray(nullptr, 1, 0, SUCCESS, false);
-  for (smallsizeclass_t sc = 0; sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
+  for (smallsizeclass_t sc(0); sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
   {
     const size_t size = bits::one_at_bit(sc);
     test_reallocarray(testlib_malloc(size), 1, size, SUCCESS, false);
     test_reallocarray(testlib_malloc(size), 1, 0, SUCCESS, false);
     test_reallocarray(nullptr, 1, size, SUCCESS, false);
     test_reallocarray(testlib_malloc(size), 1, too_big_size, ENOMEM, true);
-    for (smallsizeclass_t sc2 = 0; sc2 < (MAX_SMALL_SIZECLASS_BITS + 4); sc2++)
+    for (smallsizeclass_t sc2(0); sc2 < (MAX_SMALL_SIZECLASS_BITS + 4); sc2++)
     {
       const size_t size2 = bits::one_at_bit(sc2);
       test_reallocarray(testlib_malloc(size), 1, size2, SUCCESS, false);
@@ -338,7 +338,7 @@ int main(int argc, char** argv)
   test_reallocarr((size_t)~0, 1, 0, SUCCESS, false);
   test_reallocarr((size_t)~0, 1, 16, SUCCESS, false);
 
-  for (smallsizeclass_t sc = 0; sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
+  for (smallsizeclass_t sc(0); sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
   {
     const size_t size = bits::one_at_bit(sc);
     test_reallocarr(size, 1, size, SUCCESS, false);
@@ -350,7 +350,7 @@ int main(int argc, char** argv)
     EXPECT(r == ENOMEM, "expected failure on allocation\n");
     testlib_free(p);
 
-    for (smallsizeclass_t sc2 = 0; sc2 < (MAX_SMALL_SIZECLASS_BITS + 4); sc2++)
+    for (smallsizeclass_t sc2(0); sc2 < (MAX_SMALL_SIZECLASS_BITS + 4); sc2++)
     {
       const size_t size2 = bits::one_at_bit(sc2);
       START_TEST("size1: {}, size2:{}", size, size2);
