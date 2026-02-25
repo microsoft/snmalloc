@@ -72,6 +72,62 @@ namespace snmalloc
       bool dir{Left};
     };
 
+    void invariant()
+    {
+      invariant(get_root());
+    }
+
+    /*
+     * Verify structural invariants. Returns the computed rank of `curr`.
+     */
+    int invariant(K curr, K lower = Rep::null, K upper = Rep::null)
+    {
+      if constexpr (!use_checks)
+      {
+        UNUSED(curr, lower, upper);
+        return 0;
+      }
+      else
+      {
+        if (is_null(curr))
+          return -1;
+
+        if (
+          ((lower != Rep::null) && Rep::compare(lower, curr)) ||
+          ((upper != Rep::null) && Rep::compare(curr, upper)))
+        {
+          report_fatal_error(
+            "Invariant failed: {} is out of bounds {}..{}",
+            Rep::printable(curr),
+            Rep::printable(lower),
+            Rep::printable(upper));
+        }
+
+        K left = child(curr, Left);
+        K right = child(curr, Right);
+
+        int left_rank = invariant(left, lower, curr);
+        int right_rank = invariant(right, curr, upper);
+
+        int from_left = left_rank + (parity(curr) == parity(left) ? 2 : 1);
+        int from_right = right_rank + (parity(curr) == parity(right) ? 2 : 1);
+        if (from_left != from_right)
+        {
+          report_fatal_error(
+            "Invariant failed: {} has inconsistent ranks",
+            Rep::printable(curr));
+        }
+
+        if (is_null(left) && is_null(right) && (from_left != 0 || parity(curr)))
+        {
+          report_fatal_error(
+            "Invariant failed: {} is not a rank-0 leaf", Rep::printable(curr));
+        }
+
+        return from_left;
+      }
+    }
+
     H root_ref()
     {
       return H{&root};
@@ -382,15 +438,15 @@ namespace snmalloc
         par_x = parity(x);
         par_p_x = parity(p_x);
         par_s_x = parity(sibling(x));
-      } while (
-        (!par_x && !par_p_x && par_s_x) || (par_x && par_p_x && !par_s_x));
+      } while ((!par_x && !par_p_x && par_s_x) ||
+               (par_x && par_p_x && !par_s_x));
 
       // Case 2: x is already a 2-child of p_x; no violation remains.
       //
       //         (P)                     (P)
-      //        /   ╲                   /   ╲ 
+      //        /   ╲                   /   ╲
       //       2     1      =>         1     1
-      //      /       ╲               /       ╲ 
+      //      /       ╲               /       ╲
       //    (N)       (*)           (N)       (*)
       if (!((par_x && par_p_x && par_s_x) || (!par_x && !par_p_x && !par_s_x)))
         return;
@@ -513,7 +569,8 @@ namespace snmalloc
       do
       {
         K p_p_x = parent(p_x);
-        y = Rep::equal(child(p_x, Left), x) ? child(p_x, Right) : child(p_x, Left);
+        y = Rep::equal(child(p_x, Left), x) ? child(p_x, Right) :
+                                              child(p_x, Left);
 
         creates_3_node = !is_null(p_p_x) && (parity(p_x) == parity(p_p_x));
 
@@ -838,6 +895,7 @@ namespace snmalloc
       if (is_null(path.curr))
         return false;
       erase_node(path.curr);
+      invariant();
       return true;
     }
 
@@ -847,6 +905,7 @@ namespace snmalloc
         SNMALLOC_ASSERT(is_null(path.curr));
       insert_known_absent(value, path.parent, path.dir);
       path.curr = value;
+      invariant();
     }
 
     RBPath get_root_path()

@@ -16,11 +16,11 @@ namespace snmalloc
   {
   public:
     /*
-     * The values we store in our DefaultRBTree are the addresses of (combined spans
-     * of) chunks of the address space; as such, bits in (MIN_CHUNK_SIZE - 1)
-     * are unused and so the TREE_TAG_BIT is packed therein.  However, in practice,
-     * these are not "just any" uintptr_t-s, but specifically the uintptr_t-s
-     * inside the Pagemap's BackendAllocator::Entry structures.
+     * The values we store in our DefaultRBTree are the addresses of (combined
+     * spans of) chunks of the address space; as such, bits in (MIN_CHUNK_SIZE -
+     * 1) are unused and so the TREE_TAG_BIT is packed therein.  However, in
+     * practice, these are not "just any" uintptr_t-s, but specifically the
+     * uintptr_t-s inside the Pagemap's BackendAllocator::Entry structures.
      *
      * The BackendAllocator::Entry provides us with helpers that guarantee that
      * we use only the bits that we are allowed to.
@@ -260,8 +260,8 @@ namespace snmalloc
       {
         range_to_pow_2_blocks<MIN_CHUNK_BITS>(
           base, length, [this](capptr::Arena<void> base, size_t align, bool) {
-            auto overflow =
-              capptr::Arena<void>::unsafe_from(reinterpret_cast<void*>(
+            auto overflow = capptr::Arena<void>::unsafe_from(
+              reinterpret_cast<void*>(
                 buddy_large.add_block(base.unsafe_uintptr(), align)));
 
             dealloc_overflow(overflow);
@@ -383,8 +383,8 @@ namespace snmalloc
           }
         }
 
-        auto overflow =
-          capptr::Arena<void>::unsafe_from(reinterpret_cast<void*>(
+        auto overflow = capptr::Arena<void>::unsafe_from(
+          reinterpret_cast<void*>(
             buddy_large.add_block(base.unsafe_uintptr(), size)));
         dealloc_overflow(overflow);
       }

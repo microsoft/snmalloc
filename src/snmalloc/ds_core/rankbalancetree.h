@@ -18,15 +18,15 @@ namespace snmalloc
    */
   template<typename Rep>
   concept RBRepTypes = requires() {
-                         typename Rep::Handle;
-                         typename Rep::Contents;
-                       };
+    typename Rep::Handle;
+    typename Rep::Contents;
+  };
 
   /**
    * The representation must define operations on the holder and contents
    * types.  It must be able to 'dereference' a holder with `get`, assign to it
-   * with `set`, set and query the red/black colour of a node with `set_tree_tag` and
-   * `tree_tag`.
+   * with `set`, set and query the red/black colour of a node with
+   * `set_tree_tag` and `tree_tag`.
    *
    * The `ref` method provides uniform access to the children of a node,
    * returning a holder pointing to either the left or right child, depending on
@@ -41,29 +41,17 @@ namespace snmalloc
   template<typename Rep>
   concept RBRepMethods =
     requires(typename Rep::Handle hp, typename Rep::Contents k, bool b) {
-      {
-        Rep::get(hp)
-        } -> ConceptSame<typename Rep::Contents>;
-      {
-        Rep::set(hp, k)
-        } -> ConceptSame<void>;
-      {
-        Rep::tree_tag(k)
-        } -> ConceptSame<bool>;
-      {
-        Rep::set_tree_tag(k, b)
-        } -> ConceptSame<void>;
-      {
-        Rep::ref(b, k)
-        } -> ConceptSame<typename Rep::Handle>;
-      {
-        Rep::null
-        } -> ConceptSameModRef<const typename Rep::Contents>;
+      { Rep::get(hp) } -> ConceptSame<typename Rep::Contents>;
+      { Rep::set(hp, k) } -> ConceptSame<void>;
+      { Rep::tree_tag(k) } -> ConceptSame<bool>;
+      { Rep::set_tree_tag(k, b) } -> ConceptSame<void>;
+      { Rep::ref(b, k) } -> ConceptSame<typename Rep::Handle>;
+      { Rep::null } -> ConceptSameModRef<const typename Rep::Contents>;
       {
         typename Rep::Handle{const_cast<
           stl::remove_const_t<stl::remove_reference_t<decltype(Rep::root)>>*>(
           &Rep::root)}
-        } -> ConceptSame<typename Rep::Handle>;
+      } -> ConceptSame<typename Rep::Handle>;
     };
 
   template<typename Rep>
@@ -80,6 +68,6 @@ namespace snmalloc
 
 namespace snmalloc
 {
-    template<typename Rep, bool run_checks = Debug, bool TRACE = false>
-    using DefaultRBTree = WeakAVLTree<Rep, run_checks, TRACE>;
+  template<typename Rep, bool run_checks = Debug, bool TRACE = false>
+  using DefaultRBTree = WeakAVLTree<Rep, run_checks, TRACE>;
 }
