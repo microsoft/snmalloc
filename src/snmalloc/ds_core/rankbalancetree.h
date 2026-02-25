@@ -76,3 +76,10 @@ namespace snmalloc
 } // namespace snmalloc
 
 #include "redblacktree.h"
+#include "weakavltree.h"
+
+namespace snmalloc
+{
+    template<typename Rep, bool run_checks = Debug, bool TRACE = false>
+    using DefaultRBTree = WeakAVLTree<Rep, run_checks, TRACE>;
+}

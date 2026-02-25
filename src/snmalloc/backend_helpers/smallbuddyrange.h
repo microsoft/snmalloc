@@ -18,7 +18,7 @@ namespace snmalloc
   };
 
   /**
-   * Class for using the allocations own space to store in the RedBlackTree.
+   * Class for using the allocations own space to store in the DefaultRBTree.
    */
   template<SNMALLOC_CONCEPT(capptr::IsBound) bounds>
   class BuddyInplaceRep

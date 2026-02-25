@@ -20,11 +20,11 @@ namespace snmalloc
     struct Entry
     {
       typename Rep::Contents cache[3];
-      RedBlackTree<Rep> tree{};
+      DefaultRBTree<Rep> tree{};
     };
 
     stl::Array<Entry, MAX_SIZE_BITS - MIN_SIZE_BITS> entries{};
-    // All RedBlackTrees at or above this index should be empty.
+    // All DefaultRBTrees at or above this index should be empty.
     size_t empty_at_or_above{0};
 
     size_t to_index(size_t size)

@@ -16,9 +16,9 @@ namespace snmalloc
   {
   public:
     /*
-     * The values we store in our RedBlackTree are the addresses of (combined spans
+     * The values we store in our DefaultRBTree are the addresses of (combined spans
      * of) chunks of the address space; as such, bits in (MIN_CHUNK_SIZE - 1)
-     * are unused and so the RED_BIT is packed therein.  However, in practice,
+     * are unused and so the TREE_TAG_BIT is packed therein.  However, in practice,
      * these are not "just any" uintptr_t-s, but specifically the uintptr_t-s
      * inside the Pagemap's BackendAllocator::Entry structures.
      *
@@ -37,13 +37,13 @@ namespace snmalloc
      * a bit that is a valid part of the address of a chunk.
      * @{
      */
-    static constexpr address_t RED_BIT = 1 << 8;
+    static constexpr address_t TREE_TAG_BIT = 1 << 8;
 
-    static_assert(RED_BIT < MIN_CHUNK_SIZE);
+    static_assert(TREE_TAG_BIT < MIN_CHUNK_SIZE);
     static_assert(MetaEntryBase::is_backend_allowed_value(
-      MetaEntryBase::Word::One, RED_BIT));
+      MetaEntryBase::Word::One, TREE_TAG_BIT));
     static_assert(MetaEntryBase::is_backend_allowed_value(
-      MetaEntryBase::Word::Two, RED_BIT));
+      MetaEntryBase::Word::Two, TREE_TAG_BIT));
     ///@}
 
     /// The value of a null node, as returned by `get`
@@ -56,7 +56,7 @@ namespace snmalloc
      */
     static void set(Handle ptr, Contents r)
     {
-      ptr = r | (static_cast<address_t>(ptr.get()) & RED_BIT);
+      ptr = r | (static_cast<address_t>(ptr.get()) & TREE_TAG_BIT);
     }
 
     /**
@@ -64,7 +64,7 @@ namespace snmalloc
      */
     static Contents get(const Handle ptr)
     {
-      return ptr.get() & ~RED_BIT;
+      return ptr.get() & ~TREE_TAG_BIT;
     }
 
     /**
@@ -89,7 +89,7 @@ namespace snmalloc
 
     static bool tree_tag(Contents k)
     {
-      return (ref(true, k).get() & RED_BIT) == RED_BIT;
+      return (ref(true, k).get() & TREE_TAG_BIT) == TREE_TAG_BIT;
     }
 
     static void set_tree_tag(Contents k, bool new_tree_tag)
@@ -97,7 +97,7 @@ namespace snmalloc
       if (new_tree_tag != tree_tag(k))
       {
         auto v = ref(true, k);
-        v = v.get() ^ RED_BIT;
+        v = v.get() ^ TREE_TAG_BIT;
       }
       SNMALLOC_ASSERT(tree_tag(k) == new_tree_tag);
     }
