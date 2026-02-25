@@ -17,19 +17,19 @@ namespace snmalloc
     // Handling the message queue for each stack is non-atomic.
     auto* first = AllocPool<Config_>::extract();
     auto* alloc = first;
+
+    if (alloc == nullptr)
+      return;
+
     decltype(alloc) last;
-
-    if (alloc != nullptr)
+    while (alloc != nullptr)
     {
-      while (alloc != nullptr)
-      {
-        alloc->flush();
-        last = alloc;
-        alloc = AllocPool<Config_>::extract(alloc);
-      }
-
-      AllocPool<Config_>::restore(first, last);
+      alloc->flush();
+      last = alloc;
+      alloc = AllocPool<Config_>::extract(alloc);
     }
+
+    AllocPool<Config_>::restore(first, last);
   }
 
   /**
