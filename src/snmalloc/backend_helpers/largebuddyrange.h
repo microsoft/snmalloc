@@ -260,8 +260,8 @@ namespace snmalloc
       {
         range_to_pow_2_blocks<MIN_CHUNK_BITS>(
           base, length, [this](capptr::Arena<void> base, size_t align, bool) {
-            auto overflow = capptr::Arena<void>::unsafe_from(
-              reinterpret_cast<void*>(
+            auto overflow =
+              capptr::Arena<void>::unsafe_from(reinterpret_cast<void*>(
                 buddy_large.add_block(base.unsafe_uintptr(), align)));
 
             dealloc_overflow(overflow);
@@ -383,8 +383,8 @@ namespace snmalloc
           }
         }
 
-        auto overflow = capptr::Arena<void>::unsafe_from(
-          reinterpret_cast<void*>(
+        auto overflow =
+          capptr::Arena<void>::unsafe_from(reinterpret_cast<void*>(
             buddy_large.add_block(base.unsafe_uintptr(), size)));
         dealloc_overflow(overflow);
       }

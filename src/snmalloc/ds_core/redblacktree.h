@@ -429,8 +429,7 @@ namespace snmalloc
        */
       path.move(true);
       while (path.move(false))
-      {
-      }
+      {}
 
       K curr = path.curr();
 
@@ -681,8 +680,7 @@ namespace snmalloc
 
       auto path = get_root_path();
       while (path.move(true))
-      {
-      }
+      {}
 
       K result = path.curr();
 
