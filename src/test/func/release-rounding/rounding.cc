@@ -18,7 +18,8 @@ int main(int argc, char** argv)
 
   bool failed = false;
 
-  for (smallsizeclass_t size_class; size_class < NUM_SMALL_SIZECLASSES; size_class++)
+  for (smallsizeclass_t size_class; size_class < NUM_SMALL_SIZECLASSES;
+       size_class++)
   {
     size_t rsize = sizeclass_to_size(size_class);
     size_t max_offset = sizeclass_to_slab_size(size_class);

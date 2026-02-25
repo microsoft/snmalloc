@@ -636,8 +636,7 @@ namespace snmalloc
      * Fast allocation for small objects, with pre-computed sizeclass.
      */
     template<typename Conts, typename CheckInit>
-    SNMALLOC_FAST_PATH void*
-    small_alloc(
+    SNMALLOC_FAST_PATH void* small_alloc(
       smallsizeclass_t sizeclass,
       size_t size) noexcept(noexcept(Conts::failure(0)))
     {

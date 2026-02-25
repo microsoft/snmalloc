@@ -181,8 +181,7 @@ namespace snmalloc
     {
       size_t max_capacity = 0;
 
-      for (smallsizeclass_t sizeclass(0);
-           sizeclass < NUM_SMALL_SIZECLASSES;
+      for (smallsizeclass_t sizeclass(0); sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
       {
         auto& meta = fast_small(sizeclass);
@@ -213,8 +212,7 @@ namespace snmalloc
       // Get maximum precision to calculate largest division range.
       DIV_MULT_SHIFT = bits::BITS - bits::next_pow2_bits_const(max_capacity);
 
-      for (smallsizeclass_t sizeclass(0);
-           sizeclass < NUM_SMALL_SIZECLASSES;
+      for (smallsizeclass_t sizeclass(0); sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
       {
         // Calculate reciprocal division constant.
@@ -417,7 +415,8 @@ namespace snmalloc
       sizeclass_compress_t sizeclass = 0;
       for (; sizeclass < minimum_class; sizeclass++)
       {
-        for (; curr <= sizeclass_metadata.fast_small(smallsizeclass_t(sizeclass)).size;
+        for (; curr <=
+             sizeclass_metadata.fast_small(smallsizeclass_t(sizeclass)).size;
              curr += MIN_ALLOC_STEP_SIZE)
         {
           table[sizeclass_lookup_index(curr)] = minimum_class;
@@ -426,7 +425,8 @@ namespace snmalloc
 
       for (; sizeclass < NUM_SMALL_SIZECLASSES; sizeclass++)
       {
-        for (; curr <= sizeclass_metadata.fast_small(smallsizeclass_t(sizeclass)).size;
+        for (; curr <=
+             sizeclass_metadata.fast_small(smallsizeclass_t(sizeclass)).size;
              curr += MIN_ALLOC_STEP_SIZE)
         {
           auto i = sizeclass_lookup_index(curr);

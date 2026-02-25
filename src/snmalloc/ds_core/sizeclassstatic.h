@@ -18,9 +18,7 @@ namespace snmalloc
 
     constexpr smallsizeclass_t() = default;
 
-    explicit constexpr smallsizeclass_t(size_t v) : raw(v)
-    {
-    }
+    explicit constexpr smallsizeclass_t(size_t v) : raw(v) {}
 
     /// Implicit conversion to size_t.
     constexpr operator size_t() const

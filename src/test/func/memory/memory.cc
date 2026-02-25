@@ -1,9 +1,9 @@
 #include <array>
 #include <chrono>
 #include <iostream>
-#include <test/snmalloc_testlib.h>
 #include <test/opt.h>
 #include <test/setup.h>
+#include <test/snmalloc_testlib.h>
 #include <test/xoroshiro.h>
 #include <unordered_set>
 #include <vector>

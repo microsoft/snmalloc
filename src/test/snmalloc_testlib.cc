@@ -41,6 +41,7 @@ namespace snmalloc
 
   template void* alloc<ZeroMem::YesZero>(size_t size);
   template void* alloc<ZeroMem::NoZero>(size_t size);
+
   // -- C: Non-template wrappers for Config-templated functions -------------
 
   // Config-templated functions:
