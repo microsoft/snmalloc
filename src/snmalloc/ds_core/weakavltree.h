@@ -8,7 +8,37 @@
 namespace snmalloc
 {
   /**
-   * Weak AVL tree implementation using 1-bit rank parity per node.
+   * Self-balancing binary search tree using the Weak AVL (WAVL) strategy,
+   * with rank encoded as a 1-bit parity per node.
+   *
+   * WAVL trees belong to the rank-balanced binary search tree framework
+   * (Ref 4), alongside AVL and Red-Black trees.
+   *
+   * Key Properties:
+   * - Relationship to Red-Black Trees: A WAVL tree can always be colored as
+   *   a Red-Black tree.
+   * - Relationship to AVL Trees: An AVL tree meets all WAVL requirements.
+   *   Insertion-only WAVL trees maintain the same structure as AVL trees.
+   *
+   * Rank-Based Balancing:
+   *   Each node is assigned a rank (conceptually similar to height). The rank
+   *   difference between a parent and its child is strictly 1 or 2.
+   *   - Null nodes have rank -1; external/leaf nodes have rank 0.
+   *   - Insertion may create a 0-difference; fixed by promoting the parent
+   *     and propagating upwards using at most two rotations.
+   *   - Deletion may create a 3-difference; fixed by demoting the parent
+   *     and propagating upwards.
+   *
+   * Implementation Detail:
+   *   Rank is implicitly maintained via a 1-bit parity tag per node.
+   *   A node `n` is a 2-child of parent `p` when parity(n) == parity(p).
+   *   promote/demote toggle the parity (increment/decrement rank mod 2).
+   *
+   * References:
+   * 1. https://maskray.me/blog/2025-12-14-weak-avl-tree
+   * 2. https://reviews.freebsd.org/D25480
+   * 3. https://ics.uci.edu/~goodrich/teach/cs165/notes/WeakAVLTrees.pdf
+   * 4. https://dl.acm.org/doi/10.1145/2689412 (Rank-Balanced Trees)
    *
    * The representation must provide:
    * - types `Handle`, `Contents`
@@ -138,16 +168,6 @@ namespace snmalloc
       toggle_parity(n);
     }
 
-    static void double_promote(K n)
-    {
-      UNUSED(n);
-    }
-
-    static void double_demote(K n)
-    {
-      UNUSED(n);
-    }
-
     static bool is_leaf(K n)
     {
       return !is_null(n) && is_null(child(n, Left)) && is_null(child(n, Right));
@@ -171,6 +191,14 @@ namespace snmalloc
       return Rep::equal(child(p, Left), n) ? child(p, Right) : child(p, Left);
     }
 
+    // Rotate x up over its parent z (x was z's left child).
+    //
+    //       (z)                   (x)
+    //      /   ╲                 /   ╲
+    //    (x)   (D)     =>      (A)   (z)
+    //   /   ╲                       /   ╲
+    // (A)   (y)                   (y)   (D)
+    //
     void rotate_right_at(K x)
     {
       K z = parent(x);
@@ -198,6 +226,14 @@ namespace snmalloc
         set_parent(y, z);
     }
 
+    // Rotate x up over its parent z (x was z's right child).
+    //
+    //     (z)                     (x)
+    //    /   ╲                   /   ╲
+    //  (A)   (x)     =>        (z)   (D)
+    //       /   ╲             /   ╲
+    //     (y)   (D)         (A)   (y)
+    //
     void rotate_left_at(K x)
     {
       K z = parent(x);
@@ -225,6 +261,17 @@ namespace snmalloc
         set_parent(y, z);
     }
 
+    // Double rotation: y (x's right child, z's left grandchild) rises to top.
+    // x is the left child of z.
+    //
+    //       (z)                      (y)
+    //      /   ╲                    /   ╲
+    //    (x)   (D)     =>         (x)   (z)
+    //   /   ╲                    /  ╲  /  ╲
+    // (A)   (y)                (A)(yL)(yR)(D)
+    //      /   ╲
+    //    (yL) (yR)
+    //
     void double_rotate_right_at(K y)
     {
       K x = parent(y);
@@ -259,6 +306,17 @@ namespace snmalloc
       set_parent(z, y);
     }
 
+    // Double rotation: y (x's left child, z's right grandchild) rises to top.
+    // x is the right child of z.
+    //
+    //     (z)                      (y)
+    //    /   ╲                    /   ╲
+    //  (A)   (x)     =>         (z)   (x)
+    //       /   ╲              /  ╲  /  ╲
+    //     (y)   (D)          (A)(yL)(yR)(D)
+    //    /   ╲
+    //  (yL) (yR)
+    //
     void double_rotate_left_at(K y)
     {
       K x = parent(y);
@@ -301,6 +359,17 @@ namespace snmalloc
       bool par_p_x = false;
       bool par_s_x = false;
 
+      // Case 1: x and its sibling are both 1-children of p_x (same parity
+      // difference from p_x). Promote p_x to resolve the 0-difference, then
+      // continue upwards since p_x may now violate with its own parent.
+      //
+      //        (GP)                      (GP)
+      //         | x       Promote          | x-1
+      //         |          ----->         (P)
+      //     0   |                      1 /   ╲ 1
+      //  (N) -- (P)                   (N)     (S)
+      //          ╲ 1
+      //           (S)
       do
       {
         promote(p_x);
@@ -316,13 +385,32 @@ namespace snmalloc
       } while (
         (!par_x && !par_p_x && par_s_x) || (par_x && par_p_x && !par_s_x));
 
+      // Case 2: x is already a 2-child of p_x; no violation remains.
+      //
+      //         (P)                     (P)
+      //        /   ╲                   /   ╲ 
+      //       2     1      =>         1     1
+      //      /       ╲               /       ╲ 
+      //    (N)       (*)           (N)       (*)
       if (!((par_x && par_p_x && par_s_x) || (!par_x && !par_p_x && !par_s_x)))
         return;
 
+      // At this point x is a 1-child of p_x but p_x's sibling is a 2-child;
+      // a single or double rotation can restore balance.
       K z = parent(x);
       if (Rep::equal(x, child(p_x, Left)))
       {
         K y = child(x, Right);
+        // Case 3: x has a 1-child along the same direction (or no inner
+        // child). A single right rotation at x suffices.
+        //
+        //         (GP)                       (GP)
+        //      0   |  X    Rotate              |
+        //   (N) -- (P)      ----->            (N)
+        //  1 /  ╲  ╲ 2                     1 /  ╲ 1
+        //  (C1)  ╲   (S)                 (C1)   (P)
+        //        (C2)                        1 / ╲ 1
+        //                                  (C2)  (S)
         if (is_null(y) || parity(y) == par_x)
         {
           rotate_right_at(x);
@@ -331,6 +419,16 @@ namespace snmalloc
         }
         else
         {
+          // Case 4: x has a 1-child along the opposite direction. A
+          // double (zig-zag) rotation through y is required.
+          //
+          //         (GP)                       (GP)
+          //      0   |  X    Zig-Zag             |
+          //   (N) -- (P)      ----->            (y)
+          //  2 /  ╲ 1   ╲ 2               1  /      ╲ 1
+          //      (y)      (S)            (N)          (P)
+          //    L /  ╲ R                1/ ╲L       R/ ╲1
+          //   (A)  (B)               (C2)(A)      (B) (S)
           double_rotate_right_at(y);
           promote(y);
           demote(x);
@@ -341,6 +439,7 @@ namespace snmalloc
       else
       {
         K y = child(x, Left);
+        // Case 3 (mirrored): single left rotation.
         if (is_null(y) || parity(y) == par_x)
         {
           rotate_left_at(x);
@@ -349,6 +448,7 @@ namespace snmalloc
         }
         else
         {
+          // Case 4 (mirrored): double (zig-zag) rotation.
           double_rotate_left_at(y);
           promote(y);
           demote(x);
@@ -417,6 +517,15 @@ namespace snmalloc
 
         creates_3_node = !is_null(p_p_x) && (parity(p_x) == parity(p_p_x));
 
+        // Case 0: sibling y is a 2-child of p_x. Demote p_x to fix the
+        // 3-difference; this may push a violation upward.
+        //
+        //         (P)                 (P)
+        //          | X                 | (X+1)
+        //         (C)                  |
+        //       /    ╲      =>        (C)
+        //    3 /      ╲ 2          1 / ╲ 2
+        //   (*)       (D)         (*)  (D)
         if (is_2_child(y, p_x))
         {
           demote(p_x);
@@ -424,6 +533,17 @@ namespace snmalloc
         else
         {
           bool y_parity = parity(y);
+          // Case 1/2: sibling y is a 1-child of p_x and is itself a 2-2 node
+          // (both its children are 2-children). Demote both p_x and y.
+          //
+          //         (P)                 (P)
+          //          | X                 | (X+1)
+          //         (C)                  |
+          //       1 /   ╲     =>        (C)
+          //       (S)    ╲ 3         1 / ╲ 2
+          //    2 /  ╲ 2  (D)        (S)  (D)
+          //   (*)   (*)          1 /  ╲ 1
+          //                     (*)   (*)
           if (
             y_parity == parity(child(y, Left)) &&
             y_parity == parity(child(y, Right)))
@@ -433,6 +553,7 @@ namespace snmalloc
           }
           else
           {
+            // Sibling cannot be demoted; rotation needed.
             done = false;
             break;
           }
@@ -449,6 +570,17 @@ namespace snmalloc
       if (Rep::equal(x, child(p_x, Left)))
       {
         K w = child(y, Right);
+        // Case 3: sibling y has a 1-child w along the same direction as x.
+        // A single rotation at y restores balance.
+        //
+        //       (P)                          (P)
+        //        | X            Rotate         | X
+        //       (C)              ----->       (S=y)
+        //    1 /   ╲                       2 /   ╲ 1
+        //    (S=y)  ╲ 3                   /      (C)
+        // 1 / ╲ Y   (D)               (w=T)  Y / ╲ 2
+        // (w=T) ╲                           (*)   (D)
+        //        (*)
         if (parity(w) != parity(y))
         {
           rotate_left_at(y);
@@ -459,18 +591,29 @@ namespace snmalloc
         }
         else
         {
+          // Case 4: sibling y has its rank-1 child v on the opposite side.
+          // A double (zig-zag) rotation through v is required.
+          //
+          //       (P)                              (P)
+          //        | X           Zig-Zag             | X
+          //       (C)             ----->            (v)
+          //    1 /   ╲                           2 /   ╲ 2
+          //    (S=y)  ╲ 3                       (y)     (C)
+          //  2 /  ╲ 1  (D)                  1 /Y ╲    / Z ╲ 1
+          //   (*)  (v)                      (*)  (A) (B)  (D)
+          //      Y /  ╲ Z
+          //     (A)  (B)
           K v = child(y, Left);
           if constexpr (use_checks)
             SNMALLOC_ASSERT(parity(y) != parity(v));
           double_rotate_left_at(v);
-          double_promote(v);
           demote(y);
-          double_demote(z);
         }
       }
       else
       {
         K w = child(y, Left);
+        // Case 3 (mirrored): single right rotation.
         if (parity(w) != parity(y))
         {
           rotate_right_at(y);
@@ -481,17 +624,30 @@ namespace snmalloc
         }
         else
         {
+          // Case 4 (mirrored): double rotation.
           K v = child(y, Right);
           if constexpr (use_checks)
             SNMALLOC_ASSERT(parity(y) != parity(v));
           double_rotate_right_at(v);
-          double_promote(v);
           demote(y);
-          double_demote(z);
         }
       }
     }
 
+    // Handle the case where deletion has left `leaf` as a 2,2-leaf (both null
+    // children, but rank > 0). This corresponds to WAVL deletion Case 0.
+    //
+    // Case 0: the deleted node was a 1-child of its parent, so the parent's
+    // rank-difference on that side increments from 1 to 2, which is valid for
+    // internal nodes. But if the parent is now a leaf with both rank-diffs 2
+    // (a 2,2-leaf), weak-AVL requires us to demote it. If that demotion turns
+    // the leaf into a 3-child of its own parent, we continue with the full
+    // 3-child rebalance.
+    //
+    //      (P)                      (P)
+    //    X /   ╲ 1     =>        X /   ╲
+    //    (*)  (leaf)              (*)    ╲ 2
+    //                                  (leaf)
     void delete_rebalance_2_2_leaf(K leaf)
     {
       K x = leaf;
