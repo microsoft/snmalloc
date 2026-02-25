@@ -15,8 +15,9 @@
 #endif
 
 #ifdef RUN_TEST
-#  include <snmalloc/snmalloc.h>
+#  include <snmalloc/ds_core/ds_core.h>
 #  include <stdlib.h>
+#  include <test/snmalloc_testlib.h>
 
 template<size_t N, size_t M = 0>
 void thread_destruct()

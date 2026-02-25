@@ -6,6 +6,7 @@ filegroup(
         [
             "src/snmalloc/**/*",
             "src/test/*.h",
+            "src/test/*.cc",
             "CMakeLists.txt",
         ],
     ),

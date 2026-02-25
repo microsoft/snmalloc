@@ -4,9 +4,7 @@
 #include "check_init.h"
 #include "freelist.h"
 #include "metadata.h"
-#include "pool.h"
 #include "remotecache.h"
-#include "sizeclasstable.h"
 #include "snmalloc/stl/new.h"
 #include "ticker.h"
 
@@ -607,8 +605,7 @@ namespace snmalloc
     {
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
-      if (SNMALLOC_LIKELY(
-            (size - 1) <= (sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1) - 1)))
+      if (SNMALLOC_LIKELY(is_small_sizeclass(size)))
       {
         // Small allocations are more likely. Improve
         // branch prediction by placing this case first.
@@ -619,11 +616,29 @@ namespace snmalloc
     }
 
     /**
-     * Fast allocation for small objects.
+     * Allocates a block of memory for a known small sizeclass.
+     * @param sizeclass The sizeclass index (must be a valid small sizeclass).
+     * @return A pointer to the allocated block, or nullptr on failure.
+     *
+     * Callers can pre-compute the sizeclass (e.g. at compile time with
+     * size_to_sizeclass_const) and avoid the dynamic is_small_sizeclass
+     * check and sizeclass lookup.
+     */
+    template<typename Conts = Uninit, typename CheckInit = CheckInitNoOp>
+    SNMALLOC_FAST_PATH ALLOCATOR void*
+    alloc(smallsizeclass_t sizeclass) noexcept(noexcept(Conts::failure(0)))
+    {
+      return small_alloc<Conts, CheckInit>(
+        sizeclass, sizeclass_to_size(sizeclass));
+    }
+
+    /**
+     * Fast allocation for small objects, with pre-computed sizeclass.
      */
     template<typename Conts, typename CheckInit>
-    SNMALLOC_FAST_PATH void*
-    small_alloc(size_t size) noexcept(noexcept(Conts::failure(0)))
+    SNMALLOC_FAST_PATH void* small_alloc(
+      smallsizeclass_t sizeclass,
+      size_t size) noexcept(noexcept(Conts::failure(0)))
     {
       auto domesticate =
         [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
@@ -631,7 +646,6 @@ namespace snmalloc
         };
 
       auto& key = freelist::Object::key_root;
-      smallsizeclass_t sizeclass = size_to_sizeclass(size);
       auto* fl = &small_fast_free_lists[sizeclass];
       if (SNMALLOC_LIKELY(!fl->empty()))
       {
@@ -651,6 +665,17 @@ namespace snmalloc
         sizeclass,
         fl,
         size);
+    }
+
+    /**
+     * Fast allocation for small objects from a byte size.
+     * Computes the sizeclass and delegates to the two-arg version.
+     */
+    template<typename Conts, typename CheckInit>
+    SNMALLOC_FAST_PATH void*
+    small_alloc(size_t size) noexcept(noexcept(Conts::failure(0)))
+    {
+      return small_alloc<Conts, CheckInit>(size_to_sizeclass(size), size);
     }
 
     /**
@@ -1400,7 +1425,7 @@ namespace snmalloc
 
       auto& key = freelist::Object::key_root;
 
-      for (size_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
+      for (smallsizeclass_t i; i < NUM_SMALL_SIZECLASSES; i++)
       {
         if (small_fast_free_lists[i].empty())
           continue;
@@ -1421,7 +1446,7 @@ namespace snmalloc
         local_state, get_trunc_id());
 
       // We may now have unused slabs, return to the global allocator.
-      for (smallsizeclass_t sizeclass = 0; sizeclass < NUM_SMALL_SIZECLASSES;
+      for (smallsizeclass_t sizeclass(0); sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
       {
         dealloc_local_slabs<mitigations(freelist_teardown_validate)>(sizeclass);

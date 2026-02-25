@@ -1,5 +1,6 @@
+#include <algorithm>
 #include <iostream>
-#include <snmalloc/snmalloc.h>
+#include <test/snmalloc_testlib.h>
 #include <vector>
 
 template<size_t size>
@@ -54,7 +55,7 @@ void debug_check_empty_2()
   bool result;
   std::vector<void*> allocs;
   // 1GB of allocations
-  size_t count = snmalloc::bits::min<size_t>(2048, 1024 * 1024 * 1024 / size);
+  size_t count = std::min<size_t>(2048, 1024 * 1024 * 1024 / size);
 
   for (size_t i = 0; i < count; i++)
   {

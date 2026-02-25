@@ -1,7 +1,6 @@
 #pragma once
 
-#include "../ds_core/ds_core.h"
-#include "snmalloc/stl/atomic.h"
+#include <stdint.h>
 
 namespace snmalloc
 {
@@ -69,7 +68,7 @@ namespace snmalloc
   /**
    * Flag indicating whether requested memory should be zeroed.
    */
-  enum ZeroMem
+  enum ZeroMem : int
   {
     /**
      * Memory should not be zeroed, contents are undefined.

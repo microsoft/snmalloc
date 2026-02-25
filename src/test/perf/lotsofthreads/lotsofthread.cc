@@ -19,7 +19,7 @@
 #include <vector>
 using namespace std;
 
-#include <snmalloc/snmalloc.h>
+#include <test/snmalloc_testlib.h>
 #define malloc snmalloc::libc::malloc
 #define free snmalloc::libc::free
 #define malloc_usable_size snmalloc::libc::malloc_usable_size

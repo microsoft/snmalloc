@@ -1,8 +1,9 @@
 #include <atomic>
 #include <iostream>
-#include <snmalloc/snmalloc.h>
+#include <snmalloc/pal/pal.h>
 #include <test/opt.h>
 #include <test/setup.h>
+#include <test/snmalloc_testlib.h>
 #include <unordered_set>
 #include <vector>
 

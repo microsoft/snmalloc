@@ -1,8 +1,8 @@
 #pragma once
 
+#include "../ds_core/allocconfig.h"
 #include "../ds_core/ds_core.h"
 #include "aba.h"
-#include "allocconfig.h"
 
 namespace snmalloc
 {

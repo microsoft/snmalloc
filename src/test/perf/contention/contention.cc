@@ -6,7 +6,7 @@
 #include <iomanip>
 #include <iostream>
 #include <snmalloc/pal/pal.h>
-#include <snmalloc/snmalloc.h>
+#include <test/snmalloc_testlib.h>
 #include <thread>
 #include <vector>
 

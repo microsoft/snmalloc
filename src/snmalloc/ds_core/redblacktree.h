@@ -1,5 +1,6 @@
 #pragma once
 
+#include "snmalloc/ds_core/concept.h"
 #include "snmalloc/stl/array.h"
 
 #include <stddef.h>

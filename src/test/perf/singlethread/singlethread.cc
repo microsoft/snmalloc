@@ -1,25 +1,25 @@
-#include <snmalloc/snmalloc.h>
 #include <test/measuretime.h>
 #include <test/setup.h>
+#include <test/snmalloc_testlib.h>
 #include <unordered_set>
 
 using namespace snmalloc;
 
-template<typename Conts>
+template<ZeroMem zero_mem>
 void test_alloc_dealloc(size_t count, size_t size, bool write)
 {
   {
     MeasureTime m;
     m << "Count: " << std::setw(6) << count << ", Size: " << std::setw(6)
-      << size
-      << ", ZeroMem: " << std::is_same_v<Conts, Zero> << ", Write: " << write;
+      << size << ", ZeroMem: " << (zero_mem == ZeroMem::YesZero)
+      << ", Write: " << write;
 
     std::unordered_set<void*> set;
 
     // alloc 1.5x objects
     for (size_t i = 0; i < ((count * 3) / 2); i++)
     {
-      void* p = snmalloc::alloc<Conts>(size);
+      void* p = snmalloc::alloc<zero_mem>(size);
       SNMALLOC_CHECK(set.find(p) == set.end());
 
       if (write)
@@ -41,7 +41,7 @@ void test_alloc_dealloc(size_t count, size_t size, bool write)
     // alloc 1x objects
     for (size_t i = 0; i < count; i++)
     {
-      void* p = snmalloc::alloc<Conts>(size);
+      void* p = snmalloc::alloc<zero_mem>(size);
       SNMALLOC_CHECK(set.find(p) == set.end());
 
       if (write)
@@ -68,18 +68,18 @@ int main(int, char**)
 
   for (size_t size = 16; size <= 128; size <<= 1)
   {
-    test_alloc_dealloc<Uninit>(1 << 15, size, false);
-    test_alloc_dealloc<Uninit>(1 << 15, size, true);
-    test_alloc_dealloc<Zero>(1 << 15, size, false);
-    test_alloc_dealloc<Zero>(1 << 15, size, true);
+    test_alloc_dealloc<ZeroMem::NoZero>(1 << 15, size, false);
+    test_alloc_dealloc<ZeroMem::NoZero>(1 << 15, size, true);
+    test_alloc_dealloc<ZeroMem::YesZero>(1 << 15, size, false);
+    test_alloc_dealloc<ZeroMem::YesZero>(1 << 15, size, true);
   }
 
   for (size_t size = 1 << 12; size <= 1 << 17; size <<= 1)
   {
-    test_alloc_dealloc<Uninit>(1 << 10, size, false);
-    test_alloc_dealloc<Uninit>(1 << 10, size, true);
-    test_alloc_dealloc<Zero>(1 << 10, size, false);
-    test_alloc_dealloc<Zero>(1 << 10, size, true);
+    test_alloc_dealloc<ZeroMem::NoZero>(1 << 10, size, false);
+    test_alloc_dealloc<ZeroMem::NoZero>(1 << 10, size, true);
+    test_alloc_dealloc<ZeroMem::YesZero>(1 << 10, size, false);
+    test_alloc_dealloc<ZeroMem::YesZero>(1 << 10, size, true);
   }
 
   return 0;
