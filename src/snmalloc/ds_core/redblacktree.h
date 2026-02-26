@@ -170,7 +170,8 @@ namespace snmalloc
       // Default constructor needed for Array<RBStep, 128>.
       constexpr RBStep() = default;
 
-      // Remove copy constructors to avoid accidentally copying and mutating the path.
+      // Remove copy constructors to avoid accidentally copying and mutating the
+      // path.
       RBStep(const RBStep& other) = delete;
       RBStep& operator=(const RBStep& other) = delete;
 
