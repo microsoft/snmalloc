@@ -1,6 +1,43 @@
 module(name = "snmalloc")
 
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
 bazel_dep(name = "rules_cc", version = "0.1.1")
 bazel_dep(name = "rules_foreign_cc", version = "0.14.0")
 bazel_dep(name = "fuzztest", version = "20250214.0")
 bazel_dep(name = "googletest", version = "1.16.0")
+bazel_dep(name = "toolchains_llvm", version = "1.4.0")
+bazel_dep(name = "rules_rust", version = "0.61.0")
+bazel_dep(name = "rules_rust_bindgen", version = "0.61.0")
+
+# Configure and register the toolchain.
+# https://github.com/bazel-contrib/toolchains_llvm/blob/master/toolchain/internal/llvm_distributions.bzl
+llvm = use_extension("@toolchains_llvm//toolchain/extensions:llvm.bzl", "llvm", dev_dependency = True)
+
+# LLVM toolchain.
+llvm.toolchain(
+    name = "llvm_toolchain",
+    cxx_standard = {"": "c++20"},
+    llvm_version = "17.0.6",
+)
+use_repo(llvm, "llvm_toolchain", "llvm_toolchain_llvm")
+
+#register_toolchains("@llvm_toolchain//:all")
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust", dev_dependency = True)
+rust.toolchain(
+    edition = "2021",
+    versions = [
+        "1.86.0",
+    ],
+)
+use_repo(rust, "rust_toolchains")
+
+register_toolchains(
+    "@rust_toolchains//:all",
+    dev_dependency = True,
+)
+
+register_toolchains(
+    "//:default_bindgen_toolchain",
+    dev_dependency = True,
+)
