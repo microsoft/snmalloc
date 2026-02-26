@@ -3,6 +3,7 @@
 #include "../ds/ds.h"
 #include "check_init.h"
 #include "freelist.h"
+#include "largecache.h"
 #include "metadata.h"
 #include "pool.h"
 #include "remotecache.h"
@@ -180,6 +181,13 @@ namespace snmalloc
      * Ticker to query the clock regularly at a lower cost.
      */
     Ticker<typename Config::Pal> ticker;
+
+    /**
+     * Cache for large object allocations.
+     * Avoids pagemap manipulation and backend buddy tree operations
+     * for recently freed large allocations.
+     */
+    LargeObjectCache<Config> large_object_cache;
 
     /**
      * The message queue needs to be accessible from other threads
@@ -695,14 +703,79 @@ namespace snmalloc
                 return Conts::success(result, size, true);
               }
 
+              auto chunk_size = large_size_to_chunk_size(size);
+              auto sizeclass = size_to_sizeclass_full(size);
+
+              // Check the frontend large object cache first.
+              // This avoids all pagemap and backend manipulation.
+              auto* cached_meta = self->large_object_cache.try_alloc(
+                chunk_size, [self](BackendSlabMetadata* fmeta) {
+                  self->flush_large_cache_entry(fmeta);
+                });
+              if (cached_meta != nullptr)
+              {
+                // Cache hit: pagemap still valid, recover address from meta.
+                auto slab_addr =
+                  cached_meta->get_slab_interior(freelist::Object::key_root);
+                cached_meta->initialise_large(
+                  slab_addr, freelist::Object::key_root);
+                self->laden.insert(cached_meta);
+
+                // Reconstruct the capptr from the address.
+                auto p = Config::Backend::capptr_rederive_alloc(
+                  capptr::Alloc<void>::unsafe_from(
+                    reinterpret_cast<void*>(slab_addr)),
+                  chunk_size);
+                return Conts::success(capptr_reveal(p), size);
+              }
+
+              // Cache miss: go to backend.
               // Grab slab of correct size
               // Set remote as large allocator remote.
               auto [chunk, meta] = Config::Backend::alloc_chunk(
                 self->get_backend_local_state(),
-                large_size_to_chunk_size(size),
-                PagemapEntry::encode(
-                  self->public_state(), size_to_sizeclass_full(size)),
-                size_to_sizeclass_full(size));
+                chunk_size,
+                PagemapEntry::encode(self->public_state(), sizeclass),
+                sizeclass);
+
+              // If backend OOM, try staged cache flush and retry.
+              // First flush smaller sizes — they coalesce upward in the
+              // buddy. If that's not enough, flush one larger entry —
+              // the buddy can split it.
+              if (meta == nullptr)
+              {
+                auto flush_fn = [self](BackendSlabMetadata* fmeta) {
+                  self->flush_large_cache_entry(fmeta);
+                };
+
+                // Stage 1: flush all smaller sizeclasses.
+                if (self->large_object_cache.flush_smaller(
+                      chunk_size, flush_fn))
+                {
+                  auto retry = Config::Backend::alloc_chunk(
+                    self->get_backend_local_state(),
+                    chunk_size,
+                    PagemapEntry::encode(self->public_state(), sizeclass),
+                    sizeclass);
+                  chunk = retry.first;
+                  meta = retry.second;
+                }
+
+                // Stage 2: flush a single larger-or-equal entry.
+                if (
+                  meta == nullptr &&
+                  self->large_object_cache.flush_one_larger(
+                    chunk_size, flush_fn))
+                {
+                  auto retry = Config::Backend::alloc_chunk(
+                    self->get_backend_local_state(),
+                    chunk_size,
+                    PagemapEntry::encode(self->public_state(), sizeclass),
+                    sizeclass);
+                  chunk = retry.first;
+                  meta = retry.second;
+                }
+              }
 
 #ifdef SNMALLOC_TRACING
               message<1024>(
@@ -1086,6 +1159,7 @@ namespace snmalloc
       const PagemapEntry& entry,
       BackendSlabMetadata* meta) noexcept
     {
+      UNUSED(p);
       // TODO: Handle message queue on this path?
 
       if (meta->is_large())
@@ -1100,21 +1174,45 @@ namespace snmalloc
 
 #ifdef SNMALLOC_TRACING
         message<1024>("Large deallocation: {}", size);
-#else
-        UNUSED(size);
 #endif
 
         // Remove from set of fully used slabs.
         meta->node.remove();
 
-        Config::Backend::dealloc_chunk(
-          get_backend_local_state(), *meta, p, size, entry.get_sizeclass());
+        // Cache in the frontend large object cache.
+        // The meta's free_queue already holds the chunk address (from
+        // initialise_large), and the pagemap entry retains the sizeclass
+        // and remote allocator info. No data is stored in the freed object.
+        // Epoch sync happens internally; stale entries are flushed via the
+        // callback.
+        large_object_cache.cache(
+          meta, size, [this](BackendSlabMetadata* fmeta) {
+            flush_large_cache_entry(fmeta);
+          });
 
         return;
       }
 
       // Not a large object; update slab metadata
       dealloc_local_object_meta(entry, meta);
+    }
+
+    /**
+     * Flush a single cached large object back to the backend.
+     * Recovers the chunk address from the metadata and size from the pagemap.
+     */
+    void flush_large_cache_entry(BackendSlabMetadata* meta)
+    {
+      auto slab_addr = meta->get_slab_interior(freelist::Object::key_root);
+      const PagemapEntry& entry = Config::Backend::get_metaentry(slab_addr);
+      size_t entry_sizeclass = entry.get_sizeclass().as_large();
+      size_t size = bits::one_at_bit(entry_sizeclass);
+
+      auto p =
+        capptr::Alloc<void>::unsafe_from(reinterpret_cast<void*>(slab_addr));
+
+      Config::Backend::dealloc_chunk(
+        get_backend_local_state(), *meta, p, size, entry.get_sizeclass());
     }
 
     /**
@@ -1426,6 +1524,10 @@ namespace snmalloc
       {
         dealloc_local_slabs<mitigations(freelist_teardown_validate)>(sizeclass);
       }
+
+      // Flush the large object cache back to the backend.
+      large_object_cache.flush_all(
+        [this](BackendSlabMetadata* fmeta) { flush_large_cache_entry(fmeta); });
 
       if constexpr (mitigations(freelist_teardown_validate))
       {
