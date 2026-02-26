@@ -327,7 +327,7 @@ namespace snmalloc
       return list.destroy_and_iterate(domesticate, cbwrap);
     }
 
-    inline bool can_dequeue()
+    SNMALLOC_FAST_PATH bool can_dequeue()
     {
       return list.can_dequeue();
     }
