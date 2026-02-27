@@ -1065,14 +1065,15 @@ namespace snmalloc
     SNMALLOC_CONCEPT(RBRep) Rep,
     bool run_checks = Debug,
     bool TRACE = false,
-    typename Policy =
-      rankbalancetree::SNMALLOC_DEFAULT_RBTREE_POLICY<Rep, run_checks, TRACE>>
-  class RBTree : public Policy
+    template<typename, bool, bool> class Policy =
+      rankbalancetree::SNMALLOC_DEFAULT_RBTREE_POLICY>
+  class RBTree : public Policy<Rep, run_checks, TRACE>
   {
     using H = typename Rep::Handle;
     using K = typename Rep::Contents;
     using ChildRef = rankbalancetree::ChildRef<Rep>;
     using RBStep = rankbalancetree::RBStep<Rep>;
+    using Base = Policy<Rep, run_checks, TRACE>;
 
     // Root field of the tree
     typename stl::remove_const_t<stl::remove_reference_t<decltype(Rep::root)>>
@@ -1085,7 +1086,7 @@ namespace snmalloc
 
     void invariant()
     {
-      Policy::invariant(get_root());
+      Base::invariant(get_root());
     }
 
   public:
@@ -1237,7 +1238,7 @@ namespace snmalloc
       if (find(path, value))
         return false;
 
-      Policy::insert_path(
+      Base::insert_path(
         path, value, DebugLogger{this}, [this]() { return get_root(); });
       return true;
     }
@@ -1249,13 +1250,13 @@ namespace snmalloc
 
     void insert_path(RBPath& path, K value)
     {
-      Policy::insert_path(
+      Base::insert_path(
         path, value, DebugLogger{this}, [this]() { return get_root(); });
     }
 
     bool remove_path(RBPath& path)
     {
-      return Policy::remove_path(
+      return Base::remove_path(
         path, DebugLogger{this}, [this]() { return get_root(); });
     }
   };
