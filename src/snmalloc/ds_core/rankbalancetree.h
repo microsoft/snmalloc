@@ -822,8 +822,8 @@ namespace snmalloc
           if (edge_is_even(node, !node_dir))
           {
             /*
-             * Case 2: sibling edge from node is 2-level lower in rank. And node has a 1-node
-             * along the same direction. Rotate parent once.
+             * Case 2: sibling edge from node is 2-level lower in rank. And node
+             * has a 1-node along the same direction. Rotate parent once.
              *
              *                 (GP)                          (GP)
              *             0    │ x                        x  │
@@ -835,36 +835,29 @@ namespace snmalloc
              */
             debug_log("Insert - single rotation", path, path.parent());
             rotate_subtree(path.parent(), node_dir);
-            // RBPath caches handles along the search path; rotation invalidates
-            // those cached references until we refresh.
-            path.fixup();
             // Parent is demoted by one rank while node is at the same rank.
             toggle_rank_parity(parent);
           }
           else
           {
             /*
-             * Case 3: sibling edge from node is 2-level lower in rank. And node has a 1-node
-             * along the opposite direction. Do zig-zag rotation.
+             * Case 3: sibling edge from node is 2-level lower in rank. And node
+             * has a 1-node along the opposite direction. Do zig-zag rotation.
              *
              *                 (GP)                             (GP)
              *             0    │ x                               │ x
              *         (N) ─── (P)            =>                (C1)
-             *      2   ╱   ╲ 1   ╲                          1 ╱    ╲ 
+             *      2   ╱   ╲ 1   ╲                          1 ╱    ╲
              *         ╱   (C1)    ╲ 2                        (N)    (P)
              *      (C2)   ╱   ╲    ╲                       1 ╱ ╲   ╱ ╲
              *           (A)  (B)    (S)                    (C2)(A)(B)(S)
-             *                     
+             *
              */
             debug_log("Insert - double rotation", path, path.parent());
             K middle = ChildRef::get_dir(!node_dir, node);
 
             rotate_subtree(path.curr(), !node_dir);
-            path.fixup();
-
             rotate_subtree(path.parent(), node_dir);
-            path.fixup();
-
             // Middle is promoted, parent and node are demoted.
             toggle_rank_parity(middle);
             toggle_rank_parity(parent);
@@ -945,8 +938,8 @@ namespace snmalloc
           SNMALLOC_ASSERT(sibling != Rep::null);
 
           /*
-           * Case 1: deleted-side edge is now 3-level lower and sibling edge is 2-level lower.
-           * Demote cursor and continue upward.
+           * Case 1: deleted-side edge is now 3-level lower and sibling edge is
+           * 2-level lower. Demote cursor and continue upward.
            *
            *           (P)                    (P)
            *            │ X                    │ X+1
@@ -964,8 +957,8 @@ namespace snmalloc
           }
 
           /*
-           * Case 2: sibling is 1-level lower and it is a 2-2 node. Demote sibling and cursor, then
-           * continue upward.
+           * Case 2: sibling is 1-level lower and it is a 2-2 node. Demote
+           * sibling and cursor, then continue upward.
            *
            *           (P)                    (P)
            *            │ X                    │ X+1
@@ -974,7 +967,7 @@ namespace snmalloc
            *         (S)   ╲               1 ╱   ╲ 2
            *       2╱  ╲2   ╲              (S)    ╲
            *       ╱    ╲    (D)         1 ╱  ╲ 1  (D)
-           *     (*)    (*)              (*)  (*) 
+           *     (*)    (*)              (*)  (*)
            */
           if (is_22(sibling))
           {
@@ -985,8 +978,8 @@ namespace snmalloc
           }
 
           /*
-           * Case 3: sibling cannot be demoted since it has a 1-edge. if sibling has a 1-child on the same
-           * side. Single rotation at cursor.
+           * Case 3: sibling cannot be demoted since it has a 1-edge. if sibling
+           * has a 1-child on the same side. Single rotation at cursor.
            *
            *           (P)                              (P)
            *            │ X                              │ X
@@ -1002,9 +995,6 @@ namespace snmalloc
             bool inner_is_2 = edge_is_even(sibling, !sibling_dir);
 
             rotate_subtree(path.parent(), sibling_dir);
-            // RBPath caches references to node fields, so refresh after rotate.
-            path.fixup();
-
             // sibling is promoted, cursor demoted.
             toggle_rank_parity(sibling);
             toggle_rank_parity(cursor);
@@ -1024,20 +1014,18 @@ namespace snmalloc
            *               │ X                                  │ X
            *              (C)                                  (T)
            *           1 ╱   ╲ 3               =>           2 ╱   ╲ 2
-           *            (S)   ╲                              ╱     ╲ 
+           *            (S)   ╲                              ╱     ╲
            *         2 ╱  ╲ 1  ╲                            (S)     (C)
-           *          ╱   (T)   (D)                       1 ╱ ╲     ╱ ╲ 1       
+           *          ╱   (T)   (D)                       1 ╱ ╲     ╱ ╲ 1
            *       (*) y ╱   ╲ z                          (*) (A) (B) (D)
-           *            (A) (B)                                            
+           *            (A) (B)
            */
           auto sibling_ref = ChildRef::get_dir(sibling_dir, cursor);
           rotate_subtree(sibling_ref, !sibling_dir);
-          path.fixup();
           rotate_subtree(path.parent(), sibling_dir);
-          path.fixup();
 
-          // Sibling is demoted by one. Cursor and sibling's 1-child's rank changes are two, 
-          // so no further toggle is needed.
+          // Sibling is demoted by one. Cursor and sibling's 1-child's rank
+          // changes are two, so no further toggle is needed.
           toggle_rank_parity(sibling);
 
           invariant(get_root());
