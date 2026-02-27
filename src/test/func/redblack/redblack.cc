@@ -98,14 +98,14 @@ public:
       return {&array[k].right};
   }
 
-  static bool is_red(key k)
+  static bool tree_tag(key k)
   {
     return (array[k].left & 1) == 1;
   }
 
-  static void set_red(key k, bool new_is_red)
+  static void set_tree_tag(key k, bool new_tree_tag)
   {
-    if (new_is_red != is_red(k))
+    if (new_tree_tag != tree_tag(k))
       array[k].left ^= 1;
   }
 

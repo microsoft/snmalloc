@@ -14,5 +14,5 @@
 #include "helpers.h"
 #include "mitigations.h"
 #include "ptrwrap.h"
-#include "redblacktree.h"
+#include "rankbalancetree.h"
 #include "tid.h"
