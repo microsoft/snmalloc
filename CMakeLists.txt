@@ -31,6 +31,14 @@ option(SNMALLOC_ENABLE_WAIT_ON_ADDRESS "Use wait on address backoff strategy if 
 option(SNMALLOC_PTHREAD_FORK_PROTECTION "Guard against forking while allocator locks are held using pthread_atfork hooks" OFF)
 option(SNMALLOC_ENABLE_FUZZING "Enable fuzzing instrumentation tests" OFF)
 option(SNMALLOC_USE_SELF_VENDORED_STL "Avoid using system STL" OFF)
+set(
+  SNMALLOC_DEFAULT_RBTREE_POLICY
+  "WeakAVLPolicy"
+  CACHE STRING
+    "Default RBTree policy class in snmalloc::rankbalancetree (WeakAVLPolicy or RedBlackPolicy)")
+set_property(
+  CACHE SNMALLOC_DEFAULT_RBTREE_POLICY
+  PROPERTY STRINGS WeakAVLPolicy RedBlackPolicy)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_RUST_LIBC_API "Include libc API in the rust library" OFF "SNMALLOC_RUST_SUPPORT" OFF)
@@ -352,6 +360,7 @@ add_as_define_value(SNMALLOC_MIN_ALLOC_SIZE)
 add_as_define_value(SNMALLOC_MIN_ALLOC_STEP_SIZE)
 add_as_define_value(SNMALLOC_DEALLOC_BATCH_RING_ASSOC)
 add_as_define_value(SNMALLOC_DEALLOC_BATCH_RING_SET_BITS)
+add_as_define_value(SNMALLOC_DEFAULT_RBTREE_POLICY)
 
 add_as_define_value(SNMALLOC_PAGESIZE)
 
