@@ -209,9 +209,7 @@ namespace snmalloc
       {
         size_t offset = len - remainder;
         block_copy<1>(
-          pointer_offset(dst, offset),
-          pointer_offset(src, offset),
-          remainder);
+          pointer_offset(dst, offset), pointer_offset(src, offset), remainder);
       }
       return orig_dst;
     }
@@ -411,18 +409,15 @@ namespace snmalloc
           size_t i = 0;
           for (; i + sizeof(Ptr2) <= aligned_len; i += sizeof(Ptr2))
           {
-            auto* dp =
-              static_cast<Ptr2*>(pointer_offset(aligned_dst, i));
-            auto* sp =
-              static_cast<const Ptr2*>(pointer_offset(aligned_src, i));
+            auto* dp = static_cast<Ptr2*>(pointer_offset(aligned_dst, i));
+            auto* sp = static_cast<const Ptr2*>(pointer_offset(aligned_src, i));
             *dp = *sp;
           }
 
           /* Handle a remaining single pointer */
           if (i + sizeof(void*) <= aligned_len)
           {
-            auto* dp =
-              static_cast<void**>(pointer_offset(aligned_dst, i));
+            auto* dp = static_cast<void**>(pointer_offset(aligned_dst, i));
             auto* sp =
               static_cast<void* const*>(pointer_offset(aligned_src, i));
             *dp = *sp;
@@ -541,8 +536,7 @@ namespace snmalloc
           {
             i -= sizeof(Ptr2);
             auto* dp = static_cast<Ptr2*>(pointer_offset(aligned_dst, i));
-            auto* sp =
-              static_cast<const Ptr2*>(pointer_offset(aligned_src, i));
+            auto* sp = static_cast<const Ptr2*>(pointer_offset(aligned_src, i));
             *dp = *sp;
           }
 
@@ -550,8 +544,7 @@ namespace snmalloc
           if (i >= sizeof(void*))
           {
             i -= sizeof(void*);
-            auto* dp =
-              static_cast<void**>(pointer_offset(aligned_dst, i));
+            auto* dp = static_cast<void**>(pointer_offset(aligned_dst, i));
             auto* sp =
               static_cast<void* const*>(pointer_offset(aligned_src, i));
             *dp = *sp;
@@ -659,9 +652,7 @@ namespace snmalloc
       {
         size_t offset = len - remainder;
         block_copy<1>(
-          pointer_offset(dst, offset),
-          pointer_offset(src, offset),
-          remainder);
+          pointer_offset(dst, offset), pointer_offset(src, offset), remainder);
       }
       return orig_dst;
     }
@@ -732,9 +723,7 @@ namespace snmalloc
       {
         size_t offset = len - remainder;
         block_copy<1>(
-          pointer_offset(dst, offset),
-          pointer_offset(src, offset),
-          remainder);
+          pointer_offset(dst, offset), pointer_offset(src, offset), remainder);
       }
       return orig_dst;
     }
@@ -809,10 +798,7 @@ namespace snmalloc
       return dst;
 
     return check_bound<(Checked && ReadsChecked)>(
-      src,
-      len,
-      "memmove with source out of bounds of heap allocation",
-      [&]() {
+      src, len, "memmove with source out of bounds of heap allocation", [&]() {
         return check_bound<Checked>(
           dst,
           len,

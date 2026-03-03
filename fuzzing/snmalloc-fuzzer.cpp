@@ -110,12 +110,17 @@ struct Result
   char* ptr;
   size_t size;
 
-  Result(char filler, char* ptr, size_t size) : filler(filler), ptr(ptr), size(size) {}
-  Result(Result&& other) noexcept : filler(other.filler), ptr(other.ptr), size(other.size)
+  Result(char filler, char* ptr, size_t size)
+  : filler(filler), ptr(ptr), size(size)
+  {}
+
+  Result(Result&& other) noexcept
+  : filler(other.filler), ptr(other.ptr), size(other.size)
   {
     other.ptr = nullptr;
   }
-  Result &operator=(Result&& other) noexcept
+
+  Result& operator=(Result&& other) noexcept
   {
     if (this != &other)
     {

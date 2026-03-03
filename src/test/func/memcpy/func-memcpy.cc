@@ -125,11 +125,7 @@ void check_overlaps(size_t size)
   auto* ref = static_cast<unsigned char*>(my_malloc(bufsize));
 
   for (size_t overlap_amount :
-       {size_t(1),
-        size / 4 + 1,
-        size / 2 + 1,
-        size - (size > 1 ? 1 : 0),
-        size})
+       {size_t(1), size / 4 + 1, size / 2 + 1, size - (size > 1 ? 1 : 0), size})
   {
     if (overlap_amount > size || overlap_amount == 0)
       continue;
@@ -149,9 +145,7 @@ void check_overlaps(size_t size)
         ref[i] = buf[i];
 
       void* ret = my_memmove(buf + offset, buf, copy_len);
-      EXPECT(
-        ret == buf + offset,
-        "Forward memmove return value should be dst");
+      EXPECT(ret == buf + offset, "Forward memmove return value should be dst");
       for (size_t i = 0; i < copy_len; ++i)
       {
         EXPECT(
@@ -175,8 +169,7 @@ void check_overlaps(size_t size)
         ref[i] = buf[offset + i];
 
       void* ret = my_memmove(buf, buf + offset, copy_len);
-      EXPECT(
-        ret == buf, "Backward memmove return value should be dst");
+      EXPECT(ret == buf, "Backward memmove return value should be dst");
       for (size_t i = 0; i < copy_len; ++i)
       {
         EXPECT(
@@ -309,9 +302,9 @@ void check_alignment_boundary_overlaps()
 
   // Sizes near Arch path thresholds
   static const size_t boundary_sizes[] = {
-    1,   2,   3,   4,   7,   8,   9,   15,  16,  17,  31,   32,
-    33,  48,  63,  64,  65,  127, 128, 129, 255, 256, 257,  511,
-    512, 513, 768, 1023, 1024, 1025, 2048, 4096};
+    1,   2,   3,   4,   7,   8,    9,    15,   16,   17,  31,
+    32,  33,  48,  63,  64,  65,   127,  128,  129,  255, 256,
+    257, 511, 512, 513, 768, 1023, 1024, 1025, 2048, 4096};
 
   for (auto size : boundary_sizes)
   {
@@ -448,10 +441,7 @@ void check_direct_memmove(size_t size)
     for (size_t i = 0; i < size; ++i)
     {
       EXPECT(
-        buf[i] == ref[i],
-        "Direct bwd mismatch at size {}, idx {}",
-        size,
-        i);
+        buf[i] == ref[i], "Direct bwd mismatch at size {}, idx {}", size, i);
     }
   }
 
@@ -462,9 +452,7 @@ void check_direct_memmove(size_t size)
 void check_memmove_bounds(size_t size, size_t out_of_bounds)
 {
   START_TEST(
-    "memmove bounds, size {}, {} bytes out of bounds",
-    size,
-    out_of_bounds);
+    "memmove bounds, size {}, {} bytes out of bounds", size, out_of_bounds);
   auto* s = static_cast<unsigned char*>(my_malloc(size));
   auto* d = static_cast<unsigned char*>(my_malloc(size));
   for (size_t i = 0; i < size; ++i)
