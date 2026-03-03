@@ -1,6 +1,7 @@
 #pragma once
 
 #include "snmalloc/stl/type_traits.h"
+#include <stddef.h>
 
 /**
  * C++20 concepts are referenced as if they were types in declarations within

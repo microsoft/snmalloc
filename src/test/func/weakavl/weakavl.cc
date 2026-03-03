@@ -1,4 +1,3 @@
-#include "snmalloc/ds_core/rankbalancetree.h"
 #include "test/opt.h"
 #include "test/setup.h"
 #include "test/usage.h"
@@ -143,7 +142,7 @@ void test(size_t size, unsigned int seed)
   /// additions and removals from the tree.
 
   xoroshiro::p64r32 rand(seed);
-  snmalloc::RBTree<Rep, true, TRACE, snmalloc::rankbalancetree::RedBlackPolicy> tree;
+  snmalloc::RBTree<Rep, true, TRACE, snmalloc::rankbalancetree::WeakAVLPolicy> tree;
   std::vector<Rep::key> entries;
 
   bool first = true;

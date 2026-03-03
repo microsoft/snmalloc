@@ -115,7 +115,7 @@ Its contents can be decoded as follows:
    This trick of pointing at the child's chunk rather than at the child `MetaEntry` is particularly useful on CHERI:
    it allows us to capture the authority to the chunk without needing another pointer and costs just a shift and add.)
 
-3. The `meta` field's `LargeBuddyRep::RED_BIT` is used to carry the red/black color of this node.
+3. The `meta` field's `LargeBuddyRep::TREE_TAG_BIT` is used to carry the red/black color of this node.
 
 See `src/backend/largebuddyrange.h`.
 
