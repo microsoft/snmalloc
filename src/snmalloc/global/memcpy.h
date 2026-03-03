@@ -30,6 +30,26 @@ namespace snmalloc
   }
 
   /**
+   * Copy a single element where source and destination may overlap.
+   * Unlike copy_one, this always uses the struct-copy path because
+   * __builtin_memcpy_inline is treated as memcpy by sanitizers and
+   * will flag overlapping src/dst as an error.  The struct copy is
+   * semantically safe for overlap (load into temporary, then store).
+   */
+  template<size_t Size>
+  SNMALLOC_FAST_PATH_INLINE void copy_one_move(void* dst, const void* src)
+  {
+    struct Block
+    {
+      char data[Size];
+    };
+
+    auto* d = static_cast<Block*>(dst);
+    auto* s = static_cast<const Block*>(src);
+    *d = *s;
+  }
+
+  /**
    * Copy a block using the specified size.  This copies as many complete
    * chunks of size `Size` as are possible from `len`.
    */
@@ -44,9 +64,24 @@ namespace snmalloc
   }
 
   /**
+   * Copy a block where source and destination may overlap, using the
+   * overlap-safe copy_one_move.
+   */
+  template<size_t Size>
+  SNMALLOC_FAST_PATH_INLINE void
+  block_copy_move(void* dst, const void* src, size_t len)
+  {
+    for (size_t i = 0; (i + Size) <= len; i += Size)
+    {
+      copy_one_move<Size>(pointer_offset(dst, i), pointer_offset(src, i));
+    }
+  }
+
+  /**
    * Reverse-copy a block using the specified chunk size.  Copies as many
    * complete chunks of `Size` bytes as possible from end to start.
    * After the loop, bytes [0, len % Size) remain uncopied.
+   * Uses copy_one_move because source and destination overlap.
    */
   template<size_t Size>
   SNMALLOC_FAST_PATH_INLINE void
@@ -56,7 +91,7 @@ namespace snmalloc
     while (i >= Size)
     {
       i -= Size;
-      copy_one<Size>(pointer_offset(dst, i), pointer_offset(src, i));
+      copy_one_move<Size>(pointer_offset(dst, i), pointer_offset(src, i));
     }
   }
 
@@ -197,18 +232,19 @@ namespace snmalloc
 
     /**
      * Forward copy for overlapping memmove where dst < src.
-     * Uses block_copy without copy_end to avoid re-reading overwritten
-     * bytes.  Caller guarantees len > 0 and buffers overlap.
+     * Uses block_copy_move (overlap-safe) without copy_end to avoid
+     * re-reading overwritten bytes.
+     * Caller guarantees len > 0 and buffers overlap.
      */
     static void* forward_move(void* dst, const void* src, size_t len)
     {
       auto orig_dst = dst;
-      block_copy<LargestRegisterSize>(dst, src, len);
+      block_copy_move<LargestRegisterSize>(dst, src, len);
       size_t remainder = len % LargestRegisterSize;
       if (remainder > 0)
       {
         size_t offset = len - remainder;
-        block_copy<1>(
+        block_copy_move<1>(
           pointer_offset(dst, offset), pointer_offset(src, offset), remainder);
       }
       return orig_dst;
@@ -376,7 +412,7 @@ namespace snmalloc
           (static_cast<size_t>(-static_cast<ptrdiff_t>(address_cast(src))) &
            (alignof(void*) - 1)))
       {
-        block_copy<1>(dst, src, len);
+        block_copy_move<1>(dst, src, len);
       }
       /* Equally-misaligned: use pointer-width forward operations. */
       else if (
@@ -392,7 +428,7 @@ namespace snmalloc
 
         /* Copy head sub-pointer bytes forward (byte-by-byte). */
         if (head_pad > 0)
-          block_copy<1>(dst, src, head_pad);
+          block_copy_move<1>(dst, src, head_pad);
 
         /* Forward copy aligned middle using pointer-pair operations. */
         if (aligned_len > 0)
@@ -428,7 +464,7 @@ namespace snmalloc
         if (tail_pad > 0)
         {
           size_t tail_off = len - tail_pad;
-          block_copy<1>(
+          block_copy_move<1>(
             pointer_offset(dst, tail_off),
             pointer_offset(src, tail_off),
             tail_pad);
@@ -437,12 +473,12 @@ namespace snmalloc
       /* Differently misaligned: integer-only forward copy is safe. */
       else
       {
-        block_copy<LargestRegisterSize>(dst, src, len);
+        block_copy_move<LargestRegisterSize>(dst, src, len);
         size_t remainder = len % LargestRegisterSize;
         if (remainder > 0)
         {
           size_t offset = len - remainder;
-          block_copy<1>(
+          block_copy_move<1>(
             pointer_offset(dst, offset),
             pointer_offset(src, offset),
             remainder);
@@ -646,12 +682,12 @@ namespace snmalloc
     static void* forward_move(void* dst, const void* src, size_t len)
     {
       auto orig_dst = dst;
-      block_copy<LargestRegisterSize>(dst, src, len);
+      block_copy_move<LargestRegisterSize>(dst, src, len);
       size_t remainder = len % LargestRegisterSize;
       if (remainder > 0)
       {
         size_t offset = len - remainder;
-        block_copy<1>(
+        block_copy_move<1>(
           pointer_offset(dst, offset), pointer_offset(src, offset), remainder);
       }
       return orig_dst;
@@ -717,12 +753,12 @@ namespace snmalloc
     static void* forward_move(void* dst, const void* src, size_t len)
     {
       auto orig_dst = dst;
-      block_copy<LargestRegisterSize>(dst, src, len);
+      block_copy_move<LargestRegisterSize>(dst, src, len);
       size_t remainder = len % LargestRegisterSize;
       if (remainder > 0)
       {
         size_t offset = len - remainder;
-        block_copy<1>(
+        block_copy_move<1>(
           pointer_offset(dst, offset), pointer_offset(src, offset), remainder);
       }
       return orig_dst;
