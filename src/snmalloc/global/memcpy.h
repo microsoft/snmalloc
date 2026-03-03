@@ -44,6 +44,23 @@ namespace snmalloc
   }
 
   /**
+   * Reverse-copy a block using the specified chunk size.  Copies as many
+   * complete chunks of `Size` bytes as possible from end to start.
+   * After the loop, bytes [0, len % Size) remain uncopied.
+   */
+  template<size_t Size>
+  SNMALLOC_FAST_PATH_INLINE void
+  block_reverse_copy(void* dst, const void* src, size_t len)
+  {
+    size_t i = len;
+    while (i >= Size)
+    {
+      i -= Size;
+      copy_one<Size>(pointer_offset(dst, i), pointer_offset(src, i));
+    }
+  }
+
+  /**
    * Perform an overlapping copy of the end.  This will copy one (potentially
    * unaligned) `T` from the end of the source to the end of the destination.
    * This may overlap other bits of the copy.
@@ -175,6 +192,41 @@ namespace snmalloc
         block_copy<LargestRegisterSize>(dst, src, len);
         copy_end<LargestRegisterSize>(dst, src, len);
       }
+      return orig_dst;
+    }
+
+    /**
+     * Forward copy for overlapping memmove where dst < src.
+     * Uses block_copy without copy_end to avoid re-reading overwritten
+     * bytes.  Caller guarantees len > 0 and buffers overlap.
+     */
+    static void* forward_move(void* dst, const void* src, size_t len)
+    {
+      auto orig_dst = dst;
+      block_copy<LargestRegisterSize>(dst, src, len);
+      size_t remainder = len % LargestRegisterSize;
+      if (remainder > 0)
+      {
+        size_t offset = len - remainder;
+        block_copy<1>(
+          pointer_offset(dst, offset),
+          pointer_offset(src, offset),
+          remainder);
+      }
+      return orig_dst;
+    }
+
+    /**
+     * Reverse copy for overlapping memmove where dst > src.
+     * Caller guarantees len > 0 and dst != src.
+     */
+    static void* move(void* dst, const void* src, size_t len)
+    {
+      auto orig_dst = dst;
+      block_reverse_copy<LargestRegisterSize>(dst, src, len);
+      size_t remainder = len % LargestRegisterSize;
+      if (remainder > 0)
+        block_reverse_copy<1>(dst, src, remainder);
       return orig_dst;
     }
   };
@@ -309,6 +361,226 @@ namespace snmalloc
       }
       return orig_dst;
     }
+
+    /**
+     * Forward copy for overlapping memmove where dst < src.
+     * Uses the same three-case structure as copy() but avoids copy_end
+     * and unaligned_start tricks that re-read already-written bytes.
+     * Caller guarantees len > 0 and buffers overlap.
+     */
+    static void* forward_move(void* dst, const void* src, size_t len)
+    {
+      auto orig_dst = dst;
+
+      /* Tiny case: no aligned pointer can fit, byte-by-byte is safe. */
+      if (
+        len < sizeof(void*) +
+          (static_cast<size_t>(-static_cast<ptrdiff_t>(address_cast(src))) &
+           (alignof(void*) - 1)))
+      {
+        block_copy<1>(dst, src, len);
+      }
+      /* Equally-misaligned: use pointer-width forward operations. */
+      else if (
+        address_misalignment<alignof(void*)>(address_cast(src)) ==
+        address_misalignment<alignof(void*)>(address_cast(dst)))
+      {
+        size_t src_misalign =
+          address_misalignment<alignof(void*)>(address_cast(src));
+        size_t head_pad =
+          src_misalign == 0 ? 0 : (alignof(void*) - src_misalign);
+        size_t tail_pad = (len - head_pad) % alignof(void*);
+        size_t aligned_len = len - head_pad - tail_pad;
+
+        /* Copy head sub-pointer bytes forward (byte-by-byte). */
+        if (head_pad > 0)
+          block_copy<1>(dst, src, head_pad);
+
+        /* Forward copy aligned middle using pointer-pair operations. */
+        if (aligned_len > 0)
+        {
+          struct Ptr2
+          {
+            void* p[2];
+          };
+
+          void* aligned_dst = pointer_offset(dst, head_pad);
+          const void* aligned_src = pointer_offset(src, head_pad);
+
+          /* Forward copy pairs of pointers */
+          size_t i = 0;
+          for (; i + sizeof(Ptr2) <= aligned_len; i += sizeof(Ptr2))
+          {
+            auto* dp =
+              static_cast<Ptr2*>(pointer_offset(aligned_dst, i));
+            auto* sp =
+              static_cast<const Ptr2*>(pointer_offset(aligned_src, i));
+            *dp = *sp;
+          }
+
+          /* Handle a remaining single pointer */
+          if (i + sizeof(void*) <= aligned_len)
+          {
+            auto* dp =
+              static_cast<void**>(pointer_offset(aligned_dst, i));
+            auto* sp =
+              static_cast<void* const*>(pointer_offset(aligned_src, i));
+            *dp = *sp;
+          }
+        }
+
+        /* Copy tail sub-pointer bytes forward (byte-by-byte). */
+        if (tail_pad > 0)
+        {
+          size_t tail_off = len - tail_pad;
+          block_copy<1>(
+            pointer_offset(dst, tail_off),
+            pointer_offset(src, tail_off),
+            tail_pad);
+        }
+      }
+      /* Differently misaligned: integer-only forward copy is safe. */
+      else
+      {
+        block_copy<LargestRegisterSize>(dst, src, len);
+        size_t remainder = len % LargestRegisterSize;
+        if (remainder > 0)
+        {
+          size_t offset = len - remainder;
+          block_copy<1>(
+            pointer_offset(dst, offset),
+            pointer_offset(src, offset),
+            remainder);
+        }
+      }
+      return orig_dst;
+    }
+
+    /**
+     * Reverse copy for overlapping memmove where dst > src.
+     * Caller guarantees len > 0 and dst != src.
+     *
+     * Three cases, mirroring the forward copy() structure:
+     *
+     * 1. Tiny: buffer can't contain an aligned pointer, so byte-by-byte
+     *    reverse is safe.
+     *
+     * 2. Equally misaligned: pointers could be at aligned positions.
+     *    Use pointer-sized operations on the aligned interior, and
+     *    byte-by-byte for the unaligned head/tail.
+     *
+     * 3. Differently misaligned: no pointer-aligned address in one maps
+     *    to a pointer-aligned address in the other, so integer-only
+     *    reverse copy is safe.
+     */
+    static void* move(void* dst, const void* src, size_t len)
+    {
+      auto orig_dst = dst;
+
+      /*
+       * Tiny case: the buffer cannot contain a pointer-aligned, pointer-
+       * sized region, so byte-by-byte reverse is safe.
+       */
+      if (
+        len < sizeof(void*) +
+          (static_cast<size_t>(-static_cast<ptrdiff_t>(address_cast(src))) &
+           (alignof(void*) - 1)))
+      {
+        block_reverse_copy<1>(dst, src, len);
+      }
+      /*
+       * Equally-misaligned: pointers could be hiding at aligned positions.
+       * Must use pointer-width operations on the aligned interior.
+       */
+      else if (
+        address_misalignment<alignof(void*)>(address_cast(src)) ==
+        address_misalignment<alignof(void*)>(address_cast(dst)))
+      {
+        /*
+         * Compute alignment boundaries.  head_pad is the number of bytes
+         * before the first aligned position; tail_pad is the number of
+         * bytes after the last aligned position.
+         */
+        size_t src_misalign =
+          address_misalignment<alignof(void*)>(address_cast(src));
+        size_t head_pad =
+          src_misalign == 0 ? 0 : (alignof(void*) - src_misalign);
+        size_t tail_pad = (len - head_pad) % alignof(void*);
+        size_t aligned_len = len - head_pad - tail_pad;
+
+        /*
+         * Reverse copy the tail sub-pointer bytes (byte-by-byte).
+         * These are past the last aligned position so no pointers here.
+         */
+        if (tail_pad > 0)
+        {
+          size_t tail_off = len - tail_pad;
+          block_reverse_copy<1>(
+            pointer_offset(dst, tail_off),
+            pointer_offset(src, tail_off),
+            tail_pad);
+        }
+
+        /*
+         * Reverse copy the aligned middle using pointer-pair operations
+         * to preserve capability tags.
+         */
+        if (aligned_len > 0)
+        {
+          struct Ptr2
+          {
+            void* p[2];
+          };
+
+          void* aligned_dst = pointer_offset(dst, head_pad);
+          const void* aligned_src = pointer_offset(src, head_pad);
+
+          /* Reverse copy pairs of pointers */
+          size_t i = aligned_len;
+          while (i >= sizeof(Ptr2))
+          {
+            i -= sizeof(Ptr2);
+            auto* dp = static_cast<Ptr2*>(pointer_offset(aligned_dst, i));
+            auto* sp =
+              static_cast<const Ptr2*>(pointer_offset(aligned_src, i));
+            *dp = *sp;
+          }
+
+          /* Handle a remaining single pointer if odd alignment */
+          if (i >= sizeof(void*))
+          {
+            i -= sizeof(void*);
+            auto* dp =
+              static_cast<void**>(pointer_offset(aligned_dst, i));
+            auto* sp =
+              static_cast<void* const*>(pointer_offset(aligned_src, i));
+            *dp = *sp;
+          }
+        }
+
+        /*
+         * Reverse copy the head sub-pointer bytes (byte-by-byte).
+         * These are before the first aligned position so no pointers.
+         */
+        if (head_pad > 0)
+        {
+          block_reverse_copy<1>(dst, src, head_pad);
+        }
+      }
+      /*
+       * Differently misaligned: no pointer-aligned address in src maps to
+       * a pointer-aligned address in dst, so integer-only operations are
+       * safe (no capability tags to preserve).
+       */
+      else
+      {
+        block_reverse_copy<LargestRegisterSize>(dst, src, len);
+        size_t remainder = len % LargestRegisterSize;
+        if (remainder > 0)
+          block_reverse_copy<1>(dst, src, remainder);
+      }
+      return orig_dst;
+    }
   };
 
 #if defined(__x86_64__) || defined(_M_X64)
@@ -374,6 +646,40 @@ namespace snmalloc
       }
       return orig_dst;
     }
+
+    /**
+     * Forward copy for overlapping memmove where dst < src.
+     */
+    static void* forward_move(void* dst, const void* src, size_t len)
+    {
+      auto orig_dst = dst;
+      block_copy<LargestRegisterSize>(dst, src, len);
+      size_t remainder = len % LargestRegisterSize;
+      if (remainder > 0)
+      {
+        size_t offset = len - remainder;
+        block_copy<1>(
+          pointer_offset(dst, offset),
+          pointer_offset(src, offset),
+          remainder);
+      }
+      return orig_dst;
+    }
+
+    /**
+     * Reverse copy for overlapping memmove where dst > src.
+     * No rep movsb in reverse (ERMS doesn't support DF=1), so use
+     * SSE-width block_reverse_copy.
+     */
+    static void* move(void* dst, const void* src, size_t len)
+    {
+      auto orig_dst = dst;
+      block_reverse_copy<LargestRegisterSize>(dst, src, len);
+      size_t remainder = len % LargestRegisterSize;
+      if (remainder > 0)
+        block_reverse_copy<1>(dst, src, remainder);
+      return orig_dst;
+    }
   };
 #endif
 
@@ -411,6 +717,38 @@ namespace snmalloc
         block_copy<LargestRegisterSize>(dst, src, len);
         copy_end<LargestRegisterSize>(dst, src, len);
       }
+      return orig_dst;
+    }
+
+    /**
+     * Forward copy for overlapping memmove where dst < src.
+     */
+    static void* forward_move(void* dst, const void* src, size_t len)
+    {
+      auto orig_dst = dst;
+      block_copy<LargestRegisterSize>(dst, src, len);
+      size_t remainder = len % LargestRegisterSize;
+      if (remainder > 0)
+      {
+        size_t offset = len - remainder;
+        block_copy<1>(
+          pointer_offset(dst, offset),
+          pointer_offset(src, offset),
+          remainder);
+      }
+      return orig_dst;
+    }
+
+    /**
+     * Reverse copy for overlapping memmove where dst > src.
+     */
+    static void* move(void* dst, const void* src, size_t len)
+    {
+      auto orig_dst = dst;
+      block_reverse_copy<LargestRegisterSize>(dst, src, len);
+      size_t remainder = len % LargestRegisterSize;
+      if (remainder > 0)
+        block_reverse_copy<1>(dst, src, remainder);
       return orig_dst;
     }
   };
@@ -452,6 +790,47 @@ namespace snmalloc
           len,
           "memcpy with destination out of bounds of heap allocation",
           [&]() { return Arch::copy(dst, src, len); });
+      });
+  }
+
+  /**
+   * Snmalloc checked memmove.  Handles overlapping source and destination
+   * by selecting forward copy (Arch::copy) or reverse copy (Arch::move)
+   * as appropriate.
+   */
+  template<
+    bool Checked,
+    bool ReadsChecked = CheckReads,
+    typename Arch = DefaultArch>
+  SNMALLOC_FAST_PATH_INLINE void*
+  memmove(void* dst, const void* src, size_t len)
+  {
+    if (SNMALLOC_UNLIKELY(len == 0 || dst == src))
+      return dst;
+
+    return check_bound<(Checked && ReadsChecked)>(
+      src,
+      len,
+      "memmove with source out of bounds of heap allocation",
+      [&]() {
+        return check_bound<Checked>(
+          dst,
+          len,
+          "memmove with destination out of bounds of heap allocation",
+          [&]() {
+            auto dst_addr = address_cast(dst);
+            auto src_addr = address_cast(src);
+            if (dst_addr > src_addr)
+            {
+              if ((dst_addr - src_addr) >= len)
+                return Arch::copy(dst, src, len); // no overlap
+              return Arch::move(dst, src, len); // reverse copy
+            }
+            // dst_addr < src_addr (dst == src already handled)
+            if ((src_addr - dst_addr) >= len)
+              return Arch::copy(dst, src, len); // no overlap
+            return Arch::forward_move(dst, src, len); // safe forward
+          });
       });
   }
 } // namespace snmalloc
