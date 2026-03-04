@@ -29,7 +29,7 @@ namespace snmalloc
     // Global range of memory, expose this so can be filled by init.
     using GlobalR = Pipe<
       Base,
-      LargeBuddyRange<
+      BitmapCoalesceRange<
         GlobalCacheSizeBits,
         bits::BITS - 1,
         Pagemap,
@@ -52,14 +52,8 @@ namespace snmalloc
 
   public:
     // Source for object allocations and metadata
-    // Use buddy allocators to cache locally.
-    using LargeObjectRange = Pipe<
-      Stats,
-      StaticConditionalRange<LargeBuddyRange<
-        LocalCacheSizeBits,
-        LocalCacheSizeBits,
-        Pagemap,
-        page_size_bits>>>;
+    // No thread-local caching for now.
+    using LargeObjectRange = Stats;
 
   private:
     using ObjectRange = Pipe<LargeObjectRange, SmallBuddyRange>;
@@ -94,8 +88,7 @@ namespace snmalloc
 
     static void set_small_heap()
     {
-      // This disables the thread local caching of large objects.
-      LargeObjectRange::disable_range();
+      // No thread-local caching to disable.
     }
   };
 } // namespace snmalloc
