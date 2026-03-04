@@ -2,6 +2,9 @@
 
 #include "../mem/mem.h"
 #include "authmap.h"
+#include "bitmap_coalesce.h"
+#include "bitmap_coalesce_helpers.h"
+#include "bitmap_coalesce_range.h"
 #include "buddy.h"
 #include "commitrange.h"
 #include "commonconfig.h"

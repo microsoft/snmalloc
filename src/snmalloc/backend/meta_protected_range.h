@@ -32,7 +32,7 @@ namespace snmalloc
     // Global range of memory
     using GlobalR = Pipe<
       Base,
-      LargeBuddyRange<
+      BitmapCoalesceRange<
         GlobalCacheSizeBits,
         bits::BITS - 1,
         Pagemap,
@@ -89,23 +89,10 @@ namespace snmalloc
       StatsRange>;
 
     // Local caching of object range
-    using ObjectRange = Pipe<
-      CentralObjectRange,
-      LargeBuddyRange<
-        LocalCacheSizeBits,
-        LocalCacheSizeBits,
-        Pagemap,
-        page_size_bits>,
-      LogRange<5>>;
+    using ObjectRange = Pipe<CentralObjectRange, LogRange<5>>;
 
     // Local caching of meta-data range
-    using MetaRange = Pipe<
-      CentralMetaRange,
-      LargeBuddyRange<
-        LocalCacheSizeBits - SubRangeRatioBits,
-        bits::BITS - 1,
-        Pagemap>,
-      SmallBuddyRange>;
+    using MetaRange = Pipe<CentralMetaRange, SmallBuddyRange>;
 
     ObjectRange object_range;
 

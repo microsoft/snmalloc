@@ -57,6 +57,16 @@ namespace snmalloc
     static constexpr address_t META_BOUNDARY_BIT = 1 << 0;
 
     /**
+     * Bit used by the coalescing range (BitmapCoalesce /
+     * BitmapCoalesceRange) to mark entries that belong to its free pool.
+     * This allows the coalescing algorithm to distinguish its own free
+     * blocks from other backend-owned entries (e.g., those held by
+     * DecayRange or other range components that also call
+     * claim_for_backend).  Cleared by claim_for_backend().
+     */
+    static constexpr address_t META_COALESCE_FREE_BIT = 1 << 1;
+
+    /**
      * The bit above the sizeclass is always zero unless this is used
      * by the backend to represent another datastructure such as the buddy
      * allocator entries.
@@ -158,7 +168,8 @@ namespace snmalloc
 
     /**
      * Explicit assignment operator, copies the data preserving the boundary bit
-     * in the target if it is set.
+     * in the target if it is set.  Other reserved bits (e.g. the coalesce
+     * free marker) are taken from the source, not preserved from the target.
      */
     MetaEntryBase& operator=(const MetaEntryBase& other)
     {
@@ -189,6 +200,28 @@ namespace snmalloc
     bool clear_boundary_bit()
     {
       return meta &= ~META_BOUNDARY_BIT;
+    }
+
+    ///@}
+
+    /**
+     * Mark this entry as part of a coalescing-range free block.
+     * Set on the first and last chunk entries of each free block.
+     * @{
+     */
+    void set_coalesce_free()
+    {
+      meta |= META_COALESCE_FREE_BIT;
+    }
+
+    [[nodiscard]] bool is_coalesce_free() const
+    {
+      return meta & META_COALESCE_FREE_BIT;
+    }
+
+    void clear_coalesce_free()
+    {
+      meta &= ~META_COALESCE_FREE_BIT;
     }
 
     ///@}
