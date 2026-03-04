@@ -13,6 +13,23 @@ are relevant. Only then report completion and wait for feedback.
 checkpoints") before presenting it. Do NOT proceed to implementation until
 the plan has been seen and explicitly approved.
 
+**Baseline the checkout before starting work**: Before beginning implementation
+of any plan, verify that the current checkout builds and passes tests. Run the
+build and test suite (per `skills/building_and_testing.md`) and record the
+results. If the baseline is broken, report the failures and stop — do not start
+implementation on a broken base. Pre-existing failures that are not caused by
+your changes must be acknowledged upfront so they are not confused with
+regressions introduced by the plan. This establishes the ground truth against
+which your changes will be measured.
+
+**Every plan step must have a test gate**: Each step in a plan must produce
+a testable result — a test, a build check, or a verifiable property — that
+acts as the gate to the next step. Do not move to step N+1 until step N's
+gate passes. This catches integration issues incrementally rather than
+deferring all testing to the end. When writing a plan, structure it so that
+independently testable components are implemented and verified first, and
+later steps build on proven foundations.
+
 **Mandatory review checkpoints**: At each of these points, run the full
 review loop — spawn a fresh-context reviewer subagent, address findings,
 spawn another fresh reviewer, repeat until a reviewer finds no issues. When
@@ -101,31 +118,17 @@ as a collaborator.
 
 - **Fix what your change makes stale** - When a change invalidates something elsewhere — a comment, a test description, documentation — fix it in the same PR. Stale artefacts left behind are bugs in the making, and "I didn't modify that line" isn't an excuse when your change is what made it wrong.
 
-## Testing
+## Building, Testing, and Benchmarking
 
-- Run `func-malloc-fast` and `func-jemalloc-fast` to catch allocation edge cases
-- The `-check` variants include assertions but may pass when `-fast` hangs due to timing differences
-- Use `timeout` when running tests to avoid infinite hangs
-- Before considering a change complete, run the full test suite: `ctest --output-on-failure -j 4 -C Release --timeout 60`
+All build, test, and benchmarking guidance lives in `skills/building_and_testing.md`.
 
-### Test library (`snmalloc_testlib`)
+**Delegate testing to a subagent.** When it is time to build and run tests,
+spawn a subagent whose prompt includes the contents of
+`skills/building_and_testing.md` and tells it which tests to run (or "run the
+full suite"). Do NOT include implementation context — the subagent must not
+know what code changed. This prevents the tester from rationalising failures
+as related to the changes instead of reporting them objectively.
 
-Tests that only use the public allocator API can link against a pre-compiled static library (`snmalloc-testlib-{fast,check}`) instead of compiling the full allocator in each TU.
-
-- **Header**: `test/snmalloc_testlib.h` — forward-declares the API surface; does NOT include any snmalloc headers. Tests that also need snmalloc internals (sizeclasses, pointer math, etc.) include `<snmalloc/snmalloc_core.h>` or `<snmalloc/pal/pal.h>` alongside it.
-- **CMake**: Add the test name to `LIBRARY_FUNC_TESTS` or `LIBRARY_PERF_TESTS` in `CMakeLists.txt`.
-- **Apply broadly**: When adding new API to testlib (e.g., `ScopedAllocHandle`), immediately audit all remaining non-library tests to see which ones can now be migrated. Don't wait for CI to find them one by one.
-- **Cannot migrate**: Tests that use custom `Config` types, `Pool<T>`, override machinery, internal data structures (freelists, MPSC queues), or the statically-sized `alloc<size>()` template with many size values genuinely need `snmalloc.h`.
-
-## Build
-
-- Build directory: `build/`
-- Build system: Ninja with CMake
-- Rebuild all targets before running ctest: `ninja -C build` (required - ctest runs pre-built binaries)
-- Rebuild specific targets: `ninja -C build <target>`
-- Always run `clang-format` before committing changes: `ninja -C build clangformat`
-
-## Benchmarking
-
-- Before benchmarking, verify Release build: `grep CMAKE_BUILD_TYPE build/CMakeCache.txt` should show `Release`
-- Debug builds have assertions enabled and will give misleading performance numbers
+The subagent will report back: which tests passed, which failed, exact
+commands, and full output of any failures. If failures are reported, treat
+them as actionable per the failure protocol in the skill file.
