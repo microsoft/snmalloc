@@ -592,7 +592,7 @@ namespace snmalloc
 
 #  ifdef PLATFORM_HAS_VIRTUALALLOC2
   template<bool state_using>
-  void* PALWindows::reserve_aligned(size_t size) noexcept
+  inline void* PALWindows::reserve_aligned(size_t size) noexcept
   {
     SNMALLOC_ASSERT(bits::is_pow2(size));
     SNMALLOC_ASSERT(size >= minimum_alloc_size);
@@ -622,7 +622,7 @@ namespace snmalloc
   }
 #  endif
 
-  void* PALWindows::reserve(size_t size) noexcept
+  inline void* PALWindows::reserve(size_t size) noexcept
   {
     void* ret = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
 

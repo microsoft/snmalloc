@@ -5,6 +5,7 @@
 #include "buddy.h"
 #include "commitrange.h"
 #include "commonconfig.h"
+#include "decayrange.h"
 #include "defaultpagemapentry.h"
 #include "empty_range.h"
 #include "globalrange.h"
