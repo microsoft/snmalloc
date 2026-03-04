@@ -31,22 +31,25 @@ namespace snmalloc
 
   /**
    * Copy a single element where source and destination may overlap.
-   * Unlike copy_one, this always uses the struct-copy path because
-   * __builtin_memcpy_inline is treated as memcpy by sanitizers and
-   * will flag overlapping src/dst as an error.  The struct copy is
-   * semantically safe for overlap (load into temporary, then store).
+   * Uses __builtin_memmove which the compiler can optimize to register-width
+   * loads/stores while correctly handling overlap.  We cannot use
+   * __builtin_memcpy_inline (ASan treats it as memcpy and flags overlap)
+   * or struct copy (compiler lowers *d = *s to a memcpy call, same problem).
    */
   template<size_t Size>
   SNMALLOC_FAST_PATH_INLINE void copy_one_move(void* dst, const void* src)
   {
-    struct Block
-    {
-      char data[Size];
-    };
-
-    auto* d = static_cast<Block*>(dst);
-    auto* s = static_cast<const Block*>(src);
-    *d = *s;
+#if __has_builtin(__builtin_memmove)
+    __builtin_memmove(dst, src, Size);
+#else
+    // Fallback: byte-by-byte copy through a temporary buffer to avoid
+    // the compiler generating a memcpy call for struct assignment.
+    char tmp[Size];
+    for (size_t i = 0; i < Size; ++i)
+      tmp[i] = static_cast<const char*>(src)[i];
+    for (size_t i = 0; i < Size; ++i)
+      static_cast<char*>(dst)[i] = tmp[i];
+#endif
   }
 
   /**
