@@ -115,7 +115,7 @@ Its contents can be decoded as follows:
    This trick of pointing at the child's chunk rather than at the child `MetaEntry` is particularly useful on CHERI:
    it allows us to capture the authority to the chunk without needing another pointer and costs just a shift and add.)
 
-3. The `meta` field's `LargeBuddyRep::RED_BIT` is used to carry the red/black color of this node.
+3. The `meta` field's `LargeBuddyRep::TREE_TAG_BIT` is used to carry the red/black color of this node.
 
 See `src/backend/largebuddyrange.h`.
 
@@ -135,7 +135,7 @@ The following cases apply:
    The `MetaEntry`...
    * has `REMOTE_BACKEND_MARKER` asserted in `remote_and_sizeclass`.
    * has "small" sizeclass 0, which has size 0.
-   * the remainder of its `MetaEntry` structure will be a Large Buddy Allocator rbtree node.
+   * the remainder of its `MetaEntry` structure will be a Large Buddy Allocator DefaultRBTree node.
    * has no associated metadata structure.
 
 3. The address is part of a free chunk inside a backend's Small Buddy Allocator:
