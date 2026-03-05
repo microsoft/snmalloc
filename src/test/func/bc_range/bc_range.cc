@@ -110,6 +110,9 @@ static void test_large_alloc_after_free(Alloc& a)
  * intermediate bits, so sizeclasses include 3/4 and 5/4 multiples
  * of each power of two.  This exercises the carving / alignment
  * logic inside BitmapCoalesceRange::alloc_range.
+ *
+ * Verifies natural alignment: alloc_range must return addresses
+ * aligned to the largest power of two dividing the allocation size.
  */
 template<typename Alloc>
 static void test_non_pow2_sizes(Alloc& a)
@@ -120,9 +123,9 @@ static void test_non_pow2_sizes(Alloc& a)
   // These are all multiples of MIN_CHUNK_SIZE so they go through
   // the large-object path which uses BitmapCoalesceRange.
   const size_t sizes[] = {
-    MIN_CHUNK_SIZE * 3, // 3 chunks — not a power of two
-    MIN_CHUNK_SIZE * 5, // 5 chunks
-    MIN_CHUNK_SIZE * 6, // 6 chunks
+    MIN_CHUNK_SIZE * 3, // 3 chunks — natural alignment 1 chunk
+    MIN_CHUNK_SIZE * 5, // 5 chunks — natural alignment 1 chunk
+    MIN_CHUNK_SIZE * 6, // 6 chunks — natural alignment 2 chunks
   };
 
   for (auto sz : sizes)
@@ -130,12 +133,110 @@ static void test_non_pow2_sizes(Alloc& a)
     auto* p = a->alloc(sz);
     SNMALLOC_CHECK(p != nullptr);
 
-    // Verify alignment: should be at least MIN_CHUNK_SIZE-aligned.
-    SNMALLOC_CHECK(
-      (reinterpret_cast<uintptr_t>(p) & (MIN_CHUNK_SIZE - 1)) == 0);
+    // Verify natural alignment: address must be divisible by the
+    // largest power of two dividing the allocation size.
+    size_t nat_align = natural_alignment(sz);
+    auto addr = reinterpret_cast<uintptr_t>(p);
+    if ((addr % nat_align) != 0)
+    {
+      std::cout << "FAIL: alloc(" << sz << ") returned " << p
+                << " not aligned to " << nat_align << std::endl;
+    }
+    SNMALLOC_CHECK((addr % nat_align) == 0);
 
     a->dealloc(p);
   }
+
+  std::cout << "OK" << std::endl;
+}
+
+/**
+ * test_alignment_after_fragmentation
+ *
+ * Randomly allocates and deallocates a mix of pow2 and non-pow2
+ * large sizes to build up fragmentation, then verifies that every
+ * allocation is naturally aligned.
+ *
+ * Uses a simple xorshift PRNG for reproducibility.
+ */
+template<typename Alloc>
+static void test_alignment_after_fragmentation(Alloc& a)
+{
+  std::cout << "  test_alignment_after_fragmentation ... " << std::flush;
+
+  static constexpr size_t MAX_LIVE = 128;
+  static constexpr size_t NUM_OPS = 2000;
+
+  // All sizes are valid bitmap-coalesce sizeclasses (multiples of
+  // MIN_CHUNK_SIZE with chunk counts from the B=2 sequence).
+  const size_t chunk_counts[] = {
+    1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 28, 32};
+  constexpr size_t N_SIZES = sizeof(chunk_counts) / sizeof(chunk_counts[0]);
+
+  struct Slot
+  {
+    void* ptr;
+    size_t size;
+  };
+
+  Slot live[MAX_LIVE] = {};
+  size_t num_live = 0;
+  uint32_t rng = 42;
+
+  auto xorshift = [&]() -> uint32_t {
+    rng ^= rng << 13;
+    rng ^= rng >> 17;
+    rng ^= rng << 5;
+    return rng;
+  };
+
+  for (size_t op = 0; op < NUM_OPS; op++)
+  {
+    bool do_alloc;
+    if (num_live == 0)
+      do_alloc = true;
+    else if (num_live >= MAX_LIVE)
+      do_alloc = false;
+    else
+      do_alloc = (xorshift() % 3) != 0; // 2/3 alloc, 1/3 free
+
+    if (do_alloc)
+    {
+      size_t chunks = chunk_counts[xorshift() % N_SIZES];
+      size_t sz = chunks * MIN_CHUNK_SIZE;
+
+      auto* p = a->alloc(sz);
+      SNMALLOC_CHECK(p != nullptr);
+
+      // Verify natural alignment.
+      size_t nat_align = natural_alignment(sz);
+      auto addr = reinterpret_cast<uintptr_t>(p);
+      if ((addr % nat_align) != 0)
+      {
+        std::cout << "\n  FAIL at op " << op << ": alloc(" << sz
+                  << " = " << chunks << " chunks) returned " << p
+                  << " not aligned to " << nat_align
+                  << " (offset " << (addr % nat_align) << ")"
+                  << std::endl;
+      }
+      SNMALLOC_CHECK((addr % nat_align) == 0);
+
+      live[num_live].ptr = p;
+      live[num_live].size = sz;
+      num_live++;
+    }
+    else
+    {
+      size_t idx = xorshift() % num_live;
+      a->dealloc(live[idx].ptr);
+      live[idx] = live[num_live - 1];
+      num_live--;
+    }
+  }
+
+  // Free remaining.
+  for (size_t i = 0; i < num_live; i++)
+    a->dealloc(live[i].ptr);
 
   std::cout << "OK" << std::endl;
 }
@@ -246,6 +347,7 @@ int main()
   test_large_alloc_roundtrip(a);
   test_large_alloc_after_free(a);
   test_non_pow2_sizes(a);
+  test_alignment_after_fragmentation(a);
   test_range_stress(a);
   test_mixed_sizes(a);
 
