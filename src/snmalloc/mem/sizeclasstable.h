@@ -533,10 +533,9 @@ namespace snmalloc
   /// all allocations of size `size` will be aligned to the returned value.
   inline SNMALLOC_FAST_PATH static size_t natural_alignment(size_t size)
   {
-    auto rsize = round_size(size);
     if (size == 0)
       return 1;
-    return bits::one_at_bit(bits::ctz(rsize));
+    return bits::one_at_bit(bits::ctz(size));
   }
 
   constexpr SNMALLOC_FAST_PATH static size_t

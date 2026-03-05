@@ -189,6 +189,8 @@ namespace snmalloc
               bc.add_fresh_range(
                 refill_range.unsafe_uintptr() + size, refill_size - size);
             }
+            SNMALLOC_ASSERT(
+              (refill_range.unsafe_uintptr() % alignment) == 0);
           }
           return refill_range;
         }
@@ -235,6 +237,7 @@ namespace snmalloc
               bc.add_fresh_range(right_start, range_end - right_start);
             }
 
+            SNMALLOC_ASSERT((aligned_base % alignment) == 0);
             return capptr::Arena<void>::unsafe_from(
               reinterpret_cast<void*>(aligned_base));
           }
@@ -303,6 +306,7 @@ namespace snmalloc
           if (suffix > 0)
             bc.add_fresh_range(aligned_addr + size, suffix);
 
+          SNMALLOC_ASSERT((aligned_addr % sc_align) == 0);
           return capptr::Arena<void>::unsafe_from(
             reinterpret_cast<void*>(aligned_addr));
         }
@@ -317,6 +321,11 @@ namespace snmalloc
       void dealloc_range(capptr::Arena<void> base, size_t size)
       {
         SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
+        SNMALLOC_ASSERT(size % MIN_CHUNK_SIZE == 0);
+        SNMALLOC_ASSERT(
+          (base.unsafe_uintptr() %
+           (BC::natural_alignment(size / MIN_CHUNK_SIZE) * MIN_CHUNK_SIZE)) ==
+          0);
 
         if constexpr (MAX_SIZE_BITS != (bits::BITS - 1))
         {
