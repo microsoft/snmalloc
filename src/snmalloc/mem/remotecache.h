@@ -194,18 +194,19 @@ namespace snmalloc
 
     RemoteDeallocCacheBatchingImpl<Config> batching;
 
-    /**
-     * The total amount of memory we are waiting for before we will dispatch
-     * to other allocators. Zero can mean we have not initialised the allocator
-     * yet. This is initialised to the 0 so that we always hit a slow path to
-     * start with, when we hit the slow path and need to dispatch everything, we
-     * can check if we are a real allocator and lazily provide a real allocator.
-     */
-    int64_t capacity{0};
+    static inline Stat remote_inflight;
 
-#ifndef NDEBUG
+    /**
+     * The total amount of bytes of memory in the cache.
+     *
+     * REMOTE_CACHE is used as the initial value, so that we always hit a slow
+     * path to start with, when we hit the slow path and need to dispatch
+     * everything, we can check if we are a real allocator and lazily provide a
+     * real allocator.
+     */
+    size_t cache_bytes{REMOTE_CACHE};
+
     bool initialised = false;
-#endif
 
     /// Used to find the index into the array of queues for remote
     /// deallocation
@@ -233,13 +234,23 @@ namespace snmalloc
     {
       static_assert(sizeof(n) * 8 > MAX_CAPACITY_BITS);
 
-      auto size =
-        n * static_cast<int64_t>(sizeclass_full_to_size(entry.get_sizeclass()));
+      size_t size = n * sizeclass_full_to_size(entry.get_sizeclass());
 
-      bool result = capacity > size;
-      if (result)
-        capacity -= size;
-      return result;
+      size_t new_cache_bytes = cache_bytes + size;
+      if (SNMALLOC_UNLIKELY(new_cache_bytes > REMOTE_CACHE))
+      {
+        // Check if this is the default allocator, and if not, we
+        // can update the state.
+        if (initialised)
+        {
+          cache_bytes = new_cache_bytes;
+        }
+
+        return false;
+      }
+
+      cache_bytes = new_cache_bytes;
+      return true;
     }
 
     template<size_t allocator_size>
@@ -287,6 +298,9 @@ namespace snmalloc
                            SNMALLOC_FAST_PATH_LAMBDA {
                              return capptr_domesticate<Config>(local_state, p);
                            };
+
+      // We are about to post cache_bytes bytes to other allocators.
+      remote_inflight += cache_bytes;
 
       batching.close_all([this](
                            RemoteAllocator::alloc_id_t target_id,
@@ -357,7 +371,7 @@ namespace snmalloc
       }
 
       // Reset capacity as we have emptied everything
-      capacity = REMOTE_CACHE;
+      cache_bytes = 0;
 
       return sent_something;
     }
@@ -373,18 +387,16 @@ namespace snmalloc
      */
     void init()
     {
-#ifndef NDEBUG
       initialised = true;
-#endif
+
       for (auto& l : list)
       {
         // We do not need to initialise with a particular slab, so pass
         // a null address.
         l.init(0, RemoteAllocator::key_global, NO_KEY_TWEAK);
       }
-      capacity = REMOTE_CACHE;
-
       batching.init();
+      cache_bytes = 0;
     }
   };
 } // namespace snmalloc
