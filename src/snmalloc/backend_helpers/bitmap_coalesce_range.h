@@ -262,7 +262,7 @@ namespace snmalloc
        * Size must be >= MIN_CHUNK_SIZE.
        * Returns a naturally-aligned block of at least the requested size.
        */
-      capptr::Arena<void> alloc_range(size_t size)
+      NOINLINE capptr::Arena<void> alloc_range(size_t size)
       {
         SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
 
@@ -318,7 +318,7 @@ namespace snmalloc
        * Deallocate a range of memory.
        * Size must be >= MIN_CHUNK_SIZE.
        */
-      void dealloc_range(capptr::Arena<void> base, size_t size)
+      NOINLINE void dealloc_range(capptr::Arena<void> base, size_t size)
       {
         SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
         SNMALLOC_ASSERT(size % MIN_CHUNK_SIZE == 0);

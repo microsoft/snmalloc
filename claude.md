@@ -13,6 +13,11 @@ are relevant. Only then report completion and wait for feedback.
 checkpoints") before presenting it. Do NOT proceed to implementation until
 the plan has been seen and explicitly approved.
 
+**Store plans in PLAN.md**: Always write plans to `PLAN.md` in the repository
+root so that context survives session boundaries. Update (not append to) the
+file when the plan evolves. This is the single source of truth for what is
+planned and what has been completed.
+
 **Baseline the checkout before starting work**: Before beginning implementation
 of any plan, verify that the current checkout builds and passes tests. Run the
 build and test suite (per `skills/building_and_testing.md`) and record the
@@ -117,6 +122,8 @@ as a collaborator.
 - **Evaluate copied patterns, don't cargo-cult** - When reusing a pattern from existing snmalloc code, evaluate each choice (`constexpr` vs runtime, template vs function parameter, etc.) in the context of the new usage. The original may have had reasons that don't apply, or it may have been a mistake. Copy the intent, not the incidental choices. Conventions (legal headers, naming schemes, file organisation) should be followed for consistency; technical patterns should be evaluated on merit.
 
 - **Fix what your change makes stale** - When a change invalidates something elsewhere — a comment, a test description, documentation — fix it in the same PR. Stale artefacts left behind are bugs in the making, and "I didn't modify that line" isn't an excuse when your change is what made it wrong.
+
+- **Document the code, not the change** - Comments and documentation describe how the code IS, not how it was changed or why it differs from a previous version. Don't leave comments explaining "we removed X" or "this was changed from Y" — a reader shouldn't need the git history to understand the code. If code needs context about alternatives or design decisions, put that in design docs, not inline comments.
 
 ## Building, Testing, and Benchmarking
 

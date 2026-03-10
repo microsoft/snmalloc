@@ -92,8 +92,8 @@ namespace snmalloc
       uintptr_t ras,
       sizeclass_t sizeclass)
     {
-      SNMALLOC_ASSERT(bits::is_pow2(size));
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
+      SNMALLOC_ASSERT(size % MIN_CHUNK_SIZE == 0);
 
       // Calculate the extra bytes required to store the client meta-data.
       size_t extra_bytes = SlabMetadata::get_extra_bytes(sizeclass);
@@ -129,7 +129,20 @@ namespace snmalloc
       }
 
       typename Pagemap::Entry t(meta, ras);
-      Pagemap::set_metaentry(address_cast(p), size, t);
+
+      // Write the entry to all chunk entries in a single pass.
+      // For non-pow2 large sizeclasses, also set per-chunk offset
+      // bits (distance from allocation start in nat_align units).
+      auto slab_mask = sizeclass_metadata.fast(sizeclass).slab_mask;
+      size_t nat_align = slab_mask + 1;
+      if (nat_align < size)
+      {
+        Pagemap::set_metaentry(address_cast(p), size, t, nat_align);
+      }
+      else
+      {
+        Pagemap::set_metaentry(address_cast(p), size, t);
+      }
 
       return {Aal::capptr_bound<void, capptr::bounds::Chunk>(p, size), meta};
     }

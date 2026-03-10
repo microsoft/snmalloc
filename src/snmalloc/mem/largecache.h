@@ -48,23 +48,19 @@ namespace snmalloc
     using PagemapEntry = typename Config::PagemapEntry;
 
     /**
-     * Maximum chunk size bits we cache (4 MiB = 2^22).
-     */
-    static constexpr size_t MAX_CACHEABLE_BITS = 22;
-
-    /**
      * Maximum chunk size we cache (4 MiB).
      * Larger allocations bypass the cache and go directly to/from backend.
      */
     static constexpr size_t MAX_CACHEABLE_SIZE =
-      bits::one_at_bit(MAX_CACHEABLE_BITS);
+      bits::one_at_bit(22);
 
     /**
      * Number of chunk sizeclasses we actually cache.
-     * Only covers sizes from MIN_CHUNK_SIZE up to MAX_CACHEABLE_SIZE.
+     * Covers all fine-grained large classes up to MAX_CACHEABLE_SIZE.
+     * This is the large class index of MAX_CACHEABLE_SIZE, plus one.
      */
     static constexpr size_t NUM_SIZECLASSES =
-      MAX_CACHEABLE_BITS - MIN_CHUNK_BITS + 1;
+      size_to_large_class_index_const(MAX_CACHEABLE_SIZE) + 1;
 
     /**
      * Number of epoch slots for cached ranges.
@@ -146,13 +142,24 @@ namespace snmalloc
     size_t local_epoch{0};
 
     /**
-     * Convert a chunk size to a sizeclass index.
+     * Convert a sizeclass_t to the cache index.
+     * Uses sizeclass_t::as_large() to extract the sequential large
+     * class index directly, avoiding any size-to-index computation.
      */
-    static size_t to_sizeclass(size_t chunk_size)
+    static size_t to_sizeclass(sizeclass_t sc)
     {
-      SNMALLOC_ASSERT(bits::is_pow2(chunk_size));
-      SNMALLOC_ASSERT(chunk_size >= MIN_CHUNK_SIZE);
-      return bits::next_pow2_bits(chunk_size) - MIN_CHUNK_BITS;
+      return sc.as_large();
+    }
+
+    /**
+     * Check if a sizeclass is cacheable.
+     * Only sizeclasses whose large class index fits within
+     * NUM_SIZECLASSES (up to MAX_CACHEABLE_SIZE) are cached;
+     * larger allocations bypass the cache entirely.
+     */
+    static bool is_cacheable(sizeclass_t sc)
+    {
+      return sc.as_large() < NUM_SIZECLASSES;
     }
 
     /**
@@ -252,37 +259,37 @@ namespace snmalloc
     /**
      * Try to satisfy a large allocation from the cache.
      *
-     * @param chunk_size  The power-of-2 chunk size needed.
-     * @param flush_fn    Callback to flush stale entries during epoch sync.
+     * @param sc         The sizeclass of the allocation.
+     * @param flush_fn   Callback to flush stale entries during epoch sync.
      * @return Metadata for a cached chunk, or nullptr on cache miss.
      */
     template<typename FlushFn>
-    BackendSlabMetadata* try_alloc(size_t chunk_size, FlushFn&& flush_fn)
+    BackendSlabMetadata* try_alloc(sizeclass_t sc, FlushFn&& flush_fn)
     {
       // Don't cache very large allocations.
-      if (chunk_size > MAX_CACHEABLE_SIZE)
+      if (!is_cacheable(sc))
         return nullptr;
 
       sync_epoch(flush_fn);
 
-      auto sc = to_sizeclass(chunk_size);
+      auto idx = to_sizeclass(sc);
       auto current = local_epoch;
 
       // Check current epoch first, then older ones.
       for (size_t age = 0; age < NUM_EPOCHS; age++)
       {
-        auto& list = lists[sc][(current - age) % NUM_EPOCHS];
+        auto& list = lists[idx][(current - age) % NUM_EPOCHS];
         if (!list.is_empty())
         {
-          sc_state[sc].count--;
+          sc_state[idx].count--;
           return list.pop_front();
         }
       }
 
       // Cache miss - track for budget growth.
-      sc_state[sc].misses++;
-      if (sc_state[sc].misses > sc_state[sc].peak_misses)
-        sc_state[sc].peak_misses = sc_state[sc].misses;
+      sc_state[idx].misses++;
+      if (sc_state[idx].misses > sc_state[idx].peak_misses)
+        sc_state[idx].peak_misses = sc_state[idx].misses;
       return nullptr;
     }
 
@@ -293,15 +300,15 @@ namespace snmalloc
      * instead of being cached.
      *
      * @param meta        The slab metadata for the chunk.
-     * @param chunk_size  The power-of-2 chunk size.
+     * @param sc          The sizeclass of the allocation.
      * @param flush_fn    Callback to flush stale entries during epoch sync,
      *                    and to flush this entry if over budget.
      */
     template<typename FlushFn>
-    void cache(BackendSlabMetadata* meta, size_t chunk_size, FlushFn&& flush_fn)
+    void cache(BackendSlabMetadata* meta, sizeclass_t sc, FlushFn&& flush_fn)
     {
       // Don't cache very large allocations - flush directly to backend.
-      if (chunk_size > MAX_CACHEABLE_SIZE)
+      if (!is_cacheable(sc))
       {
         flush_fn(meta);
         return;
@@ -310,18 +317,18 @@ namespace snmalloc
       ensure_registered();
       sync_epoch(flush_fn);
 
-      auto sc = to_sizeclass(chunk_size);
+      auto idx = to_sizeclass(sc);
 
-      if (sc_state[sc].count >= sc_state[sc].budget)
+      if (sc_state[idx].count >= sc_state[idx].budget)
       {
         // Over budget: flush immediately rather than caching.
         flush_fn(meta);
         return;
       }
 
-      sc_state[sc].count++;
-      sc_state[sc].misses = 0; // Reset miss counter on successful cache.
-      lists[sc][local_epoch % NUM_EPOCHS].insert(meta);
+      sc_state[idx].count++;
+      sc_state[idx].misses = 0; // Reset miss counter on successful cache.
+      lists[idx][local_epoch % NUM_EPOCHS].insert(meta);
     }
 
     /**
@@ -345,21 +352,21 @@ namespace snmalloc
      * @return true if any entries were flushed.
      */
     template<typename FlushFn>
-    bool flush_smaller(size_t chunk_size, FlushFn&& flush_fn)
+    bool flush_smaller(sizeclass_t sc, FlushFn&& flush_fn)
     {
-      // If chunk_size > MAX_CACHEABLE_SIZE, all cached entries are smaller.
-      size_t target_sc = (chunk_size > MAX_CACHEABLE_SIZE) ?
-        NUM_SIZECLASSES :
-        to_sizeclass(chunk_size);
+      // If not cacheable, all cached entries are smaller.
+      size_t target_idx = is_cacheable(sc) ?
+        to_sizeclass(sc) :
+        NUM_SIZECLASSES;
       bool flushed = false;
-      for (size_t sc = 0; sc < target_sc; sc++)
+      for (size_t i = 0; i < target_idx; i++)
       {
         for (size_t e = 0; e < NUM_EPOCHS; e++)
         {
-          auto& list = lists[sc][e];
+          auto& list = lists[i][e];
           while (!list.is_empty())
           {
-            sc_state[sc].count--;
+            sc_state[i].count--;
             flush_fn(list.pop_front());
             flushed = true;
           }
@@ -369,27 +376,27 @@ namespace snmalloc
     }
 
     /**
-     * Flush a single cached entry with sizeclass >= the given chunk_size.
+     * Flush a single cached entry with sizeclass >= the given sizeclass.
      * The buddy allocator can split this to satisfy the request.
      *
      * @return true if an entry was flushed.
      */
     template<typename FlushFn>
-    bool flush_one_larger(size_t chunk_size, FlushFn&& flush_fn)
+    bool flush_one_larger(sizeclass_t sc, FlushFn&& flush_fn)
     {
-      // Nothing in cache can satisfy requests larger than MAX_CACHEABLE_SIZE.
-      if (chunk_size > MAX_CACHEABLE_SIZE)
+      // Nothing in cache can satisfy requests larger than our max.
+      if (!is_cacheable(sc))
         return false;
 
-      auto target_sc = to_sizeclass(chunk_size);
-      for (size_t sc = target_sc; sc < NUM_SIZECLASSES; sc++)
+      auto target_idx = to_sizeclass(sc);
+      for (size_t i = target_idx; i < NUM_SIZECLASSES; i++)
       {
         for (size_t e = 0; e < NUM_EPOCHS; e++)
         {
-          auto& list = lists[sc][e];
+          auto& list = lists[i][e];
           if (!list.is_empty())
           {
-            sc_state[sc].count--;
+            sc_state[i].count--;
             flush_fn(list.pop_front());
             return true;
           }

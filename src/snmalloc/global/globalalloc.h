@@ -140,7 +140,8 @@ namespace snmalloc
     const auto& entry = Config_::Backend::template get_metaentry<true>(p);
 
     auto sizeclass = entry.get_sizeclass();
-    return snmalloc::remaining_bytes(sizeclass, p);
+    auto offset = entry.get_offset();
+    return snmalloc::remaining_bytes(sizeclass, p, offset);
   }
 
   /**
@@ -155,7 +156,8 @@ namespace snmalloc
     const auto& entry = Config_::Backend::template get_metaentry<true>(p);
 
     auto sizeclass = entry.get_sizeclass();
-    return snmalloc::index_in_object(sizeclass, p);
+    auto offset = entry.get_offset();
+    return snmalloc::index_in_object(sizeclass, p, offset);
   }
 
   enum Boundary
@@ -224,7 +226,8 @@ namespace snmalloc
   {
     const auto& entry = Config_::Backend::get_metaentry(address_cast(p));
 
-    size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
+    size_t index =
+      slab_index(entry.get_sizeclass(), address_cast(p), entry.get_offset());
 
     auto* meta_slab = entry.get_slab_metadata();
 
@@ -253,7 +256,8 @@ namespace snmalloc
     const auto& entry =
       Config_::Backend::template get_metaentry<true>(address_cast(p));
 
-    size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
+    size_t index =
+      slab_index(entry.get_sizeclass(), address_cast(p), entry.get_offset());
 
     auto* meta_slab = entry.get_slab_metadata();
 

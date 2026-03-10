@@ -66,6 +66,35 @@ namespace snmalloc
     }
 
     /**
+     * Set the metadata associated with a chunk, computing per-chunk
+     * offset bits for non-pow2 large allocations in the same pass.
+     *
+     * nat_align is the natural alignment of the size class (slab_mask + 1).
+     * Each entry's offset is its distance from the allocation start,
+     * measured in nat_align units.
+     */
+    SNMALLOC_FAST_PATH
+    static void set_metaentry(
+      address_t p, size_t size, const Entry& t, size_t nat_align)
+    {
+      size_t chunks_per_nat = nat_align / MIN_CHUNK_SIZE;
+      size_t n_chunks = size / MIN_CHUNK_SIZE;
+      SNMALLOC_ASSERT_MSG(
+        (n_chunks / chunks_per_nat) <= 7,
+        "Offset {} exceeds 3-bit field for size {} nat_align {}",
+        n_chunks / chunks_per_nat,
+        size,
+        nat_align);
+      size_t chunk_index = 0;
+      for (address_t a = p; a < p + size; a += MIN_CHUNK_SIZE)
+      {
+        concretePagemap.template get_mut<false>(a).assign_with_offset(
+          t, static_cast<uint8_t>(chunk_index / chunks_per_nat));
+        chunk_index++;
+      }
+    }
+
+    /**
      * Get the metadata associated with a chunk.
      *
      * Set template parameter to true if it not an error

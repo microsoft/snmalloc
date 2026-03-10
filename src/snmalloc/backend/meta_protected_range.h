@@ -51,7 +51,6 @@ namespace snmalloc
     // would be able to corrupt meta-data.
     using CentralObjectRange = Pipe<
       GlobalR,
-      LargeBuddyRange<GlobalCacheSizeBits, bits::BITS - 1, Pagemap>,
       LogRange<3>,
       GlobalRange,
       CommitRange<PAL>,

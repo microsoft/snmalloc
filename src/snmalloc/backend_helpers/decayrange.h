@@ -164,23 +164,38 @@ namespace snmalloc
 
     private:
       /**
-       * Maximum chunk size bits we cache (4 MiB = 2^22).
-       */
-      static constexpr size_t MAX_CACHEABLE_BITS = 22;
-
-      /**
        * Maximum chunk size we cache (4 MiB).
        * Larger allocations bypass the cache and go directly to/from parent.
        */
       static constexpr size_t MAX_CACHEABLE_SIZE =
-        bits::one_at_bit(MAX_CACHEABLE_BITS);
+        bits::one_at_bit(22);
 
       /**
        * How many slab sizes that can be cached.
-       * Only covers sizes from MIN_CHUNK_SIZE up to MAX_CACHEABLE_SIZE.
+       * Covers all fine-grained exp-mant size classes from 1 chunk
+       * (MIN_CHUNK_SIZE) up to MAX_CACHEABLE_SIZE.
        */
       static constexpr size_t NUM_SLAB_SIZES =
-        MAX_CACHEABLE_BITS - MIN_CHUNK_BITS + 1;
+        bits::to_exp_mant_const<INTERMEDIATE_BITS, 0>(
+          MAX_CACHEABLE_SIZE / MIN_CHUNK_SIZE) + 1;
+
+      /**
+       * Convert a byte size to the decay cache sizeclass index.
+       * Size must be a multiple of MIN_CHUNK_SIZE.
+       */
+      static constexpr size_t to_sizeclass(size_t size)
+      {
+        return bits::to_exp_mant_const<INTERMEDIATE_BITS, 0>(
+          size / MIN_CHUNK_SIZE);
+      }
+
+      /**
+       * Convert a decay cache sizeclass index back to a byte size.
+       */
+      static constexpr size_t from_sizeclass(size_t sc)
+      {
+        return bits::from_exp_mant<INTERMEDIATE_BITS, 0>(sc) * MIN_CHUNK_SIZE;
+      }
 
       /**
        * Number of epoch slots for cached ranges.
@@ -250,7 +265,7 @@ namespace snmalloc
             auto old_stack = curr->chunk_stack[sc][new_epoch].pop_all();
 
             old_stack.forall([curr, sc](auto cap) {
-              size_t size = MIN_CHUNK_SIZE << sc;
+              size_t size = from_sizeclass(sc);
 #ifdef SNMALLOC_TRACING
               message<1024>(
                 "DecayRange::tick flushing {} size {} to parent",
@@ -318,10 +333,10 @@ namespace snmalloc
 
       CapPtr<void, ChunkBounds> alloc_range(size_t size)
       {
-        SNMALLOC_ASSERT(bits::is_pow2(size));
         SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
+        SNMALLOC_ASSERT(size % MIN_CHUNK_SIZE == 0);
 
-        auto slab_sizeclass = bits::next_pow2_bits(size) - MIN_CHUNK_BITS;
+        auto slab_sizeclass = to_sizeclass(size);
 
         // Bypass cache for sizes beyond what we track.
         if (slab_sizeclass >= NUM_SLAB_SIZES)
@@ -382,10 +397,10 @@ namespace snmalloc
 
       void dealloc_range(CapPtr<void, ChunkBounds> base, size_t size)
       {
-        SNMALLOC_ASSERT(bits::is_pow2(size));
         SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
+        SNMALLOC_ASSERT(size % MIN_CHUNK_SIZE == 0);
 
-        auto slab_sizeclass = bits::next_pow2_bits(size) - MIN_CHUNK_BITS;
+        auto slab_sizeclass = to_sizeclass(size);
 
         // Bypass cache for sizes beyond what we track.
         if (slab_sizeclass >= NUM_SLAB_SIZES)

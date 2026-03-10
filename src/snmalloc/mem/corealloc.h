@@ -542,7 +542,8 @@ namespace snmalloc
 
       snmalloc_check_client(
         mitigations(sanity_checks),
-        is_start_of_object(entry.get_sizeclass(), address_cast(msg)),
+        is_start_of_object(
+          entry.get_sizeclass(), address_cast(msg), entry.get_offset()),
         "Not deallocating start of an object");
 
       size_t objsize = sizeclass_full_to_size(entry.get_sizeclass());
@@ -709,12 +710,14 @@ namespace snmalloc
               // Check the frontend large object cache first.
               // This avoids all pagemap and backend manipulation.
               auto* cached_meta = self->large_object_cache.try_alloc(
-                chunk_size, [self](BackendSlabMetadata* fmeta) {
+                sizeclass, [self](BackendSlabMetadata* fmeta) {
                   self->flush_large_cache_entry(fmeta);
                 });
               if (cached_meta != nullptr)
               {
                 // Cache hit: pagemap still valid, recover address from meta.
+                // The cache is indexed by fine-grained sizeclass, so the
+                // pagemap already has the correct sizeclass for this block.
                 auto slab_addr =
                   cached_meta->get_slab_interior(freelist::Object::key_root);
                 cached_meta->initialise_large(
@@ -726,6 +729,12 @@ namespace snmalloc
                   capptr::Alloc<void>::unsafe_from(
                     reinterpret_cast<void*>(slab_addr)),
                   chunk_size);
+                // Verify the allocation starts at the correct offset.
+                // On cache hit, the pagemap offset is still valid.
+                SNMALLOC_ASSERT(is_start_of_object(
+                  sizeclass,
+                  slab_addr,
+                  Config::Backend::get_metaentry(slab_addr).get_offset()));
                 return Conts::success(capptr_reveal(p), size);
               }
 
@@ -750,7 +759,7 @@ namespace snmalloc
 
                 // Stage 1: flush all smaller sizeclasses.
                 if (self->large_object_cache.flush_smaller(
-                      chunk_size, flush_fn))
+                      sizeclass, flush_fn))
                 {
                   auto retry = Config::Backend::alloc_chunk(
                     self->get_backend_local_state(),
@@ -765,7 +774,7 @@ namespace snmalloc
                 if (
                   meta == nullptr &&
                   self->large_object_cache.flush_one_larger(
-                    chunk_size, flush_fn))
+                    sizeclass, flush_fn))
                 {
                   auto retry = Config::Backend::alloc_chunk(
                     self->get_backend_local_state(),
@@ -1130,7 +1139,8 @@ namespace snmalloc
 
       snmalloc_check_client(
         mitigations(sanity_checks),
-        is_start_of_object(entry.get_sizeclass(), address_cast(p)),
+        is_start_of_object(
+          entry.get_sizeclass(), address_cast(p), entry.get_offset()),
         "Not deallocating start of an object");
 
       auto cp = p.as_static<freelist::Object::T<>>();
@@ -1169,10 +1179,8 @@ namespace snmalloc
         // XXX: because large objects have unique metadata associated with them,
         // the ring size here is one.  We should probably assert that.
 
-        size_t entry_sizeclass = entry.get_sizeclass().as_large();
-        size_t size = bits::one_at_bit(entry_sizeclass);
-
 #ifdef SNMALLOC_TRACING
+        size_t size = sizeclass_full_to_size(entry.get_sizeclass());
         message<1024>("Large deallocation: {}", size);
 #endif
 
@@ -1186,7 +1194,7 @@ namespace snmalloc
         // Epoch sync happens internally; stale entries are flushed via the
         // callback.
         large_object_cache.cache(
-          meta, size, [this](BackendSlabMetadata* fmeta) {
+          meta, entry.get_sizeclass(), [this](BackendSlabMetadata* fmeta) {
             flush_large_cache_entry(fmeta);
           });
 
@@ -1201,18 +1209,17 @@ namespace snmalloc
      * Flush a single cached large object back to the backend.
      * Recovers the chunk address from the metadata and size from the pagemap.
      */
-    void flush_large_cache_entry(BackendSlabMetadata* meta)
+    NOINLINE void flush_large_cache_entry(BackendSlabMetadata* meta)
     {
       auto slab_addr = meta->get_slab_interior(freelist::Object::key_root);
       const PagemapEntry& entry = Config::Backend::get_metaentry(slab_addr);
-      size_t entry_sizeclass = entry.get_sizeclass().as_large();
-      size_t size = bits::one_at_bit(entry_sizeclass);
+      size_t chunk_size = sizeclass_full_to_size(entry.get_sizeclass());
 
       auto p =
         capptr::Alloc<void>::unsafe_from(reinterpret_cast<void*>(slab_addr));
 
       Config::Backend::dealloc_chunk(
-        get_backend_local_state(), *meta, p, size, entry.get_sizeclass());
+        get_backend_local_state(), *meta, p, chunk_size, entry.get_sizeclass());
     }
 
     /**

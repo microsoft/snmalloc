@@ -67,6 +67,30 @@ namespace snmalloc
     static constexpr address_t META_COALESCE_FREE_BIT = 1 << 1;
 
     /**
+     * 3-bit field in the meta word (bits 2–4) that stores the distance
+     * of this pagemap entry from the start of a non-pow2 large
+     * allocation, measured in natural-alignment units.  For pow2 and
+     * small allocations this is always 0.
+     *
+     * Given slab_mask = natural_alignment(size) - 1:
+     *   nat_base   = addr & ~slab_mask
+     *   nat_align  = slab_mask + 1
+     *   alloc_start = nat_base - nat_align * offset_bits
+     *
+     * Available because SlabMetadata pointers are at least 32-byte
+     * aligned, so bits 0–4 of the meta word are free for tagging.
+     */
+    static constexpr unsigned META_OFFSET_SHIFT = 2;
+    static constexpr address_t META_OFFSET_MASK = address_t(7) << META_OFFSET_SHIFT;
+
+    /**
+     * Mask covering all reserved low bits in the meta word.
+     * get_slab_metadata() masks these off to recover the pointer.
+     */
+    static constexpr address_t META_LOW_BITS_MASK =
+      META_BOUNDARY_BIT | META_COALESCE_FREE_BIT | META_OFFSET_MASK;
+
+    /**
      * The bit above the sizeclass is always zero unless this is used
      * by the backend to represent another datastructure such as the buddy
      * allocator entries.
@@ -181,6 +205,19 @@ namespace snmalloc
     }
 
     /**
+     * Combined assign-and-set-offset: copies the entry from `other`
+     * (preserving the target's boundary bit) and sets the offset field
+     * in a single operation, avoiding a second read-modify-write.
+     */
+    void assign_with_offset(const MetaEntryBase& other, uint8_t offset)
+    {
+      meta = (other.meta & ~(META_BOUNDARY_BIT | META_OFFSET_MASK)) |
+        address_cast(meta & META_BOUNDARY_BIT) |
+        (static_cast<address_t>(offset) << META_OFFSET_SHIFT);
+      remote_and_sizeclass = other.remote_and_sizeclass;
+    }
+
+    /**
      * On some platforms, allocations originating from the OS may not be
      * combined.  The boundary bit indicates whether this is meta entry
      * corresponds to the first chunk in such a range and so may not be combined
@@ -222,6 +259,26 @@ namespace snmalloc
     void clear_coalesce_free()
     {
       meta &= ~META_COALESCE_FREE_BIT;
+    }
+
+    ///@}
+
+    /**
+     * Store the 3-bit placement offset for a non-pow2 large allocation.
+     * For pow2 and small allocations, pass 0.
+     * @{
+     */
+    void set_offset(uint8_t offset)
+    {
+      SNMALLOC_ASSERT(offset <= 7);
+      meta = (meta & ~META_OFFSET_MASK) |
+        (static_cast<address_t>(offset) << META_OFFSET_SHIFT);
+    }
+
+    [[nodiscard]] uint8_t get_offset() const
+    {
+      return static_cast<uint8_t>(
+        (meta & META_OFFSET_MASK) >> META_OFFSET_SHIFT);
     }
 
     ///@}
@@ -805,7 +862,7 @@ namespace snmalloc
     [[nodiscard]] SNMALLOC_FAST_PATH SlabMetadata* get_slab_metadata() const
     {
       SNMALLOC_ASSERT(!is_backend_owned());
-      return unsafe_from_uintptr<SlabMetadata>(meta & ~META_BOUNDARY_BIT);
+      return unsafe_from_uintptr<SlabMetadata>(meta & ~META_LOW_BITS_MASK);
     }
   };
 

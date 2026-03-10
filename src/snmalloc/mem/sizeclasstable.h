@@ -34,9 +34,33 @@ namespace snmalloc
   constexpr size_t NUM_SMALL_SIZECLASSES =
     size_to_sizeclass_const(MAX_SMALL_SIZECLASS_SIZE) + 1;
 
-  // Large classes range from [MAX_SMALL_SIZECLASS_SIZE, ADDRESS_SPACE).
-  constexpr size_t NUM_LARGE_CLASSES =
+  // Number of pow2-only large exponent levels (one per power of two).
+  constexpr size_t NUM_LARGE_CLASSES_POW2 =
     DefaultPal::address_bits - MAX_SMALL_SIZECLASS_BITS;
+
+  // Number of exponent levels that also get non-pow2 intermediate
+  // sub-classes (mantissa 1..2^B-1).  Kept small enough that the
+  // total large class count fits in TAG_SIZECLASS_BITS without
+  // increasing REMOTE_MIN_ALIGN.  6 levels = cutoff at ~4 MiB.
+  static constexpr size_t NUM_LARGE_FINE_LEVELS = 6;
+
+  // Sub-classes per fine-grained level.
+  static constexpr size_t LARGE_SUBS_PER_LEVEL =
+    bits::one_at_bit(INTERMEDIATE_BITS);
+
+  // The largest non-pow2 size class has S = (2^(B+1) - 1) * nat_align,
+  // spanning (2^(B+1) - 1) nat_align blocks.  The last block's offset
+  // is (2^(B+1) - 2), which must fit in the 3-bit pagemap offset field
+  // (max value 7).  For B=2 the max offset is 6, which fits.
+  static_assert(
+    (bits::one_at_bit(INTERMEDIATE_BITS + 1) - 2) <= 7,
+    "Non-pow2 large class offsets exceed 3-bit pagemap field capacity");
+
+  // Total large class count: fine-grained levels contribute 2^B classes
+  // each (including the pow2 at m=0), remaining levels contribute 1.
+  constexpr size_t NUM_LARGE_CLASSES =
+    NUM_LARGE_FINE_LEVELS * LARGE_SUBS_PER_LEVEL +
+    (NUM_LARGE_CLASSES_POW2 - NUM_LARGE_FINE_LEVELS);
 
   // How many bits are required to represent either a large or a small
   // sizeclass.
@@ -75,13 +99,18 @@ namespace snmalloc
     }
 
     /**
-     * Takes the number of leading zero bits from the actual large size-1.
-     * See size_to_sizeclass_full
+     * Creates a sizeclass_t from a sequential large class index.
+     * Indices 0..NUM_LARGE_CLASSES-1 enumerate all large classes:
+     *   - Indices 0..(NUM_LARGE_FINE_LEVELS*LARGE_SUBS_PER_LEVEL-1) are
+     *     fine-grained (including pow2 at mantissa 0 for each level).
+     *   - The remaining indices are pow2-only classes.
      */
     static constexpr sizeclass_t from_large_class(size_t large_class)
     {
-      SNMALLOC_ASSERT(large_class < TAG);
-      return {large_class};
+      // +1 reserves raw value 0 as a sentinel for uninitialized pagemap
+      // entries, so that alloc_size(nullptr) returns 0.
+      SNMALLOC_ASSERT(large_class + 1 < TAG);
+      return {large_class + 1};
     }
 
     static constexpr sizeclass_t from_raw(size_t raw)
@@ -100,10 +129,14 @@ namespace snmalloc
       return value & (TAG - 1);
     }
 
-    constexpr chunksizeclass_t as_large()
+    /**
+     * Returns the sequential large class index.
+     */
+    constexpr size_t as_large()
     {
       SNMALLOC_ASSERT(!is_small());
-      return bits::BITS - (value & (TAG - 1));
+      // -1 undoes the +1 offset from from_large_class.
+      return (value & (TAG - 1)) - 1;
     }
 
     constexpr size_t raw()
@@ -128,6 +161,104 @@ namespace snmalloc
   };
 
   using sizeclass_compress_t = uint8_t;
+
+  /**
+   * The exp_mant index of the smallest large class in chunk units.
+   * For B=2 with MAX_SMALL=64K and MIN_CHUNK=16K: 4 chunks → em index 3.
+   */
+  static constexpr size_t MIN_LARGE_EM =
+    bits::to_exp_mant_const<INTERMEDIATE_BITS, 0>(
+      MAX_SMALL_SIZECLASS_SIZE / MIN_CHUNK_SIZE);
+
+  /**
+   * Number of large class indices in the fine-grained range.
+   * These levels have all 2^B sub-classes (m=0..3 for B=2).
+   */
+  static constexpr size_t LARGE_FINE_TOTAL =
+    NUM_LARGE_FINE_LEVELS * LARGE_SUBS_PER_LEVEL;
+
+  /**
+   * Convert a sequential large class index to the byte size of the class.
+   *
+   * Indices 0..LARGE_FINE_TOTAL-1 cover fine-grained levels: each maps
+   * directly to a consecutive exp_mant index starting from MIN_LARGE_EM.
+   *
+   * Indices >= LARGE_FINE_TOTAL cover pow2-only levels: each maps to
+   * the pow2 (m=0) entry at the corresponding exponent level.
+   */
+  constexpr size_t large_class_index_to_size(size_t index)
+  {
+    size_t em_index;
+    if (index < LARGE_FINE_TOTAL)
+    {
+      em_index = MIN_LARGE_EM + index;
+    }
+    else
+    {
+      size_t level = NUM_LARGE_FINE_LEVELS + (index - LARGE_FINE_TOTAL);
+      em_index = MIN_LARGE_EM + level * LARGE_SUBS_PER_LEVEL;
+    }
+    size_t chunks =
+      bits::from_exp_mant<INTERMEDIATE_BITS, 0>(em_index);
+    return chunks * MIN_CHUNK_SIZE;
+  }
+
+  /**
+   * Convert a byte size (which must be a valid large class size, i.e.
+   * the result of round_size for a large allocation) to the sequential
+   * large class index.
+   */
+  /**
+   * Constexpr version for compile-time use (e.g. array sizing).
+   */
+  constexpr size_t size_to_large_class_index_const(size_t size)
+  {
+    size_t chunks = (size + MIN_CHUNK_SIZE - 1) / MIN_CHUNK_SIZE;
+    size_t em =
+      bits::to_exp_mant_const<INTERMEDIATE_BITS, 0>(chunks);
+    size_t local_em = em - MIN_LARGE_EM;
+
+    if (local_em < LARGE_FINE_TOTAL)
+      return local_em;
+
+    size_t m = local_em % LARGE_SUBS_PER_LEVEL;
+    if (m != 0)
+      local_em = (local_em / LARGE_SUBS_PER_LEVEL + 1) * LARGE_SUBS_PER_LEVEL;
+
+    size_t level = local_em / LARGE_SUBS_PER_LEVEL;
+    size_t index = LARGE_FINE_TOTAL + (level - NUM_LARGE_FINE_LEVELS);
+    if (index >= NUM_LARGE_CLASSES)
+      return NUM_LARGE_CLASSES - 1;
+    return index;
+  }
+
+  /**
+   * Runtime version using hardware CLZ intrinsic for fast path.
+   */
+  inline SNMALLOC_FAST_PATH size_t size_to_large_class_index(size_t size)
+  {
+    // Ceiling division to avoid truncation when size isn't chunk-aligned.
+    size_t chunks = (size + MIN_CHUNK_SIZE - 1) / MIN_CHUNK_SIZE;
+    size_t em =
+      bits::to_exp_mant<INTERMEDIATE_BITS, 0>(chunks);
+    size_t local_em = em - MIN_LARGE_EM;
+
+    if (local_em < LARGE_FINE_TOTAL)
+      return local_em;
+
+    // Pow2-only range: if em corresponds to a non-pow2 mantissa,
+    // round up to the next pow2 level.
+    size_t m = local_em % LARGE_SUBS_PER_LEVEL;
+    if (m != 0)
+      local_em = (local_em / LARGE_SUBS_PER_LEVEL + 1) * LARGE_SUBS_PER_LEVEL;
+
+    size_t level = local_em / LARGE_SUBS_PER_LEVEL;
+    size_t index = LARGE_FINE_TOTAL + (level - NUM_LARGE_FINE_LEVELS);
+    // Clamp to valid range for sizes beyond the representable address space.
+    if (index >= NUM_LARGE_CLASSES)
+      return NUM_LARGE_CLASSES - 1;
+    return index;
+  }
 
   /**
    * This structure contains the fields required for fast paths for sizeclasses.
@@ -242,12 +373,18 @@ namespace snmalloc
         meta.mod_zero_mult = (~zero / meta.size) + 1;
       }
 
-      for (size_t sizeclass = 0; sizeclass < bits::BITS; sizeclass++)
+      for (size_t index = 0; index < NUM_LARGE_CLASSES; index++)
       {
-        auto lsc = sizeclass_t::from_large_class(sizeclass);
+        auto lsc = sizeclass_t::from_large_class(index);
         auto& meta = fast(lsc);
-        meta.size = sizeclass == 0 ? 0 : bits::one_at_bit(lsc.as_large());
-        meta.slab_mask = meta.size - 1;
+        meta.size = large_class_index_to_size(index);
+        // For pow2 large classes: slab_mask = size - 1.
+        // For non-pow2 large classes: slab_mask = natural_alignment(size) - 1.
+        // Each pagemap chunk entry stores its distance (in nat_align
+        // units) from the allocation start, enabling start_of_object
+        // to work for any interior pointer without placement constraints.
+        size_t nat = meta.size & (~(meta.size - 1));
+        meta.slab_mask = nat - 1;
         // The slab_mask will do all the necessary work, so
         // perform identity multiplication for the test.
         meta.mod_zero_mult = 1;
@@ -305,31 +442,24 @@ namespace snmalloc
     return bits::next_pow2_bits(ssize) - MIN_CHUNK_BITS;
   }
 
-  constexpr size_t slab_sizeclass_to_size(chunksizeclass_t sizeclass)
-  {
-    return bits::one_at_bit(MIN_CHUNK_BITS + sizeclass);
-  }
-
-  /**
-   * For large allocations, the metaentry stores the raw log_2 of the size,
-   * which must be shifted into the index space of slab_sizeclass-es.
-   */
-  constexpr size_t
-  metaentry_chunk_sizeclass_to_slab_sizeclass(chunksizeclass_t sizeclass)
-  {
-    return sizeclass - MIN_CHUNK_BITS;
-  }
-
   constexpr uint16_t sizeclass_to_slab_object_count(smallsizeclass_t sizeclass)
   {
     return sizeclass_metadata.slow(sizeclass_t::from_small_class(sizeclass))
       .capacity;
   }
 
-  SNMALLOC_FAST_PATH constexpr size_t slab_index(sizeclass_t sc, address_t addr)
+  SNMALLOC_FAST_PATH constexpr size_t
+  slab_index(sizeclass_t sc, address_t addr, uint8_t offset_bits = 0)
   {
     auto meta = sizeclass_metadata.fast(sc);
     size_t offset = addr & meta.slab_mask;
+    // For non-pow2 large allocations, offset_bits records this
+    // pagemap entry's distance from the allocation start, measured
+    // in nat_align (= slab_mask + 1) units.  Adding it reconstructs
+    // the total byte offset from the start of the allocation.
+    // For small and pow2-large sizeclasses offset_bits is always 0,
+    // so this addition is a no-op and the fast path is unchanged.
+    offset += (meta.slab_mask + 1) * offset_bits;
     if constexpr (sizeof(offset) >= 8)
     {
       // Only works for 64 bit multiplication, as the following will overflow in
@@ -354,27 +484,40 @@ namespace snmalloc
   }
 
   SNMALLOC_FAST_PATH constexpr address_t
-  start_of_object(sizeclass_t sc, address_t addr)
+  start_of_object(sizeclass_t sc, address_t addr, uint8_t offset_bits = 0)
   {
     auto meta = sizeclass_metadata.fast(sc);
-    address_t slab_start = addr & ~meta.slab_mask;
-    size_t index = slab_index(sc, addr);
-    return slab_start + (index * meta.size);
+    address_t nat_base = addr & ~meta.slab_mask;
+    // Subtract offset_bits * nat_align to recover the allocation start.
+    // Each pagemap entry stores how many nat_align blocks it is from
+    // the start, so subtracting walks back to the beginning.
+    // For small and pow2-large sizeclasses offset_bits is always 0,
+    // so alloc_start == nat_base and the fast path is unchanged.
+    address_t alloc_start = nat_base - (meta.slab_mask + 1) * offset_bits;
+    size_t index = slab_index(sc, addr, offset_bits);
+    return alloc_start + (index * meta.size);
   }
 
-  constexpr size_t index_in_object(sizeclass_t sc, address_t addr)
+  constexpr size_t
+  index_in_object(sizeclass_t sc, address_t addr, uint8_t offset_bits = 0)
   {
-    return addr - start_of_object(sc, addr);
+    return addr - start_of_object(sc, addr, offset_bits);
   }
 
-  constexpr size_t remaining_bytes(sizeclass_t sc, address_t addr)
+  constexpr size_t
+  remaining_bytes(sizeclass_t sc, address_t addr, uint8_t offset_bits = 0)
   {
-    return sizeclass_metadata.fast(sc).size - index_in_object(sc, addr);
+    return sizeclass_metadata.fast(sc).size -
+      index_in_object(sc, addr, offset_bits);
   }
 
-  constexpr bool is_start_of_object(sizeclass_t sc, address_t addr)
+  constexpr bool
+  is_start_of_object(sizeclass_t sc, address_t addr, uint8_t offset_bits = 0)
   {
     size_t offset = addr & (sizeclass_full_to_slab_size(sc) - 1);
+    // Branchless offset correction: add the entry's distance from the
+    // allocation start (in nat_align units) to get the total offset.
+    offset += sizeclass_full_to_slab_size(sc) * offset_bits;
 
     // Only works up to certain offsets, exhaustively tested by rounding.cc
     if constexpr (sizeof(offset) >= 8)
@@ -394,12 +537,7 @@ namespace snmalloc
 
   inline static size_t large_size_to_chunk_size(size_t size)
   {
-    return bits::next_pow2(size);
-  }
-
-  inline static size_t large_size_to_chunk_sizeclass(size_t size)
-  {
-    return bits::next_pow2_bits(size) - MIN_CHUNK_BITS;
+    return large_class_index_to_size(size_to_large_class_index(size));
   }
 
   constexpr SNMALLOC_PURE size_t sizeclass_lookup_index(const size_t s)
@@ -485,12 +623,9 @@ namespace snmalloc
 
   /**
    * A compressed size representation,
-   *   either a small size class with the 7th bit set
-   *   or a large class with the 7th bit not set.
-   * Large classes are stored as a mask shift.
-   *    size = (~0 >> lc) + 1;
-   * Thus large size class 0, has size 0.
-   * And large size class 33, has size 2^31
+   *   either a small size class with TAG bit set
+   *   or a large class with TAG bit not set.
+   * Large classes use a sequential index; see large_class_index_to_size.
    */
   static inline sizeclass_t size_to_sizeclass_full(size_t size)
   {
@@ -498,9 +633,9 @@ namespace snmalloc
     {
       return sizeclass_t::from_small_class(size_to_sizeclass(size));
     }
-    // bits::clz is undefined on 0, but we have size == 1 has already been
-    // handled here.  We conflate 0 and sizes larger than we can allocate.
-    return sizeclass_t::from_large_class(bits::clz(size - 1));
+    // For large sizes, compute the sequential large class index.
+    // size_to_large_class_index rounds up to the next valid class.
+    return sizeclass_t::from_large_class(size_to_large_class_index(size));
   }
 
   inline SNMALLOC_FAST_PATH static size_t round_size(size_t size)
@@ -526,7 +661,9 @@ namespace snmalloc
       // failed allocation later.
       return size;
     }
-    return bits::next_pow2(size);
+    // Use fine-grained large size classes (B=2 intermediate classes)
+    // for sizes within the fine-grained range, pow2 for larger.
+    return large_class_index_to_size(size_to_large_class_index(size));
   }
 
   /// Returns the alignment that this size naturally has, that is

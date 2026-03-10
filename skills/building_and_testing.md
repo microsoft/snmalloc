@@ -10,6 +10,7 @@ without bias from knowing what changed.
 
 - Build directory: `build/`
 - Build system: Ninja with CMake
+- **Always test with a Debug build.** Debug enables assertions (`-check` variants) that catch invariant violations invisible in Release. A Release-only test run can report 100% pass while masking real bugs. Verify with `grep CMAKE_BUILD_TYPE build/CMakeCache.txt` — it must show `Debug`.
 - Rebuild all targets before running ctest: `ninja -C build` (required — ctest runs pre-built binaries)
 - Rebuild specific targets: `ninja -C build <target>`
 - Always run `clang-format` before committing changes: `ninja -C build clangformat`
@@ -20,8 +21,8 @@ without bias from knowing what changed.
 - The `-check` variants include assertions but may pass when `-fast` hangs due to timing differences
 - Use `timeout` when running tests to avoid infinite hangs
 - Never run a test on a stale build artifact. Rebuild in the same build directory/config before any run or rerun: `ninja -C <build_dir>` for `ctest` runs, or `ninja -C <build_dir> <target>` if you invoke a direct binary. If the rebuild fails, stop and report with the rebuild log.
-- Testing skill: keep commands stable (right build dir/config, consistent flags), prefer `ctest -R <name> -C Release --output-on-failure`, and avoid ad-hoc command variants that change coverage or filters.
-- Before considering a change complete, run the full test suite: `ctest --output-on-failure -j 4 -C Release --timeout 60`
+- Testing skill: keep commands stable (right build dir/config, consistent flags), prefer `ctest -R <name> --output-on-failure`, and avoid ad-hoc command variants that change coverage or filters.
+- Before considering a change complete, run the full test suite: `ctest --output-on-failure -j 4 --timeout 60`
 
 ### Test failures (never hand-wave)
 
