@@ -7,10 +7,9 @@
 
 #include <cstring>
 #include <iostream>
-#include <vector>
-
 #include <snmalloc/snmalloc_core.h>
 #include <test/setup.h>
+#include <vector>
 
 using namespace snmalloc;
 
@@ -296,7 +295,7 @@ void test_remove_from_bin()
   //   chunk 4  (addr = 4*MCS),  alpha = 4
   //   chunk 12 (addr = 12*MCS), alpha = 4 (12 = 4*3, natural_alignment = 4)
   //   chunk 20 (addr = 20*MCS), alpha = 4 (20 = 4*5, natural_alignment = 4)
-  address_t a1 = chunk_addr(3);  // 4*MCS
+  address_t a1 = chunk_addr(3); // 4*MCS
   address_t a2 = chunk_addr(11); // 12*MCS
   address_t a3 = chunk_addr(19); // 20*MCS
 
@@ -475,7 +474,7 @@ void test_coalesce_both()
   BCCore bc{};
 
   // Insert blocks A and C with a gap between.
-  address_t a_addr = chunk_addr(3);  // 4*MCS, 4 chunks
+  address_t a_addr = chunk_addr(3); // 4*MCS, 4 chunks
   address_t c_addr = chunk_addr(11); // 12*MCS, 4 chunks
 
   bc.add_fresh_range(a_addr, chunk_size(4));
@@ -572,8 +571,8 @@ void test_stale_tag_after_absorption()
   BCCore bc{};
 
   // Insert A, B, C adjacent: chunks 4-7, 8-11, 12-15.
-  address_t a_addr = chunk_addr(3);  // 4*MCS
-  address_t b_addr = chunk_addr(7);  // 8*MCS
+  address_t a_addr = chunk_addr(3); // 4*MCS
+  address_t b_addr = chunk_addr(7); // 8*MCS
   address_t c_addr = chunk_addr(11); // 12*MCS
   bc.add_fresh_range(a_addr, chunk_size(4));
   bc.add_fresh_range(b_addr, chunk_size(4));
@@ -656,6 +655,7 @@ void test_stress()
     address_t addr;
     size_t size;
   };
+
   std::vector<Alloc> live;
 
   // Insert some initial blocks.
@@ -726,7 +726,8 @@ void test_carving_exact_fit()
   CHECK(result.addr == addr);
   CHECK(result.size == chunk_size(4));
 
-  // Carving: aligned_addr = align_up(addr, 4*MCS) = addr since addr is 4-aligned.
+  // Carving: aligned_addr = align_up(addr, 4*MCS) = addr since addr is
+  // 4-aligned.
   address_t aligned = bits::align_up(result.addr, chunk_size(4));
   CHECK(aligned == addr);
   // No prefix, no suffix.
@@ -757,8 +758,8 @@ void test_carving_with_prefix()
   size_t suffix = result.size - prefix - chunk_size(4);
 
   CHECK(aligned == chunk_addr(3)); // 4*MCS
-  CHECK(prefix == chunk_size(3));  // 3 chunks of prefix
-  CHECK(suffix == chunk_size(1));  // 1 chunk of suffix
+  CHECK(prefix == chunk_size(3)); // 3 chunks of prefix
+  CHECK(suffix == chunk_size(1)); // 1 chunk of suffix
 
   // Return remainders to the pool.
   if (prefix > 0)

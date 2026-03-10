@@ -189,8 +189,7 @@ namespace snmalloc
               bc.add_fresh_range(
                 refill_range.unsafe_uintptr() + size, refill_size - size);
             }
-            SNMALLOC_ASSERT(
-              (refill_range.unsafe_uintptr() % alignment) == 0);
+            SNMALLOC_ASSERT((refill_range.unsafe_uintptr() % alignment) == 0);
           }
           return refill_range;
         }
@@ -282,8 +281,7 @@ namespace snmalloc
         size_t sc_bytes = sc_chunks * MIN_CHUNK_SIZE;
 
         // Required alignment: natural alignment for the rounded-up sizeclass.
-        size_t sc_align =
-          BC::natural_alignment(sc_chunks) * MIN_CHUNK_SIZE;
+        size_t sc_align = BC::natural_alignment(sc_chunks) * MIN_CHUNK_SIZE;
 
         auto result = bc.remove_block(sc_bytes);
         if (result.addr != 0)

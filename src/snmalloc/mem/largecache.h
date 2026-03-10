@@ -51,8 +51,7 @@ namespace snmalloc
      * Maximum chunk size we cache (4 MiB).
      * Larger allocations bypass the cache and go directly to/from backend.
      */
-    static constexpr size_t MAX_CACHEABLE_SIZE =
-      bits::one_at_bit(22);
+    static constexpr size_t MAX_CACHEABLE_SIZE = bits::one_at_bit(22);
 
     /**
      * Number of chunk sizeclasses we actually cache.
@@ -355,9 +354,7 @@ namespace snmalloc
     bool flush_smaller(sizeclass_t sc, FlushFn&& flush_fn)
     {
       // If not cacheable, all cached entries are smaller.
-      size_t target_idx = is_cacheable(sc) ?
-        to_sizeclass(sc) :
-        NUM_SIZECLASSES;
+      size_t target_idx = is_cacheable(sc) ? to_sizeclass(sc) : NUM_SIZECLASSES;
       bool flushed = false;
       for (size_t i = 0; i < target_idx; i++)
       {

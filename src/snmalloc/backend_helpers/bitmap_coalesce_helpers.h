@@ -36,7 +36,8 @@ namespace snmalloc
      * of the servable-set DAG, which is determined by alignment-tier count
      * (B+1 tiers).  For B=2: 1 incomparable pair -> 5 slots.
      */
-    static_assert(INTERMEDIATE_BITS == 2, "[A1] SLOTS_PER_EXPONENT=5 assumes B=2");
+    static_assert(
+      INTERMEDIATE_BITS == 2, "[A1] SLOTS_PER_EXPONENT=5 assumes B=2");
     static constexpr size_t SLOTS_PER_EXPONENT = 5;
 
     /**
@@ -212,7 +213,8 @@ namespace snmalloc
      *
      * The bin_index function finds the highest bin the block qualifies for.
      */
-    static_assert(INTERMEDIATE_BITS == 2, "[A7] bin_index threshold logic assumes B=2");
+    static_assert(
+      INTERMEDIATE_BITS == 2, "[A7] bin_index threshold logic assumes B=2");
 
     static constexpr size_t bin_index(size_t n_chunks, size_t alpha_chunks)
     {
@@ -261,7 +263,7 @@ namespace snmalloc
         size_t base_bit = exponent_base_bit(e);
 
         // Size classes at this exponent:
-        size_t s0 = size_t(1) << e;           // m=0
+        size_t s0 = size_t(1) << e; // m=0
         size_t s1 = 5 * (size_t(1) << (e - 2)); // m=1
         size_t s2 = 3 * (size_t(1) << (e - 1)); // m=2
         size_t s3 = 7 * (size_t(1) << (e - 2)); // m=3
@@ -315,8 +317,8 @@ namespace snmalloc
           // (e.g. if we can serve all 4 mantissas at e-1, that's slot
           // base_bit(e-1)+4 which could be > base_bit(e)+0).
           // Actually: base_bit(e)+0 = PREFIX_BITS + (e-2)*5,
-          // base_bit(e-1)+4 = PREFIX_BITS + (e-3)*5 + 4 = PREFIX_BITS + (e-2)*5 - 1
-          // So A-only at e is always > any slot at e-1.  Return.
+          // base_bit(e-1)+4 = PREFIX_BITS + (e-3)*5 + 4 = PREFIX_BITS + (e-2)*5
+          // - 1 So A-only at e is always > any slot at e-1.  Return.
           return candidate;
         }
         if (can_m1)

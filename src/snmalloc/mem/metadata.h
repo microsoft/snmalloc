@@ -81,7 +81,8 @@ namespace snmalloc
      * aligned, so bits 0–4 of the meta word are free for tagging.
      */
     static constexpr unsigned META_OFFSET_SHIFT = 2;
-    static constexpr address_t META_OFFSET_MASK = address_t(7) << META_OFFSET_SHIFT;
+    static constexpr address_t META_OFFSET_MASK = address_t(7)
+      << META_OFFSET_SHIFT;
 
     /**
      * Mask covering all reserved low bits in the meta word.

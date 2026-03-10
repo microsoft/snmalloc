@@ -7,10 +7,9 @@
  */
 
 #include <iostream>
-#include <vector>
-
 #include <snmalloc/snmalloc_core.h>
 #include <test/setup.h>
+#include <vector>
 
 using namespace snmalloc;
 
@@ -122,8 +121,10 @@ void test_decompose_roundtrip()
   }
 
   // Invalid sizes should not decompose
-  CHECK(!BC::decompose(0, *reinterpret_cast<size_t*>(&failure_count),
-                        *reinterpret_cast<size_t*>(&failure_count)));
+  CHECK(!BC::decompose(
+    0,
+    *reinterpret_cast<size_t*>(&failure_count),
+    *reinterpret_cast<size_t*>(&failure_count)));
   // 9 is not a valid size class (between 8 and 10 for B=2)
   size_t e_tmp, m_tmp;
   CHECK(!BC::decompose(9, e_tmp, m_tmp));
@@ -153,9 +154,9 @@ void test_is_valid_sizeclass()
     }
     if (BC::is_valid_sizeclass(s) != expected)
     {
-      std::cout << "  is_valid_sizeclass(" << s << ") = "
-                << BC::is_valid_sizeclass(s)
-                << ", expected " << expected << std::endl;
+      std::cout << "  is_valid_sizeclass(" << s
+                << ") = " << BC::is_valid_sizeclass(s) << ", expected "
+                << expected << std::endl;
       CHECK(false);
     }
   }

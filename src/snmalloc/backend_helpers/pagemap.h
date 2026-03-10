@@ -74,15 +74,14 @@ namespace snmalloc
      * measured in nat_align units.
      */
     SNMALLOC_FAST_PATH
-    static void set_metaentry(
-      address_t p, size_t size, const Entry& t, size_t nat_align)
+    static void
+    set_metaentry(address_t p, size_t size, const Entry& t, size_t nat_align)
     {
       size_t chunks_per_nat = nat_align / MIN_CHUNK_SIZE;
-      size_t n_chunks = size / MIN_CHUNK_SIZE;
       SNMALLOC_ASSERT_MSG(
-        (n_chunks / chunks_per_nat) <= 7,
+        ((size / MIN_CHUNK_SIZE) / chunks_per_nat) <= 7,
         "Offset {} exceeds 3-bit field for size {} nat_align {}",
-        n_chunks / chunks_per_nat,
+        (size / MIN_CHUNK_SIZE) / chunks_per_nat,
         size,
         nat_align);
       size_t chunk_index = 0;

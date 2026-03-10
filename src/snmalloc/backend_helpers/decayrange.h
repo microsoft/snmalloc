@@ -167,8 +167,7 @@ namespace snmalloc
        * Maximum chunk size we cache (4 MiB).
        * Larger allocations bypass the cache and go directly to/from parent.
        */
-      static constexpr size_t MAX_CACHEABLE_SIZE =
-        bits::one_at_bit(22);
+      static constexpr size_t MAX_CACHEABLE_SIZE = bits::one_at_bit(22);
 
       /**
        * How many slab sizes that can be cached.
@@ -177,7 +176,8 @@ namespace snmalloc
        */
       static constexpr size_t NUM_SLAB_SIZES =
         bits::to_exp_mant_const<INTERMEDIATE_BITS, 0>(
-          MAX_CACHEABLE_SIZE / MIN_CHUNK_SIZE) + 1;
+          MAX_CACHEABLE_SIZE / MIN_CHUNK_SIZE) +
+        1;
 
       /**
        * Convert a byte size to the decay cache sizeclass index.

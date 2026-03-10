@@ -10,10 +10,9 @@
 #include "test/setup.h"
 
 #include <iostream>
-#include <vector>
-
 #include <snmalloc/backend/fixedglobalconfig.h>
 #include <snmalloc/snmalloc.h>
+#include <vector>
 
 #ifdef assert
 #  undef assert
@@ -38,16 +37,15 @@ using FixedAlloc = Allocator<CustomGlobals>;
  * Assert that the pointer is naturally aligned for the given allocation size.
  * Natural alignment = largest power of 2 dividing the size.
  */
-static void
-check_natural_alignment(void* p, size_t size, const char* context)
+static void check_natural_alignment(void* p, size_t size, const char* context)
 {
   size_t nat_align = natural_alignment(size);
   auto addr = reinterpret_cast<uintptr_t>(p);
   if ((addr % nat_align) != 0)
   {
-    std::cout << "\n  FAIL [" << context << "]: alloc(" << size
-              << ") returned " << p << " not aligned to " << nat_align
-              << " (offset " << (addr % nat_align) << ")" << std::endl;
+    std::cout << "\n  FAIL [" << context << "]: alloc(" << size << ") returned "
+              << p << " not aligned to " << nat_align << " (offset "
+              << (addr % nat_align) << ")" << std::endl;
   }
   SNMALLOC_CHECK((addr % nat_align) == 0);
 }

@@ -102,7 +102,8 @@ void test_many_allocations()
     for (size_t j = 0; j < COUNT; j++)
     {
       ptrs[i][j] = our_malloc(size);
-      EXPECT(ptrs[i][j] != nullptr, "malloc({}) returned null at j={}", size, j);
+      EXPECT(
+        ptrs[i][j] != nullptr, "malloc({}) returned null at j={}", size, j);
 
       size_t addr = reinterpret_cast<size_t>(ptrs[i][j]);
       size_t expected_align = natural_align(size);
@@ -181,7 +182,8 @@ void test_mixed_sizes()
     size_t nonpow2_size = 6 * MIN_CHUNK_SIZE;
     nonpow2_ptrs[i] = our_malloc(nonpow2_size);
     EXPECT(
-      nonpow2_ptrs[i] != nullptr, "nonpow2 malloc({}) returned null",
+      nonpow2_ptrs[i] != nullptr,
+      "nonpow2 malloc({}) returned null",
       nonpow2_size);
 
     size_t addr = reinterpret_cast<size_t>(nonpow2_ptrs[i]);

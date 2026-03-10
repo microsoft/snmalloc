@@ -198,8 +198,7 @@ namespace snmalloc
       size_t level = NUM_LARGE_FINE_LEVELS + (index - LARGE_FINE_TOTAL);
       em_index = MIN_LARGE_EM + level * LARGE_SUBS_PER_LEVEL;
     }
-    size_t chunks =
-      bits::from_exp_mant<INTERMEDIATE_BITS, 0>(em_index);
+    size_t chunks = bits::from_exp_mant<INTERMEDIATE_BITS, 0>(em_index);
     return chunks * MIN_CHUNK_SIZE;
   }
 
@@ -214,8 +213,7 @@ namespace snmalloc
   constexpr size_t size_to_large_class_index_const(size_t size)
   {
     size_t chunks = (size + MIN_CHUNK_SIZE - 1) / MIN_CHUNK_SIZE;
-    size_t em =
-      bits::to_exp_mant_const<INTERMEDIATE_BITS, 0>(chunks);
+    size_t em = bits::to_exp_mant_const<INTERMEDIATE_BITS, 0>(chunks);
     size_t local_em = em - MIN_LARGE_EM;
 
     if (local_em < LARGE_FINE_TOTAL)
@@ -239,8 +237,7 @@ namespace snmalloc
   {
     // Ceiling division to avoid truncation when size isn't chunk-aligned.
     size_t chunks = (size + MIN_CHUNK_SIZE - 1) / MIN_CHUNK_SIZE;
-    size_t em =
-      bits::to_exp_mant<INTERMEDIATE_BITS, 0>(chunks);
+    size_t em = bits::to_exp_mant<INTERMEDIATE_BITS, 0>(chunks);
     size_t local_em = em - MIN_LARGE_EM;
 
     if (local_em < LARGE_FINE_TOTAL)

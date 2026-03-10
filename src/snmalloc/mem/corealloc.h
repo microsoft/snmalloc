@@ -758,8 +758,7 @@ namespace snmalloc
                 };
 
                 // Stage 1: flush all smaller sizeclasses.
-                if (self->large_object_cache.flush_smaller(
-                      sizeclass, flush_fn))
+                if (self->large_object_cache.flush_smaller(sizeclass, flush_fn))
                 {
                   auto retry = Config::Backend::alloc_chunk(
                     self->get_backend_local_state(),
