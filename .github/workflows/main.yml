@@ -495,6 +495,9 @@ jobs:
 
     - name: Install snmalloc via vcpkg
       shell: bash
+      # Run from runner.temp to avoid the workspace vcpkg.json triggering
+      # manifest mode (which forbids positional package arguments).
+      working-directory: ${{ runner.temp }}
       run: |
         features=""
         if [ "${{ matrix.feature }}" = "static-shim" ]; then
