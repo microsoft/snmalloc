@@ -40,7 +40,7 @@ namespace snmalloc
     // Decay range caches deallocated memory and gradually releases it
     // back to the parent, avoiding expensive repeated decommit/recommit
     // cycles for transient allocation patterns.
-#ifdef SNMALLOC_NO_DECAY
+#ifdef SNMALLOC_ENABLE_DECAY
     using DecayR = Pipe<GlobalR, CommitRange<PAL>>;
 #else
     using DecayR = Pipe<GlobalR, CommitRange<PAL>, DecayRange<PAL, Pagemap>>;
