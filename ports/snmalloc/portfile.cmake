@@ -12,6 +12,10 @@ vcpkg_from_github(
     HEAD_REF main
 )
 
+# NOTE: The CI overlay port (see .github/workflows/main.yml, vcpkg-integration)
+# uses sed to extract from this line onwards to build a portfile that points at
+# the local checkout. If you reorder code above this line, update the sed
+# pattern there.
 vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
     FEATURES
         "static-shim" SNMALLOC_STATIC_LIBRARY
