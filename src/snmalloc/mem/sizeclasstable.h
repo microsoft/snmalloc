@@ -389,6 +389,21 @@ namespace snmalloc
         // so collapse the calculated offset.
         meta.div_mult = 0;
       }
+
+      // Raw sizeclass value 0 is the sentinel for uninitialized pagemap
+      // entries (non-snmalloc memory like stack, globals, etc.).
+      // Set size=0 so alloc_size(nullptr) returns 0, and
+      // slab_mask=SIZE_MAX so remaining_bytes returns a large value,
+      // preventing false-positive bounds check failures on non-heap
+      // addresses.
+      {
+        auto& sentinel = fast_[0];
+        sentinel.size = 0;
+        size_t zero = 0;
+        sentinel.slab_mask = ~zero;
+        sentinel.mod_zero_mult = 1;
+        sentinel.div_mult = 0;
+      }
     }
   };
 

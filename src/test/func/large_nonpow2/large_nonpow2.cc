@@ -204,6 +204,30 @@ void test_mixed_sizes()
   }
 }
 
+void test_stack_remaining_bytes()
+{
+  printf("  test_stack_remaining_bytes\n");
+  // Verify that remaining_bytes returns a large value for non-heap
+  // addresses (stack, globals).  The sizeclass sentinel (raw value 0)
+  // must have slab_mask = SIZE_MAX so that bounds checks pass for
+  // non-snmalloc memory.  Without the sentinel fix, remaining_bytes
+  // would return 0, causing false-positive bounds check failures.
+  char stack_buf[64];
+  auto remaining = snmalloc::remaining_bytes<snmalloc::Config>(
+    snmalloc::address_cast(stack_buf));
+  EXPECT(
+    remaining > sizeof(stack_buf),
+    "remaining_bytes on stack address returned {}, expected large value",
+    remaining);
+
+  // Also check that alloc_size returns 0 for stack addresses.
+  auto sc = snmalloc::Config::Backend::template get_metaentry<true>(
+                snmalloc::address_cast(stack_buf))
+              .get_sizeclass();
+  auto sz = snmalloc::sizeclass_full_to_size(sc);
+  EXPECT(sz == 0, "alloc_size on stack address returned {}, expected 0", sz);
+}
+
 int main()
 {
   printf("large_nonpow2: non-power-of-2 large allocation tests\n");
@@ -213,6 +237,7 @@ int main()
   test_many_allocations();
   test_alloc_free_cycles();
   test_mixed_sizes();
+  test_stack_remaining_bytes();
 
   printf("large_nonpow2: all tests passed\n");
   return 0;
