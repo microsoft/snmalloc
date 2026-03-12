@@ -5,11 +5,17 @@
  */
 #include <stdlib.h>
 
+extern "C"
+{
+  void *sn_malloc(size_t);
+  void sn_free(void *);
+}
+
 int main()
 {
-  void* p = malloc(64);
+  void* p = sn_malloc(64);
   if (p == nullptr)
     return 1;
-  free(p);
+  sn_free(p);
   return 0;
 }

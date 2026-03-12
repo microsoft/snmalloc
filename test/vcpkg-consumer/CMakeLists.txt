@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(snmalloc-vcpkg-test CXX)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
 enable_testing()
 
 find_package(snmalloc CONFIG REQUIRED)
