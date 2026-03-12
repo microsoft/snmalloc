@@ -24,6 +24,8 @@
       (WINVER >= _WIN32_WINNT_WIN10) && !defined(USE_SYSTEMATIC_TESTING)
 #      define PLATFORM_HAS_VIRTUALALLOC2
 #      define PLATFORM_HAS_WAITONADDRESS
+#      pragma comment(lib, "mincore.lib")
+#      pragma comment(lib, "synchronization.lib")
 #    endif
 #  endif
 
