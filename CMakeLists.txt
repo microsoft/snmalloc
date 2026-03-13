@@ -292,7 +292,7 @@ endif()
 # Add header paths.
 target_include_directories(snmalloc
   INTERFACE
-    $<INSTALL_INTERFACE:include/snmalloc>
+    $<INSTALL_INTERFACE:include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
 
 if(NOT MSVC)
