@@ -63,6 +63,11 @@ namespace snmalloc
         return __builtin_addressof(ref);
       }
 
+      SNMALLOC_FAST_PATH static const T* addressof(const T& ref)
+      {
+        return __builtin_addressof(ref);
+      }
+
       // From libc++:
       // require types that are 1, 2, 4, 8, or 16 bytes in length to be aligned
       // to at least their size to be potentially
@@ -89,7 +94,8 @@ namespace snmalloc
         return load();
       }
 
-      SNMALLOC_FAST_PATH T load(MemoryOrder mem_ord = MemoryOrder::SEQ_CST)
+      SNMALLOC_FAST_PATH T
+      load(MemoryOrder mem_ord = MemoryOrder::SEQ_CST) const
       {
         T res;
         __atomic_load(addressof(val), addressof(res), order(mem_ord));
