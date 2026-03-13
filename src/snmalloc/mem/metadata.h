@@ -57,6 +57,41 @@ namespace snmalloc
     static constexpr address_t META_BOUNDARY_BIT = 1 << 0;
 
     /**
+     * Bit used by the coalescing range (BitmapCoalesce /
+     * BitmapCoalesceRange) to mark entries that belong to its free pool.
+     * This allows the coalescing algorithm to distinguish its own free
+     * blocks from other backend-owned entries (e.g., those held by
+     * DecayRange or other range components that also call
+     * claim_for_backend).  Cleared by claim_for_backend().
+     */
+    static constexpr address_t META_COALESCE_FREE_BIT = 1 << 1;
+
+    /**
+     * 3-bit field in the meta word (bits 2–4) that stores the distance
+     * of this pagemap entry from the start of a non-pow2 large
+     * allocation, measured in natural-alignment units.  For pow2 and
+     * small allocations this is always 0.
+     *
+     * Given slab_mask = natural_alignment(size) - 1:
+     *   nat_base   = addr & ~slab_mask
+     *   nat_align  = slab_mask + 1
+     *   alloc_start = nat_base - nat_align * offset_bits
+     *
+     * Available because SlabMetadata pointers are at least 32-byte
+     * aligned, so bits 0–4 of the meta word are free for tagging.
+     */
+    static constexpr unsigned META_OFFSET_SHIFT = 2;
+    static constexpr address_t META_OFFSET_MASK = address_t(7)
+      << META_OFFSET_SHIFT;
+
+    /**
+     * Mask covering all reserved low bits in the meta word.
+     * get_slab_metadata() masks these off to recover the pointer.
+     */
+    static constexpr address_t META_LOW_BITS_MASK =
+      META_BOUNDARY_BIT | META_COALESCE_FREE_BIT | META_OFFSET_MASK;
+
+    /**
      * The bit above the sizeclass is always zero unless this is used
      * by the backend to represent another datastructure such as the buddy
      * allocator entries.
@@ -158,7 +193,8 @@ namespace snmalloc
 
     /**
      * Explicit assignment operator, copies the data preserving the boundary bit
-     * in the target if it is set.
+     * in the target if it is set.  Other reserved bits (e.g. the coalesce
+     * free marker) are taken from the source, not preserved from the target.
      */
     MetaEntryBase& operator=(const MetaEntryBase& other)
     {
@@ -167,6 +203,19 @@ namespace snmalloc
         address_cast(meta & META_BOUNDARY_BIT);
       remote_and_sizeclass = other.remote_and_sizeclass;
       return *this;
+    }
+
+    /**
+     * Combined assign-and-set-offset: copies the entry from `other`
+     * (preserving the target's boundary bit) and sets the offset field
+     * in a single operation, avoiding a second read-modify-write.
+     */
+    void assign_with_offset(const MetaEntryBase& other, uint8_t offset)
+    {
+      meta = (other.meta & ~(META_BOUNDARY_BIT | META_OFFSET_MASK)) |
+        address_cast(meta & META_BOUNDARY_BIT) |
+        (static_cast<address_t>(offset) << META_OFFSET_SHIFT);
+      remote_and_sizeclass = other.remote_and_sizeclass;
     }
 
     /**
@@ -189,6 +238,48 @@ namespace snmalloc
     bool clear_boundary_bit()
     {
       return meta &= ~META_BOUNDARY_BIT;
+    }
+
+    ///@}
+
+    /**
+     * Mark this entry as part of a coalescing-range free block.
+     * Set on the first and last chunk entries of each free block.
+     * @{
+     */
+    void set_coalesce_free()
+    {
+      meta |= META_COALESCE_FREE_BIT;
+    }
+
+    [[nodiscard]] bool is_coalesce_free() const
+    {
+      return meta & META_COALESCE_FREE_BIT;
+    }
+
+    void clear_coalesce_free()
+    {
+      meta &= ~META_COALESCE_FREE_BIT;
+    }
+
+    ///@}
+
+    /**
+     * Store the 3-bit placement offset for a non-pow2 large allocation.
+     * For pow2 and small allocations, pass 0.
+     * @{
+     */
+    void set_offset(uint8_t offset)
+    {
+      SNMALLOC_ASSERT(offset <= 7);
+      meta = (meta & ~META_OFFSET_MASK) |
+        (static_cast<address_t>(offset) << META_OFFSET_SHIFT);
+    }
+
+    [[nodiscard]] uint8_t get_offset() const
+    {
+      return static_cast<uint8_t>(
+        (meta & META_OFFSET_MASK) >> META_OFFSET_SHIFT);
     }
 
     ///@}
@@ -772,7 +863,7 @@ namespace snmalloc
     [[nodiscard]] SNMALLOC_FAST_PATH SlabMetadata* get_slab_metadata() const
     {
       SNMALLOC_ASSERT(!is_backend_owned());
-      return unsafe_from_uintptr<SlabMetadata>(meta & ~META_BOUNDARY_BIT);
+      return unsafe_from_uintptr<SlabMetadata>(meta & ~META_LOW_BITS_MASK);
     }
   };
 
