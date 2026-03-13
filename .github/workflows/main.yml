@@ -447,6 +447,80 @@ jobs:
         ctest --parallel --output-on-failure
 
   # ============================================================================
+  # vcpkg integration
+  # ============================================================================
+  vcpkg-integration:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        feature: [ "default", "static-shim" ]
+    runs-on: ${{ matrix.os }}
+    name: vcpkg - ${{ matrix.os }} ${{ matrix.feature }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Bootstrap vcpkg
+      shell: bash
+      run: |
+        git clone https://github.com/microsoft/vcpkg.git "${{ runner.temp }}/vcpkg" --depth 1
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          "${{ runner.temp }}/vcpkg/bootstrap-vcpkg.bat" -disableMetrics
+        else
+          "${{ runner.temp }}/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
+        fi
+
+    - name: Create overlay port pointing at local source
+      shell: bash
+      run: |
+        overlay="${{ runner.temp }}/overlay/snmalloc"
+        mkdir -p "$overlay"
+        # Copy the real port files
+        cp ports/snmalloc/vcpkg.json "$overlay/"
+        cp ports/snmalloc/usage "$overlay/"
+        # Normalize workspace path to forward slashes for CMake (Windows compat)
+        ws_path=$(echo "${{ github.workspace }}" | sed 's|\\|/|g')
+        # Rewrite portfile to use local source instead of vcpkg_from_github
+        {
+          echo 'if(NOT "static-shim" IN_LIST FEATURES)'
+          echo '    set(VCPKG_BUILD_TYPE release)'
+          echo 'endif()'
+          echo ''
+          echo "set(SOURCE_PATH \"${ws_path}\")"
+          echo ''
+          # Keep everything from vcpkg_check_features onwards (see comment in
+          # ports/snmalloc/portfile.cmake documenting this coupling)
+          sed -n '/^vcpkg_check_features/,$ p' ports/snmalloc/portfile.cmake
+        } > "$overlay/portfile.cmake"
+
+    - name: Install snmalloc via vcpkg
+      shell: bash
+      # Run from runner.temp to avoid the workspace vcpkg.json triggering
+      # manifest mode (which forbids positional package arguments).
+      working-directory: ${{ runner.temp }}
+      run: |
+        features=""
+        if [ "${{ matrix.feature }}" = "static-shim" ]; then
+          features="[static-shim]"
+        fi
+        "${{ runner.temp }}/vcpkg/vcpkg" install "snmalloc${features}" \
+          --overlay-ports="${{ runner.temp }}/overlay"
+
+    - name: Build consumer project
+      shell: bash
+      run: |
+        cmake -B "${{ runner.temp }}/consumer-build" \
+          -S test/vcpkg-consumer \
+          -DCMAKE_TOOLCHAIN_FILE="${{ runner.temp }}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+        cmake --build "${{ runner.temp }}/consumer-build" --config Release
+
+    - name: Run tests
+      shell: bash
+      run: |
+        ctest --test-dir "${{ runner.temp }}/consumer-build" \
+          --build-config Release --output-on-failure
+
+  # ============================================================================
   # Final gate check
   # ============================================================================
   all-checks:
@@ -456,7 +530,8 @@ jobs:
       freebsd, netbsd,
       qemu-crossbuild,
       windows,
-      format
+      format,
+      vcpkg-integration
     ]
     runs-on: ubuntu-24.04
     steps:
