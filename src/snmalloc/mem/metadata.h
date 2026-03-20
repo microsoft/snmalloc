@@ -283,6 +283,11 @@ namespace snmalloc
 
     public:
       /**
+       * Uninitialised constructor.
+       */
+      BackendStateWordRef() = default;
+
+      /**
        * Constructor, wraps a `uintptr_t`.  Note that this may be used outside
        * of the meta entry by code wishing to provide uniform storage to things
        * that are either in a meta entry or elsewhere.

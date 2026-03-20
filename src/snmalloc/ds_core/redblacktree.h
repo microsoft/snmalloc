@@ -101,7 +101,7 @@ namespace snmalloc
       H ptr;
 
     public:
-      ChildRef() : ptr(nullptr) {}
+      constexpr ChildRef() = default;
 
       ChildRef(H p) : ptr(p) {}
 
@@ -232,7 +232,15 @@ namespace snmalloc
     struct RBStep
     {
       ChildRef node;
-      bool dir = false;
+      bool dir;
+
+      // Default constructor needed for Array<RBStep, 128>.
+      constexpr RBStep() = default;
+
+      // Remove copy constructors to avoid accidentally copying and mutating the
+      // path.
+      RBStep(const RBStep& other) = delete;
+      RBStep& operator=(const RBStep& other) = delete;
 
       /**
        * Update the step to point to a new node and direction.
