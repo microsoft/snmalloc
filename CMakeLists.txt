@@ -214,6 +214,25 @@ function(warnings_high)
 endfunction()
 
 function(clangformat_targets)
+  cmake_parse_arguments(
+    CLANGFMT
+    ""
+    ""
+    "INCLUDE_PATTERNS;EXCLUDE_PATTERNS"
+    ${ARGN}
+  )
+
+  # Default inclusion globs match this project's source layout.
+  if (NOT CLANGFMT_INCLUDE_PATTERNS)
+    set(CLANGFMT_INCLUDE_PATTERNS src/*.cc src/*.h src/*.hh)
+  endif()
+
+  # Default exclusion regexes skip concept headers that clang-format
+  # does not yet handle well.  See https://reviews.llvm.org/D79773
+  if (NOT CLANGFMT_EXCLUDE_PATTERNS)
+    set(CLANGFMT_EXCLUDE_PATTERNS "src/[^/]*/[^/]*_concept\\.h$")
+  endif()
+
   # The clang-format tool is installed under a variety of different names.  Try
   # to find a sensible one.  Only look for versions 9 explicitly - we don't
   # know whether our clang-format file will work with newer versions of the
@@ -228,10 +247,10 @@ function(clangformat_targets)
     message(WARNING "Not generating clangformat target, no clang-format tool found")
   else ()
     message(STATUS "Generating clangformat target using ${CLANG_FORMAT}")
-    file(GLOB_RECURSE ALL_SOURCE_FILES CONFIGURE_DEPENDS src/*.cc src/*.h src/*.hh)
-    # clangformat does not yet understand concepts well; for the moment, don't
-    # ask it to format them.  See https://reviews.llvm.org/D79773
-    list(FILTER ALL_SOURCE_FILES EXCLUDE REGEX "src/[^/]*/[^/]*_concept\.h$")
+    file(GLOB_RECURSE ALL_SOURCE_FILES CONFIGURE_DEPENDS ${CLANGFMT_INCLUDE_PATTERNS})
+    foreach(pattern IN LISTS CLANGFMT_EXCLUDE_PATTERNS)
+      list(FILTER ALL_SOURCE_FILES EXCLUDE REGEX "${pattern}")
+    endforeach()
     add_custom_target(
       clangformat
       COMMAND ${CLANG_FORMAT}
