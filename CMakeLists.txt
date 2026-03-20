@@ -213,29 +213,87 @@ function(warnings_high)
   endif()
 endfunction()
 
+# clangformat_targets([VERSION <ver>]
+#                     [TARGET_NAME <name>]
+#                     [INCLUDE_PATTERNS <glob> ...]
+#                     [EXCLUDE_PATTERNS <regex> ...])
+#
+# Generate a CMake target that runs clang-format on a set of source files.
+# A companion <name>-check target is also created that verifies formatting
+# without modifying files (--dry-run --Werror), suitable for CI.
+#
+# Options:
+#   VERSION          - clang-format version to search for (default: 15).
+#                      Falls back to the unversioned 'clang-format' with a
+#                      warning if the requested version is not found.
+#   TARGET_NAME      - Name of the generated targets (default: clangformat).
+#   INCLUDE_PATTERNS - Glob patterns passed to file(GLOB_RECURSE) to collect
+#                      source files (default: src/*.cc src/*.h src/*.hh).
+#   EXCLUDE_PATTERNS - Regex patterns used to exclude files from the collected
+#                      list (default: src/[^/]*/[^/]*_concept\.h$).
 function(clangformat_targets)
+  cmake_parse_arguments(
+    CLANGFMT
+    ""
+    "VERSION;TARGET_NAME"
+    "INCLUDE_PATTERNS;EXCLUDE_PATTERNS"
+    ${ARGN}
+  )
+
+  # Default inclusion globs match this project's source layout.
+  if (NOT CLANGFMT_INCLUDE_PATTERNS)
+    set(CLANGFMT_INCLUDE_PATTERNS src/*.cc src/*.h src/*.hh)
+  endif()
+
+  # Default exclusion regexes skip concept headers that clang-format
+  # does not yet handle well.  See https://reviews.llvm.org/D79773
+  if (NOT CLANGFMT_EXCLUDE_PATTERNS)
+    set(CLANGFMT_EXCLUDE_PATTERNS "src/[^/]*/[^/]*_concept\\.h$")
+  endif()
+
+  # Default clang-format version.
+  if (NOT CLANGFMT_VERSION)
+    set(CLANGFMT_VERSION 15)
+  endif()
+
+  # Default target name.
+  if (NOT CLANGFMT_TARGET_NAME)
+    set(CLANGFMT_TARGET_NAME clangformat)
+  endif()
+
   # The clang-format tool is installed under a variety of different names.  Try
-  # to find a sensible one.  Only look for versions 9 explicitly - we don't
-  # know whether our clang-format file will work with newer versions of the
-  # tool.  It does not work with older versions as AfterCaseLabel is not supported
-  # in earlier versions.
+  # to find a sensible one.  Look for the requested version first, then fall
+  # back to the unversioned name.
   find_program(CLANG_FORMAT NAMES
-    clang-format150 clang-format-15)
+    clang-format${CLANGFMT_VERSION}0
+    clang-format-${CLANGFMT_VERSION})
+
+  if (${CLANG_FORMAT} STREQUAL "CLANG_FORMAT-NOTFOUND")
+    find_program(CLANG_FORMAT NAMES clang-format)
+    if (NOT ${CLANG_FORMAT} STREQUAL "CLANG_FORMAT-NOTFOUND")
+      message(WARNING "Could not find clang-format version ${CLANGFMT_VERSION}, falling back to ${CLANG_FORMAT}")
+    endif()
+  endif()
 
   # If we've found a clang-format tool, generate a target for it, otherwise emit
   # a warning.
   if (${CLANG_FORMAT} STREQUAL "CLANG_FORMAT-NOTFOUND")
-    message(WARNING "Not generating clangformat target, no clang-format tool found")
+    message(WARNING "Not generating ${CLANGFMT_TARGET_NAME} target, no clang-format tool found")
   else ()
-    message(STATUS "Generating clangformat target using ${CLANG_FORMAT}")
-    file(GLOB_RECURSE ALL_SOURCE_FILES CONFIGURE_DEPENDS src/*.cc src/*.h src/*.hh)
-    # clangformat does not yet understand concepts well; for the moment, don't
-    # ask it to format them.  See https://reviews.llvm.org/D79773
-    list(FILTER ALL_SOURCE_FILES EXCLUDE REGEX "src/[^/]*/[^/]*_concept\.h$")
+    message(STATUS "Generating ${CLANGFMT_TARGET_NAME} target using ${CLANG_FORMAT}")
+    file(GLOB_RECURSE ALL_SOURCE_FILES CONFIGURE_DEPENDS ${CLANGFMT_INCLUDE_PATTERNS})
+    foreach(pattern IN LISTS CLANGFMT_EXCLUDE_PATTERNS)
+      list(FILTER ALL_SOURCE_FILES EXCLUDE REGEX "${pattern}")
+    endforeach()
     add_custom_target(
-      clangformat
+      ${CLANGFMT_TARGET_NAME}
       COMMAND ${CLANG_FORMAT}
       -i
+      ${ALL_SOURCE_FILES})
+    add_custom_target(
+      ${CLANGFMT_TARGET_NAME}-check
+      COMMAND ${CLANG_FORMAT}
+      --dry-run --Werror
       ${ALL_SOURCE_FILES})
   endif()
 endfunction()
