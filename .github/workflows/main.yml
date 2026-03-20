@@ -373,10 +373,7 @@ jobs:
     # Run the clang-format check and error if it generates a diff
     - name: Run clang-format
       working-directory: ${{github.workspace}}/build
-      run: |
-        set -eo pipefail
-        make clangformat
-        git diff --exit-code
+      run: make clangformat-check
     - name: Run clang-tidy
       run: |
         clang-tidy-15  src/snmalloc/override/malloc.cc  -header-filter="`pwd`/*" -warnings-as-errors='*' -export-fixes=tidy.fail -- -std=c++17 -mcx16 -DSNMALLOC_USE_WAIT_ON_ADDRESS=1 -DSNMALLOC_PLATFORM_HAS_GETENTROPY=0 -Isrc
