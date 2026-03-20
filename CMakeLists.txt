@@ -213,6 +213,24 @@ function(warnings_high)
   endif()
 endfunction()
 
+# clangformat_targets([VERSION <ver>]
+#                     [TARGET_NAME <name>]
+#                     [INCLUDE_PATTERNS <glob> ...]
+#                     [EXCLUDE_PATTERNS <regex> ...])
+#
+# Generate a CMake target that runs clang-format on a set of source files.
+# A companion <name>-check target is also created that verifies formatting
+# without modifying files (--dry-run --Werror), suitable for CI.
+#
+# Options:
+#   VERSION          - clang-format version to search for (default: 15).
+#                      Falls back to the unversioned 'clang-format' with a
+#                      warning if the requested version is not found.
+#   TARGET_NAME      - Name of the generated targets (default: clangformat).
+#   INCLUDE_PATTERNS - Glob patterns passed to file(GLOB_RECURSE) to collect
+#                      source files (default: src/*.cc src/*.h src/*.hh).
+#   EXCLUDE_PATTERNS - Regex patterns used to exclude files from the collected
+#                      list (default: src/[^/]*/[^/]*_concept\.h$).
 function(clangformat_targets)
   cmake_parse_arguments(
     CLANGFMT
