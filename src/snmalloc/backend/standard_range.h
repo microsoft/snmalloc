@@ -29,7 +29,7 @@ namespace snmalloc
     // Global range of memory, expose this so can be filled by init.
     using GlobalR = Pipe<
       Base,
-      LargeBuddyRange<
+      BitmapCoalesceRange<
         GlobalCacheSizeBits,
         bits::BITS - 1,
         Pagemap,
@@ -37,8 +37,18 @@ namespace snmalloc
       LogRange<2>,
       GlobalRange>;
 
-    // Track stats of the committed memory
-    using Stats = Pipe<GlobalR, CommitRange<PAL>, StatsRange>;
+    // Decay range caches deallocated memory and gradually releases it
+    // back to the parent, avoiding expensive repeated decommit/recommit
+    // cycles for transient allocation patterns.
+#ifdef SNMALLOC_ENABLE_DECAY
+    using DecayR = Pipe<GlobalR, CommitRange<PAL>>;
+#else
+    using DecayR = Pipe<GlobalR, CommitRange<PAL>, DecayRange<PAL, Pagemap>>;
+#endif
+
+    // Track stats of the memory handed out (outside decay so stats
+    // methods are directly visible to StatsCombiner).
+    using Stats = Pipe<DecayR, StatsRange>;
 
   private:
     static constexpr size_t page_size_bits =
@@ -46,14 +56,8 @@ namespace snmalloc
 
   public:
     // Source for object allocations and metadata
-    // Use buddy allocators to cache locally.
-    using LargeObjectRange = Pipe<
-      Stats,
-      StaticConditionalRange<LargeBuddyRange<
-        LocalCacheSizeBits,
-        LocalCacheSizeBits,
-        Pagemap,
-        page_size_bits>>>;
+    // No thread-local caching for now.
+    using LargeObjectRange = Stats;
 
   private:
     using ObjectRange = Pipe<LargeObjectRange, SmallBuddyRange>;
@@ -88,8 +92,7 @@ namespace snmalloc
 
     static void set_small_heap()
     {
-      // This disables the thread local caching of large objects.
-      LargeObjectRange::disable_range();
+      // No thread-local caching to disable.
     }
   };
 } // namespace snmalloc

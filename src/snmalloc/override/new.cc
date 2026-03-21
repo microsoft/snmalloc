@@ -37,7 +37,10 @@ namespace snmalloc
 
         SNMALLOC_ASSERT(
           secondary_allocator ||
-          is_start_of_object(size_to_sizeclass_full(size), address_cast(p)));
+          is_start_of_object(
+            size_to_sizeclass_full(size),
+            address_cast(p),
+            Config::Backend::get_metaentry(address_cast(p)).get_offset()));
 
         return p;
       }

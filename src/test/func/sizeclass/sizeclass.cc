@@ -150,4 +150,33 @@ int main(int, char**)
     abort();
 
   test_align_size();
+
+  // Verify runtime to_exp_mant matches constexpr to_exp_mant_const.
+  {
+    bool exp_mant_failed = false;
+    for (size_t v = 1; v < 100000; v++)
+    {
+      auto ce = snmalloc::bits::to_exp_mant_const<2, 0>(v);
+      auto re = snmalloc::bits::to_exp_mant<2, 0>(v);
+      if (ce != re)
+      {
+        std::cout << "to_exp_mant mismatch at " << v << ": const=" << ce
+                  << " runtime=" << re << std::endl;
+        exp_mant_failed = true;
+      }
+      auto ce4 = snmalloc::bits::to_exp_mant_const<2, 4>(v);
+      auto re4 = snmalloc::bits::to_exp_mant<2, 4>(v);
+      if (ce4 != re4)
+      {
+        std::cout << "to_exp_mant<2,4> mismatch at " << v << ": const=" << ce4
+                  << " runtime=" << re4 << std::endl;
+        exp_mant_failed = true;
+      }
+    }
+    if (exp_mant_failed)
+    {
+      std::cout << "to_exp_mant equivalence test FAILED" << std::endl;
+      abort();
+    }
+  }
 }
