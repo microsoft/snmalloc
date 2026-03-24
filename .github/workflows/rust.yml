@@ -69,3 +69,20 @@ jobs:
       run: cargo build ${{ matrix.release.flag }} --verbose ${{ matrix.features.args }}
     - name: Run tests
       run: cargo test ${{ matrix.release.flag }} --all ${{ matrix.features.args }}
+
+  publish-scan:
+    runs-on: ubuntu-latest
+    name: publish-scan
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: update dependency
+      run: sudo apt-get update -y && sudo apt-get --reinstall install -y libc6-dev
+    - name: Dry-run workspace publish
+      run: cargo publish --workspace --exclude xtask --dry-run
