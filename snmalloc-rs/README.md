@@ -56,7 +56,7 @@ To use `snmalloc-rs` add it as a dependency:
 ```toml
 # Cargo.toml
 [dependencies]
-snmalloc-rs = "0.3.8"
+snmalloc-rs = "0.7.4"
 ```
 
 To set `SnMalloc` as the global allocator add this to your project:

@@ -12,9 +12,6 @@ repository = "https://github.com/microsoft/snmalloc"
 readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[workspace]
-members = ["snmalloc-sys", "xtask"]
-
 [dependencies]
 snmalloc-sys = { version = "0.7.4", path = "snmalloc-sys", default-features = false }
 
