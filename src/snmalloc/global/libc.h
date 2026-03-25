@@ -41,7 +41,7 @@ namespace snmalloc::libc
 
   SNMALLOC_FAST_PATH_INLINE void free_aligned_sized(void* ptr, size_t alignment, size_t size)
   {
-    dealloc(ptr, alignment, size);
+    dealloc(ptr, size, alignment);
   }
 
   SNMALLOC_FAST_PATH_INLINE void* calloc(size_t nmemb, size_t size)
