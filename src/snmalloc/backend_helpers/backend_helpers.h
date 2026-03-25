@@ -2,9 +2,13 @@
 
 #include "../mem/mem.h"
 #include "authmap.h"
+#include "bitmap_coalesce.h"
+#include "bitmap_coalesce_helpers.h"
+#include "bitmap_coalesce_range.h"
 #include "buddy.h"
 #include "commitrange.h"
 #include "commonconfig.h"
+#include "decayrange.h"
 #include "defaultpagemapentry.h"
 #include "empty_range.h"
 #include "globalrange.h"
