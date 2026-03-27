@@ -16,4 +16,7 @@
 #include "mitigations.h"
 #include "ptrwrap.h"
 #include "redblacktree.h"
+#include "sizeclassstatic.h"
+#include "tid.h"
+
 #include "tid.h"

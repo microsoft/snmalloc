@@ -10,3 +10,4 @@
 #include "entropy.h"
 #include "mpmcstack.h"
 #include "pagemap.h"
+#include "sizeclasstable.h"

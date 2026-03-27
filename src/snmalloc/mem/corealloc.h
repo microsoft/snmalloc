@@ -6,7 +6,6 @@
 #include "metadata.h"
 #include "pool.h"
 #include "remotecache.h"
-#include "sizeclasstable.h"
 #include "snmalloc/stl/new.h"
 #include "ticker.h"
 
