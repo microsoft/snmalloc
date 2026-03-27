@@ -606,8 +606,7 @@ namespace snmalloc
     {
       // Perform the - 1 on size, so that zero wraps around and ends up on
       // slow path.
-      if (SNMALLOC_LIKELY(
-            (size - 1) <= (sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1) - 1)))
+      if (SNMALLOC_LIKELY(is_small_sizeclass(size)))
       {
         // Small allocations are more likely. Improve
         // branch prediction by placing this case first.
@@ -1399,7 +1398,7 @@ namespace snmalloc
 
       auto& key = freelist::Object::key_root;
 
-      for (size_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
+      for (smallsizeclass_t i; i < NUM_SMALL_SIZECLASSES; i++)
       {
         if (small_fast_free_lists[i].empty())
           continue;
@@ -1420,7 +1419,7 @@ namespace snmalloc
         local_state, get_trunc_id());
 
       // We may now have unused slabs, return to the global allocator.
-      for (smallsizeclass_t sizeclass = 0; sizeclass < NUM_SMALL_SIZECLASSES;
+      for (smallsizeclass_t sizeclass(0); sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
       {
         dealloc_local_slabs<mitigations(freelist_teardown_validate)>(sizeclass);
