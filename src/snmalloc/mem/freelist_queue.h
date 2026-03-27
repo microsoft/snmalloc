@@ -82,7 +82,7 @@ namespace snmalloc
       }
     }
 
-    inline bool can_dequeue()
+    SNMALLOC_FAST_PATH bool can_dequeue()
     {
       return front.load(stl::memory_order_relaxed) !=
         back.load(stl::memory_order_relaxed);
