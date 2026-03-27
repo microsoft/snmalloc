@@ -9,6 +9,7 @@ int main()
 
 #  define SNMALLOC_PTHREAD_FORK_PROTECTION
 #  include <pthread.h>
+#  include <snmalloc/ds_aal/prevent_fork.h>
 #  include <test/snmalloc_testlib.h>
 #  include <thread>
 

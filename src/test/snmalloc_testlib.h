@@ -17,7 +17,7 @@
 #include <snmalloc/ds_core/defines.h>
 #include <snmalloc/ds_core/helpers.h>
 #include <snmalloc/ds_core/sizeclassstatic.h>
-#include <snmalloc/pal/pal.h>
+#include <snmalloc/pal/pal_consts.h>
 #include <stddef.h>
 #include <stdint.h>
 
