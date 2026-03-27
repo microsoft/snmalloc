@@ -1,4 +1,4 @@
-#include <snmalloc/snmalloc.h>
+#include <test/snmalloc_testlib.h>
 #include <test/measuretime.h>
 #include <test/setup.h>
 
