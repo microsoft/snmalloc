@@ -748,6 +748,22 @@ namespace snmalloc
       return get_root().is_null();
     }
 
+    size_t count()
+    {
+      return count_nodes(get_root());
+    }
+
+  private:
+    size_t count_nodes(K curr)
+    {
+      if (curr == Rep::null)
+        return 0;
+      return 1 + count_nodes(get_dir(true, curr)) +
+        count_nodes(get_dir(false, curr));
+    }
+
+  public:
+
     K remove_min()
     {
       if (is_empty())
