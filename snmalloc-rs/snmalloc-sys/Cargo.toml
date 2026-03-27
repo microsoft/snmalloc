@@ -10,6 +10,14 @@ categories = ["memory-management", "api-bindings"]
 homepage = "https://github.com/microsoft/snmalloc"
 repository = "https://github.com/microsoft/snmalloc"
 build = "build.rs"
+include = [
+    "Cargo.toml",
+    "build.rs",
+    "src/**",
+    "upstream/CMakeLists.txt",
+    "upstream/src/**",
+    "upstream/fuzzing/**",
+]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
