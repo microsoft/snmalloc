@@ -7,6 +7,7 @@
  * snmalloc.
  */
 
+#include "allocconfig.h"
 #include "bits.h"
 #include "cheri.h"
 #include "concept.h"
