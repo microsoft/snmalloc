@@ -324,8 +324,18 @@ namespace snmalloc
   template<size_t size, typename Conts = Uninit, size_t align = 1>
   SNMALLOC_FAST_PATH_INLINE void* alloc()
   {
-    return ThreadAlloc::get().alloc<Conts, ThreadAlloc::CheckInit>(
-      aligned_size(align, size));
+    constexpr size_t sz = aligned_size(align, size);
+    if constexpr (is_small_sizeclass(sz))
+    {
+      constexpr auto sc = size_to_sizeclass_const(sz);
+      return ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(
+        sc);
+    }
+    else
+    {
+      return ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(
+        sz);
+    }
   }
 
   template<typename Conts = Uninit, size_t align = 1>
@@ -333,6 +343,17 @@ namespace snmalloc
   {
     return ThreadAlloc::get().alloc<Conts, ThreadAlloc::CheckInit>(
       aligned_size(align, size));
+  }
+
+  /**
+   * Allocate a block for a known small sizeclass.
+   * The sizeclass can be computed at compile time with size_to_sizeclass_const.
+   */
+  template<typename Conts = Uninit>
+  SNMALLOC_FAST_PATH_INLINE void* alloc(smallsizeclass_t sizeclass)
+  {
+    return ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(
+      sizeclass);
   }
 
   template<typename Conts = Uninit>

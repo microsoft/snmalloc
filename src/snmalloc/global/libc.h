@@ -29,6 +29,25 @@ namespace snmalloc::libc
     return snmalloc::alloc(size);
   }
 
+  /**
+   * Allocate for a pre-computed small sizeclass.
+   * Use is_small_sizeclass() + size_to_sizeclass_const() to get the class.
+   */
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void*
+  malloc_small(smallsizeclass_t sizeclass)
+  {
+    return snmalloc::alloc(sizeclass);
+  }
+
+  /**
+   * Allocate zeroed memory for a pre-computed small sizeclass.
+   */
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void*
+  malloc_small_zero(smallsizeclass_t sizeclass)
+  {
+    return snmalloc::alloc<Zero>(sizeclass);
+  }
+
   SNMALLOC_FAST_PATH_INLINE void free(void* ptr)
   {
     dealloc(ptr);
