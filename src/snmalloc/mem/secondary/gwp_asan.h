@@ -2,7 +2,7 @@
 
 #include "gwp_asan/guarded_pool_allocator.h"
 #include "snmalloc/ds_core/defines.h"
-#include "snmalloc/mem/sizeclasstable.h"
+#include "snmalloc/ds/sizeclasstable.h"
 #if defined(SNMALLOC_BACKTRACE_HEADER)
 #  include SNMALLOC_BACKTRACE_HEADER
 #endif
