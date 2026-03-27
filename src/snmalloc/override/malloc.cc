@@ -23,8 +23,7 @@ extern "C"
     snmalloc::libc::free(ptr);
   }
 
-  SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(free_sized)(
-    void* ptr, size_t size)
+  SNMALLOC_EXPORT void SNMALLOC_NAME_MANGLE(free_sized)(void* ptr, size_t size)
   {
     snmalloc::libc::free_sized(ptr, size);
   }
