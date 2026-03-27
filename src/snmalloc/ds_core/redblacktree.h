@@ -763,7 +763,6 @@ namespace snmalloc
     }
 
   public:
-
     K remove_min()
     {
       if (is_empty())
