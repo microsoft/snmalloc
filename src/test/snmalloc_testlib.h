@@ -13,7 +13,6 @@
  * (distinct from the templates, no ODR conflict) defined in testlib.cc.
  */
 
-#include <errno.h>
 #include <snmalloc/ds_core/defines.h>
 #include <snmalloc/ds_core/helpers.h>
 #include <snmalloc/ds_core/sizeclassstatic.h>
