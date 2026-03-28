@@ -9,8 +9,8 @@ int main()
 
 #  define SNMALLOC_PTHREAD_FORK_PROTECTION
 #  include <pthread.h>
+#  include <snmalloc/ds_core/helpers.h>
 #  include <snmalloc/ds_aal/prevent_fork.h>
-#  include <test/snmalloc_testlib.h>
 #  include <thread>
 
 void simulate_allocation()
