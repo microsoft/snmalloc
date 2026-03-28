@@ -12,6 +12,7 @@ int main()
 #  include <snmalloc/ds_core/helpers.h>
 #  include <snmalloc/ds_aal/prevent_fork.h>
 #  include <thread>
+#  include <unistd.h>
 
 void simulate_allocation()
 {
