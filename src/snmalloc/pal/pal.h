@@ -7,12 +7,14 @@
  * may hide some of this or provide its own abstractions for sandboxing or
  * isolating heaps.
  *
- * Files in this directory may depend on the architecture abstraction and core
- * layers (`aal` and `ds_core`, respectively) but nothing else in snmalloc.
+ * Files in this directory may depend on the architecture abstraction, core,
+ * and mitigations layers (`aal`, `ds_core`, and `mitigations/` respectively)
+ * but nothing else in snmalloc.
  */
 #pragma once
 
 #include "../aal/aal.h"
+#include "../mitigations/mitigations_all.h"
 #include "pal_concept.h"
 #include "pal_consts.h"
 
