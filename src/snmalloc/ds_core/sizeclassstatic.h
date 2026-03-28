@@ -1,7 +1,6 @@
 #pragma once
 
-#include "allocconfig.h"
-#include "bits.h"
+#include "sizeclassconfig.h"
 
 namespace snmalloc
 {
