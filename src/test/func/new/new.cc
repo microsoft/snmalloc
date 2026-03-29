@@ -1,8 +1,7 @@
+#include <snmalloc/override/new.cc>
 #include <snmalloc/pal/pal.h>
 #include <test/helpers.h>
 #include <test/setup.h>
-
-#include <snmalloc/override/new.cc>
 
 using namespace snmalloc;
 

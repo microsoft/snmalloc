@@ -42,6 +42,7 @@ namespace snmalloc
 
 // Based on:
 // https://en.cppreference.com/w/cpp/memory/is_sufficiently_aligned.html
-bool is_aligned(void* ptr, std::size_t align_val_size){
+bool is_aligned(void* ptr, std::size_t align_val_size)
+{
   return std::bit_cast<std::uintptr_t>(ptr) % align_val_size == 0;
 }
