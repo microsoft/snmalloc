@@ -58,6 +58,29 @@ void test_new_delete_simple(size_t size)
     "Impossible allocation did not throw std::bad_alloc exception");
 }
 
+// SNMALLOC_EXPORT void* operator new(size_t size, const std::nothrow_t&)
+// noexcept
+// SNMALLOC_EXPORT void* operator new[](size_t size, const std::nothrow_t&)
+// noexcept
+// SNMALLOC_EXPORT void* operator delete(size_t size, const std::nothrow_t&)
+// noexcept
+// SNMALLOC_EXPORT void* operator delete[](size_t size, const std::nothrow_t&)
+// noexcept
+template<
+  void* (*new_fun)(size_t, const std::nothrow_t&),
+  void (*del_fun)(void*, const std::nothrow_t&) EXCEPTSPEC>
+void test_new_delete_nothrow()
+{
+  void* impossible_alloc_unaligned =
+    new_fun(static_cast<size_t>(-1), std::nothrow);
+  EXPECT(
+    impossible_alloc_unaligned == nullptr,
+    "Impossible allocation should not succeed");
+  del_fun(impossible_alloc_unaligned, std::nothrow);
+
+  test_zero_alloc([](size_t s) { return new_fun(s, std::nothrow); });
+}
+
 int main(int argc, char** argv)
 {
   UNUSED(argc);
@@ -72,6 +95,11 @@ int main(int argc, char** argv)
   test_new_delete_simple < operator new, operator delete>(42);
   START_TEST("Test new[] / delete[] simple");
   test_new_delete_simple < operator new[], operator delete[]>(42);
+
+  START_TEST("Test new / delete nothrow");
+  test_new_delete_nothrow < operator new, operator delete>();
+  START_TEST("Test new[] / delete[] nothrow");
+  test_new_delete_nothrow < operator new[], operator delete[]>();
 
   snmalloc::debug_check_empty();
   return 0;
