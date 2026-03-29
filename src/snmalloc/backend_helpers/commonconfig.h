@@ -79,7 +79,7 @@ namespace snmalloc
       return 1;
     }
 
-    static DataRef get(StorageType* base, size_t)
+    static DataRef get(SNMALLOC_LIFETIMEBOUND StorageType* base, size_t)
     {
       return *base;
     }
@@ -96,7 +96,8 @@ namespace snmalloc
       return max_count;
     }
 
-    static DataRef get(StorageType* base, size_t index)
+    static DataRef
+    get(SNMALLOC_LIFETIMEBOUND StorageType* base, size_t index)
     {
       return base[index];
     }
