@@ -30,6 +30,7 @@ option(SNMALLOC_ENABLE_DYNAMIC_LOADING "Build such that snmalloc can be dynamica
 option(SNMALLOC_ENABLE_WAIT_ON_ADDRESS "Use wait on address backoff strategy if it is available" ON)
 option(SNMALLOC_PTHREAD_FORK_PROTECTION "Guard against forking while allocator locks are held using pthread_atfork hooks" OFF)
 option(SNMALLOC_ENABLE_FUZZING "Enable fuzzing instrumentation tests" OFF)
+option(SNMALLOC_ENABLE_LIFETIME_SAFETY "Enable Clang lifetime safety diagnostics when supported" ON)
 option(SNMALLOC_USE_SELF_VENDORED_STL "Avoid using system STL" OFF)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
@@ -374,6 +375,61 @@ if(SNMALLOC_COMPILER_SUPPORT_MCX16)
   target_compile_options(snmalloc INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-mcx16>)
 endif()
 
+set(SNMALLOC_LIFETIME_SAFETY_FLAGS "")
+if(SNMALLOC_ENABLE_LIFETIME_SAFETY AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  check_cxx_compiler_flag(
+    "-Werror -Wlifetime-safety-permissive"
+    SNMALLOC_COMPILER_SUPPORT_LIFETIME_SAFETY_PERMISSIVE)
+  if(SNMALLOC_COMPILER_SUPPORT_LIFETIME_SAFETY_PERMISSIVE)
+    list(APPEND SNMALLOC_LIFETIME_SAFETY_FLAGS -Wlifetime-safety-permissive)
+  else()
+    check_cxx_compiler_flag(
+      "-Werror -Wexperimental-lifetime-safety-permissive"
+      SNMALLOC_COMPILER_SUPPORT_EXPERIMENTAL_LIFETIME_SAFETY_PERMISSIVE)
+    if(SNMALLOC_COMPILER_SUPPORT_EXPERIMENTAL_LIFETIME_SAFETY_PERMISSIVE)
+      list(APPEND SNMALLOC_LIFETIME_SAFETY_FLAGS
+        -Wexperimental-lifetime-safety-permissive)
+    endif()
+  endif()
+
+  check_cxx_compiler_flag(
+    "-Werror -Wlifetime-safety-suggestions"
+    SNMALLOC_COMPILER_SUPPORT_LIFETIME_SAFETY_SUGGESTIONS)
+  if(SNMALLOC_COMPILER_SUPPORT_LIFETIME_SAFETY_SUGGESTIONS)
+    list(APPEND SNMALLOC_LIFETIME_SAFETY_FLAGS -Wlifetime-safety-suggestions)
+  else()
+    check_cxx_compiler_flag(
+      "-Werror -Wexperimental-lifetime-safety-suggestions"
+      SNMALLOC_COMPILER_SUPPORT_EXPERIMENTAL_LIFETIME_SAFETY_SUGGESTIONS)
+    if(SNMALLOC_COMPILER_SUPPORT_EXPERIMENTAL_LIFETIME_SAFETY_SUGGESTIONS)
+      list(APPEND SNMALLOC_LIFETIME_SAFETY_FLAGS
+        -Wexperimental-lifetime-safety-suggestions)
+    endif()
+  endif()
+
+  check_cxx_compiler_flag(
+    "-flifetime-safety-inference"
+    SNMALLOC_COMPILER_SUPPORT_LIFETIME_SAFETY_INFERENCE)
+  if(SNMALLOC_COMPILER_SUPPORT_LIFETIME_SAFETY_INFERENCE)
+    list(APPEND SNMALLOC_LIFETIME_SAFETY_FLAGS -flifetime-safety-inference)
+  endif()
+
+  check_cxx_compiler_flag(
+    "-fexperimental-lifetime-safety-tu-analysis"
+    SNMALLOC_COMPILER_SUPPORT_EXPERIMENTAL_LIFETIME_SAFETY_TU_ANALYSIS)
+  if(SNMALLOC_COMPILER_SUPPORT_EXPERIMENTAL_LIFETIME_SAFETY_TU_ANALYSIS)
+    list(APPEND SNMALLOC_LIFETIME_SAFETY_FLAGS
+      -fexperimental-lifetime-safety-tu-analysis)
+  endif()
+
+  if(SNMALLOC_LIFETIME_SAFETY_FLAGS)
+    string(JOIN " " SNMALLOC_LIFETIME_SAFETY_FLAGS_MESSAGE
+      ${SNMALLOC_LIFETIME_SAFETY_FLAGS})
+    message(STATUS
+      "snmalloc: Enabling lifetime safety flags: ${SNMALLOC_LIFETIME_SAFETY_FLAGS_MESSAGE}")
+  endif()
+endif()
+
 if (NOT SNMALLOC_HEADER_ONLY_LIBRARY AND SNMALLOC_IPO)
   check_ipo_supported(RESULT HAS_IPO)
   if (HAS_IPO)
@@ -442,8 +498,13 @@ endif()
 function(add_warning_flags name)
   target_compile_options(${name} PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/Zi /W4 /WX /wd4127 /wd4324 /wd4201>
-    $<$<NOT:$<OR:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_CXX_SIMULATE_ID},MSVC>>>:-fno-rtti -Wall -Wextra -Werror -Wundef>
-    $<$<CXX_COMPILER_ID:Clang>:-Wsign-conversion -Wconversion>)
+    $<$<NOT:$<OR:$<CXX_COMPILER_ID:MSVC>,$<STREQUAL:${CMAKE_CXX_SIMULATE_ID},MSVC>>>:-fno-rtti -Wall -Wextra -Werror -Wundef>)
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    target_compile_options(${name} PRIVATE -Wsign-conversion -Wconversion)
+    if(SNMALLOC_LIFETIME_SAFETY_FLAGS)
+      target_compile_options(${name} PRIVATE ${SNMALLOC_LIFETIME_SAFETY_FLAGS})
+    endif()
+  endif()
   target_link_options(${name} PRIVATE 
     $<$<BOOL:${SNMALLOC_LINKER_SUPPORT_NO_ALLOW_SHLIB_UNDEF}>:-Wl,--no-undefined>
     $<$<PLATFORM_ID:Windows>:$<${ci_or_debug}:/DEBUG>>)

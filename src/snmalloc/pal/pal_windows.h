@@ -71,13 +71,14 @@ namespace snmalloc
       low_memory_callbacks.notify_all();
     }
 
+    // Lock for the reserved ranges.
+    inline static FlagWord reserved_ranges_lock{};
+
     // A list of reserved ranges, used to handle lazy commit on readonly pages.
     // We currently only need one, so haven't implemented a backup if the
     // initial 16 is insufficient.
-    inline static stl::Array<stl::Pair<address_t, size_t>, 16> reserved_ranges;
-
-    // Lock for the reserved ranges.
-    inline static FlagWord reserved_ranges_lock{};
+    inline static stl::Array<stl::Pair<address_t, size_t>, 16> reserved_ranges
+      SNMALLOC_GUARDED_BY(reserved_ranges_lock);
 
     // Exception handler for handling lazy commit on readonly pages.
     static LONG NTAPI
@@ -392,18 +393,18 @@ namespace snmalloc
    */
   class VirtualVector
   {
-    void** data = nullptr;
-    size_t size = 0;
-    size_t committed_elements = 0;
-    size_t reserved_elements = 0;
+    // Lock protecting structural mutations to the vector storage.
+    inline static snmalloc::FlagWord push_back_lock{};
+
+    void** data SNMALLOC_GUARDED_BY(push_back_lock) = nullptr;
+    size_t size SNMALLOC_GUARDED_BY(push_back_lock) = 0;
+    size_t committed_elements SNMALLOC_GUARDED_BY(push_back_lock) = 0;
+    size_t reserved_elements SNMALLOC_GUARDED_BY(push_back_lock) = 0;
 
     static constexpr size_t MinCommit =
       snmalloc::PALWindows::page_size / sizeof(void*);
     static constexpr size_t MinReserve =
       16 * snmalloc::PALWindows::page_size / sizeof(void*);
-
-    // Lock for the reserved ranges.
-    inline static snmalloc::FlagWord push_back_lock{};
 
   public:
     VirtualVector(
@@ -443,7 +444,7 @@ namespace snmalloc
       }
     }
 
-    void push_back(void* value)
+    void push_back(void* value) SNMALLOC_EXCLUDES(push_back_lock)
     {
       snmalloc::FlagLock lock(push_back_lock);
       ensure_capacity();
@@ -457,7 +458,7 @@ namespace snmalloc
       return a > b ? a : b;
     }
 
-    void ensure_capacity()
+    void ensure_capacity() SNMALLOC_REQUIRES(push_back_lock)
     {
       if (size >= committed_elements)
       {
@@ -472,6 +473,7 @@ namespace snmalloc
     }
 
     void reserve_and_commit(size_t reserve_elems, size_t commit_elems)
+      SNMALLOC_REQUIRES(push_back_lock)
     {
       size_t reserve_bytes = reserve_elems * sizeof(void*);
       void** new_block = (void**)VirtualAlloc(
@@ -492,6 +494,7 @@ namespace snmalloc
     }
 
     void commit_more(size_t new_commit_elements)
+      SNMALLOC_REQUIRES(push_back_lock)
     {
       if (new_commit_elements > reserved_elements)
       {
@@ -514,7 +517,7 @@ namespace snmalloc
       }
     }
 
-    void grow_reserved()
+    void grow_reserved() SNMALLOC_REQUIRES(push_back_lock)
     {
       size_t new_reserved =
         reserved_elements == 0 ? MinReserve : reserved_elements * 2;
@@ -545,42 +548,43 @@ namespace snmalloc
     }
 
   public:
-    void*& operator[](size_t index)
+    void*& operator[](size_t index) SNMALLOC_REQUIRES(push_back_lock)
     {
       return data[index];
     }
 
     const void* operator[](size_t index) const
+      SNMALLOC_REQUIRES(push_back_lock)
     {
       return data[index];
     }
 
-    size_t get_size() const
+    size_t get_size() const SNMALLOC_REQUIRES(push_back_lock)
     {
       return size;
     }
 
-    size_t get_capacity() const
+    size_t get_capacity() const SNMALLOC_REQUIRES(push_back_lock)
     {
       return committed_elements;
     }
 
-    void** begin()
+    void** begin() SNMALLOC_REQUIRES(push_back_lock)
     {
       return data;
     }
 
-    void** end()
+    void** end() SNMALLOC_REQUIRES(push_back_lock)
     {
       return data + size;
     }
 
-    const void* const* begin() const
+    const void* const* begin() const SNMALLOC_REQUIRES(push_back_lock)
     {
       return data;
     }
 
-    const void* const* end() const
+    const void* const* end() const SNMALLOC_REQUIRES(push_back_lock)
     {
       return data + size;
     }

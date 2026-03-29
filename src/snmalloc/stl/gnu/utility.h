@@ -3,13 +3,6 @@
 #include "snmalloc/ds_core/defines.h"
 #include "snmalloc/stl/type_traits.h"
 
-// This is used by clang to provide better analysis of lifetimes.
-#if __has_cpp_attribute(_Clang::__lifetimebound__)
-#  define SNMALLOC_LIFETIMEBOUND [[_Clang::__lifetimebound__]]
-#else
-#  define SNMALLOC_LIFETIMEBOUND
-#endif
-
 namespace snmalloc
 {
   namespace stl
