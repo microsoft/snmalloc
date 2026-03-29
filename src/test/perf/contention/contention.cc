@@ -5,8 +5,7 @@
 
 #include <iomanip>
 #include <iostream>
-#include <snmalloc/pal/pal.h>
-#include <snmalloc/snmalloc.h>
+#include <test/snmalloc_testlib.h>
 #include <thread>
 #include <vector>
 
@@ -31,18 +30,18 @@ private:
     auto prev = ready.fetch_add(1);
     if (prev + 1 == cores)
     {
-      start = DefaultPal::tick();
+      start = snmalloc::pal_tick();
       flag = true;
     }
     while (!flag)
-      Aal::pause();
+      snmalloc::pal_pause();
 
     f(id);
 
     prev = complete.fetch_add(1);
     if (prev + 1 == cores)
     {
-      end = DefaultPal::tick();
+      end = snmalloc::pal_tick();
     }
   }
 

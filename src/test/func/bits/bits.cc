@@ -3,7 +3,7 @@
  */
 
 #include <iostream>
-#include <snmalloc/snmalloc.h>
+#include <test/snmalloc_testlib.h>
 #include <test/setup.h>
 
 void test_ctz()

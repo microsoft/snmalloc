@@ -17,19 +17,19 @@ namespace snmalloc
     // Handling the message queue for each stack is non-atomic.
     auto* first = AllocPool<Config_>::extract();
     auto* alloc = first;
-    decltype(alloc) last;
 
-    if (alloc != nullptr)
+    if (alloc == nullptr)
+      return;
+
+    decltype(alloc) last = alloc;
+    while (alloc != nullptr)
     {
-      while (alloc != nullptr)
-      {
-        alloc->flush();
-        last = alloc;
-        alloc = AllocPool<Config_>::extract(alloc);
-      }
-
-      AllocPool<Config_>::restore(first, last);
+      alloc->flush();
+      last = alloc;
+      alloc = AllocPool<Config_>::extract(alloc);
     }
+
+    AllocPool<Config_>::restore(first, last);
   }
 
   /**
@@ -324,8 +324,18 @@ namespace snmalloc
   template<size_t size, typename Conts = Uninit, size_t align = 1>
   SNMALLOC_FAST_PATH_INLINE void* alloc()
   {
-    return ThreadAlloc::get().alloc<Conts, ThreadAlloc::CheckInit>(
-      aligned_size(align, size));
+    constexpr size_t sz = aligned_size(align, size);
+    if constexpr (is_small_sizeclass(sz))
+    {
+      constexpr auto sc = size_to_sizeclass_const(sz);
+      return ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(
+        sc);
+    }
+    else
+    {
+      return ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(
+        sz);
+    }
   }
 
   template<typename Conts = Uninit, size_t align = 1>
@@ -335,6 +345,17 @@ namespace snmalloc
       aligned_size(align, size));
   }
 
+  /**
+   * Allocate a block for a known small sizeclass.
+   * The sizeclass can be computed at compile time with size_to_sizeclass_const.
+   */
+  template<typename Conts = Uninit>
+  SNMALLOC_FAST_PATH_INLINE void* alloc(smallsizeclass_t sizeclass)
+  {
+    return ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(
+      sizeclass);
+  }
+
   template<typename Conts = Uninit>
   SNMALLOC_FAST_PATH_INLINE void* alloc_aligned(size_t align, size_t size)
   {
@@ -342,12 +363,13 @@ namespace snmalloc
       aligned_size(align, size));
   }
 
-  SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
   {
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
-  SNMALLOC_FAST_PATH_INLINE void dealloc(void* p, size_t size)
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void
+  dealloc(void* p, size_t size)
   {
     check_size(p, size);
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
@@ -360,14 +382,15 @@ namespace snmalloc
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
-  SNMALLOC_FAST_PATH_INLINE void dealloc(void* p, size_t size, size_t align)
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void
+  dealloc(void* p, size_t size, size_t align)
   {
     auto rsize = aligned_size(align, size);
     check_size(p, rsize);
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
-  SNMALLOC_FAST_PATH_INLINE void debug_teardown()
+  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void debug_teardown()
   {
     return ThreadAlloc::teardown();
   }

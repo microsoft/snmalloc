@@ -15,7 +15,7 @@
 #endif
 
 #ifdef RUN_TEST
-#  include <snmalloc/snmalloc.h>
+#  include <test/snmalloc_testlib.h>
 #  include <stdlib.h>
 
 template<size_t N, size_t M = 0>

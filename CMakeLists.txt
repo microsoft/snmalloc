@@ -479,6 +479,16 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     set(TEST_CLEANUP ${SNMALLOC_CLEANUP})
   endif()
 
+  # Tests that only include snmalloc_testlib.h (no snmalloc.h or snmalloc_core.h).
+  # These are mitigation-independent and can be compiled once, then linked
+  # against both fast and check testlib variants.
+  set(TESTLIB_ONLY_TESTS
+    bits first_operation memory_usage multi_atexit multi_threadatexit
+    redblack statistics teardown
+    contention external_pointer large_alloc lotsofthreads post_teardown
+    singlethread startup
+  )
+
   function(make_tests TAG DEFINES)
     foreach(TEST_CATEGORY ${TEST_CATEGORIES})
       message(VERBOSE "Adding ${TAG}/${TEST_CATEGORY} tests")
@@ -488,7 +498,32 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
         aux_source_directory(${TESTDIR}/${TEST_CATEGORY}/${TEST} SRC)
         set(TESTNAME "${TEST_CATEGORY}-${TEST}-${TAG}")
 
-        add_executable(${TESTNAME} ${SRC})
+        # Check if this test is testlib-only (mitigation-independent).
+        # If so, compile the source once into an object library and reuse
+        # across flavours.
+        list(FIND TESTLIB_ONLY_TESTS ${TEST} _testlib_only_idx)
+        set(OBJLIBNAME "${TEST_CATEGORY}-${TEST}-obj")
+        if (NOT ${_testlib_only_idx} EQUAL -1 AND NOT TARGET ${OBJLIBNAME})
+          # First flavour to see this test creates the object library.
+          add_library(${OBJLIBNAME} OBJECT ${SRC})
+          target_link_libraries(${OBJLIBNAME} snmalloc)
+          target_compile_definitions(${OBJLIBNAME} PRIVATE "SNMALLOC_USE_${TEST_CLEANUP}")
+          add_warning_flags(${OBJLIBNAME})
+          if(SNMALLOC_SANITIZER)
+            target_compile_options(${OBJLIBNAME} PRIVATE -g -fsanitize=${SNMALLOC_SANITIZER} -fno-omit-frame-pointer)
+            if (${SNMALLOC_SANITIZER} MATCHES "thread")
+              target_compile_definitions(${OBJLIBNAME} PRIVATE SNMALLOC_THREAD_SANITIZER_ENABLED)
+            endif()
+          endif()
+        endif()
+
+        if (NOT ${_testlib_only_idx} EQUAL -1)
+          # Testlib-only: link the shared object library against this
+          # flavour's testlib.
+          add_executable(${TESTNAME} $<TARGET_OBJECTS:${OBJLIBNAME}>)
+        else()
+          add_executable(${TESTNAME} ${SRC})
+        endif()
 
         if(SNMALLOC_SANITIZER)
           target_compile_options(${TESTNAME} PRIVATE -g -fsanitize=${SNMALLOC_SANITIZER} -fno-omit-frame-pointer)
@@ -501,6 +536,10 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
         add_warning_flags(${TESTNAME})
 
         target_link_libraries(${TESTNAME} snmalloc)
+        # Link the pre-compiled test library into all tests.  For tests
+        # that include snmalloc.h directly the linker will simply discard
+        # the duplicate inline definitions (ODR-safe).
+        target_link_libraries(${TESTNAME} snmalloc-testlib-${TAG})
         target_compile_definitions(${TESTNAME} PRIVATE "SNMALLOC_USE_${TEST_CLEANUP}")
         
         if (NOT DEFINES STREQUAL " ")
@@ -536,6 +575,24 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
         endif()
       endforeach()
     endforeach()
+  endfunction()
+
+  function(build_test_library TAG DEFINES)
+    set(LIBNAME snmalloc-testlib-${TAG})
+    add_library(${LIBNAME} STATIC src/test/snmalloc_testlib.cc)
+    target_link_libraries(${LIBNAME} PRIVATE snmalloc)
+    set_target_properties(${LIBNAME} PROPERTIES INTERFACE_LINK_LIBRARIES "")
+    target_compile_definitions(${LIBNAME} PRIVATE "SNMALLOC_USE_${TEST_CLEANUP}")
+    if (NOT DEFINES STREQUAL " ")
+      target_compile_definitions(${LIBNAME} PRIVATE ${DEFINES})
+    endif()
+    if(SNMALLOC_SANITIZER)
+      target_compile_options(${LIBNAME} PRIVATE -g -fsanitize=${SNMALLOC_SANITIZER} -fno-omit-frame-pointer)
+      if (${SNMALLOC_SANITIZER} MATCHES "thread")
+        target_compile_definitions(${LIBNAME} PRIVATE SNMALLOC_THREAD_SANITIZER_ENABLED)
+      endif()
+    endif()
+    add_warning_flags(${LIBNAME})
   endfunction()
 
   if(NOT (DEFINED SNMALLOC_LINKER_FLAVOUR) OR ("${SNMALLOC_LINKER_FLAVOUR}" MATCHES "^$"))
@@ -680,6 +737,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
         set(DEFINES " ")
       endif()
 
+      build_test_library(${FLAVOUR} ${DEFINES})
       make_tests(${FLAVOUR} ${DEFINES})
     endforeach()
   endif()
