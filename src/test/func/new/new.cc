@@ -81,6 +81,16 @@ void test_new_delete_nothrow()
   test_zero_alloc([](size_t s) { return new_fun(s, std::nothrow); });
 }
 
+// SNMALLOC_EXPORT void operator delete(void* p, size_t size) EXCEPTSPEC
+// SNMALLOC_EXPORT void operator delete[](void* p, size_t size) EXCEPTSPEC
+template<void* (*new_fun)(size_t), void (*del_fun)(void*, size_t) EXCEPTSPEC>
+void test_delete_size(size_t size)
+{
+  void* non_zero = new_fun(size);
+  EXPECT(non_zero, "expected valid address, but instead got {}", non_zero);
+  del_fun(non_zero, size);
+}
+
 int main(int argc, char** argv)
 {
   UNUSED(argc);
@@ -100,6 +110,11 @@ int main(int argc, char** argv)
   test_new_delete_nothrow < operator new, operator delete>();
   START_TEST("Test new[] / delete[] nothrow");
   test_new_delete_nothrow < operator new[], operator delete[]>();
+
+  START_TEST("Test delete with size parameter");
+  test_delete_size < operator new, operator delete>(42);
+  START_TEST("Test delete[] with size parameter");
+  test_delete_size < operator new[], operator delete[]>(42);
 
   snmalloc::debug_check_empty();
   return 0;
