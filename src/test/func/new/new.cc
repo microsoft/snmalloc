@@ -117,6 +117,27 @@ void test_new_delete_aligned(size_t size)
   }
 }
 
+// SNMALLOC_EXPORT void* operator new(size_t size, std::align_val_t val, const
+// std::nothrow_t&) noexcept
+// SNMALLOC_EXPORT void* operator new[](size_t size,
+// std::align_val_t val, const std::nothrow_t&) noexcept
+template<
+  void* (*new_fun)(size_t, std::align_val_t, const std::nothrow_t&),
+  void (*del_fun)(void*, std::align_val_t, const std::nothrow_t&) EXCEPTSPEC>
+void test_new_delete_aligned_nothrow()
+{
+  std::align_val_t page_size{OS_PAGE_SIZE};
+  void* impossible_alloc_aligned =
+    new_fun(static_cast<size_t>(-1), page_size, std::nothrow);
+  EXPECT(
+    impossible_alloc_aligned == nullptr,
+    "Impossible allocation should not succeed");
+  del_fun(impossible_alloc_aligned, page_size, std::nothrow);
+
+  test_zero_alloc(
+    [&page_size](size_t s) { return new_fun(s, page_size, std::nothrow); });
+}
+
 int main(int argc, char** argv)
 {
   UNUSED(argc);
@@ -146,6 +167,11 @@ int main(int argc, char** argv)
   test_new_delete_aligned < operator new, operator delete>(42);
   START_TEST("Test new[] / delete[] aligned");
   test_new_delete_aligned < operator new[], operator delete[]>(42);
+
+  START_TEST("Test non-throwing aligned new / delete");
+  test_new_delete_aligned_nothrow < operator new, operator delete>();
+  START_TEST("Test non-throwing aligned new[] / delete[]");
+  test_new_delete_aligned_nothrow < operator new[], operator delete[]>();
 
   snmalloc::debug_check_empty();
   return 0;
