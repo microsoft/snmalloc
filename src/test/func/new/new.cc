@@ -6,6 +6,9 @@
 
 using namespace snmalloc;
 
+constexpr std::array<size_t, 11> align_val_sizes = {
+  8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, OS_PAGE_SIZE};
+
 void test_delete_null()
 {
   operator delete(nullptr, 42);
@@ -91,6 +94,29 @@ void test_delete_size(size_t size)
   del_fun(non_zero, size);
 }
 
+// SNMALLOC_EXPORT void* operator new(size_t size, std::align_val_t val)
+// SNMALLOC_EXPORT void* operator new[](size_t size, std::align_val_t val)
+// SNMALLOC_EXPORT void operator delete(void* p, std::align_val_t) EXCEPTSPEC
+// SNMALLOC_EXPORT void operator delete[](void* p, std::align_val_t) EXCEPTSPEC
+template<
+  void* (*new_fun)(size_t, std::align_val_t),
+  void (*del_fun)(void*, std::align_val_t) EXCEPTSPEC>
+void test_new_delete_aligned(size_t size)
+{
+  for (auto& align_val_size : align_val_sizes)
+  {
+    std::align_val_t align_val{align_val_size};
+    void* aligned_mem = new_fun(size, align_val);
+    EXPECT(
+      is_aligned(aligned_mem, align_val_size),
+      "Memory was not aligned on value {}",
+      align_val_size);
+    del_fun(aligned_mem, align_val);
+
+    test_zero_alloc([&align_val](size_t s) { return new_fun(s, align_val); });
+  }
+}
+
 int main(int argc, char** argv)
 {
   UNUSED(argc);
@@ -115,6 +141,11 @@ int main(int argc, char** argv)
   test_delete_size < operator new, operator delete>(42);
   START_TEST("Test delete[] with size parameter");
   test_delete_size < operator new[], operator delete[]>(42);
+
+  START_TEST("Test new / delete aligned");
+  test_new_delete_aligned < operator new, operator delete>(42);
+  START_TEST("Test new[] / delete[] aligned");
+  test_new_delete_aligned < operator new[], operator delete[]>(42);
 
   snmalloc::debug_check_empty();
   return 0;
