@@ -138,6 +138,27 @@ void test_new_delete_aligned_nothrow()
     [&page_size](size_t s) { return new_fun(s, page_size, std::nothrow); });
 }
 
+// SNMALLOC_EXPORT void operator delete(void* p, size_t size, std::align_val_t
+// val) EXCEPTSPEC
+// SNMALLOC_EXPORT void operator delete[](void* p, size_t size,
+// std::align_val_t val) EXCEPTSPEC
+template<
+  void* (*new_fun)(size_t, std::align_val_t),
+  void (*del_fun)(void*, size_t, std::align_val_t) EXCEPTSPEC>
+void test_delete_size_aligned(size_t size)
+{
+  for (auto& align_val_size : align_val_sizes)
+  {
+    std::align_val_t align_val{align_val_size};
+    void* aligned_mem = new_fun(size, align_val);
+    EXPECT(
+      is_aligned(aligned_mem, align_val_size),
+      "Memory was not aligned on value {}",
+      align_val_size);
+    del_fun(aligned_mem, size, align_val);
+  }
+}
+
 int main(int argc, char** argv)
 {
   UNUSED(argc);
@@ -172,6 +193,11 @@ int main(int argc, char** argv)
   test_new_delete_aligned_nothrow < operator new, operator delete>();
   START_TEST("Test non-throwing aligned new[] / delete[]");
   test_new_delete_aligned_nothrow < operator new[], operator delete[]>();
+
+  START_TEST("Test non-throwing aligned delete with explicit size");
+  test_delete_size_aligned < operator new, operator delete>(42);
+  START_TEST("Test non-throwing aligned delete[] with explicit size");
+  test_delete_size_aligned < operator new[], operator delete[]>(42);
 
   snmalloc::debug_check_empty();
   return 0;
