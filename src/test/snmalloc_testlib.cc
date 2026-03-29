@@ -22,6 +22,15 @@
  *     ODR-conflicting with the templates).
  */
 
+// On MSVC (where SNMALLOC_USED_FUNCTION is empty), override the testlib
+// inline macros to produce strong (non-inline) definitions so the linker
+// can resolve ARM64EC exit-thunks. On GCC/Clang, __attribute__((used))
+// already handles this.
+#ifdef _MSC_VER
+#  define SNMALLOC_API NOINLINE
+#  define SNMALLOC_API_SLOW NOINLINE
+#endif
+
 #include <snmalloc/snmalloc.h>
 
 namespace snmalloc
@@ -167,41 +176,6 @@ namespace snmalloc
   {
     Aal::pause();
   }
-
-  // -- Force emission of inline functions for MSVC (where USED_FUNCTION is
-  // empty). Taking the address of each inline function forces the compiler to
-  // emit a definition in this TU, making it available to testlib consumers.
-
-  SNMALLOC_USED_FUNCTION static const volatile void* force_emit_global[] = {
-    reinterpret_cast<volatile void*>(
-      static_cast<void (*)(void*)>(&dealloc)),
-    reinterpret_cast<volatile void*>(
-      static_cast<void (*)(void*, size_t)>(&dealloc)),
-    reinterpret_cast<volatile void*>(
-      static_cast<void (*)(void*, size_t, size_t)>(&dealloc)),
-    reinterpret_cast<volatile void*>(&debug_teardown),
-  };
-
-  namespace libc
-  {
-    SNMALLOC_USED_FUNCTION static const volatile void* force_emit_libc[] = {
-      reinterpret_cast<volatile void*>(&__malloc_start_pointer),
-      reinterpret_cast<volatile void*>(&__malloc_last_byte_pointer),
-      reinterpret_cast<volatile void*>(&__malloc_end_pointer),
-      reinterpret_cast<volatile void*>(&malloc),
-      reinterpret_cast<volatile void*>(&free),
-      reinterpret_cast<volatile void*>(
-        static_cast<void* (*)(size_t, size_t)>(&calloc)),
-      reinterpret_cast<volatile void*>(
-        static_cast<void* (*)(void*, size_t)>(&realloc)),
-      reinterpret_cast<volatile void*>(&malloc_usable_size),
-      reinterpret_cast<volatile void*>(&memalign),
-      reinterpret_cast<volatile void*>(&aligned_alloc),
-      reinterpret_cast<volatile void*>(&posix_memalign),
-      reinterpret_cast<volatile void*>(&malloc_small),
-      reinterpret_cast<volatile void*>(&malloc_small_zero),
-    };
-  } // namespace libc
 } // namespace snmalloc
 
 // -- override/malloc.cc symbols with testlib_ prefix -----------------------

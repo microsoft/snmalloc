@@ -19,22 +19,22 @@ namespace snmalloc::libc
     return err;
   }
 
-  SNMALLOC_USED_FUNCTION inline void* __malloc_end_pointer(void* ptr)
+  SNMALLOC_API_SLOW void* __malloc_end_pointer(void* ptr)
   {
     return snmalloc::external_pointer<OnePastEnd>(ptr);
   }
 
-  SNMALLOC_USED_FUNCTION inline void* __malloc_start_pointer(void* ptr)
+  SNMALLOC_API_SLOW void* __malloc_start_pointer(void* ptr)
   {
     return snmalloc::external_pointer<Start>(ptr);
   }
 
-  SNMALLOC_USED_FUNCTION inline void* __malloc_last_byte_pointer(void* ptr)
+  SNMALLOC_API_SLOW void* __malloc_last_byte_pointer(void* ptr)
   {
     return snmalloc::external_pointer<End>(ptr);
   }
 
-  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void* malloc(size_t size)
+  SNMALLOC_API void* malloc(size_t size)
   {
     return snmalloc::alloc(size);
   }
@@ -43,7 +43,7 @@ namespace snmalloc::libc
    * Allocate for a pre-computed small sizeclass.
    * Use is_small_sizeclass() + size_to_sizeclass_const() to get the class.
    */
-  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void*
+  SNMALLOC_API void*
   malloc_small(smallsizeclass_t sizeclass)
   {
     return snmalloc::alloc(sizeclass);
@@ -52,30 +52,30 @@ namespace snmalloc::libc
   /**
    * Allocate zeroed memory for a pre-computed small sizeclass.
    */
-  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void*
+  SNMALLOC_API void*
   malloc_small_zero(smallsizeclass_t sizeclass)
   {
     return snmalloc::alloc<Zero>(sizeclass);
   }
 
-  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void free(void* ptr)
+  SNMALLOC_API void free(void* ptr)
   {
     dealloc(ptr);
   }
 
-  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void
+  SNMALLOC_API void
   free_sized(void* ptr, size_t size)
   {
     dealloc(ptr, size);
   }
 
-  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void
+  SNMALLOC_API void
   free_aligned_sized(void* ptr, size_t alignment, size_t size)
   {
     dealloc(ptr, size, alignment);
   }
 
-  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void*
+  SNMALLOC_API void*
   calloc(size_t nmemb, size_t size)
   {
     bool overflow = false;
@@ -87,7 +87,7 @@ namespace snmalloc::libc
     return alloc<Zero>(sz);
   }
 
-  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void*
+  SNMALLOC_API void*
   realloc(void* ptr, size_t size)
   {
     // Glibc treats
@@ -137,12 +137,12 @@ namespace snmalloc::libc
     return p;
   }
 
-  SNMALLOC_USED_FUNCTION inline size_t malloc_usable_size(const void* ptr)
+  SNMALLOC_API_SLOW size_t malloc_usable_size(const void* ptr)
   {
     return alloc_size(ptr);
   }
 
-  SNMALLOC_USED_FUNCTION inline void*
+  SNMALLOC_API_SLOW void*
   reallocarray(void* ptr, size_t nmemb, size_t size)
   {
     bool overflow = false;
@@ -154,7 +154,7 @@ namespace snmalloc::libc
     return realloc(ptr, sz);
   }
 
-  SNMALLOC_USED_FUNCTION inline int
+  SNMALLOC_API_SLOW int
   reallocarr(void* ptr_, size_t nmemb, size_t size)
   {
     int err = errno;
@@ -190,7 +190,7 @@ namespace snmalloc::libc
     return 0;
   }
 
-  SNMALLOC_USED_FUNCTION inline void*
+  SNMALLOC_API_SLOW void*
   memalign(size_t alignment, size_t size)
   {
     if (SNMALLOC_UNLIKELY(alignment == 0 || !bits::is_pow2(alignment)))
@@ -201,13 +201,13 @@ namespace snmalloc::libc
     return alloc_aligned(alignment, size);
   }
 
-  SNMALLOC_USED_FUNCTION inline void*
+  SNMALLOC_API_SLOW void*
   aligned_alloc(size_t alignment, size_t size)
   {
     return memalign(alignment, size);
   }
 
-  SNMALLOC_USED_FUNCTION inline int
+  SNMALLOC_API_SLOW int
   posix_memalign(void** memptr, size_t alignment, size_t size)
   {
     if (SNMALLOC_UNLIKELY(

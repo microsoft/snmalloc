@@ -3,6 +3,14 @@
 #include "../mem/mem.h"
 #include "threadalloc.h"
 
+// Non-template API functions use SNMALLOC_API for their linkage specifier.
+// Normally inline; can be overridden to NOINLINE (via SNMALLOC_API_NOINLINE)
+// to produce strong definitions in a standalone compilation unit.
+#ifndef SNMALLOC_API
+#  define SNMALLOC_API SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE
+#  define SNMALLOC_API_SLOW SNMALLOC_USED_FUNCTION inline
+#endif
+
 namespace snmalloc
 {
   template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
@@ -363,12 +371,12 @@ namespace snmalloc
       aligned_size(align, size));
   }
 
-  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
+  SNMALLOC_API void dealloc(void* p)
   {
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
-  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void
+  SNMALLOC_API void
   dealloc(void* p, size_t size)
   {
     check_size(p, size);
@@ -382,7 +390,7 @@ namespace snmalloc
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
-  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void
+  SNMALLOC_API void
   dealloc(void* p, size_t size, size_t align)
   {
     auto rsize = aligned_size(align, size);
@@ -390,7 +398,7 @@ namespace snmalloc
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
-  SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE void debug_teardown()
+  SNMALLOC_API void debug_teardown()
   {
     return ThreadAlloc::teardown();
   }
