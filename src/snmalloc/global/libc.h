@@ -1,6 +1,7 @@
 #pragma once
 
 #include "globalalloc.h"
+#include "memcpy.h"
 
 #include <errno.h>
 #include <string.h>
@@ -224,5 +225,17 @@ namespace snmalloc::libc
     }
     *memptr = p;
     return 0;
+  }
+
+  /**
+   * Checked memcpy through the libc API surface.
+   * @tparam Checked  check the destination is within a snmalloc allocation
+   * @tparam ReadsChecked  also check the source
+   */
+  template<bool Checked, bool ReadsChecked = Checked>
+  SNMALLOC_API void*
+  memcpy(void* dst, const void* src, size_t len)
+  {
+    return snmalloc::memcpy<Checked, ReadsChecked>(dst, src, len);
   }
 } // namespace snmalloc::libc

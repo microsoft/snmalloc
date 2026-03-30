@@ -160,6 +160,14 @@ namespace snmalloc
     return MAX_SMALL_SIZECLASS_BITS;
   }
 
+  // -- Explicit instantiations of libc::memcpy variants --------------------
+  namespace libc
+  {
+    template void* memcpy<true, true>(void*, const void*, size_t);
+    template void* memcpy<true, false>(void*, const void*, size_t);
+    template void* memcpy<false, false>(void*, const void*, size_t);
+  } // namespace libc
+
   // -- PAL/AAL wrappers ----------------------------------------------------
 
   size_t pal_address_bits()

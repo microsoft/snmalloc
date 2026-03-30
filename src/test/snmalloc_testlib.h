@@ -125,6 +125,9 @@ namespace snmalloc
     void* __malloc_start_pointer(void* ptr);
     void* __malloc_last_byte_pointer(void* ptr);
     void* __malloc_end_pointer(void* ptr);
+
+    template<bool Checked, bool ReadsChecked = Checked>
+    void* memcpy(void* dst, const void* src, size_t len);
   } // namespace libc
 
   /**
