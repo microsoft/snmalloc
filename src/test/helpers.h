@@ -1,5 +1,4 @@
 #pragma once
-#include <bit>
 #include <cstdint>
 #ifdef _MSC_VER
 #  define __PRETTY_FUNCTION__ __FUNCSIG__
@@ -44,5 +43,5 @@ namespace snmalloc
 // https://en.cppreference.com/w/cpp/memory/is_sufficiently_aligned.html
 bool is_aligned(void* ptr, std::size_t align_val_size)
 {
-  return std::bit_cast<std::uintptr_t>(ptr) % align_val_size == 0;
+  return reinterpret_cast<std::uintptr_t>(ptr) % align_val_size == 0;
 }
