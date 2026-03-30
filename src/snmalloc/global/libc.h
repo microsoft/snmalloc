@@ -44,8 +44,7 @@ namespace snmalloc::libc
    * Allocate for a pre-computed small sizeclass.
    * Use is_small_sizeclass() + size_to_sizeclass_const() to get the class.
    */
-  SNMALLOC_API void*
-  malloc_small(smallsizeclass_t sizeclass)
+  SNMALLOC_API void* malloc_small(smallsizeclass_t sizeclass)
   {
     return snmalloc::alloc(sizeclass);
   }
@@ -53,8 +52,7 @@ namespace snmalloc::libc
   /**
    * Allocate zeroed memory for a pre-computed small sizeclass.
    */
-  SNMALLOC_API void*
-  malloc_small_zero(smallsizeclass_t sizeclass)
+  SNMALLOC_API void* malloc_small_zero(smallsizeclass_t sizeclass)
   {
     return snmalloc::alloc<Zero>(sizeclass);
   }
@@ -64,20 +62,17 @@ namespace snmalloc::libc
     dealloc(ptr);
   }
 
-  SNMALLOC_API void
-  free_sized(void* ptr, size_t size)
+  SNMALLOC_API void free_sized(void* ptr, size_t size)
   {
     dealloc(ptr, size);
   }
 
-  SNMALLOC_API void
-  free_aligned_sized(void* ptr, size_t alignment, size_t size)
+  SNMALLOC_API void free_aligned_sized(void* ptr, size_t alignment, size_t size)
   {
     dealloc(ptr, size, alignment);
   }
 
-  SNMALLOC_API void*
-  calloc(size_t nmemb, size_t size)
+  SNMALLOC_API void* calloc(size_t nmemb, size_t size)
   {
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
@@ -88,8 +83,7 @@ namespace snmalloc::libc
     return alloc<Zero>(sz);
   }
 
-  SNMALLOC_API void*
-  realloc(void* ptr, size_t size)
+  SNMALLOC_API void* realloc(void* ptr, size_t size)
   {
     // Glibc treats
     //   realloc(p, 0) as free(p)
@@ -143,8 +137,7 @@ namespace snmalloc::libc
     return alloc_size(ptr);
   }
 
-  SNMALLOC_API_SLOW void*
-  reallocarray(void* ptr, size_t nmemb, size_t size)
+  SNMALLOC_API_SLOW void* reallocarray(void* ptr, size_t nmemb, size_t size)
   {
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
@@ -155,8 +148,7 @@ namespace snmalloc::libc
     return realloc(ptr, sz);
   }
 
-  SNMALLOC_API_SLOW int
-  reallocarr(void* ptr_, size_t nmemb, size_t size)
+  SNMALLOC_API_SLOW int reallocarr(void* ptr_, size_t nmemb, size_t size)
   {
     int err = errno;
     bool overflow = false;
@@ -191,8 +183,7 @@ namespace snmalloc::libc
     return 0;
   }
 
-  SNMALLOC_API_SLOW void*
-  memalign(size_t alignment, size_t size)
+  SNMALLOC_API_SLOW void* memalign(size_t alignment, size_t size)
   {
     if (SNMALLOC_UNLIKELY(alignment == 0 || !bits::is_pow2(alignment)))
     {
@@ -202,8 +193,7 @@ namespace snmalloc::libc
     return alloc_aligned(alignment, size);
   }
 
-  SNMALLOC_API_SLOW void*
-  aligned_alloc(size_t alignment, size_t size)
+  SNMALLOC_API_SLOW void* aligned_alloc(size_t alignment, size_t size)
   {
     return memalign(alignment, size);
   }
@@ -233,8 +223,7 @@ namespace snmalloc::libc
    * @tparam ReadsChecked  also check the source
    */
   template<bool Checked, bool ReadsChecked = Checked>
-  SNMALLOC_API void*
-  memcpy(void* dst, const void* src, size_t len)
+  SNMALLOC_API void* memcpy(void* dst, const void* src, size_t len)
   {
     return snmalloc::memcpy<Checked, ReadsChecked>(dst, src, len);
   }

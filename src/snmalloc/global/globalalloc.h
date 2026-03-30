@@ -154,7 +154,7 @@ namespace snmalloc
   template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
   size_t SNMALLOC_FAST_PATH_INLINE remaining_bytes(const void* p)
   {
-    return remaining_bytes<Config_>(address_cast(p));
+    return remaining_bytes(address_cast(p));
   }
 
   /**
@@ -382,8 +382,7 @@ namespace snmalloc
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
-  SNMALLOC_API void
-  dealloc(void* p, size_t size)
+  SNMALLOC_API void dealloc(void* p, size_t size)
   {
     check_size(p, size);
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
@@ -396,8 +395,7 @@ namespace snmalloc
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
-  SNMALLOC_API void
-  dealloc(void* p, size_t size, size_t align)
+  SNMALLOC_API void dealloc(void* p, size_t size, size_t align)
   {
     auto rsize = aligned_size(align, size);
     check_size(p, rsize);

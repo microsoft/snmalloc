@@ -10,6 +10,6 @@
 #include "entropy.h"
 #include "mpmcstack.h"
 #include "pagemap.h"
-#include "sizeclasstable.h"
 #include "pool.h"
 #include "pooled.h"
+#include "sizeclasstable.h"

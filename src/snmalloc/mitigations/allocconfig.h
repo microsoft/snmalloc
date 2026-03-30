@@ -1,7 +1,7 @@
 #pragma once
 
-#include "mitigations.h"
 #include "../ds_core/sizeclassconfig.h"
+#include "mitigations.h"
 
 namespace snmalloc
 {

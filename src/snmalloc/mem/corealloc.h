@@ -1,10 +1,10 @@
 #pragma once
 
 #include "../ds/ds.h"
+#include "../ds/pool.h"
 #include "check_init.h"
 #include "freelist.h"
 #include "metadata.h"
-#include "../ds/pool.h"
 #include "remotecache.h"
 #include "snmalloc/stl/new.h"
 #include "ticker.h"
@@ -610,8 +610,7 @@ namespace snmalloc
       {
         // Small allocations are more likely. Improve
         // branch prediction by placing this case first.
-        return small_alloc<Conts, CheckInit>(
-          size_to_sizeclass(size), size);
+        return small_alloc<Conts, CheckInit>(size_to_sizeclass(size), size);
       }
 
       return alloc_not_small<Conts, CheckInit>(size, this);
@@ -634,8 +633,7 @@ namespace snmalloc
      * Fast allocation for small objects, with pre-computed sizeclass.
      */
     template<typename Conts, typename CheckInit>
-    SNMALLOC_FAST_PATH void*
-    small_alloc(
+    SNMALLOC_FAST_PATH void* small_alloc(
       smallsizeclass_t sizeclass,
       size_t size) noexcept(noexcept(Conts::failure(0)))
     {

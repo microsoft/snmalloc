@@ -2,6 +2,7 @@
 
 #ifdef __cpp_concepts
 #  include "../ds/ds.h"
+#  include "../ds/sizeclasstable.h"
 
 #  include <stddef.h>
 

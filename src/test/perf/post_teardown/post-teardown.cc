@@ -1,7 +1,7 @@
 #include <cstdlib>
-#include <test/snmalloc_testlib.h>
 #include <test/measuretime.h>
 #include <test/setup.h>
+#include <test/snmalloc_testlib.h>
 #include <vector>
 
 using namespace snmalloc;
