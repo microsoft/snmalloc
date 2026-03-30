@@ -18,8 +18,7 @@ namespace snmalloc
   do \
   { \
     current_test = __PRETTY_FUNCTION__; \
-    MessageBuilder<1024> mb{"Starting test: " msg "\n", ##__VA_ARGS__}; \
-    DefaultPal::message(mb.get_message()); \
+    snmalloc::message<1024>("Starting test: " msg, ##__VA_ARGS__); \
   } while (0)
 
   /**
@@ -32,8 +31,7 @@ namespace snmalloc
 #define INFO(msg, ...) \
   do \
   { \
-    MessageBuilder<1024> mb{msg "\n", ##__VA_ARGS__}; \
-    DefaultPal::message(mb.get_message()); \
+    snmalloc::message<1024>(msg, ##__VA_ARGS__); \
   } while (0)
 
 }
