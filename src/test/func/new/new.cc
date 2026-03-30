@@ -50,7 +50,7 @@ void test_new_delete_simple(size_t size)
     void* impossible_alloc = new_fun(static_cast<size_t>(-1));
     del_fun(impossible_alloc);
   }
-  catch (std::bad_alloc& e)
+  catch (std::bad_alloc&)
   {
     caught_bad_alloc = true;
   }
