@@ -151,6 +151,12 @@ namespace snmalloc
     return snmalloc::remaining_bytes(sizeclass, p);
   }
 
+  template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
+  size_t SNMALLOC_FAST_PATH_INLINE remaining_bytes(const void* p)
+  {
+    return remaining_bytes<Config_>(address_cast(p));
+  }
+
   /**
    * Returns the byte offset into an object.
    *

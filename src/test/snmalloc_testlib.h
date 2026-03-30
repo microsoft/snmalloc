@@ -22,10 +22,6 @@
 
 namespace snmalloc
 {
-  // Forward declarations sufficient for the API surface.
-  // address_t: uintptr_t on all non-CHERI platforms.
-  using address_t = uintptr_t;
-
   template<ZeroMem>
   class DefaultConts;
   // Uninit / Zero are usable as template arguments even without the full
@@ -55,7 +51,7 @@ namespace snmalloc
 
   // -- Non-template wrappers for Config-templated functions ----------------
   size_t alloc_size(const void* p);
-  size_t remaining_bytes(address_t p);
+  size_t remaining_bytes(const void* p);
   bool is_owned(void* p);
   void debug_check_empty(bool* result = nullptr);
   void debug_in_use(size_t count);

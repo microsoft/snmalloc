@@ -1,7 +1,6 @@
 #include <array>
 #include <chrono>
 #include <iostream>
-#include <snmalloc/ds_aal/ds_aal.h>
 #include <test/opt.h>
 #include <test/setup.h>
 #include <test/snmalloc_testlib.h>
@@ -494,8 +493,7 @@ void test_remaining_bytes()
     char* p = (char*)snmalloc::alloc(size);
     for (size_t offset = 0; offset < size; offset++)
     {
-      auto rem = snmalloc::remaining_bytes(
-        address_cast(pointer_offset(p, offset)));
+      auto rem = snmalloc::remaining_bytes(pointer_offset(p, offset));
       if (rem != (size - offset))
       {
         if (rem < (size - offset) || snmalloc::is_owned(p))

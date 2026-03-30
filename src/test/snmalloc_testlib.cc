@@ -58,7 +58,7 @@ namespace snmalloc
     return alloc_size<Config>(p);
   }
 
-  size_t remaining_bytes(address_t p)
+  size_t remaining_bytes(const void* p)
   {
     return remaining_bytes<Config>(p);
   }
