@@ -1,6 +1,6 @@
-#include <snmalloc/snmalloc.h>
 #include <test/measuretime.h>
 #include <test/setup.h>
+#include <test/snmalloc_testlib.h>
 #include <test/xoroshiro.h>
 #include <unordered_set>
 
@@ -19,7 +19,7 @@ namespace test
     {
       size_t rand = (size_t)r.next();
       size_t offset = bits::clz(rand);
-      if constexpr (DefaultPal::address_bits > 32)
+      if (snmalloc::pal_address_bits() > 32)
       {
         if (offset > 30)
           offset = 30;
@@ -80,7 +80,8 @@ namespace test
         size_t size = *external_ptr;
         size_t offset = (size >> 4) * (rand & 15);
         void* interior_ptr = pointer_offset(external_ptr, offset);
-        void* calced_external = snmalloc::external_pointer(interior_ptr);
+        void* calced_external =
+          snmalloc::libc::__malloc_start_pointer(interior_ptr);
         if (calced_external != external_ptr)
         {
           abort();

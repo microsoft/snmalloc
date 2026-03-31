@@ -1,7 +1,7 @@
 #pragma once
 
 #include "snmalloc/ds_core/defines.h"
-#include "snmalloc/ds_core/mitigations.h"
+#include "snmalloc/mitigations/mitigations.h"
 
 #include <stddef.h>
 
