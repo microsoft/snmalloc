@@ -374,6 +374,44 @@ if(SNMALLOC_COMPILER_SUPPORT_MCX16)
   target_compile_options(snmalloc INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-mcx16>)
 endif()
 
+check_cxx_compiler_flag(
+  "-Werror -march=armv8.3-a+pauth -fptrauth-intrinsics"
+  SNMALLOC_COMPILER_SUPPORT_MARCH_V83A_PAUTH)
+if(SNMALLOC_COMPILER_SUPPORT_MARCH_V83A_PAUTH)
+  set(SNMALLOC_SAVED_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
+  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -march=armv8.3-a+pauth -fptrauth-intrinsics")
+  check_cxx_source_compiles("
+#if !defined(__aarch64__) && !defined(_M_ARM64) && !defined(_M_ARM64EC)
+#  error PAC instructions require AArch64
+#endif
+#if !__has_include(<ptrauth.h>)
+#  error Missing ptrauth.h
+#endif
+#include <ptrauth.h>
+#ifndef __ARM_FEATURE_PAUTH
+#  error Compiler target does not expose pointer authentication
+#endif
+static inline void* sign_and_auth(void* ptr, void* storage)
+{
+  auto discriminator = ptrauth_blend_discriminator(storage, 0x5678U);
+  auto signed_ptr = ptrauth_sign_unauthenticated(
+    ptr, ptrauth_key_process_dependent_data, discriminator);
+  return ptrauth_auth_data(
+    signed_ptr, ptrauth_key_process_dependent_data, discriminator);
+}
+int main()
+{
+  return sign_and_auth(nullptr, reinterpret_cast<void*>(0x1234UL)) != nullptr;
+}
+" SNMALLOC_COMPILER_SUPPORT_PACA_PACG)
+  set(CMAKE_REQUIRED_FLAGS "${SNMALLOC_SAVED_REQUIRED_FLAGS}")
+  unset(SNMALLOC_SAVED_REQUIRED_FLAGS)
+endif()
+if(SNMALLOC_COMPILER_SUPPORT_PACA_PACG)
+  target_compile_options(snmalloc INTERFACE
+    $<$<COMPILE_LANGUAGE:CXX>:-march=armv8.3-a+pauth -fptrauth-intrinsics>)
+endif()
+
 if (NOT SNMALLOC_HEADER_ONLY_LIBRARY AND SNMALLOC_IPO)
   check_ipo_supported(RESULT HAS_IPO)
   if (HAS_IPO)
@@ -400,6 +438,7 @@ add_as_define(SNMALLOC_PLATFORM_HAS_GETENTROPY)
 add_as_define(SNMALLOC_PTHREAD_ATFORK_WORKS)
 add_as_define(SNMALLOC_HAS_LINUX_RANDOM_H)
 add_as_define(SNMALLOC_HAS_LINUX_FUTEX_H)
+add_as_define(SNMALLOC_COMPILER_SUPPORT_PACA_PACG)
 if (SNMALLOC_NO_REALLOCARRAY)
   add_as_define(SNMALLOC_NO_REALLOCARRAY)
 endif()
