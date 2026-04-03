@@ -35,7 +35,8 @@ namespace snmalloc
 #if defined(SNMALLOC_VA_BITS_32) || !defined(__APPLE__)
       | NoCpuCycleCounters
 #endif
-#if defined(SNMALLOC_COMPILER_SUPPORT_PACA_PACG) && defined(__ARM_FEATURE_PAUTH)
+#if defined(SNMALLOC_COMPILER_SUPPORT_PACA_PACG) && \
+  defined(__ARM_FEATURE_PAUTH) && __has_include(<ptrauth.h>)
       | PtrAuthentication
 #endif
       ;

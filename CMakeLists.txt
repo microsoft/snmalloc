@@ -375,11 +375,11 @@ if(SNMALLOC_COMPILER_SUPPORT_MCX16)
 endif()
 
 check_cxx_compiler_flag(
-  "-Werror -march=armv8.3-a+pauth -fptrauth-intrinsics"
-  SNMALLOC_COMPILER_SUPPORT_MARCH_V83A_PAUTH)
-if(SNMALLOC_COMPILER_SUPPORT_MARCH_V83A_PAUTH)
+  "-Werror -fptrauth-intrinsics"
+  SNMALLOC_COMPILER_SUPPORT_FPTRAUTH_INTRINSICS)
+if(SNMALLOC_COMPILER_SUPPORT_FPTRAUTH_INTRINSICS)
   set(SNMALLOC_SAVED_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
-  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -march=armv8.3-a+pauth -fptrauth-intrinsics")
+  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -fptrauth-intrinsics")
   check_cxx_source_compiles("
 #if !defined(__aarch64__) && !defined(_M_ARM64) && !defined(_M_ARM64EC)
 #  error PAC instructions require AArch64
@@ -409,7 +409,7 @@ int main()
 endif()
 if(SNMALLOC_COMPILER_SUPPORT_PACA_PACG)
   target_compile_options(snmalloc INTERFACE
-    $<$<COMPILE_LANGUAGE:CXX>:-march=armv8.3-a+pauth -fptrauth-intrinsics>)
+    $<$<COMPILE_LANGUAGE:CXX>:-fptrauth-intrinsics>)
 endif()
 
 if (NOT SNMALLOC_HEADER_ONLY_LIBRARY AND SNMALLOC_IPO)

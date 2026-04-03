@@ -281,7 +281,12 @@ namespace snmalloc
       }
 
       /**
-       * Involutive encryption with raw pointers
+       * Encode a next pointer in the free list
+       *
+       * If using PtrAuthentication, the pointer is signed using pac
+       * and decode uses auth
+       *
+       * Otherwise using an involutive XOR encryption for non-provenance system
        */
       template<SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       inline static Object::T<BQueue>* code_next(
