@@ -281,7 +281,12 @@ namespace snmalloc
       }
 
       /**
-       * Involutive encryption with raw pointers
+       * Encode a next pointer in the free list
+       *
+       * If using PtrAuthentication, the pointer is signed using pac
+       * and decode uses auth
+       *
+       * Otherwise using an involutive XOR encryption for non-provenance system
        */
       template<SNMALLOC_CONCEPT(capptr::IsBound) BQueue>
       inline static Object::T<BQueue>* code_next(
@@ -290,22 +295,31 @@ namespace snmalloc
         const FreeListKey& key,
         address_t key_tweak)
       {
-        // Note we can consider other encoding schemes here.
-        //   * XORing curr and next.  This doesn't require any key material
-        //   * XORing (curr * key). This makes it harder to guess the underlying
-        //     key, as each location effectively has its own key.
-        // Curr is not used in the current encoding scheme.
-        UNUSED(curr);
-
         if constexpr (
+          mitigations(freelist_forward_edge) && aal_supports<PtrAuthentication>)
+        {
+          return unsafe_from_uintptr<Object::T<BQueue>>(
+            Aal::pointer_auth_sign_data(
+              unsafe_to_uintptr<Object::T<BQueue>>(next),
+              curr,
+              key.key_next ^ key_tweak));
+        }
+        else if constexpr (
           mitigations(freelist_forward_edge) && !aal_supports<StrictProvenance>)
         {
+          // Note we can consider other encoding schemes here.
+          //   * XORing curr and next.  This doesn't require any key material
+          //   * XORing (curr * key). This makes it harder to guess the
+          //     underlying key, as each location effectively has its own key.
+          // Curr is not used in the current encoding scheme.
+          UNUSED(curr);
           return unsafe_from_uintptr<Object::T<BQueue>>(
             unsafe_to_uintptr<Object::T<BQueue>>(next) ^ key.key_next ^
             key_tweak);
         }
         else
         {
+          UNUSED(curr);
           UNUSED(key);
           UNUSED(key_tweak);
           return next;
@@ -364,8 +378,20 @@ namespace snmalloc
         const FreeListKey& key,
         address_t key_tweak)
       {
-        return BHeadPtr<BView, BQueue>::unsafe_from(
-          code_next(curr, next.unsafe_ptr(), key, key_tweak));
+        if constexpr (
+          mitigations(freelist_forward_edge) && aal_supports<PtrAuthentication>)
+        {
+          return BHeadPtr<BView, BQueue>::unsafe_from(
+            unsafe_from_uintptr<Object::T<BQueue>>(Aal::pointer_auth_auth_data(
+              unsafe_to_uintptr<Object::T<BQueue>>(next.unsafe_ptr()),
+              curr,
+              key.key_next ^ key_tweak)));
+        }
+        else
+        {
+          return BHeadPtr<BView, BQueue>::unsafe_from(
+            code_next(curr, next.unsafe_ptr(), key, key_tweak));
+        }
       }
 
       template<
