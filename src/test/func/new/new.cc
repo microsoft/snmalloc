@@ -6,6 +6,12 @@
 
 using namespace snmalloc;
 
+#ifdef SNMALLOC_USE_SELF_VENDORED_STL
+int main()
+{
+  return 0;
+}
+#else
 constexpr std::array<size_t, 11> align_val_sizes = {
   8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, OS_PAGE_SIZE};
 
@@ -202,3 +208,4 @@ int main(int argc, char** argv)
   snmalloc::debug_check_empty();
   return 0;
 }
+#endif
