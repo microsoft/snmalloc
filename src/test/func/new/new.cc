@@ -6,7 +6,7 @@
 
 using namespace snmalloc;
 
-#ifdef SNMALLOC_USE_SELF_VENDORED_STL
+#if defined(SNMALLOC_USE_SELF_VENDORED_STL) || defined(SNMALLOC_THREAD_SANITIZER_ENABLED)
 int main()
 {
   return 0;
