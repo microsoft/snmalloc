@@ -1,17 +1,16 @@
-#include <array>
-#include <snmalloc/override/new.cc>
-#include <snmalloc/pal/pal.h>
-#include <test/helpers.h>
-#include <test/setup.h>
-
-using namespace snmalloc;
-
 #if defined(SNMALLOC_USE_SELF_VENDORED_STL) || defined(SNMALLOC_THREAD_SANITIZER_ENABLED)
 int main()
 {
   return 0;
 }
 #else
+#  include <array>
+#  include <snmalloc/override/new.cc>
+#  include <snmalloc/pal/pal.h>
+#  include <test/helpers.h>
+#  include <test/setup.h>
+
+using namespace snmalloc;
 constexpr std::array<size_t, 11> align_val_sizes = {
   8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, OS_PAGE_SIZE};
 
