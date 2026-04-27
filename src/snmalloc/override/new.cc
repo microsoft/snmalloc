@@ -48,6 +48,7 @@ namespace snmalloc
     public:
       static void* failure(size_t size)
       {
+        write(2, "begin throw case\n", 18);
         // Throw std::bad_alloc on failure.
         auto new_handler = std::get_new_handler();
         if (new_handler != nullptr)
