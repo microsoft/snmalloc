@@ -61,6 +61,7 @@ namespace snmalloc
         }
 
         // Throw std::bad_alloc on failure.
+        write(2, "throw\n", 6);
         throw std::bad_alloc();
       }
     };
