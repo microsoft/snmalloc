@@ -72,6 +72,7 @@ namespace snmalloc
     public:
       static void* failure(size_t size) noexcept
       {
+        write(2, "begin nothrow case\n", 20);
         auto new_handler = std::get_new_handler();
         if (new_handler != nullptr)
         {
@@ -101,22 +102,26 @@ namespace snmalloc
 
 SNMALLOC_EXPORT void* operator new(size_t size)
 {
+  write(2, "begin new case\n", 16);
   return snmalloc::alloc<snmalloc::handler::Throw>(size);
 }
 
 SNMALLOC_EXPORT void* operator new[](size_t size)
 {
+  write(2, "begin new[] case\n", 18);
   return snmalloc::alloc<snmalloc::handler::Throw>(size);
 }
 
 SNMALLOC_EXPORT void* operator new(size_t size, const std::nothrow_t&) noexcept
 {
+  write(2, "begin new_nt case\n", 19);
   return snmalloc::alloc<snmalloc::handler::NoThrow>(size);
 }
 
 SNMALLOC_EXPORT void*
 operator new[](size_t size, const std::nothrow_t&) noexcept
 {
+  write(2, "begin new_nt[] case\n", 21);
   return snmalloc::alloc<snmalloc::handler::NoThrow>(size);
 }
 
