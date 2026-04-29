@@ -61,6 +61,11 @@ on:
         type: number
         default: 30
         description: 'Job timeout in minutes'
+      sccache-version:
+        required: false
+        type: string
+        default: 'v0.9.1'
+        description: 'sccache binary version'
 
 jobs:
   build:
@@ -83,7 +88,7 @@ jobs:
     - name: Set up sccache
       uses: Mozilla-Actions/sccache-action@v0.0.7
       with:
-        version: "v0.9.1"
+        version: ${{ inputs.sccache-version }}
 
     - name: Configure CMake
       run: >

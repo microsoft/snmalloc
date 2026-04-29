@@ -17,6 +17,10 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+env:
+  SCCACHE_VERSION: "v0.9.1"
+  COMPILER_RT_LLVM_VERSION: "19.1.7"
+
 jobs:
   ubuntu:
     name: ${{matrix.os}} ${{matrix.build-type}} ${{matrix.variant}}
@@ -415,10 +419,21 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install Ninja
       run: sudo apt-get install -y ninja-build
+    - name: Set up sccache
+      uses: Mozilla-Actions/sccache-action@v0.0.7
+      with:
+        version: ${{ env.SCCACHE_VERSION }}
+    - name: Cache compiler-rt
+      id: cache-compiler-rt
+      uses: actions/cache@v4
+      with:
+        path: ${{github.workspace}}/../compiler-rt
+        key: compiler-rt-${{ env.COMPILER_RT_LLVM_VERSION }}-${{matrix.os}}-${{matrix.profile}}
     - name: Install Compiler-RT
+      if: steps.cache-compiler-rt.outputs.cache-hit != 'true'
       run: |
         cd ..
-        git clone https://github.com/llvm/llvm-project --depth=1 -b llvmorg-19.1.7
+        git clone https://github.com/llvm/llvm-project --depth=1 -b llvmorg-${{ env.COMPILER_RT_LLVM_VERSION }}
         mkdir compiler-rt
         cmake -G Ninja \
               -S llvm-project/runtimes \
@@ -436,9 +451,13 @@ jobs:
         -B${{github.workspace}}/build
         -DCMAKE_BUILD_TYPE=${{ matrix.profile }}
         -DCMAKE_CXX_COMPILER=clang++-18
+        -DCMAKE_C_COMPILER_LAUNCHER=sccache
+        -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
         -DSNMALLOC_ENABLE_GWP_ASAN_INTEGRATION=On
         -DSNMALLOC_GWP_ASAN_INCLUDE_PATH=${{github.workspace}}/../llvm-project/compiler-rt/lib
         -DSNMALLOC_GWP_ASAN_LIBRARY_PATH=${{github.workspace}}/../compiler-rt/lib/linux
+      env:
+        SCCACHE_GHA_ENABLED: "true"
     - name: Build
       run: cmake --build ${{github.workspace}}/build --parallel
     - name: Test
