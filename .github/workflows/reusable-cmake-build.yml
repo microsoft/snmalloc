@@ -80,11 +80,16 @@ jobs:
       with:
         xcode-version: latest-stable
 
+    - name: Compute config hash
+      id: config-hash
+      shell: bash
+      run: echo "hash=$(echo '${{ inputs.cmake-config }} ${{ inputs.extra-cmake-flags }}' | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
     - name: Set up ccache
       if: ${{ !inputs.use-msbuild }}
       uses: hendrikmuhs/ccache-action@v1
       with:
-        key: ${{ inputs.os }}-${{ inputs.build-type }}-${{ inputs.cmake-config }}-${{ inputs.extra-cmake-flags }}
+        key: ${{ inputs.os }}-${{ inputs.build-type }}-${{ steps.config-hash.outputs.hash }}
 
     - name: Configure CMake
       run: >
