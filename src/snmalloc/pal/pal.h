@@ -68,13 +68,13 @@ namespace snmalloc
 #  error Unsupported platform
 #endif
 
-  [[noreturn]] SNMALLOC_SLOW_PATH SNMALLOC_API_SLOW void
+  [[noreturn]] SNMALLOC_SLOW_PATH SNMALLOC_USED_FUNCTION inline void
   error(const char* const str)
   {
     DefaultPal::error(str);
   }
 
-  SNMALLOC_API_SLOW void message_impl(const char* const str)
+  SNMALLOC_USED_FUNCTION inline void message_impl(const char* const str)
   {
     DefaultPal::message(str);
   }
