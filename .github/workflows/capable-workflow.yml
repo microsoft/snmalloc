@@ -1,0 +1,112 @@
+name: snmalloc CI for Morello at The Capable Hub
+
+on:
+  # Triggers the workflow on push or pull request events but only for the main branch
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      bootenv_label:
+        description: "Morello host environment"
+        type: string
+        required: true
+        default: "benchmark"
+
+      runqueue_label:
+        description: "Morello runner queue (production or test scripts?)"
+        required: true
+        type: choice
+        options:
+          - "msr-morello"
+          - "msr-morello-test"
+
+jobs:
+  # UNIX-like, but with some needed TLC for the moment, so not folded in to the main unixlike CI.
+  # Morello can't easily self-host since it mixes purecap and hybrid build tools.
+  # We point cmake at the LLVM Clang frontend explicitly lest it pick up the more magic wrappers.
+  morello:
+    strategy:
+      matrix:
+        # Build each combination of OS and release/debug variants
+        os: [ "morello" ]
+        build-type: [ Release, Debug ]
+        caps: [ Hybrid, Purecap ]
+        include:
+          - os: "morello"
+            caps: Hybrid
+            dependencies: >-
+              cmake ninja-build
+            cmake-flags: >
+              -DCMAKE_CXX_COMPILER=/root/llvm-cheri/install/bin/clang++
+              -DCMAKE_C_COMPILER=/root/llvm-cheri/install/bin/clang
+              -DCMAKE_CXX_FLAGS='-march=morello -Xclang -morello-vararg=new'
+              -DCMAKE_C_FLAGS='-march=morello -Xclang -morello-vararg=new'
+          - os: "morello"
+            caps: Purecap
+            dependencies: >-
+              cmake ninja-build
+            cmake-flags: >
+              -DCMAKE_CXX_COMPILER=/root/llvm-cheri/install/bin/clang++
+              -DCMAKE_C_COMPILER=/root/llvm-cheri/install/bin/clang
+              -DCMAKE_CXX_FLAGS='-march=morello -mabi=purecap -Xclang -morello-vararg=new'
+              -DCMAKE_C_FLAGS='-march=morello -mabi=purecap -Xclang -morello-vararg=new'
+      # Don't abort runners if a single one fails
+      fail-fast: false
+    # Morello needs special handling to get picked up by our self-hosted runners
+    # When/if we do integrate this back into the unixlike matrix above, we could
+    # say something like::
+    #   runs-on: >-
+    #     ${{ (matrix.os == 'morello' && fromJSON('["self-hosted", "msr-morello", "benchmark"]'))
+    #         || matrix.os }}
+    # to dispatch dynamically.
+    runs-on: self-hosted
+    # runs-on: the-capable-hub-aws-ci
+    env:
+        BUILD_DIR: ${{github.workspace}}/volatile/${{ github.job }}
+    container:
+        image: capablehub/cheri-ca-llvm:19-riscv64-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Log environment details
+      run: |
+        uname -a
+        mount
+    - name: Configure CMake
+      run: |
+        # ${{github.workspace}}/build
+        apt-get update
+        apt-get -yy install ${{ matrix.dependencies }}
+        ls -l /root
+        cmake --version
+        which clang
+        ls -l `which clang`
+        clang --version
+        which clang++
+        ls -l `which clang++`
+        clang++ --version
+        mkdir -p ./build
+
+        cmake \
+        -B ./build \
+        -DCMAKE_BUILD_TYPE=${{matrix.build-type}} \
+        -G Ninja ${{ matrix.cmake-flags }} \
+        ${{ matrix.extra-cmake-flags }}
+      # Build with a nice ninja status line
+    - name: Build
+      working-directory: ./build
+      run: |
+        NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
+    - name: Test file size of binaries is sane
+      working-directory: ./build
+      run: |
+        ls -l func-first_operation-fast ; [ $(ls -l func-first_operation-fast | awk '{ print $5}') -lt 10000000 ]
+      # If the tests are enabled for this job, run them
+    - name: Test
+      if: ${{ matrix.build-only != 'yes' }}
+      working-directory: ${{github.workspace}}/build
+      run: |
+        ctest --output-on-failure -j 4 -C ${{ matrix.build-type }} --timeout 400
