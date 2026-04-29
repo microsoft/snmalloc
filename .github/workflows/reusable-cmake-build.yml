@@ -80,12 +80,21 @@ jobs:
       with:
         xcode-version: latest-stable
 
+    - name: Set up sccache
+      uses: Mozilla-Actions/sccache-action@v0.0.7
+      with:
+        version: "v0.9.1"
+
     - name: Configure CMake
       run: >
         cmake -DSNMALLOC_CI_BUILD=ON -B ${{ github.workspace }}/build
+        -DCMAKE_C_COMPILER_LAUNCHER=sccache
+        -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
         ${{ inputs.cmake-config }}
         ${{ inputs.extra-cmake-flags }}
         ${{ !inputs.use-msbuild && format('-DCMAKE_BUILD_TYPE={0}', inputs.build-type) || '' }}
+      env:
+        SCCACHE_GHA_ENABLED: "true"
 
     - name: Build (MSBuild)
       if: inputs.use-msbuild
