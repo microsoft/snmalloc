@@ -3,14 +3,6 @@
 #include "../mem/mem.h"
 #include "threadalloc.h"
 
-// Non-template API functions use SNMALLOC_API for their linkage specifier.
-// Normally inline; can be overridden to NOINLINE (via SNMALLOC_API_NOINLINE)
-// to produce strong definitions in a standalone compilation unit.
-#ifndef SNMALLOC_API
-#  define SNMALLOC_API SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE
-#  define SNMALLOC_API_SLOW SNMALLOC_USED_FUNCTION inline
-#endif
-
 namespace snmalloc
 {
   template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>

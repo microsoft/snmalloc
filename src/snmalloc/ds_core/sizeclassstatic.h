@@ -57,6 +57,7 @@ namespace snmalloc
     NUM_SMALL_SIZECLASSES <= 256,
     "NUM_SMALL_SIZECLASSES must fit in the compressed small sizeclass "
     "representation");
+
   static constexpr size_t sizeclass_to_size_const(smallsizeclass_t sc)
   {
     return bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>(sc);

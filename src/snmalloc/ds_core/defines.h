@@ -58,6 +58,14 @@
 #  endif
 #endif
 
+// Non-template API functions use SNMALLOC_API for their linkage specifier.
+// Normally inline; can be overridden to NOINLINE (via SNMALLOC_API_NOINLINE)
+// to produce strong definitions in a standalone compilation unit.
+#ifndef SNMALLOC_API
+#  define SNMALLOC_API SNMALLOC_USED_FUNCTION SNMALLOC_FAST_PATH_INLINE
+#  define SNMALLOC_API_SLOW SNMALLOC_USED_FUNCTION inline
+#endif
+
 /*
  * Try to find the right "no_unique_address" attribute for our use, assuming one
  * exists.

@@ -31,6 +31,8 @@
 #  define SNMALLOC_API_SLOW NOINLINE
 #endif
 
+#include "snmalloc_testlib_decl.h"
+
 #include <snmalloc/snmalloc.h>
 
 namespace snmalloc
@@ -103,20 +105,8 @@ namespace snmalloc
     return a->alloc->alloc(size);
   }
 
-  // ScopedAllocHandle is declared in snmalloc_testlib.h; define methods here.
-  struct ScopedAllocHandle
-  {
-    TestScopedAllocator* ptr;
-    ScopedAllocHandle();
-    ~ScopedAllocHandle();
-    ScopedAllocHandle(const ScopedAllocHandle&) = delete;
-    ScopedAllocHandle& operator=(const ScopedAllocHandle&) = delete;
-    void* alloc(size_t size);
-    void dealloc(void* p);
-    void dealloc(void* p, size_t size);
-    ScopedAllocHandle* operator->();
-    const ScopedAllocHandle* operator->() const;
-  };
+  // ScopedAllocHandle method definitions (struct defined in
+  // snmalloc_testlib_decl.h).
 
   ScopedAllocHandle::ScopedAllocHandle() : ptr(create_scoped_allocator()) {}
 

@@ -56,34 +56,13 @@ namespace snmalloc
   void debug_check_empty(bool* result = nullptr);
   void debug_in_use(size_t count);
   void cleanup_unused();
+} // namespace snmalloc
 
-  // -- Opaque scoped allocator ---------------------------------------------
-  // TestScopedAllocator inherits from ScopedAllocator<> in testlib.cc.
-  // Forward-declared here; usable through ScopedAllocHandle.
-  struct TestScopedAllocator;
-  TestScopedAllocator* create_scoped_allocator();
-  void destroy_scoped_allocator(TestScopedAllocator*);
-  void* scoped_alloc(TestScopedAllocator*, size_t size);
+// -- Opaque scoped allocator ---------------------------------------------
+#include "snmalloc_testlib_decl.h"
 
-  struct ScopedAllocHandle
-  {
-    TestScopedAllocator* ptr;
-
-    ScopedAllocHandle();
-    ~ScopedAllocHandle();
-    ScopedAllocHandle(const ScopedAllocHandle&) = delete;
-    ScopedAllocHandle& operator=(const ScopedAllocHandle&) = delete;
-    void* alloc(size_t size);
-
-    void dealloc(void* p);
-    void dealloc(void* p, size_t size);
-
-    ScopedAllocHandle* operator->();
-    const ScopedAllocHandle* operator->() const;
-  };
-
-  ScopedAllocHandle get_scoped_allocator();
-
+namespace snmalloc
+{
   // -- Constants exposed from allocconfig.h --------------------------------
   size_t max_small_sizeclass_bits();
 
