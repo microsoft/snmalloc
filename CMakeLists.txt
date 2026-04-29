@@ -504,14 +504,6 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
         target_link_libraries(${TESTNAME} snmalloc)
         target_compile_definitions(${TESTNAME} PRIVATE "SNMALLOC_USE_${TEST_CLEANUP}")
-
-        # The new/delete override test must be compiled at -O0 to prevent
-        # GCC from recognising operator new/delete as replaceable allocation
-        # functions and transforming them into malloc/free or eliding
-        # new/delete pairs, which bypasses the custom override being tested.
-        if (${TEST} STREQUAL "new" AND NOT MSVC)
-          target_compile_options(${TESTNAME} PRIVATE -O0)
-        endif()
         
         if (NOT DEFINES STREQUAL " ")
           target_compile_definitions(${TESTNAME} PRIVATE ${DEFINES})
