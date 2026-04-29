@@ -216,7 +216,7 @@ jobs:
       vm-version: '10.1'
       build-type: Release
       dependencies: "/usr/sbin/pkg_add cmake ninja-build gcc14"
-      cmake-flags: "-DCMAKE_CXX_COMPILER=/usr/pkg/gcc14/bin/g++ -DSNMALLOC_TRACING=1"
+      cmake-flags: "-DCMAKE_CXX_COMPILER=/usr/pkg/gcc14/bin/g++ -DSNMALLOC_USE_CXX11_DESTRUCTORS=ON -DSNMALLOC_TRACING=1"
 
   # ============================================================================
   # QEMU cross-compilation builds

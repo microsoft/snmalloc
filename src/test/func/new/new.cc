@@ -11,6 +11,13 @@ int main()
 #  include <test/helpers.h>
 #  include <test/setup.h>
 
+// snmalloc implements operator new[] / operator delete[] identically to their
+// non-array counterparts, which causes GCC to produce false-positive
+// -Wmismatched-new-delete warnings when it inlines through lambdas.
+#  if defined(__GNUC__) && !defined(__clang__)
+#    pragma GCC diagnostic ignored "-Wmismatched-new-delete"
+#  endif
+
 using namespace snmalloc;
 constexpr std::array<size_t, 11> align_val_sizes = {
   8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, OS_PAGE_SIZE};
