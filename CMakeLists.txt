@@ -430,8 +430,10 @@ endif()
 if(NOT MSVC)
   check_linker_flag(CXX "-rdynamic" SNMALLOC_LINKER_SUPPORT_RDYNAMIC)
   if (SNMALLOC_LINKER_SUPPORT_RDYNAMIC)
-    # Get better stack traces in CI and debug builds.
-    target_link_options(snmalloc INTERFACE $<${ci_or_debug}:-rdynamic>)
+    # Export all symbols from executables so that statically linked operator
+    # new/delete and malloc/free overrides are visible to shared libraries
+    # (e.g. libstdc++) that call through PLT. Also gives better stack traces.
+    target_link_options(snmalloc INTERFACE -rdynamic)
   endif()
 endif()
 

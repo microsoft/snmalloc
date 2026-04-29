@@ -1,4 +1,6 @@
 #pragma once
+#include <cstddef>
+#include <cstdint>
 #ifdef _MSC_VER
 #  define __PRETTY_FUNCTION__ __FUNCSIG__
 #endif
@@ -34,4 +36,11 @@ namespace snmalloc
     snmalloc::message<1024>(msg, ##__VA_ARGS__); \
   } while (0)
 
+}
+
+// Based on:
+// https://en.cppreference.com/w/cpp/memory/is_sufficiently_aligned.html
+bool is_aligned(void* ptr, std::size_t align_val_size)
+{
+  return reinterpret_cast<std::uintptr_t>(ptr) % align_val_size == 0;
 }
