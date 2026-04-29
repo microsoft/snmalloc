@@ -415,6 +415,8 @@ jobs:
         profile: [RelWithDebInfo, Debug]
     runs-on: ${{matrix.os}}
     name: GWP-ASan - ${{matrix.os}} ${{matrix.profile}}
+    env:
+      SCCACHE_GHA_ENABLED: "true"
     steps:
     - uses: actions/checkout@v4
     - name: Install Ninja
@@ -456,10 +458,11 @@ jobs:
         -DSNMALLOC_ENABLE_GWP_ASAN_INTEGRATION=On
         -DSNMALLOC_GWP_ASAN_INCLUDE_PATH=${{github.workspace}}/../llvm-project/compiler-rt/lib
         -DSNMALLOC_GWP_ASAN_LIBRARY_PATH=${{github.workspace}}/../compiler-rt/lib/linux
-      env:
-        SCCACHE_GHA_ENABLED: "true"
     - name: Build
       run: cmake --build ${{github.workspace}}/build --parallel
+    - name: Show sccache stats
+      if: always()
+      run: sccache --show-stats
     - name: Test
       run: |
         cd ${{github.workspace}}/build
