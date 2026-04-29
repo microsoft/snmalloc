@@ -175,39 +175,6 @@ int main(int argc, char** argv)
   START_TEST("Test delete / delete[] nullptr");
   test_delete_null();
 
-  // Diagnostic: direct call to operator new outside any template/lambda
-  // to verify whether snmalloc's override is reached at all.
-  START_TEST("Test direct operator new call");
-  snmalloc::message("About to call operator new(42) directly\n");
-  void* diag_p = operator new(42);
-  snmalloc::message("operator new(42) returned {}\n", diag_p);
-  operator delete(diag_p);
-  snmalloc::message("operator delete succeeded\n");
-
-  // Check if operator new is the snmalloc version by attempting
-  // an impossible allocation and seeing if it throws.
-  START_TEST("Test direct impossible allocation");
-  bool direct_bad_alloc = false;
-  try
-  {
-    snmalloc::message("About to call operator new(size_t(-1)) directly\n");
-    void* diag_impossible = operator new(static_cast<size_t>(-1));
-    snmalloc::message(
-      "operator new(size_t(-1)) returned {} (should have thrown!)\n",
-      diag_impossible);
-    operator delete(diag_impossible);
-  }
-  catch (std::bad_alloc&)
-  {
-    direct_bad_alloc = true;
-    snmalloc::message("Caught std::bad_alloc from direct call\n");
-  }
-  catch (...)
-  {
-    snmalloc::message("Caught unknown exception from direct call\n");
-  }
-  snmalloc::message("direct_bad_alloc = {}\n", direct_bad_alloc);
-
   START_TEST("Test new / delete simple");
   test_new_delete_simple(
     [](size_t s) { return operator new(s); },
