@@ -1422,7 +1422,7 @@ namespace snmalloc
 
       auto& key = freelist::Object::key_root;
 
-      for (smallsizeclass_t i; i < NUM_SMALL_SIZECLASSES; i++)
+      for (smallsizeclass_t i{}; i < NUM_SMALL_SIZECLASSES; i++)
       {
         if (small_fast_free_lists[i].empty())
           continue;
