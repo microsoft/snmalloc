@@ -18,7 +18,6 @@ on:
   workflow_dispatch:
 
 env:
-  SCCACHE_VERSION: "v0.9.1"
   COMPILER_RT_LLVM_VERSION: "19.1.7"
 
 jobs:
@@ -415,16 +414,14 @@ jobs:
         profile: [RelWithDebInfo, Debug]
     runs-on: ${{matrix.os}}
     name: GWP-ASan - ${{matrix.os}} ${{matrix.profile}}
-    env:
-      SCCACHE_GHA_ENABLED: "true"
     steps:
     - uses: actions/checkout@v4
     - name: Install Ninja
       run: sudo apt-get install -y ninja-build
-    - name: Set up sccache
-      uses: Mozilla-Actions/sccache-action@v0.0.7
+    - name: Set up ccache
+      uses: hendrikmuhs/ccache-action@v1
       with:
-        version: ${{ env.SCCACHE_VERSION }}
+        key: gwp-asan-${{matrix.os}}-${{matrix.profile}}
     - name: Cache compiler-rt
       id: cache-compiler-rt
       uses: actions/cache@v4
@@ -453,16 +450,16 @@ jobs:
         -B${{github.workspace}}/build
         -DCMAKE_BUILD_TYPE=${{ matrix.profile }}
         -DCMAKE_CXX_COMPILER=clang++-18
-        -DCMAKE_C_COMPILER_LAUNCHER=sccache
-        -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+        -DCMAKE_C_COMPILER_LAUNCHER=ccache
+        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
         -DSNMALLOC_ENABLE_GWP_ASAN_INTEGRATION=On
         -DSNMALLOC_GWP_ASAN_INCLUDE_PATH=${{github.workspace}}/../llvm-project/compiler-rt/lib
         -DSNMALLOC_GWP_ASAN_LIBRARY_PATH=${{github.workspace}}/../compiler-rt/lib/linux
     - name: Build
       run: cmake --build ${{github.workspace}}/build --parallel
-    - name: Show sccache stats
+    - name: Show ccache stats
       if: always()
-      run: sccache --show-stats
+      run: ccache --show-stats
     - name: Test
       run: |
         cd ${{github.workspace}}/build

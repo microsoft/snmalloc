@@ -61,18 +61,11 @@ on:
         type: number
         default: 30
         description: 'Job timeout in minutes'
-      sccache-version:
-        required: false
-        type: string
-        default: 'v0.9.1'
-        description: 'sccache binary version'
 
 jobs:
   build:
     runs-on: ${{ inputs.os }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
-    env:
-      SCCACHE_GHA_ENABLED: "true"
     steps:
     - uses: actions/checkout@v4
 
@@ -87,16 +80,17 @@ jobs:
       with:
         xcode-version: latest-stable
 
-    - name: Set up sccache
-      uses: Mozilla-Actions/sccache-action@v0.0.7
+    - name: Set up ccache
+      if: ${{ !inputs.use-msbuild }}
+      uses: hendrikmuhs/ccache-action@v1
       with:
-        version: ${{ inputs.sccache-version }}
+        key: ${{ inputs.os }}-${{ inputs.build-type }}-${{ inputs.cmake-config }}-${{ inputs.extra-cmake-flags }}
 
     - name: Configure CMake
       run: >
         cmake -DSNMALLOC_CI_BUILD=ON -B ${{ github.workspace }}/build
-        -DCMAKE_C_COMPILER_LAUNCHER=sccache
-        -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+        ${{ !inputs.use-msbuild && '-DCMAKE_C_COMPILER_LAUNCHER=ccache' || '' }}
+        ${{ !inputs.use-msbuild && '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache' || '' }}
         ${{ inputs.cmake-config }}
         ${{ inputs.extra-cmake-flags }}
         ${{ !inputs.use-msbuild && format('-DCMAKE_BUILD_TYPE={0}', inputs.build-type) || '' }}
@@ -113,9 +107,9 @@ jobs:
       env:
         NINJA_STATUS: "%p [%f:%s/%t] %o/s, %es "
 
-    - name: Show sccache stats
-      if: always()
-      run: sccache --show-stats
+    - name: Show ccache stats
+      if: ${{ !inputs.use-msbuild && always() }}
+      run: ccache --show-stats
 
     - name: Check binary size
       if: inputs.check-binary-size && !startsWith(inputs.os, 'windows')
