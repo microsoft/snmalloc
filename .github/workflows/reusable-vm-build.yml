@@ -1,39 +1,39 @@
 name: Reusable VM Build
 
-on:
-  workflow_call:
-    inputs:
-      vm-type:
-        required: true
-        type: string
-        description: 'VM type (freebsd, netbsd, openbsd)'
-      vm-version:
-        required: true
-        type: string
-        description: 'VM version'
-      build-type:
-        required: true
-        type: string
-        description: 'CMake build type'
-      dependencies:
-        required: true
-        type: string
-        description: 'Commands to install dependencies'
-      cmake-flags:
-        required: false
-        type: string
-        default: ''
-        description: 'Additional CMake flags'
-      host-os:
-        required: false
-        type: string
-        default: 'ubuntu-22.04'
-        description: 'Host runner OS'
-      timeout-minutes:
-        required: false
-        type: number
-        default: 25
-        description: 'Job timeout in minutes'
+# on:
+#   workflow_call:
+#     inputs:
+#       vm-type:
+#         required: true
+#         type: string
+#         description: 'VM type (freebsd, netbsd, openbsd)'
+#       vm-version:
+#         required: true
+#         type: string
+#         description: 'VM version'
+#       build-type:
+#         required: true
+#         type: string
+#         description: 'CMake build type'
+#       dependencies:
+#         required: true
+#         type: string
+#         description: 'Commands to install dependencies'
+#       cmake-flags:
+#         required: false
+#         type: string
+#         default: ''
+#         description: 'Additional CMake flags'
+#       host-os:
+#         required: false
+#         type: string
+#         default: 'ubuntu-22.04'
+#         description: 'Host runner OS'
+#       timeout-minutes:
+#         required: false
+#         type: number
+#         default: 25
+#         description: 'Job timeout in minutes'
 
 jobs:
   build:

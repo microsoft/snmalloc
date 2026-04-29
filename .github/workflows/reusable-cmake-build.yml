@@ -1,66 +1,66 @@
 name: Reusable CMake Build
 
-on:
-  workflow_call:
-    inputs:
-      os:
-        required: true
-        type: string
-        description: 'Runner OS (e.g., ubuntu-24.04, macos-14, windows-2022)'
-      build-type:
-        required: true
-        type: string
-        description: 'CMake build type (Release, Debug)'
-      cmake-config:
-        required: false
-        type: string
-        default: '-G Ninja'
-        description: 'CMake configuration options (-G, -A, -T, compiler flags)'
-      extra-cmake-flags:
-        required: false
-        type: string
-        default: ''
-        description: 'Additional CMake flags for the project'
-      dependencies:
-        required: false
-        type: string
-        default: ''
-        description: 'Command to install dependencies'
-      build-only:
-        required: false
-        type: boolean
-        default: false
-        description: 'Skip tests if true'
-      self-host:
-        required: false
-        type: boolean
-        default: false
-        description: 'Run self-hosting test'
-      check-binary-size:
-        required: false
-        type: boolean
-        default: true
-        description: 'Check binary size is reasonable'
-      test-exclude-pattern:
-        required: false
-        type: string
-        default: ''
-        description: 'Regex pattern for tests to exclude'
-      test-extra-args:
-        required: false
-        type: string
-        default: ''
-        description: 'Extra arguments for ctest'
-      use-msbuild:
-        required: false
-        type: boolean
-        default: false
-        description: 'Use MSBuild instead of Ninja for building'
-      timeout-minutes:
-        required: false
-        type: number
-        default: 30
-        description: 'Job timeout in minutes'
+# on:
+#   workflow_call:
+#     inputs:
+#       os:
+#         required: true
+#         type: string
+#         description: 'Runner OS (e.g., ubuntu-24.04, macos-14, windows-2022)'
+#       build-type:
+#         required: true
+#         type: string
+#         description: 'CMake build type (Release, Debug)'
+#       cmake-config:
+#         required: false
+#         type: string
+#         default: '-G Ninja'
+#         description: 'CMake configuration options (-G, -A, -T, compiler flags)'
+#       extra-cmake-flags:
+#         required: false
+#         type: string
+#         default: ''
+#         description: 'Additional CMake flags for the project'
+#       dependencies:
+#         required: false
+#         type: string
+#         default: ''
+#         description: 'Command to install dependencies'
+#       build-only:
+#         required: false
+#         type: boolean
+#         default: false
+#         description: 'Skip tests if true'
+#       self-host:
+#         required: false
+#         type: boolean
+#         default: false
+#         description: 'Run self-hosting test'
+#       check-binary-size:
+#         required: false
+#         type: boolean
+#         default: true
+#         description: 'Check binary size is reasonable'
+#       test-exclude-pattern:
+#         required: false
+#         type: string
+#         default: ''
+#         description: 'Regex pattern for tests to exclude'
+#       test-extra-args:
+#         required: false
+#         type: string
+#         default: ''
+#         description: 'Extra arguments for ctest'
+#       use-msbuild:
+#         required: false
+#         type: boolean
+#         default: false
+#         description: 'Use MSBuild instead of Ninja for building'
+#       timeout-minutes:
+#         required: false
+#         type: number
+#         default: 30
+#         description: 'Job timeout in minutes'
 
 jobs:
   build:
