@@ -418,9 +418,10 @@ jobs:
     - uses: actions/checkout@v4
     - name: Install Ninja
       run: sudo apt-get install -y ninja-build
-    - name: Set up ccache
+    - name: Set up sccache
       uses: hendrikmuhs/ccache-action@v1
       with:
+        variant: sccache
         key: gwp-asan-${{matrix.os}}-${{matrix.profile}}
     - name: Cache compiler-rt
       id: cache-compiler-rt
@@ -452,16 +453,15 @@ jobs:
         -B${{github.workspace}}/build
         -DCMAKE_BUILD_TYPE=${{ matrix.profile }}
         -DCMAKE_CXX_COMPILER=clang++-18
-        -DCMAKE_C_COMPILER_LAUNCHER=ccache
-        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        -DCMAKE_C_COMPILER_LAUNCHER=sccache
+        -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
         -DSNMALLOC_ENABLE_GWP_ASAN_INTEGRATION=On
         -DSNMALLOC_GWP_ASAN_INCLUDE_PATH=${{ runner.temp }}/llvm-project/compiler-rt/lib
         -DSNMALLOC_GWP_ASAN_LIBRARY_PATH=${{ runner.temp }}/compiler-rt/lib/linux
     - name: Build
       run: cmake --build ${{github.workspace}}/build --parallel
-    - name: Show ccache stats
-      if: always()
-      run: ccache --show-stats
+    - name: Show sccache stats
+      run: sccache --show-stats
     - name: Test
       run: |
         cd ${{github.workspace}}/build
