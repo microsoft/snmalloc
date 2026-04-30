@@ -95,42 +95,42 @@ namespace snmalloc
 
     // Performs initialisation for this configuration
     // of allocators.
-    SNMALLOC_SLOW_PATH static void ensure_init_slow()
+    SNMALLOC_SLOW_PATH static void
+    ensure_init_slow() SNMALLOC_EXCLUDES(initialisation_lock)
     {
       if (initialised)
         return;
 
-      with(initialisation_lock, [&]() {
+      FlagLock guard(initialisation_lock);
 #ifdef SNMALLOC_TRACING
-        message<1024>("Run init_impl");
+      message<1024>("Run init_impl");
 #endif
 
-        if (initialised)
-          return;
+      if (initialised)
+        return;
 
-        SecondaryAllocator::initialize();
+      SecondaryAllocator::initialize();
 
-        LocalEntropy entropy;
-        entropy.init<Pal>();
-        // Initialise key for remote deallocation lists
-        entropy.make_free_list_key(RemoteAllocator::key_global);
-        entropy.make_free_list_key(freelist::Object::key_root);
+      LocalEntropy entropy;
+      entropy.init<Pal>();
+      // Initialise key for remote deallocation lists
+      entropy.make_free_list_key(RemoteAllocator::key_global);
+      entropy.make_free_list_key(freelist::Object::key_root);
 
-        // Need to randomise pagemap location. If requested and not a
-        // StrictProvenance architecture, randomize its table's location within
-        // a significantly larger address space allocation.
-        static constexpr bool pagemap_randomize =
-          mitigations(random_pagemap) && !aal_supports<StrictProvenance>;
+      // Need to randomise pagemap location. If requested and not a
+      // StrictProvenance architecture, randomize its table's location within
+      // a significantly larger address space allocation.
+      static constexpr bool pagemap_randomize =
+        mitigations(random_pagemap) && !aal_supports<StrictProvenance>;
 
-        Pagemap::concretePagemap.template init<pagemap_randomize>();
+      Pagemap::concretePagemap.template init<pagemap_randomize>();
 
-        if constexpr (aal_supports<StrictProvenance>)
-        {
-          Authmap::init();
-        }
+      if constexpr (aal_supports<StrictProvenance>)
+      {
+        Authmap::init();
+      }
 
-        initialised.store(true, stl::memory_order_release);
-      });
+      initialised.store(true, stl::memory_order_release);
     }
 
   public:

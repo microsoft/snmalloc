@@ -111,8 +111,83 @@
 #  define SNMALLOC_FORCE_BSS
 #endif
 
+#ifndef __has_attribute
+#  define __has_attribute(x) 0
+#endif
+
+#ifndef __has_cpp_attribute
+#  define __has_cpp_attribute(x) 0
+#endif
+
 #ifndef __has_builtin
 #  define __has_builtin(x) 0
+#endif
+
+// Clang's thread-safety annotations are used opportunistically and compile
+// away on other toolchains.
+#if defined(__clang__) && __has_attribute(capability) && !defined(SWIG)
+#  define SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(x) __attribute__((x))
+#else
+#  define SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(x)
+#endif
+
+#define SNMALLOC_CAPABILITY(x) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(capability(x))
+#define SNMALLOC_REENTRANT_CAPABILITY \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(reentrant_capability)
+#define SNMALLOC_SCOPED_CAPABILITY \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(scoped_lockable)
+#define SNMALLOC_GUARDED_BY(...) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(guarded_by(__VA_ARGS__))
+#define SNMALLOC_PT_GUARDED_BY(...) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(pt_guarded_by(__VA_ARGS__))
+#define SNMALLOC_ACQUIRED_BEFORE(...) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(acquired_before(__VA_ARGS__))
+#define SNMALLOC_ACQUIRED_AFTER(...) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(acquired_after(__VA_ARGS__))
+#define SNMALLOC_REQUIRES(...) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(requires_capability(__VA_ARGS__))
+#define SNMALLOC_REQUIRES_SHARED(...) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(requires_shared_capability(__VA_ARGS__))
+#define SNMALLOC_ACQUIRE(...) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(acquire_capability(__VA_ARGS__))
+#define SNMALLOC_ACQUIRE_SHARED(...) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(acquire_shared_capability(__VA_ARGS__))
+#define SNMALLOC_RELEASE(...) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(release_capability(__VA_ARGS__))
+#define SNMALLOC_RELEASE_SHARED(...) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(release_shared_capability(__VA_ARGS__))
+#define SNMALLOC_RELEASE_GENERIC(...) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(release_generic_capability(__VA_ARGS__))
+#define SNMALLOC_TRY_ACQUIRE(...) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(try_acquire_capability(__VA_ARGS__))
+#define SNMALLOC_TRY_ACQUIRE_SHARED(...) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(try_acquire_shared_capability(__VA_ARGS__))
+#define SNMALLOC_EXCLUDES(...) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(locks_excluded(__VA_ARGS__))
+#define SNMALLOC_ASSERT_CAPABILITY(x) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(assert_capability(x))
+#define SNMALLOC_ASSERT_SHARED_CAPABILITY(x) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(assert_shared_capability(x))
+#define SNMALLOC_RETURN_CAPABILITY(x) \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(lock_returned(x))
+#define SNMALLOC_NO_THREAD_SAFETY_ANALYSIS \
+  SNMALLOC_THREAD_ANNOTATION_ATTRIBUTE__(no_thread_safety_analysis)
+
+// Clang lifetime annotations are also opportunistic and erase cleanly on
+// older or non-Clang toolchains.
+#if __has_cpp_attribute(clang::lifetimebound)
+#  define SNMALLOC_LIFETIMEBOUND [[clang::lifetimebound]]
+#elif __has_cpp_attribute(_Clang::__lifetimebound__)
+#  define SNMALLOC_LIFETIMEBOUND [[_Clang::__lifetimebound__]]
+#else
+#  define SNMALLOC_LIFETIMEBOUND
+#endif
+
+#if __has_cpp_attribute(clang::noescape)
+#  define SNMALLOC_NOESCAPE [[clang::noescape]]
+#else
+#  define SNMALLOC_NOESCAPE
 #endif
 
 namespace snmalloc

@@ -20,12 +20,12 @@ namespace snmalloc
         return N;
       }
 
-      constexpr T& operator[](size_t i)
+      constexpr T& operator[](size_t i) SNMALLOC_LIFETIMEBOUND
       {
         return _storage[i];
       }
 
-      constexpr const T& operator[](size_t i) const
+      constexpr const T& operator[](size_t i) const SNMALLOC_LIFETIMEBOUND
       {
         return _storage[i];
       }
@@ -36,80 +36,86 @@ namespace snmalloc
       using const_iterator = const T*;
 
       [[nodiscard]] constexpr SNMALLOC_FAST_PATH iterator begin()
+        SNMALLOC_LIFETIMEBOUND
       {
         return &_storage[0];
       }
 
       [[nodiscard]] constexpr SNMALLOC_FAST_PATH const_iterator begin() const
+        SNMALLOC_LIFETIMEBOUND
       {
         return &_storage[0];
       }
 
       [[nodiscard]] constexpr SNMALLOC_FAST_PATH iterator end()
+        SNMALLOC_LIFETIMEBOUND
       {
         return &_storage[N];
       }
 
       [[nodiscard]] constexpr SNMALLOC_FAST_PATH const_iterator end() const
+        SNMALLOC_LIFETIMEBOUND
       {
         return &_storage[N];
       }
 
       [[nodiscard]] constexpr SNMALLOC_FAST_PATH T* data()
+        SNMALLOC_LIFETIMEBOUND
       {
         return &_storage[0];
       }
 
       [[nodiscard]] constexpr SNMALLOC_FAST_PATH const T* data() const
+        SNMALLOC_LIFETIMEBOUND
       {
         return &_storage[0];
       }
     };
 
     template<typename T, size_t N>
-    constexpr T* begin(Array<T, N>& a)
+    constexpr T* begin(SNMALLOC_LIFETIMEBOUND Array<T, N>& a)
     {
       return a.begin();
     }
 
     template<typename T, size_t N>
-    constexpr T* end(Array<T, N>& a)
+    constexpr T* end(SNMALLOC_LIFETIMEBOUND Array<T, N>& a)
     {
       return a.end();
     }
 
     template<typename T, size_t N>
-    constexpr const T* begin(const Array<T, N>& a)
+    constexpr const T* begin(SNMALLOC_LIFETIMEBOUND const Array<T, N>& a)
     {
       return a.begin();
     }
 
     template<typename T, size_t N>
-    constexpr const T* end(const Array<T, N>& a)
+    constexpr const T* end(SNMALLOC_LIFETIMEBOUND const Array<T, N>& a)
     {
       return a.end();
     }
 
     template<typename T, size_t N>
-    constexpr T* begin(T (&a)[N])
+    constexpr T* begin(SNMALLOC_LIFETIMEBOUND T (&a)[N])
     {
       return &a[0];
     }
 
     template<typename T, size_t N>
-    constexpr T* end(T (&a)[N])
+    constexpr T* end(SNMALLOC_LIFETIMEBOUND T (&a)[N])
     {
       return &a[N];
     }
 
     template<typename T, size_t N>
-    constexpr const T* begin(const T (&a)[N])
+    constexpr const T* begin(SNMALLOC_LIFETIMEBOUND const T (&a)[N])
     {
       return &a[0];
     }
 
     template<typename T, size_t N>
-    constexpr const T* end(const T (&a)[N])
+    constexpr const T* end(SNMALLOC_LIFETIMEBOUND const T (&a)[N])
     {
       return &a[N];
     }

@@ -72,7 +72,7 @@ namespace snmalloc
      * Arrow operator, allows methods exposed by `Alloc` to be called on the
      * wrapper.
      */
-    SAlloc* operator->()
+    SAlloc* operator->() SNMALLOC_LIFETIMEBOUND
     {
       return alloc;
     }

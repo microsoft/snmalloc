@@ -12,7 +12,7 @@ namespace snmalloc
    * Wrapper for stl::AtomicBool so that we can examine
    * the re-entrancy problem at debug mode.
    */
-  struct DebugFlagWord
+  struct SNMALLOC_CAPABILITY("mutex") DebugFlagWord
   {
     using ThreadIdentity = size_t;
 
@@ -80,7 +80,7 @@ namespace snmalloc
    * all member functions associated with ownership checkings
    * are empty so that they can be optimised out at Release mode.
    */
-  struct ReleaseFlagWord
+  struct SNMALLOC_CAPABILITY("mutex") ReleaseFlagWord
   {
     stl::AtomicBool flag{false};
 
@@ -104,7 +104,7 @@ namespace snmalloc
   using FlagWord = DebugFlagWord;
 #endif
 
-  class FlagLock
+  class SNMALLOC_SCOPED_CAPABILITY FlagLock
   {
   private:
     FlagWord& lock;
@@ -114,7 +114,7 @@ namespace snmalloc
     PreventFork pf{};
 
   public:
-    FlagLock(FlagWord& lock) : lock(lock)
+    FlagLock(FlagWord& lock) SNMALLOC_ACQUIRE(lock) : lock(lock)
     {
       while (
         SNMALLOC_UNLIKELY(lock.flag.exchange(true, stl::memory_order_acquire)))
@@ -133,17 +133,11 @@ namespace snmalloc
       lock.set_owner();
     }
 
-    ~FlagLock()
+    ~FlagLock() SNMALLOC_RELEASE()
     {
       lock.clear_owner();
       lock.flag.store(false, stl::memory_order_release);
     }
   };
 
-  template<typename F>
-  inline void with(FlagWord& lock, F&& f)
-  {
-    FlagLock l(lock);
-    f();
-  }
 } // namespace snmalloc
