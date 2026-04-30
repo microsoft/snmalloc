@@ -426,14 +426,16 @@ jobs:
       id: cache-compiler-rt
       uses: actions/cache@v4
       with:
-        path: ${{github.workspace}}/../compiler-rt
+        path: |
+          ${{ runner.temp }}/compiler-rt
+          ${{ runner.temp }}/llvm-project/compiler-rt/lib
         key: compiler-rt-${{ env.COMPILER_RT_LLVM_VERSION }}-${{matrix.os}}-${{matrix.profile}}
     - name: Install Compiler-RT
       if: steps.cache-compiler-rt.outputs.cache-hit != 'true'
       run: |
-        cd ..
+        cd ${{ runner.temp }}
         git clone https://github.com/llvm/llvm-project --depth=1 -b llvmorg-${{ env.COMPILER_RT_LLVM_VERSION }}
-        mkdir compiler-rt
+        mkdir -p compiler-rt
         cmake -G Ninja \
               -S llvm-project/runtimes \
               -B llvm-project/build \
@@ -441,7 +443,7 @@ jobs:
               -DLLVM_ENABLE_RUNTIMES=compiler-rt \
               -DCMAKE_CXX_COMPILER=clang++-18 \
               -DCMAKE_C_COMPILER=clang-18 \
-              -DCMAKE_INSTALL_PREFIX=$(realpath compiler-rt)
+              -DCMAKE_INSTALL_PREFIX=${{ runner.temp }}/compiler-rt
         cmake --build llvm-project/build --parallel
         cmake --build llvm-project/build --target=install
     - name: Configure SnMalloc
@@ -453,8 +455,8 @@ jobs:
         -DCMAKE_C_COMPILER_LAUNCHER=ccache
         -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
         -DSNMALLOC_ENABLE_GWP_ASAN_INTEGRATION=On
-        -DSNMALLOC_GWP_ASAN_INCLUDE_PATH=${{github.workspace}}/../llvm-project/compiler-rt/lib
-        -DSNMALLOC_GWP_ASAN_LIBRARY_PATH=${{github.workspace}}/../compiler-rt/lib/linux
+        -DSNMALLOC_GWP_ASAN_INCLUDE_PATH=${{ runner.temp }}/llvm-project/compiler-rt/lib
+        -DSNMALLOC_GWP_ASAN_LIBRARY_PATH=${{ runner.temp }}/compiler-rt/lib/linux
     - name: Build
       run: cmake --build ${{github.workspace}}/build --parallel
     - name: Show ccache stats
