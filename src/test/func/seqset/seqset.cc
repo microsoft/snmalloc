@@ -10,7 +10,9 @@
  * The corruption case is run in a forked child so that the expected abort
  * does not kill the test harness itself.
  */
-#include <snmalloc/snmalloc.h>
+#include <snmalloc/ds_aal/seqset.h>
+#include <snmalloc/ds_core/helpers.h>
+#include <stdio.h>
 #include <test/helpers.h>
 #include <test/setup.h>
 

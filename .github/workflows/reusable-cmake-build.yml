@@ -80,9 +80,24 @@ jobs:
       with:
         xcode-version: latest-stable
 
+    - name: Compute config hash
+      id: config-hash
+      shell: bash
+      run: echo "hash=$(echo '${{ inputs.cmake-config }} ${{ inputs.extra-cmake-flags }}' | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+    - name: Set up sccache
+      uses: hendrikmuhs/ccache-action@v1
+      with:
+        variant: sccache
+        key: ${{ inputs.os }}-${{ inputs.build-type }}-${{ steps.config-hash.outputs.hash }}
+
     - name: Configure CMake
       run: >
         cmake -DSNMALLOC_CI_BUILD=ON -B ${{ github.workspace }}/build
+        -DCMAKE_C_COMPILER_LAUNCHER=sccache
+        -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+        -DCMAKE_POLICY_DEFAULT_CMP0141=NEW
+        -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
         ${{ inputs.cmake-config }}
         ${{ inputs.extra-cmake-flags }}
         ${{ !inputs.use-msbuild && format('-DCMAKE_BUILD_TYPE={0}', inputs.build-type) || '' }}
@@ -98,6 +113,9 @@ jobs:
       run: cmake --build . --config ${{ inputs.build-type }}
       env:
         NINJA_STATUS: "%p [%f:%s/%t] %o/s, %es "
+
+    - name: Show sccache stats
+      run: sccache --show-stats
 
     - name: Check binary size
       if: inputs.check-binary-size && !startsWith(inputs.os, 'windows')

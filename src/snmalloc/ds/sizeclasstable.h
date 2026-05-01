@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../ds/ds.h"
+#include "../pal/pal.h"
 
 /**
  * This file contains all the code for transforming transforming sizes to
@@ -15,24 +15,7 @@
 
 namespace snmalloc
 {
-  using smallsizeclass_t = size_t;
   using chunksizeclass_t = size_t;
-
-  static constexpr smallsizeclass_t size_to_sizeclass_const(size_t size)
-  {
-    // Don't use sizeclasses that are not a multiple of the alignment.
-    // For example, 24 byte allocations can be
-    // problematic for some data due to alignment issues.
-    auto sc = static_cast<smallsizeclass_t>(
-      bits::to_exp_mant_const<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>(size));
-
-    SNMALLOC_ASSERT(sc == static_cast<uint8_t>(sc));
-
-    return sc;
-  }
-
-  constexpr size_t NUM_SMALL_SIZECLASSES =
-    size_to_sizeclass_const(MAX_SMALL_SIZECLASS_SIZE) + 1;
 
   // Large classes range from [MAX_SMALL_SIZECLASS_SIZE, ADDRESS_SPACE).
   constexpr size_t NUM_LARGE_CLASSES =
@@ -97,7 +80,7 @@ namespace snmalloc
     constexpr smallsizeclass_t as_small()
     {
       SNMALLOC_ASSERT(is_small());
-      return value & (TAG - 1);
+      return smallsizeclass_t(value & (TAG - 1));
     }
 
     constexpr chunksizeclass_t as_large()
@@ -198,8 +181,7 @@ namespace snmalloc
     {
       size_t max_capacity = 0;
 
-      for (sizeclass_compress_t sizeclass = 0;
-           sizeclass < NUM_SMALL_SIZECLASSES;
+      for (smallsizeclass_t sizeclass(0); sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
       {
         auto& meta = fast_small(sizeclass);
@@ -230,8 +212,7 @@ namespace snmalloc
       // Get maximum precision to calculate largest division range.
       DIV_MULT_SHIFT = bits::BITS - bits::next_pow2_bits_const(max_capacity);
 
-      for (sizeclass_compress_t sizeclass = 0;
-           sizeclass < NUM_SMALL_SIZECLASSES;
+      for (smallsizeclass_t sizeclass(0); sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
       {
         // Calculate reciprocal division constant.
@@ -434,7 +415,8 @@ namespace snmalloc
       sizeclass_compress_t sizeclass = 0;
       for (; sizeclass < minimum_class; sizeclass++)
       {
-        for (; curr <= sizeclass_metadata.fast_small(sizeclass).size;
+        for (; curr <=
+             sizeclass_metadata.fast_small(smallsizeclass_t(sizeclass)).size;
              curr += MIN_ALLOC_STEP_SIZE)
         {
           table[sizeclass_lookup_index(curr)] = minimum_class;
@@ -443,7 +425,8 @@ namespace snmalloc
 
       for (; sizeclass < NUM_SMALL_SIZECLASSES; sizeclass++)
       {
-        for (; curr <= sizeclass_metadata.fast_small(sizeclass).size;
+        for (; curr <=
+             sizeclass_metadata.fast_small(smallsizeclass_t(sizeclass)).size;
              curr += MIN_ALLOC_STEP_SIZE)
         {
           auto i = sizeclass_lookup_index(curr);
@@ -457,30 +440,19 @@ namespace snmalloc
 
   constexpr SizeClassLookup sizeclass_lookup = SizeClassLookup();
 
-  /**
-   * @brief Returns true if the size is a small sizeclass. Note that
-   * 0 is not considered a small sizeclass.
-   */
-  constexpr bool is_small_sizeclass(size_t size)
-  {
-    // Perform the - 1 on size, so that zero wraps around and ends up on
-    // slow path.
-    return (size - 1) < sizeclass_to_size(NUM_SMALL_SIZECLASSES - 1);
-  }
-
   constexpr smallsizeclass_t size_to_sizeclass(size_t size)
   {
     if (SNMALLOC_LIKELY(is_small_sizeclass(size)))
     {
       auto index = sizeclass_lookup_index(size);
       SNMALLOC_ASSERT(index < sizeclass_lookup_size);
-      return sizeclass_lookup.table[index];
+      return smallsizeclass_t(sizeclass_lookup.table[index]);
     }
 
     // Check this is not called on large sizes.
     SNMALLOC_ASSERT(size == 0);
     // Map size == 0 to the first sizeclass.
-    return 0;
+    return smallsizeclass_t(0);
   }
 
   /**

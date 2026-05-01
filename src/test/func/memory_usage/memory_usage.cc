@@ -4,11 +4,8 @@
  */
 #include <iostream>
 #include <test/setup.h>
+#include <test/snmalloc_testlib.h>
 #include <vector>
-
-#define SNMALLOC_NAME_MANGLE(a) our_##a
-#include "../../../snmalloc/override/malloc-extensions.cc"
-#include "../../../snmalloc/override/malloc.cc"
 
 using namespace snmalloc;
 
@@ -43,7 +40,7 @@ void add_n_allocs(size_t n)
 {
   while (true)
   {
-    auto p = our_malloc(1024);
+    auto p = testlib_malloc(1024);
     allocs.push_back(p);
     if (print_memory_usage())
     {
@@ -64,7 +61,7 @@ void remove_n_allocs(size_t n)
     if (allocs.empty())
       return;
     auto p = allocs.back();
-    our_free(p);
+    testlib_free(p);
     allocs.pop_back();
     if (print_memory_usage())
     {

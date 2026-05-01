@@ -7,8 +7,9 @@
  */
 
 #include <iostream>
-#include <snmalloc/snmalloc.h>
+#include <snmalloc/snmalloc_core.h>
 #include <test/setup.h>
+#include <test/snmalloc_testlib.h>
 
 using namespace snmalloc;
 static constexpr size_t GRANULARITY_BITS = 20;
