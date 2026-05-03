@@ -31,25 +31,31 @@ namespace snmalloc
 
   /**
    * Copy a single element where source and destination may overlap.
-   * Uses __builtin_memmove which the compiler can optimize to register-width
-   * loads/stores while correctly handling overlap.  We cannot use
-   * __builtin_memcpy_inline (ASan treats it as memcpy and flags overlap)
-   * or struct copy (compiler lowers *d = *s to a memcpy call, same problem).
+   *
+   * Reads src into a fresh stack temporary, then writes the temporary to
+   * dst.  The temporary aliases neither src nor dst, so each half is a
+   * non-overlapping copy: ASan stays happy, and we avoid __builtin_memmove
+   * (which is permitted to lower back to a memmove call and could recurse
+   * into our own memmove when this header is used to implement that libc
+   * symbol).  For the sizes we actually instantiate (1, sizeof(uint64_t),
+   * 16) every supported toolchain compiles the struct assignments below
+   * to register-width loads/stores rather than a library call.
+   *
+   * On StrictProvenance/CHERI this helper is only invoked with Size == 1
+   * (via block_copy_move<1>/block_reverse_copy<1>); the pointer-preserving
+   * paths copy through Ptr2/void** directly, so capability tags are
+   * preserved by the surrounding code, not here.
    */
   template<size_t Size>
   SNMALLOC_FAST_PATH_INLINE void copy_one_move(void* dst, const void* src)
   {
-#if __has_builtin(__builtin_memmove)
-    __builtin_memmove(dst, src, Size);
-#else
-    // Fallback: byte-by-byte copy through a temporary buffer to avoid
-    // the compiler generating a memcpy call for struct assignment.
-    char tmp[Size];
-    for (size_t i = 0; i < Size; ++i)
-      tmp[i] = static_cast<const char*>(src)[i];
-    for (size_t i = 0; i < Size; ++i)
-      static_cast<char*>(dst)[i] = tmp[i];
-#endif
+    struct Block
+    {
+      char data[Size];
+    };
+
+    Block tmp = *static_cast<const Block*>(src);
+    *static_cast<Block*>(dst) = tmp;
   }
 
   /**
@@ -257,7 +263,7 @@ namespace snmalloc
      * Reverse copy for overlapping memmove where dst > src.
      * Caller guarantees len > 0 and dst != src.
      */
-    static void* move(void* dst, const void* src, size_t len)
+    static void* reverse_move(void* dst, const void* src, size_t len)
     {
       auto orig_dst = dst;
       block_reverse_copy<LargestRegisterSize>(dst, src, len);
@@ -507,7 +513,7 @@ namespace snmalloc
      *    to a pointer-aligned address in the other, so integer-only
      *    reverse copy is safe.
      */
-    static void* move(void* dst, const void* src, size_t len)
+    static void* reverse_move(void* dst, const void* src, size_t len)
     {
       auto orig_dst = dst;
 
@@ -701,7 +707,7 @@ namespace snmalloc
      * No rep movsb in reverse (ERMS doesn't support DF=1), so use
      * SSE-width block_reverse_copy.
      */
-    static void* move(void* dst, const void* src, size_t len)
+    static void* reverse_move(void* dst, const void* src, size_t len)
     {
       auto orig_dst = dst;
       block_reverse_copy<LargestRegisterSize>(dst, src, len);
@@ -770,7 +776,7 @@ namespace snmalloc
     /**
      * Reverse copy for overlapping memmove where dst > src.
      */
-    static void* move(void* dst, const void* src, size_t len)
+    static void* reverse_move(void* dst, const void* src, size_t len)
     {
       auto orig_dst = dst;
       block_reverse_copy<LargestRegisterSize>(dst, src, len);
@@ -823,8 +829,9 @@ namespace snmalloc
 
   /**
    * Snmalloc checked memmove.  Handles overlapping source and destination
-   * by selecting forward copy (Arch::copy) or reverse copy (Arch::move)
-   * as appropriate.
+   * by selecting Arch::copy (no overlap), Arch::forward_move (dst < src,
+   * overlap-safe forward) or Arch::reverse_move (dst > src, overlap-safe
+   * reverse) as appropriate.
    */
   template<
     bool Checked,
@@ -849,7 +856,7 @@ namespace snmalloc
             {
               if ((dst_addr - src_addr) >= len)
                 return Arch::copy(dst, src, len); // no overlap
-              return Arch::move(dst, src, len); // reverse copy
+              return Arch::reverse_move(dst, src, len); // reverse copy
             }
             // dst_addr < src_addr (dst == src already handled)
             if ((src_addr - dst_addr) >= len)
