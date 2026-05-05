@@ -60,7 +60,6 @@ jobs:
               -DLLVM_COV=/opt/homebrew/opt/llvm@19/bin/llvm-cov
               -DLLVM_PROFDATA=/opt/homebrew/opt/llvm@19/bin/llvm-profdata
             self-host: false
-            coverage-mode: tests
           # ------------------------------------------------------------------
           # Linux representative leg. Mirrors main.yml's self-host job
           # (SNMALLOC_MEMCPY_BOUNDS=ON + SNMALLOC_CHECK_LOADS=ON), so
@@ -77,18 +76,17 @@ jobs:
             dependencies: 'sudo apt install -y ninja-build clang-19 llvm-19'
             extra-cmake-flags: '-DCMAKE_CXX_COMPILER=clang++-19 -DCMAKE_C_COMPILER=clang-19 -DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON'
             self-host: true
-            coverage-mode: tests+selfhost
     uses: ./.github/workflows/reusable-cmake-build.yml
     with:
       os: ${{ matrix.os }}
       # build-type is overridden to Debug by the reusable workflow
-      # whenever coverage-mode != 'off', but the input is required.
+      # whenever coverage is true, but the input is required.
       build-type: Debug
       cmake-config: '-G Ninja'
       extra-cmake-flags: ${{ matrix.extra-cmake-flags }}
       dependencies: ${{ matrix.dependencies }}
       self-host: ${{ matrix.self-host }}
-      coverage-mode: ${{ matrix.coverage-mode }}
+      coverage: true
       coverage-artifact-name: ${{ matrix.label }}
 
   # ============================================================================
@@ -96,7 +94,7 @@ jobs:
   #
   # llvm-profdata / llvm-cov must be installed in the VM by the
   # `dependencies:` script. The reusable workflow forces
-  # copyback: true when coverage-mode != 'off' so coverage.json
+  # copyback: true when coverage is true so coverage.json
   # makes it back to the host runner.
   # ============================================================================
   build-vm:
@@ -136,7 +134,7 @@ jobs:
       build-type: Debug
       dependencies: ${{ matrix.dependencies }}
       cmake-flags: ${{ matrix.cmake-flags }}
-      coverage-mode: tests
+      coverage: true
       coverage-artifact-name: ${{ matrix.label }}
 
   # ============================================================================
@@ -162,7 +160,7 @@ jobs:
       cmake-config: '-G Ninja'
       extra-cmake-flags: '-DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_C_COMPILER=clang-cl'
       dependencies: ''
-      coverage-mode: tests
+      coverage: true
       coverage-artifact-name: windows-2022
 
   # ============================================================================

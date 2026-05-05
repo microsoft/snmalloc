@@ -61,16 +61,16 @@ on:
         type: number
         default: 30
         description: 'Job timeout in minutes'
-      coverage-mode:
+      coverage:
         required: false
-        type: string
-        default: 'off'
-        description: "'off' | 'tests' | 'tests+selfhost' — when not 'off', forces SNMALLOC_COVERAGE=ON + Debug, builds the 'coverage' target, and uploads coverage.json (and selfhost.json) as artifacts."
+        type: boolean
+        default: false
+        description: "When true, forces SNMALLOC_COVERAGE=ON + Debug, builds the 'coverage' target, and uploads coverage.json as an artifact. If self-host is also true, selfhost.json is exported alongside."
       coverage-artifact-name:
         required: false
         type: string
         default: ''
-        description: "Suffix for the uploaded artifact, used as 'coverage-<suffix>'. Required when coverage-mode != 'off'. Validated against ^[A-Za-z0-9_-]+$."
+        description: "Suffix for the uploaded artifact, used as 'coverage-<suffix>'. Required when coverage is true. Validated against ^[A-Za-z0-9._-]+$."
 
 jobs:
   build:
@@ -80,15 +80,11 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Validate coverage inputs
-      if: inputs.coverage-mode != 'off'
+      if: inputs.coverage
       shell: bash
       run: |
-        case "${{ inputs.coverage-mode }}" in
-          tests|tests+selfhost) ;;
-          *) echo "::error::coverage-mode must be one of: off, tests, tests+selfhost (got '${{ inputs.coverage-mode }}')" ; exit 1 ;;
-        esac
         if ! [[ "${{ inputs.coverage-artifact-name }}" =~ ^[A-Za-z0-9._-]+$ ]]; then
-          echo "::error::coverage-artifact-name must match ^[A-Za-z0-9._-]+\$ when coverage-mode != 'off' (got '${{ inputs.coverage-artifact-name }}')"
+          echo "::error::coverage-artifact-name must match ^[A-Za-z0-9._-]+\$ when coverage is true (got '${{ inputs.coverage-artifact-name }}')"
           exit 1
         fi
 
@@ -123,8 +119,8 @@ jobs:
         -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
         ${{ inputs.cmake-config }}
         ${{ inputs.extra-cmake-flags }}
-        ${{ inputs.coverage-mode != 'off' && '-DSNMALLOC_COVERAGE=ON' || '' }}
-        ${{ !inputs.use-msbuild && format('-DCMAKE_BUILD_TYPE={0}', inputs.coverage-mode != 'off' && 'Debug' || inputs.build-type) || '' }}
+        ${{ inputs.coverage && '-DSNMALLOC_COVERAGE=ON' || '' }}
+        ${{ !inputs.use-msbuild && format('-DCMAKE_BUILD_TYPE={0}', inputs.coverage && 'Debug' || inputs.build-type) || '' }}
 
     - name: Build (MSBuild)
       if: inputs.use-msbuild
@@ -151,7 +147,7 @@ jobs:
         fi
 
     - name: Test (Windows)
-      if: ${{ !inputs.build-only && inputs.coverage-mode == 'off' && startsWith(inputs.os, 'windows') }}
+      if: ${{ !inputs.build-only && !inputs.coverage && startsWith(inputs.os, 'windows') }}
       working-directory: ${{ github.workspace }}/build
       run: >
         ctest --output-on-failure -j 4 -C ${{ inputs.build-type }} --timeout 400
@@ -159,7 +155,7 @@ jobs:
         ${{ inputs.test-extra-args }}
 
     - name: Test (Unix)
-      if: ${{ !inputs.build-only && inputs.coverage-mode == 'off' && !startsWith(inputs.os, 'windows') }}
+      if: ${{ !inputs.build-only && !inputs.coverage && !startsWith(inputs.os, 'windows') }}
       working-directory: ${{ github.workspace }}/build
       run: >
         ctest --output-on-failure -j 4 -C ${{ inputs.build-type }} --timeout 400
@@ -167,19 +163,20 @@ jobs:
         ${{ inputs.test-extra-args }}
 
     - name: Test (coverage target)
-      if: ${{ !inputs.build-only && inputs.coverage-mode != 'off' }}
+      if: ${{ !inputs.build-only && inputs.coverage }}
       working-directory: ${{ github.workspace }}/build
       # The coverage target wraps the same ctest invocation regular CI
       # uses, so coverage reflects what every-PR CI actually exercises.
       run: cmake --build . --target coverage
 
     - name: Self-host test
-      # In coverage builds we need self-host to run so the shim's
-      # profraws are produced for the Export step below; outside
-      # coverage builds we honour the `self-host` input. The two
-      # conditions are intentionally coupled — the Export step at
-      # the next step only runs in tests+selfhost mode.
-      if: ${{ (inputs.self-host && inputs.coverage-mode == 'off') || inputs.coverage-mode == 'tests+selfhost' }}
+      # Self-host runs whenever the caller asks for it, regardless
+      # of whether this is a coverage build. In coverage builds the
+      # shim's child processes write profraws (LLVM_PROFILE_FILE
+      # below) and the next step exports them; outside coverage
+      # builds the env var is harmless (uninstrumented shim writes
+      # nothing).
+      if: ${{ inputs.self-host }}
       working-directory: ${{ github.workspace }}/build
       env:
         # Routes profraws written by the shim child processes during
@@ -199,7 +196,7 @@ jobs:
         done
 
     - name: Export self-host coverage
-      if: ${{ inputs.coverage-mode == 'tests+selfhost' }}
+      if: ${{ inputs.coverage && inputs.self-host }}
       working-directory: ${{ github.workspace }}/build
       run: |
         set -euo pipefail
@@ -244,7 +241,7 @@ jobs:
           "${obj_args[@]}" > selfhost.json
 
     - name: Upload coverage artifact
-      if: ${{ !inputs.build-only && inputs.coverage-mode != 'off' }}
+      if: ${{ !inputs.build-only && inputs.coverage }}
       uses: actions/upload-artifact@v4
       with:
         name: coverage-${{ inputs.coverage-artifact-name }}
