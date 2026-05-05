@@ -227,7 +227,9 @@ jobs:
         PROFDATA=$(find_tool llvm-profdata)
         COV=$(find_tool llvm-cov)
         "$PROFDATA" merge -sparse profiles/selfhost-*.profraw -o selfhost.profdata
-        "$COV" export -format=json -instr-profile=selfhost.profdata \
+        # llvm-cov export emits JSON by default; -format only accepts
+        # text|lcov, so passing -format=json fails CLI parsing.
+        "$COV" export -instr-profile=selfhost.profdata \
           -object "$shim" > selfhost.json
 
     - name: Upload coverage artifact
