@@ -212,8 +212,22 @@ jobs:
           exit 1
         fi
         shim="${shims[0]}"
-        llvm-profdata merge -sparse profiles/selfhost-*.profraw -o selfhost.profdata
-        llvm-cov export -format=json -instr-profile=selfhost.profdata \
+        # Resolve versioned llvm-* tool names. apt installs
+        # llvm-profdata-19 / llvm-cov-19; brew + Apple SDK install the
+        # unversioned binaries. Mirror the find_program list used by
+        # CMakeLists.txt's coverage target.
+        find_tool() {
+          local n
+          for n in "$1-19" "$1-15" "$1"; do
+            if command -v "$n" >/dev/null 2>&1; then echo "$n"; return 0; fi
+          done
+          echo "::error::could not find $1 on PATH (tried -19, -15, unversioned)" >&2
+          return 1
+        }
+        PROFDATA=$(find_tool llvm-profdata)
+        COV=$(find_tool llvm-cov)
+        "$PROFDATA" merge -sparse profiles/selfhost-*.profraw -o selfhost.profdata
+        "$COV" export -format=json -instr-profile=selfhost.profdata \
           -object "$shim" > selfhost.json
 
     - name: Upload coverage artifact

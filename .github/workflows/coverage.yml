@@ -137,9 +137,11 @@ jobs:
             vm-version: '10.0'
             # NetBSD pkgsrc installs unversioned clang/llvm-cov/
             # llvm-profdata under /usr/pkg/bin. The default system
-            # compiler is gcc, so we still must select clang explicitly
-            # because SNMALLOC_COVERAGE rejects non-Clang compilers.
-            dependencies: '/usr/sbin/pkg_add cmake ninja-build llvm clang'
+            # compiler is gcc, so we must select clang explicitly
+            # because SNMALLOC_COVERAGE rejects non-Clang. The
+            # `compiler-rt` package supplies libclang_rt.profile.a
+            # which is required to link -fprofile-instr-generate.
+            dependencies: '/usr/sbin/pkg_add cmake ninja-build llvm clang compiler-rt'
             cmake-flags: >-
               -DCMAKE_CXX_COMPILER=clang++
               -DCMAKE_C_COMPILER=clang
