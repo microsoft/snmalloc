@@ -80,7 +80,11 @@ jobs:
           cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }} ${{ inputs.coverage-mode != 'off' && '-DSNMALLOC_COVERAGE=ON' || '' }}
           cd ${{ github.workspace }}/build
           NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-          ${{ inputs.coverage-mode != 'off' && 'cmake --build . --target coverage' || "ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400" }}
+          if [ "${{ inputs.coverage-mode }}" != "off" ]; then
+            cmake --build . --target coverage
+          else
+            ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+          fi
 
     - name: Build on NetBSD
       if: inputs.vm-type == 'netbsd'
@@ -97,7 +101,11 @@ jobs:
           cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }} ${{ inputs.coverage-mode != 'off' && '-DSNMALLOC_COVERAGE=ON' || '' }}
           cd ${{ github.workspace }}/build
           NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-          ${{ inputs.coverage-mode != 'off' && 'cmake --build . --target coverage' || "ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400" }}
+          if [ "${{ inputs.coverage-mode }}" != "off" ]; then
+            cmake --build . --target coverage
+          else
+            ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+          fi
 
     - name: Build on OpenBSD
       if: inputs.vm-type == 'openbsd'
@@ -114,7 +122,11 @@ jobs:
           cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }} ${{ inputs.coverage-mode != 'off' && '-DSNMALLOC_COVERAGE=ON' || '' }}
           cd ${{ github.workspace }}/build
           NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-          ${{ inputs.coverage-mode != 'off' && 'cmake --build . --target coverage' || "ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400" }}
+          if [ "${{ inputs.coverage-mode }}" != "off" ]; then
+            cmake --build . --target coverage
+          else
+            ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+          fi
 
     - name: Upload coverage artifact
       if: inputs.coverage-mode != 'off'
