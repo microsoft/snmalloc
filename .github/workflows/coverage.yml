@@ -157,8 +157,9 @@ jobs:
   # which no other leg in the matrix touches.
   #
   # GitHub windows-2022 runners ship LLVM (clang-cl, llvm-profdata,
-  # llvm-cov) under C:\Program Files\LLVM\bin (on PATH) and ninja
-  # preinstalled, so no `dependencies:` step is needed.
+  # llvm-cov) under C:\Program Files\LLVM\bin and ninja preinstalled.
+  # Pass absolute paths to llvm-cov / llvm-profdata so we don't
+  # depend on PATH ordering inside the runner image.
   # ============================================================================
   windows:
     name: coverage / windows-2022 clang-cl
@@ -167,7 +168,11 @@ jobs:
       os: windows-2022
       build-type: Debug
       cmake-config: '-G Ninja'
-      extra-cmake-flags: '-DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_C_COMPILER=clang-cl'
+      extra-cmake-flags: >-
+        -DCMAKE_CXX_COMPILER=clang-cl
+        -DCMAKE_C_COMPILER=clang-cl
+        -DLLVM_COV=C:/Program Files/LLVM/bin/llvm-cov.exe
+        -DLLVM_PROFDATA=C:/Program Files/LLVM/bin/llvm-profdata.exe
       dependencies: ''
       coverage-mode: tests
       coverage-artifact-name: windows-2022

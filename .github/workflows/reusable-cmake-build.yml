@@ -174,7 +174,12 @@ jobs:
       run: cmake --build . --target coverage
 
     - name: Self-host test
-      if: ${{ inputs.self-host || inputs.coverage-mode == 'tests+selfhost' }}
+      # In coverage builds we need self-host to run so the shim's
+      # profraws are produced for the Export step below; outside
+      # coverage builds we honour the `self-host` input. The two
+      # conditions are intentionally coupled — the Export step at
+      # the next step only runs in tests+selfhost mode.
+      if: ${{ (inputs.self-host && inputs.coverage-mode == 'off') || inputs.coverage-mode == 'tests+selfhost' }}
       working-directory: ${{ github.workspace }}/build
       env:
         # Routes profraws written by the shim child processes during

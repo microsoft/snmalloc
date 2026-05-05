@@ -189,6 +189,7 @@ def test_all_platforms_empty():
     assert merged["totals"] == {"executable": 0, "covered": 0}
     md = mc.render_markdown(merged)
     assert "0 / 0" in md or "n/a" in md
+    _assert_invariant(merged)
 
 
 # ---------------------------------------------------------------------------
