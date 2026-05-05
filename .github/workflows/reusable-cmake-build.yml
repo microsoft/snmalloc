@@ -87,8 +87,8 @@ jobs:
           tests|tests+selfhost) ;;
           *) echo "::error::coverage-mode must be one of: off, tests, tests+selfhost (got '${{ inputs.coverage-mode }}')" ; exit 1 ;;
         esac
-        if ! [[ "${{ inputs.coverage-artifact-name }}" =~ ^[A-Za-z0-9_-]+$ ]]; then
-          echo "::error::coverage-artifact-name must match ^[A-Za-z0-9_-]+\$ when coverage-mode != 'off' (got '${{ inputs.coverage-artifact-name }}')"
+        if ! [[ "${{ inputs.coverage-artifact-name }}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+          echo "::error::coverage-artifact-name must match ^[A-Za-z0-9._-]+\$ when coverage-mode != 'off' (got '${{ inputs.coverage-artifact-name }}')"
           exit 1
         fi
 
@@ -203,11 +203,15 @@ jobs:
         # libsnmallocshim-checks.so) the caller is expected to schedule
         # one matrix leg per variant; this step exports against whichever
         # one is present in libs/.
-        shim=$(ls libs/libsnmallocshim*.so libs/libsnmallocshim*.dylib 2>/dev/null | head -1)
-        if [ -z "$shim" ]; then
+        # Glob via bash nullglob so a missing pattern (e.g. no .dylib on
+        # Linux) doesn't fail the pipeline under `pipefail`.
+        shopt -s nullglob
+        shims=( libs/libsnmallocshim*.so libs/libsnmallocshim*.dylib )
+        if [ ${#shims[@]} -eq 0 ]; then
           echo "::error::no shim built; cannot export selfhost coverage"
           exit 1
         fi
+        shim="${shims[0]}"
         llvm-profdata merge -sparse profiles/selfhost-*.profraw -o selfhost.profdata
         llvm-cov export -format=json -instr-profile=selfhost.profdata \
           -object "$shim" > selfhost.json

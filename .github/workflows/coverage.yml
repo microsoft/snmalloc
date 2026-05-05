@@ -53,7 +53,14 @@ jobs:
             # `xcrun`). The coverage target's find_program(LLVM_COV ...)
             # only looks for unversioned/-19/-15 names, so we install
             # llvm@19 via brew and pass the explicit binary paths.
-            dependencies: 'brew install --quiet ninja llvm@19'
+            #
+            # SDKROOT is exported in the dependencies step so brew
+            # clang treats the Apple SDK as a system header path,
+            # which suppresses -Wundef on Apple's _STDC_VERSION_
+            # check inside <sys/cdefs.h>.
+            dependencies: |
+              brew install --quiet ninja llvm@19
+              echo "SDKROOT=$(xcrun --show-sdk-path)" >> "$GITHUB_ENV"
             extra-cmake-flags: >-
               -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm@19/bin/clang++
               -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm@19/bin/clang
@@ -114,20 +121,17 @@ jobs:
           - label: freebsd-14
             vm-type: freebsd
             vm-version: '14.1'
-            # FreeBSD's llvm19 port installs binaries with a numeric
-            # suffix and no dash (clang19, llvm-cov19,
-            # llvm-profdata19) under /usr/local/llvm19/bin/. The base
-            # CMakeLists.txt's find_program list only knows the
-            # dashed forms (-19/-15) and bare names; we sidestep the
-            # search entirely by passing absolute paths via -D so the
-            # find_program cache is preset with a fully-qualified
-            # binary that doesn't depend on PATH.
+            # FreeBSD's llvm19 port installs versioned binaries
+            # (clang19, clang++19, llvm-cov19, llvm-profdata19)
+            # directly under /usr/local/bin/ — not under a
+            # /usr/local/llvm19/bin/ subtree. Pass absolute paths so
+            # find_program is preset and doesn't depend on PATH.
             dependencies: 'pkg install -y cmake ninja llvm19'
             cmake-flags: >-
-              -DCMAKE_CXX_COMPILER=/usr/local/llvm19/bin/clang++19
-              -DCMAKE_C_COMPILER=/usr/local/llvm19/bin/clang19
-              -DLLVM_COV=/usr/local/llvm19/bin/llvm-cov19
-              -DLLVM_PROFDATA=/usr/local/llvm19/bin/llvm-profdata19
+              -DCMAKE_CXX_COMPILER=/usr/local/bin/clang++19
+              -DCMAKE_C_COMPILER=/usr/local/bin/clang19
+              -DLLVM_COV=/usr/local/bin/llvm-cov19
+              -DLLVM_PROFDATA=/usr/local/bin/llvm-profdata19
           - label: netbsd-10
             vm-type: netbsd
             vm-version: '10.0'

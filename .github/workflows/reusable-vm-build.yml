@@ -60,8 +60,8 @@ jobs:
           tests) ;;
           *) echo "::error::coverage-mode must be one of: off, tests (got '${{ inputs.coverage-mode }}')" ; exit 1 ;;
         esac
-        if ! [[ "${{ inputs.coverage-artifact-name }}" =~ ^[A-Za-z0-9_-]+$ ]]; then
-          echo "::error::coverage-artifact-name must match ^[A-Za-z0-9_-]+\$ when coverage-mode != 'off' (got '${{ inputs.coverage-artifact-name }}')"
+        if ! [[ "${{ inputs.coverage-artifact-name }}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+          echo "::error::coverage-artifact-name must match ^[A-Za-z0-9._-]+\$ when coverage-mode != 'off' (got '${{ inputs.coverage-artifact-name }}')"
           exit 1
         fi
 
