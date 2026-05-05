@@ -132,19 +132,16 @@ jobs:
               -DCMAKE_C_COMPILER=/usr/local/bin/clang19
               -DLLVM_COV=/usr/local/bin/llvm-cov19
               -DLLVM_PROFDATA=/usr/local/bin/llvm-profdata19
-          - label: netbsd-10
-            vm-type: netbsd
-            vm-version: '10.0'
-            # NetBSD pkgsrc installs unversioned clang/llvm-cov/
-            # llvm-profdata under /usr/pkg/bin. The default system
-            # compiler is gcc, so we must select clang explicitly
-            # because SNMALLOC_COVERAGE rejects non-Clang. The
-            # `compiler-rt` package supplies libclang_rt.profile.a
-            # which is required to link -fprofile-instr-generate.
-            dependencies: '/usr/sbin/pkg_add cmake ninja-build llvm clang compiler-rt'
-            cmake-flags: >-
-              -DCMAKE_CXX_COMPILER=clang++
-              -DCMAKE_C_COMPILER=clang
+          # NetBSD intentionally omitted. pkgsrc's compiler-rt-19
+          # package ships a libclang_rt.profile-x86_64.a in which
+          # __llvm_profile_raw_version is declared hidden but not
+          # defined, so any -fprofile-instr-generate shared library
+          # (e.g. libsnmallocshim.so) fails to link with:
+          #   R_X86_64_PC32 against undefined hidden symbol
+          #   `__llvm_profile_raw_version` can not be used when
+          #   making a shared object
+          # Revisit when pkgsrc ships a fixed compiler-rt, or wire
+          # up an in-VM compiler-rt build from llvm-project source.
     uses: ./.github/workflows/reusable-vm-build.yml
     with:
       vm-type: ${{ matrix.vm-type }}
