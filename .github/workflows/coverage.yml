@@ -144,9 +144,14 @@ jobs:
   # which no other leg in the matrix touches.
   #
   # GitHub windows-2022 runners ship LLVM (clang-cl, llvm-profdata,
-  # llvm-cov) under C:\Program Files\LLVM\bin and ninja preinstalled.
-  # Pass absolute paths to llvm-cov / llvm-profdata so we don't
-  # depend on PATH ordering inside the runner image.
+  # llvm-cov) under C:\Program Files\LLVM\bin, with that directory
+  # already on PATH and ninja preinstalled. We rely on PATH lookup
+  # rather than passing -DLLVM_COV / -DLLVM_PROFDATA absolute paths,
+  # because the install dir contains a space ("Program Files") which
+  # YAML folded scalars + the reusable workflow's shell-expansion of
+  # ${{ inputs.extra-cmake-flags }} cannot preserve. Quoting at any
+  # single layer is undone by the next, leaving CMake to receive
+  # -DLLVM_PROFDATA=C:/Program and a phantom positional argument.
   # ============================================================================
   windows:
     name: coverage / windows-2022 clang-cl
@@ -155,11 +160,7 @@ jobs:
       os: windows-2022
       build-type: Debug
       cmake-config: '-G Ninja'
-      extra-cmake-flags: >-
-        -DCMAKE_CXX_COMPILER=clang-cl
-        -DCMAKE_C_COMPILER=clang-cl
-        -DLLVM_COV=C:/Program Files/LLVM/bin/llvm-cov.exe
-        -DLLVM_PROFDATA=C:/Program Files/LLVM/bin/llvm-profdata.exe
+      extra-cmake-flags: '-DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_C_COMPILER=clang-cl'
       dependencies: ''
       coverage-mode: tests
       coverage-artifact-name: windows-2022
