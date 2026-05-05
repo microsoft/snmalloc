@@ -31,6 +31,7 @@ option(SNMALLOC_ENABLE_WAIT_ON_ADDRESS "Use wait on address backoff strategy if 
 option(SNMALLOC_PTHREAD_FORK_PROTECTION "Guard against forking while allocator locks are held using pthread_atfork hooks" OFF)
 option(SNMALLOC_ENABLE_FUZZING "Enable fuzzing instrumentation tests" OFF)
 option(SNMALLOC_USE_SELF_VENDORED_STL "Avoid using system STL" OFF)
+option(SNMALLOC_COVERAGE "Build with clang source-based coverage instrumentation" OFF)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_RUST_LIBC_API "Include libc API in the rust library" OFF "SNMALLOC_RUST_SUPPORT" OFF)
@@ -80,6 +81,19 @@ set(SNMALLOC_PAGESIZE "" CACHE STRING "Page size in bytes")
 
 set(SNMALLOC_DEALLOC_BATCH_RING_ASSOC "" CACHE STRING "Associativity of deallocation batch cache; 0 to disable")
 set(SNMALLOC_DEALLOC_BATCH_RING_SET_BITS "" CACHE STRING "Logarithm of number of deallocation batch cache associativity sets")
+
+# Coverage instrumentation. Clang source-based coverage only; gcov
+# format is not consumed by the diff pipeline.
+if (SNMALLOC_COVERAGE)
+  if (NOT (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR
+           CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang"))
+    message(FATAL_ERROR
+      "SNMALLOC_COVERAGE requires Clang or AppleClang (got ${CMAKE_CXX_COMPILER_ID}). "
+      "Point CMAKE_CXX_COMPILER at clang++ for the coverage build directory.")
+  endif()
+  add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
+  add_link_options(-fprofile-instr-generate -fcoverage-mapping)
+endif()
 
 if(MSVC AND SNMALLOC_STATIC_LIBRARY AND (SNMALLOC_STATIC_LIBRARY_PREFIX STREQUAL ""))
   message(FATAL_ERROR "Empty static library prefix not supported on MSVC")
@@ -527,6 +541,10 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
           add_executable(${TESTNAME} ${SRC})
         endif()
 
+        # Track every test binary in a global property so the `coverage`
+        # custom target can pass them all to llvm-cov without globbing.
+        set_property(GLOBAL APPEND PROPERTY SNMALLOC_TEST_BINARIES ${TESTNAME})
+
         if(SNMALLOC_SANITIZER)
           target_compile_options(${TESTNAME} PRIVATE -g -fsanitize=${SNMALLOC_SANITIZER} -fno-omit-frame-pointer)
           target_link_libraries(${TESTNAME} -fsanitize=${SNMALLOC_SANITIZER})
@@ -558,6 +576,12 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
         if (${TEST_CATEGORY} MATCHES "perf")
           message(VERBOSE "Single threaded test: ${TESTNAME}")
           set_tests_properties(${TESTNAME} PROPERTIES PROCESSORS 4)
+        endif()
+        if (SNMALLOC_COVERAGE)
+          # Per-test LLVM_PROFILE_FILE so cached coverage runs can
+          # invalidate one test's profiles without touching the rest.
+          set_tests_properties(${TESTNAME} PROPERTIES ENVIRONMENT
+            "LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/profiles/${TESTNAME}/%p-%m.profraw")
         endif()
         if(WIN32)
           # On Windows these tests use a lot of memory as it doesn't support
@@ -788,6 +812,70 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   if (SNMALLOC_BUILD_TESTING)
     clangformat_targets()
   endif ()
+
+  # Coverage target. Generates a unified coverage.profdata +
+  # coverage.json for all test binaries.
+  if (SNMALLOC_COVERAGE AND SNMALLOC_BUILD_TESTING)
+    find_program(LLVM_PROFDATA NAMES llvm-profdata-19 llvm-profdata-15 llvm-profdata)
+    find_program(LLVM_COV      NAMES llvm-cov-19      llvm-cov-15      llvm-cov)
+    if (LLVM_PROFDATA STREQUAL "LLVM_PROFDATA-NOTFOUND" OR
+        LLVM_COV      STREQUAL "LLVM_COV-NOTFOUND")
+      message(FATAL_ERROR
+        "SNMALLOC_COVERAGE requires llvm-profdata and llvm-cov on PATH.")
+    endif()
+
+    get_property(_test_binaries GLOBAL PROPERTY SNMALLOC_TEST_BINARIES)
+    if (NOT _test_binaries)
+      message(FATAL_ERROR "SNMALLOC_TEST_BINARIES is empty; nothing to cover.")
+    endif()
+
+    # Build the -object argument list: first binary positional, rest with
+    # -object prefix per llvm-cov's CLI. CMake list joined with spaces so
+    # the resulting string can be embedded in `sh -c "..."` commands.
+    set(_cov_objects "")
+    set(_first TRUE)
+    foreach(_b ${_test_binaries})
+      if (_first)
+        string(APPEND _cov_objects " $<TARGET_FILE:${_b}>")
+        set(_first FALSE)
+      else()
+        string(APPEND _cov_objects " -object $<TARGET_FILE:${_b}>")
+      endif()
+    endforeach()
+
+    # Build "<name>\t<path>" pairs for the per-test cache loop.
+    set(_cov_test_pairs "")
+    foreach(_b ${_test_binaries})
+      string(APPEND _cov_test_pairs "${_b}\t$<TARGET_FILE:${_b}>\n")
+    endforeach()
+
+    set(_cov_profile_dir ${CMAKE_BINARY_DIR}/profiles)
+    set(_cov_profdata    ${CMAKE_BINARY_DIR}/coverage.profdata)
+    set(_cov_json        ${CMAKE_BINARY_DIR}/coverage.json)
+    set(_cov_report      ${CMAKE_BINARY_DIR}/coverage.report.txt)
+    set(_cov_pairs_file  ${CMAKE_BINARY_DIR}/coverage_tests.tsv)
+    set(_cov_runner      ${CMAKE_SOURCE_DIR}/cmake/run_coverage.cmake)
+
+    file(GENERATE OUTPUT ${_cov_pairs_file} CONTENT "${_cov_test_pairs}")
+
+    add_custom_target(coverage
+      COMMAND ${CMAKE_COMMAND}
+        -DPROFROOT=${_cov_profile_dir}
+        -DPAIRS=${_cov_pairs_file}
+        -DCTEST=${CMAKE_CTEST_COMMAND}
+        -DLLVM_PROFDATA=${LLVM_PROFDATA}
+        -DLLVM_COV=${LLVM_COV}
+        "-DCOV_OBJECTS=${_cov_objects}"
+        -DCOV_PROFDATA=${_cov_profdata}
+        -DCOV_JSON=${_cov_json}
+        -DCOV_REPORT=${_cov_report}
+        -DCTEST_JOBS=8
+        -P ${_cov_runner}
+      DEPENDS ${_test_binaries} ${_cov_runner}
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+      USES_TERMINAL
+      COMMENT "Running ctest under LLVM coverage (cached) and exporting JSON")
+  endif()
 endif()
 
 install(TARGETS snmalloc EXPORT snmallocConfig)

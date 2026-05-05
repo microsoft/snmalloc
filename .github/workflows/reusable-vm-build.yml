@@ -34,6 +34,16 @@ on:
         type: number
         default: 25
         description: 'Job timeout in minutes'
+      coverage-mode:
+        required: false
+        type: string
+        default: 'off'
+        description: "'off' | 'tests' — when not 'off', forces SNMALLOC_COVERAGE=ON and builds the 'coverage' target instead of running ctest, then uploads coverage.json. The VM 'dependencies' input must install llvm-profdata/llvm-cov."
+      coverage-artifact-name:
+        required: false
+        type: string
+        default: ''
+        description: "Suffix for the uploaded artifact, used as 'coverage-<suffix>'. Required when coverage-mode != 'off'. Validated against ^[A-Za-z0-9_-]+$."
 
 jobs:
   build:
@@ -42,6 +52,19 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Validate coverage inputs
+      if: inputs.coverage-mode != 'off'
+      shell: bash
+      run: |
+        case "${{ inputs.coverage-mode }}" in
+          tests) ;;
+          *) echo "::error::coverage-mode must be one of: off, tests (got '${{ inputs.coverage-mode }}')" ; exit 1 ;;
+        esac
+        if ! [[ "${{ inputs.coverage-artifact-name }}" =~ ^[A-Za-z0-9_-]+$ ]]; then
+          echo "::error::coverage-artifact-name must match ^[A-Za-z0-9_-]+\$ when coverage-mode != 'off' (got '${{ inputs.coverage-artifact-name }}')"
+          exit 1
+        fi
+
     - name: Build on FreeBSD
       if: inputs.vm-type == 'freebsd'
       uses: vmactions/freebsd-vm@v1
@@ -49,15 +72,15 @@ jobs:
         release: ${{ inputs.vm-version }}
         usesh: true
         mem: 8192
-        copyback: false
+        copyback: ${{ inputs.coverage-mode != 'off' }}
         prepare: |
           ${{ inputs.dependencies }}
         run: |
           set -e
-          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }}
+          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }} ${{ inputs.coverage-mode != 'off' && '-DSNMALLOC_COVERAGE=ON' || '' }}
           cd ${{ github.workspace }}/build
           NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-          ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+          ${{ inputs.coverage-mode != 'off' && 'cmake --build . --target coverage' || "ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400" }}
 
     - name: Build on NetBSD
       if: inputs.vm-type == 'netbsd'
@@ -66,15 +89,15 @@ jobs:
         release: ${{ inputs.vm-version }}
         usesh: true
         mem: 8192
-        copyback: false
+        copyback: ${{ inputs.coverage-mode != 'off' }}
         prepare: |
           ${{ inputs.dependencies }}
         run: |
           set -e
-          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }}
+          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }} ${{ inputs.coverage-mode != 'off' && '-DSNMALLOC_COVERAGE=ON' || '' }}
           cd ${{ github.workspace }}/build
           NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-          ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+          ${{ inputs.coverage-mode != 'off' && 'cmake --build . --target coverage' || "ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400" }}
 
     - name: Build on OpenBSD
       if: inputs.vm-type == 'openbsd'
@@ -83,12 +106,21 @@ jobs:
         release: ${{ inputs.vm-version }}
         usesh: true
         mem: 8192
-        copyback: false
+        copyback: ${{ inputs.coverage-mode != 'off' }}
         prepare: |
           ${{ inputs.dependencies }}
         run: |
           set -e
-          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }}
+          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }} ${{ inputs.coverage-mode != 'off' && '-DSNMALLOC_COVERAGE=ON' || '' }}
           cd ${{ github.workspace }}/build
           NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-          ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+          ${{ inputs.coverage-mode != 'off' && 'cmake --build . --target coverage' || "ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400" }}
+
+    - name: Upload coverage artifact
+      if: inputs.coverage-mode != 'off'
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-${{ inputs.coverage-artifact-name }}
+        path: ${{ github.workspace }}/build/coverage.json
+        if-no-files-found: error
+        retention-days: 7
