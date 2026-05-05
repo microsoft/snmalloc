@@ -61,6 +61,16 @@ on:
         type: number
         default: 30
         description: 'Job timeout in minutes'
+      coverage:
+        required: false
+        type: boolean
+        default: false
+        description: "When true, forces SNMALLOC_COVERAGE=ON + Debug, builds the 'coverage' target, and uploads coverage.json as an artifact. If self-host is also true, selfhost.json is exported alongside."
+      coverage-artifact-name:
+        required: false
+        type: string
+        default: ''
+        description: "Suffix for the uploaded artifact, used as 'coverage-<suffix>'. Required when coverage is true. Validated against ^[A-Za-z0-9._-]+$."
 
 jobs:
   build:
@@ -68,6 +78,15 @@ jobs:
     timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
     - uses: actions/checkout@v4
+
+    - name: Validate coverage inputs
+      if: inputs.coverage
+      shell: bash
+      run: |
+        if ! [[ "${{ inputs.coverage-artifact-name }}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+          echo "::error::coverage-artifact-name must match ^[A-Za-z0-9._-]+\$ when coverage is true (got '${{ inputs.coverage-artifact-name }}')"
+          exit 1
+        fi
 
     - name: Install dependencies
       if: inputs.dependencies != ''
@@ -100,7 +119,8 @@ jobs:
         -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded
         ${{ inputs.cmake-config }}
         ${{ inputs.extra-cmake-flags }}
-        ${{ !inputs.use-msbuild && format('-DCMAKE_BUILD_TYPE={0}', inputs.build-type) || '' }}
+        ${{ inputs.coverage && '-DSNMALLOC_COVERAGE=ON' || '' }}
+        ${{ !inputs.use-msbuild && format('-DCMAKE_BUILD_TYPE={0}', inputs.coverage && 'Debug' || inputs.build-type) || '' }}
 
     - name: Build (MSBuild)
       if: inputs.use-msbuild
@@ -127,7 +147,7 @@ jobs:
         fi
 
     - name: Test (Windows)
-      if: ${{ !inputs.build-only && startsWith(inputs.os, 'windows') }}
+      if: ${{ !inputs.build-only && !inputs.coverage && startsWith(inputs.os, 'windows') }}
       working-directory: ${{ github.workspace }}/build
       run: >
         ctest --output-on-failure -j 4 -C ${{ inputs.build-type }} --timeout 400
@@ -135,22 +155,98 @@ jobs:
         ${{ inputs.test-extra-args }}
 
     - name: Test (Unix)
-      if: ${{ !inputs.build-only && !startsWith(inputs.os, 'windows') }}
+      if: ${{ !inputs.build-only && !inputs.coverage && !startsWith(inputs.os, 'windows') }}
       working-directory: ${{ github.workspace }}/build
       run: >
         ctest --output-on-failure -j 4 -C ${{ inputs.build-type }} --timeout 400
         ${{ inputs.test-exclude-pattern && format('-E "{0}"', inputs.test-exclude-pattern) || '' }}
         ${{ inputs.test-extra-args }}
 
-    - name: Self-host test
-      if: inputs.self-host
+    - name: Test (coverage target)
+      if: ${{ !inputs.build-only && inputs.coverage }}
       working-directory: ${{ github.workspace }}/build
+      # The coverage target wraps the same ctest invocation regular CI
+      # uses, so coverage reflects what every-PR CI actually exercises.
+      run: cmake --build . --target coverage
+
+    - name: Self-host test
+      # Self-host runs whenever the caller asks for it, regardless
+      # of whether this is a coverage build. In coverage builds the
+      # shim's child processes write profraws (LLVM_PROFILE_FILE
+      # below) and the next step exports them; outside coverage
+      # builds the env var is harmless (uninstrumented shim writes
+      # nothing).
+      if: ${{ inputs.self-host }}
+      working-directory: ${{ github.workspace }}/build
+      env:
+        # Routes profraws written by the shim child processes during
+        # the ninja rebuild under LD_PRELOAD into per-run files. %p
+        # (PID) and %m (binary id) disambiguate concurrent files. The
+        # variable is harmless when not a coverage build (the shim is
+        # uninstrumented and writes nothing).
+        LLVM_PROFILE_FILE: ${{ github.workspace }}/build/profiles/selfhost-%p-%m.profraw
       run: |
-        mkdir -p libs
+        mkdir -p libs profiles
         cp libsnmallocshim*.so libs 2>/dev/null || cp libsnmallocshim*.dylib libs 2>/dev/null || true
         for lib in $(ls libs 2>/dev/null); do
           echo
           echo "Testing $lib"
           ninja clean
-          LD_PRELOAD=libs/$lib ninja libsnmallocshim.so || DYLD_INSERT_LIBRARIES=libs/$lib ninja libsnmallocshim.dylib
+          LD_PRELOAD="libs/$lib" ninja libsnmallocshim.so || DYLD_INSERT_LIBRARIES="libs/$lib" ninja libsnmallocshim.dylib
         done
+
+    - name: Export self-host coverage
+      if: ${{ inputs.coverage && inputs.self-host }}
+      working-directory: ${{ github.workspace }}/build
+      run: |
+        set -euo pipefail
+        # Merge profraws and export selfhost.json against the shim binary.
+        # If multiple shim variants exist (libsnmallocshim.so +
+        # libsnmallocshim-checks.so) the caller is expected to schedule
+        # one matrix leg per variant; this step exports against whichever
+        # one is present in libs/.
+        # Glob via bash nullglob so a missing pattern (e.g. no .dylib on
+        # Linux) doesn't fail the pipeline under `pipefail`.
+        shopt -s nullglob
+        shims=( libs/libsnmallocshim*.so libs/libsnmallocshim*.dylib )
+        if [ ${#shims[@]} -eq 0 ]; then
+          echo "::error::no shim built; cannot export selfhost coverage"
+          exit 1
+        fi
+        # Resolve versioned llvm-* tool names. apt installs
+        # llvm-profdata-19 / llvm-cov-19; brew + Apple SDK install the
+        # unversioned binaries. Mirror the find_program list used by
+        # CMakeLists.txt's coverage target.
+        find_tool() {
+          local n
+          for n in "$1-19" "$1-15" "$1"; do
+            if command -v "$n" >/dev/null 2>&1; then echo "$n"; return 0; fi
+          done
+          echo "::error::could not find $1 on PATH (tried -19, -15, unversioned)" >&2
+          return 1
+        }
+        PROFDATA=$(find_tool llvm-profdata)
+        COV=$(find_tool llvm-cov)
+        "$PROFDATA" merge -sparse profiles/selfhost-*.profraw -o selfhost.profdata
+        # Pass every shim variant as a separate -object so coverage
+        # mapped to libsnmallocshim-checks.so etc. is included in the
+        # export. The for-loop above produced profraws under all of
+        # them; without all -object args, llvm-cov silently drops the
+        # mappings for the missing binaries.
+        # llvm-cov export emits JSON by default; -format only accepts
+        # text|lcov, so passing -format=json fails CLI parsing.
+        obj_args=()
+        for s in "${shims[@]}"; do obj_args+=( -object "$s" ); done
+        "$COV" export -instr-profile=selfhost.profdata \
+          "${obj_args[@]}" > selfhost.json
+
+    - name: Upload coverage artifact
+      if: ${{ !inputs.build-only && inputs.coverage }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-${{ inputs.coverage-artifact-name }}
+        path: |
+          ${{ github.workspace }}/build/coverage.json
+          ${{ github.workspace }}/build/selfhost.json
+        if-no-files-found: error
+        retention-days: 7

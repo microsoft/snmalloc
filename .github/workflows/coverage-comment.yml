@@ -1,0 +1,230 @@
+name: Coverage comment
+
+# Posts the merged coverage report from `coverage.yml` onto the PR
+# (or updates the tracking issue body for nightly / push runs).
+#
+# This workflow is intentionally split from `coverage.yml` so that
+# the build job runs with the default read-only `pull_request` token
+# (no privilege when running on an untrusted fork PR), and only this
+# narrow workflow holds the write token. There is no checkout, no
+# arbitrary code execution from the PR, and no use of any artefact
+# beyond the validated JSON.
+#
+# Trust model:
+# - The build (`coverage.yml`) runs untrusted PR code under
+#   `read-all` permissions; an attacker who compromises the build
+#   cannot post anywhere.
+# - This workflow runs *trusted* code from the default branch
+#   (workflow_run resolves the workflow file from the default
+#   branch, not from the PR). The only PR-controlled input is the
+#   contents of `coverage-merged.json`, which is parsed with
+#   strict size + structural limits below.
+
+on:
+  workflow_run:
+    workflows: [ "Coverage" ]
+    types: [ completed ]
+
+# Minimum required to post / edit comments and edit the tracking
+# issue. No `contents: read` — we never check out the repo.
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  comment:
+    name: Post coverage report
+    runs-on: ubuntu-24.04
+    # Only act on successful Coverage runs that came from a PR or
+    # from a default-branch schedule/push. Forks do not need this
+    # filter — `workflow_run` already restricts to runs of the
+    # `Coverage` workflow as defined on the default branch.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      (github.event.workflow_run.event == 'pull_request' ||
+       ((github.event.workflow_run.event == 'schedule' ||
+         github.event.workflow_run.event == 'push') &&
+        github.event.workflow_run.head_branch ==
+          github.event.repository.default_branch))
+    steps:
+      - name: Download merged coverage artifact
+        uses: actions/download-artifact@v4
+        with:
+          # Must match the upload name in coverage.yml's merge job.
+          name: coverage-merged
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: artifact
+        # Provisional caps; revisit after first week
+        # of nightlies. download-artifact doesn't enforce a per-file
+        # cap, so we re-validate explicitly in the next step.
+
+      - name: Validate artifact
+        id: validate
+        run: |
+          set -euo pipefail
+          # Per-file cap: 50 MB. Total cap: 500 MB.
+          MAX_FILE=$((50 * 1024 * 1024))
+          MAX_TOTAL=$((500 * 1024 * 1024))
+          total=0
+          for f in artifact/*; do
+            [ -f "$f" ] || continue
+            sz=$(stat -c%s "$f")
+            if [ "$sz" -gt "$MAX_FILE" ]; then
+              echo "::error::artifact file $f too large ($sz > $MAX_FILE)"
+              exit 1
+            fi
+            total=$((total + sz))
+          done
+          if [ "$total" -gt "$MAX_TOTAL" ]; then
+            echo "::error::artifact total $total > cap $MAX_TOTAL"
+            exit 1
+          fi
+
+          # Structural validation: must parse as JSON with the
+          # exact top-level shape merge_coverage.py emits.
+          python3 - <<'PY'
+          import json, sys
+          with open("artifact/coverage-merged.json") as f:
+              m = json.load(f)
+          for k in ("files", "totals", "platforms"):
+              if k not in m:
+                  print(f"::error::missing top-level key '{k}'", file=sys.stderr)
+                  sys.exit(1)
+          if not isinstance(m["files"], dict):
+              print("::error::'files' is not an object", file=sys.stderr); sys.exit(1)
+          if not isinstance(m["totals"], dict):
+              print("::error::'totals' is not an object", file=sys.stderr); sys.exit(1)
+          for k in ("executable", "covered"):
+              if k not in m["totals"] or not isinstance(m["totals"][k], int):
+                  print(f"::error::totals.{k} missing or not int", file=sys.stderr)
+                  sys.exit(1)
+          if m["totals"]["covered"] > m["totals"]["executable"]:
+              print("::error::covered > executable", file=sys.stderr); sys.exit(1)
+          print(f"validated: {len(m['files'])} files, "
+                f"{m['totals']['covered']}/{m['totals']['executable']} lines, "
+                f"{len(m['platforms'])} platforms")
+          PY
+
+          # Ensure the markdown body carries the bot marker — the
+          # comment search relies on this, and a missing marker
+          # would orphan future comments.
+          if ! grep -qF '<!-- snmalloc-coverage-bot -->' artifact/coverage-merged.md; then
+            echo "::error::coverage-merged.md missing '<!-- snmalloc-coverage-bot -->' marker"
+            exit 1
+          fi
+
+          # Stash markdown size & first-line for follow-up steps.
+          echo "md_bytes=$(stat -c%s artifact/coverage-merged.md)" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve PR number
+        id: pr
+        run: |
+          set -euo pipefail
+          # workflow_run.pull_requests[] is empty for fork PRs and
+          # for default-branch schedule/push runs. Empty == no PR
+          # to comment on; fall through to the tracking-issue path.
+          pr=$(jq -r '.workflow_run.pull_requests[0].number // empty' \
+            <<<'${{ toJson(github.event) }}')
+          echo "pr=$pr" >> "$GITHUB_OUTPUT"
+          if [ -n "$pr" ]; then
+            echo "Will comment on PR #$pr"
+          else
+            echo "No PR in workflow_run payload; will update tracking issue"
+          fi
+
+      # ------------------------------------------------------------
+      # PR path: find-or-create the bot comment, dual-marker check.
+      # ------------------------------------------------------------
+      - name: Comment on PR
+        if: steps.pr.outputs.pr != ''
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.pr }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('artifact/coverage-merged.md', 'utf8');
+            const MARKER = '<!-- snmalloc-coverage-bot -->';
+            if (!body.includes(MARKER)) {
+              core.setFailed('marker missing from body');
+              return;
+            }
+            const pr = Number(process.env.PR_NUMBER);
+
+            // Dual-marker policy: the comment we edit must be both
+            // authored by github-actions[bot] AND contain the bot
+            // marker in its body. Either alone is insufficient.
+            //   - login alone: collides with any other bot comment.
+            //   - marker alone: someone could quote the marker in
+            //     a regular comment and have us silently overwrite
+            //     their comment.
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              { owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: pr, per_page: 100 });
+            const existing = comments.find(c =>
+              c.user && c.user.login === 'github-actions[bot]' &&
+              typeof c.body === 'string' && c.body.includes(MARKER));
+
+            // 3-attempt backoff for transient 409/403 (e.g. another
+            // bot writing concurrently, secondary rate limits).
+            async function withRetry(op) {
+              const delays = [0, 2000, 8000];
+              let lastErr;
+              for (const d of delays) {
+                if (d) await new Promise(r => setTimeout(r, d));
+                try { return await op(); }
+                catch (e) {
+                  if (e.status !== 409 && e.status !== 403) throw e;
+                  lastErr = e;
+                }
+              }
+              throw lastErr;
+            }
+
+            if (existing) {
+              core.info(`Updating comment ${existing.id}`);
+              await withRetry(() => github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                comment_id: existing.id, body }));
+            } else {
+              core.info(`Creating new comment on PR #${pr}`);
+              await withRetry(() => github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: pr, body }));
+            }
+
+      # ------------------------------------------------------------
+      # Tracking-issue path: update the body of the issue named by
+      # the COVERAGE_TRACKING_ISSUE repo variable. Never the
+      # comments — body keeps history short and avoids notification
+      # spam on every nightly.
+      # ------------------------------------------------------------
+      - name: Update tracking issue
+        if: steps.pr.outputs.pr == '' && vars.COVERAGE_TRACKING_ISSUE != ''
+        uses: actions/github-script@v7
+        env:
+          ISSUE_NUMBER: ${{ vars.COVERAGE_TRACKING_ISSUE }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('artifact/coverage-merged.md', 'utf8');
+            // Marker must match the constant in merge_coverage.py.
+            const MARKER = '<!-- snmalloc-coverage-bot -->';
+            if (!body.includes(MARKER)) {
+              core.setFailed('marker missing from body');
+              return;
+            }
+            const issue = Number(process.env.ISSUE_NUMBER);
+            await github.rest.issues.update({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: issue, body });
+            core.info(`Updated tracking issue #${issue}`);
+
+      - name: No-op summary
+        if: steps.pr.outputs.pr == '' && vars.COVERAGE_TRACKING_ISSUE == ''
+        run: |
+          echo "::warning::no PR and COVERAGE_TRACKING_ISSUE unset; nothing posted"

@@ -34,6 +34,16 @@ on:
         type: number
         default: 25
         description: 'Job timeout in minutes'
+      coverage:
+        required: false
+        type: boolean
+        default: false
+        description: "When true, forces SNMALLOC_COVERAGE=ON and builds the 'coverage' target instead of running ctest, then uploads coverage.json. The VM 'dependencies' input must install llvm-profdata/llvm-cov."
+      coverage-artifact-name:
+        required: false
+        type: string
+        default: ''
+        description: "Suffix for the uploaded artifact, used as 'coverage-<suffix>'. Required when coverage is true. Validated against ^[A-Za-z0-9._-]+$."
 
 jobs:
   build:
@@ -42,6 +52,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Validate coverage inputs
+      if: inputs.coverage
+      shell: bash
+      run: |
+        if ! [[ "${{ inputs.coverage-artifact-name }}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+          echo "::error::coverage-artifact-name must match ^[A-Za-z0-9._-]+\$ when coverage is true (got '${{ inputs.coverage-artifact-name }}')"
+          exit 1
+        fi
+
     - name: Build on FreeBSD
       if: inputs.vm-type == 'freebsd'
       uses: vmactions/freebsd-vm@v1
@@ -49,15 +68,19 @@ jobs:
         release: ${{ inputs.vm-version }}
         usesh: true
         mem: 8192
-        copyback: false
+        copyback: ${{ inputs.coverage }}
         prepare: |
           ${{ inputs.dependencies }}
         run: |
           set -e
-          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }}
+          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }} ${{ inputs.coverage && '-DSNMALLOC_COVERAGE=ON' || '' }}
           cd ${{ github.workspace }}/build
           NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-          ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+          if [ "${{ inputs.coverage }}" = "true" ]; then
+            cmake --build . --target coverage
+          else
+            ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+          fi
 
     - name: Build on NetBSD
       if: inputs.vm-type == 'netbsd'
@@ -66,15 +89,19 @@ jobs:
         release: ${{ inputs.vm-version }}
         usesh: true
         mem: 8192
-        copyback: false
+        copyback: ${{ inputs.coverage }}
         prepare: |
           ${{ inputs.dependencies }}
         run: |
           set -e
-          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }}
+          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }} ${{ inputs.coverage && '-DSNMALLOC_COVERAGE=ON' || '' }}
           cd ${{ github.workspace }}/build
           NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-          ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+          if [ "${{ inputs.coverage }}" = "true" ]; then
+            cmake --build . --target coverage
+          else
+            ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+          fi
 
     - name: Build on OpenBSD
       if: inputs.vm-type == 'openbsd'
@@ -83,12 +110,25 @@ jobs:
         release: ${{ inputs.vm-version }}
         usesh: true
         mem: 8192
-        copyback: false
+        copyback: ${{ inputs.coverage }}
         prepare: |
           ${{ inputs.dependencies }}
         run: |
           set -e
-          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }}
+          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -G Ninja ${{ inputs.cmake-flags }} ${{ inputs.coverage && '-DSNMALLOC_COVERAGE=ON' || '' }}
           cd ${{ github.workspace }}/build
           NINJA_STATUS="%p [%f:%s/%t] %o/s, %es" ninja
-          ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+          if [ "${{ inputs.coverage }}" = "true" ]; then
+            cmake --build . --target coverage
+          else
+            ctest -j 4 --output-on-failure -E '(perf-.*)|(.*-malloc$)' --timeout 400
+          fi
+
+    - name: Upload coverage artifact
+      if: inputs.coverage
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-${{ inputs.coverage-artifact-name }}
+        path: ${{ github.workspace }}/build/coverage.json
+        if-no-files-found: error
+        retention-days: 7

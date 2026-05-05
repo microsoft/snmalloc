@@ -1,0 +1,255 @@
+name: Coverage
+
+# Runs clang source-based coverage on every PR (advisory only —
+# never gates) and on a nightly schedule. The output is a per-line
+# union of all platforms in the matrix, exported as the
+# `coverage-merged` artifact (containing both .json and .md), and
+# consumed by `coverage-comment.yml` (a separate workflow with the
+# write token) to post the report on PRs / update the tracking
+# issue.
+#
+# This workflow mirrors the regular ctest invocation across the CI
+# matrix, so the coverage it reports is exactly what every-PR CI
+# exercises.
+
+on:
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Nightly at 04:00 UTC; cheapest free-runner slot.
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+# Default token; the build does not push, comment, or modify any
+# resource. The follow-on `coverage-comment.yml` is the only writer.
+permissions: read-all
+
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  # ============================================================================
+  # Linux + macOS host builds via reusable-cmake-build.yml.
+  # ============================================================================
+  build:
+    name: coverage / ${{ matrix.os }}${{ matrix.label-suffix }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            label-suffix: ''
+            label: macos-14
+            # macOS runners have AppleClang preinstalled but `llvm-cov`
+            # / `llvm-profdata` are NOT on PATH (they live behind
+            # `xcrun`). The coverage target's find_program(LLVM_COV ...)
+            # only looks for unversioned/-19/-15 names, so we install
+            # llvm@19 via brew and pass the explicit binary paths.
+            #
+            # SDKROOT is exported in the dependencies step so brew
+            # clang treats the Apple SDK as a system header path,
+            # which suppresses -Wundef on Apple's _STDC_VERSION_
+            # check inside <sys/cdefs.h>.
+            dependencies: |
+              brew install --quiet ninja llvm@19
+              echo "SDKROOT=$(xcrun --show-sdk-path)" >> "$GITHUB_ENV"
+            extra-cmake-flags: >-
+              -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm@19/bin/clang++
+              -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm@19/bin/clang
+              -DLLVM_COV=/opt/homebrew/opt/llvm@19/bin/llvm-cov
+              -DLLVM_PROFDATA=/opt/homebrew/opt/llvm@19/bin/llvm-profdata
+            self-host: false
+          # ------------------------------------------------------------------
+          # Linux representative leg. Mirrors main.yml's self-host job
+          # (SNMALLOC_MEMCPY_BOUNDS=ON + SNMALLOC_CHECK_LOADS=ON), so
+          # the bounds-checked memcpy and load-check paths are
+          # exercised; these are not reached by any other coverage
+          # leg. The self-host step iterates over every shim variant
+          # built (libsnmallocshim.so, libsnmallocshim-checks.so,
+          # libsnmallocshim-checks-memcpy-only.so) and the export
+          # step combines profraws from all of them.
+          # ------------------------------------------------------------------
+          - os: ubuntu-24.04
+            label-suffix: ' / self-host shim-checks'
+            label: linux-self-host-shim-checks
+            dependencies: 'sudo apt install -y ninja-build clang-19 llvm-19'
+            extra-cmake-flags: '-DCMAKE_CXX_COMPILER=clang++-19 -DCMAKE_C_COMPILER=clang-19 -DSNMALLOC_MEMCPY_BOUNDS=ON -DSNMALLOC_CHECK_LOADS=ON'
+            self-host: true
+    uses: ./.github/workflows/reusable-cmake-build.yml
+    with:
+      os: ${{ matrix.os }}
+      # build-type is overridden to Debug by the reusable workflow
+      # whenever coverage is true, but the input is required.
+      build-type: Debug
+      cmake-config: '-G Ninja'
+      extra-cmake-flags: ${{ matrix.extra-cmake-flags }}
+      dependencies: ${{ matrix.dependencies }}
+      self-host: ${{ matrix.self-host }}
+      coverage: true
+      coverage-artifact-name: ${{ matrix.label }}
+
+  # ============================================================================
+  # FreeBSD / NetBSD via reusable-vm-build.yml.
+  #
+  # llvm-profdata / llvm-cov must be installed in the VM by the
+  # `dependencies:` script. The reusable workflow forces
+  # copyback: true when coverage is true so coverage.json
+  # makes it back to the host runner.
+  # ============================================================================
+  build-vm:
+    name: coverage / ${{ matrix.label }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: freebsd-14
+            vm-type: freebsd
+            vm-version: '14.1'
+            # FreeBSD's llvm19 port installs versioned binaries
+            # (clang19, clang++19, llvm-cov19, llvm-profdata19)
+            # directly under /usr/local/bin/ — not under a
+            # /usr/local/llvm19/bin/ subtree. Pass absolute paths so
+            # find_program is preset and doesn't depend on PATH.
+            dependencies: 'pkg install -y cmake ninja llvm19'
+            cmake-flags: >-
+              -DCMAKE_CXX_COMPILER=/usr/local/bin/clang++19
+              -DCMAKE_C_COMPILER=/usr/local/bin/clang19
+              -DLLVM_COV=/usr/local/bin/llvm-cov19
+              -DLLVM_PROFDATA=/usr/local/bin/llvm-profdata19
+          # NetBSD intentionally omitted. pkgsrc's compiler-rt-19
+          # package ships a libclang_rt.profile-x86_64.a in which
+          # __llvm_profile_raw_version is declared hidden but not
+          # defined, so any -fprofile-instr-generate shared library
+          # (e.g. libsnmallocshim.so) fails to link with:
+          #   R_X86_64_PC32 against undefined hidden symbol
+          #   `__llvm_profile_raw_version` can not be used when
+          #   making a shared object
+          # Revisit when pkgsrc ships a fixed compiler-rt, or wire
+          # up an in-VM compiler-rt build from llvm-project source.
+    uses: ./.github/workflows/reusable-vm-build.yml
+    with:
+      vm-type: ${{ matrix.vm-type }}
+      vm-version: ${{ matrix.vm-version }}
+      build-type: Debug
+      dependencies: ${{ matrix.dependencies }}
+      cmake-flags: ${{ matrix.cmake-flags }}
+      coverage: true
+      coverage-artifact-name: ${{ matrix.label }}
+
+  # ============================================================================
+  # Windows clang-cl coverage. Exercises the Windows PAL surface,
+  # which no other leg in the matrix touches.
+  #
+  # GitHub windows-2022 runners ship LLVM (clang-cl, llvm-profdata,
+  # llvm-cov) under C:\Program Files\LLVM\bin, with that directory
+  # already on PATH and ninja preinstalled. We rely on PATH lookup
+  # rather than passing -DLLVM_COV / -DLLVM_PROFDATA absolute paths,
+  # because the install dir contains a space ("Program Files") which
+  # YAML folded scalars + the reusable workflow's shell-expansion of
+  # ${{ inputs.extra-cmake-flags }} cannot preserve. Quoting at any
+  # single layer is undone by the next, leaving CMake to receive
+  # -DLLVM_PROFDATA=C:/Program and a phantom positional argument.
+  # ============================================================================
+  windows:
+    name: coverage / windows-2022 clang-cl
+    uses: ./.github/workflows/reusable-cmake-build.yml
+    with:
+      os: windows-2022
+      build-type: Debug
+      cmake-config: '-G Ninja'
+      extra-cmake-flags: '-DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_C_COMPILER=clang-cl'
+      dependencies: ''
+      coverage: true
+      coverage-artifact-name: windows-2022
+
+  # ============================================================================
+  # Merge per-line union across every leg that produced
+  # coverage.json.
+  # ============================================================================
+  merge:
+    name: merge coverage
+    needs: [ build, build-vm, windows ]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: coverage-artifacts
+          pattern: coverage-*
+          merge-multiple: false
+
+      - name: Inventory artifacts
+        run: |
+          set -euo pipefail
+          echo "Downloaded artifacts:"
+          find coverage-artifacts -mindepth 1 -maxdepth 1 -type d -printf '  %f\n'
+          echo
+          echo "JSON files:"
+          find coverage-artifacts -name '*.json' -printf '  %p (%s bytes)\n'
+
+      - name: Build merge inputs
+        id: inputs
+        run: |
+          set -euo pipefail
+          # Each artifact directory is named coverage-<label>; the
+          # merger takes "label=path" pairs. Self-host runs that
+          # produced selfhost.json get a separate label suffixed
+          # "-selfhost" so the merger treats them as distinct
+          # platforms in the per-platform breakdown.
+          # The directory list is sorted for deterministic merge
+          # input order (otherwise the per-platform table order in
+          # the rendered markdown depends on filesystem readdir).
+          inputs=()
+          while IFS= read -r d; do
+            label="${d##*/coverage-}"
+            label="${label%/}"
+            if [ -f "$d/coverage.json" ]; then
+              inputs+=("$label=$d/coverage.json")
+            fi
+            if [ -f "$d/selfhost.json" ]; then
+              inputs+=("$label-selfhost=$d/selfhost.json")
+            fi
+          done < <(find coverage-artifacts -mindepth 1 -maxdepth 1 -type d -name 'coverage-*' | sort)
+          if [ ${#inputs[@]} -eq 0 ]; then
+            echo "::error::no coverage JSON artifacts found"
+            exit 1
+          fi
+          printf 'merge inputs:\n'
+          printf '  %s\n' "${inputs[@]}"
+          # Hand off via env (newline-delimited).
+          {
+            echo 'INPUTS<<EOF'
+            printf '%s\n' "${inputs[@]}"
+            echo 'EOF'
+          } >> "$GITHUB_ENV"
+
+      - name: Merge per-line union
+        run: |
+          set -euo pipefail
+          mapfile -t args < <(printf '%s\n' "$INPUTS")
+          python3 .github/scripts/merge_coverage.py \
+            --output-json coverage-merged.json \
+            --output-md   coverage-merged.md \
+            "${args[@]}"
+          echo
+          echo "=== merged coverage (markdown preview) ==="
+          head -40 coverage-merged.md
+          echo
+          echo "=== merged coverage (JSON totals) ==="
+          python3 -c "import json; m=json.load(open('coverage-merged.json')); print('files:', len(m['files'])); print('totals:', m['totals']); print('platforms:', list(m['platforms'].keys()))"
+
+      - name: Upload merged coverage
+        uses: actions/upload-artifact@v4
+        with:
+          # Artifact name is consumed by coverage-comment.yml. If
+          # this name changes, update coverage-comment.yml's
+          # download-artifact step in lockstep.
+          name: coverage-merged
+          path: |
+            coverage-merged.json
+            coverage-merged.md
+          if-no-files-found: error
+          retention-days: 30
