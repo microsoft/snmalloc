@@ -153,15 +153,15 @@ jobs:
       coverage-artifact-name: ${{ matrix.label }}
 
   # ============================================================================
-  # Windows clang-cl pre-gate. Configure + build only — coverage
-  # instrumentation on Windows is unverified upstream, so this leg
-  # validates that SNMALLOC_COVERAGE=ON compiles and links cleanly
-  # before we try to extract a coverage.json from clang-cl. If this
-  # is green for a sustained period, a follow-up promotes it to a
-  # full coverage leg.
+  # Windows clang-cl coverage. Exercises the Windows PAL surface,
+  # which no other leg in the matrix touches.
+  #
+  # GitHub windows-2022 runners ship LLVM (clang-cl, llvm-profdata,
+  # llvm-cov) under C:\Program Files\LLVM\bin (on PATH) and ninja
+  # preinstalled, so no `dependencies:` step is needed.
   # ============================================================================
-  windows-pregate:
-    name: coverage / windows clang-cl pre-gate
+  windows:
+    name: coverage / windows-2022 clang-cl
     uses: ./.github/workflows/reusable-cmake-build.yml
     with:
       os: windows-2022
@@ -169,19 +169,16 @@ jobs:
       cmake-config: '-G Ninja'
       extra-cmake-flags: '-DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_C_COMPILER=clang-cl'
       dependencies: ''
-      build-only: true
       coverage-mode: tests
-      coverage-artifact-name: windows-2022-pregate
+      coverage-artifact-name: windows-2022
 
   # ============================================================================
   # Merge per-line union across every leg that produced
-  # coverage.json. The Windows pre-gate intentionally does NOT
-  # upload — `build-only: true` skips both the coverage target and
-  # the upload step.
+  # coverage.json.
   # ============================================================================
   merge:
     name: merge coverage
-    needs: [ build, build-vm ]
+    needs: [ build, build-vm, windows ]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
