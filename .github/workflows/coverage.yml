@@ -38,13 +38,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-24.04
-            label-suffix: ''
-            label: ubuntu-24.04
-            dependencies: 'sudo apt install -y ninja-build clang-19 llvm-19'
-            extra-cmake-flags: '-DCMAKE_CXX_COMPILER=clang++-19 -DCMAKE_C_COMPILER=clang-19'
-            self-host: false
-            coverage-mode: tests
           - os: macos-14
             label-suffix: ''
             label: macos-14
@@ -69,21 +62,15 @@ jobs:
             self-host: false
             coverage-mode: tests
           # ------------------------------------------------------------------
-          # Self-host coverage legs. The shim is preloaded into ninja during
-          # a clean rebuild; profraws are written by the shim's child
-          # processes and merged into selfhost.json.
-          #
-          # Two legs because shim and shim-checks exercise different
-          # mitigations: shim-checks adds bounds-checked memcpy +
-          # SNMALLOC_CHECK_LOADS, which is a distinct coverage surface.
+          # Linux representative leg. Mirrors main.yml's self-host job
+          # (SNMALLOC_MEMCPY_BOUNDS=ON + SNMALLOC_CHECK_LOADS=ON), so
+          # the bounds-checked memcpy and load-check paths are
+          # exercised; these are not reached by any other coverage
+          # leg. The self-host step iterates over every shim variant
+          # built (libsnmallocshim.so, libsnmallocshim-checks.so,
+          # libsnmallocshim-checks-memcpy-only.so) and the export
+          # step combines profraws from all of them.
           # ------------------------------------------------------------------
-          - os: ubuntu-24.04
-            label-suffix: ' / self-host shim'
-            label: linux-self-host-shim
-            dependencies: 'sudo apt install -y ninja-build clang-19 llvm-19'
-            extra-cmake-flags: '-DCMAKE_CXX_COMPILER=clang++-19 -DCMAKE_C_COMPILER=clang-19'
-            self-host: true
-            coverage-mode: tests+selfhost
           - os: ubuntu-24.04
             label-suffix: ' / self-host shim-checks'
             label: linux-self-host-shim-checks

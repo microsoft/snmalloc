@@ -216,7 +216,6 @@ jobs:
           echo "::error::no shim built; cannot export selfhost coverage"
           exit 1
         fi
-        shim="${shims[0]}"
         # Resolve versioned llvm-* tool names. apt installs
         # llvm-profdata-19 / llvm-cov-19; brew + Apple SDK install the
         # unversioned binaries. Mirror the find_program list used by
@@ -232,10 +231,17 @@ jobs:
         PROFDATA=$(find_tool llvm-profdata)
         COV=$(find_tool llvm-cov)
         "$PROFDATA" merge -sparse profiles/selfhost-*.profraw -o selfhost.profdata
+        # Pass every shim variant as a separate -object so coverage
+        # mapped to libsnmallocshim-checks.so etc. is included in the
+        # export. The for-loop above produced profraws under all of
+        # them; without all -object args, llvm-cov silently drops the
+        # mappings for the missing binaries.
         # llvm-cov export emits JSON by default; -format only accepts
         # text|lcov, so passing -format=json fails CLI parsing.
+        obj_args=()
+        for s in "${shims[@]}"; do obj_args+=( -object "$s" ); done
         "$COV" export -instr-profile=selfhost.profdata \
-          -object "$shim" > selfhost.json
+          "${obj_args[@]}" > selfhost.json
 
     - name: Upload coverage artifact
       if: ${{ !inputs.build-only && inputs.coverage-mode != 'off' }}
