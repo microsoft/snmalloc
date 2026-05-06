@@ -1,4 +1,6 @@
 #include <test/measuretime.h>
+#include <test/opt.h>
+#include <test/perf_setup.h>
 #include <test/setup.h>
 #include <test/snmalloc_testlib.h>
 #include <unordered_set>
@@ -62,24 +64,33 @@ void test_alloc_dealloc(size_t count, size_t size, bool write)
   snmalloc::debug_check_empty();
 }
 
-int main(int, char**)
+int main(int argc, char** argv)
 {
   setup();
 
+  opt::Opt opt(argc, argv);
+  // Default `count` exercises sizeclass dispatch many times; under
+  // `--smoke` we keep one alloc/dealloc cycle through every code
+  // path but cut the bulk repetitions.
+  size_t count_small = snmalloc_test::perf_iterations(
+    opt, SNMALLOC_TEST_NAME, /*default=*/1u << 15, /*smoke=*/1u << 12);
+  size_t count_large = snmalloc_test::perf_iterations(
+    opt, SNMALLOC_TEST_NAME, /*default=*/1u << 10, /*smoke=*/1u << 8);
+
   for (size_t size = 16; size <= 128; size <<= 1)
   {
-    test_alloc_dealloc<ZeroMem::NoZero>(1 << 15, size, false);
-    test_alloc_dealloc<ZeroMem::NoZero>(1 << 15, size, true);
-    test_alloc_dealloc<ZeroMem::YesZero>(1 << 15, size, false);
-    test_alloc_dealloc<ZeroMem::YesZero>(1 << 15, size, true);
+    test_alloc_dealloc<ZeroMem::NoZero>(count_small, size, false);
+    test_alloc_dealloc<ZeroMem::NoZero>(count_small, size, true);
+    test_alloc_dealloc<ZeroMem::YesZero>(count_small, size, false);
+    test_alloc_dealloc<ZeroMem::YesZero>(count_small, size, true);
   }
 
   for (size_t size = 1 << 12; size <= 1 << 17; size <<= 1)
   {
-    test_alloc_dealloc<ZeroMem::NoZero>(1 << 10, size, false);
-    test_alloc_dealloc<ZeroMem::NoZero>(1 << 10, size, true);
-    test_alloc_dealloc<ZeroMem::YesZero>(1 << 10, size, false);
-    test_alloc_dealloc<ZeroMem::YesZero>(1 << 10, size, true);
+    test_alloc_dealloc<ZeroMem::NoZero>(count_large, size, false);
+    test_alloc_dealloc<ZeroMem::NoZero>(count_large, size, true);
+    test_alloc_dealloc<ZeroMem::YesZero>(count_large, size, false);
+    test_alloc_dealloc<ZeroMem::YesZero>(count_large, size, true);
   }
 
   return 0;

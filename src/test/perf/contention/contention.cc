@@ -1,4 +1,5 @@
 #include "test/opt.h"
+#include "test/perf_setup.h"
 #include "test/setup.h"
 #include "test/usage.h"
 #include "test/xoroshiro.h"
@@ -165,6 +166,19 @@ int main(int argc, char** argv)
   size_t count = opt.is<size_t>("--swapcount", 1 << 20);
   size_t size = opt.is<size_t>("--swapsize", 1 << 18);
   use_malloc = opt.has("--use_malloc");
+
+  // Under `--smoke` reduce both knobs: `count` drives the inner
+  // alloc/swap/dealloc loop in each worker thread, and `size`
+  // drives the contended array. Smoke values keep the dispatch
+  // paths and the contention/exchange logic exercised across
+  // 8/4/2/1 thread counts at modest cost. The values must remain
+  // large enough to cross the remote-deallocation cache thresholds
+  // (otherwise `mem/remotecache.h` and `mem/remoteallocator.h`
+  // coverage drops sharply).
+  count = snmalloc_test::perf_iterations(
+    opt, SNMALLOC_TEST_NAME, /*default=*/count, /*smoke=*/1u << 18);
+  size = snmalloc_test::perf_iterations(
+    opt, SNMALLOC_TEST_NAME, /*default=*/size, /*smoke=*/1u << 16);
 
   std::cout << "Allocator is " << (use_malloc ? "System" : "snmalloc")
             << std::endl;

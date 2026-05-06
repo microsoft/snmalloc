@@ -9,6 +9,7 @@
  */
 
 #include "test/opt.h"
+#include "test/perf_setup.h"
 #include "test/setup.h"
 #include "test/usage.h"
 #include "test/xoroshiro.h"
@@ -197,6 +198,19 @@ int main(int argc, char** argv)
   param.N_PRODUCER_BATCH = opt.is<size_t>("--batches", 1024 * 1024);
   param.N_MAX_OUTSTANDING = opt.is<size_t>("--max-out", 4 * 1024);
   param.N_MAX_BATCH_SIZE = opt.is<size_t>("--max-batch", 16);
+
+  // Under `--smoke` reduce the per-producer batch count: that is the
+  // outer iteration that drives total messages produced. The other
+  // knobs (thread counts, queue depth, max batch size) are kept at
+  // their defaults so the message-passing topology is exercised
+  // unchanged. The smoke value must remain large enough for the
+  // cross-thread remote-deallocation cache thresholds in
+  // `mem/remotecache.h` / `mem/remoteallocator.h` to fire.
+  param.N_PRODUCER_BATCH = snmalloc_test::perf_iterations(
+    opt,
+    SNMALLOC_TEST_NAME,
+    /*default=*/param.N_PRODUCER_BATCH,
+    /*smoke=*/1u << 18);
 
   std::cout << "msgpass --producers=" << param.N_PRODUCER
             << " --consumers=" << param.N_CONSUMER

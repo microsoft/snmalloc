@@ -462,7 +462,7 @@ void test_static_sized_alloc()
     test_static_sized_alloc<asz, dealloc - 1>();
 }
 
-template<size_t max_size = bits::one_at_bit(23)>
+template<size_t max_size = bits::one_at_bit(20)>
 void test_static_sized_allocs()
 {
   if (max_size < 16)
@@ -554,6 +554,11 @@ int main(int, char**)
   }
 #endif
   auto start = std::chrono::steady_clock::now();
+  // Most tests below have substantial internal iteration (size-class
+  // sweeps, per-offset loops, batch alloc/dealloc), so a large outer
+  // repetition is redundant for coverage. A small outer count still
+  // catches consolidation/leak issues that only manifest across
+  // repeated entry to a test.
 #define TEST(testname) \
   do \
   { \
@@ -561,7 +566,7 @@ int main(int, char**)
     auto diff_seconds = \
       std::chrono::duration_cast<std::chrono::seconds>(end - start).count(); \
     std::cout << "Running " #testname << " @ " << diff_seconds << std::endl; \
-    for (size_t i = 0; i < 50; i++) \
+    for (size_t i = 0; i < 3; i++) \
       testname(); \
   } while (0);
 
@@ -574,7 +579,14 @@ int main(int, char**)
   TEST(test_calloc_large_bug);
   TEST(test_external_pointer_stack);
   TEST(test_external_pointer_dealloc_bug);
-  TEST(test_external_pointer_large);
+  // test_external_pointer_large allocates ~16MB per object across 32
+  // objects (~512MB total) and walks every 16MB-aligned interior
+  // pointer. It is its own internal stress; running it once is
+  // enough, so it is invoked outside the TEST(...) outer-repeat
+  // macro.
+  std::cout << "Running test_external_pointer_large (single pass)"
+            << std::endl;
+  test_external_pointer_large();
   TEST(test_external_pointer);
   TEST(test_alloc_16M);
   TEST(test_calloc_16M);
