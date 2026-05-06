@@ -584,8 +584,7 @@ int main(int, char**)
   // pointer. It is its own internal stress; running it once is
   // enough, so it is invoked outside the TEST(...) outer-repeat
   // macro.
-  std::cout << "Running test_external_pointer_large (single pass)"
-            << std::endl;
+  std::cout << "Running test_external_pointer_large (single pass)" << std::endl;
   test_external_pointer_large();
   TEST(test_external_pointer);
   TEST(test_alloc_16M);
