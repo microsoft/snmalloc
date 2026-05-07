@@ -568,20 +568,11 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
 
         if (${TEST} MATCHES "release-.*")
           message(VERBOSE "Adding test: ${TESTNAME} only for release configs")
-          if (${TEST_CATEGORY} MATCHES "perf")
-            add_test(NAME ${TESTNAME} COMMAND ${TESTNAME} --smoke
-                     CONFIGURATIONS "Release")
-          else()
-            add_test(NAME ${TESTNAME} COMMAND ${TESTNAME}
-                     CONFIGURATIONS "Release")
-          endif()
+          add_test(NAME ${TESTNAME} COMMAND ${TESTNAME} --smoke
+                   CONFIGURATIONS "Release")
         else()
           message(VERBOSE "Adding test: ${TESTNAME}")
-          if (${TEST_CATEGORY} MATCHES "perf")
-            add_test(NAME ${TESTNAME} COMMAND ${TESTNAME} --smoke)
-          else()
-            add_test(${TESTNAME} ${TESTNAME})
-          endif()
+          add_test(NAME ${TESTNAME} COMMAND ${TESTNAME} --smoke)
         endif()
         if (${TEST_CATEGORY} MATCHES "perf")
           message(VERBOSE "Single threaded test: ${TESTNAME}")
