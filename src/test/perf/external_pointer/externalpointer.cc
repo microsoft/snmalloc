@@ -102,8 +102,7 @@ int main(int argc, char** argv)
 #else
   cli_default = 100000;
 #endif
-  size_t iterations =
-    opt.has("--smoke") ? 10000 : cli_default;
+  size_t iterations = opt.has("--smoke") ? 10000 : cli_default;
 
   // Outer-repeat count: Debug repeats 30x to amortise setup, Release 3x.
   // Smoke shrinks both ends; one repeat is enough to hit every path
