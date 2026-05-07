@@ -119,13 +119,25 @@ jobs:
 
       - name: Resolve PR number
         id: pr
+        env:
+          # Pass the event JSON via the environment rather than
+          # interpolating it directly into the shell script. The
+          # `${{ toJson(...) }}` expansion happens *before* bash
+          # parses the script, so any single quote inside the JSON
+          # (e.g. an apostrophe in a commit message or branch
+          # name) would terminate the surrounding `'...'` quoting
+          # and corrupt the rest of the step — manifesting as a
+          # bewildering syntax error like
+          # "syntax error near unexpected token `else`" several
+          # commands later.
+          EVENT_JSON: ${{ toJson(github.event) }}
         run: |
           set -euo pipefail
           # workflow_run.pull_requests[] is empty for fork PRs and
           # for default-branch schedule/push runs. Empty == no PR
           # to comment on; fall through to the tracking-issue path.
           pr=$(jq -r '.workflow_run.pull_requests[0].number // empty' \
-            <<<'${{ toJson(github.event) }}')
+            <<<"$EVENT_JSON")
           echo "pr=$pr" >> "$GITHUB_OUTPUT"
           if [ -n "$pr" ]; then
             echo "Will comment on PR #$pr"
