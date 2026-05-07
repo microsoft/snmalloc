@@ -119,31 +119,53 @@ jobs:
 
       - name: Resolve PR number
         id: pr
+        uses: actions/github-script@v7
         env:
-          # Pass the event JSON via the environment rather than
-          # interpolating it directly into the shell script. The
-          # `${{ toJson(...) }}` expansion happens *before* bash
-          # parses the script, so any single quote inside the JSON
-          # (e.g. an apostrophe in a commit message or branch
-          # name) would terminate the surrounding `'...'` quoting
-          # and corrupt the rest of the step — manifesting as a
-          # bewildering syntax error like
-          # "syntax error near unexpected token `else`" several
-          # commands later.
+          # Pass the event JSON via the environment, not via inline
+          # `${{ toJson(...) }}` interpolation. Actions resolves
+          # `${{ ... }}` *before* the shell parses the script, so a
+          # single quote anywhere in the payload (e.g. an apostrophe
+          # in a commit message or branch name) would close the
+          # surrounding `'...'` quoting and corrupt the rest of the
+          # script.
           EVENT_JSON: ${{ toJson(github.event) }}
-        run: |
-          set -euo pipefail
-          # workflow_run.pull_requests[] is empty for fork PRs and
-          # for default-branch schedule/push runs. Empty == no PR
-          # to comment on; fall through to the tracking-issue path.
-          pr=$(jq -r '.workflow_run.pull_requests[0].number // empty' \
-            <<<"$EVENT_JSON")
-          echo "pr=$pr" >> "$GITHUB_OUTPUT"
-          if [ -n "$pr" ]; then
-            echo "Will comment on PR #$pr"
-          else
-            echo "No PR in workflow_run payload; will update tracking issue"
-          fi
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Two-stage resolution:
+          #   1. workflow_run.pull_requests[] — populated for PRs
+          #      from branches in the same repository.
+          #   2. GET /repos/{owner}/{repo}/commits/{sha}/pulls —
+          #      works for fork PRs too, because GitHub indexes the
+          #      PR by the merge head SHA regardless of which repo
+          #      the head ref lives in. This is the only reliable
+          #      way to recover the PR number for a fork-originated
+          #      `workflow_run` payload, since `pull_requests[]` is
+          #      always empty in that case.
+          # If both fail, fall through to the tracking-issue path.
+          script: |
+            const ev = JSON.parse(process.env.EVENT_JSON);
+            const wr = ev.workflow_run;
+            let pr = (wr.pull_requests && wr.pull_requests.length)
+              ? wr.pull_requests[0].number : 0;
+            if (!pr) {
+              core.info(
+                `pull_requests[] empty (likely fork PR); ` +
+                `looking up by head SHA ${wr.head_sha}`);
+              const resp = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                commit_sha: wr.head_sha,
+              });
+              // Prefer an open PR; fall back to any PR if only
+              // closed ones match (e.g. squash-merged race).
+              const open = resp.data.find(p => p.state === 'open');
+              const any = resp.data[0];
+              if (open) pr = open.number;
+              else if (any) pr = any.number;
+            }
+            if (pr) core.info(`Will comment on PR #${pr}`);
+            else core.info('No PR resolved; will update tracking issue');
+            core.setOutput('pr', pr ? String(pr) : '');
 
       # ------------------------------------------------------------
       # PR path: find-or-create the bot comment, dual-marker check.
