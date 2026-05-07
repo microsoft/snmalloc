@@ -1,7 +1,6 @@
 #include <snmalloc/snmalloc.h>
 #include <test/measuretime.h>
 #include <test/opt.h>
-#include <test/perf_setup.h>
 #include <vector>
 
 using namespace snmalloc;
@@ -29,7 +28,7 @@ std::vector<Shape> allocs;
 // Number of distinct destination buffers per size class. Each `test()`
 // call iterates over every entry in `allocs` and runs the memcpy
 // implementation under measurement, so this is the per-size repeat
-// count. Set by `main()` from `perf_iterations()`.
+// count. Set by `main()` from `--smoke`.
 size_t allocs_per_size = 1000;
 
 void shape(size_t size)
@@ -125,8 +124,7 @@ int main(int argc, char** argv)
   // it dramatically because each `test()` call already runs ten
   // measurement passes per size, which is more than enough to exercise
   // every memcpy code path.
-  allocs_per_size = snmalloc_test::perf_iterations(
-    opt, SNMALLOC_TEST_NAME, /*default=*/1000, /*smoke=*/100);
+  allocs_per_size = opt.has("--smoke") ? 100 : 1000;
 
   //  size_t size = 0;
   auto mc_platform_checked = [](void* dst, const void* src, size_t len) {

@@ -524,15 +524,6 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
           add_library(${OBJLIBNAME} OBJECT ${SRC})
           target_link_libraries(${OBJLIBNAME} snmalloc)
           target_compile_definitions(${OBJLIBNAME} PRIVATE "SNMALLOC_USE_${TEST_CLEANUP}")
-          # Inject the canonical ctest test name (category-test, no flavour
-          # suffix) so `perf_iterations()` can look it up against the
-          # concurrency-stress exclusion list. The name is flavour-
-          # independent, so defining it on the shared object library is
-          # correct (and required, because the per-flavour TESTNAME
-          # definition below is invisible to source files that are
-          # compiled into the OBJLIB rather than the executable).
-          target_compile_definitions(${OBJLIBNAME} PRIVATE
-            SNMALLOC_TEST_NAME="${TEST_CATEGORY}-${TEST}")
           add_warning_flags(${OBJLIBNAME})
           if(SNMALLOC_SANITIZER)
             target_compile_options(${OBJLIBNAME} PRIVATE -g -fsanitize=${SNMALLOC_SANITIZER} -fno-omit-frame-pointer)
@@ -553,12 +544,6 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
         # Track every test binary in a global property so the `coverage`
         # custom target can pass them all to llvm-cov without globbing.
         set_property(GLOBAL APPEND PROPERTY SNMALLOC_TEST_BINARIES ${TESTNAME})
-
-        # Inject the canonical ctest test name (category-test, no flavour
-        # suffix) into the binary so `perf_iterations()` can look it up
-        # against the concurrency-stress exclusion list.
-        target_compile_definitions(${TESTNAME} PRIVATE
-          SNMALLOC_TEST_NAME="${TEST_CATEGORY}-${TEST}")
 
         if(SNMALLOC_SANITIZER)
           target_compile_options(${TESTNAME} PRIVATE -g -fsanitize=${SNMALLOC_SANITIZER} -fno-omit-frame-pointer)

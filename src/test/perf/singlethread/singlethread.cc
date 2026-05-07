@@ -1,6 +1,5 @@
 #include <test/measuretime.h>
 #include <test/opt.h>
-#include <test/perf_setup.h>
 #include <test/setup.h>
 #include <test/snmalloc_testlib.h>
 #include <unordered_set>
@@ -72,10 +71,8 @@ int main(int argc, char** argv)
   // Default `count` exercises sizeclass dispatch many times; under
   // `--smoke` we keep one alloc/dealloc cycle through every code
   // path but cut the bulk repetitions.
-  size_t count_small = snmalloc_test::perf_iterations(
-    opt, SNMALLOC_TEST_NAME, /*default=*/1u << 15, /*smoke=*/1u << 12);
-  size_t count_large = snmalloc_test::perf_iterations(
-    opt, SNMALLOC_TEST_NAME, /*default=*/1u << 10, /*smoke=*/1u << 8);
+  size_t count_small = opt.has("--smoke") ? 1u << 12 : 1u << 15;
+  size_t count_large = opt.has("--smoke") ? 1u << 8 : 1u << 10;
 
   for (size_t size = 16; size <= 128; size <<= 1)
   {

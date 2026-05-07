@@ -1,6 +1,5 @@
 #include <test/measuretime.h>
 #include <test/opt.h>
-#include <test/perf_setup.h>
 #include <test/setup.h>
 #include <test/snmalloc_testlib.h>
 #include <test/xoroshiro.h>
@@ -103,15 +102,14 @@ int main(int argc, char** argv)
 #else
   cli_default = 100000;
 #endif
-  size_t iterations = snmalloc_test::perf_iterations(
-    opt, SNMALLOC_TEST_NAME, cli_default, /*smoke=*/10000);
+  size_t iterations =
+    opt.has("--smoke") ? 10000 : cli_default;
 
   // Outer-repeat count: Debug repeats 30x to amortise setup, Release 3x.
   // Smoke shrinks both ends; one repeat is enough to hit every path
   // since `setup()` re-randomises the object table each call.
   size_t nn_default = snmalloc::Debug ? 30 : 3;
-  size_t nn = snmalloc_test::perf_iterations(
-    opt, SNMALLOC_TEST_NAME, nn_default, /*smoke=*/1);
+  size_t nn = opt.has("--smoke") ? 1 : nn_default;
 
   xoroshiro::p128r64 r;
 

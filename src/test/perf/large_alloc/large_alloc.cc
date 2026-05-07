@@ -1,5 +1,5 @@
 #include <test/measuretime.h>
-#include <test/perf_setup.h>
+#include <test/opt.h>
 #include <test/setup.h>
 #include <test/snmalloc_testlib.h>
 
@@ -80,8 +80,7 @@ int main(int argc, char** argv)
   // batch test divides by BATCH=128, so the smoke value is chosen so
   // that `smoke / 128 >= 1` (i.e. the batch test still runs at least
   // one full batch round).
-  size_t iterations = snmalloc_test::perf_iterations(
-    opt, SNMALLOC_TEST_NAME, /*default=*/100000, /*smoke=*/8192);
+  size_t iterations = opt.has("--smoke") ? 8192 : 100000;
 
   test_alloc_dealloc_cycle(iterations);
   test_batch_alloc_then_dealloc(iterations);
