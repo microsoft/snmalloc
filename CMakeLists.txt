@@ -374,13 +374,18 @@ if(SNMALLOC_COMPILER_SUPPORT_MCX16)
   target_compile_options(snmalloc INTERFACE $<$<COMPILE_LANGUAGE:CXX>:-mcx16>)
 endif()
 
-check_cxx_compiler_flag(
-  "-Werror -fptrauth-intrinsics"
-  SNMALLOC_COMPILER_SUPPORT_FPTRAUTH_INTRINSICS)
-if(SNMALLOC_COMPILER_SUPPORT_FPTRAUTH_INTRINSICS)
-  set(SNMALLOC_SAVED_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
-  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -fptrauth-intrinsics")
-  check_cxx_source_compiles("
+option(SNMALLOC_ENABLE_PAC
+  "Use Pointer Authentication (PAC) for freelist forward-edge protection \
+   Switch to defaul if target does not support it." OFF)
+
+if(SNMALLOC_ENABLE_PAC)
+  check_cxx_compiler_flag(
+    "-Werror -fptrauth-intrinsics"
+    SNMALLOC_COMPILER_SUPPORT_FPTRAUTH_INTRINSICS)
+  if(SNMALLOC_COMPILER_SUPPORT_FPTRAUTH_INTRINSICS)
+    set(SNMALLOC_SAVED_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
+    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -fptrauth-intrinsics")
+    check_cxx_source_compiles("
 #if !defined(__aarch64__) && !defined(_M_ARM64) && !defined(_M_ARM64EC)
 #  error PAC instructions require AArch64
 #endif
@@ -404,10 +409,15 @@ int main()
   return sign_and_auth(nullptr, reinterpret_cast<void*>(0x1234UL)) != nullptr;
 }
 " SNMALLOC_COMPILER_SUPPORT_PACA_PACG)
-  set(CMAKE_REQUIRED_FLAGS "${SNMALLOC_SAVED_REQUIRED_FLAGS}")
-  unset(SNMALLOC_SAVED_REQUIRED_FLAGS)
-endif()
-if(SNMALLOC_COMPILER_SUPPORT_PACA_PACG)
+    set(CMAKE_REQUIRED_FLAGS "${SNMALLOC_SAVED_REQUIRED_FLAGS}")
+    unset(SNMALLOC_SAVED_REQUIRED_FLAGS)
+  endif()
+
+  if(NOT SNMALLOC_COMPILER_SUPPORT_PACA_PACG)
+    message(FATAL_ERROR
+      "SNMALLOC_ENABLE_PAC=ON but the target does not support.")
+  endif()
+
   target_compile_options(snmalloc INTERFACE
     $<$<COMPILE_LANGUAGE:CXX>:-fptrauth-intrinsics>)
 endif()
