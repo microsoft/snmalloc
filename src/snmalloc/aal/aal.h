@@ -180,6 +180,36 @@ namespace snmalloc
 #endif
       }
     }
+
+    static SNMALLOC_FAST_PATH uintptr_t pointer_auth_sign_data(
+      uintptr_t value, address_t storage_addr, uintptr_t tweak) noexcept
+    {
+      if constexpr ((Arch::aal_features & PtrAuthentication) != 0)
+      {
+        return Arch::pointer_auth_sign_data(
+          value, static_cast<uintptr_t>(storage_addr), tweak);
+      }
+      else
+      {
+        UNUSED(storage_addr, tweak);
+        return value;
+      }
+    }
+
+    static SNMALLOC_FAST_PATH uintptr_t pointer_auth_auth_data(
+      uintptr_t value, address_t storage_addr, uintptr_t tweak) noexcept
+    {
+      if constexpr ((Arch::aal_features & PtrAuthentication) != 0)
+      {
+        return Arch::pointer_auth_auth_data(
+          value, static_cast<uintptr_t>(storage_addr), tweak);
+      }
+      else
+      {
+        UNUSED(storage_addr, tweak);
+        return value;
+      }
+    }
   };
 
   template<class Arch>

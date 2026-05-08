@@ -185,6 +185,11 @@ jobs:
               -DSNMALLOC_USE_SELF_VENDORED_STL=ON
               -DCMAKE_CXX_COMPILER=clang++
             variant: "Self-vendored"
+          # Forward-edge uses Pointer Authentication
+          - os: "macos-15"
+            build-type: Release
+            extra-cmake-flags: "-DSNMALLOC_ENABLE_PAC=ON"
+            variant: "PAC"
     uses: ./.github/workflows/reusable-cmake-build.yml
     with:
       os: ${{matrix.os}}

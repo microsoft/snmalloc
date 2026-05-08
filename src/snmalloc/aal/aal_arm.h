@@ -13,6 +13,12 @@
 #endif
 
 #include <stddef.h>
+#include <stdint.h>
+
+#if defined(SNMALLOC_COMPILER_SUPPORT_PACA_PACG) && \
+  defined(__ARM_FEATURE_PAUTH) && __has_include(<ptrauth.h>)
+#  include <ptrauth.h>
+#endif
 
 namespace snmalloc
 {
@@ -28,6 +34,10 @@ namespace snmalloc
     static constexpr uint64_t aal_features = IntegerPointers
 #if defined(SNMALLOC_VA_BITS_32) || !defined(__APPLE__)
       | NoCpuCycleCounters
+#endif
+#if defined(SNMALLOC_COMPILER_SUPPORT_PACA_PACG) && \
+  defined(__ARM_FEATURE_PAUTH) && __has_include(<ptrauth.h>)
+      | PtrAuthentication
 #endif
       ;
 
@@ -67,6 +77,35 @@ namespace snmalloc
       uint64_t t;
       __asm__ volatile("mrs %0, cntvct_el0" : "=r"(t));
       return t;
+    }
+#endif
+
+#if defined(SNMALLOC_COMPILER_SUPPORT_PACA_PACG) && \
+  defined(__ARM_FEATURE_PAUTH) && __has_include(<ptrauth.h>)
+    static SNMALLOC_FAST_PATH uintptr_t pointer_auth_sign_data(
+      uintptr_t value, uintptr_t storage_addr, uintptr_t tweak) noexcept
+    {
+      return unsafe_to_uintptr<void>(ptrauth_sign_unauthenticated(
+        unsafe_from_uintptr<void>(value),
+        ptrauth_key_process_dependent_data,
+        /*
+         * only the lower 16 bits of tweak is used
+         */
+        ptrauth_blend_discriminator(
+          unsafe_from_uintptr<void>(storage_addr), tweak)));
+    }
+
+    static SNMALLOC_FAST_PATH uintptr_t pointer_auth_auth_data(
+      uintptr_t value, uintptr_t storage_addr, uintptr_t tweak) noexcept
+    {
+      return unsafe_to_uintptr<void>(ptrauth_auth_data(
+        unsafe_from_uintptr<void>(value),
+        ptrauth_key_process_dependent_data,
+        /*
+         * only the lower 16 bits of tweak is used
+         */
+        ptrauth_blend_discriminator(
+          unsafe_from_uintptr<void>(storage_addr), tweak)));
     }
 #endif
   };
