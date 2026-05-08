@@ -1,4 +1,5 @@
 #include <test/measuretime.h>
+#include <test/opt.h>
 #include <test/setup.h>
 #include <test/snmalloc_testlib.h>
 #include <test/xoroshiro.h>
@@ -50,21 +51,8 @@ namespace test
     snmalloc::debug_check_empty();
   }
 
-  void test_external_pointer(xoroshiro::p128r64& r)
+  void test_external_pointer(xoroshiro::p128r64& r, size_t iterations)
   {
-    // This is very slow on Windows at the moment.  Until this is fixed, help
-    // CI terminate.
-#if defined(NDEBUG) && !defined(_MSC_VER)
-    static constexpr size_t iterations = 10000000;
-#else
-#  ifdef _MSC_VER
-    // Windows Debug build is very slow on this test.
-    // Reduce complexity to balance CI times.
-    static constexpr size_t iterations = 50000;
-#  else
-    static constexpr size_t iterations = 100000;
-#  endif
-#endif
     setup(r);
 
     {
@@ -93,15 +81,38 @@ namespace test
   }
 }
 
-int main(int, char**)
+int main(int argc, char** argv)
 {
   setup();
 
+  opt::Opt opt(argc, argv);
+
+  // Default iteration count varies by build (Release runs many more
+  // iterations). Smoke mode shrinks both to the smallest count that
+  // still exercises every interior-pointer dispatch path.
+  size_t cli_default;
+  // This is very slow on Windows at the moment.  Until this is fixed, help
+  // CI terminate.
+#if defined(NDEBUG) && !defined(_MSC_VER)
+  cli_default = 10000000;
+#elif defined(_MSC_VER)
+  // Windows Debug build is very slow on this test.
+  // Reduce complexity to balance CI times.
+  cli_default = 50000;
+#else
+  cli_default = 100000;
+#endif
+  size_t iterations = opt.has("--smoke") ? 10000 : cli_default;
+
+  // Outer-repeat count: Debug repeats 30x to amortise setup, Release 3x.
+  // Smoke shrinks both ends; one repeat is enough to hit every path
+  // since `setup()` re-randomises the object table each call.
+  size_t nn_default = snmalloc::Debug ? 30 : 3;
+  size_t nn = opt.has("--smoke") ? 1 : nn_default;
+
   xoroshiro::p128r64 r;
 
-  size_t nn = snmalloc::Debug ? 30 : 3;
-
   for (size_t n = 0; n < nn; n++)
-    test::test_external_pointer(r);
+    test::test_external_pointer(r, iterations);
   return 0;
 }

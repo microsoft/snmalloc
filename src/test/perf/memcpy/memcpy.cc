@@ -25,9 +25,15 @@ size_t my_random()
 
 std::vector<Shape> allocs;
 
+// Number of distinct destination buffers per size class. Each `test()`
+// call iterates over every entry in `allocs` and runs the memcpy
+// implementation under measurement, so this is the per-size repeat
+// count. Set by `main()` from `--smoke`.
+size_t allocs_per_size = 1000;
+
 void shape(size_t size)
 {
-  for (size_t i = 0; i < 1000; i++)
+  for (size_t i = 0; i < allocs_per_size; i++)
   {
     auto rsize = size * 2;
     auto offset = 0;
@@ -70,6 +76,12 @@ void test(
 {
   auto src = snmalloc::alloc(size);
   shape(size);
+  // The outer loop is a measurement-variance loop, not a coverage knob:
+  // it gathers ten timing samples per size for the perf statistics.
+  // Under `--smoke` it still runs ten times, but each `test_memcpy`
+  // call exercises only `allocs_per_size` (smoke value) memcpys, so the
+  // total work is small. Coverage is unaffected because every code path
+  // is hit on the first pass.
   for (size_t i = 0; i < 10; i++)
   {
     MeasureTime m(true);
@@ -107,6 +119,12 @@ int main(int argc, char** argv)
 {
   opt::Opt opt(argc, argv);
   bool full_test = opt.has("--full_test");
+
+  // Number of destination buffers per size class. Smoke mode shrinks
+  // it dramatically because each `test()` call already runs ten
+  // measurement passes per size, which is more than enough to exercise
+  // every memcpy code path.
+  allocs_per_size = opt.has("--smoke") ? 100 : 1000;
 
   //  size_t size = 0;
   auto mc_platform_checked = [](void* dst, const void* src, size_t len) {

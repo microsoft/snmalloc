@@ -101,6 +101,14 @@ int main()
 #else
   size_t iterations = 200000;
 #endif
+#ifndef NDEBUG
+  // Debug builds run with full instrumentation enabled and are
+  // ~10x slower per iteration. The cross-thread batch behaviour
+  // this benchmark stresses is observable at much lower counts;
+  // reduce iterations so this test does not dominate Debug ctest
+  // wall-time. Release builds are unaffected.
+  iterations /= 10;
+#endif
 
   int threadcount = 8;
   vector<thread> threads;
