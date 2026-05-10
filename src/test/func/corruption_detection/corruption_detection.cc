@@ -17,12 +17,14 @@
  * snmalloc detects free-list corruption by checking the integrity
  * of the obfuscated forward and backward edges of the intra-slab
  * free list when the list is later consumed (allocated from), and
- * detects double-free of large allocations by inspecting the
- * per-chunk metadata. Detection is therefore probabilistic per
- * round, but deterministic at the scale used here: each scenario
- * performs many rounds across many slabs, and at least one of them
- * is overwhelmingly likely to traverse the corrupted edge or hit
- * the metadata check before the test would otherwise complete.
+ * detects double-free of large allocations via the
+ * `is_backend_owned()` check on the per-chunk metadata in
+ * `dealloc_remote` (gated on the `sanity_checks` mitigation).
+ * Detection is therefore probabilistic per round, but deterministic
+ * at the scale used here: each scenario performs many rounds across
+ * many slabs, and at least one of them is overwhelmingly likely to
+ * traverse the corrupted edge or hit the metadata check before the
+ * test would otherwise complete.
  *
  * Each scenario runs in a forked child so that the expected abort
  * does not kill the test harness. Detection is reported as
@@ -47,13 +49,13 @@
 #  include <signal.h>
 #  include <sys/wait.h>
 #  include <unistd.h>
-#endif
-
-using namespace snmalloc;
 
 // Forward declarations of clang's source-based-coverage runtime
 // entry points. Declared as weak symbols so the test still links
 // against builds without `-fprofile-instr-generate -fcoverage-mapping`.
+// Gated to Linux because (a) the entire fork-based test harness is
+// Linux-only, and (b) `__attribute__((weak))` is not portable to
+// MSVC and there is no equivalent `SNMALLOC_WEAK` macro.
 //
 // `__llvm_profile_set_filename` is needed because the LLVM profile
 // runtime resolves `%p` in `LLVM_PROFILE_FILE` exactly once at
@@ -63,7 +65,11 @@ using namespace snmalloc;
 // calling `__llvm_profile_write_file`.
 extern "C" int __llvm_profile_write_file(void) __attribute__((weak));
 extern "C" void __llvm_profile_set_filename(const char*) __attribute__((weak));
+#endif
 
+using namespace snmalloc;
+
+#if defined(__linux__)
 namespace
 {
   // Per-scenario knobs. ROUNDS amplifies the per-round detection
@@ -79,8 +85,10 @@ namespace
   constexpr size_t REMOTE_ROUNDS = 64;
   // A size that is guaranteed to fall outside every small sizeclass
   // and therefore exercises the chunk-allocator/metadata dealloc
-  // path rather than the slab free list.
-  constexpr size_t LARGE_SIZE = MIN_CHUNK_SIZE * 4;
+  // path rather than the slab free list. Using `MAX_SMALL_SIZECLASS_SIZE`
+  // directly would still produce a small allocation (it is the upper
+  // bound, inclusive), so use twice that.
+  constexpr size_t LARGE_SIZE = MAX_SMALL_SIZECLASS_SIZE * 2;
 
   void try_double_free()
   {
@@ -127,9 +135,11 @@ namespace
       // with freelist_backward_edge enabled, a backward edge).
       // Either de-obfuscation produces a wild pointer that fails
       // domestication, or the doubly-linked invariant breaks.
+      // Use literals that fit in 32-bit uintptr_t too, so MSVC
+      // doesn't warn about narrowing on 32-bit Windows builds.
       auto* victim = static_cast<uintptr_t*>(ps[N / 2]);
-      victim[0] = 0xDEADBEEFCAFEBABEULL;
-      victim[1] = 0xBADC0FFEE0DDF00DULL;
+      victim[0] = static_cast<uintptr_t>(0xDEADBEEFu);
+      victim[1] = static_cast<uintptr_t>(0xBADC0FFEu);
 
       // Drive the freelist by reallocating from the same sizeclass.
       void* qs[N];
@@ -199,8 +209,8 @@ namespace
       // the freelist node that the owning allocator will traverse
       // when it next allocates from this slab.
       auto* victim = static_cast<uintptr_t*>(ps[N / 2]);
-      victim[0] = 0xDEADBEEFCAFEBABEULL;
-      victim[1] = 0xBADC0FFEE0DDF00DULL;
+      victim[0] = static_cast<uintptr_t>(0xDEADBEEFu);
+      victim[1] = static_cast<uintptr_t>(0xBADC0FFEu);
 
       void* qs[N];
       for (size_t i = 0; i < N; i++)
@@ -212,13 +222,12 @@ namespace
 
   void try_large_double_free()
   {
-    // Large allocations bypass the slab free list. Detection here
-    // comes from the chunk-allocator/metadata path: the second
-    // dealloc finds the per-chunk metadata in a state inconsistent
-    // with an owned live allocation. One round is normally enough,
-    // but loop a few times so a single missed detection (e.g. a
-    // metadata layout that masks the problem) still trips on a
-    // later round.
+    // Large allocations bypass the slab free list. The second
+    // dealloc reaches `dealloc_remote` with a metaentry that
+    // `claim_for_backend()` has marked `is_backend_owned()`, and
+    // the `sanity_checks` mitigation flags this directly.
+    // One round is normally enough, but loop a few times so a
+    // single missed detection still trips on a later round.
     for (size_t r = 0; r < 16; r++)
     {
       void* p = snmalloc::alloc(LARGE_SIZE);
@@ -263,7 +272,6 @@ namespace
     }
   }
 
-#if defined(__linux__)
   // Signal handler that runs in the forked child when snmalloc's
   // mitigation paths abort/segfault. It flushes coverage data (if the
   // process is instrumented) and then re-raises the signal with its
@@ -359,8 +367,8 @@ namespace
     fprintf(stderr, "%s: unexpected child wait status 0x%x\n", name, status);
     return 1;
   }
-#endif
 } // namespace
+#endif
 
 int main()
 {
