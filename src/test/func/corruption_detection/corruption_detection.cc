@@ -28,13 +28,19 @@
  *
  * Each scenario runs in a forked child so that the expected abort
  * does not kill the test harness. Detection is reported as
- * `WIFSIGNALED && WTERMSIG ∈ {SIGABRT, SIGSEGV, SIGBUS, SIGILL}`;
- * a clean exit means the corruption was *not* detected and the test
- * fails.
+ * `WIFSIGNALED && WTERMSIG ∈ {SIGABRT, SIGSEGV, SIGBUS, SIGILL,
+ * SIGTRAP}`. `SIGILL` covers x86 (`__builtin_trap()` emits `ud2`);
+ * `SIGTRAP` covers aarch64 (it emits `brk #1000`). A clean exit
+ * means the corruption was *not* detected and the test fails.
  *
- * The test is Linux-only (uses `fork()`/`waitpid()`). It is a no-op
- * when `SNMALLOC_CHECK_CLIENT` is not defined, because none of the
- * mitigations these tests rely on are compiled in.
+ * The test is Linux-only (uses `fork()`/`waitpid()`). It is also a
+ * no-op under any sanitizer (ASan/TSan/UBSan) or with the GWP-ASan
+ * secondary-allocator integration enabled, because in those builds
+ * the relevant allocations either bypass snmalloc's mitigated paths
+ * or the sanitizer intercepts the trap before our parent observes
+ * it. It is a no-op when `SNMALLOC_CHECK_CLIENT` is not defined,
+ * because none of the mitigations these tests rely on are compiled
+ * in.
  */
 
 #include <snmalloc/snmalloc_core.h>
@@ -68,6 +74,25 @@ extern "C" void __llvm_profile_set_filename(const char*) __attribute__((weak));
 #endif
 
 using namespace snmalloc;
+
+// True if any sanitizer or GWP-ASan integration is active in this
+// build. In those configurations the test does not run because the
+// instrumentation either replaces snmalloc's allocation path or
+// intercepts the trap that the mitigations raise.
+#if defined(__has_feature)
+#  if __has_feature(address_sanitizer) || \
+    __has_feature(thread_sanitizer) || \
+    __has_feature(undefined_behavior_sanitizer) || \
+    __has_feature(memory_sanitizer)
+#    define CORRUPTION_TEST_SKIP_SANITIZER 1
+#  endif
+#endif
+#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+#  define CORRUPTION_TEST_SKIP_SANITIZER 1
+#endif
+#if defined(SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION)
+#  define CORRUPTION_TEST_SKIP_SANITIZER 1
+#endif
 
 #if defined(__linux__)
 namespace
@@ -334,7 +359,9 @@ namespace
       // Install a coverage-flushing handler for the signals snmalloc
       // raises on detected corruption. The handler re-raises with
       // default disposition so the parent still sees WIFSIGNALED.
-      for (int s : {SIGABRT, SIGSEGV, SIGBUS, SIGILL})
+      // SIGILL covers x86 (`__builtin_trap()` -> `ud2`); SIGTRAP
+      // covers aarch64 (`brk #1000`).
+      for (int s : {SIGABRT, SIGSEGV, SIGBUS, SIGILL, SIGTRAP})
         signal(s, corruption_signal_handler);
       fn();
       // If we get here, none of the mitigations fired across all
@@ -347,7 +374,9 @@ namespace
     if (WIFSIGNALED(status))
     {
       int sig = WTERMSIG(status);
-      if (sig == SIGABRT || sig == SIGSEGV || sig == SIGBUS || sig == SIGILL)
+      if (
+        sig == SIGABRT || sig == SIGSEGV || sig == SIGBUS ||
+        sig == SIGILL || sig == SIGTRAP)
       {
         printf("%s: detected (signal %d)\n", name, sig);
         return 0;
@@ -385,6 +414,12 @@ int main()
       "Skipping corruption-detection test: SNMALLOC_CHECK_CLIENT off\n");
     return 0;
   }
+#  if defined(CORRUPTION_TEST_SKIP_SANITIZER)
+  printf(
+    "Skipping corruption-detection test: sanitizer or GWP-ASan "
+    "integration is active\n");
+  return 0;
+#  else
 
   int failures = 0;
   failures += run_in_child("double_free", try_double_free);
@@ -405,5 +440,6 @@ int main()
   }
   printf("PASSED\n");
   return 0;
+#  endif
 #endif
 }
