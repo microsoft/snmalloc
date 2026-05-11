@@ -51,30 +51,6 @@
 #include <test/snmalloc_testlib.h>
 #include <thread>
 
-#if defined(__linux__)
-#  include <signal.h>
-#  include <sys/wait.h>
-#  include <unistd.h>
-
-// Forward declarations of clang's source-based-coverage runtime
-// entry points. Declared as weak symbols so the test still links
-// against builds without `-fprofile-instr-generate -fcoverage-mapping`.
-// Gated to Linux because (a) the entire fork-based test harness is
-// Linux-only, and (b) `__attribute__((weak))` is not portable to
-// MSVC and there is no equivalent `SNMALLOC_WEAK` macro.
-//
-// `__llvm_profile_set_filename` is needed because the LLVM profile
-// runtime resolves `%p` in `LLVM_PROFILE_FILE` exactly once at
-// startup. Forked children inherit the parent's resolved filename
-// and so all write to the same file, overwriting each other. Each
-// child has to set its own filename (with its own pid) before
-// calling `__llvm_profile_write_file`.
-extern "C" int __llvm_profile_write_file(void) __attribute__((weak));
-extern "C" void __llvm_profile_set_filename(const char*) __attribute__((weak));
-#endif
-
-using namespace snmalloc;
-
 // True if any sanitizer or GWP-ASan integration is active in this
 // build. In those configurations the test does not run because the
 // instrumentation either replaces snmalloc's allocation path or
@@ -94,7 +70,40 @@ using namespace snmalloc;
 #  define CORRUPTION_TEST_SKIP_SANITIZER 1
 #endif
 
-#if defined(__linux__)
+// The fork-based harness, the LLVM profile externs, and every
+// `try_*` helper are only used when the test actually runs (Linux,
+// no sanitizer, no GWP-ASan). Gating them all on the same condition
+// keeps non-Linux and sanitizer builds free of `-Wunused-function`.
+#if defined(__linux__) && !defined(CORRUPTION_TEST_SKIP_SANITIZER)
+#  define CORRUPTION_TEST_ACTIVE 1
+#endif
+
+#if defined(CORRUPTION_TEST_ACTIVE)
+#  include <signal.h>
+#  include <sys/wait.h>
+#  include <unistd.h>
+
+// Forward declarations of clang's source-based-coverage runtime
+// entry points. Declared as weak symbols so the test still links
+// against builds without `-fprofile-instr-generate -fcoverage-mapping`.
+// Gated to the same condition as the rest of the harness because
+// (a) the harness is Linux-only, and (b) `__attribute__((weak))`
+// is not portable to MSVC and there is no equivalent `SNMALLOC_WEAK`
+// macro.
+//
+// `__llvm_profile_set_filename` is needed because the LLVM profile
+// runtime resolves `%p` in `LLVM_PROFILE_FILE` exactly once at
+// startup. Forked children inherit the parent's resolved filename
+// and so all write to the same file, overwriting each other. Each
+// child has to set its own filename (with its own pid) before
+// calling `__llvm_profile_write_file`.
+extern "C" int __llvm_profile_write_file(void) __attribute__((weak));
+extern "C" void __llvm_profile_set_filename(const char*) __attribute__((weak));
+#endif
+
+using namespace snmalloc;
+
+#if defined(CORRUPTION_TEST_ACTIVE)
 namespace
 {
   // Per-scenario knobs. ROUNDS amplifies the per-round detection
@@ -407,6 +416,11 @@ int main()
   printf(
     "Skipping corruption-detection test: requires Linux fork()/waitpid()\n");
   return 0;
+#elif defined(CORRUPTION_TEST_SKIP_SANITIZER)
+  printf(
+    "Skipping corruption-detection test: sanitizer or GWP-ASan "
+    "integration is active\n");
+  return 0;
 #else
   if constexpr (!CHECK_CLIENT)
   {
@@ -414,12 +428,6 @@ int main()
       "Skipping corruption-detection test: SNMALLOC_CHECK_CLIENT off\n");
     return 0;
   }
-#  if defined(CORRUPTION_TEST_SKIP_SANITIZER)
-  printf(
-    "Skipping corruption-detection test: sanitizer or GWP-ASan "
-    "integration is active\n");
-  return 0;
-#  else
 
   int failures = 0;
   failures += run_in_child("double_free", try_double_free);
@@ -440,6 +448,5 @@ int main()
   }
   printf("PASSED\n");
   return 0;
-#  endif
 #endif
 }
