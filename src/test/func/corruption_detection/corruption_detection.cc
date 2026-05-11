@@ -56,8 +56,7 @@
 // instrumentation either replaces snmalloc's allocation path or
 // intercepts the trap that the mitigations raise.
 #if defined(__has_feature)
-#  if __has_feature(address_sanitizer) || \
-    __has_feature(thread_sanitizer) || \
+#  if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer) || \
     __has_feature(undefined_behavior_sanitizer) || \
     __has_feature(memory_sanitizer)
 #    define CORRUPTION_TEST_SKIP_SANITIZER 1
@@ -384,8 +383,8 @@ namespace
     {
       int sig = WTERMSIG(status);
       if (
-        sig == SIGABRT || sig == SIGSEGV || sig == SIGBUS ||
-        sig == SIGILL || sig == SIGTRAP)
+        sig == SIGABRT || sig == SIGSEGV || sig == SIGBUS || sig == SIGILL ||
+        sig == SIGTRAP)
       {
         printf("%s: detected (signal %d)\n", name, sig);
         return 0;
@@ -424,8 +423,7 @@ int main()
 #else
   if constexpr (!CHECK_CLIENT)
   {
-    printf(
-      "Skipping corruption-detection test: SNMALLOC_CHECK_CLIENT off\n");
+    printf("Skipping corruption-detection test: SNMALLOC_CHECK_CLIENT off\n");
     return 0;
   }
 
