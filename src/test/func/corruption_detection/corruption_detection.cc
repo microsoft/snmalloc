@@ -400,4 +400,45 @@ namespace
     return 1;
   }
 } // namespace
+
+int main()
+{
+  setup();
+
+#if !defined(__linux__)
+  printf(
+    "Skipping corruption-detection test: requires Linux fork()/waitpid()\n");
+  return 0;
+#elif defined(CORRUPTION_TEST_SKIP_SANITIZER)
+  printf(
+    "Skipping corruption-detection test: sanitizer or GWP-ASan "
+    "integration is active\n");
+  return 0;
+#else
+  if constexpr (!CHECK_CLIENT)
+  {
+    printf("Skipping corruption-detection test: SNMALLOC_CHECK_CLIENT off\n");
+    return 0;
+  }
+
+  int failures = 0;
+  failures += run_in_child("double_free", try_double_free);
+  failures += run_in_child("uaf_freelist", try_uaf_freelist_corruption);
+  failures += run_in_child("oob_into_neighbor", try_oob_into_neighbor);
+  failures += run_in_child("remote_double_free", try_remote_double_free);
+  failures += run_in_child("remote_uaf", try_remote_uaf);
+  failures += run_in_child("large_double_free", try_large_double_free);
+
+  if (failures != 0)
+  {
+    fprintf(
+      stderr,
+      "FAILED: %d corruption-detection sub-test(s) reported the corruption "
+      "was not caught by the allocator's mitigations.\n",
+      failures);
+    return 1;
+  }
+  printf("PASSED\n");
+  return 0;
+}
 #endif // !SKIP_CORRUPTION_TEST
