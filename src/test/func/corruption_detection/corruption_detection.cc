@@ -51,58 +51,53 @@
 #include <test/snmalloc_testlib.h>
 #include <thread>
 
-// True if any sanitizer or GWP-ASan integration is active in this
-// build. In those configurations the test does not run because the
-// instrumentation either replaces snmalloc's allocation path or
-// intercepts the trap that the mitigations raise.
-#if defined(__has_feature)
-#  if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer) || \
-    __has_feature(undefined_behavior_sanitizer) || \
-    __has_feature(memory_sanitizer)
-#    define CORRUPTION_TEST_SKIP_SANITIZER 1
+// Only build the real test on Linux. Otherwise, output a trivial main().
+#ifndef __linux__
+#  define SKIP_CORRUPTION_TEST 1
+#else
+#  if defined(__has_feature)
+#    if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer) || \
+      __has_feature(undefined_behavior_sanitizer) || \
+      __has_feature(memory_sanitizer)
+#      define SKIP_CORRUPTION_TEST 1
+#    endif
 #  endif
-#endif
-#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
-#  define CORRUPTION_TEST_SKIP_SANITIZER 1
-#endif
-#if defined(SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION)
-#  define CORRUPTION_TEST_SKIP_SANITIZER 1
-#endif
+#  if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+#    define SKIP_CORRUPTION_TEST 1
+#  endif
+#  if defined(SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION)
+#    define SKIP_CORRUPTION_TEST 1
+#  endif
+#endif // __linux__
 
-// The fork-based harness, the LLVM profile externs, and every
-// `try_*` helper are only used when the test actually runs (Linux,
-// no sanitizer, no GWP-ASan). Gating them all on the same condition
-// keeps non-Linux and sanitizer builds free of `-Wunused-function`.
-#if defined(__linux__) && !defined(CORRUPTION_TEST_SKIP_SANITIZER)
-#  define CORRUPTION_TEST_ACTIVE 1
-#endif
+#ifdef SKIP_CORRUPTION_TEST
 
-#if defined(CORRUPTION_TEST_ACTIVE)
+#  include <stdio.h>
+
+int main()
+{
+  printf("corruption-detection test not active in this configuration\n");
+  return 0;
+}
+
+#else // !SKIP_CORRUPTION_TEST
 #  include <signal.h>
+#  include <snmalloc/snmalloc_core.h>
+#  include <stdio.h>
+#  include <stdlib.h>
+#  include <string.h>
 #  include <sys/wait.h>
+#  include <test/setup.h>
+#  include <test/snmalloc_testlib.h>
+#  include <thread>
 #  include <unistd.h>
-
-// Forward declarations of clang's source-based-coverage runtime
-// entry points. Declared as weak symbols so the test still links
-// against builds without `-fprofile-instr-generate -fcoverage-mapping`.
-// Gated to the same condition as the rest of the harness because
-// (a) the harness is Linux-only, and (b) `__attribute__((weak))`
-// is not portable to MSVC and there is no equivalent `SNMALLOC_WEAK`
-// macro.
-//
-// `__llvm_profile_set_filename` is needed because the LLVM profile
-// runtime resolves `%p` in `LLVM_PROFILE_FILE` exactly once at
-// startup. Forked children inherit the parent's resolved filename
-// and so all write to the same file, overwriting each other. Each
-// child has to set its own filename (with its own pid) before
-// calling `__llvm_profile_write_file`.
-extern "C" int __llvm_profile_write_file(void) __attribute__((weak));
-extern "C" void __llvm_profile_set_filename(const char*) __attribute__((weak));
-#endif
 
 using namespace snmalloc;
 
-#if defined(CORRUPTION_TEST_ACTIVE)
+// Forward declarations of clang's source-based-coverage runtime entry points.
+extern "C" int __llvm_profile_write_file(void) __attribute__((weak));
+extern "C" void __llvm_profile_set_filename(const char*) __attribute__((weak));
+
 namespace
 {
   // Per-scenario knobs. ROUNDS amplifies the per-round detection
@@ -405,46 +400,4 @@ namespace
     return 1;
   }
 } // namespace
-#endif
-
-int main()
-{
-  setup();
-
-#if !defined(__linux__)
-  printf(
-    "Skipping corruption-detection test: requires Linux fork()/waitpid()\n");
-  return 0;
-#elif defined(CORRUPTION_TEST_SKIP_SANITIZER)
-  printf(
-    "Skipping corruption-detection test: sanitizer or GWP-ASan "
-    "integration is active\n");
-  return 0;
-#else
-  if constexpr (!CHECK_CLIENT)
-  {
-    printf("Skipping corruption-detection test: SNMALLOC_CHECK_CLIENT off\n");
-    return 0;
-  }
-
-  int failures = 0;
-  failures += run_in_child("double_free", try_double_free);
-  failures += run_in_child("uaf_freelist", try_uaf_freelist_corruption);
-  failures += run_in_child("oob_into_neighbor", try_oob_into_neighbor);
-  failures += run_in_child("remote_double_free", try_remote_double_free);
-  failures += run_in_child("remote_uaf", try_remote_uaf);
-  failures += run_in_child("large_double_free", try_large_double_free);
-
-  if (failures != 0)
-  {
-    fprintf(
-      stderr,
-      "FAILED: %d corruption-detection sub-test(s) reported the corruption "
-      "was not caught by the allocator's mitigations.\n",
-      failures);
-    return 1;
-  }
-  printf("PASSED\n");
-  return 0;
-#endif
-}
+#endif // !SKIP_CORRUPTION_TEST
