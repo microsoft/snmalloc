@@ -68,6 +68,9 @@
 #  if defined(SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION)
 #    define SKIP_CORRUPTION_TEST 1
 #  endif
+#  if defined(SNMALLOC_CHECK_CLIENT)
+#    define SKIP_CORRUPTION_TEST 1
+#  endif
 #endif // __linux__
 
 #ifdef SKIP_CORRUPTION_TEST
@@ -405,21 +408,6 @@ int main()
 {
   setup();
 
-#if !defined(__linux__)
-  printf(
-    "Skipping corruption-detection test: requires Linux fork()/waitpid()\n");
-  return 0;
-#elif defined(CORRUPTION_TEST_SKIP_SANITIZER)
-  printf(
-    "Skipping corruption-detection test: sanitizer or GWP-ASan "
-    "integration is active\n");
-  return 0;
-#else
-  if constexpr (!CHECK_CLIENT)
-  {
-    printf("Skipping corruption-detection test: SNMALLOC_CHECK_CLIENT off\n");
-    return 0;
-  }
 
   int failures = 0;
   failures += run_in_child("double_free", try_double_free);
