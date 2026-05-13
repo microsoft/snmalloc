@@ -408,7 +408,6 @@ int main()
 {
   setup();
 
-
   int failures = 0;
   failures += run_in_child("double_free", try_double_free);
   failures += run_in_child("uaf_freelist", try_uaf_freelist_corruption);
