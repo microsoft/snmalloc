@@ -68,7 +68,7 @@
 #  if defined(SNMALLOC_ENABLE_GWP_ASAN_INTEGRATION)
 #    define SKIP_CORRUPTION_TEST 1
 #  endif
-#  if defined(SNMALLOC_CHECK_CLIENT)
+#  ifndef SNMALLOC_CHECK_CLIENT
 #    define SKIP_CORRUPTION_TEST 1
 #  endif
 #endif // __linux__
