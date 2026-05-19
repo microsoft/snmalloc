@@ -12,7 +12,7 @@ int main()
 
 #  if defined(__FreeBSD__)
 #  include <cheri/cherireg.h>
-# else
+#  else
 #  include <cheriintrin.h>
 #  endif
 
@@ -135,10 +135,10 @@ int main()
    */
   message("Grab Alloc from pool for inspection");
   {
-    static_assert(
-      std::is_same_v<decltype(alloc.alloc), Allocator<StandardConfig>>);
+    static_assert(std::is_same_v<decltype(*alloc.alloc),
+                                 Allocator<snmalloc::Config>&>);
 
-    auto* ca = AllocPool<StandardConfig>::acquire();
+    auto* ca = AllocPool<snmalloc::Config>::acquire();
 
     SNMALLOC_CHECK(cap_len_is(ca, sizeof(*ca)));
     SNMALLOC_CHECK(cap_vmem_perm_is(ca, false));
