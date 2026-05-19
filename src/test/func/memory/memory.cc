@@ -29,7 +29,10 @@
 
 #  ifdef __OpenBSD__
 using rlim64_t = rlim_t;
+# elif defined(__linux__)
+using rlim64_t = size_t;
 #  endif
+
 #else
 using rlim64_t = size_t;
 #endif
