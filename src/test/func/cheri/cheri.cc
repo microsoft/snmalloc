@@ -10,7 +10,12 @@ int main()
 
 // #  define SNMALLOC_TRACING
 
+#  if defined(__FreeBSD__)
 #  include <cheri/cherireg.h>
+# else
+#  include <cheriintrin.h>
+#  endif
+
 #  include <snmalloc/snmalloc.h>
 #  include <stddef.h>
 
