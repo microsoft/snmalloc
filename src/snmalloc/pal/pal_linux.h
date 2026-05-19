@@ -19,6 +19,13 @@
 #    include <linux/futex.h>
 #  endif
 
+#  if defined(__CHERI_PURE_CAPABILITY__) //&& defined(__MORELLO__)
+#    include <sys/cheri.h>
+#    if !defined(CHERI_PERM_SW_VMEM)
+#      define CHERI_PERM_SW_VMEM CHERI_PERM_CHERIABI_VMMAP
+#    endif
+#  endif
+
 #  include <stdio.h>
 
 namespace snmalloc
@@ -160,6 +167,33 @@ namespace snmalloc
       KeepErrno k;
       madvise(p, size, MADV_DONTDUMP);
     }
+
+#  if defined(__CHERI_PURE_CAPABILITY__)
+    static_assert(
+      aal_supports<StrictProvenance>,
+      "CHERI purecap support requires StrictProvenance AAL");
+
+    /**
+     * On CheriBSD, exporting a pointer means stripping it of the authority to
+     * manage the address space it references by clearing the SW_VMEM
+     * permission bit (Which sounds appropriate on Linux, too).
+     */
+    template<typename T, SNMALLOC_CONCEPT(capptr::IsBound) B>
+    static SNMALLOC_FAST_PATH CapPtr<T, capptr::user_address_control_type<B>>
+    capptr_to_user_address_control(CapPtr<T, B> p)
+    {
+      if constexpr (Aal::aal_cheri_features & Aal::AndPermsTrapsUntagged)
+      {
+        if (p == nullptr)
+        {
+          return nullptr;
+        }
+      }
+      return CapPtr<T, capptr::user_address_control_type<B>>::unsafe_from(
+        __builtin_cheri_perms_and(
+          p.unsafe_ptr(), ~static_cast<unsigned int>(CHERI_PERM_SW_VMEM)));
+    }
+#  endif
 
     static uint64_t get_entropy64()
     {
