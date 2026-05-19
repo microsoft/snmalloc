@@ -213,7 +213,7 @@ namespace snmalloc
         char buffer[sizeof(uint64_t)];
       };
 
-      ssize_t ret;
+      intptr_t ret;
 
       // give a try to SYS_getrandom
 #  ifdef SYS_getrandom
@@ -237,7 +237,10 @@ namespace snmalloc
           // 2. `GRND_NONBLOCK` bit is set. Since we are reading from
           // `urandom`, this means if the entropy pool is
           // not initialised, we will get a EAGAIN.
-          ret = syscall(SYS_getrandom, current, length, GRND_NONBLOCK);
+          ret = syscall(SYS_getrandom,
+                        current,
+                        length,
+                        GRND_NONBLOCK);
           // check whether are interrupt by a signal
           if (SNMALLOC_UNLIKELY(ret < 0))
           {
