@@ -1,6 +1,7 @@
 #pragma once
 
 #include "snmalloc/stl/array.h"
+#include "snmalloc/stl/utility.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -456,7 +457,7 @@ namespace snmalloc
           // insufficient to accurately display the tree, but it will still be
           // memory safe as the search code is bounded by the string size.
           static constexpr size_t max_depth = 128;
-          char s_indent[max_depth];
+          char s_indent[max_depth] = {};
           size_t end = 0;
           for (; end < max_depth - 1; end++)
           {
@@ -785,6 +786,52 @@ namespace snmalloc
 
       insert_path(path, value);
       return true;
+    }
+
+    /**
+     * Return the strict neighbours of `value` in the tree:
+     * `(largest key < value, smallest key > value)`. Either component is
+     * `Rep::null` when no such neighbour exists.
+     *
+     * **Precondition**: `value` is not present in the tree. A single
+     * root-to-leaf descent then records both neighbours: every left
+     * turn (parent key > value) updates the successor candidate to the
+     * parent's key, every right turn updates the predecessor candidate.
+     * `SNMALLOC_CHECK` aborts in any build if a non-null `value` is
+     * encountered on the descent: a duplicate key would make
+     * `neighbours` return an arbitrary neighbour pair that the
+     * caller would consume as valid, corrupting dependent state. The
+     * check uses only one post-descent comparison because a duplicate
+     * key is always recorded into `pred` on the right-going branch
+     * (`compare(k, value)` is false when `k == value`). `Rep::null`
+     * can never be present in the tree, so probing with it is benign
+     * and exempt from the check.
+     */
+    stl::Pair<K, K> neighbours(K value)
+    {
+      K pred = Rep::null;
+      K succ = Rep::null;
+
+      ChildRef cur = get_root();
+      while (!cur.is_null())
+      {
+        K k = cur;
+        if (Rep::compare(k, value))
+        {
+          // k > value: go left; k is the tightest successor seen so far.
+          succ = k;
+          cur = get_dir(true, k);
+        }
+        else
+        {
+          pred = k;
+          cur = get_dir(false, k);
+        }
+      }
+
+      SNMALLOC_CHECK(Rep::equal(pred, Rep::null) || !Rep::equal(pred, value));
+
+      return {pred, succ};
     }
 
     RBPath get_root_path()
