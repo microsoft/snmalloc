@@ -838,5 +838,26 @@ namespace snmalloc
     {
       return RBPath(H{&root});
     }
+
+    /**
+     * Call `fn(key)` for every key in ascending order.
+     */
+    template<typename Fn>
+    void for_each(Fn&& fn)
+    {
+      for_each_impl(get_root(), fn);
+    }
+
+  private:
+    template<typename Fn>
+    static void for_each_impl(ChildRef node, Fn& fn)
+    {
+      if (node.is_null())
+        return;
+      K k = node;
+      for_each_impl(get_dir(true, k), fn);
+      fn(k);
+      for_each_impl(get_dir(false, k), fn);
+    }
   };
 } // namespace snmalloc
