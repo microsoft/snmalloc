@@ -159,6 +159,7 @@ namespace snmalloc
       return table_.carve_info[raw];
     }
 
+  public:
     /**
      * Bin id of `block`. Operates on arbitrary chunk counts, not just
      * exact size classes. `block.size` must be >= 1.
@@ -193,7 +194,6 @@ namespace snmalloc
       return table_.exp_bin_base[e] + offset;
     }
 
-  public:
     /// Largest `n_chunks` legal for `carve` / `Bitmap::find_for_request`.
     static constexpr size_t max_supported_chunks()
     {
@@ -289,6 +289,15 @@ namespace snmalloc
         words_[bin_id / bits::BITS] |=
           (size_t(1) << (bin_id & (bits::BITS - 1)));
         return bin_id;
+      }
+
+      /// Read-only test: is the bit for `bin_id` set?
+      /// Used by `Arena::invariant()`.
+      bool test(size_t bin_id) const
+      {
+        SNMALLOC_ASSERT(bin_id < TOTAL_BINS);
+        return (words_[bin_id / bits::BITS] &
+                (size_t(1) << (bin_id & (bits::BITS - 1)))) != 0;
       }
 
       /// Mark bin `bin_id` empty. Caller must ensure the bin's tree
