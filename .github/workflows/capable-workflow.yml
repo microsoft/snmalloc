@@ -50,6 +50,9 @@ jobs:
             dependencies: >-
               cmake ninja-build
             cmake-flags: >
+              -DCMAKE_ASM_COMPILER_TARGET=aarch64-unknown-linux-musl_purecap
+              -DCMAKE_C_COMPILER_TARGET=aarch64-unknown-linux-musl_purecap
+              -DCMAKE_CXX_COMPILER_TARGET=aarch64-unknown-linux-musl_purecap
               -DCMAKE_CXX_COMPILER=/root/llvm-cheri/install/bin/clang++
               -DCMAKE_C_COMPILER=/root/llvm-cheri/install/bin/clang
               -DCMAKE_CXX_FLAGS='-march=morello -mabi=purecap -Xclang -morello-vararg=new'
