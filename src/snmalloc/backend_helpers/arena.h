@@ -46,31 +46,36 @@ namespace snmalloc
    *     shape as `BinRep`.
    *   - `get_variant(addr)` / `set_variant(addr, v)` — the
    *     `ArenaVariant` tag for the block starting at `addr`.
-   *   - `get_large_size_chunks(addr)` / `set_large_size_chunks(addr, n)`
-   *     — exact chunk count for `Large` blocks (3+ chunks).
+   *   - `get_large_size(addr)` / `set_large_size(addr, size)` —
+   *     exact byte size for `Large` blocks (3+ units).
    *   - `can_consolidate(higher_addr) -> bool` — whether the block at
    *     `higher_addr` may be merged with the block immediately below
    *     it. Returns false at allocation boundaries that must be
    *     preserved.
    *
-   * `MIN_CHUNKS_BITS`: log2 of the minimum allocation unit in chunks
-   * (currently only 0 is supported — 1-chunk minimum).
+   * `MIN_SIZE_BITS`: log2 of the unit of allocation (= the minimum
+   * block size in bytes). All addresses and sizes managed by this
+   * arena are multiples of `1 << MIN_SIZE_BITS`.
    *
-   * `MAX_CHUNKS_BITS`: log2 of the arena size in chunks. Blocks that
-   * reach this size overflow and are returned to the caller.
+   * `MAX_SIZE_BITS`: log2 of the (exclusive) upper bound on managed
+   * block sizes. Blocks that reach this size overflow and are
+   * returned to the caller.
    */
-  template<typename Rep, size_t MIN_CHUNKS_BITS, size_t MAX_CHUNKS_BITS>
+  template<typename Rep, size_t MIN_SIZE_BITS, size_t MAX_SIZE_BITS>
   class Arena
   {
-    static_assert(MIN_CHUNKS_BITS == 0, "Only MIN_CHUNKS_BITS == 0 supported");
-    static_assert(MAX_CHUNKS_BITS > MIN_CHUNKS_BITS);
-    static_assert(MAX_CHUNKS_BITS < bits::BITS);
+    static_assert(MAX_SIZE_BITS > MIN_SIZE_BITS);
+    static_assert(MAX_SIZE_BITS < bits::BITS);
+    static_assert(MIN_SIZE_BITS < bits::BITS);
+
+    static constexpr size_t UNIT_SIZE = size_t(1) << MIN_SIZE_BITS;
+    static constexpr size_t TWO_UNITS = size_t(2) << MIN_SIZE_BITS;
 
     static constexpr size_t B = 2;
-    using Bins = ArenaBins<B>;
+    using Bins = ArenaBins<B, MIN_SIZE_BITS>;
 
     static_assert(
-      bits::one_at_bit(MAX_CHUNKS_BITS) - 1 <= Bins::max_supported_chunks());
+      bits::one_at_bit(MAX_SIZE_BITS) - 1 <= Bins::max_supported_size());
 
     using BinRep = typename Rep::BinRep;
     using RangeRep = typename Rep::RangeRep;
@@ -82,28 +87,15 @@ namespace snmalloc
     RangeTree range_tree{};
     typename Bins::Bitmap bitmap{};
 
-    // ---- Address-unit helpers ----
-
-    static size_t addr_to_chunk(uintptr_t a)
-    {
-      return a >> MIN_CHUNK_BITS;
-    }
-
-    static uintptr_t chunk_to_addr(size_t c)
-    {
-      return static_cast<uintptr_t>(c) << MIN_CHUNK_BITS;
-    }
-
     // ---- Metadata helpers ----
 
-    static ArenaVariant
-    variant_of(size_t size_chunks, size_t chunk_index)
+    static ArenaVariant variant_of(size_t size, uintptr_t addr)
     {
-      if (size_chunks == 1)
+      if (size == UNIT_SIZE)
         return ArenaVariant::Min;
-      if (size_chunks == 2)
-        return (chunk_index & 1) == 0 ? ArenaVariant::EvenTwo :
-                                        ArenaVariant::OddTwo;
+      if (size == TWO_UNITS)
+        return ((addr >> MIN_SIZE_BITS) & 1) == 0 ? ArenaVariant::EvenTwo :
+                                                    ArenaVariant::OddTwo;
       return ArenaVariant::Large;
     }
 
@@ -115,12 +107,18 @@ namespace snmalloc
       switch (v)
       {
         case ArenaVariant::Min:
-          return {a, 1};
+          return {a, UNIT_SIZE};
         case ArenaVariant::EvenTwo:
         case ArenaVariant::OddTwo:
-          return {a, 2};
+          return {a, TWO_UNITS};
         case ArenaVariant::Large:
-          return {a, Rep::get_large_size_chunks(a)};
+        {
+          size_t s = Rep::get_large_size(a);
+          SNMALLOC_ASSERT(
+            s > TWO_UNITS && s < bits::one_at_bit(MAX_SIZE_BITS) &&
+            bits::align_down(s, UNIT_SIZE) == s);
+          return {a, s};
+        }
       }
       SNMALLOC_ASSERT(false);
       return {0, 0};
@@ -133,27 +131,25 @@ namespace snmalloc
         Rep::get_variant(a) == ArenaVariant::Min;
     }
 
-    void insert_block(uintptr_t addr, size_t size_chunks)
+    void insert_block(uintptr_t addr, size_t size)
     {
-      Rep::set_variant(addr, variant_of(size_chunks, addr_to_chunk(addr)));
-      if (size_chunks >= 3)
-        Rep::set_large_size_chunks(addr, size_chunks);
+      Rep::set_variant(addr, variant_of(size, addr));
+      if (size > TWO_UNITS)
+        Rep::set_large_size(addr, size);
 
-      auto chunk_range =
-        typename Bins::range_t{addr_to_chunk(addr), size_chunks};
-      size_t bin = bitmap.add(chunk_range);
+      auto range = typename Bins::range_t{addr, size};
+      size_t bin = bitmap.add(range);
       bin_trees[bin].insert_elem(addr);
-      if (size_chunks >= 2)
+      if (size >= TWO_UNITS)
         range_tree.insert_elem(addr);
     }
 
-    void unlink_block(uintptr_t addr, size_t size_chunks)
+    void unlink_block(uintptr_t addr, size_t size)
     {
-      auto chunk_range =
-        typename Bins::range_t{addr_to_chunk(addr), size_chunks};
-      size_t bin = bitmap.add(chunk_range);
+      auto range = typename Bins::range_t{addr, size};
+      size_t bin = Bins::bin_index(range);
       bin_trees[bin].remove_elem(addr);
-      if (size_chunks >= 2)
+      if (size >= TWO_UNITS)
         range_tree.remove_elem(addr);
       if (bin_trees[bin].is_empty())
         bitmap.clear(bin);
@@ -167,22 +163,29 @@ namespace snmalloc
     constexpr Arena() = default;
 
     /**
-     * Add a free block at `addr` with `size_chunks` chunks. The block
-     * is consolidated with any adjacent free neighbours. Returns
-     * `{0, 0}` on success. If consolidation produces a block spanning
-     * the entire arena (`>= 2^MAX_CHUNKS_BITS` chunks), returns
-     * `{consolidated_addr, consolidated_size}` and the arena is empty.
+     * Add a free block at `addr` with `size` bytes. The block is
+     * consolidated with any adjacent free neighbours. Returns
+     * `{0, 0}` on success. If consolidation produces a block whose
+     * size reaches `2^MAX_SIZE_BITS` bytes (the exclusive upper bound
+     * on representable block sizes), the block is not inserted;
+     * returns `{consolidated_addr, consolidated_size}` so the caller
+     * can return it to a parent range.
      */
-    stl::Pair<addr_t, size_t> add_block(addr_t addr, size_t size_chunks)
+    stl::Pair<addr_t, size_t> add_block(addr_t addr, size_t size)
     {
       check_invariant();
       SNMALLOC_ASSERT(addr != 0);
-      SNMALLOC_ASSERT((addr & (MIN_CHUNK_SIZE - 1)) == 0);
-      SNMALLOC_ASSERT(size_chunks > 0);
-      SNMALLOC_ASSERT(size_chunks < bits::one_at_bit(MAX_CHUNKS_BITS));
+      // Unit alignment is required: callers feeding parent ranges (e.g.
+      // mmap-backed PalRange returns page-aligned but not chunk-aligned
+      // memory) must trim their input to UNIT_SIZE before reaching here.
+      // LargeArenaRange::add_range does this trim.
+      SNMALLOC_ASSERT((addr & (UNIT_SIZE - 1)) == 0);
+      SNMALLOC_ASSERT(size > 0);
+      SNMALLOC_ASSERT((size & (UNIT_SIZE - 1)) == 0);
+      SNMALLOC_ASSERT(size < bits::one_at_bit(MAX_SIZE_BITS));
 
       uintptr_t c_addr = addr;
-      size_t c_size = size_chunks;
+      size_t c_size = size;
 
       auto merge = [&](uintptr_t n_addr, size_t n_size) {
         unlink_block(n_addr, n_size);
@@ -196,25 +199,25 @@ namespace snmalloc
 
       // Predecessor: check range tree, then fall back to min-size bin.
       auto [pa, ps] = range_from_addr(p_key);
-      if (pa + ps * MIN_CHUNK_SIZE == addr && Rep::can_consolidate(addr))
+      if (pa + ps == addr && Rep::can_consolidate(addr))
         merge(pa, ps);
       else if (
-        addr >= MIN_CHUNK_SIZE && Rep::can_consolidate(addr) &&
-        contains_min(addr - MIN_CHUNK_SIZE))
-        merge(addr - MIN_CHUNK_SIZE, 1);
+        addr >= UNIT_SIZE && Rep::can_consolidate(addr) &&
+        contains_min(addr - UNIT_SIZE))
+        merge(addr - UNIT_SIZE, UNIT_SIZE);
 
       // Successor: check range tree, then fall back to min-size bin.
       auto [sa, ss] = range_from_addr(s_key);
-      uintptr_t succ_addr = addr + size_chunks * MIN_CHUNK_SIZE;
+      uintptr_t succ_addr = addr + size;
       if (sa == succ_addr && Rep::can_consolidate(succ_addr))
         merge(sa, ss);
       else if (
         succ_addr > addr && Rep::can_consolidate(succ_addr) &&
         contains_min(succ_addr))
-        merge(succ_addr, 1);
+        merge(succ_addr, UNIT_SIZE);
 
       // Arena-scale overflow: consolidated block spans the full arena.
-      if (c_size >= bits::one_at_bit(MAX_CHUNKS_BITS))
+      if (c_size >= bits::one_at_bit(MAX_SIZE_BITS))
         return {c_addr, c_size};
 
       // Insert consolidated block.
@@ -225,22 +228,26 @@ namespace snmalloc
     }
 
     /**
-     * Remove a block of at least `n_chunks` chunks. Returns
-     * `{addr, actual_size}` on success, `{0, 0}` if nothing fits.
-     * Any leftover from carving is re-inserted via `add_block`.
+     * Remove exactly `size` bytes. Returns the address on success or
+     * 0 if nothing fits. SC rounding is internal: the arena may
+     * locate a larger free region but only the requested `size` is
+     * handed out — the remainder rolls into the carve remainders
+     * which are re-inserted via `add_block`.
      */
-    stl::Pair<addr_t, size_t> remove_block(size_t n_chunks)
+    addr_t remove_block(size_t size)
     {
       check_invariant();
-      if (n_chunks == 0)
-        return {0, 0};
+      if (size == 0)
+        return 0;
 
-      if (n_chunks > Bins::max_supported_chunks())
-        return {0, 0};
+      if (size > Bins::max_supported_size())
+        return 0;
 
-      size_t bin_id = bitmap.find_for_request(n_chunks);
+      SNMALLOC_ASSERT((size & (UNIT_SIZE - 1)) == 0);
+
+      size_t bin_id = bitmap.find_for_request(size);
       if (bin_id == SIZE_MAX)
-        return {0, 0};
+        return 0;
 
       // remove_min returns the lowest-address entry (since compare
       // is k1 > k2). Read metadata after removal — remove_elem
@@ -249,30 +256,29 @@ namespace snmalloc
       auto [_, block_size] = range_from_addr(block_addr);
       (void)_;
 
-      if (block_size >= 2)
+      if (block_size >= TWO_UNITS)
         range_tree.remove_elem(block_addr);
 
       if (bin_trees[bin_id].is_empty())
         bitmap.clear(bin_id);
 
-      // Carve the requested chunk count from the block.
-      auto carved =
-        Bins::carve({addr_to_chunk(block_addr), block_size}, n_chunks);
+      // Carve the requested size from the block.
+      auto carved = Bins::carve({block_addr, block_size}, size);
 
       // Re-insert non-empty remainders. By the maximally-consolidated
       // invariant, these remainders have no adjacent free neighbours.
       if (carved.pre.size != 0)
       {
-        insert_block(chunk_to_addr(carved.pre.base), carved.pre.size);
+        insert_block(carved.pre.base, carved.pre.size);
       }
 
       if (carved.post.size != 0)
       {
-        insert_block(chunk_to_addr(carved.post.base), carved.post.size);
+        insert_block(carved.post.base, carved.post.size);
       }
 
       check_invariant();
-      return {chunk_to_addr(carved.req.base), carved.req.size};
+      return carved.req.base;
     }
 
     /**
@@ -309,7 +315,7 @@ namespace snmalloc
           auto [a, s] = range_from_addr(node);
           if (prev_valid)
           {
-            uintptr_t prev_end = prev_addr + prev_size * MIN_CHUNK_SIZE;
+            uintptr_t prev_end = prev_addr + prev_size;
             SNMALLOC_ASSERT(prev_end != a || !Rep::can_consolidate(a));
           }
           prev_addr = a;
@@ -321,10 +327,10 @@ namespace snmalloc
       // 1b. No non-min block adjacent to a min block (unless boundary).
       range_tree.for_each([&](uintptr_t node) {
         auto [a, s] = range_from_addr(node);
-        if (a >= MIN_CHUNK_SIZE)
+        if (a >= UNIT_SIZE)
           SNMALLOC_ASSERT(
-            !contains_min(a - MIN_CHUNK_SIZE) || !Rep::can_consolidate(a));
-        uintptr_t end = a + s * MIN_CHUNK_SIZE;
+            !contains_min(a - UNIT_SIZE) || !Rep::can_consolidate(a));
+        uintptr_t end = a + s;
         SNMALLOC_ASSERT(!contains_min(end) || !Rep::can_consolidate(end));
       });
 
@@ -337,7 +343,7 @@ namespace snmalloc
             return;
           if (prev_valid)
             SNMALLOC_ASSERT(
-              prev + MIN_CHUNK_SIZE != node || !Rep::can_consolidate(node));
+              prev + UNIT_SIZE != node || !Rep::can_consolidate(node));
           prev = node;
           prev_valid = true;
         });
@@ -352,7 +358,7 @@ namespace snmalloc
         {
           bin_trees[bin].for_each([&](uintptr_t node) {
             auto [a, s] = range_from_addr(node);
-            if (s >= 2)
+            if (s >= TWO_UNITS)
             {
               auto path = range_tree.get_root_path();
               SNMALLOC_ASSERT(range_tree.find(path, node));
@@ -364,8 +370,8 @@ namespace snmalloc
         range_tree.for_each([&](uintptr_t node) {
           range_tree_count++;
           auto [a, s] = range_from_addr(node);
-          auto chunk_range = typename Bins::range_t{addr_to_chunk(a), s};
-          size_t expected_bin = Bins::bin_index(chunk_range);
+          auto range = typename Bins::range_t{a, s};
+          size_t expected_bin = Bins::bin_index(range);
           auto path = bin_trees[expected_bin].get_root_path();
           SNMALLOC_ASSERT(bin_trees[expected_bin].find(path, node));
         });
@@ -378,8 +384,8 @@ namespace snmalloc
       {
         bin_trees[bin].for_each([&](uintptr_t node) {
           auto [a, s] = range_from_addr(node);
-          auto chunk_range = typename Bins::range_t{addr_to_chunk(a), s};
-          size_t expected_bin = Bins::bin_index(chunk_range);
+          auto range = typename Bins::range_t{a, s};
+          size_t expected_bin = Bins::bin_index(range);
           SNMALLOC_ASSERT(expected_bin == bin);
         });
       }
@@ -398,9 +404,9 @@ namespace snmalloc
         bin_trees[bin].for_each([&](uintptr_t node) {
           auto v = Rep::get_variant(node);
           auto [a, s] = range_from_addr(node);
-          SNMALLOC_ASSERT(v == variant_of(s, addr_to_chunk(a)));
+          SNMALLOC_ASSERT(v == variant_of(s, a));
           if (v == ArenaVariant::Large)
-            SNMALLOC_ASSERT(Rep::get_large_size_chunks(node) == s);
+            SNMALLOC_ASSERT(Rep::get_large_size(node) == s);
         });
       }
     }

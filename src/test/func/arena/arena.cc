@@ -64,7 +64,7 @@ namespace snmalloc
 
   // Each chunk-aligned address maps to a mock_entry via its chunk index.
   // word1/word2 hold bin-tree children; range_word1/range_word2 hold
-  // range-tree children. variant and large_size_chunks hold metadata.
+  // range-tree children. variant and large_size hold metadata.
   struct mock_entry
   {
     uintptr_t word1{0};
@@ -72,7 +72,7 @@ namespace snmalloc
     uintptr_t range_word1{0};
     uintptr_t range_word2{0};
     ArenaVariant variant{ArenaVariant::Min};
-    size_t large_size_chunks{0};
+    size_t large_size{0};
   };
 
   // Size the array for the largest test arena + trailing room.
@@ -96,7 +96,7 @@ namespace snmalloc
   // Inner RBTree Rep used by both MockRep::BinRep and MockRep::RangeRep.
   // Tag selects which pair of fields in mock_entry holds the tree pointers.
   // The red bit is packed into bit 8 of the stored word (matching the
-  // production PagemapRep layout, but defined privately here).
+  // PagemapRep layout, but defined privately here).
   template<bool IsRange>
   struct MockTreeRep
   {
@@ -106,7 +106,8 @@ namespace snmalloc
     static constexpr Contents null = 0;
     static constexpr Contents root = 0;
 
-    static constexpr uintptr_t RED_BIT = uintptr_t(1) << 8;
+    static constexpr unsigned RED_BIT_POS = 8;
+    static constexpr uintptr_t RED_BIT = uintptr_t(1) << RED_BIT_POS;
     static_assert(RED_BIT < MIN_CHUNK_SIZE);
 
     static Handle ref(bool direction, Contents k)
@@ -186,14 +187,14 @@ namespace snmalloc
       mock_store[mock_index(addr)].variant = v;
     }
 
-    static size_t get_large_size_chunks(uintptr_t addr)
+    static size_t get_large_size(uintptr_t addr)
     {
-      return mock_store[mock_index(addr)].large_size_chunks;
+      return mock_store[mock_index(addr)].large_size;
     }
 
-    static void set_large_size_chunks(uintptr_t addr, size_t s)
+    static void set_large_size(uintptr_t addr, size_t s)
     {
-      mock_store[mock_index(addr)].large_size_chunks = s;
+      mock_store[mock_index(addr)].large_size = s;
     }
 
     static bool can_consolidate(uintptr_t)
@@ -230,12 +231,19 @@ namespace snmalloc
     return static_cast<uintptr_t>(chunk_idx) << MIN_CHUNK_BITS;
   }
 
+  // Convenience: byte size from chunk count.
+  static constexpr size_t chunk_size(size_t n_chunks)
+  {
+    return n_chunks << MIN_CHUNK_BITS;
+  }
+
   // ---- Test types ----
+  // K = number of address bits the arena covers above MIN_CHUNK_BITS.
   // K=6 → arena of 64 chunks, K=8 → 256 chunks, K=10 → 1024 chunks.
   template<size_t K>
-  using TestArena = Arena<MockRep, 0, K>;
+  using TestArena = Arena<MockRep, MIN_CHUNK_BITS, MIN_CHUNK_BITS + K>;
 
-  using Bins = ArenaBins<2>;
+  using Bins = ArenaBins<2, MIN_CHUNK_BITS>;
 
   // ==================================================================
   // (A) Accessor round-trips
@@ -270,8 +278,8 @@ namespace snmalloc
           size_t{255},
           size_t{1000}})
     {
-      MockRep::set_large_size_chunks(a, s);
-      SNMALLOC_ASSERT(MockRep::get_large_size_chunks(a) == s);
+      MockRep::set_large_size(a, s);
+      SNMALLOC_ASSERT(MockRep::get_large_size(a) == s);
     }
 
     printf("  Large-size round-trip: OK\n");
@@ -323,28 +331,28 @@ namespace snmalloc
     uintptr_t a2 = chunk_addr(20);
     uintptr_t a3 = chunk_addr(30);
 
-    arena.add_block(a1, 3);
+    arena.add_block(a1, chunk_size(3));
     arena.check_invariant(true);
 
-    arena.add_block(a2, 5);
+    arena.add_block(a2, chunk_size(5));
     arena.check_invariant(true);
 
-    arena.add_block(a3, 1);
+    arena.add_block(a3, chunk_size(1));
     arena.check_invariant(true);
 
     // Remove them.
-    auto r1 = arena.remove_block(1);
-    SNMALLOC_ASSERT(r1.first != 0);
+    auto r1 = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r1 != 0);
     UNUSED(r1);
     arena.check_invariant(true);
 
-    auto r2 = arena.remove_block(3);
-    SNMALLOC_ASSERT(r2.first != 0);
+    auto r2 = arena.remove_block(chunk_size(3));
+    SNMALLOC_ASSERT(r2 != 0);
     UNUSED(r2);
     arena.check_invariant(true);
 
-    auto r3 = arena.remove_block(5);
-    SNMALLOC_ASSERT(r3.first != 0);
+    auto r3 = arena.remove_block(chunk_size(5));
+    SNMALLOC_ASSERT(r3 != 0);
     UNUSED(r3);
     arena.check_invariant(true);
 
@@ -386,7 +394,7 @@ namespace snmalloc
 
     for (auto& b : blocks)
     {
-      auto result = arena.add_block(chunk_addr(b.chunk_idx), b.size);
+      auto result = arena.add_block(chunk_addr(b.chunk_idx), chunk_size(b.size));
       SNMALLOC_ASSERT(result.first == 0 && result.second == 0);
       UNUSED(result);
       arena.check_invariant(true);
@@ -404,24 +412,23 @@ namespace snmalloc
     TestArena<8> arena;
 
     // Insert 3 blocks of size 5 at non-adjacent locations.
-    arena.add_block(chunk_addr(10), 5);
-    arena.add_block(chunk_addr(20), 5);
-    arena.add_block(chunk_addr(30), 5);
+    arena.add_block(chunk_addr(10), chunk_size(5));
+    arena.add_block(chunk_addr(20), chunk_size(5));
+    arena.add_block(chunk_addr(30), chunk_size(5));
     arena.check_invariant(true);
 
     // Remove 3 exact-size blocks.
     for (int i = 0; i < 3; i++)
     {
-      auto r = arena.remove_block(5);
-      SNMALLOC_ASSERT(r.first != 0);
-      SNMALLOC_ASSERT(r.second == 5);
+      auto r = arena.remove_block(chunk_size(5));
+      SNMALLOC_ASSERT(r != 0);
       UNUSED(r);
       arena.check_invariant(true);
     }
 
     // Arena should be empty now.
-    auto r = arena.remove_block(1);
-    SNMALLOC_ASSERT(r.first == 0);
+    auto r = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r == 0);
     UNUSED(r);
 
     printf("  remove_block exact: OK\n");
@@ -433,32 +440,32 @@ namespace snmalloc
     TestArena<8> arena;
 
     // Insert one block of size 10.
-    arena.add_block(chunk_addr(10), 10);
+    arena.add_block(chunk_addr(10), chunk_size(10));
     arena.check_invariant(true);
 
-    // Request size 3 — should carve from the 10-chunk block.
-    auto r = arena.remove_block(3);
-    SNMALLOC_ASSERT(r.first != 0);
-    // The carved piece should be exactly what Bins::carve produces.
-    auto carved = Bins::carve({10, 10}, 3);
-    SNMALLOC_ASSERT(r.second == carved.req.size);
+    // Request size 3 chunks — should carve from the 10-chunk block.
+    auto r = arena.remove_block(chunk_size(3));
+    SNMALLOC_ASSERT(r != 0);
+    // The carved piece's address should match what Bins::carve produces.
+    auto carved = Bins::carve({chunk_addr(10), chunk_size(10)}, chunk_size(3));
     UNUSED(r);
     arena.check_invariant(true);
 
     // The remainders should still be in the arena.
     // We can try to remove everything that's left.
-    size_t remaining = 10 - carved.req.size;
+    size_t remaining = chunk_size(10) - carved.req.size;
     while (remaining > 0)
     {
-      auto r2 = arena.remove_block(1);
-      SNMALLOC_ASSERT(r2.first != 0);
+      auto r2 = arena.remove_block(chunk_size(1));
+      SNMALLOC_ASSERT(r2 != 0);
+      UNUSED(r2);
       arena.check_invariant(true);
-      remaining -= r2.second;
+      remaining -= chunk_size(1);
     }
 
     // Should be empty.
-    auto r3 = arena.remove_block(1);
-    SNMALLOC_ASSERT(r3.first == 0);
+    auto r3 = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r3 == 0);
     UNUSED(r3);
 
     printf("  remove_block carving: OK\n");
@@ -469,11 +476,12 @@ namespace snmalloc
   // ==================================================================
 
   // Helper: insert a block, verify invariant, return nothing.
-  template<size_t K>
+  // `size_in_chunks` is a chunk count; converted to bytes internally.
+  template<typename ArenaT>
   static void
-  add_and_check(TestArena<K>& arena, size_t chunk_idx, size_t size_chunks)
+  add_and_check(ArenaT& arena, size_t chunk_idx, size_t size_in_chunks)
   {
-    auto result = arena.add_block(chunk_addr(chunk_idx), size_chunks);
+    auto result = arena.add_block(chunk_addr(chunk_idx), chunk_size(size_in_chunks));
     SNMALLOC_ASSERT(result.first == 0 && result.second == 0);
     UNUSED(result);
     arena.check_invariant(true);
@@ -481,16 +489,16 @@ namespace snmalloc
 
   // Drain the arena by removing 1-chunk blocks until empty.
   // Returns the total chunks removed.
-  template<size_t K>
-  static size_t drain_arena(TestArena<K>& arena)
+  template<typename ArenaT>
+  static size_t drain_arena(ArenaT& arena)
   {
     size_t total = 0;
     while (true)
     {
-      auto r = arena.remove_block(1);
-      if (r.first == 0)
+      auto r = arena.remove_block(chunk_size(1));
+      if (r == 0)
         break;
-      total += r.second;
+      total += 1;
       arena.check_invariant(true);
     }
     return total;
@@ -632,13 +640,13 @@ namespace snmalloc
     TestArena<8> arena;
 
     // Odd address: chunk 11, size 2
-    arena.add_block(chunk_addr(11), 2);
+    arena.add_block(chunk_addr(11), chunk_size(2));
     SNMALLOC_ASSERT(
       MockRep::get_variant(chunk_addr(11)) == ArenaVariant::OddTwo);
     arena.check_invariant(true);
 
     // Even address: chunk 20, size 2
-    arena.add_block(chunk_addr(20), 2);
+    arena.add_block(chunk_addr(20), chunk_size(2));
     SNMALLOC_ASSERT(
       MockRep::get_variant(chunk_addr(20)) == ArenaVariant::EvenTwo);
     arena.check_invariant(true);
@@ -670,17 +678,17 @@ namespace snmalloc
     TestArena<8> arena;
 
     // Add OddTwo block at chunk 11 (odd, size 2).
-    arena.add_block(chunk_addr(11), 2);
+    arena.add_block(chunk_addr(11), chunk_size(2));
     arena.check_invariant(true);
 
     // Add a size-1 block at chunk 14, non-adjacent.
-    arena.add_block(chunk_addr(14), 1);
+    arena.add_block(chunk_addr(14), chunk_size(1));
     arena.check_invariant(true);
 
     // Now add chunk 13 (size 1). Its successor check should NOT
     // pick up chunk 11's OddTwo entry via contains_min. It should
     // just insert as size 1.
-    arena.add_block(chunk_addr(13), 1);
+    arena.add_block(chunk_addr(13), chunk_size(1));
     arena.check_invariant(true);
 
     // Chunk 13 should consolidate with chunk 14 (min successor),
@@ -700,19 +708,18 @@ namespace snmalloc
     TestArena<8> arena;
 
     // Add OddTwo at chunk 11 (odd, size 2 → chunks 11-12).
-    arena.add_block(chunk_addr(11), 2);
+    arena.add_block(chunk_addr(11), chunk_size(2));
     arena.check_invariant(true);
 
     // Add adjacent block at chunk 13 (size 1).
     // Range tree finds OddTwo at 11 as predecessor? No — chunk 13's
     // predecessor in range tree is chunk 11 (size 2, ends at 13).
     // So they should consolidate into size 3 at chunk 11.
-    arena.add_block(chunk_addr(13), 1);
+    arena.add_block(chunk_addr(13), chunk_size(1));
     arena.check_invariant(true);
 
-    auto r = arena.remove_block(3);
-    SNMALLOC_ASSERT(r.first == chunk_addr(11));
-    SNMALLOC_ASSERT(r.second == 3);
+    auto r = arena.remove_block(chunk_size(3));
+    SNMALLOC_ASSERT(r == chunk_addr(11));
     UNUSED(r);
 
     printf("  OddTwo consolidation (successor): OK\n");
@@ -725,17 +732,16 @@ namespace snmalloc
     TestArena<8> arena;
 
     // Add OddTwo at chunk 11 (odd, size 2 → chunks 11-12).
-    arena.add_block(chunk_addr(11), 2);
+    arena.add_block(chunk_addr(11), chunk_size(2));
     arena.check_invariant(true);
 
     // Add block at chunk 10 (size 1). OddTwo at 11 is the successor
     // in the range tree → consolidate into size 3 at chunk 10.
-    arena.add_block(chunk_addr(10), 1);
+    arena.add_block(chunk_addr(10), chunk_size(1));
     arena.check_invariant(true);
 
-    auto r = arena.remove_block(3);
-    SNMALLOC_ASSERT(r.first == chunk_addr(10));
-    SNMALLOC_ASSERT(r.second == 3);
+    auto r = arena.remove_block(chunk_size(3));
+    SNMALLOC_ASSERT(r == chunk_addr(10));
     UNUSED(r);
 
     printf("  OddTwo consolidation (predecessor): OK\n");
@@ -748,24 +754,22 @@ namespace snmalloc
     TestArena<8> arena;
 
     // Add OddTwo at chunk 11 (odd, size 2).
-    arena.add_block(chunk_addr(11), 2);
+    arena.add_block(chunk_addr(11), chunk_size(2));
     arena.check_invariant(true);
 
     // Remove 1 chunk. Should carve from the OddTwo block.
-    auto r = arena.remove_block(1);
-    SNMALLOC_ASSERT(r.first != 0);
-    SNMALLOC_ASSERT(r.second == 1);
+    auto r = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r != 0);
     arena.check_invariant(true);
 
     // The remainder (1 chunk) should be Min variant.
-    auto r2 = arena.remove_block(1);
-    SNMALLOC_ASSERT(r2.first != 0);
-    SNMALLOC_ASSERT(r2.second == 1);
+    auto r2 = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r2 != 0);
     UNUSED(r, r2);
 
     // Arena should be empty now.
-    auto r3 = arena.remove_block(1);
-    SNMALLOC_ASSERT(r3.first == 0);
+    auto r3 = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r3 == 0);
     UNUSED(r3);
 
     printf("  OddTwo remove + carve: OK\n");
@@ -785,7 +789,7 @@ namespace snmalloc
     // Step 1: add even-indexed chunks as individual blocks (8 blocks).
     for (size_t i = 0; i < 16; i += 2)
     {
-      arena.add_block(chunk_addr(BASE + i), 1);
+      arena.add_block(chunk_addr(BASE + i), chunk_size(1));
       arena.check_invariant(true);
     }
 
@@ -793,7 +797,7 @@ namespace snmalloc
     // even-indexed neighbours. The last add completes the arena.
     for (size_t i = 1; i < 16; i += 2)
     {
-      arena.add_block(chunk_addr(BASE + i), 1);
+      arena.add_block(chunk_addr(BASE + i), chunk_size(1));
       // Don't check invariant on the last add — it returns overflow.
       if (i < 15)
       {
@@ -802,8 +806,8 @@ namespace snmalloc
     }
 
     // The last add should have triggered overflow (16 chunks = 2^4).
-    auto r = arena.remove_block(1);
-    SNMALLOC_ASSERT(r.first == 0);
+    auto r = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r == 0);
     UNUSED(r);
 
     printf("  Overflow (arena-scale consolidation): OK\n");
@@ -817,17 +821,17 @@ namespace snmalloc
 
     constexpr size_t BASE = 16;
 
-    arena.add_block(chunk_addr(BASE), 8);
+    arena.add_block(chunk_addr(BASE), chunk_size(8));
     arena.check_invariant(true);
 
     // Adding [BASE+8, BASE+16) consolidates to 16 chunks = 2^4 → overflow.
-    auto r = arena.add_block(chunk_addr(BASE + 8), 8);
+    auto r = arena.add_block(chunk_addr(BASE + 8), chunk_size(8));
     SNMALLOC_ASSERT(r.first == chunk_addr(BASE));
-    SNMALLOC_ASSERT(r.second == 16);
+    SNMALLOC_ASSERT(r.second == chunk_size(16));
     UNUSED(r);
 
-    auto r2 = arena.remove_block(1);
-    SNMALLOC_ASSERT(r2.first == 0);
+    auto r2 = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r2 == 0);
     UNUSED(r2);
 
     printf("  Overflow precise: OK\n");
@@ -897,23 +901,25 @@ namespace snmalloc
     // addr_chunks is oracle-relative (without base offset).
     std::pair<size_t, size_t> remove(size_t n_chunks)
     {
-      if (n_chunks == 0 || n_chunks > Bins::max_supported_chunks())
+      size_t n_bytes = n_chunks << MIN_CHUNK_BITS;
+      if (n_bytes == 0 || n_bytes > Bins::max_supported_size())
         return {0, 0};
 
       // Mirror the arena exactly: build a bitmap using arena-offset
-      // addresses (so bin classification matches), then find_for_request.
+      // byte addresses (so bin classification matches), then find_for_request.
       typename Bins::Bitmap bm{};
       std::map<size_t, std::vector<std::set<OracleRange>::iterator>> by_bin;
 
       for (auto it = ranges.begin(); it != ranges.end(); ++it)
       {
-        // Use base-offset address for bin classification.
-        Bins::range_t r{base_offset + it->addr, it->size};
+        typename Bins::range_t r{
+          (base_offset + it->addr) << MIN_CHUNK_BITS,
+          it->size << MIN_CHUNK_BITS};
         size_t bin = bm.add(r);
         by_bin[bin].push_back(it);
       }
 
-      size_t bin_id = bm.find_for_request(n_chunks);
+      size_t bin_id = bm.find_for_request(n_bytes);
       if (bin_id == SIZE_MAX)
         return {0, 0};
 
@@ -928,15 +934,22 @@ namespace snmalloc
       OracleRange block = *best_it;
       ranges.erase(best_it);
 
-      // Carve using base-offset address.
-      auto carved =
-        Bins::carve({base_offset + block.addr, block.size}, n_chunks);
+      auto carved = Bins::carve(
+        {(base_offset + block.addr) << MIN_CHUNK_BITS,
+         block.size << MIN_CHUNK_BITS},
+        n_bytes);
       if (carved.pre.size != 0)
-        ranges.insert({carved.pre.base - base_offset, carved.pre.size});
+        ranges.insert(
+          {(carved.pre.base >> MIN_CHUNK_BITS) - base_offset,
+           carved.pre.size >> MIN_CHUNK_BITS});
       if (carved.post.size != 0)
-        ranges.insert({carved.post.base - base_offset, carved.post.size});
+        ranges.insert(
+          {(carved.post.base >> MIN_CHUNK_BITS) - base_offset,
+           carved.post.size >> MIN_CHUNK_BITS});
 
-      return {carved.req.base - base_offset, carved.req.size};
+      return {
+        (carved.req.base >> MIN_CHUNK_BITS) - base_offset,
+        carved.req.size >> MIN_CHUNK_BITS};
     }
 
     bool empty() const
@@ -1019,7 +1032,7 @@ namespace snmalloc
         for (size_t j = start; j < start + size; j++)
           allocated[j] = false;
 
-        auto result = arena.add_block(chunk_addr(BASE + start), size);
+        auto result = arena.add_block(chunk_addr(BASE + start), chunk_size(size));
         oracle.add(start, size);
 
         if (result.first != 0)
@@ -1043,23 +1056,20 @@ namespace snmalloc
           max_req = 1;
         size_t n = (rng.next() % max_req) + 1;
 
-        auto arena_result = arena.remove_block(n);
+        auto arena_result = arena.remove_block(chunk_size(n));
         auto oracle_result = oracle.remove(n);
         UNUSED(arena_result);
 
         // Both should agree on success/failure.
-        // Use size == 0 to detect failure, since oracle address 0 is valid.
         if (oracle_result.second == 0)
         {
-          SNMALLOC_ASSERT(arena_result.second == 0);
+          SNMALLOC_ASSERT(arena_result == 0);
         }
         else
         {
-          SNMALLOC_ASSERT(arena_result.second != 0);
-          // Both should return the same address and size.
+          SNMALLOC_ASSERT(arena_result != 0);
           SNMALLOC_ASSERT(
-            arena_result.first == chunk_addr(BASE + oracle_result.first));
-          SNMALLOC_ASSERT(arena_result.second == oracle_result.second);
+            arena_result == chunk_addr(BASE + oracle_result.first));
 
           // Mark as allocated.
           size_t start = oracle_result.first;
@@ -1099,26 +1109,26 @@ namespace snmalloc
     constexpr size_t BASE = 256; // avoid address 0
 
     // Add distinct blocks to each arena.
-    arena_a.add_block(chunk_addr(BASE + 10), 5);
-    arena_b.add_block(chunk_addr(BASE + 30), 5);
+    arena_a.add_block(chunk_addr(BASE + 10), chunk_size(5));
+    arena_b.add_block(chunk_addr(BASE + 30), chunk_size(5));
     arena_a.check_invariant(true);
     arena_b.check_invariant(true);
 
     // Migrate a block from A to B.
-    auto [a_addr, a_size] = arena_a.remove_block(3);
-    SNMALLOC_ASSERT(a_addr != 0 && a_size != 0);
+    uintptr_t a_addr = arena_a.remove_block(chunk_size(3));
+    SNMALLOC_ASSERT(a_addr != 0);
     arena_a.check_invariant(true);
 
-    arena_b.add_block(a_addr, a_size);
+    arena_b.add_block(a_addr, chunk_size(3));
     arena_a.check_invariant(true);
     arena_b.check_invariant(true);
 
     // Migrate from B back to A.
-    auto [b_addr, b_size] = arena_b.remove_block(2);
-    SNMALLOC_ASSERT(b_addr != 0 && b_size != 0);
+    uintptr_t b_addr = arena_b.remove_block(chunk_size(2));
+    SNMALLOC_ASSERT(b_addr != 0);
     arena_b.check_invariant(true);
 
-    arena_a.add_block(b_addr, b_size);
+    arena_a.add_block(b_addr, chunk_size(2));
     arena_a.check_invariant(true);
     arena_b.check_invariant(true);
 
@@ -1133,27 +1143,26 @@ namespace snmalloc
     constexpr size_t BASE = 256;
 
     // Arena B holds two blocks with a gap: [20..24) and [28..32).
-    arena_b.add_block(chunk_addr(BASE + 20), 4);
-    arena_b.add_block(chunk_addr(BASE + 28), 4);
+    arena_b.add_block(chunk_addr(BASE + 20), chunk_size(4));
+    arena_b.add_block(chunk_addr(BASE + 28), chunk_size(4));
     arena_b.check_invariant(true);
 
     // Arena A holds the gap: [24..28).
-    arena_a.add_block(chunk_addr(BASE + 24), 4);
+    arena_a.add_block(chunk_addr(BASE + 24), chunk_size(4));
     arena_a.check_invariant(true);
 
     // Migrate the gap from A to B → should consolidate into [20..32).
-    auto [addr, size] = arena_a.remove_block(4);
+    uintptr_t addr = arena_a.remove_block(chunk_size(4));
     SNMALLOC_ASSERT(addr == chunk_addr(BASE + 24));
-    SNMALLOC_ASSERT(size == 4);
     arena_a.check_invariant(true);
 
-    arena_b.add_block(addr, size);
+    arena_b.add_block(addr, chunk_size(4));
     arena_b.check_invariant(true);
 
     // B should now serve a size-12 request from the consolidated block.
-    auto [r_addr, r_size] = arena_b.remove_block(12);
+    uintptr_t r_addr = arena_b.remove_block(chunk_size(12));
     SNMALLOC_ASSERT(r_addr == chunk_addr(BASE + 20));
-    SNMALLOC_ASSERT(r_size == 12);
+    UNUSED(r_addr);
     arena_b.check_invariant(true);
 
     printf("  Consolidation after migration: OK\n");
@@ -1226,7 +1235,7 @@ namespace snmalloc
         for (size_t j = start; j < start + size; j++)
           owner[j] = my_id;
 
-        auto result = arena.add_block(chunk_addr(BASE + start), size);
+        auto result = arena.add_block(chunk_addr(BASE + start), chunk_size(size));
         oracle.add(start, size);
 
         if (result.first != 0)
@@ -1247,19 +1256,18 @@ namespace snmalloc
           max_req = 1;
         size_t n = (rng.next() % max_req) + 1;
 
-        auto arena_r = arena.remove_block(n);
+        auto arena_r = arena.remove_block(chunk_size(n));
         auto oracle_r = oracle.remove(n);
         UNUSED(arena_r);
 
         if (oracle_r.second == 0)
         {
-          SNMALLOC_ASSERT(arena_r.second == 0);
+          SNMALLOC_ASSERT(arena_r == 0);
         }
         else
         {
-          SNMALLOC_ASSERT(arena_r.second != 0);
-          SNMALLOC_ASSERT(arena_r.first == chunk_addr(BASE + oracle_r.first));
-          SNMALLOC_ASSERT(arena_r.second == oracle_r.second);
+          SNMALLOC_ASSERT(arena_r != 0);
+          SNMALLOC_ASSERT(arena_r == chunk_addr(BASE + oracle_r.first));
 
           for (size_t j = oracle_r.first; j < oracle_r.first + oracle_r.second;
                j++)
@@ -1284,18 +1292,17 @@ namespace snmalloc
         UNUSED(src_id);
 
         size_t n = (rng.next() % 3) + 1;
-        auto src_r = src.remove_block(n);
+        uintptr_t src_r = src.remove_block(chunk_size(n));
         auto src_or = src_oracle.remove(n);
 
         if (src_or.second == 0)
         {
-          SNMALLOC_ASSERT(src_r.second == 0);
+          SNMALLOC_ASSERT(src_r == 0);
         }
         else
         {
-          SNMALLOC_ASSERT(src_r.second != 0);
-          SNMALLOC_ASSERT(src_r.first == chunk_addr(BASE + src_or.first));
-          SNMALLOC_ASSERT(src_r.second == src_or.second);
+          SNMALLOC_ASSERT(src_r != 0);
+          SNMALLOC_ASSERT(src_r == chunk_addr(BASE + src_or.first));
 
           for (size_t j = src_or.first; j < src_or.first + src_or.second; j++)
           {
@@ -1303,7 +1310,7 @@ namespace snmalloc
             owner[j] = dst_id;
           }
 
-          auto dst_r = dst.add_block(src_r.first, src_r.second);
+          auto dst_r = dst.add_block(src_r, chunk_size(src_or.second));
           dst_oracle.add(src_or.first, src_or.second);
 
           if (dst_r.first != 0)
@@ -1358,14 +1365,14 @@ namespace snmalloc
       MockRep::set_variant(addr, v);
     }
 
-    static size_t get_large_size_chunks(uintptr_t addr)
+    static size_t get_large_size(uintptr_t addr)
     {
-      return MockRep::get_large_size_chunks(addr);
+      return MockRep::get_large_size(addr);
     }
 
-    static void set_large_size_chunks(uintptr_t addr, size_t s)
+    static void set_large_size(uintptr_t addr, size_t s)
     {
-      MockRep::set_large_size_chunks(addr, s);
+      MockRep::set_large_size(addr, s);
     }
 
     static bool can_consolidate(uintptr_t higher_addr)
@@ -1375,7 +1382,8 @@ namespace snmalloc
   };
 
   template<size_t K>
-  using BoundaryArena = Arena<BoundaryMockRep, 0, K>;
+  using BoundaryArena =
+    Arena<BoundaryMockRep, MIN_CHUNK_BITS, MIN_CHUNK_BITS + K>;
 
   // Test: predecessor merge blocked by boundary.
   static void test_boundary_blocks_predecessor()
@@ -1391,15 +1399,16 @@ namespace snmalloc
     // Place a boundary at a_addr — blocks should not consolidate leftward.
     boundary_addrs.insert(a_addr);
 
-    arena.add_block(p_addr, 2);
-    arena.add_block(a_addr, 2);
+    arena.add_block(p_addr, chunk_size(2));
+    arena.add_block(a_addr, chunk_size(2));
 
     // P (chunks 2-3) and A (chunks 4-5) are adjacent but the boundary
     // at a_addr prevents merging. Both should remain separate.
-    auto [r1_addr, r1_size] = arena.remove_block(2);
-    SNMALLOC_ASSERT(r1_addr == p_addr && r1_size == 2);
-    auto [r2_addr, r2_size] = arena.remove_block(2);
-    SNMALLOC_ASSERT(r2_addr == a_addr && r2_size == 2);
+    auto r1_addr = arena.remove_block(chunk_size(2));
+    SNMALLOC_ASSERT(r1_addr == p_addr);
+    auto r2_addr = arena.remove_block(chunk_size(2));
+    SNMALLOC_ASSERT(r2_addr == a_addr);
+    UNUSED(r1_addr, r2_addr);
 
     printf("  Boundary blocks predecessor merge: OK\n");
   }
@@ -1418,15 +1427,16 @@ namespace snmalloc
     // Place a boundary at s_addr — blocks should not consolidate rightward.
     boundary_addrs.insert(s_addr);
 
-    arena.add_block(s_addr, 4);
-    arena.add_block(a_addr, 2);
+    arena.add_block(s_addr, chunk_size(4));
+    arena.add_block(a_addr, chunk_size(2));
 
     // A (chunks 2-3) and S (chunks 4-7) are adjacent but the boundary
     // at s_addr prevents merging. Both should remain separate.
-    auto [r1_addr, r1_size] = arena.remove_block(2);
-    SNMALLOC_ASSERT(r1_addr == a_addr && r1_size == 2);
-    auto [r2_addr, r2_size] = arena.remove_block(4);
-    SNMALLOC_ASSERT(r2_addr == s_addr && r2_size == 4);
+    auto r1_addr = arena.remove_block(chunk_size(2));
+    SNMALLOC_ASSERT(r1_addr == a_addr);
+    auto r2_addr = arena.remove_block(chunk_size(4));
+    SNMALLOC_ASSERT(r2_addr == s_addr);
+    UNUSED(r1_addr, r2_addr);
 
     printf("  Boundary blocks successor merge: OK\n");
   }
@@ -1444,16 +1454,17 @@ namespace snmalloc
     // [4,6) ↔ [6,8) merge into a 4-aligned block at chunk 4.
     boundary_addrs.insert(chunk_addr(8));
 
-    arena.add_block(chunk_addr(4), 2);
-    arena.add_block(chunk_addr(8), 2);
-    arena.add_block(chunk_addr(6), 2);
+    arena.add_block(chunk_addr(4), chunk_size(2));
+    arena.add_block(chunk_addr(8), chunk_size(2));
+    arena.add_block(chunk_addr(6), chunk_size(2));
 
     // [4,6) and [6,8) should consolidate to [4,8).
     // [8,10) should remain separate due to boundary.
-    auto [r1_addr, r1_size] = arena.remove_block(4);
-    SNMALLOC_ASSERT(r1_addr == chunk_addr(4) && r1_size == 4);
-    auto [r2_addr, r2_size] = arena.remove_block(2);
-    SNMALLOC_ASSERT(r2_addr == chunk_addr(8) && r2_size == 2);
+    auto r1_addr = arena.remove_block(chunk_size(4));
+    SNMALLOC_ASSERT(r1_addr == chunk_addr(4));
+    auto r2_addr = arena.remove_block(chunk_size(2));
+    SNMALLOC_ASSERT(r2_addr == chunk_addr(8));
+    UNUSED(r1_addr, r2_addr);
 
     printf("  Boundary partial (P merges, S blocked): OK\n");
   }
@@ -1471,16 +1482,16 @@ namespace snmalloc
 
     boundary_addrs.insert(a_addr);
 
-    arena.add_block(p_addr, 1); // min-size block
-    arena.add_block(a_addr, 1); // adjacent, but boundary prevents merge
+    arena.add_block(p_addr, chunk_size(1)); // min-size block
+    arena.add_block(a_addr, chunk_size(1)); // adjacent, but boundary prevents merge
 
-    auto [r1_addr, r1_size] = arena.remove_block(1);
-    auto [r2_addr, r2_size] = arena.remove_block(1);
+    auto r1_addr = arena.remove_block(chunk_size(1));
+    auto r2_addr = arena.remove_block(chunk_size(1));
     // Both should be separate min-size blocks.
-    SNMALLOC_ASSERT(r1_size == 1 && r2_size == 1);
     SNMALLOC_ASSERT(
       (r1_addr == p_addr && r2_addr == a_addr) ||
       (r1_addr == a_addr && r2_addr == p_addr));
+    UNUSED(r1_addr, r2_addr);
 
     printf("  Boundary blocks min predecessor merge: OK\n");
   }

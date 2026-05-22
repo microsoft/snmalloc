@@ -9,6 +9,7 @@
 #include "empty_range.h"
 #include "globalrange.h"
 #include "indirectrange.h"
+#include "largearenarange.h"
 #include "largebuddyrange.h"
 #include "logrange.h"
 #include "noprange.h"
