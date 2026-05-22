@@ -27,6 +27,41 @@ namespace snmalloc
 {
   // ---- MockRep: array-backed storage for testing ----
 
+  /**
+   * Thin proxy around uintptr_t* with the same interface as
+   * BackendStateWordRef (get, operator=, operator!=). Used by MockRep
+   * to avoid requiring a real pagemap in unit tests.
+   */
+  struct ArenaWordRef
+  {
+    uintptr_t* val{nullptr};
+
+    constexpr ArenaWordRef() = default;
+
+    constexpr ArenaWordRef(uintptr_t* p) : val(p) {}
+
+    uintptr_t get() const
+    {
+      return *val;
+    }
+
+    ArenaWordRef& operator=(uintptr_t v)
+    {
+      *val = v;
+      return *this;
+    }
+
+    bool operator!=(const ArenaWordRef& other) const
+    {
+      return val != other.val;
+    }
+
+    uintptr_t printable_address() const
+    {
+      return reinterpret_cast<uintptr_t>(val);
+    }
+  };
+
   // Each chunk-aligned address maps to a mock_entry via its chunk index.
   // word1/word2 hold bin-tree children; range_word1/range_word2 hold
   // range-tree children. variant and large_size_chunks hold metadata.
@@ -58,8 +93,89 @@ namespace snmalloc
     return idx;
   }
 
+  // Inner RBTree Rep used by both MockRep::BinRep and MockRep::RangeRep.
+  // Tag selects which pair of fields in mock_entry holds the tree pointers.
+  // The red bit is packed into bit 8 of the stored word (matching the
+  // production PagemapRep layout, but defined privately here).
+  template<bool IsRange>
+  struct MockTreeRep
+  {
+    using Handle = ArenaWordRef;
+    using Contents = uintptr_t;
+
+    static constexpr Contents null = 0;
+    static constexpr Contents root = 0;
+
+    static constexpr uintptr_t RED_BIT = uintptr_t(1) << 8;
+    static_assert(RED_BIT < MIN_CHUNK_SIZE);
+
+    static Handle ref(bool direction, Contents k)
+    {
+      static const Contents null_entry = 0;
+      if (SNMALLOC_UNLIKELY(k == 0))
+        return Handle{const_cast<Contents*>(&null_entry)};
+      auto& e = mock_store[mock_index(k)];
+      if constexpr (IsRange)
+        return Handle{direction ? &e.range_word1 : &e.range_word2};
+      else
+        return Handle{direction ? &e.word1 : &e.word2};
+    }
+
+    static Contents get(Handle h)
+    {
+      return h.get() & ~RED_BIT;
+    }
+
+    static void set(Handle h, Contents v)
+    {
+      h = v | (h.get() & RED_BIT);
+    }
+
+    static bool is_red(Contents k)
+    {
+      return (ref(true, k).get() & RED_BIT) == RED_BIT;
+    }
+
+    static void set_red(Contents k, bool new_is_red)
+    {
+      if (new_is_red != is_red(k))
+      {
+        auto h = ref(true, k);
+        h = h.get() ^ RED_BIT;
+      }
+    }
+
+    static bool compare(Contents k1, Contents k2)
+    {
+      return k1 > k2;
+    }
+
+    static bool equal(Contents k1, Contents k2)
+    {
+      return k1 == k2;
+    }
+
+    static uintptr_t printable(Contents k)
+    {
+      return k;
+    }
+
+    static uintptr_t printable(Handle h)
+    {
+      return h.printable_address();
+    }
+
+    static const char* name()
+    {
+      return IsRange ? "MockRangeRep" : "MockBinRep";
+    }
+  };
+
   struct MockRep
   {
+    using BinRep = MockTreeRep<false>;
+    using RangeRep = MockTreeRep<true>;
+
     static ArenaVariant get_variant(uintptr_t addr)
     {
       return mock_store[mock_index(addr)].variant;
@@ -70,18 +186,6 @@ namespace snmalloc
       mock_store[mock_index(addr)].variant = v;
     }
 
-    static uintptr_t* ref_word(bool direction, uintptr_t addr)
-    {
-      auto& e = mock_store[mock_index(addr)];
-      return direction ? &e.word1 : &e.word2;
-    }
-
-    static uintptr_t* ref_range_word(bool direction, uintptr_t addr)
-    {
-      auto& e = mock_store[mock_index(addr)];
-      return direction ? &e.range_word1 : &e.range_word2;
-    }
-
     static size_t get_large_size_chunks(uintptr_t addr)
     {
       return mock_store[mock_index(addr)].large_size_chunks;
@@ -90,6 +194,11 @@ namespace snmalloc
     static void set_large_size_chunks(uintptr_t addr, size_t s)
     {
       mock_store[mock_index(addr)].large_size_chunks = s;
+    }
+
+    static bool can_consolidate(uintptr_t)
+    {
+      return true;
     }
   };
 
@@ -176,15 +285,19 @@ namespace snmalloc
     uintptr_t v1 = chunk_addr(10);
     uintptr_t v2 = chunk_addr(20);
 
-    *MockRep::ref_word(true, a) = v1;
-    *MockRep::ref_word(false, a) = v2;
-    SNMALLOC_ASSERT(*MockRep::ref_word(true, a) == v1);
-    SNMALLOC_ASSERT(*MockRep::ref_word(false, a) == v2);
+    auto w1 = MockRep::BinRep::ref(true, a);
+    auto w2 = MockRep::BinRep::ref(false, a);
+    w1 = v1;
+    w2 = v2;
+    SNMALLOC_ASSERT(MockRep::BinRep::ref(true, a).get() == v1);
+    SNMALLOC_ASSERT(MockRep::BinRep::ref(false, a).get() == v2);
 
-    *MockRep::ref_range_word(true, a) = v2;
-    *MockRep::ref_range_word(false, a) = v1;
-    SNMALLOC_ASSERT(*MockRep::ref_range_word(true, a) == v2);
-    SNMALLOC_ASSERT(*MockRep::ref_range_word(false, a) == v1);
+    auto rw1 = MockRep::RangeRep::ref(true, a);
+    auto rw2 = MockRep::RangeRep::ref(false, a);
+    rw1 = v2;
+    rw2 = v1;
+    SNMALLOC_ASSERT(MockRep::RangeRep::ref(true, a).get() == v2);
+    SNMALLOC_ASSERT(MockRep::RangeRep::ref(false, a).get() == v1);
 
     printf("  Word round-trip: OK\n");
   }
@@ -1223,6 +1336,155 @@ namespace snmalloc
       NUM_OPS);
   }
 
+  // ==================================================================
+  // (J) Boundary consolidation prevention
+  // ==================================================================
+
+  // A Rep variant that blocks consolidation at specific addresses.
+  static std::set<uintptr_t> boundary_addrs;
+
+  struct BoundaryMockRep
+  {
+    using BinRep = MockRep::BinRep;
+    using RangeRep = MockRep::RangeRep;
+
+    static ArenaVariant get_variant(uintptr_t addr)
+    {
+      return MockRep::get_variant(addr);
+    }
+
+    static void set_variant(uintptr_t addr, ArenaVariant v)
+    {
+      MockRep::set_variant(addr, v);
+    }
+
+    static size_t get_large_size_chunks(uintptr_t addr)
+    {
+      return MockRep::get_large_size_chunks(addr);
+    }
+
+    static void set_large_size_chunks(uintptr_t addr, size_t s)
+    {
+      MockRep::set_large_size_chunks(addr, s);
+    }
+
+    static bool can_consolidate(uintptr_t higher_addr)
+    {
+      return boundary_addrs.find(higher_addr) == boundary_addrs.end();
+    }
+  };
+
+  template<size_t K>
+  using BoundaryArena = Arena<BoundaryMockRep, 0, K>;
+
+  // Test: predecessor merge blocked by boundary.
+  static void test_boundary_blocks_predecessor()
+  {
+    reset_mock_store();
+    boundary_addrs.clear();
+    constexpr size_t K = 6;
+    BoundaryArena<K> arena;
+
+    uintptr_t p_addr = chunk_addr(2);
+    uintptr_t a_addr = chunk_addr(4);
+
+    // Place a boundary at a_addr — blocks should not consolidate leftward.
+    boundary_addrs.insert(a_addr);
+
+    arena.add_block(p_addr, 2);
+    arena.add_block(a_addr, 2);
+
+    // P (chunks 2-3) and A (chunks 4-5) are adjacent but the boundary
+    // at a_addr prevents merging. Both should remain separate.
+    auto [r1_addr, r1_size] = arena.remove_block(2);
+    SNMALLOC_ASSERT(r1_addr == p_addr && r1_size == 2);
+    auto [r2_addr, r2_size] = arena.remove_block(2);
+    SNMALLOC_ASSERT(r2_addr == a_addr && r2_size == 2);
+
+    printf("  Boundary blocks predecessor merge: OK\n");
+  }
+
+  // Test: successor merge blocked by boundary.
+  static void test_boundary_blocks_successor()
+  {
+    reset_mock_store();
+    boundary_addrs.clear();
+    constexpr size_t K = 6;
+    BoundaryArena<K> arena;
+
+    uintptr_t a_addr = chunk_addr(2);
+    uintptr_t s_addr = chunk_addr(4);
+
+    // Place a boundary at s_addr — blocks should not consolidate rightward.
+    boundary_addrs.insert(s_addr);
+
+    arena.add_block(s_addr, 4);
+    arena.add_block(a_addr, 2);
+
+    // A (chunks 2-3) and S (chunks 4-7) are adjacent but the boundary
+    // at s_addr prevents merging. Both should remain separate.
+    auto [r1_addr, r1_size] = arena.remove_block(2);
+    SNMALLOC_ASSERT(r1_addr == a_addr && r1_size == 2);
+    auto [r2_addr, r2_size] = arena.remove_block(4);
+    SNMALLOC_ASSERT(r2_addr == s_addr && r2_size == 4);
+
+    printf("  Boundary blocks successor merge: OK\n");
+  }
+
+  // Test: boundary only blocks the specific merge; other merges proceed.
+  static void test_boundary_partial()
+  {
+    reset_mock_store();
+    boundary_addrs.clear();
+    constexpr size_t K = 6;
+    BoundaryArena<K> arena;
+
+    // Three adjacent blocks: chunks [4,6), [6,8), [8,10).
+    // Boundary at chunk 8 blocks [6,8) ↔ [8,10) merge but allows
+    // [4,6) ↔ [6,8) merge into a 4-aligned block at chunk 4.
+    boundary_addrs.insert(chunk_addr(8));
+
+    arena.add_block(chunk_addr(4), 2);
+    arena.add_block(chunk_addr(8), 2);
+    arena.add_block(chunk_addr(6), 2);
+
+    // [4,6) and [6,8) should consolidate to [4,8).
+    // [8,10) should remain separate due to boundary.
+    auto [r1_addr, r1_size] = arena.remove_block(4);
+    SNMALLOC_ASSERT(r1_addr == chunk_addr(4) && r1_size == 4);
+    auto [r2_addr, r2_size] = arena.remove_block(2);
+    SNMALLOC_ASSERT(r2_addr == chunk_addr(8) && r2_size == 2);
+
+    printf("  Boundary partial (P merges, S blocked): OK\n");
+  }
+
+  // Test: min-size predecessor blocked by boundary.
+  static void test_boundary_blocks_min_predecessor()
+  {
+    reset_mock_store();
+    boundary_addrs.clear();
+    constexpr size_t K = 6;
+    BoundaryArena<K> arena;
+
+    uintptr_t p_addr = chunk_addr(4);
+    uintptr_t a_addr = chunk_addr(5);
+
+    boundary_addrs.insert(a_addr);
+
+    arena.add_block(p_addr, 1); // min-size block
+    arena.add_block(a_addr, 1); // adjacent, but boundary prevents merge
+
+    auto [r1_addr, r1_size] = arena.remove_block(1);
+    auto [r2_addr, r2_size] = arena.remove_block(1);
+    // Both should be separate min-size blocks.
+    SNMALLOC_ASSERT(r1_size == 1 && r2_size == 1);
+    SNMALLOC_ASSERT(
+      (r1_addr == p_addr && r2_addr == a_addr) ||
+      (r1_addr == a_addr && r2_addr == p_addr));
+
+    printf("  Boundary blocks min predecessor merge: OK\n");
+  }
+
 } // namespace snmalloc
 
 int main()
@@ -1277,6 +1539,12 @@ int main()
   snmalloc::test_multi_instance_basic();
   snmalloc::test_multi_instance_consolidation();
   snmalloc::test_multi_stress();
+
+  printf("(J) Boundary consolidation:\n");
+  snmalloc::test_boundary_blocks_predecessor();
+  snmalloc::test_boundary_blocks_successor();
+  snmalloc::test_boundary_partial();
+  snmalloc::test_boundary_blocks_min_predecessor();
 
   printf("All Arena tests passed.\n");
   return 0;

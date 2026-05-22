@@ -158,10 +158,15 @@ namespace snmalloc
     /**
      * Explicit assignment operator, copies the data preserving the boundary bit
      * in the target if it is set.
+     *
+     * Load-bearing: the pagemap writes back through this operator (its
+     * `set(p, t)` is `body[p >> SHIFT] = t`), so the boundary bit set
+     * once at OS-range registration survives every subsequent metadata
+     * mutation — including chunk reuse via `dealloc_chunk` — without
+     * any consolidation path having to touch it explicitly.
      */
     MetaEntryBase& operator=(const MetaEntryBase& other)
     {
-      // Don't overwrite the boundary bit with the other's
       meta = (other.meta & ~META_BOUNDARY_BIT) |
         address_cast(meta & META_BOUNDARY_BIT);
       remote_and_sizeclass = other.remote_and_sizeclass;

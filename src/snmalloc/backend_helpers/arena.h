@@ -31,18 +31,30 @@ namespace snmalloc
 
   /**
    * Manages free ranges within a single bounded arena using a dual-tree
-   * scheme (bin trees for allocation, range tree for consolidation).
+   * scheme: a set of bin trees indexed by the floor-log2 size class
+   * (used for allocation lookup) and one range tree keyed by address
+   * (used for consolidation of adjacent free ranges).
    *
-   * `Rep` provides word-level pagemap access:
-   *   - `ref_word(direction, addr) -> uintptr_t*`: bin-tree child slot
-   *     (left/right pointer in the first pagemap entry).
-   *   - `ref_range_word(direction, addr) -> uintptr_t*`: range-tree
-   *     child slot (left/right pointer in the second pagemap entry).
-   *   - `get_variant(addr)` / `set_variant(addr, v)`
+   * `Rep` is the representation. It owns *all* storage and bit-layout
+   * decisions for tree nodes and per-block metadata. `Rep` must provide:
+   *
+   *   - `using BinRep`  — full RBTree Rep for the bin trees, supplying
+   *     `Handle`, `Contents`, `null`, `root`, `ref`, `get`, `set`,
+   *     `is_red`, `set_red`, `compare`, `equal`, `printable`, `name`.
+   *     Owns its own red-bit packing privately.
+   *   - `using RangeRep` — full RBTree Rep for the range tree, same
+   *     shape as `BinRep`.
+   *   - `get_variant(addr)` / `set_variant(addr, v)` — the
+   *     `ArenaVariant` tag for the block starting at `addr`.
    *   - `get_large_size_chunks(addr)` / `set_large_size_chunks(addr, n)`
+   *     — exact chunk count for `Large` blocks (3+ chunks).
+   *   - `can_consolidate(higher_addr) -> bool` — whether the block at
+   *     `higher_addr` may be merged with the block immediately below
+   *     it. Returns false at allocation boundaries that must be
+   *     preserved.
    *
-   * `MIN_CHUNKS_BITS`: log2 of minimum allocation unit in chunks (0 for
-   * this phase — 1-chunk minimum).
+   * `MIN_CHUNKS_BITS`: log2 of the minimum allocation unit in chunks
+   * (currently only 0 is supported — 1-chunk minimum).
    *
    * `MAX_CHUNKS_BITS`: log2 of the arena size in chunks. Blocks that
    * reach this size overflow and are returned to the caller.
@@ -60,123 +72,8 @@ namespace snmalloc
     static_assert(
       bits::one_at_bit(MAX_CHUNKS_BITS) - 1 <= Bins::max_supported_chunks());
 
-    // Bit layout constants.
-    static constexpr uintptr_t RED_BIT = uintptr_t(1) << 8;
-    static constexpr uintptr_t VARIANT_MASK = uintptr_t(0x3) << 9;
-    static constexpr uintptr_t META_MASK = RED_BIT | VARIANT_MASK;
-    static constexpr uintptr_t BACKEND_RESERVED_MASK = 0xFF;
-
-    static_assert((META_MASK & BACKEND_RESERVED_MASK) == 0);
-    static_assert(META_MASK < MIN_CHUNK_SIZE);
-
-    // ---- Handle: thin proxy around uintptr_t* ----
-    //
-    // Matches BackendStateWordRef's interface: wraps a pointer to a
-    // word slot (tree root field or pagemap word). Constructed from
-    // &root or from Rep::ref_word / Rep::ref_range_word.
-    struct WordRef
-    {
-      uintptr_t* val{nullptr};
-
-      constexpr WordRef() = default;
-
-      constexpr WordRef(uintptr_t* p) : val(p) {}
-
-      uintptr_t get() const
-      {
-        return *val;
-      }
-
-      WordRef& operator=(uintptr_t v)
-      {
-        *val = v;
-        return *this;
-      }
-
-      bool operator!=(const WordRef& other) const
-      {
-        return val != other.val;
-      }
-
-      uintptr_t printable_address() const
-      {
-        return reinterpret_cast<uintptr_t>(val);
-      }
-    };
-
-    // ---- TreeRep: RBTree Rep parameterised on which word accessor to use ----
-    //
-    // `RefFn` selects the pagemap entry: ref_word for the bin tree,
-    // ref_range_word for the range tree.
-    template<uintptr_t* (*RefFn)(bool, uintptr_t)>
-    struct TreeRep
-    {
-      using Handle = WordRef;
-      using Contents = uintptr_t;
-
-      static constexpr Contents null = 0;
-      static constexpr Contents root = 0;
-
-      static Contents get(Handle h)
-      {
-        return h.get() & ~META_MASK;
-      }
-
-      static void set(Handle h, Contents v)
-      {
-        h = v | (h.get() & META_MASK);
-      }
-
-      static Handle ref(bool direction, Contents k)
-      {
-        static const Contents null_entry = 0;
-        if (SNMALLOC_UNLIKELY(k == 0))
-          return Handle{const_cast<Contents*>(&null_entry)};
-        return Handle{RefFn(direction, k)};
-      }
-
-      static bool is_red(Contents k)
-      {
-        return (ref(true, k).get() & RED_BIT) == RED_BIT;
-      }
-
-      static void set_red(Contents k, bool new_is_red)
-      {
-        if (new_is_red != is_red(k))
-        {
-          auto h = ref(true, k);
-          h = h.get() ^ RED_BIT;
-        }
-      }
-
-      static bool compare(Contents k1, Contents k2)
-      {
-        return k1 > k2;
-      }
-
-      static bool equal(Contents k1, Contents k2)
-      {
-        return k1 == k2;
-      }
-
-      static uintptr_t printable(Contents k)
-      {
-        return k;
-      }
-
-      static uintptr_t printable(Handle h)
-      {
-        return h.printable_address();
-      }
-
-      static const char* name()
-      {
-        return "TreeRep";
-      }
-    };
-
-    using BinRep = TreeRep<Rep::ref_word>;
-    using RangeRep = TreeRep<Rep::ref_range_word>;
+    using BinRep = typename Rep::BinRep;
+    using RangeRep = typename Rep::RangeRep;
 
     using BinTree = RBTree<BinRep>;
     using RangeTree = RBTree<RangeRep>;
@@ -299,17 +196,21 @@ namespace snmalloc
 
       // Predecessor: check range tree, then fall back to min-size bin.
       auto [pa, ps] = range_from_addr(p_key);
-      if (pa + ps * MIN_CHUNK_SIZE == addr)
+      if (pa + ps * MIN_CHUNK_SIZE == addr && Rep::can_consolidate(addr))
         merge(pa, ps);
-      else if (addr >= MIN_CHUNK_SIZE && contains_min(addr - MIN_CHUNK_SIZE))
+      else if (
+        addr >= MIN_CHUNK_SIZE && Rep::can_consolidate(addr) &&
+        contains_min(addr - MIN_CHUNK_SIZE))
         merge(addr - MIN_CHUNK_SIZE, 1);
 
       // Successor: check range tree, then fall back to min-size bin.
       auto [sa, ss] = range_from_addr(s_key);
       uintptr_t succ_addr = addr + size_chunks * MIN_CHUNK_SIZE;
-      if (sa == succ_addr)
+      if (sa == succ_addr && Rep::can_consolidate(succ_addr))
         merge(sa, ss);
-      else if (succ_addr > addr && contains_min(succ_addr))
+      else if (
+        succ_addr > addr && Rep::can_consolidate(succ_addr) &&
+        contains_min(succ_addr))
         merge(succ_addr, 1);
 
       // Arena-scale overflow: consolidated block spans the full arena.
@@ -399,7 +300,7 @@ namespace snmalloc
       if (!enabled)
         return;
 
-      // 1a. No two adjacent non-min blocks.
+      // 1a. No two adjacent non-min blocks (unless boundary prevents merge).
       {
         uintptr_t prev_addr = 0;
         size_t prev_size = 0;
@@ -407,22 +308,27 @@ namespace snmalloc
         range_tree.for_each([&](uintptr_t node) {
           auto [a, s] = range_from_addr(node);
           if (prev_valid)
-            SNMALLOC_ASSERT(prev_addr + prev_size * MIN_CHUNK_SIZE != a);
+          {
+            uintptr_t prev_end = prev_addr + prev_size * MIN_CHUNK_SIZE;
+            SNMALLOC_ASSERT(prev_end != a || !Rep::can_consolidate(a));
+          }
           prev_addr = a;
           prev_size = s;
           prev_valid = true;
         });
       }
 
-      // 1b. No non-min block adjacent to a min block.
+      // 1b. No non-min block adjacent to a min block (unless boundary).
       range_tree.for_each([&](uintptr_t node) {
         auto [a, s] = range_from_addr(node);
         if (a >= MIN_CHUNK_SIZE)
-          SNMALLOC_ASSERT(!contains_min(a - MIN_CHUNK_SIZE));
-        SNMALLOC_ASSERT(!contains_min(a + s * MIN_CHUNK_SIZE));
+          SNMALLOC_ASSERT(
+            !contains_min(a - MIN_CHUNK_SIZE) || !Rep::can_consolidate(a));
+        uintptr_t end = a + s * MIN_CHUNK_SIZE;
+        SNMALLOC_ASSERT(!contains_min(end) || !Rep::can_consolidate(end));
       });
 
-      // 1c. No two adjacent min blocks.
+      // 1c. No two adjacent min blocks (unless boundary).
       {
         uintptr_t prev = 0;
         bool prev_valid = false;
@@ -430,7 +336,8 @@ namespace snmalloc
           if (Rep::get_variant(node) != ArenaVariant::Min)
             return;
           if (prev_valid)
-            SNMALLOC_ASSERT(prev + MIN_CHUNK_SIZE != node);
+            SNMALLOC_ASSERT(
+              prev + MIN_CHUNK_SIZE != node || !Rep::can_consolidate(node));
           prev = node;
           prev_valid = true;
         });
