@@ -7,14 +7,14 @@
 
 namespace snmalloc
 {
-  template<size_t INTERMEDIATE_BITS>
+  template<size_t INTERMEDIATE_BITS, size_t MIN_SIZE_BITS>
   struct ArenaBinsTestAccess;
 
   /**
-   * Chunk size class enumeration and bin classification used by the
+   * Size class enumeration and bin classification used by the
    * Arena.
    *
-   * Template parameter B (mantissa-bit width of snmalloc's
+   * Template parameter `B` (mantissa-bit width of snmalloc's
    * non-power-of-two size class scheme) determines the number of
    * RB-trees per exponent — the count of distinct servable subsets a
    * free block can occupy at that exponent: B=1 -> 2; B=2 -> 5;
@@ -22,27 +22,41 @@ namespace snmalloc
    * `prototype/skip_analysis.py`. All bin-scheme metadata derives
    * constexpr from a single per-bin subsets table, `bin_subsets`.
    *
+   * Template parameter `MIN_SIZE_BITS` is the log2 of the allocation
+   * unit: every byte size handled here is a multiple of
+   * `UNIT_SIZE = 1 << MIN_SIZE_BITS`, and the smallest representable
+   * size is `UNIT_SIZE`. With `MIN_SIZE_BITS == 0` the unit is a single
+   * byte and the classifier degenerates to the bare bin scheme;
+   * larger values scale the entire size axis (and the bin tables)
+   * by `UNIT_SIZE`.
+   *
    * Public surface:
-   *  - `range_t`, `carve_t`: chunk-count ranges and carve output.
-   *  - `carve(block, n_chunks)`: split a block into pre-pad / aligned
-   *    request / post-pad.
-   *  - `max_supported_chunks()`: upper bound on legal request sizes.
+   *  - `range_t`, `carve_t`: byte ranges and carve output.
+   *  - `carve(block, n)`: split a block into pre-pad / aligned
+   *    request / post-pad, where `n` is in bytes.
+   *  - `max_supported_size()`: upper bound on legal request sizes
+   *    (in bytes).
    *  - nested `Bitmap`: per-arena non-empty-bins bitmap with
    *    `add` / `find_for_request` / `clear`.
    *
    * Everything else is private; tests reach it via
-   * `ArenaBinsTestAccess<B>`.
+   * `ArenaBinsTestAccess<B, MIN_SIZE_BITS>`.
    */
-  template<size_t INTERMEDIATE_BITS>
+  template<size_t INTERMEDIATE_BITS, size_t MIN_SIZE_BITS>
   class ArenaBins
   {
     static_assert(
       INTERMEDIATE_BITS >= 1 && INTERMEDIATE_BITS <= 3,
       "ArenaBins currently supports B in {1, 2, 3}");
+    static_assert(
+      MIN_SIZE_BITS + INTERMEDIATE_BITS < bits::BITS,
+      "MIN_SIZE_BITS + INTERMEDIATE_BITS must leave room for at least one "
+      "exponent above the low regime so MAX_SC is non-trivial");
 
   public:
-    /// (base, size) chunk-count range. `size == 0` means empty (base
-    /// is unspecified).
+    /// (base, size) byte range. Both fields are multiples of
+    /// `UNIT_SIZE = 1 << MIN_SIZE_BITS`. `size == 0` means empty
+    /// (base is unspecified).
     struct range_t
     {
       size_t base;
@@ -59,9 +73,14 @@ namespace snmalloc
     };
 
   private:
-    friend struct ArenaBinsTestAccess<INTERMEDIATE_BITS>;
+    friend struct ArenaBinsTestAccess<INTERMEDIATE_BITS, MIN_SIZE_BITS>;
 
     static constexpr size_t B = INTERMEDIATE_BITS;
+
+    /// Size of the allocation unit. Every byte size handled by the
+    /// classifier is a multiple of this value, and the smallest
+    /// representable size is `UNIT_SIZE`.
+    static constexpr size_t UNIT_SIZE = size_t(1) << MIN_SIZE_BITS;
 
     /// Number of mantissa positions per regular exponent (= 2^B).
     static constexpr size_t MANTISSAS_PER_EXP = size_t(1) << B;
@@ -74,11 +93,11 @@ namespace snmalloc
                                                       0;
 
     /// Size of the per-sc info tables. One past the largest raw id from
-    /// `bits::to_exp_mant_const<B, 0>` whose decoded size fits in
-    /// `size_t` (the architectural max raw id decodes to `2^bits::BITS`,
-    /// which overflows).
+    /// `bits::to_exp_mant_const<B, MIN_SIZE_BITS>` whose decoded size
+    /// fits in `size_t` (the architectural max raw id would decode to
+    /// `2^bits::BITS`, which overflows).
     static constexpr size_t MAX_SC =
-      ((bits::BITS - B) << B) + ((size_t(1) << B) - 1);
+      ((bits::BITS - B - MIN_SIZE_BITS) << B) + ((size_t(1) << B) - 1);
 
     /**
      * Per-SC bitmap-scan record, read by `Bitmap::find_for_request`.
@@ -115,14 +134,15 @@ namespace snmalloc
      * Per-SC carve record, read by `carve` and by `bin_offset_at`'s
      * `fits` predicate (free-side cascade walk via `bin_index`).
      *
-     *  - `size_chunks`: size this SC promises on allocation.
-     *  - `align_chunks`: natural alignment (a power of two, derived
-     *    from `size_chunks`).
+     *  - `size`: byte size this SC promises on allocation (multiple
+     *    of `UNIT_SIZE`).
+     *  - `align`: natural byte alignment (a power of two, derived
+     *    from `size`).
      */
     struct carve_info_t
     {
-      size_t size_chunks;
-      size_t align_chunks;
+      size_t size;
+      size_t align;
     };
 
     static_assert(
@@ -133,16 +153,18 @@ namespace snmalloc
     /**
      * Map a request size to its bitmap-scan record.
      *
-     * `n_chunks` must be in `[1, max_supported_chunks()]`.
-     * Not `constexpr`: uses `bits::clz` intrinsic via `bits::to_exp_mant`
-     * to stay single-cycle on the fast path.
+     * `n` must be in `[UNIT_SIZE, max_supported_size()]` and a
+     * multiple of `UNIT_SIZE`. Not `constexpr`: uses `bits::clz`
+     * intrinsic via `bits::to_exp_mant` to stay single-cycle on the
+     * fast path.
      */
     SNMALLOC_FAST_PATH static const bitmap_info_t&
-    bitmap_info_for_request(size_t n_chunks)
+    bitmap_info_for_request(size_t n)
     {
-      SNMALLOC_ASSERT(n_chunks >= 1);
-      SNMALLOC_ASSERT(n_chunks <= max_supported_chunks());
-      size_t raw = bits::to_exp_mant<B, 0>(n_chunks);
+      SNMALLOC_ASSERT(n >= UNIT_SIZE);
+      SNMALLOC_ASSERT((n & (UNIT_SIZE - 1)) == 0);
+      SNMALLOC_ASSERT(n <= max_supported_size());
+      size_t raw = bits::to_exp_mant<B, MIN_SIZE_BITS>(n);
       SNMALLOC_ASSERT(raw < MAX_SC);
       return table_.bitmap_info[raw];
     }
@@ -150,37 +172,47 @@ namespace snmalloc
     /// Map a request size to its carve record. Preconditions and
     /// properties as `bitmap_info_for_request`.
     SNMALLOC_FAST_PATH static const carve_info_t&
-    carve_info_for_request(size_t n_chunks)
+    carve_info_for_request(size_t n)
     {
-      SNMALLOC_ASSERT(n_chunks >= 1);
-      SNMALLOC_ASSERT(n_chunks <= max_supported_chunks());
-      size_t raw = bits::to_exp_mant<B, 0>(n_chunks);
+      SNMALLOC_ASSERT(n >= UNIT_SIZE);
+      SNMALLOC_ASSERT((n & (UNIT_SIZE - 1)) == 0);
+      SNMALLOC_ASSERT(n <= max_supported_size());
+      size_t raw = bits::to_exp_mant<B, MIN_SIZE_BITS>(n);
       SNMALLOC_ASSERT(raw < MAX_SC);
       return table_.carve_info[raw];
     }
 
   public:
     /**
-     * Bin id of `block`. Operates on arbitrary chunk counts, not just
-     * exact size classes. `block.size` must be >= 1.
+     * Bin id of `block`. Operates on arbitrary byte sizes that are
+     * multiples of `UNIT_SIZE`, not just exact size classes.
+     * `block.size` must be at least `UNIT_SIZE`.
      *
      * A bin id at exponent `e` identifies the *servable set*: the
      * subset of SCs at `e` that `block` could serve. Two blocks with
      * the same servable set at the same exponent share a bin id.
      *
-     * The natural exponent is `e = prev_pow2_bits(block.size)`. If
-     * alignment padding eats every SC there, we drop to `e - 1`,
-     * which is guaranteed to fit: its smallest SC has size and
-     * alignment `2^(e-1)`, so worst-case `size + pad < 2^e <=
-     * block.size`. One drop is always enough.
+     * The natural byte exponent is `prev_pow2_bits(block.size)`,
+     * which ranges over `[MIN_SIZE_BITS, bits::BITS)` once the
+     * size is a multiple of `UNIT_SIZE`. The internal exponent
+     * `e` is normalised by subtracting `MIN_SIZE_BITS`, so bin
+     * 0 always corresponds to the `UNIT_SIZE` block.
+     *
+     * If alignment padding eats every SC at the natural exponent we
+     * drop to `e - 1`, which is guaranteed to fit: its smallest SC
+     * has size and alignment `UNIT_SIZE << (e - 1)`, so worst-case
+     * `size + pad < UNIT_SIZE << e <= block.size`. One drop is
+     * always enough.
      *
      * Not `constexpr`: uses `bits::clz` via `bits::prev_pow2_bits`.
      */
     SNMALLOC_FAST_PATH static size_t bin_index(range_t block)
     {
-      SNMALLOC_ASSERT(block.size >= 1);
+      SNMALLOC_ASSERT(block.size >= UNIT_SIZE);
+      SNMALLOC_ASSERT((block.size & (UNIT_SIZE - 1)) == 0);
+      SNMALLOC_ASSERT((block.base & (UNIT_SIZE - 1)) == 0);
 
-      size_t e = bits::prev_pow2_bits(block.size);
+      size_t e = bits::prev_pow2_bits(block.size) - MIN_SIZE_BITS;
       size_t offset = bin_offset_at(block.base, block.size, e);
       if (SNMALLOC_UNLIKELY(offset == BINS_PER_EXP))
       {
@@ -194,19 +226,30 @@ namespace snmalloc
       return table_.exp_bin_base[e] + offset;
     }
 
-    /// Largest `n_chunks` legal for `carve` / `Bitmap::find_for_request`.
-    static constexpr size_t max_supported_chunks()
+    /// Largest byte size legal for `carve` / `Bitmap::find_for_request`.
+    static constexpr size_t max_supported_size()
     {
-      return bits::from_exp_mant<B, 0>(MAX_SC - 1);
+      return bits::from_exp_mant<B, MIN_SIZE_BITS>(MAX_SC - 1);
     }
 
     /**
-     * Carve a free block into pre-pad / aligned request / post-pad.
+     * Carve a free block into pre-pad / aligned request / post-pad,
+     * delivering exactly `n` bytes to the caller.
+     *
+     * The carve_info for `n` is used only to find a valid alignment
+     * and to verify that the block has room: `req.base` is aligned
+     * to `info.align` (the natural alignment of the SC that covers
+     * `n`), and the block must contain `info.size` bytes from that
+     * point. Only `n` bytes are handed out, and the leftover
+     * `info.size - n` bytes roll into `post`. This keeps SC rounding
+     * as an arena-internal detail: callers always receive exactly
+     * what they asked for.
      *
      * Preconditions (caller must have used `Bitmap::find_for_request`
      * to locate a servable bin):
-     *  - `block.size > 0`, `n_chunks` in `[1, max_supported_chunks()]`,
-     *    `block` large enough to fit the SC after aligning up.
+     *  - `block.size > 0`, `n` in `[UNIT_SIZE, max_supported_size()]`
+     *    and a multiple of `UNIT_SIZE`, `block` large enough to fit
+     *    the SC after aligning up.
      *  - `block.base + block.size` does not wrap.
      *
      * Pure: does not touch the bitmap or any tree. Either or both
@@ -215,30 +258,36 @@ namespace snmalloc
      * `req.base + req.size == post.base` (keeps caller adjacency
      * checks simple).
      */
-    SNMALLOC_FAST_PATH static carve_t carve(range_t block, size_t n_chunks)
+    SNMALLOC_FAST_PATH static carve_t carve(range_t block, size_t n)
     {
-      SNMALLOC_ASSERT(n_chunks >= 1);
-      SNMALLOC_ASSERT(n_chunks <= max_supported_chunks());
+      SNMALLOC_ASSERT(n >= UNIT_SIZE);
+      SNMALLOC_ASSERT((n & (UNIT_SIZE - 1)) == 0);
+      SNMALLOC_ASSERT(n <= max_supported_size());
       SNMALLOC_ASSERT(block.size > 0);
+      SNMALLOC_ASSERT((block.size & (UNIT_SIZE - 1)) == 0);
+      SNMALLOC_ASSERT((block.base & (UNIT_SIZE - 1)) == 0);
       // Combined with the servability precondition, non-wrapping end
       // ensures the alignment-up below does not wrap either.
       SNMALLOC_ASSERT(block.base + block.size >= block.base);
 
-      const carve_info_t& info = carve_info_for_request(n_chunks);
+      const carve_info_t& info = carve_info_for_request(n);
 
       size_t req_base =
-        (block.base + (info.align_chunks - 1)) & ~(info.align_chunks - 1);
+        (block.base + (info.align - 1)) & ~(info.align - 1);
       size_t pre_size = req_base - block.base;
 
+      // Servability precondition: `info.size >= n` bytes fit after
+      // `pre`. We only hand out `n`; the remainder (`info.size - n`)
+      // joins `post`.
       SNMALLOC_ASSERT(pre_size <= block.size);
-      SNMALLOC_ASSERT(block.size - pre_size >= info.size_chunks);
+      SNMALLOC_ASSERT(block.size - pre_size >= info.size);
 
-      size_t post_base = req_base + info.size_chunks;
+      size_t post_base = req_base + n;
       size_t post_size = (block.base + block.size) - post_base;
 
       carve_t result;
       result.pre = {block.base, pre_size};
-      result.req = {req_base, info.size_chunks};
+      result.req = {req_base, n};
       result.post = {post_base, post_size};
       return result;
     }
@@ -251,8 +300,8 @@ namespace snmalloc
      * Three-method API:
      *   - `add(range_t)`: classify a block and set its bin's bit
      *     (idempotent on the bit; returns the bin id).
-     *   - `find_for_request(n_chunks)`: smallest set bin whose blocks
-     *     all serve `n_chunks`, or `SIZE_MAX` if none.
+     *   - `find_for_request(n)`: smallest set bin whose blocks
+     *     all serve `n`, or `SIZE_MAX` if none.
      *   - `clear(bin_id)`: mark empty. Caller must ensure the bin's
      *     tree is actually empty; the bitmap does not track contents.
      *
@@ -261,7 +310,7 @@ namespace snmalloc
      */
     class Bitmap
     {
-      friend struct ArenaBinsTestAccess<INTERMEDIATE_BITS>;
+      friend struct ArenaBinsTestAccess<INTERMEDIATE_BITS, MIN_SIZE_BITS>;
 
     public:
       /// Strict upper bound on bin ids `bin_index` produces. Exposed
@@ -282,8 +331,8 @@ namespace snmalloc
        */
       SNMALLOC_FAST_PATH size_t add(range_t block)
       {
-        SNMALLOC_ASSERT(block.size >= 1);
-        SNMALLOC_ASSERT(block.size <= max_supported_chunks());
+        SNMALLOC_ASSERT(block.size >= UNIT_SIZE);
+        SNMALLOC_ASSERT(block.size <= max_supported_size());
         size_t bin_id = bin_index(block);
         SNMALLOC_ASSERT(bin_id < TOTAL_BINS);
         words_[bin_id / bits::BITS] |=
@@ -310,17 +359,18 @@ namespace snmalloc
       }
 
       /**
-       * Smallest bin id whose set blocks all serve `n_chunks`, or
-       * `SIZE_MAX` if none. `n_chunks` in `[1, max_supported_chunks()]`.
+       * Smallest bin id whose set blocks all serve `n`, or `SIZE_MAX`
+       * if none. `n` in `[UNIT_SIZE, max_supported_size()]` and a
+       * multiple of `UNIT_SIZE`.
        *
        * Invariant (static_assert below): `BINS_PER_EXP <= bits::BITS`,
        * so the within-exponent range fits inside one word and the
        * search straddles at most one word boundary. After the second
        * word, every remaining word is purely higher-exponent.
        */
-      SNMALLOC_FAST_PATH size_t find_for_request(size_t n_chunks) const
+      SNMALLOC_FAST_PATH size_t find_for_request(size_t n) const
       {
-        const bitmap_info_t& info = bitmap_info_for_request(n_chunks);
+        const bitmap_info_t& info = bitmap_info_for_request(n);
         SNMALLOC_ASSERT(info.start_word < NUM_BITMAP_WORDS);
         SNMALLOC_ASSUME(info.start_word < NUM_BITMAP_WORDS);
 
@@ -561,9 +611,10 @@ namespace snmalloc
     }();
 
     /**
-     * Within-exponent bin offset for a block at `addr_chunks` of length
-     * `n_chunks` at exponent `e`. Returns `BINS_PER_EXP` (sentinel) if
-     * no mantissa at this exponent fits.
+     * Within-exponent bin offset for a block at byte address `addr`
+     * of byte length `n` at internal exponent `e`. Returns
+     * `BINS_PER_EXP` (sentinel) if no mantissa at this exponent
+     * fits.
      *
      * Walks `m_top` from `MANTISSAS_PER_EXP - 1` down. The first
      * fitting `m_top` is the largest mantissa this block can serve;
@@ -580,7 +631,7 @@ namespace snmalloc
      * exponent and 1 at the fallback exponent.
      */
     SNMALLOC_FAST_PATH static size_t
-    bin_offset_at(size_t addr_chunks, size_t n_chunks, size_t e)
+    bin_offset_at(size_t addr, size_t n, size_t e)
     {
       size_t first = table_.exp_first_sc[e];
       size_t past = table_.exp_first_sc[e + 1];
@@ -593,13 +644,13 @@ namespace snmalloc
         if (first + m >= past)
           return false;
         const carve_info_t& ci = table_.carve_info[first + m];
-        // Optimisation: near the bottom of n_chunks's exponent range
-        // the higher-mantissa sizes already exceed n_chunks and cannot
-        // fit regardless of alignment. Skips the align_up below.
-        if (n_chunks < ci.size_chunks)
+        // Optimisation: near the bottom of n's exponent range the
+        // higher-mantissa sizes already exceed n and cannot fit
+        // regardless of alignment. Skips the align_up below.
+        if (n < ci.size)
           return false;
-        size_t pad = bits::align_up(addr_chunks, ci.align_chunks) - addr_chunks;
-        return n_chunks - ci.size_chunks >= pad;
+        size_t pad = bits::align_up(addr, ci.align) - addr;
+        return n - ci.size >= pad;
       };
 
       for (size_t m_top = MANTISSAS_PER_EXP; m_top-- > 0;)
@@ -656,18 +707,23 @@ namespace snmalloc
         // the only place that knows the size class encoding; once we've
         // pinned down the raw boundaries, everything else is table lookup.
         //
+        // `e` here is the internal (normalised) exponent: an SC's
+        // `e == 0` corresponds to byte size `UNIT_SIZE = 1 << MIN_SIZE_BITS`.
+        //
         // Note: `exp_first_sc` does NOT have a uniform stride. At the
         // bottom of the encoding the low regime (no leading-1 bit; the
         // `b = (e == 0) ? 0 : 1` branch in `to_exp_mant_const`) squashes
-        // multiple ArenaBins exponents into encoded-exponent 0.
+        // multiple internal exponents into encoded-exponent 0.
         // For `B = 2` the counts are 1, 2, 4, 4, 4, ...
-        for (size_t e = 0; e < bits::BITS; e++)
+        constexpr size_t MAX_E = bits::BITS - MIN_SIZE_BITS;
+        for (size_t e = 0; e < MAX_E; e++)
         {
-          exp_first_sc[e] = bits::to_exp_mant_const<B, 0>(size_t(1) << e);
+          exp_first_sc[e] =
+            bits::to_exp_mant_const<B, MIN_SIZE_BITS>(size_t(1) << (e + MIN_SIZE_BITS));
           exp_bin_base[e] = e * BINS_PER_EXP;
         }
-        exp_first_sc[bits::BITS] = MAX_SC;
-        exp_bin_base[bits::BITS] = bits::BITS * BINS_PER_EXP;
+        exp_first_sc[MAX_E] = MAX_SC;
+        exp_bin_base[MAX_E] = MAX_E * BINS_PER_EXP;
 
         // Per-sc records. Size and alignment come straight from the
         // size-class scheme (via from_exp_mant); start_word, first_mask,
@@ -676,14 +732,14 @@ namespace snmalloc
         // the search hot path is two ANDs.
         for (size_t sc = 0; sc < MAX_SC; sc++)
         {
-          size_t size = bits::from_exp_mant<B, 0>(sc);
-          size_t e = bits::prev_pow2_bits_const(size);
+          size_t size = bits::from_exp_mant<B, MIN_SIZE_BITS>(sc);
+          size_t e = bits::prev_pow2_bits_const(size) - MIN_SIZE_BITS;
           size_t m = sc - exp_first_sc[e];
           size_t start_bit = exp_bin_base[e] + start_bin_offset_for_m(m);
           size_t mask = serve_mask_for_m(m);
           size_t shift = start_bit & (bits::BITS - 1);
-          carve_info[sc].size_chunks = size;
-          carve_info[sc].align_chunks = size & (~size + 1);
+          carve_info[sc].size = size;
+          carve_info[sc].align = size & (~size + 1);
           bitmap_info[sc].start_word = start_bit / bits::BITS;
           bitmap_info[sc].first_mask = mask << shift;
           // shift == 0: no within-exponent carry; the second word is
