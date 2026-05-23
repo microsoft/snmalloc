@@ -32,7 +32,7 @@ namespace snmalloc
     // Global range of memory
     using GlobalR = Pipe<
       Base,
-      LargeBuddyRange<
+      LargeArenaRange<
         GlobalCacheSizeBits,
         bits::BITS - 1,
         Pagemap,
@@ -51,7 +51,7 @@ namespace snmalloc
     // would be able to corrupt meta-data.
     using CentralObjectRange = Pipe<
       GlobalR,
-      LargeBuddyRange<GlobalCacheSizeBits, bits::BITS - 1, Pagemap>,
+      LargeArenaRange<GlobalCacheSizeBits, bits::BITS - 1, Pagemap>,
       LogRange<3>,
       GlobalRange,
       CommitRange<PAL>,
@@ -67,7 +67,7 @@ namespace snmalloc
       GlobalR,
       SubRange<PAL, SubRangeRatioBits>, // Use SubRange to introduce guard
                                         // pages.
-      LargeBuddyRange<
+      LargeArenaRange<
         GlobalCacheSizeBits,
         bits::BITS - 1,
         Pagemap,
@@ -77,7 +77,7 @@ namespace snmalloc
       // page, so commit in the global range.
       stl::conditional_t<
         (max_page_chunk_size_bits > MIN_CHUNK_BITS),
-        LargeBuddyRange<
+        LargeArenaRange<
           max_page_chunk_size_bits,
           max_page_chunk_size_bits,
           Pagemap,
@@ -90,7 +90,7 @@ namespace snmalloc
     // Local caching of object range
     using ObjectRange = Pipe<
       CentralObjectRange,
-      LargeBuddyRange<
+      LargeArenaRange<
         LocalCacheSizeBits,
         LocalCacheSizeBits,
         Pagemap,
@@ -100,7 +100,7 @@ namespace snmalloc
     // Local caching of meta-data range
     using MetaRange = Pipe<
       CentralMetaRange,
-      LargeBuddyRange<
+      LargeArenaRange<
         LocalCacheSizeBits - SubRangeRatioBits,
         bits::BITS - 1,
         Pagemap>,

@@ -207,13 +207,18 @@ namespace snmalloc
         merge(addr - UNIT_SIZE, UNIT_SIZE);
 
       // Successor: check range tree, then fall back to min-size bin.
+      // `can_consolidate` reads succ_addr's pagemap entry. That entry is
+      // only known to exist after a tree lookup confirms succ_addr is in
+      // our region — succ_addr can be one past the registered range when
+      // the input block ends at the high edge of the arena. Order the
+      // checks so the tree check gates the pagemap read.
       auto [sa, ss] = range_from_addr(s_key);
       uintptr_t succ_addr = addr + size;
       if (sa == succ_addr && Rep::can_consolidate(succ_addr))
         merge(sa, ss);
       else if (
-        succ_addr > addr && Rep::can_consolidate(succ_addr) &&
-        contains_min(succ_addr))
+        succ_addr > addr && contains_min(succ_addr) &&
+        Rep::can_consolidate(succ_addr))
         merge(succ_addr, UNIT_SIZE);
 
       // Arena-scale overflow: consolidated block spans the full arena.
