@@ -29,7 +29,7 @@ namespace snmalloc
     // Global range of memory, expose this so can be filled by init.
     using GlobalR = Pipe<
       Base,
-      LargeBuddyRange<
+      LargeArenaRange<
         GlobalCacheSizeBits,
         bits::BITS - 1,
         Pagemap,
@@ -49,7 +49,7 @@ namespace snmalloc
     // Use buddy allocators to cache locally.
     using LargeObjectRange = Pipe<
       Stats,
-      StaticConditionalRange<LargeBuddyRange<
+      StaticConditionalRange<LargeArenaRange<
         LocalCacheSizeBits,
         LocalCacheSizeBits,
         Pagemap,
