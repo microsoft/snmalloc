@@ -700,10 +700,11 @@ namespace snmalloc
         [](Allocator* self, size_t size) SNMALLOC_FAST_PATH_LAMBDA {
           return CheckInit::check_init(
             [self, size]() SNMALLOC_FAST_PATH_LAMBDA {
-              if (size > bits::one_at_bit(bits::BITS - 1))
+              if (size > MAX_LARGE_SIZECLASS_SIZE)
               {
-                // Cannot allocate something that is more that half the size of
-                // the address space
+                // Cannot allocate something the sizeclass encoding cannot
+                // represent (equals `2 ^ ENCODED_ADDRESS_BITS` in
+                // `sizeclasstable.h` — well above any plausible request).
                 return Conts::failure(size);
               }
 
@@ -1117,8 +1118,7 @@ namespace snmalloc
         // XXX: because large objects have unique metadata associated with them,
         // the ring size here is one.  We should probably assert that.
 
-        size_t entry_sizeclass = entry.get_sizeclass().as_large();
-        size_t size = bits::one_at_bit(entry_sizeclass);
+        size_t size = sizeclass_full_to_size(entry.get_sizeclass());
 
 #ifdef SNMALLOC_TRACING
         message<1024>("Large deallocation: {}", size);

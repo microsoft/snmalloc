@@ -272,8 +272,7 @@ namespace snmalloc
 
       const carve_info_t& info = carve_info_for_request(n);
 
-      size_t req_base =
-        (block.base + (info.align - 1)) & ~(info.align - 1);
+      size_t req_base = (block.base + (info.align - 1)) & ~(info.align - 1);
       size_t pre_size = req_base - block.base;
 
       // Servability precondition: `info.size >= n` bytes fit after
@@ -718,8 +717,8 @@ namespace snmalloc
         constexpr size_t MAX_E = bits::BITS - MIN_SIZE_BITS;
         for (size_t e = 0; e < MAX_E; e++)
         {
-          exp_first_sc[e] =
-            bits::to_exp_mant_const<B, MIN_SIZE_BITS>(size_t(1) << (e + MIN_SIZE_BITS));
+          exp_first_sc[e] = bits::to_exp_mant_const<B, MIN_SIZE_BITS>(
+            size_t(1) << (e + MIN_SIZE_BITS));
           exp_bin_base[e] = e * BINS_PER_EXP;
         }
         exp_first_sc[MAX_E] = MAX_SC;

@@ -127,7 +127,8 @@ namespace snmalloc
     bitmap_info_for_request_const(size_t n)
     {
       return Bins::table_
-        .bitmap_info[bits::to_exp_mant_const<INTERMEDIATE_BITS, MIN_SIZE_BITS>(n)];
+        .bitmap_info[bits::to_exp_mant_const<INTERMEDIATE_BITS, MIN_SIZE_BITS>(
+          n)];
     }
 
     /// `carve_info_for_request`, constexpr (uses `to_exp_mant_const`).
@@ -135,7 +136,8 @@ namespace snmalloc
     static constexpr const carve_info_t& carve_info_for_request_const(size_t n)
     {
       return Bins::table_
-        .carve_info[bits::to_exp_mant_const<INTERMEDIATE_BITS, MIN_SIZE_BITS>(n)];
+        .carve_info[bits::to_exp_mant_const<INTERMEDIATE_BITS, MIN_SIZE_BITS>(
+          n)];
     }
 
     // The canonical source of truth for what each within-exponent bin
@@ -218,14 +220,11 @@ namespace static_checks
     "B=3 MAX_SC");
 
   // Sizes that are powers of two have align == size.
-  static_assert(
-    B2::carve_info_for_request_const(4).align == 4, "size 4 align");
-  static_assert(
-    B3::carve_info_for_request_const(8).align == 8, "size 8 align");
+  static_assert(B2::carve_info_for_request_const(4).align == 4, "size 4 align");
+  static_assert(B3::carve_info_for_request_const(8).align == 8, "size 8 align");
 
   // sc_size at request(s) must be >= s.
-  static_assert(
-    B2::carve_info_for_request_const(9).size == 10, "B=2 round-up");
+  static_assert(B2::carve_info_for_request_const(9).size == 10, "B=2 round-up");
   static_assert(
     B3::carve_info_for_request_const(17).size == 18, "B=3 round-up");
 } // namespace static_checks
@@ -456,14 +455,12 @@ namespace
       const auto& ci = Bins::carve_info_for_request(s);
       if (ci.size != Bins::sc_size(sc))
       {
-        std::printf(
-          "B=%zu carve_info_for_request(%zu).size mismatch\n", B, s);
+        std::printf("B=%zu carve_info_for_request(%zu).size mismatch\n", B, s);
         std::abort();
       }
       if (ci.align != Bins::sc_align(sc))
       {
-        std::printf(
-          "B=%zu carve_info_for_request(%zu).align mismatch\n", B, s);
+        std::printf("B=%zu carve_info_for_request(%zu).align mismatch\n", B, s);
         std::abort();
       }
       if (&ci != &Bins::carve_info(sc))
@@ -536,8 +533,7 @@ namespace
     size_t step = Bins::max_supported_size() / 257;
     if (step == 0)
       step = 1;
-    for (size_t n = 1; n <= Bins::max_supported_size() && n > 0;
-         n += step + 1)
+    for (size_t n = 1; n <= Bins::max_supported_size() && n > 0; n += step + 1)
       check_one(n);
   }
 
@@ -1246,7 +1242,8 @@ namespace
     // request(n) at MIN_SIZE_BITS==0; sc_size(raw) at MIN_SIZE_BITS==K
     // equals sc_size(raw) at MIN_SIZE_BITS==0 times U; sc_align
     // likewise.
-    size_t probe[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 16, 17, 32, 65, 127, 1024};
+    size_t probe[] = {
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 16, 17, 32, 65, 127, 1024};
     for (size_t n : probe)
     {
       // Skip values that would overflow either instance's domain.
@@ -1270,8 +1267,9 @@ namespace
     using BaseR = typename Base::range_t;
     for (size_t n = 1; n <= 64; n++)
       for (size_t a = 0; a < 32; a++)
-        if (Scaled::bin_index(ScaledR{a * U, n * U}) !=
-            Base::bin_index(BaseR{a, n}))
+        if (
+          Scaled::bin_index(ScaledR{a * U, n * U}) !=
+          Base::bin_index(BaseR{a, n}))
           std::abort();
 
     // carve({0, blk*U}, n*U) returns the same partition as
@@ -1287,14 +1285,17 @@ namespace
           continue;
         auto base_cv = Base::carve(BaseR{0, blk}, n);
         auto scaled_cv = Scaled::carve(ScaledR{0, blk * U}, n * U);
-        if (scaled_cv.pre.base != base_cv.pre.base * U ||
-            scaled_cv.pre.size != base_cv.pre.size * U)
+        if (
+          scaled_cv.pre.base != base_cv.pre.base * U ||
+          scaled_cv.pre.size != base_cv.pre.size * U)
           std::abort();
-        if (scaled_cv.req.base != base_cv.req.base * U ||
-            scaled_cv.req.size != base_cv.req.size * U)
+        if (
+          scaled_cv.req.base != base_cv.req.base * U ||
+          scaled_cv.req.size != base_cv.req.size * U)
           std::abort();
-        if (scaled_cv.post.base != base_cv.post.base * U ||
-            scaled_cv.post.size != base_cv.post.size * U)
+        if (
+          scaled_cv.post.base != base_cv.post.base * U ||
+          scaled_cv.post.size != base_cv.post.size * U)
           std::abort();
       }
 

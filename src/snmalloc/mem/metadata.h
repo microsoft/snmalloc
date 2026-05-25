@@ -40,9 +40,12 @@ namespace snmalloc
      * backend/largebuddyrange.h.
      *
      * This value is statically checked by the frontend to ensure that its
-     * bit packing does not conflict; see mem/remoteallocator.h
+     * bit packing does not conflict; see mem/remoteallocator.h. The marker
+     * tracks the sizeclass-encoding width (see `SIZECLASS_REP_SIZE` in
+     * ds/sizeclasstable.h): it must sit immediately above the highest bit
+     * used by a sizeclass raw value.
      */
-    static constexpr address_t REMOTE_BACKEND_MARKER = 1 << 7;
+    static constexpr address_t REMOTE_BACKEND_MARKER = SIZECLASS_REP_SIZE;
 
     /**
      * Bit used to indicate this should not be considered part of the previous
@@ -111,6 +114,16 @@ namespace snmalloc
       (REMOTE_BACKEND_MARKER << 1) - 1;
 
   public:
+    /**
+     * Bit position of the first bit available to backend metadata layouts
+     * above the reserved region. The reserved region runs from bit 0 up to
+     * and including the `REMOTE_BACKEND_MARKER` bit; layouts in
+     * `largearenarange.h` and `largebuddyrange.h` derive their bit
+     * positions (RED_BIT, VARIANT_SHIFT, LARGE_SIZE_SHIFT, ...) from this.
+     */
+    static constexpr size_t BACKEND_LAYOUT_FIRST_FREE_BIT =
+      bits::next_pow2_bits_const(REMOTE_BACKEND_MARKER) + 1;
+
     /**
      * Does the back end currently own this entry?  Note that freshly
      * allocated entries are owned by the front end until explicitly
