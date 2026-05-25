@@ -37,7 +37,8 @@ namespace snmalloc
      * a bit that is a valid part of the address of a chunk.
      * @{
      */
-    static constexpr address_t RED_BIT = 1 << 8;
+    static constexpr address_t RED_BIT = address_t(1)
+      << MetaEntryBase::BACKEND_LAYOUT_FIRST_FREE_BIT;
 
     static_assert(RED_BIT < MIN_CHUNK_SIZE);
     static_assert(MetaEntryBase::is_backend_allowed_value(

@@ -287,6 +287,19 @@ namespace snmalloc
       if (!entry.is_owned())
         return;
       size = size == 0 ? 1 : size;
+      // Any size beyond what the sizeclass encoding can represent is
+      // necessarily a mismatch with the pagemap's recorded sizeclass; report
+      // it directly rather than feeding the unrepresentable size into
+      // `size_to_sizeclass_full`.
+      if (size > MAX_LARGE_SIZECLASS_SIZE)
+      {
+        snmalloc_check_client(
+          mitigations(sanity_checks),
+          p == nullptr,
+          "Dealloc size exceeds encodable range: {}",
+          size);
+        return;
+      }
       auto sc = size_to_sizeclass_full(size);
       auto pm_sc = entry.get_sizeclass();
       auto rsize = sizeclass_full_to_size(sc);

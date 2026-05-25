@@ -17,31 +17,72 @@ namespace snmalloc
 {
   using chunksizeclass_t = size_t;
 
-  // Large classes range from [MAX_SMALL_SIZECLASS_SIZE, ADDRESS_SPACE).
+  // Cap the address bits the encoding tries to represent so that
+  // `MAX_LARGE_SIZECLASS_SIZE` (= 2 ^ ENCODED_ADDRESS_BITS) always fits in
+  // `size_t`. On 64-bit platforms `DefaultPal::address_bits` is already 48,
+  // but on 32-bit platforms it equals `bits::BITS` and would otherwise
+  // overflow the encoded maximum to 0.
+  constexpr size_t ENCODED_ADDRESS_BITS =
+    bits::min(DefaultPal::address_bits, bits::BITS - 1);
+
+  // Number of large sizeclasses. Large classes follow on directly from small
+  // classes in the global exp+mantissa scheme used by
+  // `bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>`. The total
+  // span of representable sizes is from MIN_ALLOC_SIZE up to and including
+  // 2^ENCODED_ADDRESS_BITS, so the count of large entries beyond the small
+  // range is (ENCODED_ADDRESS_BITS - MAX_SMALL_SIZECLASS_BITS) mantissa
+  // cycles, each with 2^INTERMEDIATE_BITS entries.
   constexpr size_t NUM_LARGE_CLASSES =
-    DefaultPal::address_bits - MAX_SMALL_SIZECLASS_BITS;
+    (ENCODED_ADDRESS_BITS - MAX_SMALL_SIZECLASS_BITS) << INTERMEDIATE_BITS;
 
-  // How many bits are required to represent either a large or a small
-  // sizeclass.
-  constexpr size_t TAG_SIZECLASS_BITS = bits::max<size_t>(
-    bits::next_pow2_bits_const(NUM_SMALL_SIZECLASSES),
-    bits::next_pow2_bits_const(NUM_LARGE_CLASSES + 1));
+  // Bits required to encode any sizeclass value. Slot 0 is reserved as the
+  // unmapped/default sentinel, so the count includes a leading +1.
+  constexpr size_t SIZECLASS_BITS =
+    bits::next_pow2_bits_const(1 + NUM_SMALL_SIZECLASSES + NUM_LARGE_CLASSES);
 
-  // Number of bits required to represent a tagged sizeclass that can be
-  // either small or large.
-  constexpr size_t SIZECLASS_REP_SIZE =
-    bits::one_at_bit(TAG_SIZECLASS_BITS + 1);
+  // Size of the sizeclass-keyed lookup tables and the alignment that the
+  // REMOTE_BACKEND_MARKER constraint requires of RemoteAllocator. There is no
+  // separate tag bit: all valid sizeclass raw values are in
+  // [0, 1 + NUM_SMALL_SIZECLASSES + NUM_LARGE_CLASSES) and live in the low
+  // SIZECLASS_BITS bits of a pagemap word.
+  constexpr size_t SIZECLASS_REP_SIZE = bits::one_at_bit(SIZECLASS_BITS);
+
+  // Largest allocation size representable by the uniform sizeclass encoding.
+  // Equals `from_exp_mant(NUM_SMALL_SIZECLASSES + NUM_LARGE_CLASSES - 1)`,
+  // which for the default config is `2 ^ ENCODED_ADDRESS_BITS`. Requests
+  // strictly larger than this cannot be encoded and must be failed before
+  // any call to `size_to_sizeclass_full`.
+  constexpr size_t MAX_LARGE_SIZECLASS_SIZE =
+    bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>(
+      NUM_SMALL_SIZECLASSES + NUM_LARGE_CLASSES - 1);
+
+  static_assert(
+    MAX_LARGE_SIZECLASS_SIZE == bits::one_at_bit(ENCODED_ADDRESS_BITS),
+    "MAX_LARGE_SIZECLASS_SIZE must equal 2 ^ ENCODED_ADDRESS_BITS; if this "
+    "fails, the exp+mantissa math no longer matches NUM_LARGE_CLASSES.");
+  static_assert(
+    ENCODED_ADDRESS_BITS > MAX_SMALL_SIZECLASS_BITS,
+    "ENCODED_ADDRESS_BITS must exceed MAX_SMALL_SIZECLASS_BITS so the large "
+    "range is non-empty.");
 
   /**
-   * Encapsulates a tagged union of large and small sizeclasses.
+   * Represents a sizeclass identifier shared by small and large allocations
+   * using a single uniform encoding:
    *
-   * Used in various lookup tables to make efficient code that handles
-   * all objects allocated by snmalloc.
+   *   value == 0                              : unmapped / default sentinel
+   *   value ∈ [1, 1 + NUM_SMALL_SIZECLASSES)  : small sizeclass sc = value - 1
+   *   value ∈ [1 + NUM_SMALL_SIZECLASSES,
+   *           1 + NUM_SMALL_SIZECLASSES + NUM_LARGE_CLASSES)
+   *                                           : large class lc =
+   *                                             value - 1 -
+   * NUM_SMALL_SIZECLASSES
+   *
+   * Used directly as an index into `sizeclass_metadata`. Slot 0 of that table
+   * is zero-padded so the sentinel can flow through the fast-path table
+   * lookups without a subtract on the hot path.
    */
   class sizeclass_t
   {
-    static constexpr size_t TAG = bits::one_at_bit(TAG_SIZECLASS_BITS);
-
     size_t value{0};
 
     constexpr sizeclass_t(size_t value) : value(value) {}
@@ -51,20 +92,19 @@ namespace snmalloc
 
     static constexpr sizeclass_t from_small_class(smallsizeclass_t sc)
     {
-      SNMALLOC_ASSERT(sc < TAG);
-      // Note could use `+` or `|`.  Using `+` as will combine nicely with array
-      // offset.
-      return {TAG + sc};
+      SNMALLOC_ASSERT(sc < NUM_SMALL_SIZECLASSES);
+      return {sc + 1};
     }
 
     /**
-     * Takes the number of leading zero bits from the actual large size-1.
-     * See size_to_sizeclass_full
+     * Construct from a large class index `lc` in [0, NUM_LARGE_CLASSES).
+     * Large classes are stored as a contiguous run immediately after the
+     * small range and the sentinel slot.
      */
     static constexpr sizeclass_t from_large_class(size_t large_class)
     {
-      SNMALLOC_ASSERT(large_class < TAG);
-      return {large_class};
+      SNMALLOC_ASSERT(large_class < NUM_LARGE_CLASSES);
+      return {1 + NUM_SMALL_SIZECLASSES + large_class};
     }
 
     static constexpr sizeclass_t from_raw(size_t raw)
@@ -72,21 +112,16 @@ namespace snmalloc
       return {raw};
     }
 
-    constexpr size_t index()
-    {
-      return value & (TAG - 1);
-    }
-
     constexpr smallsizeclass_t as_small()
     {
       SNMALLOC_ASSERT(is_small());
-      return smallsizeclass_t(value & (TAG - 1));
+      return smallsizeclass_t(value - 1);
     }
 
     constexpr chunksizeclass_t as_large()
     {
-      SNMALLOC_ASSERT(!is_small());
-      return bits::BITS - (value & (TAG - 1));
+      SNMALLOC_ASSERT(!is_small() && !is_default());
+      return value - 1 - NUM_SMALL_SIZECLASSES;
     }
 
     constexpr size_t raw()
@@ -96,7 +131,9 @@ namespace snmalloc
 
     constexpr bool is_small()
     {
-      return (value & TAG) != 0;
+      // Sentinel (value == 0) underflows to a large positive value, which
+      // also fails the comparison — the sentinel is therefore not small.
+      return (value - 1) < NUM_SMALL_SIZECLASSES;
     }
 
     constexpr bool is_default()
@@ -107,6 +144,11 @@ namespace snmalloc
     constexpr bool operator==(sizeclass_t other)
     {
       return value == other.value;
+    }
+
+    constexpr bool operator!=(sizeclass_t other)
+    {
+      return value != other.value;
     }
   };
 
@@ -179,6 +221,17 @@ namespace snmalloc
 
     constexpr SizeClassTable()
     {
+      // Sentinel slot (sizeclass_t{} / raw 0) covers any address whose
+      // pagemap entry is unmapped or owned by the backend — including
+      // foreign (non-snmalloc) heap addresses reached via the
+      // bounds-checked memcpy shim before snmalloc has seen them.
+      // `slab_mask = ~size_t(0)` makes `start_of_object` collapse
+      // `addr & ~slab_mask` to 0 and `index_in_object` to `addr`, so
+      // `remaining_bytes = sentinel.size - addr` underflows to a very
+      // large value and any memcpy bound check trivially passes the
+      // sentinel through to the destination's native checks.
+      start_[0].slab_mask = ~size_t(0);
+
       size_t max_capacity = 0;
 
       for (smallsizeclass_t sizeclass(0); sizeclass < NUM_SMALL_SIZECLASSES;
@@ -223,12 +276,23 @@ namespace snmalloc
         meta.mod_zero_mult = (~zero / meta.size) + 1;
       }
 
-      for (size_t sizeclass = 0; sizeclass < bits::BITS; sizeclass++)
+      for (size_t lc = 0; lc < NUM_LARGE_CLASSES; lc++)
       {
-        auto lsc = sizeclass_t::from_large_class(sizeclass);
+        auto lsc = sizeclass_t::from_large_class(lc);
         auto& meta = fast(lsc);
-        meta.size = sizeclass == 0 ? 0 : bits::one_at_bit(lsc.as_large());
-        meta.slab_mask = meta.size - 1;
+        // Continuous global exp+mantissa scheme: small classes occupy
+        // global indices [0, NUM_SMALL_SIZECLASSES); large classes occupy
+        // [NUM_SMALL_SIZECLASSES, NUM_SMALL_SIZECLASSES + NUM_LARGE_CLASSES).
+        size_t size =
+          bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>(
+            NUM_SMALL_SIZECLASSES + lc);
+        meta.size = size;
+        // Natural alignment of the size: the largest power of two that
+        // divides `size`. For pow2 sizes, this equals `size`; for non-pow2
+        // mantissa steps it is the slab granularity at which the allocation
+        // tiles. `slab_mask = align - 1`.
+        size_t align = size & (~size + 1);
+        meta.slab_mask = align - 1;
         // The slab_mask will do all the necessary work, so
         // perform identity multiplication for the test.
         meta.mod_zero_mult = 1;
@@ -240,6 +304,16 @@ namespace snmalloc
   };
 
   constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
+
+  // Slot 0 of `sizeclass_metadata` is the unmapped sentinel; it must remain
+  // zero-initialised so fast-path lookups via `fast(sc)` return zero size
+  // and slab_mask without needing a sentinel check before indexing.
+  static_assert(
+    sizeclass_metadata.fast(sizeclass_t{}).size == 0,
+    "sentinel slot must have size 0");
+  static_assert(
+    sizeclass_metadata.fast(sizeclass_t{}).slab_mask == 0,
+    "sentinel slot must have slab_mask 0");
 
   static_assert(
     bits::BITS - sizeclass_metadata.DIV_MULT_SHIFT <= MAX_CAPACITY_BITS);
@@ -289,16 +363,6 @@ namespace snmalloc
   constexpr size_t slab_sizeclass_to_size(chunksizeclass_t sizeclass)
   {
     return bits::one_at_bit(MIN_CHUNK_BITS + sizeclass);
-  }
-
-  /**
-   * For large allocations, the metaentry stores the raw log_2 of the size,
-   * which must be shifted into the index space of slab_sizeclass-es.
-   */
-  constexpr size_t
-  metaentry_chunk_sizeclass_to_slab_sizeclass(chunksizeclass_t sizeclass)
-  {
-    return sizeclass - MIN_CHUNK_BITS;
   }
 
   constexpr uint16_t sizeclass_to_slab_object_count(smallsizeclass_t sizeclass)
@@ -378,10 +442,6 @@ namespace snmalloc
     return bits::next_pow2(size);
   }
 
-  inline static size_t large_size_to_chunk_sizeclass(size_t size)
-  {
-    return bits::next_pow2_bits(size) - MIN_CHUNK_BITS;
-  }
 
   constexpr SNMALLOC_PURE size_t sizeclass_lookup_index(const size_t s)
   {
@@ -456,13 +516,17 @@ namespace snmalloc
   }
 
   /**
-   * A compressed size representation,
-   *   either a small size class with the 7th bit set
-   *   or a large class with the 7th bit not set.
-   * Large classes are stored as a mask shift.
-   *    size = (~0 >> lc) + 1;
-   * Thus large size class 0, has size 0.
-   * And large size class 33, has size 2^31
+   * Maps a requested size to its sizeclass. The result uses the unified
+   * encoding documented on `sizeclass_t`.
+   *
+   * For small sizes, this delegates to `size_to_sizeclass`. For large
+   * sizes in Phase 13, this rounds up to the next power of two (the
+   * front end still requests pow2-rounded reservations); Phase 15
+   * removes the `next_pow2` call to enable non-pow2 large reservations.
+   *
+   * `to_exp_mant` is the literal inverse of the `from_exp_mant` used
+   * when populating `sizeclass_metadata`, so this never indexes the
+   * wrong slot.
    */
   static inline sizeclass_t size_to_sizeclass_full(size_t size)
   {
@@ -470,9 +534,12 @@ namespace snmalloc
     {
       return sizeclass_t::from_small_class(size_to_sizeclass(size));
     }
-    // bits::clz is undefined on 0, but we have size == 1 has already been
-    // handled here.  We conflate 0 and sizes larger than we can allocate.
-    return sizeclass_t::from_large_class(bits::clz(size - 1));
+    SNMALLOC_ASSERT(size != 0);
+    SNMALLOC_ASSERT(size <= MAX_LARGE_SIZECLASS_SIZE);
+    size_t pow2 = bits::next_pow2(size);
+    size_t global =
+      bits::to_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>(pow2);
+    return sizeclass_t::from_large_class(global - NUM_SMALL_SIZECLASSES);
   }
 
   inline SNMALLOC_FAST_PATH static size_t round_size(size_t size)
@@ -492,7 +559,7 @@ namespace snmalloc
       return sizeclass_to_size(size_to_sizeclass(1));
     }
 
-    if (size > bits::one_at_bit(bits::BITS - 1))
+    if (size > MAX_LARGE_SIZECLASS_SIZE)
     {
       // This size is too large, no rounding should occur as will result in a
       // failed allocation later.

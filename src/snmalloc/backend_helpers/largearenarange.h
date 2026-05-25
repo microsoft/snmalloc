@@ -15,12 +15,15 @@ namespace snmalloc
    *   Unit 1 (addr + UNIT_SIZE):    range-tree node (size ≥ 2 units).
    *   Unit 2 (addr + 2*UNIT_SIZE):  large chunk count (size ≥ 3 units).
    *
-   * Bit-layout decisions for tree nodes are private to this class:
-   * - Bits 0–7 of each pagemap word are reserved by the pagemap.
-   * - Bit 8 is the red bit (both trees).
-   * - Bits 9–10 of Word::One at unit 0 hold the variant tag.
-   * - Large chunk count is stored shifted left by 8 in Word::One of
-   *   unit 2.
+   * Bit-layout decisions for tree nodes are private to this class. The
+   * pagemap reserves the low bits of each word for the meta-entry (see
+   * `MetaEntryBase::BACKEND_LAYOUT_FIRST_FREE_BIT`); the red bit, variant
+   * tag, and shifted large-chunk count all live at or above that bit:
+   * - Red bit (both trees) at `BACKEND_LAYOUT_FIRST_FREE_BIT`.
+   * - Variant tag (Word::One at unit 0) occupies 2 bits starting at
+   *   `BACKEND_LAYOUT_FIRST_FREE_BIT + 1`.
+   * - Large chunk count is stored in Word::One of unit 2 left-shifted by
+   *   `BACKEND_LAYOUT_FIRST_FREE_BIT`.
    *
    * `MIN_SIZE_BITS` is the log2 size of the allocation unit (= pagemap
    * stride); the caller passes whatever unit it uses (snmalloc's global
@@ -39,15 +42,21 @@ namespace snmalloc
 
     static constexpr uintptr_t UNIT_SIZE = uintptr_t(1) << MIN_SIZE_BITS;
 
-    // Bit positions inside a pagemap word. Bits 0–7 are reserved by the
-    // pagemap; tree-node and large-size encodings start at bit 8.
-    static constexpr unsigned RED_BIT_POS = 8;
-    static constexpr unsigned VARIANT_SHIFT = 9;
+    // Bit positions inside a pagemap word. Bits in the reserved region
+    // (sizeclass + REMOTE_BACKEND_MARKER) are owned by the meta-entry
+    // layout; tree-node and large-size encodings start at the first free
+    // bit above that reserved range — see
+    // `MetaEntryBase::BACKEND_LAYOUT_FIRST_FREE_BIT` in `mem/metadata.h`.
+    static constexpr unsigned RED_BIT_POS =
+      MetaEntryBase::BACKEND_LAYOUT_FIRST_FREE_BIT;
+    static constexpr unsigned VARIANT_SHIFT =
+      MetaEntryBase::BACKEND_LAYOUT_FIRST_FREE_BIT + 1;
     static constexpr unsigned VARIANT_BITS = 2;
 
     // Shift used to encode the large-size chunk count in Word::One of
     // unit 2.
-    static constexpr size_t LARGE_SIZE_SHIFT = 8;
+    static constexpr size_t LARGE_SIZE_SHIFT =
+      MetaEntryBase::BACKEND_LAYOUT_FIRST_FREE_BIT;
 
     static constexpr uintptr_t RED_BIT = uintptr_t(1) << RED_BIT_POS;
     static constexpr uintptr_t VARIANT_MASK =
@@ -370,8 +379,7 @@ namespace snmalloc
           }
         }
 
-        auto [ov_addr, ov_size] =
-          arena.add_block(base.unsafe_uintptr(), size);
+        auto [ov_addr, ov_size] = arena.add_block(base.unsafe_uintptr(), size);
         if (ov_addr != 0)
           parent_dealloc(ov_addr, ov_size);
       }
