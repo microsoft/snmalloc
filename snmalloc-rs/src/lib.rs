@@ -32,6 +32,18 @@ use core::{
     ptr::NonNull,
 };
 
+/// Memory usage statistics from the snmalloc backend.
+///
+/// These are range-level figures (slab/chunk granularity) reflecting bytes
+/// reserved from the OS, not the count of live individual allocations.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct AllocStats {
+    /// Bytes currently reserved from the OS.
+    pub current_memory_usage: usize,
+    /// High-water mark of `current_memory_usage`.
+    pub peak_memory_usage: usize,
+}
+
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
 pub struct SnMalloc;
@@ -52,6 +64,15 @@ impl SnMalloc {
             true => None,
             false => Some(unsafe { ffi::sn_rust_usable_size(ptr.cast()) })
         }
+    }
+
+    /// Returns current and peak OS-level memory reservation statistics.
+    /// See [`AllocStats`] for what the values measure.
+    pub fn memory_stats() -> AllocStats {
+        let mut current = 0usize;
+        let mut peak = 0usize;
+        unsafe { ffi::sn_rust_statistics(&mut current, &mut peak) };
+        AllocStats { current_memory_usage: current, peak_memory_usage: peak }
     }
 
     /// Allocates memory with the given layout, returning a non-null pointer on success
@@ -211,5 +232,33 @@ mod tests {
             alloc.dealloc(ptr, layout);
             assert!(usz >= 8);
         }
+    }
+
+    #[test]
+    fn test_memory_stats() {
+        let alloc = SnMalloc::new();
+        let before = SnMalloc::memory_stats();
+
+        let layout = Layout::from_size_align(1 << 20, 64).unwrap();
+        let ptr = unsafe { alloc.alloc(layout) };
+        assert!(!ptr.is_null());
+
+        let during = SnMalloc::memory_stats();
+        assert!(
+            during.current_memory_usage >= before.current_memory_usage,
+            "current usage should not decrease after allocation"
+        );
+        assert!(
+            during.peak_memory_usage >= before.peak_memory_usage,
+            "peak usage should not decrease after allocation"
+        );
+
+        unsafe { alloc.dealloc(ptr, layout) };
+
+        let after = SnMalloc::memory_stats();
+        assert!(
+            after.peak_memory_usage >= during.peak_memory_usage,
+            "peak usage should never decrease"
+        );
     }
 }
