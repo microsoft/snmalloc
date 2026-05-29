@@ -41,6 +41,12 @@ extern "C" {
 
     /// Return the available bytes in a memory block.
     pub fn sn_rust_usable_size(p: *const c_void) -> usize;
+
+    /// Write current and peak OS-level memory reservation bytes into the given pointers.
+    pub fn sn_rust_statistics(
+        current_memory_usage: *mut usize,
+        peak_memory_usage: *mut usize,
+    );
 }
 
 #[cfg(feature = "libc-api")]
