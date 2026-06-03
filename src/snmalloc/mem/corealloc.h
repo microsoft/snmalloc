@@ -533,7 +533,7 @@ namespace snmalloc
 
       snmalloc_check_client(
         mitigations(sanity_checks),
-        is_start_of_object(entry.get_sizeclass(), address_cast(msg)),
+        is_start_of_object(entry.get_offset_and_sizeclass(), address_cast(msg)),
         "Not deallocating start of an object");
 
       size_t objsize = sizeclass_full_to_size(entry.get_sizeclass());
@@ -1080,7 +1080,7 @@ namespace snmalloc
 
       snmalloc_check_client(
         mitigations(sanity_checks),
-        is_start_of_object(entry.get_sizeclass(), address_cast(p)),
+        is_start_of_object(entry.get_offset_and_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
       auto cp = p.as_static<freelist::Object::T<>>();

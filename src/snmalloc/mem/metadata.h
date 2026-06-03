@@ -9,12 +9,11 @@ namespace snmalloc
   struct RemoteAllocator;
 
   /**
-   * Remotes need to be aligned enough that the bottom bits have enough room for
-   * all the size classes, both large and small. An additional bit is required
-   * to separate backend uses.
+   * RemoteAllocator pointers must have their low `COMBINED_BITS` zero
+   * so the (sizeclass, offset) field can be OR-ed in by `encode`.
    */
   static constexpr size_t REMOTE_MIN_ALIGN =
-    bits::max<size_t>(CACHELINE_SIZE, SIZECLASS_REP_SIZE) << 1;
+    bits::max<size_t>(CACHELINE_SIZE, COMBINED_REP_SIZE);
 
   /**
    * Base class for the templated FrontendMetaEntry.  This exists to avoid
@@ -33,19 +32,18 @@ namespace snmalloc
   {
   protected:
     /**
-     * This bit is set in remote_and_sizeclass to discriminate between the case
-     * that it is in use by the frontend (0) or by the backend (1).  For the
-     * former case, see other methods on this and the subclass
-     * `FrontendMetaEntry`; for the latter, see backend/backend.h and
-     * backend/largebuddyrange.h.
-     *
-     * This value is statically checked by the frontend to ensure that its
-     * bit packing does not conflict; see mem/remoteallocator.h. The marker
-     * tracks the sizeclass-encoding width (see `SIZECLASS_REP_SIZE` in
-     * ds/sizeclasstable.h): it must sit immediately above the highest bit
-     * used by a sizeclass raw value.
+     * Low bits of `remote_and_sizeclass` holding the sizeclass alone.
      */
-    static constexpr address_t REMOTE_BACKEND_MARKER = SIZECLASS_REP_SIZE;
+    static constexpr address_t SIZECLASS_MASK = SIZECLASS_REP_SIZE - 1;
+
+    /**
+     * Low bits of `remote_and_sizeclass` holding the (sizeclass, offset)
+     * pair. Also the markerless ownership discriminator:
+     * `(ras & COMBINED_MASK) == 0` iff the entry is NOT in active
+     * frontend use (frontend entries always have sizeclass != 0; slot 0
+     * is the unmapped sentinel).
+     */
+    static constexpr address_t COMBINED_MASK = COMBINED_REP_SIZE - 1;
 
     /**
      * Bit used to indicate this should not be considered part of the previous
@@ -59,14 +57,12 @@ namespace snmalloc
     static constexpr address_t META_BOUNDARY_BIT = 1 << 0;
 
     /**
-     * The bit above the sizeclass is always zero unless this is used
-     * by the backend to represent another datastructure such as the buddy
-     * allocator entries.
+     * Alignment used by `get_remote` to mask off the (sizeclass, offset)
+     * bits and recover the `RemoteAllocator*` payload.
      */
     static constexpr size_t REMOTE_WITH_BACKEND_MARKER_ALIGN =
-      MetaEntryBase::REMOTE_BACKEND_MARKER;
-    static_assert(
-      (REMOTE_MIN_ALIGN >> 1) == MetaEntryBase::REMOTE_BACKEND_MARKER);
+      COMBINED_REP_SIZE;
+    static_assert(REMOTE_MIN_ALIGN >= COMBINED_REP_SIZE);
 
     /**
      * In common cases, the pointer to the slab metadata.  See
@@ -98,42 +94,38 @@ namespace snmalloc
     constexpr MetaEntryBase() : MetaEntryBase(0, 0) {}
 
     /**
-     * When a meta entry is in use by the back end, it exposes two words of
-     * state.  The low bits in both are reserved.  Bits in this bitmask must
-     * not be set by the back end in either word.
+     * Per-word frontend-reserved masks. Bits in these masks are owned by
+     * the frontend; the backend must preserve them on writes (enforced
+     * by `BackendStateWordRef::operator=`).
      *
-     * During a major release, this constraint may be weakened, allowing the
-     * back end to set more bits.  We don't currently use all of these bits in
-     * both words, but we reserve them all to make access uniform.  If more
-     * bits are required by a back end then we could make this asymmetric.
-     *
-     * `REMOTE_BACKEND_MARKER` is the highest bit that we reserve, so this is
-     * currently every bit including that bit and all lower bits.
+     * - Word::One reserves `META_BOUNDARY_BIT` so PAL-allocation
+     *   boundaries survive ownership transitions.
+     * - Word::Two reserves `COMBINED_MASK`; the markerless ownership
+     *   discriminator requires these bits to be zero in backend mode,
+     *   and backend writes here are chunk-aligned so the requirement
+     *   is naturally satisfied.
      */
-    static constexpr address_t BACKEND_RESERVED_MASK =
-      (REMOTE_BACKEND_MARKER << 1) - 1;
+    static constexpr address_t BACKEND_RESERVED_MASK_WORD_ONE =
+      META_BOUNDARY_BIT;
+    static constexpr address_t BACKEND_RESERVED_MASK_WORD_TWO = COMBINED_MASK;
 
   public:
     /**
-     * Bit position of the first bit available to backend metadata layouts
-     * above the reserved region. The reserved region runs from bit 0 up to
-     * and including the `REMOTE_BACKEND_MARKER` bit; layouts in
-     * `largearenarange.h` and `largebuddyrange.h` derive their bit
-     * positions (RED_BIT, VARIANT_SHIFT, LARGE_SIZE_SHIFT, ...) from this.
+     * First bit on Word::One available for backend layouts; the bits
+     * below are frontend-reserved. Backends in `largearenarange.h`
+     * derive `RED_BIT`, `VARIANT_SHIFT`, etc. from this.
      */
-    static constexpr size_t BACKEND_LAYOUT_FIRST_FREE_BIT =
-      bits::next_pow2_bits_const(REMOTE_BACKEND_MARKER) + 1;
+    static constexpr size_t BACKEND_LAYOUT_FIRST_FREE_BIT = 1;
 
     /**
-     * Does the back end currently own this entry?  Note that freshly
-     * allocated entries are owned by the front end until explicitly
-     * claimed by the back end and so this will return `false` if neither
-     * the front nor back end owns this entry.
+     * True iff this entry is not in active frontend use (backend-claimed
+     * or untouched). Frontend entries always have `sizeclass != 0`
+     * (slot 0 is the unmapped sentinel), so the discriminator
+     * `(ras & COMBINED_MASK) == 0` distinguishes them.
      */
     [[nodiscard]] bool is_backend_owned() const
     {
-      return (REMOTE_BACKEND_MARKER & remote_and_sizeclass) ==
-        REMOTE_BACKEND_MARKER;
+      return (remote_and_sizeclass & COMBINED_MASK) == 0;
     }
 
     /**
@@ -147,14 +139,19 @@ namespace snmalloc
     }
 
     /**
-     * Encode the remote and the sizeclass.
+     * Pack `remote`, `sizeclass`, and the per-chunk slab offset into a
+     * `remote_and_sizeclass` word. `offset` defaults to 0; the backend's
+     * multi-slab-tile write loop in `alloc_chunk` overrides it with the
+     * chunk's slab index so `start_of_object` can recover the
+     * allocation base.
      */
     [[nodiscard]] static SNMALLOC_FAST_PATH uintptr_t
-    encode(RemoteAllocator* remote, sizeclass_t sizeclass)
+    encode(RemoteAllocator* remote, sizeclass_t sizeclass, size_t offset = 0)
     {
       /* remote might be nullptr; cast to uintptr_t before offsetting */
       return pointer_offset(
-        reinterpret_cast<uintptr_t>(remote), sizeclass.raw());
+        reinterpret_cast<uintptr_t>(remote),
+        offset_and_sizeclass_t(sizeclass, offset).raw());
     }
 
     /**
@@ -211,14 +208,14 @@ namespace snmalloc
     ///@}
 
     /**
-     * Returns the remote.
-     *
-     * If the meta entry is owned by the back end then this returns an
-     * undefined value and will abort in debug builds.
+     * Return the `RemoteAllocator*` payload by masking off the low
+     * `COMBINED_BITS`. Callable in any state: for unowned entries
+     * yields nullptr; for backend-owned entries yields a chunk address
+     * which compares unequal to any allocator's `public_state()`, so
+     * dispatch falls through to the slow path.
      */
     [[nodiscard]] SNMALLOC_FAST_PATH RemoteAllocator* get_remote() const
     {
-      SNMALLOC_ASSERT(!is_backend_owned());
       return reinterpret_cast<RemoteAllocator*>(
         pointer_align_down<REMOTE_WITH_BACKEND_MARKER_ALIGN>(
           get_remote_and_sizeclass()));
@@ -246,19 +243,31 @@ namespace snmalloc
       // TODO: perhaps remove static_cast with resolution of
       // https://github.com/CTSRD-CHERI/llvm-project/issues/588
       return sizeclass_t::from_raw(
-        static_cast<size_t>(get_remote_and_sizeclass()) &
-        (REMOTE_WITH_BACKEND_MARKER_ALIGN - 1));
+        static_cast<size_t>(get_remote_and_sizeclass()) & SIZECLASS_MASK);
     }
 
     /**
-     * Claim the meta entry for use by the back end.  This preserves the
-     * boundary bit, if it is set, but otherwise resets the meta entry to a
-     * pristine state.
+     * Return the (sizeclass, slab offset) pair indexing
+     * `sizeclass_metadata.start_`. The selected row carries
+     * `offset_bytes = offset * slab_size` precomputed, so
+     * `start_of_object` recovers the allocation base with a single
+     * subtract.
+     */
+    [[nodiscard]] SNMALLOC_FAST_PATH offset_and_sizeclass_t
+    get_offset_and_sizeclass() const
+    {
+      return offset_and_sizeclass_t::from_raw(
+        static_cast<size_t>(get_remote_and_sizeclass()) & COMBINED_MASK);
+    }
+
+    /**
+     * Claim the meta entry for the backend: preserves the boundary bit
+     * and zeros `remote_and_sizeclass` so `is_backend_owned()` holds.
      */
     void claim_for_backend()
     {
       meta = is_boundary() ? META_BOUNDARY_BIT : 0;
-      remote_and_sizeclass = REMOTE_BACKEND_MARKER;
+      remote_and_sizeclass = 0;
     }
 
     /**
@@ -279,9 +288,11 @@ namespace snmalloc
       Two
     };
 
-    static constexpr bool is_backend_allowed_value(Word, uintptr_t val)
+    static constexpr bool is_backend_allowed_value(Word w, uintptr_t val)
     {
-      return (val & BACKEND_RESERVED_MASK) == 0;
+      const address_t mask = (w == Word::One) ? BACKEND_RESERVED_MASK_WORD_ONE :
+                                                BACKEND_RESERVED_MASK_WORD_TWO;
+      return (val & mask) == 0;
     }
 
     /**
@@ -298,6 +309,14 @@ namespace snmalloc
        */
       uintptr_t* val;
 
+      /**
+       * The frontend-reserved mask for the word that `val` points at. Bits
+       * in this mask are owned by the frontend: `get()` clears them on
+       * read, and `operator=` preserves them on write (by OR-ing the
+       * current value's masked bits into the new value).
+       */
+      address_t reserved_mask{0};
+
     public:
       /**
        * Uninitialised constructor.
@@ -305,9 +324,24 @@ namespace snmalloc
       BackendStateWordRef() = default;
 
       /**
-       * Constructor, wraps a `uintptr_t`.  Note that this may be used outside
-       * of the meta entry by code wishing to provide uniform storage to things
-       * that are either in a meta entry or elsewhere.
+       * Constructor, wraps a `uintptr_t` and the frontend-reserved mask
+       * that applies to that word. Note that this may be used outside of
+       * the meta entry by code wishing to provide uniform storage to
+       * things that are either in a meta entry or elsewhere.
+       */
+      constexpr BackendStateWordRef(uintptr_t* v, address_t mask)
+      : val(v), reserved_mask(mask)
+      {}
+
+      /**
+       * Single-pointer constructor required by the `RBRepMethods`
+       * concept, which constructs a Handle from `&Rep::root` to
+       * verify sentinel constructibility (see
+       * `ds_core/redblacktree.h`). Reserved mask is zero, which is
+       * safe because `Rep::root` is a `static const` sentinel that
+       * the red-black tree never assigns through — any write would
+       * trap on the const data — and on read the underlying value is
+       * zero so `get()` returns zero regardless of the mask.
        */
       constexpr BackendStateWordRef(uintptr_t* v) : val(v) {}
 
@@ -325,7 +359,7 @@ namespace snmalloc
        */
       [[nodiscard]] uintptr_t get() const
       {
-        return (*val) & ~BACKEND_RESERVED_MASK;
+        return (*val) & ~reserved_mask;
       }
 
       /**
@@ -343,13 +377,13 @@ namespace snmalloc
       BackendStateWordRef& operator=(uintptr_t v)
       {
         SNMALLOC_ASSERT_MSG(
-          ((v & BACKEND_RESERVED_MASK) == 0),
-          "The back end is not permitted to use the low bits in the meta "
-          "entry. ({} & {}) == {}.",
+          ((v & reserved_mask) == 0),
+          "The back end is not permitted to use the reserved bits in the "
+          "meta entry. ({} & {}) == {}.",
           v,
-          BACKEND_RESERVED_MASK,
-          (v & BACKEND_RESERVED_MASK));
-        *val = v | (static_cast<address_t>(*val) & BACKEND_RESERVED_MASK);
+          reserved_mask,
+          (v & reserved_mask));
+        *val = v | (static_cast<address_t>(*val) & reserved_mask);
         return *this;
       }
 
@@ -389,7 +423,10 @@ namespace snmalloc
           remote_and_sizeclass);
         claim_for_backend();
       }
-      return {w == Word::One ? &meta : &remote_and_sizeclass};
+      return (w == Word::One) ?
+        BackendStateWordRef{&meta, BACKEND_RESERVED_MASK_WORD_ONE} :
+        BackendStateWordRef{
+          &remote_and_sizeclass, BACKEND_RESERVED_MASK_WORD_TWO};
     }
   };
 
@@ -756,14 +793,7 @@ namespace snmalloc
     SNMALLOC_FAST_PATH
     FrontendMetaEntry(SlabMetadata* meta, uintptr_t remote_and_sizeclass)
     : MetaEntryBase(unsafe_to_uintptr<SlabMetadata>(meta), remote_and_sizeclass)
-    {
-      SNMALLOC_ASSERT_MSG(
-        (REMOTE_BACKEND_MARKER & remote_and_sizeclass) == 0,
-        "Setting a backend-owned value ({}) via the front-end interface is not "
-        "allowed",
-        remote_and_sizeclass);
-      remote_and_sizeclass &= ~REMOTE_BACKEND_MARKER;
-    }
+    {}
 
     /**
      * Implicit copying of meta entries is almost certainly a bug and so the
@@ -782,13 +812,13 @@ namespace snmalloc
     }
 
     /**
-     * Return the FrontendSlabMetadata metadata associated with this chunk,
-     * guarded by an assert that this chunk is being used as a slab (i.e., has
-     * an associated owning allocator).
+     * Return the FrontendSlabMetadata pointer. Only meaningful when the
+     * entry is frontend-owned; in other states the underlying word
+     * holds tree-node fields. Callers must verify ownership first
+     * (the standard idiom is `entry.get_remote() == self->public_state()`).
      */
     [[nodiscard]] SNMALLOC_FAST_PATH SlabMetadata* get_slab_metadata() const
     {
-      SNMALLOC_ASSERT(!is_backend_owned());
       return unsafe_from_uintptr<SlabMetadata>(meta & ~META_BOUNDARY_BIT);
     }
   };
