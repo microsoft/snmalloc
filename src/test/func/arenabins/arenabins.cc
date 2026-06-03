@@ -33,8 +33,8 @@ namespace snmalloc
    * Friend struct exposing private internals of
    * `ArenaBins<B, MIN_SIZE_BITS>` (and its nested `Bitmap`)
    * for unit tests. Forward-declared in `arenabins.h`;
-   * defined here so the production header carries no test-only
-   * surface.
+   * defined here to keep the test-access implementation out of the
+   * in-tree header.
    */
   template<size_t INTERMEDIATE_BITS, size_t MIN_SIZE_BITS>
   struct ArenaBinsTestAccess
@@ -82,7 +82,7 @@ namespace snmalloc
     // --- Raw size-class id access ---
     //
     // The bin scheme assigns a dense raw id in `[0, MAX_SC)` to each
-    // size class. Production code never names these (the fast path
+    // size class. In-tree callers never name these (the fast path
     // goes straight from request size to the bitmap-scan / carve
     // record). Tests cross-check the encoding via the helpers below;
     // the alias `sc_t = size_t` preserves the existing test

@@ -41,8 +41,8 @@ extern "C" SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(rust_realloc)(
   if (
     aligned_old_size <= MAX_LARGE_SIZECLASS_SIZE &&
     aligned_new_size <= MAX_LARGE_SIZECLASS_SIZE &&
-    size_to_sizeclass_full(aligned_old_size).raw() ==
-      size_to_sizeclass_full(aligned_new_size).raw())
+    size_to_sizeclass_full(aligned_old_size) ==
+      size_to_sizeclass_full(aligned_new_size))
     return ptr;
   void* p = alloc(aligned_new_size);
   if (p)

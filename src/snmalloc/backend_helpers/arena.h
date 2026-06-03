@@ -288,7 +288,10 @@ namespace snmalloc
 
     /**
      * Structural invariant. Runs when `enabled` is true; defaults to
-     * `Debug` so release tests can pass `true` explicitly.
+     * `Debug` so in-tree callers compile away in Release while tests
+     * can opt in by passing `true` explicitly. Uses `SNMALLOC_CHECK`
+     * rather than `SNMALLOC_ASSERT` so that test-driven invocations
+     * are checked even under NDEBUG.
      *
      * Five clauses are verified:
      *  1. Maximally consolidated — no adjacent free blocks could be
@@ -321,7 +324,7 @@ namespace snmalloc
           if (prev_valid)
           {
             uintptr_t prev_end = prev_addr + prev_size;
-            SNMALLOC_ASSERT(prev_end != a || !Rep::can_consolidate(a));
+            SNMALLOC_CHECK(prev_end != a || !Rep::can_consolidate(a));
           }
           prev_addr = a;
           prev_size = s;
@@ -333,10 +336,10 @@ namespace snmalloc
       range_tree.for_each([&](uintptr_t node) {
         auto [a, s] = range_from_addr(node);
         if (a >= UNIT_SIZE)
-          SNMALLOC_ASSERT(
+          SNMALLOC_CHECK(
             !contains_min(a - UNIT_SIZE) || !Rep::can_consolidate(a));
         uintptr_t end = a + s;
-        SNMALLOC_ASSERT(!contains_min(end) || !Rep::can_consolidate(end));
+        SNMALLOC_CHECK(!contains_min(end) || !Rep::can_consolidate(end));
       });
 
       // 1c. No two adjacent min blocks (unless boundary).
@@ -347,7 +350,7 @@ namespace snmalloc
           if (Rep::get_variant(node) != ArenaVariant::Min)
             return;
           if (prev_valid)
-            SNMALLOC_ASSERT(
+            SNMALLOC_CHECK(
               prev + UNIT_SIZE != node || !Rep::can_consolidate(node));
           prev = node;
           prev_valid = true;
@@ -366,7 +369,7 @@ namespace snmalloc
             if (s >= TWO_UNITS)
             {
               auto path = range_tree.get_root_path();
-              SNMALLOC_ASSERT(range_tree.find(path, node));
+              SNMALLOC_CHECK(range_tree.find(path, node));
               bin_tree_nonmin_count++;
             }
           });
@@ -378,10 +381,10 @@ namespace snmalloc
           auto range = typename Bins::range_t{a, s};
           size_t expected_bin = Bins::bin_index(range);
           auto path = bin_trees[expected_bin].get_root_path();
-          SNMALLOC_ASSERT(bin_trees[expected_bin].find(path, node));
+          SNMALLOC_CHECK(bin_trees[expected_bin].find(path, node));
         });
 
-        SNMALLOC_ASSERT(bin_tree_nonmin_count == range_tree_count);
+        SNMALLOC_CHECK(bin_tree_nonmin_count == range_tree_count);
       }
 
       // 3. Bin classification correctness.
@@ -391,7 +394,7 @@ namespace snmalloc
           auto [a, s] = range_from_addr(node);
           auto range = typename Bins::range_t{a, s};
           size_t expected_bin = Bins::bin_index(range);
-          SNMALLOC_ASSERT(expected_bin == bin);
+          SNMALLOC_CHECK(expected_bin == bin);
         });
       }
 
@@ -400,7 +403,7 @@ namespace snmalloc
       {
         bool has_entries = !bin_trees[bin].is_empty();
         bool bit_set = bitmap.test(bin);
-        SNMALLOC_ASSERT(has_entries == bit_set);
+        SNMALLOC_CHECK(has_entries == bit_set);
       }
 
       // 5. Variant-tag consistency.
@@ -409,9 +412,9 @@ namespace snmalloc
         bin_trees[bin].for_each([&](uintptr_t node) {
           auto v = Rep::get_variant(node);
           auto [a, s] = range_from_addr(node);
-          SNMALLOC_ASSERT(v == variant_of(s, a));
+          SNMALLOC_CHECK(v == variant_of(s, a));
           if (v == ArenaVariant::Large)
-            SNMALLOC_ASSERT(Rep::get_large_size(node) == s);
+            SNMALLOC_CHECK(Rep::get_large_size(node) == s);
         });
       }
     }

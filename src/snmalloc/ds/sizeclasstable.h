@@ -17,41 +17,39 @@ namespace snmalloc
 {
   using chunksizeclass_t = size_t;
 
-  // Cap the address bits the encoding tries to represent so that
-  // `MAX_LARGE_SIZECLASS_SIZE` (= 2 ^ ENCODED_ADDRESS_BITS) always fits in
-  // `size_t`. On 64-bit platforms `DefaultPal::address_bits` is already 48,
-  // but on 32-bit platforms it equals `bits::BITS` and would otherwise
-  // overflow the encoded maximum to 0.
+  // Capped to `bits::BITS - 1` so `MAX_LARGE_SIZECLASS_SIZE` fits in
+  // `size_t` on 32-bit platforms where `DefaultPal::address_bits ==
+  // bits::BITS`.
   constexpr size_t ENCODED_ADDRESS_BITS =
     bits::min(DefaultPal::address_bits, bits::BITS - 1);
 
-  // Number of large sizeclasses. Large classes follow on directly from small
-  // classes in the global exp+mantissa scheme used by
-  // `bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>`. The total
-  // span of representable sizes is from MIN_ALLOC_SIZE up to and including
-  // 2^ENCODED_ADDRESS_BITS, so the count of large entries beyond the small
-  // range is (ENCODED_ADDRESS_BITS - MAX_SMALL_SIZECLASS_BITS) mantissa
-  // cycles, each with 2^INTERMEDIATE_BITS entries.
+  // Large classes follow on directly from small classes in the global
+  // exp+mantissa scheme: `(ENCODED_ADDRESS_BITS - MAX_SMALL_SIZECLASS_BITS)`
+  // mantissa cycles of `2^INTERMEDIATE_BITS` entries each.
   constexpr size_t NUM_LARGE_CLASSES =
     (ENCODED_ADDRESS_BITS - MAX_SMALL_SIZECLASS_BITS) << INTERMEDIATE_BITS;
 
-  // Bits required to encode any sizeclass value. Slot 0 is reserved as the
-  // unmapped/default sentinel, so the count includes a leading +1.
+  // Slot 0 of the table is reserved as the unmapped sentinel, hence +1.
   constexpr size_t SIZECLASS_BITS =
     bits::next_pow2_bits_const(1 + NUM_SMALL_SIZECLASSES + NUM_LARGE_CLASSES);
 
-  // Size of the sizeclass-keyed lookup tables and the alignment that the
-  // REMOTE_BACKEND_MARKER constraint requires of RemoteAllocator. There is no
-  // separate tag bit: all valid sizeclass raw values are in
-  // [0, 1 + NUM_SMALL_SIZECLASSES + NUM_LARGE_CLASSES) and live in the low
-  // SIZECLASS_BITS bits of a pagemap word.
   constexpr size_t SIZECLASS_REP_SIZE = bits::one_at_bit(SIZECLASS_BITS);
 
-  // Largest allocation size representable by the uniform sizeclass encoding.
-  // Equals `from_exp_mant(NUM_SMALL_SIZECLASSES + NUM_LARGE_CLASSES - 1)`,
-  // which for the default config is `2 ^ ENCODED_ADDRESS_BITS`. Requests
-  // strictly larger than this cannot be encoded and must be failed before
-  // any call to `size_to_sizeclass_full`.
+  // Width of the per-chunk slab-offset field packed immediately above the
+  // sizeclass in `ras`. The worst-case slab count for any non-pow2 large
+  // class with `INTERMEDIATE_BITS = M` is `2^(M+1)`; `M + 1` bits cover
+  // the maximum index. `compute_max_large_slab_index` static_asserts the
+  // bound against the actual table below.
+  constexpr size_t OFFSET_BITS = INTERMEDIATE_BITS + 1;
+
+  // `ras & COMBINED_MASK` directly indexes the `(sizeclass, offset)` table
+  // row, which already carries `offset_bytes = offset * slab_size`.
+  constexpr size_t COMBINED_BITS = SIZECLASS_BITS + OFFSET_BITS;
+  constexpr size_t COMBINED_REP_SIZE = bits::one_at_bit(COMBINED_BITS);
+
+  // Largest size representable by the uniform sizeclass encoding;
+  // requests larger than this must be failed before
+  // `size_to_sizeclass_full`.
   constexpr size_t MAX_LARGE_SIZECLASS_SIZE =
     bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>(
       NUM_SMALL_SIZECLASSES + NUM_LARGE_CLASSES - 1);
@@ -59,27 +57,21 @@ namespace snmalloc
   static_assert(
     MAX_LARGE_SIZECLASS_SIZE == bits::one_at_bit(ENCODED_ADDRESS_BITS),
     "MAX_LARGE_SIZECLASS_SIZE must equal 2 ^ ENCODED_ADDRESS_BITS; if this "
-    "fails, the exp+mantissa math no longer matches NUM_LARGE_CLASSES.");
+    "fails, the exp+mantissa math does not match NUM_LARGE_CLASSES.");
   static_assert(
     ENCODED_ADDRESS_BITS > MAX_SMALL_SIZECLASS_BITS,
     "ENCODED_ADDRESS_BITS must exceed MAX_SMALL_SIZECLASS_BITS so the large "
     "range is non-empty.");
 
   /**
-   * Represents a sizeclass identifier shared by small and large allocations
-   * using a single uniform encoding:
+   * Sizeclass identifier shared by small and large allocations:
    *
-   *   value == 0                              : unmapped / default sentinel
-   *   value ∈ [1, 1 + NUM_SMALL_SIZECLASSES)  : small sizeclass sc = value - 1
-   *   value ∈ [1 + NUM_SMALL_SIZECLASSES,
-   *           1 + NUM_SMALL_SIZECLASSES + NUM_LARGE_CLASSES)
-   *                                           : large class lc =
-   *                                             value - 1 -
-   * NUM_SMALL_SIZECLASSES
+   *   value == 0                              : sentinel (unmapped)
+   *   value ∈ [1, 1 + NUM_SMALL_SIZECLASSES)  : small, sc = value - 1
+   *   value ∈ [1 + NUM_SMALL_SIZECLASSES, ...): large
    *
-   * Used directly as an index into `sizeclass_metadata`. Slot 0 of that table
-   * is zero-padded so the sentinel can flow through the fast-path table
-   * lookups without a subtract on the hot path.
+   * Indexes `sizeclass_metadata` directly; slot 0 is zero-padded so the
+   * sentinel flows through fast-path lookups without a branch.
    */
   class sizeclass_t
   {
@@ -131,8 +123,7 @@ namespace snmalloc
 
     constexpr bool is_small()
     {
-      // Sentinel (value == 0) underflows to a large positive value, which
-      // also fails the comparison — the sentinel is therefore not small.
+      // Sentinel (value == 0) underflows past NUM_SMALL_SIZECLASSES.
       return (value - 1) < NUM_SMALL_SIZECLASSES;
     }
 
@@ -152,12 +143,70 @@ namespace snmalloc
     }
   };
 
+  /**
+   * (sizeclass, per-chunk slab offset) packed into the low `COMBINED_BITS`
+   * of a pagemap entry's `remote_and_sizeclass`. Non-zero offsets occur
+   * only for interior chunks of non-pow2 large allocations; the offset
+   * lets `start_of_object` recover the allocation base.
+   *
+   * Distinct from `sizeclass_t` so `is_small()` / `as_small()` /
+   * `as_large()` cannot be called on a value carrying offset bits, and so
+   * the offset can never be synthesised: constructing a value requires
+   * supplying both components explicitly, or going through `from_raw`
+   * with bits read from storage.
+   */
+  class offset_and_sizeclass_t
+  {
+    size_t value{0};
+
+    constexpr offset_and_sizeclass_t(size_t value) : value(value) {}
+
+  public:
+    constexpr offset_and_sizeclass_t() = default;
+
+    constexpr offset_and_sizeclass_t(sizeclass_t sc, size_t offset)
+    : value(sc.raw() | (offset << SIZECLASS_BITS))
+    {
+      SNMALLOC_ASSERT(offset < (size_t{1} << OFFSET_BITS));
+    }
+
+    static constexpr offset_and_sizeclass_t from_raw(size_t raw)
+    {
+      return {raw};
+    }
+
+    constexpr size_t raw() const
+    {
+      return value;
+    }
+
+    constexpr sizeclass_t sizeclass() const
+    {
+      return sizeclass_t::from_raw(value & (SIZECLASS_REP_SIZE - 1));
+    }
+
+    constexpr size_t offset() const
+    {
+      return (value >> SIZECLASS_BITS) & ((size_t{1} << OFFSET_BITS) - 1);
+    }
+
+    constexpr bool operator==(offset_and_sizeclass_t other) const
+    {
+      return value == other.value;
+    }
+  };
+
   using sizeclass_compress_t = uint8_t;
 
   /**
-   * This structure contains the fields required for fast paths for sizeclasses.
+   * Per-`offset_and_sizeclass_t` metadata for `start_of_object` —
+   * recovering the allocation base from an interior pointer.
+   *
+   * Sized to a power of two (4 × `size_t` = 32 bytes) so the table
+   * stride collapses to a single shift in the
+   * `__malloc_start_pointer` hot path.
    */
-  struct sizeclass_data_fast
+  struct sizeclass_data_start
   {
     size_t size;
     // We store the mask as it is used more on the fast path, and the size of
@@ -165,58 +214,106 @@ namespace snmalloc
     size_t slab_mask;
     // Table of constants for reciprocal division for each sizeclass.
     size_t div_mult;
-    // Table of constants for reciprocal modulus for each sizeclass.
+    // `offset * slab_size`, precomputed. Zero for `offset == 0` rows.
+    size_t offset_bytes;
+  };
+
+  static_assert(
+    sizeof(sizeclass_data_start) == 4 * sizeof(size_t),
+    "sizeclass_data_start must be a power-of-two stride for single-shift "
+    "indexing in start_of_object");
+
+  /**
+   * Per-`sizeclass_t` metadata for `is_start_of_object` — the
+   * Lemire-style alignment check used by check-build dealloc and
+   * debug asserts.
+   *
+   * `slab_mask` is duplicated here (also held in `sizeclass_data_start`)
+   * so the alignment check loads from a single row instead of straddling
+   * two tables.
+   */
+  struct sizeclass_data_align
+  {
+    size_t slab_mask;
     size_t mod_zero_mult;
   };
 
   /**
-   * This structure contains the remaining fields required for slow paths for
-   * sizeclasses.
+   * Per-`sizeclass_t` thresholds used when initialising a slab —
+   * cold-path data consumed at slab allocation/refill time.
    */
-  struct sizeclass_data_slow
+  struct sizeclass_data_slab
   {
     uint16_t capacity;
     uint16_t waking;
   };
 
-  static_assert(sizeof(sizeclass_data_slow::capacity) * 8 > MAX_CAPACITY_BITS);
+  static_assert(sizeof(sizeclass_data_slab::capacity) * 8 > MAX_CAPACITY_BITS);
 
   struct SizeClassTable
   {
-    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_fast> fast_{};
-    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_slow> slow_{};
+    // `start_` is indexed by an `offset_and_sizeclass_t` (Word::Two of
+    // the pagemap entry & COMBINED_MASK). The first SIZECLASS_REP_SIZE
+    // rows have offset == 0; subsequent rows carry the offset_bytes
+    // needed for `start_of_object` on non-pow2 large interior chunks.
+    ModArray<COMBINED_REP_SIZE, sizeclass_data_start> start_{};
+    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_align> align_{};
+    ModArray<SIZECLASS_REP_SIZE, sizeclass_data_slab> slab_{};
 
     size_t DIV_MULT_SHIFT{0};
 
-    [[nodiscard]] constexpr sizeclass_data_fast& fast(sizeclass_t index)
+    [[nodiscard]] constexpr sizeclass_data_start& start(sizeclass_t index)
     {
-      return fast_[index.raw()];
+      return start_[index.raw()];
     }
 
-    [[nodiscard]] constexpr sizeclass_data_fast fast(sizeclass_t index) const
+    [[nodiscard]] constexpr sizeclass_data_start start(sizeclass_t index) const
     {
-      return fast_[index.raw()];
+      return start_[index.raw()];
     }
 
-    [[nodiscard]] constexpr sizeclass_data_fast& fast_small(smallsizeclass_t sc)
+    [[nodiscard]] constexpr sizeclass_data_start&
+    start(offset_and_sizeclass_t osc)
     {
-      return fast_[sizeclass_t::from_small_class(sc).raw()];
+      return start_[osc.raw()];
     }
 
-    [[nodiscard]] constexpr sizeclass_data_fast
-    fast_small(smallsizeclass_t sc) const
+    [[nodiscard]] constexpr sizeclass_data_start
+    start(offset_and_sizeclass_t osc) const
     {
-      return fast_[sizeclass_t::from_small_class(sc).raw()];
+      return start_[osc.raw()];
     }
 
-    [[nodiscard]] constexpr sizeclass_data_slow& slow(sizeclass_t index)
+    [[nodiscard]] constexpr sizeclass_data_start&
+    start_small(smallsizeclass_t sc)
     {
-      return slow_[index.raw()];
+      return start_[sizeclass_t::from_small_class(sc).raw()];
     }
 
-    [[nodiscard]] constexpr sizeclass_data_slow slow(sizeclass_t index) const
+    [[nodiscard]] constexpr sizeclass_data_start
+    start_small(smallsizeclass_t sc) const
     {
-      return slow_[index.raw()];
+      return start_[sizeclass_t::from_small_class(sc).raw()];
+    }
+
+    [[nodiscard]] constexpr sizeclass_data_align& align(sizeclass_t index)
+    {
+      return align_[index.raw()];
+    }
+
+    [[nodiscard]] constexpr sizeclass_data_align align(sizeclass_t index) const
+    {
+      return align_[index.raw()];
+    }
+
+    [[nodiscard]] constexpr sizeclass_data_slab& slab(sizeclass_t index)
+    {
+      return slab_[index.raw()];
+    }
+
+    [[nodiscard]] constexpr sizeclass_data_slab slab(sizeclass_t index) const
+    {
+      return slab_[index.raw()];
     }
 
     constexpr SizeClassTable()
@@ -237,7 +334,8 @@ namespace snmalloc
       for (smallsizeclass_t sizeclass(0); sizeclass < NUM_SMALL_SIZECLASSES;
            sizeclass++)
       {
-        auto& meta = fast_small(sizeclass);
+        auto& meta = start_small(sizeclass);
+        auto sc = sizeclass_t::from_small_class(sizeclass);
 
         size_t rsize =
           bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>(
@@ -247,18 +345,19 @@ namespace snmalloc
           bits::next_pow2_bits_const(MIN_OBJECT_COUNT * rsize), MIN_CHUNK_BITS);
 
         meta.slab_mask = bits::mask_bits(slab_bits);
+        align(sc).slab_mask = meta.slab_mask;
 
-        auto& meta_slow = slow(sizeclass_t::from_small_class(sizeclass));
-        meta_slow.capacity =
+        auto& meta_slab = slab(sc);
+        meta_slab.capacity =
           static_cast<uint16_t>((meta.slab_mask + 1) / rsize);
 
-        meta_slow.waking = mitigations(random_larger_thresholds) ?
-          static_cast<uint16_t>(meta_slow.capacity / 4) :
-          static_cast<uint16_t>(bits::min((meta_slow.capacity / 4), 32));
+        meta_slab.waking = mitigations(random_larger_thresholds) ?
+          static_cast<uint16_t>(meta_slab.capacity / 4) :
+          static_cast<uint16_t>(bits::min((meta_slab.capacity / 4), 32));
 
-        if (meta_slow.capacity > max_capacity)
+        if (meta_slab.capacity > max_capacity)
         {
-          max_capacity = meta_slow.capacity;
+          max_capacity = meta_slab.capacity;
         }
       }
 
@@ -269,75 +368,113 @@ namespace snmalloc
            sizeclass++)
       {
         // Calculate reciprocal division constant.
-        auto& meta = fast_small(sizeclass);
+        auto& meta = start_small(sizeclass);
         meta.div_mult = (bits::mask_bits(DIV_MULT_SHIFT) / meta.size) + 1;
 
         size_t zero = 0;
-        meta.mod_zero_mult = (~zero / meta.size) + 1;
+        align(sizeclass_t::from_small_class(sizeclass)).mod_zero_mult =
+          (~zero / meta.size) + 1;
       }
 
       for (size_t lc = 0; lc < NUM_LARGE_CLASSES; lc++)
       {
         auto lsc = sizeclass_t::from_large_class(lc);
-        auto& meta = fast(lsc);
-        // Continuous global exp+mantissa scheme: small classes occupy
-        // global indices [0, NUM_SMALL_SIZECLASSES); large classes occupy
-        // [NUM_SMALL_SIZECLASSES, NUM_SMALL_SIZECLASSES + NUM_LARGE_CLASSES).
+        auto& meta = start(lsc);
         size_t size =
           bits::from_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>(
             NUM_SMALL_SIZECLASSES + lc);
         meta.size = size;
-        // Natural alignment of the size: the largest power of two that
-        // divides `size`. For pow2 sizes, this equals `size`; for non-pow2
-        // mantissa steps it is the slab granularity at which the allocation
-        // tiles. `slab_mask = align - 1`.
-        size_t align = size & (~size + 1);
-        meta.slab_mask = align - 1;
-        // The slab_mask will do all the necessary work, so
-        // perform identity multiplication for the test.
-        meta.mod_zero_mult = 1;
-        // The slab_mask will do all the necessary work for division
-        // so collapse the calculated offset.
+        // `slab_mask = (natural alignment of size) - 1`; for pow2 sizes
+        // this equals size - 1, for non-pow2 mantissa steps it is the
+        // slab granularity at which the allocation tiles.
+        size_t align_bytes = size & (~size + 1);
+        meta.slab_mask = align_bytes - 1;
+        align(lsc).slab_mask = meta.slab_mask;
+        // slab_mask handles the math; identity values neutralise the
+        // mod/div reciprocals.
+        align(lsc).mod_zero_mult = 1;
         meta.div_mult = 0;
+      }
+
+      // Populate offset > 0 rows: same as the (sc, 0) row but with
+      // `offset_bytes = offset * slab_size` so that `start_of_object`
+      // collapses to `(addr & ~slab_mask) - offset_bytes`. Read when
+      // the backend writes per-chunk offsets for multi-slab-tile
+      // reservations.
+      for (size_t sc_raw = 0; sc_raw < SIZECLASS_REP_SIZE; sc_raw++)
+      {
+        const auto& base = start_[sc_raw];
+        const size_t slab_size = base.slab_mask + 1;
+        for (size_t offset = 1; offset < (size_t{1} << OFFSET_BITS); offset++)
+        {
+          auto& row = start_[sc_raw | (offset << SIZECLASS_BITS)];
+          row.size = base.size;
+          row.slab_mask = base.slab_mask;
+          row.div_mult = base.div_mult;
+          row.offset_bytes = offset * slab_size;
+        }
       }
     }
   };
 
   constexpr SizeClassTable sizeclass_metadata = SizeClassTable();
 
-  // Slot 0 of `sizeclass_metadata` is the unmapped sentinel; it must remain
-  // zero-initialised so fast-path lookups via `fast(sc)` return zero size
-  // and slab_mask without needing a sentinel check before indexing.
+  // Sentinel must remain zero-initialised so fast-path lookups via
+  // `start(sc)` return zero size without a branch. Slab_mask is
+  // `~size_t(0)` so foreign-pointer `remaining_bytes` underflows to a
+  // huge value (see `SizeClassTable::SizeClassTable`).
   static_assert(
-    sizeclass_metadata.fast(sizeclass_t{}).size == 0,
+    sizeclass_metadata.start(sizeclass_t{}).size == 0,
     "sentinel slot must have size 0");
   static_assert(
-    sizeclass_metadata.fast(sizeclass_t{}).slab_mask == 0,
-    "sentinel slot must have slab_mask 0");
+    sizeclass_metadata.start(sizeclass_t{}).slab_mask == ~size_t(0),
+    "sentinel slot must have slab_mask ~0 for foreign-pointer "
+    "remaining_bytes underflow");
 
   static_assert(
     bits::BITS - sizeclass_metadata.DIV_MULT_SHIFT <= MAX_CAPACITY_BITS);
+
+  // Largest slab index for any large class: `OFFSET_BITS` must cover it.
+  constexpr size_t compute_max_large_slab_index()
+  {
+    size_t max_idx = 0;
+    for (size_t lc = 0; lc < NUM_LARGE_CLASSES; lc++)
+    {
+      const auto& meta =
+        sizeclass_metadata.start(sizeclass_t::from_large_class(lc));
+      const size_t slab_size = meta.slab_mask + 1;
+      const size_t reserve = bits::next_pow2_const(meta.size);
+      const size_t idx = (reserve / slab_size) - 1;
+      if (idx > max_idx)
+        max_idx = idx;
+    }
+    return max_idx;
+  }
+
+  static_assert(
+    compute_max_large_slab_index() < (size_t{1} << OFFSET_BITS),
+    "OFFSET_BITS must cover the worst-case slab index for any large class");
 
   constexpr size_t DIV_MULT_SHIFT = sizeclass_metadata.DIV_MULT_SHIFT;
 
   constexpr size_t sizeclass_to_size(smallsizeclass_t sizeclass)
   {
-    return sizeclass_metadata.fast_small(sizeclass).size;
+    return sizeclass_metadata.start_small(sizeclass).size;
   }
 
   constexpr size_t sizeclass_full_to_size(sizeclass_t sizeclass)
   {
-    return sizeclass_metadata.fast(sizeclass).size;
+    return sizeclass_metadata.start(sizeclass).size;
   }
 
   constexpr size_t sizeclass_full_to_slab_size(sizeclass_t sizeclass)
   {
-    return sizeclass_metadata.fast(sizeclass).slab_mask + 1;
+    return sizeclass_metadata.start(sizeclass).slab_mask + 1;
   }
 
   constexpr size_t sizeclass_to_slab_size(smallsizeclass_t sizeclass)
   {
-    return sizeclass_metadata.fast_small(sizeclass).slab_mask + 1;
+    return sizeclass_metadata.start_small(sizeclass).slab_mask + 1;
   }
 
   /**
@@ -349,7 +486,7 @@ namespace snmalloc
    */
   constexpr uint16_t threshold_for_waking_slab(smallsizeclass_t sizeclass)
   {
-    return sizeclass_metadata.slow(sizeclass_t::from_small_class(sizeclass))
+    return sizeclass_metadata.slab(sizeclass_t::from_small_class(sizeclass))
       .waking;
   }
 
@@ -367,13 +504,14 @@ namespace snmalloc
 
   constexpr uint16_t sizeclass_to_slab_object_count(smallsizeclass_t sizeclass)
   {
-    return sizeclass_metadata.slow(sizeclass_t::from_small_class(sizeclass))
+    return sizeclass_metadata.slab(sizeclass_t::from_small_class(sizeclass))
       .capacity;
   }
 
-  SNMALLOC_FAST_PATH constexpr size_t slab_index(sizeclass_t sc, address_t addr)
+  SNMALLOC_FAST_PATH constexpr size_t
+  slab_index(offset_and_sizeclass_t osc, address_t addr)
   {
-    auto meta = sizeclass_metadata.fast(sc);
+    auto meta = sizeclass_metadata.start(osc);
     size_t offset = addr & meta.slab_mask;
     if constexpr (sizeof(offset) >= 8)
     {
@@ -398,29 +536,54 @@ namespace snmalloc
     }
   }
 
+  /**
+   * Recover the start address of the allocation containing `addr`.
+   *
+   * Branch on `osc.offset() == 0` (testable from bits already loaded
+   * into `osc.raw()`, before any metadata-table access). The common
+   * case skips the `offset_bytes` field load and four extra arithmetic
+   * insns; the slow arm handles non-pow2 large interior chunks where
+   * the slab base must be shifted back to the allocation base.
+   */
   SNMALLOC_FAST_PATH constexpr address_t
-  start_of_object(sizeclass_t sc, address_t addr)
+  start_of_object(offset_and_sizeclass_t osc, address_t addr)
   {
-    auto meta = sizeclass_metadata.fast(sc);
-    address_t slab_start = addr & ~meta.slab_mask;
-    size_t index = slab_index(sc, addr);
-    return slab_start + (index * meta.size);
+    auto meta = sizeclass_metadata.start(osc);
+    if (SNMALLOC_LIKELY(osc.offset() == 0))
+    {
+      address_t slab_base = addr & ~meta.slab_mask;
+      size_t index = slab_index(osc, addr);
+      return slab_base + (index * meta.size);
+    }
+    address_t alloc_start = (addr & ~meta.slab_mask) - meta.offset_bytes;
+    size_t index = slab_index(osc, addr - alloc_start);
+    return alloc_start + (index * meta.size);
   }
 
-  constexpr size_t index_in_object(sizeclass_t sc, address_t addr)
+  SNMALLOC_FAST_PATH constexpr size_t
+  index_in_object(offset_and_sizeclass_t osc, address_t addr)
   {
-    return addr - start_of_object(sc, addr);
+    return addr - start_of_object(osc, addr);
   }
 
-  constexpr size_t remaining_bytes(sizeclass_t sc, address_t addr)
+  SNMALLOC_FAST_PATH constexpr size_t
+  remaining_bytes(offset_and_sizeclass_t osc, address_t addr)
   {
-    return sizeclass_metadata.fast(sc).size - index_in_object(sc, addr);
+    return sizeclass_metadata.start(osc).size - index_in_object(osc, addr);
   }
 
+  /**
+   * True iff `addr` is correctly aligned for an object of this
+   * sizeclass within its slab. Does NOT check whether `addr` lies in
+   * the first slab tile of a non-pow2 large allocation; callers that
+   * could be looking at an interior chunk must read the
+   * `offset_and_sizeclass_t` from the pagemap and use that overload
+   * instead.
+   */
   constexpr bool is_start_of_object(sizeclass_t sc, address_t addr)
   {
-    size_t offset = addr & (sizeclass_full_to_slab_size(sc) - 1);
-
+    auto meta = sizeclass_metadata.align(sc);
+    size_t offset = addr & meta.slab_mask;
     // Only works up to certain offsets, exhaustively tested by rounding.cc
     if constexpr (sizeof(offset) >= 8)
     {
@@ -428,8 +591,7 @@ namespace snmalloc
       // 32bit.
       // This is based on:
       //  https://lemire.me/blog/2019/02/20/more-fun-with-fast-remainders-when-the-divisor-is-a-constant/
-      auto mod_zero_mult = sizeclass_metadata.fast(sc).mod_zero_mult;
-      return (offset * mod_zero_mult) < mod_zero_mult;
+      return (offset * meta.mod_zero_mult) < meta.mod_zero_mult;
     }
     else
       // Use 32-bit division as considerably faster than 64-bit, and
@@ -437,11 +599,23 @@ namespace snmalloc
       return static_cast<uint32_t>(offset % sizeclass_full_to_size(sc)) == 0;
   }
 
+  /**
+   * True iff `addr` is the start of an object. Interior chunks of
+   * non-pow2 large allocations carry `offset_bytes != 0`; only the
+   * first slab tile holds an allocation base, so a non-zero
+   * `offset_bytes` short-circuits to false.
+   */
+  constexpr bool is_start_of_object(offset_and_sizeclass_t osc, address_t addr)
+  {
+    if (sizeclass_metadata.start(osc).offset_bytes != 0)
+      return false;
+    return is_start_of_object(osc.sizeclass(), addr);
+  }
+
   inline static size_t large_size_to_chunk_size(size_t size)
   {
     return bits::next_pow2(size);
   }
-
 
   constexpr SNMALLOC_PURE size_t sizeclass_lookup_index(const size_t s)
   {
@@ -476,7 +650,7 @@ namespace snmalloc
       for (; sizeclass < minimum_class; sizeclass++)
       {
         for (; curr <=
-             sizeclass_metadata.fast_small(smallsizeclass_t(sizeclass)).size;
+             sizeclass_metadata.start_small(smallsizeclass_t(sizeclass)).size;
              curr += MIN_ALLOC_STEP_SIZE)
         {
           table[sizeclass_lookup_index(curr)] = minimum_class;
@@ -486,7 +660,7 @@ namespace snmalloc
       for (; sizeclass < NUM_SMALL_SIZECLASSES; sizeclass++)
       {
         for (; curr <=
-             sizeclass_metadata.fast_small(smallsizeclass_t(sizeclass)).size;
+             sizeclass_metadata.start_small(smallsizeclass_t(sizeclass)).size;
              curr += MIN_ALLOC_STEP_SIZE)
         {
           auto i = sizeclass_lookup_index(curr);
@@ -516,17 +690,8 @@ namespace snmalloc
   }
 
   /**
-   * Maps a requested size to its sizeclass. The result uses the unified
-   * encoding documented on `sizeclass_t`.
-   *
-   * For small sizes, this delegates to `size_to_sizeclass`. For large
-   * sizes in Phase 13, this rounds up to the next power of two (the
-   * front end still requests pow2-rounded reservations); Phase 15
-   * removes the `next_pow2` call to enable non-pow2 large reservations.
-   *
-   * `to_exp_mant` is the literal inverse of the `from_exp_mant` used
-   * when populating `sizeclass_metadata`, so this never indexes the
-   * wrong slot.
+   * Map a requested size to its sizeclass. Large requests are rounded up
+   * to the next power of two.
    */
   static inline sizeclass_t size_to_sizeclass_full(size_t size)
   {

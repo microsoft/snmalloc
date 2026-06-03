@@ -128,8 +128,30 @@ namespace snmalloc
         return {nullptr, nullptr};
       }
 
-      typename Pagemap::Entry t(meta, ras);
-      Pagemap::set_metaentry(address_cast(p), size, t);
+      const size_t slab_size = sizeclass_full_to_slab_size(sizeclass);
+      // `size` and `slab_size` are powers of two with `size >= slab_size`,
+      // so `size = k * slab_size` for some integer `k >= 1`. Each slab
+      // tile gets the same `ras_in | (slab_index << SIZECLASS_BITS)`
+      // entry, written in one `set_metaentry` call.
+      SNMALLOC_ASSERT(size >= slab_size);
+      // The OR below assumes the per-chunk-offset bits of `ras` are
+      // zero; `MetaEntryBase::encode` defaults offset to 0, and the
+      // backend is the only place per-chunk offsets are written.
+      SNMALLOC_ASSERT(
+        (ras & (((size_t{1} << OFFSET_BITS) - 1) << SIZECLASS_BITS)) == 0);
+      for (size_t chunk_offset = 0; chunk_offset < size;
+           chunk_offset += slab_size)
+      {
+        const size_t slab_index = chunk_offset / slab_size;
+        // `compute_max_large_slab_index() < (1 << OFFSET_BITS)` is
+        // static_asserted in sizeclasstable.h; this asserts the
+        // arithmetic that derives `slab_index` from `size`/`slab_size`.
+        SNMALLOC_ASSERT(slab_index < (size_t{1} << OFFSET_BITS));
+        const uintptr_t ras_i = ras | (slab_index << SIZECLASS_BITS);
+        typename Pagemap::Entry t_i(meta, ras_i);
+        Pagemap::set_metaentry(
+          address_cast(p) + chunk_offset, slab_size, t_i);
+      }
 
       return {Aal::capptr_bound<void, capptr::bounds::Chunk>(p, size), meta};
     }

@@ -42,10 +42,11 @@ namespace snmalloc
 
     static constexpr uintptr_t UNIT_SIZE = uintptr_t(1) << MIN_SIZE_BITS;
 
-    // Bit positions inside a pagemap word. Bits in the reserved region
-    // (sizeclass + REMOTE_BACKEND_MARKER) are owned by the meta-entry
-    // layout; tree-node and large-size encodings start at the first free
-    // bit above that reserved range — see
+    // Bit positions inside a pagemap word. The reserved region (the
+    // sizeclass+offset bits on Word::Two, and META_BOUNDARY_BIT on
+    // Word::One) is owned by the meta-entry layout; tree-node and
+    // large-size encodings start at the first free bit above that
+    // reserved range — see
     // `MetaEntryBase::BACKEND_LAYOUT_FIRST_FREE_BIT` in `mem/metadata.h`.
     static constexpr unsigned RED_BIT_POS =
       MetaEntryBase::BACKEND_LAYOUT_FIRST_FREE_BIT;
@@ -72,17 +73,19 @@ namespace snmalloc
     static_assert(BIN_META_MASK < UNIT_SIZE);
     static_assert(
       Entry::is_backend_allowed_value(Entry::Word::One, BIN_META_MASK));
-    static_assert(Entry::is_backend_allowed_value(Entry::Word::Two, RED_BIT));
+    static_assert(
+      Entry::is_backend_allowed_value(
+        Entry::Word::Two, ~uintptr_t(UNIT_SIZE - 1)),
+      "RangeRep stores chunk-aligned addresses in Word::Two; the "
+      "markerless ownership discriminator requires their low "
+      "BACKEND_RESERVED_MASK_WORD_TWO bits to be zero. This asserts "
+      "that the reserved mask fits entirely below the chunk alignment, "
+      "so no chunk-aligned value (any bit set only at position "
+      ">= MIN_SIZE_BITS) can collide.");
 
     using Word = typename Entry::Word;
     using Handle = typename Entry::BackendStateWordRef;
 
-    /**
-     * Pagemap word for the `UnitIdx`-th unit of the block at `addr`.
-     * Centralises the layout decision "which pagemap entry encodes
-     * data for unit i". Used by `TreeRep::ref` and by the variant /
-     * large-size accessors below.
-     */
     template<size_t UnitIdx>
     static Handle word_at(uintptr_t addr, Word w)
     {
@@ -92,11 +95,11 @@ namespace snmalloc
     }
 
     /**
-     * RBTree Rep shared by `BinRep` and `RangeRep`. `UnitIdx` selects
-     * which unit (0 or 1) of the block holds this Rep's tree node; the
-     * Rep's pagemap words live at `addr + UnitIdx * UNIT_SIZE`.
-     * `MetaMask` covers the bits in that node's words that are owned by
-     * this Rep (red + any tag bits) and must be preserved by get/set.
+     * Tree rep shared by `BinRep` and `RangeRep`. `UnitIdx` is the
+     * block-relative pagemap unit (0 or 1) that holds this Rep's
+     * node; `MetaMask` covers bits in that unit's words owned by
+     * this Rep (red + variant tag for `BinRep`, red only for
+     * `RangeRep`) and must be preserved across get/set.
      */
     template<size_t UnitIdx, uintptr_t MetaMask, const char* Name>
     struct TreeRep
@@ -111,7 +114,7 @@ namespace snmalloc
       {
         static const Contents null_entry = 0;
         if (SNMALLOC_UNLIKELY(k == 0))
-          return Handle{const_cast<Contents*>(&null_entry)};
+          return Handle{const_cast<Contents*>(&null_entry), 0};
         return word_at<UnitIdx>(k, direction ? Word::One : Word::Two);
       }
 

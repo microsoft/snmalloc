@@ -138,9 +138,7 @@ namespace snmalloc
   size_t SNMALLOC_FAST_PATH_INLINE remaining_bytes(address_t p)
   {
     const auto& entry = Config_::Backend::template get_metaentry<true>(p);
-
-    auto sizeclass = entry.get_sizeclass();
-    return snmalloc::remaining_bytes(sizeclass, p);
+    return snmalloc::remaining_bytes(entry.get_offset_and_sizeclass(), p);
   }
 
   template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
@@ -159,9 +157,7 @@ namespace snmalloc
   static inline size_t index_in_object(address_t p)
   {
     const auto& entry = Config_::Backend::template get_metaentry<true>(p);
-
-    auto sizeclass = entry.get_sizeclass();
-    return snmalloc::index_in_object(sizeclass, p);
+    return snmalloc::index_in_object(entry.get_offset_and_sizeclass(), p);
   }
 
   enum Boundary
@@ -230,7 +226,8 @@ namespace snmalloc
   {
     const auto& entry = Config_::Backend::get_metaentry(address_cast(p));
 
-    size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
+    size_t index =
+      slab_index(entry.get_offset_and_sizeclass(), address_cast(p));
 
     auto* meta_slab = entry.get_slab_metadata();
 
@@ -259,7 +256,8 @@ namespace snmalloc
     const auto& entry =
       Config_::Backend::template get_metaentry<true>(address_cast(p));
 
-    size_t index = slab_index(entry.get_sizeclass(), address_cast(p));
+    size_t index =
+      slab_index(entry.get_offset_and_sizeclass(), address_cast(p));
 
     auto* meta_slab = entry.get_slab_metadata();
 

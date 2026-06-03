@@ -76,10 +76,13 @@ namespace snmalloc
       // Special case for accessing the null entry.  We want to make sure
       // that this is never modified by the back end, so we make it point to
       // a constant entry and use the MMU to trap even in release modes.
+      // The mask passed to the handle is irrelevant: the null entry is
+      // never written (any attempt would trap), and on read its underlying
+      // value is zero so `get()` returns zero regardless of the mask.
       static const Contents null_entry = 0;
       if (SNMALLOC_UNLIKELY(address_cast(k) == 0))
       {
-        return {const_cast<Contents*>(&null_entry)};
+        return {const_cast<Contents*>(&null_entry), 0};
       }
       auto& entry = Pagemap::template get_metaentry_mut<false>(address_cast(k));
       if (direction)
