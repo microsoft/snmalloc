@@ -720,12 +720,13 @@ namespace snmalloc
 
               // Grab slab of correct size
               // Set remote as large allocator remote.
+              const auto sc = size_to_sizeclass_full(size);
+              const size_t chunk_size = sizeclass_full_to_size(sc);
               auto [chunk, meta] = Config::Backend::alloc_chunk(
                 self->get_backend_local_state(),
-                large_size_to_chunk_size(size),
-                PagemapEntry::encode(
-                  self->public_state(), size_to_sizeclass_full(size)),
-                size_to_sizeclass_full(size));
+                chunk_size,
+                PagemapEntry::encode(self->public_state(), sc),
+                sc);
 
 #ifdef SNMALLOC_TRACING
               message<1024>(
