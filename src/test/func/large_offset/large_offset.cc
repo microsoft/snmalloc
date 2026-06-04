@@ -1,22 +1,21 @@
 /**
- * Targeted test for the per-chunk pagemap offset write path in
- * `BackendAllocator::alloc_chunk`.
+ * Backend-API counterpart of `large_offset_frontend` for the per-chunk
+ * pagemap offset write path in `BackendAllocator::alloc_chunk`.
  *
- * The front end currently only issues pow2 large requests (the
- * `slab_size >= size` fast path), so the multi-slab-tile branch in
- * `alloc_chunk` writing per-chunk offsets is otherwise unreachable
- * from the in-tree allocation paths. This test reaches it via the
- * public backend API.
+ * This test pins the contract at the *backend* boundary
+ * (`Config::Backend::alloc_chunk` / `dealloc_chunk`) so it holds
+ * independently of any front-end path: a non-pow2 large allocation
+ * spans multiple slab tiles, and `alloc_chunk` writes a per-chunk
+ * pagemap entry whose offset bits encode the slab index.
  *
  * Method:
  *   - Pick a non-pow2 large sizeclass `sc` whose
  *     `sizeclass_full_to_slab_size(sc) < sizeclass_full_to_size(sc)`,
  *     so the multi-slab-tile branch triggers.
- *   - Compute the pow2 reservation `next_pow2(size)` (the size
- *     `alloc_chunk` asserts).
- *   - Call `Config::Backend::alloc_chunk` directly with that pow2 size
+ *   - Call `Config::Backend::alloc_chunk` directly with
+ *     `sizeclass_full_to_size(sc)` (the chunk-multiple reservation)
  *     and the non-pow2 sc.
- *   - For each chunk in the pow2 region verify the pagemap entry's
+ *   - For each chunk in the region verify the pagemap entry's
  *     `get_offset_and_sizeclass()` decomposes into the expected
  *     (sc, slab_index) pair.
  *   - For sampled interior addresses verify that
@@ -84,7 +83,10 @@ namespace
     }
     const size_t size = sizeclass_full_to_size(sc);
     const size_t slab_size = sizeclass_full_to_slab_size(sc);
-    const size_t reserve = bits::next_pow2(size);
+    // The chunk-multiple reservation: the backend precondition is
+    // that `size` is a positive multiple of `slab_size`, satisfied
+    // here by passing the exact sizeclass size.
+    const size_t reserve = size;
 
     std::cout << "non-pow2 sc raw=" << sc.raw() << " size=" << size
               << " slab_size=" << slab_size << " reserve=" << reserve

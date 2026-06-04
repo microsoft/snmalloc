@@ -92,7 +92,15 @@ namespace snmalloc
       uintptr_t ras,
       sizeclass_t sizeclass)
     {
-      SNMALLOC_ASSERT(bits::is_pow2(size));
+      // `size` must be a positive multiple of the sizeclass's slab
+      // tile size: the pagemap loop below writes one entry per
+      // `slab_size` stride and must terminate exactly at `size`.
+      // Front-end callers satisfy this by construction because they
+      // pass `sizeclass_full_to_size(sizeclass)`, whose largest pow2
+      // divisor is `sizeclass_full_to_slab_size(sizeclass)`.
+      const size_t slab_size = sizeclass_full_to_slab_size(sizeclass);
+      SNMALLOC_ASSERT(size >= slab_size);
+      SNMALLOC_ASSERT((size & (slab_size - 1)) == 0);
       SNMALLOC_ASSERT(size >= MIN_CHUNK_SIZE);
 
       // Calculate the extra bytes required to store the client meta-data.
@@ -128,12 +136,11 @@ namespace snmalloc
         return {nullptr, nullptr};
       }
 
-      const size_t slab_size = sizeclass_full_to_slab_size(sizeclass);
-      // `size` and `slab_size` are powers of two with `size >= slab_size`,
-      // so `size = k * slab_size` for some integer `k >= 1`. Each slab
-      // tile gets the same `ras_in | (slab_index << SIZECLASS_BITS)`
-      // entry, written in one `set_metaentry` call.
-      SNMALLOC_ASSERT(size >= slab_size);
+      // `slab_size` was computed and asserted against `size` at the
+      // top of `alloc_chunk`. `size = k * slab_size` for some integer
+      // `k >= 1`; each slab tile gets the same
+      // `ras | (slab_index << SIZECLASS_BITS)` entry, written in one
+      // `set_metaentry` call.
       // The OR below assumes the per-chunk-offset bits of `ras` are
       // zero; `MetaEntryBase::encode` defaults offset to 0, and the
       // backend is the only place per-chunk offsets are written.

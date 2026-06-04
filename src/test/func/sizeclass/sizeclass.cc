@@ -140,11 +140,12 @@ void test_uniform_large_sizeclasses()
     prev_size = size;
   }
 
-  // Round-trip identity on pow2 large sizes in Phase 13: every pow2 size
-  // S in [MAX_SMALL_SIZECLASS_SIZE * 2, MAX_LARGE_SIZECLASS_SIZE] must satisfy
-  // sizeclass_full_to_size(size_to_sizeclass_full(S)) == S. Bound the loop by
-  // ENCODED_ADDRESS_BITS so `bits::one_at_bit(bits)` never shifts by >= BITS
-  // (the bound check itself would fail on 32-bit otherwise).
+  // Round-trip identity on pow2 large sizes: every pow2 size S in
+  // [MAX_SMALL_SIZECLASS_SIZE * 2, MAX_LARGE_SIZECLASS_SIZE] must
+  // satisfy sizeclass_full_to_size(size_to_sizeclass_full(S)) == S.
+  // Bound the loop by ENCODED_ADDRESS_BITS so `bits::one_at_bit(b)`
+  // never shifts by >= BITS (the bound check itself would fail on
+  // 32-bit otherwise).
   for (size_t b = MAX_SMALL_SIZECLASS_BITS + 1; b <= ENCODED_ADDRESS_BITS; b++)
   {
     size_t S = bits::one_at_bit(b);
@@ -157,21 +158,74 @@ void test_uniform_large_sizeclasses()
       failed = true;
     }
 
-    // For every non-pow2 size X strictly between adjacent pow2 [P, 2P), the
-    // result must round up to 2P (pow2 rounding still in force in Phase 13).
-    // Only check when 2P is still representable.
+    // For every non-pow2 size X strictly between adjacent pow2 [P, 2P),
+    // `size_to_sizeclass_full(X)` must select the smallest sizeclass
+    // whose size is >= X. Compute the expected sizeclass independently
+    // by scanning all large classes. Only check when 2P is still
+    // representable.
     if (b < ENCODED_ADDRESS_BITS)
     {
       size_t mid = S + (S >> 1);
       sizeclass_t sc_mid = size_to_sizeclass_full(mid);
       size_t rs_mid = sizeclass_full_to_size(sc_mid);
-      size_t expect = bits::one_at_bit(b + 1);
-      if (rs_mid != expect)
+
+      // Independent computation: smallest large class size >= mid.
+      size_t expect = 0;
+      for (size_t lc = 0; lc < NUM_LARGE_CLASSES; lc++)
       {
-        std::cout << "Non-pow2 should round to next pow2: X=" << mid
-                  << " round=" << rs_mid << " expected=" << expect << std::endl;
+        size_t sz = sizeclass_full_to_size(sizeclass_t::from_large_class(lc));
+        if (sz >= mid)
+        {
+          expect = sz;
+          break;
+        }
+      }
+      if (expect == 0)
+      {
+        std::cout << "No large class >= mid=" << mid << std::endl;
         failed = true;
       }
+      else if (rs_mid != expect)
+      {
+        std::cout << "Non-pow2 should round to smallest enclosing class: X="
+                  << mid << " round=" << rs_mid << " expected=" << expect
+                  << std::endl;
+        failed = true;
+      }
+    }
+  }
+
+  // `round_size` contract: for every representable large class size
+  // S, `round_size(S) == S` and `round_size(S_prev + 1) == S` (the
+  // smallest enclosing class). `DefaultConts::success` (corealloc.h)
+  // uses `round_size` to size the `calloc` zeroing range, so any
+  // drift here would over- or under-zero. This is the deterministic
+  // gate for that contract; the `calloc` smoke test in `memory.cc`
+  // would not necessarily fault on an overshoot into backend free
+  // range.
+  {
+    size_t prev = 0;
+    for (size_t lc = 0; lc < NUM_LARGE_CLASSES; lc++)
+    {
+      size_t S = sizeclass_full_to_size(sizeclass_t::from_large_class(lc));
+      if (round_size(S) != S)
+      {
+        std::cout << "round_size identity failed at large class: S=" << S
+                  << " round_size=" << round_size(S) << std::endl;
+        failed = true;
+      }
+      if (prev != 0 && prev + 1 < S)
+      {
+        size_t probe = prev + 1;
+        if (round_size(probe) != S)
+        {
+          std::cout << "round_size(prev+1) blow-up: probe=" << probe
+                    << " round_size=" << round_size(probe) << " expected=" << S
+                    << std::endl;
+          failed = true;
+        }
+      }
+      prev = S;
     }
   }
 

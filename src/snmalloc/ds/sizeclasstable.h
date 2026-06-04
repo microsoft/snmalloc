@@ -434,7 +434,11 @@ namespace snmalloc
   static_assert(
     bits::BITS - sizeclass_metadata.DIV_MULT_SHIFT <= MAX_CAPACITY_BITS);
 
-  // Largest slab index for any large class: `OFFSET_BITS` must cover it.
+  // Largest slab index for any large class: `OFFSET_BITS` must cover
+  // it. Each large allocation reserves exactly `meta.size` bytes (a
+  // positive multiple of `slab_size`), so the largest `slab_index`
+  // the pagemap loop in `Backend::alloc_chunk` writes is
+  // `meta.size / slab_size - 1`.
   constexpr size_t compute_max_large_slab_index()
   {
     size_t max_idx = 0;
@@ -443,8 +447,7 @@ namespace snmalloc
       const auto& meta =
         sizeclass_metadata.start(sizeclass_t::from_large_class(lc));
       const size_t slab_size = meta.slab_mask + 1;
-      const size_t reserve = bits::next_pow2_const(meta.size);
-      const size_t idx = (reserve / slab_size) - 1;
+      const size_t idx = (meta.size / slab_size) - 1;
       if (idx > max_idx)
         max_idx = idx;
     }
@@ -612,11 +615,6 @@ namespace snmalloc
     return is_start_of_object(osc.sizeclass(), addr);
   }
 
-  inline static size_t large_size_to_chunk_size(size_t size)
-  {
-    return bits::next_pow2(size);
-  }
-
   constexpr SNMALLOC_PURE size_t sizeclass_lookup_index(const size_t s)
   {
     // We subtract and shift to reduce the size of the table, i.e. we don't have
@@ -690,8 +688,13 @@ namespace snmalloc
   }
 
   /**
-   * Map a requested size to its sizeclass. Large requests are rounded up
-   * to the next power of two.
+   * Map a requested size to its sizeclass.
+   *
+   * Small requests use the dense lookup table. Large requests are
+   * encoded with `to_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>`,
+   * whose ceil semantic (`v = v - 1; ...`) selects the smallest
+   * sizeclass whose size is `>= size`. The raw `size` is passed in
+   * directly — the encoding does the rounding.
    */
   static inline sizeclass_t size_to_sizeclass_full(size_t size)
   {
@@ -701,9 +704,8 @@ namespace snmalloc
     }
     SNMALLOC_ASSERT(size != 0);
     SNMALLOC_ASSERT(size <= MAX_LARGE_SIZECLASS_SIZE);
-    size_t pow2 = bits::next_pow2(size);
     size_t global =
-      bits::to_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>(pow2);
+      bits::to_exp_mant<INTERMEDIATE_BITS, MIN_ALLOC_STEP_BITS>(size);
     return sizeclass_t::from_large_class(global - NUM_SMALL_SIZECLASSES);
   }
 
@@ -730,7 +732,14 @@ namespace snmalloc
       // failed allocation later.
       return size;
     }
-    return bits::next_pow2(size);
+    // Large branch: round to the smallest enclosing exp+mantissa
+    // sizeclass. Must agree with `round_size`'s small-class branch in
+    // semantics: every request rounds to the smallest enclosing
+    // class. `DefaultConts::success` (corealloc.h) uses `round_size`
+    // to compute the `calloc` zeroing range, so any drift between
+    // the actual reservation and `round_size` would over- or
+    // under-zero.
+    return sizeclass_full_to_size(size_to_sizeclass_full(size));
   }
 
   /// Returns the alignment that this size naturally has, that is
