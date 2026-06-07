@@ -4,6 +4,7 @@
 #  define SNMALLOC_VA_BITS_64
 #  ifdef _MSC_VER
 #    include <arm64_neon.h>
+#    include <intrin.h>
 #  endif
 #else
 #  define SNMALLOC_VA_BITS_32
@@ -75,7 +76,9 @@ namespace snmalloc
     static inline uint64_t tick() noexcept
     {
 #  ifdef _MSC_VER
-      return static_cast<uint64_t>(_ReadStatusReg(ARM64_CNTVCT));
+      // ARM64_SYSREG(op0, op1, CRn, CRm, op2) encoding for CNTVCT_EL0.
+      return static_cast<uint64_t>(
+        _ReadStatusReg(ARM64_SYSREG(3, 3, 14, 0, 2)));
 #  else
       uint64_t t;
       __asm__ volatile("mrs %0, cntvct_el0" : "=r"(t));
