@@ -141,13 +141,25 @@ jobs:
           #      way to recover the PR number for a fork-originated
           #      `workflow_run` payload, since `pull_requests[]` is
           #      always empty in that case.
-          # If both fail, fall through to the tracking-issue path.
+          # The SHA fallback only runs for `pull_request`-event
+          # workflow_runs, never for `schedule`/`push` on the
+          # default branch. Otherwise every nightly's merge-commit
+          # SHA would resolve back to the (now closed) PR that
+          # introduced it, and we'd post the nightly report on a
+          # merged PR instead of the tracking issue.
+          # We also require the matched PR to be open: if it has
+          # already closed by the time this job runs (squash-merge
+          # race), we'd rather drop the comment than post on a
+          # merged PR — the user can re-run the workflow if they
+          # actually wanted it.
+          # If neither stage produces an open PR, fall through to
+          # the tracking-issue path.
           script: |
             const ev = JSON.parse(process.env.EVENT_JSON);
             const wr = ev.workflow_run;
             let pr = (wr.pull_requests && wr.pull_requests.length)
               ? wr.pull_requests[0].number : 0;
-            if (!pr) {
+            if (!pr && wr.event === 'pull_request') {
               core.info(
                 `pull_requests[] empty (likely fork PR); ` +
                 `looking up by head SHA ${wr.head_sha}`);
@@ -156,12 +168,8 @@ jobs:
                 repo: context.repo.repo,
                 commit_sha: wr.head_sha,
               });
-              // Prefer an open PR; fall back to any PR if only
-              // closed ones match (e.g. squash-merged race).
               const open = resp.data.find(p => p.state === 'open');
-              const any = resp.data[0];
               if (open) pr = open.number;
-              else if (any) pr = any.number;
             }
             if (pr) core.info(`Will comment on PR #${pr}`);
             else core.info('No PR resolved; will update tracking issue');
