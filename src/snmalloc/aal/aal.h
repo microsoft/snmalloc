@@ -173,6 +173,7 @@ namespace snmalloc
       else
       {
 #if __has_builtin(__builtin_readcyclecounter) && !defined(__APPLE__) && \
+  !defined(__aarch64__) && !defined(_M_ARM64) && !defined(_M_ARM64EC) && \
   !defined(SNMALLOC_NO_AAL_BUILTINS)
         return __builtin_readcyclecounter();
 #else

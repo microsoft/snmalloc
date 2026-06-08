@@ -4,6 +4,7 @@
 #  define SNMALLOC_VA_BITS_64
 #  ifdef _MSC_VER
 #    include <arm64_neon.h>
+#    include <intrin.h>
 #  endif
 #else
 #  define SNMALLOC_VA_BITS_32
@@ -32,7 +33,7 @@ namespace snmalloc
      * Bitmap of AalFeature flags
      */
     static constexpr uint64_t aal_features = IntegerPointers
-#if defined(SNMALLOC_VA_BITS_32) || !defined(__APPLE__)
+#if defined(SNMALLOC_VA_BITS_32)
       | NoCpuCycleCounters
 #endif
 #if defined(SNMALLOC_COMPILER_SUPPORT_PACA_PACG) && \
@@ -71,12 +72,18 @@ namespace snmalloc
 #endif
     }
 
-#if defined(SNMALLOC_VA_BITS_64) && defined(__APPLE__)
+#if defined(SNMALLOC_VA_BITS_64)
     static inline uint64_t tick() noexcept
     {
+#  ifdef _MSC_VER
+      // ARM64_SYSREG(op0, op1, CRn, CRm, op2) encoding for CNTVCT_EL0.
+      return static_cast<uint64_t>(
+        _ReadStatusReg(ARM64_SYSREG(3, 3, 14, 0, 2)));
+#  else
       uint64_t t;
       __asm__ volatile("mrs %0, cntvct_el0" : "=r"(t));
       return t;
+#  endif
     }
 #endif
 
