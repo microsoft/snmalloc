@@ -17,6 +17,7 @@
 #include "pagemapregisterrange.h"
 #include "palrange.h"
 #include "range_helpers.h"
+#include "smallarenarange.h"
 #include "smallbuddyrange.h"
 #include "staticconditionalrange.h"
 #include "statsrange.h"
