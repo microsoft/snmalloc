@@ -22,6 +22,7 @@ namespace snmalloc
   template<
     typename PAL,
     typename Pagemap,
+    typename Authmap,
     typename Base = EmptyRange<>,
     size_t MinSizeBits = MinBaseSizeBits<PAL>()>
   struct StandardLocalState : BaseLocalStateConstants
@@ -56,18 +57,24 @@ namespace snmalloc
         page_size_bits>>>;
 
   private:
-    using ObjectRange = Pipe<LargeObjectRange, SmallBuddyRange>;
+    using ObjectRange = Pipe<LargeObjectRange, SmallArenaRange<Authmap>>;
 
     ObjectRange object_range;
 
   public:
+    /// Granularity of the local meta range. Backend rounds metadata
+    /// allocation sizes up to this; replaces pow2 rounding.
+    static constexpr size_t MIN_META_ALIGN = ObjectRange::UNIT_SIZE;
+    static_assert(
+      bits::is_pow2(MIN_META_ALIGN), "MIN_META_ALIGN must be a power of two");
+
     // Expose a global range for the initial allocation of meta-data.
     using GlobalMetaRange = Pipe<ObjectRange, GlobalRange>;
 
     /**
      * Where we turn for allocations of user chunks.
      *
-     * Reach over the SmallBuddyRange that's at the near end of the ObjectRange
+     * Reach over the SmallArenaRange that's at the near end of the ObjectRange
      * pipe, rather than having that range adapter dynamically branch to its
      * parent.
      */

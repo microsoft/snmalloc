@@ -23,7 +23,27 @@ namespace snmalloc
     using Pal = PAL;
     using SlabMetadata = typename PagemapEntry::SlabMetadata;
 
-  public:
+    /**
+     * Round a metadata allocation size to a value the meta range can
+     * service.
+     *
+     * - Pads to `LocalState::MIN_META_ALIGN` so that the in-band small
+     *   meta range (`SmallArenaRange`) accepts it.
+     * - If the result reaches `MIN_CHUNK_SIZE`, the request will bypass
+     *   the small range to the parent `LargeArenaRange`, which requires
+     *   `MIN_CHUNK_SIZE` alignment; step up to satisfy that.
+     *
+     * Alloc and dealloc sites MUST share this helper so a chunk's
+     * metadata is freed at the same size it was allocated.
+     */
+    SNMALLOC_FAST_PATH static size_t meta_size_round(size_t size)
+    {
+      size_t r = bits::align_up(size, LocalState::MIN_META_ALIGN);
+      if (r >= MIN_CHUNK_SIZE)
+        r = bits::align_up(r, MIN_CHUNK_SIZE);
+      return r;
+    }
+
     /**
      * Provide a block of meta-data with size and align.
      *
@@ -46,7 +66,8 @@ namespace snmalloc
 
       if (local_state != nullptr)
       {
-        p = local_state->get_meta_range().alloc_range_with_leftover(size);
+        auto& meta_range = local_state->get_meta_range();
+        p = meta_range.alloc_range(meta_size_round(size));
       }
       else
       {
@@ -54,7 +75,7 @@ namespace snmalloc
           GlobalMetaRange::ConcurrencySafe,
           "Global meta data range needs to be concurrency safe.");
         GlobalMetaRange global_state;
-        p = global_state.alloc_range(bits::next_pow2(size));
+        p = global_state.alloc_range(meta_size_round(size));
       }
 
       if (p == nullptr)
@@ -106,7 +127,7 @@ namespace snmalloc
       // Calculate the extra bytes required to store the client meta-data.
       size_t extra_bytes = SlabMetadata::get_extra_bytes(sizeclass);
 
-      auto meta_size = bits::next_pow2(sizeof(SlabMetadata) + extra_bytes);
+      auto meta_size = meta_size_round(sizeof(SlabMetadata) + extra_bytes);
 
 #ifdef SNMALLOC_TRACING
       message<1024>(
@@ -156,8 +177,7 @@ namespace snmalloc
         SNMALLOC_ASSERT(slab_index < (size_t{1} << OFFSET_BITS));
         const uintptr_t ras_i = ras | (slab_index << SIZECLASS_BITS);
         typename Pagemap::Entry t_i(meta, ras_i);
-        Pagemap::set_metaentry(
-          address_cast(p) + chunk_offset, slab_size, t_i);
+        Pagemap::set_metaentry(address_cast(p) + chunk_offset, slab_size, t_i);
       }
 
       return {Aal::capptr_bound<void, capptr::bounds::Chunk>(p, size), meta};
@@ -207,7 +227,7 @@ namespace snmalloc
       // Calculate the extra bytes required to store the client meta-data.
       size_t extra_bytes = SlabMetadata::get_extra_bytes(sizeclass);
 
-      auto meta_size = bits::next_pow2(sizeof(SlabMetadata) + extra_bytes);
+      auto meta_size = meta_size_round(sizeof(SlabMetadata) + extra_bytes);
       local_state.get_meta_range().dealloc_range(
         capptr::Arena<void>::unsafe_from(&slab_metadata), meta_size);
 

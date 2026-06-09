@@ -68,8 +68,8 @@ namespace snmalloc
      */
     using LocalState = stl::conditional_t<
       mitigations(metadata_protection),
-      MetaProtectedRangeLocalState<Pal, Pagemap, Base>,
-      StandardLocalState<Pal, Pagemap, Base>>;
+      MetaProtectedRangeLocalState<Pal, Pagemap, Authmap, Base>,
+      StandardLocalState<Pal, Pagemap, Authmap, Base>>;
 
     /**
      * Use the default backend.
