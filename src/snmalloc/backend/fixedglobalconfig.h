@@ -39,10 +39,17 @@ namespace snmalloc
       {
         return Aal::capptr_rebound(arena, c);
       }
+
+      template<bool potentially_out_of_range = false>
+      static SNMALLOC_FAST_PATH capptr::Arena<void>
+      amplify_from_address(address_t a)
+      {
+        return pointer_offset(arena, a - address_cast(arena));
+      }
     };
 
   public:
-    using LocalState = StandardLocalState<PAL, Pagemap>;
+    using LocalState = StandardLocalState<PAL, Pagemap, Authmap>;
 
     using GlobalPoolState = PoolState<Allocator<FixedRangeConfig>>;
 
