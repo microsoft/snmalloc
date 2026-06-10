@@ -549,6 +549,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   # against both fast and check testlib variants.
   set(TESTLIB_ONLY_TESTS
     bits first_operation memory memory_usage multi_atexit multi_threadatexit
+    profile_sampler
     redblack statistics teardown
     contention external_pointer large_alloc lotsofthreads post_teardown
     singlethread startup stack_walker_bench
