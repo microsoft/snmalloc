@@ -551,7 +551,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
     bits first_operation memory memory_usage multi_atexit multi_threadatexit
     redblack statistics teardown
     contention external_pointer large_alloc lotsofthreads post_teardown
-    singlethread startup
+    singlethread startup stack_walker_bench
   )
 
   function(make_tests TAG DEFINES)
