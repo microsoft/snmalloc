@@ -83,6 +83,18 @@ jobs:
             build-type: Release
             extra-cmake-flags: "-DSNMALLOC_TRACING=On"
             build-only: true
+          - os: "ubuntu-24.04"
+            variant: "Profile Build (gcc)"
+            build-type: Release
+            extra-cmake-flags: "-DSNMALLOC_PROFILE=ON"
+            build-only: true
+          - os: "ubuntu-24.04"
+            variant: "Profile Build (clang)"
+            build-type: Release
+            extra-cmake-flags: >-
+              -DCMAKE_CXX_COMPILER=clang++
+              -DSNMALLOC_PROFILE=ON
+            build-only: true
           - os: "ubuntu-22.04"
             variant: "clang libstdc++ (Build only)"
             build-type: Release
@@ -190,6 +202,11 @@ jobs:
             build-type: Release
             extra-cmake-flags: "-DSNMALLOC_ENABLE_PAC=ON"
             variant: "PAC"
+          # Profile build with heap profiling support enabled
+          - os: "macos-15"
+            build-type: Release
+            extra-cmake-flags: "-DSNMALLOC_PROFILE=ON"
+            variant: "Profile Build (clang)"
     uses: ./.github/workflows/reusable-cmake-build.yml
     with:
       os: ${{matrix.os}}

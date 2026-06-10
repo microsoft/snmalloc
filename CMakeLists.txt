@@ -32,6 +32,7 @@ option(SNMALLOC_PTHREAD_FORK_PROTECTION "Guard against forking while allocator l
 option(SNMALLOC_ENABLE_FUZZING "Enable fuzzing instrumentation tests" OFF)
 option(SNMALLOC_USE_SELF_VENDORED_STL "Avoid using system STL" OFF)
 option(SNMALLOC_COVERAGE "Build with clang source-based coverage instrumentation" OFF)
+option(SNMALLOC_PROFILE "Build with heap profiling support" OFF)
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_RUST_LIBC_API "Include libc API in the rust library" OFF "SNMALLOC_RUST_SUPPORT" OFF)
@@ -456,6 +457,7 @@ endfunction()
 
 add_as_define(SNMALLOC_QEMU_WORKAROUND)
 add_as_define(SNMALLOC_TRACING)
+add_as_define(SNMALLOC_PROFILE)
 add_as_define(SNMALLOC_CI_BUILD)
 add_as_define(SNMALLOC_PTHREAD_FORK_PROTECTION)
 add_as_define(SNMALLOC_PLATFORM_HAS_GETENTROPY)
