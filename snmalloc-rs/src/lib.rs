@@ -43,7 +43,7 @@ use core::{
 /// see [`profile`] for details.
 pub mod profile;
 
-pub use profile::{BtSample, HeapProfile};
+pub use profile::{BtSample, HeapProfile, Weight};
 
 /// Memory usage statistics from the snmalloc backend.
 ///

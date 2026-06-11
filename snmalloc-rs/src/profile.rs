@@ -29,8 +29,14 @@
 //! impl calls `sn_rust_profile_snapshot_end`.
 
 extern crate alloc;
+extern crate std;
 
+use alloc::collections::BTreeMap;
+use alloc::string::String;
 use alloc::vec::Vec;
+use core::fmt::Write as _;
+
+use std::io;
 
 use snmalloc_sys as ffi;
 use snmalloc_sys::SnRustProfileRawSample;
@@ -74,6 +80,42 @@ pub struct BtSample {
 // sharing is safe.
 unsafe impl Send for BtSample {}
 unsafe impl Sync for BtSample {}
+
+/// Which per-sample weight projection to use when aggregating a
+/// [`HeapProfile`] for export (e.g. a flame graph).
+///
+/// Both variants are unbiased Poisson estimators of byte counts; they
+/// differ only in whether the per-sample "size" is the caller's
+/// requested bytes or the allocator's sizeclass-rounded bytes:
+///
+/// - [`Weight::Allocated`] -- bytes the allocator actually returned,
+///   i.e. `weight * allocated_size / requested_size`.  Matches the
+///   "bytes mapped from snmalloc" view a heap-profile user usually
+///   wants when chasing live-memory regressions, since it accounts
+///   for sizeclass slack.  This is the default for
+///   [`HeapProfile::write_flamegraph`].
+/// - [`Weight::Requested`] -- bytes the caller asked for, i.e. just
+///   the raw per-sample `weight`.  Matches the "bytes asked of malloc"
+///   view, which is what most user-level heap-attribution dashboards
+///   want.
+///
+/// See `docs/profile-weight.md` and Phase 4.3 of the heap-profiling
+/// design for the rationale; in particular the default tracks the
+/// `total_allocated_bytes` aggregator on [`HeapProfile`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Weight {
+    /// Use the caller-requested byte count (raw per-sample weight).
+    Requested,
+    /// Use the allocator-returned byte count
+    /// (weight * allocated_size / requested_size).
+    Allocated,
+}
+
+impl Default for Weight {
+    fn default() -> Self {
+        Weight::Allocated
+    }
+}
 
 /// An owned snapshot of currently-live sampled allocations.
 ///
@@ -136,6 +178,157 @@ impl HeapProfile {
         }
         total
     }
+
+    /// Per-sample byte contribution under the given [`Weight`]
+    /// projection, as a `u128`.  Internal helper shared between
+    /// [`HeapProfile::write_flamegraph_with`] and the
+    /// `total_*_bytes` aggregators.  Samples with
+    /// `requested_size == 0` contribute zero under
+    /// [`Weight::Allocated`] -- mirroring [`Self::total_allocated_bytes`]
+    /// -- and contribute their raw `weight` under
+    /// [`Weight::Requested`].
+    fn sample_weight(s: &BtSample, weight: Weight) -> u128 {
+        match weight {
+            Weight::Requested => s.weight as u128,
+            Weight::Allocated => {
+                if s.requested_size == 0 {
+                    0
+                } else {
+                    let w = s.weight as u128;
+                    let a = s.allocated_size as u128;
+                    let r = s.requested_size as u128;
+                    w.saturating_mul(a) / r
+                }
+            }
+        }
+    }
+
+    /// Write the profile in the **collapsed / folded-stack** format
+    /// understood by Brendan Gregg's `flamegraph.pl`, Jon Gjengset's
+    /// [`inferno-flamegraph`](https://github.com/jonhoo/inferno), and
+    /// the [speedscope](https://www.speedscope.app/) viewer (via its
+    /// "Brendan Gregg's collapsed stack format" importer).
+    ///
+    /// One line per *unique* stack:
+    ///
+    /// ```text
+    /// 0x000000010a4b9c30;0x000000010a4b9b10;0x000000010a4b9a20 16384
+    /// ```
+    ///
+    /// where:
+    ///
+    /// - frames are rendered as zero-padded 16-hex-digit code pointers,
+    ///   ordered **root-first** (outermost on the left, innermost /
+    ///   leaf on the right) as required by every collapsed-format
+    ///   consumer; the in-memory [`BtSample::stack`] is innermost-first,
+    ///   so we reverse on the way out, and
+    /// - the trailing integer is the summed per-sample weight (in
+    ///   bytes) across every snapshot sample whose stack is identical.
+    ///
+    /// The weight projection is [`Weight::Allocated`] -- bytes the
+    /// allocator actually returned -- which matches the default UI
+    /// view in `profile-weight.md`.  For [`Weight::Requested`] or
+    /// other projections call [`HeapProfile::write_flamegraph_with`].
+    ///
+    /// Frames are rendered as raw hex code pointers; symbolicating
+    /// them into function/file/line is Phase 4.5 (see
+    /// [Symbolicator ticket]).  Consumers can pipe the output of this
+    /// function directly into `flamegraph.pl` or `inferno-flamegraph`
+    /// without any further processing:
+    ///
+    /// ```text
+    /// my-binary > heap.folded     # your code calls write_flamegraph
+    /// inferno-flamegraph < heap.folded > heap.svg
+    /// ```
+    ///
+    /// This call is total: it is a no-op (writes zero bytes, returns
+    /// `Ok(())`) on an empty profile -- including the
+    /// profiling-feature-off build where every snapshot is empty.
+    ///
+    /// Performance: O(N) where N is the number of samples.  Internally
+    /// a `BTreeMap` is used so that the output is deterministically
+    /// ordered (stacks sorted lexicographically by their rendered
+    /// hex-frame form) -- this matters for golden-output tests and
+    /// for diffing two profiles in version control.
+    ///
+    /// Speedscope's native JSON schema is **not** emitted by this
+    /// method; speedscope can import the folded format directly.  A
+    /// dedicated `to_speedscope` is deferred to Phase 4.5+, where it
+    /// can layer on top of the symbolicator and emit
+    /// `frames`/`shared`/`profiles` records with real symbol names.
+    pub fn write_flamegraph<W: io::Write>(&self, w: &mut W) -> io::Result<()> {
+        self.write_flamegraph_with(Weight::Allocated, w)
+    }
+
+    /// Same as [`HeapProfile::write_flamegraph`], but with an explicit
+    /// [`Weight`] projection.
+    ///
+    /// Stacks with zero total weight (e.g. every contributing sample
+    /// had `requested_size == 0` under [`Weight::Allocated`]) are
+    /// emitted with a trailing `0`; that mirrors the semantics of
+    /// [`HeapProfile::total_allocated_bytes`] and avoids silently
+    /// dropping samples whose call stacks would otherwise look like a
+    /// loss of fidelity.
+    pub fn write_flamegraph_with<W: io::Write>(
+        &self,
+        weight: Weight,
+        w: &mut W,
+    ) -> io::Result<()> {
+        // Collapse samples with identical stacks by summing the chosen
+        // weight projection.  Using `BTreeMap<String, u128>` keyed by
+        // the pre-rendered (root-first, hex) form gives us:
+        //   - O(1) lookup against the rendered key
+        //   - deterministic output order (lex on the key)
+        //   - no need for a custom Hash impl on Vec<*const u8>
+        // The 18*N bytes spent on key strings (16 hex + leading 0x +
+        // separator per frame) is negligible relative to the cost of
+        // even a single OS-level memory mapping, and N here is the
+        // unique-stack count, not the sample count.
+        let mut folded: BTreeMap<String, u128> = BTreeMap::new();
+        for s in &self.samples {
+            let key = render_stack_key(&s.stack);
+            let contribution = Self::sample_weight(s, weight);
+            let entry = folded.entry(key).or_insert(0);
+            *entry = entry.saturating_add(contribution);
+        }
+
+        for (stack, total) in &folded {
+            // flamegraph.pl / inferno consume only ASCII; the stack
+            // key is hex+';' (pure ASCII) and the weight is rendered
+            // as a base-10 integer.  No locale, no formatting flags.
+            writeln!(w, "{} {}", stack, total)?;
+        }
+        Ok(())
+    }
+}
+
+/// Render one [`BtSample::stack`] as the root-first, `;`-joined
+/// hex-frame key used in the collapsed format.
+///
+/// Empty stacks render as the empty string -- that yields a line
+/// like ` 12345` (leading space) which both `flamegraph.pl` and
+/// `inferno-flamegraph` tolerate, mapping the weight to an
+/// unattributed "[unknown]" bar.  Skipping such samples would
+/// silently lose weight from `total_*_bytes`, which is worse.
+fn render_stack_key(stack: &[*const u8]) -> String {
+    // Each frame renders as "0x" + 16 hex digits = 18 bytes, plus a
+    // ';' separator between frames (no trailing ';').  Pre-size to
+    // avoid repeated reallocations for deep stacks.
+    let mut key = String::with_capacity(stack.len().saturating_mul(19));
+    // BtSample::stack is innermost-first; the collapsed format wants
+    // root-first.  Iterate in reverse.
+    for (i, frame) in stack.iter().rev().enumerate() {
+        if i > 0 {
+            key.push(';');
+        }
+        // `write!` into a String is infallible (the underlying impl
+        // never returns Err for fmt::Error), so unwrap is fine.
+        // Zero-padded 16-hex matches the conventional 64-bit code
+        // pointer width and gives stable, sortable keys.
+        let addr = *frame as usize;
+        write!(&mut key, "0x{:016x}", addr).expect("writing to String is infallible");
+    }
+    key
 }
 
 /// RAII wrapper around the C snapshot handle.
@@ -395,5 +588,167 @@ mod tests {
         // that's the unbiased estimator regardless of any per-sample
         // size readings.
         assert_eq!(p.total_requested_bytes(), 12345u128);
+    }
+
+    /// `render_stack_key` reverses the innermost-first stack into
+    /// root-first order, joins with `;`, and renders each frame as a
+    /// zero-padded 16-hex code pointer.  Single-frame and empty
+    /// stacks have their own contracts (see comments inline).
+    #[test]
+    fn stack_key_is_root_first_and_hex() {
+        // Innermost-first sample stack: [leaf, mid, root].  The
+        // emitted key must be root-first.
+        let stack: Vec<*const u8> = vec![
+            0x0badc0deusize as *const u8,
+            0xdeadbeefusize as *const u8,
+            0xfeedfaceusize as *const u8,
+        ];
+        let key = render_stack_key(&stack);
+        assert_eq!(
+            key,
+            "0x00000000feedface;0x00000000deadbeef;0x000000000badc0de"
+        );
+
+        // Empty stack -> empty key (still safe to emit; consumers
+        // render it as an "[unknown]" bar).
+        assert_eq!(render_stack_key(&[]), "");
+
+        // Single frame: no trailing/leading separator.
+        let one: Vec<*const u8> = vec![0x42usize as *const u8];
+        assert_eq!(render_stack_key(&one), "0x0000000000000042");
+    }
+
+    /// `write_flamegraph` on an empty profile writes nothing (zero
+    /// bytes) and reports success.  This is the contract that lets
+    /// the function be called unconditionally on the profiling-feature-off
+    /// build, where every snapshot is empty.
+    #[test]
+    fn flamegraph_empty_profile_is_noop() {
+        let p = HeapProfile::default();
+        let mut out: std::vec::Vec<u8> = std::vec::Vec::new();
+        p.write_flamegraph(&mut out).expect("infallible Vec<u8> write");
+        assert!(out.is_empty());
+    }
+
+    /// Two samples with identical stacks must collapse into a single
+    /// folded line whose weight is the sum.  The default projection
+    /// is `Weight::Allocated`; with allocated == requested the per-
+    /// sample contribution is just `weight`.
+    #[test]
+    fn flamegraph_collapses_identical_stacks() {
+        let stack: Vec<*const u8> = vec![
+            0xaaaausize as *const u8,
+            0xbbbbusize as *const u8,
+        ];
+        let p = HeapProfile::from_samples(vec![
+            BtSample {
+                alloc_ptr: core::ptr::null(),
+                requested_size: 64,
+                allocated_size: 64,
+                weight: 4096,
+                stack: stack.clone(),
+            },
+            BtSample {
+                alloc_ptr: core::ptr::null(),
+                requested_size: 64,
+                allocated_size: 64,
+                weight: 4096,
+                stack,
+            },
+        ]);
+        let mut out: std::vec::Vec<u8> = std::vec::Vec::new();
+        p.write_flamegraph(&mut out).unwrap();
+        let s = std::string::String::from_utf8(out).unwrap();
+        // Exactly one line, summed weight 8192.
+        let lines: std::vec::Vec<&str> = s.lines().collect();
+        assert_eq!(lines.len(), 1);
+        assert_eq!(
+            lines[0],
+            "0x000000000000bbbb;0x000000000000aaaa 8192"
+        );
+    }
+
+    /// Distinct stacks remain on separate lines and the total weight
+    /// reported across the folded output matches
+    /// `total_allocated_bytes` (the default projection).
+    #[test]
+    fn flamegraph_weight_sum_matches_total_allocated() {
+        let p = HeapProfile::from_samples(vec![
+            BtSample {
+                alloc_ptr: core::ptr::null(),
+                requested_size: 64,
+                allocated_size: 64,
+                weight: 4096,
+                stack: vec![0x1usize as *const u8],
+            },
+            BtSample {
+                alloc_ptr: core::ptr::null(),
+                requested_size: 100,
+                allocated_size: 128,
+                weight: 4096,
+                stack: vec![0x2usize as *const u8],
+            },
+        ]);
+        let mut out: std::vec::Vec<u8> = std::vec::Vec::new();
+        p.write_flamegraph(&mut out).unwrap();
+        let s = std::string::String::from_utf8(out).unwrap();
+        let lines: std::vec::Vec<&str> = s.lines().collect();
+        assert_eq!(lines.len(), 2);
+
+        let mut sum: u128 = 0;
+        for line in lines {
+            // Format: "<stack> <weight>".  Split on the rightmost
+            // space; rsplitn protects against accidental spaces in a
+            // stack rendering (there shouldn't be any -- everything
+            // is hex+';' -- but the parser side is more robust this
+            // way).
+            let mut it = line.rsplitn(2, ' ');
+            let w: u128 = it.next().unwrap().parse().unwrap();
+            let _stack = it.next().unwrap();
+            sum += w;
+        }
+        assert_eq!(sum, p.total_allocated_bytes());
+    }
+
+    /// Explicit `Weight::Requested` projection sums the raw weights
+    /// (matching `total_requested_bytes`), independent of the
+    /// allocated/requested ratio.
+    #[test]
+    fn flamegraph_requested_projection_matches_total_requested() {
+        let p = HeapProfile::from_samples(vec![
+            BtSample {
+                alloc_ptr: core::ptr::null(),
+                requested_size: 64,
+                allocated_size: 128,
+                weight: 4096,
+                stack: vec![0x1usize as *const u8],
+            },
+            BtSample {
+                alloc_ptr: core::ptr::null(),
+                requested_size: 100,
+                allocated_size: 128,
+                weight: 8192,
+                stack: vec![0x2usize as *const u8],
+            },
+        ]);
+        let mut out: std::vec::Vec<u8> = std::vec::Vec::new();
+        p.write_flamegraph_with(Weight::Requested, &mut out).unwrap();
+        let s = std::string::String::from_utf8(out).unwrap();
+        let mut sum: u128 = 0;
+        for line in s.lines() {
+            let mut it = line.rsplitn(2, ' ');
+            let w: u128 = it.next().unwrap().parse().unwrap();
+            let _stack = it.next().unwrap();
+            sum += w;
+        }
+        assert_eq!(sum, p.total_requested_bytes());
+        assert_eq!(sum, 4096u128 + 8192u128);
+    }
+
+    /// `Weight::default()` is `Allocated` -- the default UI view per
+    /// `profile-weight.md`.
+    #[test]
+    fn weight_default_is_allocated() {
+        assert_eq!(Weight::default(), Weight::Allocated);
     }
 }
