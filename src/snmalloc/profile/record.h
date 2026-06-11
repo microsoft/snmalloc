@@ -47,6 +47,7 @@
 // available at template-instantiation time.
 
 #include "../ds_core/defines.h"
+#include "allocation_sample_list.h"
 #include "node_pool.h"
 #include "reentrancy_guard.h"
 #include "sampled_alloc.h"
@@ -397,6 +398,30 @@ namespace snmalloc::profile
         // Lost the race: tombstone and recycle.
         SamplerGlobals::list().remove(node);
         SamplerGlobals::pool().release(node);
+        return;
+      }
+
+      // Streaming-mode fan-out (Phase 5.1).
+      //
+      // Now that the SampledAlloc is fully published (payload populated by
+      // the Sampler slow path, list-link visible to readers, per-object
+      // slot installed), broadcast the event to any registered streaming
+      // handlers.  We deliberately broadcast on alloc only -- matching
+      // tcmalloc's `MallocExtension::SetSampleHandler` semantics -- so
+      // streaming consumers see exactly one event per sampled allocation
+      // and do not have to dedup against a synthetic dealloc broadcast.
+      //
+      // The Sampler's own ReentrancyGuard was released when its slow
+      // path returned, so a handler that ill-advisedly allocates would
+      // re-enter `record_alloc`.  We wrap the fan-out in our own guard
+      // so that re-entry short-circuits via `sampler_reentered()` at the
+      // top of this function: the handler's allocations get measured by
+      // the underlying allocator but do not fire further samples (and
+      // thus do not recursively broadcast).  This matches how the
+      // Sampler protects its own slow path.
+      {
+        ReentrancyGuard broadcast_guard;
+        AllocationSampleList::global().broadcast(*node);
       }
     }
   }

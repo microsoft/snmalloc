@@ -124,6 +124,60 @@ sn_rust_profile_snapshot_get(void* handle, size_t idx, struct SnRustProfileRawSa
  */
 SNMALLOC_EXPORT void sn_rust_profile_snapshot_end(void* handle);
 
+// ---------------------------------------------------------------------------
+// Streaming mode (Phase 5.1).
+//
+// Snapshot mode (above) lets a caller poll the currently-live sampled
+// allocations on demand.  Streaming mode is layered on top: a registered
+// C callback receives one event per sampled allocation, *as it happens*,
+// on the allocating thread.  Mirrors tcmalloc's
+// MallocExtension::SetSampleHandler.
+//
+// Lifecycle:
+//   sn_rust_profile_streaming_start(cb)
+//     Register `cb` as the active sample handler.  Returns 0 on success,
+//     -1 if a handler is already registered (call _stop first) or if
+//     `cb` is null.  When SNMALLOC_PROFILE=OFF, returns -1 unconditionally.
+//
+//   sn_rust_profile_streaming_stop()
+//     Unregister the currently-active sample handler.  Returns 0 on
+//     success, -1 if no handler is registered.  When SNMALLOC_PROFILE=OFF,
+//     returns -1 unconditionally.
+//
+// Handler invariants (REQUIRED of the caller):
+//   - Must be marked `noexcept` (any exception escaping is undefined
+//     behaviour).
+//   - Must NOT allocate via the snmalloc-managed heap (would attempt to
+//     re-enter the sampler; the sampler self-protects against this so
+//     the worst case is missed nested samples, but the alloc itself
+//     still pays the slow-path cost).
+//   - Must complete promptly: the handler runs inline with the sampler
+//     slow path on the allocating thread.  Treat it as if it were a
+//     signal handler.
+//   - The `SnRustProfileRawSample` pointer is valid only for the
+//     duration of the call; copy out anything you need.
+//
+// Streaming and snapshot modes are NOT mutually exclusive: a process may
+// register a streaming handler and still call sn_rust_profile_snapshot_*.
+// Each sampled allocation is delivered to the streaming handler exactly
+// once (alloc-only, no dealloc broadcast -- matches tcmalloc semantics).
+// ---------------------------------------------------------------------------
+
+/**
+ * Register a streaming sample-handler callback.  Returns 0 on success,
+ * -1 on failure (already registered, callback is null, or profiling
+ * disabled at build time).
+ */
+SNMALLOC_EXPORT int sn_rust_profile_streaming_start(
+  void (*cb)(const struct SnRustProfileRawSample*));
+
+/**
+ * Unregister the currently-active streaming sample handler.  Returns 0
+ * on success, -1 if no handler is registered or profiling is disabled
+ * at build time.
+ */
+SNMALLOC_EXPORT int sn_rust_profile_streaming_stop(void);
+
 #ifdef __cplusplus
 }
 #endif

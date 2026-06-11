@@ -257,6 +257,115 @@ extern "C" SNMALLOC_EXPORT void sn_rust_profile_snapshot_end(void* handle)
   ::free(snap);
 }
 
+// ---------------------------------------------------------------------------
+// Streaming-mode FFI (Phase 5.1).
+//
+// We expose a single registered C callback that receives one event per
+// sampled allocation, mirroring tcmalloc's MallocExtension::SetSampleHandler.
+// Internally the broadcast primitive
+// (snmalloc::profile::AllocationSampleList) supports up to K=4 concurrent
+// subscribers, but the FFI surface is intentionally restricted to a single
+// process-wide handler: returning -1 on "already registered" keeps the
+// Rust-facing contract drama-free (no slot index to track) and matches the
+// tcmalloc precedent.  A user that needs multiple subscribers can register
+// at the C++ level directly.
+//
+// The shim converts each in-flight `SampledAlloc` to the FFI-stable
+// `SnRustProfileRawSample` POD before invoking the user callback -- the
+// user never observes the C++ type.  The shim itself is `noexcept` and
+// performs no allocation, satisfying the AllocationSampleList handler
+// contract.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+  /// Single registered user callback for streaming mode.  Stored as an
+  /// atomic so the broadcast thread always observes a coherent value.
+  /// Distinct from the AllocationSampleList slots: the FFI shim
+  /// `streaming_broadcast_shim` lives in one slot of the broadcast list,
+  /// and that shim in turn dispatches through this pointer.
+  std::atomic<void (*)(const SnRustProfileRawSample*)> g_streaming_user_cb{
+    nullptr};
+
+  /**
+   * Bridge function registered with AllocationSampleList::global(); copies
+   * the live SampledAlloc into the FFI-stable POD and invokes the user
+   * callback.  Marked `noexcept` per the AllocationSampleCallback contract.
+   */
+  void streaming_broadcast_shim(
+    const snmalloc::profile::SampledAlloc& node) noexcept
+  {
+    auto user_cb = g_streaming_user_cb.load(std::memory_order_acquire);
+    if (user_cb == nullptr)
+      return;
+
+    // Stack-local sample -- no allocation on the hot path, matching the
+    // "no allocator re-entry" contract documented on
+    // AllocationSampleCallback.
+    SnRustProfileRawSample out{};
+    out.alloc_ptr = reinterpret_cast<void*>(node.alloc_addr);
+    out.requested_size = node.requested_size;
+    out.allocated_size = node.allocated_size;
+    out.weight = static_cast<size_t>(node.weight);
+    const size_t depth = node.stack_depth <= SNMALLOC_PROFILE_STACK_FRAMES
+      ? node.stack_depth
+      : SNMALLOC_PROFILE_STACK_FRAMES;
+    out.stack_depth = static_cast<uint32_t>(depth);
+    for (size_t i = 0; i < depth; ++i)
+      out.stack[i] = reinterpret_cast<void*>(node.stack[i]);
+    for (size_t i = depth; i < SNMALLOC_PROFILE_STACK_FRAMES; ++i)
+      out.stack[i] = nullptr;
+
+    user_cb(&out);
+  }
+} // namespace
+
+extern "C" SNMALLOC_EXPORT int sn_rust_profile_streaming_start(
+  void (*cb)(const SnRustProfileRawSample*))
+{
+  if (cb == nullptr)
+    return -1;
+
+  // Reject re-registration: a single user callback is allowed at a time
+  // through the FFI.  CAS from null -> cb; failure means a previous
+  // start() is still active.
+  void (*expected)(const SnRustProfileRawSample*) = nullptr;
+  if (!g_streaming_user_cb.compare_exchange_strong(
+        expected, cb, std::memory_order_acq_rel, std::memory_order_relaxed))
+  {
+    return -1;
+  }
+
+  const int rc = snmalloc::profile::AllocationSampleList::global()
+                   .register_handler(streaming_broadcast_shim);
+  if (rc != snmalloc::profile::AllocationSampleList::kOk)
+  {
+    // Couldn't register the shim (all slots full from C++-side
+    // subscribers).  Roll back the user-callback store so a subsequent
+    // start() can try again, then fail.
+    g_streaming_user_cb.store(nullptr, std::memory_order_release);
+    return -1;
+  }
+  return 0;
+}
+
+extern "C" SNMALLOC_EXPORT int sn_rust_profile_streaming_stop(void)
+{
+  // Unregister the shim first; from this point no further broadcasts
+  // will dispatch to the user callback.  Order matters here because
+  // record_alloc holds no mutex around the broadcast call -- an
+  // in-flight broadcast loaded the shim before we unregistered will
+  // still observe a non-null user_cb until we clear that next.
+  const int rc = snmalloc::profile::AllocationSampleList::global()
+                   .unregister_handler(streaming_broadcast_shim);
+
+  auto prev = g_streaming_user_cb.exchange(nullptr, std::memory_order_acq_rel);
+
+  if (rc != snmalloc::profile::AllocationSampleList::kOk || prev == nullptr)
+    return -1;
+  return 0;
+}
+
 #else // !SNMALLOC_PROFILE
 
 // Stubs: keep the FFI surface linkable when profiling is compiled out.
@@ -294,6 +403,17 @@ extern "C" SNMALLOC_EXPORT bool sn_rust_profile_snapshot_get(
 
 extern "C" SNMALLOC_EXPORT void sn_rust_profile_snapshot_end(void* /*h*/)
 {
+}
+
+extern "C" SNMALLOC_EXPORT int sn_rust_profile_streaming_start(
+  void (*)(const SnRustProfileRawSample*))
+{
+  return -1;
+}
+
+extern "C" SNMALLOC_EXPORT int sn_rust_profile_streaming_stop(void)
+{
+  return -1;
 }
 
 #endif // SNMALLOC_PROFILE
