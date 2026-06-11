@@ -20,6 +20,18 @@ snmalloc-sys = { version = "0.7.4", path = "snmalloc-sys", default-features = fa
 # gimli, object, etc.
 backtrace = { version = "0.3", optional = true }
 
+# Dev-dependencies are only compiled for `cargo test` / `cargo bench` and
+# never become part of the published crate's transitive deps.  `inferno`
+# is the pure-Rust port of Brendan Gregg's `flamegraph.pl` and is used
+# by `tests/profile_viewer_roundtrip.rs` (Phase 4.6) to verify that the
+# folded-stack output produced by `HeapProfile::write_flamegraph` round-
+# trips through a real SVG-rendering flamegraph viewer.  Version pinned
+# to 0.11 to keep MSRV aligned with the rest of the workspace; later
+# 0.12.x releases bump `rust-version` to 1.71 and pull in additional
+# crossbeam transitive deps we don't otherwise need.
+[dev-dependencies]
+inferno = "0.11"
+
 [features]
 default = ["snmalloc-sys/build_cmake", "snmalloc-sys/usewait-on-address"]
 build_cc = ["snmalloc-sys/build_cc"]
