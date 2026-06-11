@@ -180,6 +180,23 @@ impl SnMalloc {
     /// of `cfg.sampling_rate`.  The `enable_from_env` flag is recorded
     /// only for the benefit of [`SnMalloc::init_profiling_from_env`] --
     /// it has no immediate side effect.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use snmalloc_rs::{SnMalloc, ProfileConfig};
+    ///
+    /// let allocator = SnMalloc::new();
+    /// // Sample once per ~256 KiB of allocation.
+    /// allocator.configure_profiling(ProfileConfig::with_sampling_rate(262_144));
+    ///
+    /// // Idempotent -- re-applying the same config is fine.
+    /// allocator.configure_profiling(ProfileConfig::with_sampling_rate(262_144));
+    ///
+    /// // Pass `ProfileConfig::default()` (sampling_rate == 0) to turn
+    /// // sampling back off.
+    /// allocator.configure_profiling(ProfileConfig::default());
+    /// ```
     pub fn configure_profiling(&self, cfg: ProfileConfig) {
         self.set_sampling_rate(cfg.sampling_rate);
         // `enable_from_env` deliberately has no immediate effect here:
@@ -212,6 +229,33 @@ impl SnMalloc {
     ///
     /// Returns the rate that was applied, or `None` if the environment
     /// did not request a change.
+    ///
+    /// # Example
+    ///
+    /// Call this once near the top of `main`:
+    ///
+    /// ```no_run
+    /// use snmalloc_rs::SnMalloc;
+    ///
+    /// fn main() {
+    ///     let allocator = SnMalloc::new();
+    ///     match allocator.init_profiling_from_env() {
+    ///         Some(rate) if rate > 0 => {
+    ///             eprintln!("snmalloc profiling enabled @ {} bytes/sample", rate);
+    ///         }
+    ///         Some(_) => eprintln!("snmalloc profiling explicitly disabled"),
+    ///         None => {}, // env said nothing -- leave the rate alone.
+    ///     }
+    ///     // ... run application ...
+    /// }
+    /// ```
+    ///
+    /// At runtime:
+    ///
+    /// ```text
+    /// SNMALLOC_PROFILE_ENABLE=1 ./my-binary       # default 512 KiB rate
+    /// SNMALLOC_PROFILE_RATE=65536 ./my-binary     # 64 KiB explicit rate
+    /// ```
     pub fn init_profiling_from_env(&self) -> Option<usize> {
         let rate = resolve_rate_from_env()?;
         self.set_sampling_rate(rate);

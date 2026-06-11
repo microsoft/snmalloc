@@ -25,6 +25,46 @@
 //! #[global_allocator]
 //! static ALLOC: snmalloc_rs::SnMalloc = snmalloc_rs::SnMalloc;
 //! ```
+//!
+//! # Heap profiling
+//!
+//! With the `profiling` Cargo feature enabled (and the matching C-side
+//! `SNMALLOC_PROFILE` build flag, which is set automatically by
+//! `snmalloc-sys/build.rs` when the feature is on) `snmalloc-rs` can
+//! capture **Poisson-sampled** snapshots of currently-live allocations
+//! and emit them in either the collapsed flamegraph format or Google's
+//! pprof protobuf.  End-to-end example:
+//!
+//! ```no_run
+//! # #[cfg(feature = "profiling")]
+//! # fn main() -> std::io::Result<()> {
+//! use snmalloc_rs::{SnMalloc, ProfileConfig};
+//! use std::fs::File;
+//!
+//! let allocator = SnMalloc::new();
+//!
+//! // Sample once per ~512 KiB of allocation (low-overhead default).
+//! allocator.configure_profiling(ProfileConfig::with_sampling_rate(524_288));
+//!
+//! // ... run the workload you want to profile ...
+//!
+//! let profile = allocator.snapshot();
+//! println!("captured {} samples, ~{} bytes live",
+//!     profile.len(), profile.total_allocated_bytes());
+//!
+//! // Folded-stack format -- feed to `inferno-flamegraph` or speedscope.
+//! let mut f = File::create("heap.folded")?;
+//! profile.write_flamegraph(&mut f)?;
+//! # Ok(())
+//! # }
+//! # #[cfg(not(feature = "profiling"))]
+//! # fn main() {}
+//! ```
+//!
+//! See [`HeapProfile::write_flamegraph`] for the folded-stack format and
+//! [`HeapProfile::write_pprof`] for the pprof protobuf format.  For
+//! continuous (streaming) sampling rather than one-shot snapshots see
+//! [`ProfilingSession::start`].
 extern crate snmalloc_sys as ffi;
 
 use core::{

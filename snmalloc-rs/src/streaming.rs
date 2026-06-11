@@ -81,6 +81,30 @@ fn handler_slot() -> &'static Mutex<Option<Handler>> {
 /// All accessors return values, not references, so the user can
 /// freely copy out individual fields if they need to keep them past
 /// the callback (e.g. by cloning the stack into a `Vec`).
+///
+/// # Example
+///
+/// Print the per-sample fields from inside a streaming session:
+///
+/// ```no_run
+/// use snmalloc_rs::ProfilingSession;
+///
+/// let _session = ProfilingSession::start(|sample| {
+///     eprintln!(
+///         "sampled {:p} requested={} allocated={} weight={} depth={}",
+///         sample.alloc_ptr(),
+///         sample.requested_size(),
+///         sample.allocated_size(),
+///         sample.weight(),
+///         sample.stack().len(),
+///     );
+///
+///     // Frames are borrowed -- copy them out if you need to keep
+///     // the stack past this callback invocation.
+///     let owned_stack: Vec<*const core::ffi::c_void> = sample.stack().to_vec();
+///     let _ = owned_stack;
+/// }).expect("session should start");
+/// ```
 #[derive(Copy, Clone)]
 pub struct StreamSample<'a> {
     raw: &'a SnRustProfileRawSample,
@@ -277,6 +301,31 @@ impl ProfilingSession {
     ///   refused to register the trampoline (most commonly because
     ///   `SNMALLOC_PROFILE` is disabled at build time, or every
     ///   broadcast slot is already claimed).
+    ///
+    /// # Example
+    ///
+    /// Count the sampled allocations into a shared atomic, then tear
+    /// down the session by dropping the returned handle:
+    ///
+    /// ```no_run
+    /// use snmalloc_rs::{ProfilingSession, SnMalloc};
+    /// use std::sync::Arc;
+    /// use std::sync::atomic::{AtomicU64, Ordering};
+    ///
+    /// let allocator = SnMalloc::new();
+    /// allocator.set_sampling_rate(65_536);
+    ///
+    /// let count = Arc::new(AtomicU64::new(0));
+    /// let count_for_handler = Arc::clone(&count);
+    /// let session = ProfilingSession::start(move |sample| {
+    ///     count_for_handler.fetch_add(sample.weight(), Ordering::Relaxed);
+    /// }).expect("session should start");
+    ///
+    /// // ... run the workload ...
+    ///
+    /// drop(session); // unregisters the handler; another session can start now.
+    /// println!("total sampled weight: {}", count.load(Ordering::Relaxed));
+    /// ```
     pub fn start<F>(handler: F) -> Result<Self, StreamingError>
     where
         F: Fn(StreamSample<'_>) + Send + Sync + 'static,

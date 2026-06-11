@@ -105,6 +105,33 @@ unsafe impl Sync for BtSample {}
 /// See `docs/profile-weight.md` and Phase 4.3 of the heap-profiling
 /// design for the rationale; in particular the default tracks the
 /// `total_allocated_bytes` aggregator on [`HeapProfile`].
+///
+/// # Example
+///
+/// ```no_run
+/// # #[cfg(feature = "profiling")]
+/// # fn main() -> std::io::Result<()> {
+/// use snmalloc_rs::{SnMalloc, Weight};
+///
+/// let allocator = SnMalloc::new();
+/// let profile = allocator.snapshot();
+///
+/// // Bytes the allocator actually returned (sizeclass-rounded).
+/// let allocated = profile.total_allocated_bytes();
+/// // Bytes the caller requested.
+/// let requested = profile.total_requested_bytes();
+///
+/// // Render a flamegraph weighted by what the caller asked for.
+/// let mut out: Vec<u8> = Vec::new();
+/// profile.write_flamegraph_with(Weight::Requested, &mut out)?;
+///
+/// assert_eq!(Weight::default(), Weight::Allocated);
+/// let _ = (allocated, requested);
+/// # Ok(())
+/// # }
+/// # #[cfg(not(feature = "profiling"))]
+/// # fn main() {}
+/// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Weight {
     /// Use the caller-requested byte count (raw per-sample weight).
@@ -166,6 +193,37 @@ unsafe impl Sync for ResolvedFrame {}
 /// Obtained from [`SnMalloc::snapshot`].  Holds no references into
 /// the C-side profile state -- once construction returns, the C
 /// snapshot handle is already released.
+///
+/// # Example
+///
+/// Capture a snapshot and iterate the samples:
+///
+/// ```no_run
+/// # #[cfg(feature = "profiling")]
+/// # fn main() {
+/// use snmalloc_rs::SnMalloc;
+///
+/// let allocator = SnMalloc::new();
+/// // Enable Poisson sampling at ~256 KiB intervals.
+/// allocator.set_sampling_rate(262_144);
+///
+/// // ... run the workload you want to profile ...
+///
+/// let profile = allocator.snapshot();
+/// for sample in profile.samples() {
+///     println!(
+///         "alloc {:p}: requested {} bytes, returned {} bytes, weight {}, depth {}",
+///         sample.alloc_ptr,
+///         sample.requested_size,
+///         sample.allocated_size,
+///         sample.weight,
+///         sample.stack.len(),
+///     );
+/// }
+/// # }
+/// # #[cfg(not(feature = "profiling"))]
+/// # fn main() {}
+/// ```
 #[derive(Clone, Debug, Default)]
 pub struct HeapProfile {
     samples: Vec<BtSample>,
@@ -178,6 +236,30 @@ impl HeapProfile {
     }
 
     /// All sampled allocations captured by this snapshot.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # #[cfg(feature = "profiling")]
+    /// # fn main() {
+    /// use snmalloc_rs::SnMalloc;
+    ///
+    /// let allocator = SnMalloc::new();
+    /// let profile = allocator.snapshot();
+    ///
+    /// // Bucket the sampled live allocations by their sizeclass-rounded size.
+    /// let mut by_size: std::collections::BTreeMap<usize, usize> =
+    ///     std::collections::BTreeMap::new();
+    /// for s in profile.samples() {
+    ///     *by_size.entry(s.allocated_size).or_insert(0) += 1;
+    /// }
+    /// for (size, count) in &by_size {
+    ///     println!("{} bytes: {} samples", size, count);
+    /// }
+    /// # }
+    /// # #[cfg(not(feature = "profiling"))]
+    /// # fn main() {}
+    /// ```
     pub fn samples(&self) -> &[BtSample] {
         &self.samples
     }
@@ -199,6 +281,25 @@ impl HeapProfile {
     /// (multi-TiB) workloads cannot overflow on 64-bit targets.
     /// Samples whose `requested_size` is zero are skipped to avoid
     /// division-by-zero.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # #[cfg(feature = "profiling")]
+    /// # fn main() {
+    /// use snmalloc_rs::SnMalloc;
+    ///
+    /// let allocator = SnMalloc::new();
+    /// let profile = allocator.snapshot();
+    ///
+    /// // Compare the two estimators: requested vs sizeclass-rounded.
+    /// let allocated = profile.total_allocated_bytes();
+    /// let requested = profile.total_requested_bytes();
+    /// println!("live allocated ~{} B, live requested ~{} B", allocated, requested);
+    /// # }
+    /// # #[cfg(not(feature = "profiling"))]
+    /// # fn main() {}
+    /// ```
     pub fn total_allocated_bytes(&self) -> u128 {
         let mut total: u128 = 0;
         for s in &self.samples {
@@ -300,6 +401,28 @@ impl HeapProfile {
     /// dedicated `to_speedscope` is deferred to Phase 4.5+, where it
     /// can layer on top of the symbolicator and emit
     /// `frames`/`shared`/`profiles` records with real symbol names.
+    ///
+    /// # Example
+    ///
+    /// Capture a snapshot and write the folded-stack output to a file:
+    ///
+    /// ```no_run
+    /// # #[cfg(feature = "profiling")]
+    /// # fn main() -> std::io::Result<()> {
+    /// use snmalloc_rs::SnMalloc;
+    /// use std::fs::File;
+    ///
+    /// let allocator = SnMalloc::new();
+    /// let profile = allocator.snapshot();
+    ///
+    /// let mut f = File::create("heap.folded")?;
+    /// profile.write_flamegraph(&mut f)?;
+    /// // Render with: `inferno-flamegraph < heap.folded > heap.svg`
+    /// # Ok(())
+    /// # }
+    /// # #[cfg(not(feature = "profiling"))]
+    /// # fn main() {}
+    /// ```
     pub fn write_flamegraph<W: io::Write>(&self, w: &mut W) -> io::Result<()> {
         self.write_flamegraph_with(Weight::Allocated, w)
     }
@@ -386,6 +509,33 @@ impl HeapProfile {
     /// cleanly rather than rejecting it.
     ///
     /// [pprof]: https://github.com/google/pprof/blob/main/proto/profile.proto
+    ///
+    /// # Example
+    ///
+    /// Render a snapshot into an in-memory pprof Profile and (optionally)
+    /// persist it to a `.pb` file that `go tool pprof` can consume:
+    ///
+    /// ```no_run
+    /// # #[cfg(feature = "profiling")]
+    /// # fn main() -> std::io::Result<()> {
+    /// use snmalloc_rs::{SnMalloc, Weight};
+    ///
+    /// let allocator = SnMalloc::new();
+    /// let profile = allocator.snapshot();
+    ///
+    /// // Encode into a Vec<u8>; the encoder never grows past a
+    /// // constant-factor of the input snapshot, so even very large
+    /// // profiles fit comfortably in memory.
+    /// let mut bytes: Vec<u8> = Vec::new();
+    /// profile.write_pprof(&mut bytes, Weight::Allocated)?;
+    ///
+    /// // Optionally persist for `go tool pprof heap.pb`.
+    /// std::fs::write("heap.pb", &bytes)?;
+    /// # Ok(())
+    /// # }
+    /// # #[cfg(not(feature = "profiling"))]
+    /// # fn main() {}
+    /// ```
     pub fn write_pprof<W: io::Write>(&self, w: &mut W, weight: Weight) -> io::Result<()> {
         crate::pprof::write_pprof(self, weight, w)
     }
