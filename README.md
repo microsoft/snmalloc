@@ -52,6 +52,102 @@ A more comprehensive write up is in [docs/security](./docs/security/README.md).
  - [Instructions for building snmalloc](docs/BUILDING.md)
  - [Instructions for porting snmalloc](docs/PORTING.md)
 
+## Heap Profiling
+
+snmalloc ships with an opt-in, low-overhead **statistical heap profiler**.
+When enabled at build time, the allocator captures a Poisson-distributed
+sample of every allocation with its call stack, suitable for offline
+analysis with the same tooling (flamegraphs, pprof) commonly used for
+CPU profiles.
+
+### Enabling at build time
+
+The profiler is gated behind a single CMake option, off by default:
+
+```sh
+cmake -B build -DSNMALLOC_PROFILE=ON
+cmake --build build
+```
+
+With `SNMALLOC_PROFILE=OFF` (the default) every profiling code path is
+compiled out — the sampler countdown, the per-allocation branch, and
+the FFI export bodies all degrade to empty stubs. There is **no**
+runtime cost for builds that do not opt in.
+
+### What it samples
+
+Each allocation has an independent probability of being recorded,
+governed by a single tunable: the *mean sampling interval*, expressed
+in bytes. The default is **524 288 bytes (512 KiB)**, meaning the
+sampler captures roughly one allocation per 512 KiB of total request
+volume. Per-sample weights are unbiased Poisson estimators, so summing
+`weight` across the snapshot yields an unbiased estimate of total bytes
+requested (or, scaled by `allocated_size / requested_size`, of total
+bytes the allocator actually handed back).
+
+The sampling rate can be adjusted at runtime: lowering it (e.g. to
+64 KiB) gives higher resolution and ~1.5% throughput overhead;
+raising it (e.g. to 1 MiB) reduces overhead further at the cost of
+fidelity. See `docs/profile-weight.md` for guidance on choosing a rate
+for your workload.
+
+### C ABI for embedding
+
+The C++ build exposes a small set of `extern "C"` symbols for
+embedders that want to drive the profiler from a non-Rust host:
+
+| Symbol | Purpose |
+| ------ | ------- |
+| `sn_rust_profile_supported` | Returns `true` iff built with `SNMALLOC_PROFILE=ON`. |
+| `sn_rust_profile_set_sampling_rate` | Set the mean sampling interval in bytes. `0` disables. |
+| `sn_rust_profile_get_sampling_rate` | Read the current sampling interval. |
+| `sn_rust_profile_snapshot_begin` / `_count` / `_get` / `_end` | RAII-style enumeration of currently-live sampled allocations. |
+| `sn_rust_profile_streaming_start` / `_stop` | Register a `void(*)(const SnRustProfileRawSample*)` callback that receives every sample as it occurs. |
+
+These are the same exports the Rust crate calls into; see
+`src/snmalloc/override/rust.cc` for the full ABI surface and
+`src/snmalloc/override/rust.h` for the header layout.
+
+### Rust crate
+
+For Rust applications, the [`snmalloc-rs`](snmalloc-rs/README.md) crate
+provides a fully safe wrapper around the C ABI: an RAII snapshot type
+([`HeapProfile`](snmalloc-rs/src/profile.rs)), an RAII streaming
+session ([`ProfilingSession`](snmalloc-rs/src/streaming.rs)), and an
+env-var-driven initializer
+([`SnMalloc::init_profiling_from_env`](snmalloc-rs/src/config.rs)) that
+lets operators turn profiling on at the command line without
+recompiling. See [snmalloc-rs/README.md](snmalloc-rs/README.md#heap-profiling)
+for the full Rust API and code samples.
+
+### Output formats
+
+Two viewer formats are supported out of the box from the Rust crate:
+
+- **Folded / collapsed flame-graph format** — one line per unique
+  stack, summed weights, consumable by Brendan Gregg's
+  [`flamegraph.pl`](https://github.com/brendangregg/FlameGraph), the
+  pure-Rust [`inferno-flamegraph`](https://github.com/jonhoo/inferno),
+  and the [Speedscope](https://www.speedscope.app/) viewer (via its
+  "Brendan Gregg's collapsed stack format" importer).
+- **Google `pprof` Profile protobuf** — consumable by `go tool pprof`,
+  [Pyroscope](https://pyroscope.io/), [Polar Signals
+  Cloud](https://www.polarsignals.com/), [Parca](https://www.parca.dev/),
+  and the Datadog continuous profiler. Emitted with two sample axes
+  (`alloc_objects`/count and `alloc_space`/bytes).
+
+### Overhead
+
+At the default 512 KiB sampling rate, the profiler adds **<1% throughput
+overhead** on the criterion micro-benchmark suite shipped in
+[`snmalloc-rs/benches/profile_bench.rs`](snmalloc-rs/benches/profile_bench.rs)
+(Phase 7 of the heap-profiling design). The bench measures three
+configurations — `profile-off`, `profile-on-inactive`, and
+`profile-on-active` — and verifies that even the *active* configuration
+stays within the 1% budget on the standard sizes. Builds with
+`SNMALLOC_PROFILE=OFF` are bit-for-bit identical on the hot path to
+those without any profiling code at all.
+
 # Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
