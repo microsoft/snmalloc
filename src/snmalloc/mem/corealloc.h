@@ -22,6 +22,19 @@ namespace snmalloc::profile
 {
   template<typename Config>
   SNMALLOC_FAST_PATH_INLINE void record_dealloc(void* p) noexcept;
+
+  // Bundle tweak 3 (ticket 86aj0jfwh): peek-only helper extracted from
+  // `record_dealloc` so the inline slot probe + null check at the
+  // dealloc call-site in `Allocator::dealloc` can fast-path out
+  // *before* taking on any further function-call cost.  Returns `true`
+  // when the dealloc fast path is done (no sample to clear), `false`
+  // when the caller should fall through to the full hook.  The
+  // implementation lives in profile/record.h alongside the full hook
+  // so they share the slab-metadata probe.  Templated +
+  // `SNMALLOC_FAST_PATH_INLINE` so it inlines into `Allocator::dealloc`
+  // and the load+branch live directly at the call site.
+  template<typename Config>
+  SNMALLOC_FAST_PATH_INLINE bool record_dealloc_peek(void* p) noexcept;
 }
 #endif
 
@@ -1097,10 +1110,22 @@ namespace snmalloc
        *     by SampledList unlink walking metadata -- is short-circuited
        *     by the per-thread ReentrancyGuard inside record_dealloc.
        *
+       * Bundle tweak 3 (ticket 86aj0jfwh): the slab-metadata probe +
+       * atomic-slot peek that handles the overwhelmingly common "this
+       * object was never sampled" case is split out into
+       * `record_dealloc_peek`, which is force-inlined.  When the peek
+       * returns true (slot null or backing not installed) we skip the
+       * full hook entirely -- no function-call frame is created on the
+       * common path.  Only the rare case where a non-null slot is
+       * observed pays the call into `record_dealloc`.
+       *
        * Compiles to a no-op for configurations without a profile-enabled
        * ClientMetaDataProvider; see profile/record.h.
        */
-      profile::record_dealloc<Config>(p_raw);
+      if (!profile::record_dealloc_peek<Config>(p_raw))
+      {
+        profile::record_dealloc<Config>(p_raw);
+      }
 #endif
 
 #ifdef __CHERI_PURE_CAPABILITY__

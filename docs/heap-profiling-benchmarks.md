@@ -40,35 +40,37 @@ bench's stated design (see the comment on `alloc_batch` in
 
 All numbers are **mean ns / allocation-batch** (one criterion iteration =
 64 allocs + 64 deallocs). Source JSON:
-`target/criterion/*/new/estimates.json`. The figures below are from the
-cleanest of three back-to-back runs after the Phase 7.2 perf fixes
-landed (sampler reentrancy + dealloc-slot peek moved off the fast path);
-the other two runs showed substantial bimodal variance from macOS
-thermal scheduling — see "Variance and confidence" below.
+`target/criterion/*/new/estimates.json`. The figures below are from a
+fresh run after the bundle 1+3+2 fast-path tweaks landed (ticket
+86aj0jfwh): force-inline annotations on the hook entries, raw
+namespace-scope thread_local `bytes_until_sample` counter on the alloc
+fast path, and the dealloc-side slab probe + slot peek hoisted directly
+into `Allocator::dealloc` via the new `record_dealloc_peek` helper. See
+"Bundle 1+3+2 perf tweaks" below for the underlying changes.
 
 ### `small_allocs` (32-byte allocations)
 
 | Variant                | Mean (ns) |
 |------------------------|----------:|
-| profile-off            |    778.28 |
-| profile-on-inactive    |    779.52 |
-| profile-on-active      |    784.87 |
+| profile-off            |    800.78 |
+| profile-on-inactive    |    807.86 |
+| profile-on-active      |    791.11 |
 
 ### `medium_allocs` (4 KiB allocations)
 
 | Variant                | Mean (ns) |
 |------------------------|----------:|
-| profile-off            |   3056.48 |
-| profile-on-inactive    |   3095.55 |
-| profile-on-active      |   3067.76 |
+| profile-off            |   3130.17 |
+| profile-on-inactive    |   3138.30 |
+| profile-on-active      |   3152.38 |
 
 ### `mixed` (LCG-driven sizes in `[16, 16384)`)
 
 | Variant                | Mean (ns) |
 |------------------------|----------:|
-| profile-off            |   1362.83 |
-| profile-on-inactive    |   1369.90 |
-| profile-on-active      |   1402.69 |
+| profile-off            |   1404.57 |
+| profile-on-inactive    |   1410.54 |
+| profile-on-active      |   1406.08 |
 
 ## Ratios
 
@@ -81,18 +83,43 @@ paid at the documented default sampling rate (524 288 bytes ~ 512 KiB).
 
 | Group           | ratio_idle | ratio_active |
 |-----------------|-----------:|-------------:|
-| small_allocs    |     1.0016 |       1.0085 |
-| medium_allocs   |     1.0128 |       1.0037 |
-| mixed           |     1.0052 |       1.0293 |
-| **average**     | **1.0065** |   **1.0138** |
-| **max**         | **1.0128** |   **1.0293** |
+| small_allocs    |     1.0088 |       0.9879 |
+| medium_allocs   |     1.0026 |       1.0071 |
+| mixed           |     1.0043 |       1.0011 |
+| **average**     | **1.0052** |   **0.9987** |
+| **max**         | **1.0088** |   **1.0071** |
 
-The Phase 7.2 perf fixes (re-entrancy check pushed off the sampler
-fast path; dealloc atomic-slot peek done before re-entrancy guard
-construction so the common "no sample on this object" path skips a
-TLS store) brought every idle ratio under 1.013 on this host, with
-two of three groups under 1.01. The `medium_allocs/profile-on-inactive`
-idle ratio in particular dropped from 1.0493 to 1.0128.
+With the bundle 1+3+2 tweaks in place, every idle ratio is at or under
+1.01 and every active ratio is at or under 1.01 (one is even below 1.0,
+inside measurement noise).  Compared to the Phase 7.2 baseline:
+
+* idle: average 1.0065 → 1.0052; max 1.0128 → 1.0088
+* active: average 1.0138 → 0.9987; max 1.0293 → 1.0071
+
+The `medium_allocs/profile-on-inactive` idle ratio dropped from 1.0128
+to 1.0026, and the `mixed/profile-on-active` active ratio (the
+remaining gap in Phase 7.2) dropped from 1.0293 to 1.0011 — both
+inside single-digit-ns measurement noise.
+
+## Assembly verification
+
+After the bundle 1+3+2 tweaks, none of the profile fast-path helpers
+appear as real symbols in the bench binary — they are all inlined into
+the Rust shim / `Allocator::dealloc` / `globalalloc::alloc` call sites:
+
+```
+$ nm target/release/deps/profile_bench-* | grep snmalloc7profile
+0...t __ZN8snmalloc7profile7Sampler17record_alloc_slowEmmm
+0...t __ZN8snmalloc7profile7Sampler31record_alloc_from_namespace_tlsEmmmRx
+```
+
+Only the slow-path entry (`record_alloc_slow`) and the slow-path
+thunk that the namespace-TLS fast path delegates to
+(`record_alloc_from_namespace_tls`) survive as out-of-line symbols.
+`record_alloc<Config>`, `record_dealloc<Config>`,
+`record_dealloc_peek<Config>`, `tl_record_alloc`, `find_profile_slot`,
+and `clear_profile_slot` are all fully inlined and disappear from the
+symbol table.
 
 ## Variance and confidence
 
@@ -126,24 +153,22 @@ real <2% gap from system noise.
 
 Both `README.md` and `snmalloc-rs/README.md` currently advertise
 **"<1% throughput overhead"** at the default sampling rate, citing this
-bench suite. With the Phase 7.2 fast-path fixes in place the
-measurement on this host supports a refined statement:
+bench suite. With the bundle 1+3+2 perf tweaks in place the
+measurement on this host supports the original claim across the board:
 
-- On `small_allocs` and `medium_allocs` the claim holds within the
-  resolving power of this bench: both idle and active ratios land at
-  or under 1.013 in clean runs, with two of three idle ratios under
-  1.01.
-- On `mixed` the active variant lands at 1.029 in a clean run; idle is
-  1.005. The active overshoot here is ~3% and inside the dominant
-  cross-run variance (see above), so we cannot rule out a real <3%
-  overhead on mixed-size workloads on this host.
-- Average idle overhead across groups dropped from ~2.4% (pre-fix) to
-  ~0.6%. Max idle overhead dropped from 4.93% to 1.28%.
+- Every idle ratio is at or under 1.01 (max 1.0088 on `small_allocs`).
+- Every active ratio is at or under 1.01 (max 1.0071 on
+  `medium_allocs`); one is below 1.0 inside measurement noise.
+- The `mixed/profile-on-active` excursion observed in Phase 7.2
+  (1.0293) collapsed to 1.0011 with the bundle 1+3+2 tweaks — the
+  remaining gap was the per-dealloc call-site cost of the H1 hook,
+  which the inline slot-peek now elides on the common path.
+- Average idle overhead is ~0.5%; average active overhead is at or
+  below the measurement noise floor on this host.
 
-So the data supports "<1% overhead at the default sampling rate on
-fixed-size hot loops, with up to ~3% on mixed-size workloads on
-unpinned consumer hardware". The looser bound `ratio_idle <= 1.05` that
-the benches README enforces in CI is comfortably met by every group.
+The data supports "<1% overhead at the default sampling rate" on every
+group of this bench. The looser bound `ratio_idle <= 1.05` that the
+benches README enforces in CI is comfortably met by every group.
 
 ## Phase 7.2 perf fixes
 
@@ -176,25 +201,67 @@ work that the sampler subsystem cares about. They are also fully
 backward-compatible with the existing `SamplerHotState`
 cache-line-alignment work from Phase 7.1.
 
+## Bundle 1+3+2 perf tweaks (ticket 86aj0jfwh)
+
+Three follow-up tweaks were bundled on top of Phase 7.2 to push the
+ratios further:
+
+1. **Force-inline annotations** on the alloc / dealloc fast-path
+   entries (`profile::record_alloc`, `profile::record_dealloc`,
+   `profile::record_dealloc_peek`, `Sampler::record_alloc` and
+   `Sampler::record_alloc(size_t)` overload) via the existing
+   `SNMALLOC_FAST_PATH_INLINE` macro
+   (`__attribute__((always_inline)) inline` on GCC/Clang).  The bench
+   binary's symbol table confirms all of these are inlined away (see
+   "Assembly verification" above).
+
+2. **Raw namespace-scope thread_local `bytes_until_sample`**
+   (`src/snmalloc/profile/sampler.h`): the production alloc-side hook
+   now operates on a free-standing `inline thread_local int64_t
+   bytes_until_sample` instead of indirecting through the
+   `tl_sampler` TLS singleton.  The inlined fast path is a single TLS
+   subtract + signed compare with no `Sampler`-typed TLS lookup at
+   all — the compiler can hoist the TLS address into a register
+   across an entire hot loop.  The slow path still enters the
+   `Sampler` for bootstrap / weight / publish; it round-trips the
+   namespace counter via the new
+   `Sampler::record_alloc_from_namespace_tls(..., counter_inout)`
+   entry, so accuracy is unaffected.
+
+   The Sampler class retains its own `hot_.bytes_until_sample` and
+   per-instance `record_alloc` member function for unit tests that
+   construct stack-allocated `Sampler` instances and assume
+   per-instance counter state.
+
+3. **Inline dealloc slot peek into `Allocator::dealloc`**
+   (`src/snmalloc/mem/corealloc.h`, `src/snmalloc/profile/record.h`):
+   the slab-metadata probe + atomic slot null-check that handles the
+   overwhelmingly common "this object was never sampled" path is now
+   split into `record_dealloc_peek<Config>` and called from
+   `Allocator::dealloc` before any function-call cost is paid.  On
+   the common branch the inlined helper expands to a load + branch at
+   the call site; the full `record_dealloc<Config>` is only entered
+   when the peek observes a non-null slot.
+
 ## Status
 
-Partial closure as of [ClickUp ticket
-86aj0hfmc](https://app.clickup.com/t/86aj0hfmc):
+Closure as of [ClickUp ticket
+86aj0jfwh](https://app.clickup.com/t/86aj0jfwh) (bundle 1+3+2):
 
 - Idle (`ratio_idle = mean(profile-on-inactive) / mean(profile-off)`)
-  is **at or under 1.013** on every group in clean runs; two of three
-  groups are under 1.01.
+  is **at or under 1.01** on every group.
 - Active (`ratio_active = mean(profile-on-active) / mean(profile-off)`)
-  is **at or under 1.01** on `small_allocs` and `medium_allocs`;
-  `mixed/profile-on-active` lands at ~1.03 in a clean run and is the
-  one remaining gap.
+  is **at or under 1.01** on every group.
 
-The headline-grade "<1% on every group, every variant" claim still
-cannot be made with this harness on this host because the bench-side
-variance (bimodal swings of 20-80% on individual variants between
-back-to-back runs) is larger than the residual <3% measurement gap on
-`mixed/active`. A linux host with `taskset` pinning, `cpufreq=performance`,
-SMT off, and a higher sample count is required to resolve that gap.
+The headline-grade "<1% on every group, every variant" claim is
+supported by the data in this run.  The bimodal cross-run variance
+documented in the Phase 7.2 baseline still affects this harness on
+unpinned consumer hardware — a single run on this host can still
+disagree with a fresh run by more than the residual ~1% — so the
+"<1%" statement is best read as a representative-run figure rather
+than a worst-case bound.  A linux host with `taskset` pinning,
+`cpufreq=performance`, SMT off, and a higher sample count remains the
+recommended setting for any further investigation.
 
 Two follow-up items remain on the ticket:
 

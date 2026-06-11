@@ -57,6 +57,30 @@
 namespace snmalloc::profile
 {
   /**
+   * Raw per-thread fast-path countdown (Bundle tweak 2, ticket
+   * 86aj0jfwh).
+   *
+   * Promoting the hot counter out of `Sampler` to a namespace-scope
+   * `thread_local int64_t` lets the inlined alloc-side hook
+   * (`profile::record_alloc<Config>` in profile/record.h) materialise
+   * its fast path as a single TLS subtract + signed compare, with no
+   * `Sampler`-typed TLS lookup at all on the common branch.  The
+   * slow path indirects through `tl_sampler` (cheap, ~1-in-512-KiB).
+   *
+   * Initialisation convention: `0` means "uninitialised; bootstrap on
+   * first call".  The fast path's `<= 0` branch funnels the very first
+   * allocation on a thread into the slow path, which then draws an
+   * Exp(rate) interval and seeds the counter via
+   * `record_alloc_slow_namespace_tls`.
+   *
+   * The Sampler class retains its own `hot_.bytes_until_sample` for
+   * member-API callers (unit tests construct stack-allocated `Sampler`
+   * instances and expect per-instance counter state).  The production
+   * `tl_sampler` singleton is bypassed on the fast path.
+   */
+  inline thread_local int64_t bytes_until_sample = 0;
+
+  /**
    * Global state shared across all per-thread Sampler instances.
    *
    * Lives in an inline variable so it has one definition across TUs (C++17).
@@ -133,7 +157,7 @@ namespace snmalloc::profile
      * lifetime -- it stays on the list until the corresponding dealloc
      * hook removes it (Phase 3).
      */
-    SNMALLOC_FAST_PATH bool
+    SNMALLOC_FAST_PATH_INLINE bool
     record_alloc(uintptr_t alloc_addr, size_t requested_size, size_t allocated_size) noexcept
     {
       // Phase 7.2 fast-path: a single TLS decrement + signed compare.
@@ -149,6 +173,14 @@ namespace snmalloc::profile
       // is the desired behaviour.  Sample weighting accounts for the
       // overshoot via `rate - hot_.bytes_until_sample + requested_size`
       // so accuracy is preserved.
+      //
+      // Bundle tweak 2 (86aj0jfwh): in production the alloc-side hook
+      // in `record.h` operates on a namespace-scope TLS counter
+      // (`bytes_until_sample`) and only calls into the Sampler on the
+      // slow path.  This member entry point is preserved unchanged for
+      // unit tests that exercise stack-allocated `Sampler` instances --
+      // those want per-instance counter state, which the namespace TLS
+      // cannot provide.
       hot_.bytes_until_sample -= static_cast<int64_t>(requested_size);
       // Fast-path stays in branch-predictor's favour: the vast majority of
       // allocations don't fire a sample (default 1-in-512KiB).
@@ -161,9 +193,36 @@ namespace snmalloc::profile
     }
 
     /// Convenience overload for callers that only have the request size.
-    SNMALLOC_FAST_PATH bool record_alloc(size_t requested_size) noexcept
+    SNMALLOC_FAST_PATH_INLINE bool record_alloc(size_t requested_size) noexcept
     {
       return record_alloc(0, requested_size, requested_size);
+    }
+
+    /**
+     * Slow-path-only entry used by the namespace-TLS fast path
+     * (`tl_record_alloc`, bundle tweak 2 - ticket 86aj0jfwh).
+     *
+     * The caller has already debited `requested_size` from the
+     * namespace-scope `bytes_until_sample` and observed a non-positive
+     * counter.  This entry mirrors the namespace TLS counter into
+     * `hot_.bytes_until_sample` (so the Sampler's bootstrap / weight
+     * maths see the post-debit value), runs the slow path
+     * (re-entrancy check, bootstrap, weight math, pool acquire, stack
+     * walk, list push), then writes the freshly-drawn next interval
+     * back out via the `counter_inout` reference so the fast path can
+     * resume.
+     */
+    SNMALLOC_SLOW_PATH bool record_alloc_from_namespace_tls(
+      uintptr_t alloc_addr,
+      size_t requested_size,
+      size_t allocated_size,
+      int64_t& counter_inout) noexcept
+    {
+      hot_.bytes_until_sample = counter_inout;
+      const bool fired =
+        record_alloc_slow(alloc_addr, requested_size, allocated_size);
+      counter_inout = hot_.bytes_until_sample;
+      return fired;
     }
 
     /**
@@ -448,4 +507,37 @@ namespace snmalloc::profile
    * Per-thread sampler. Trivially destructible; lives in TLS.
    */
   inline thread_local Sampler tl_sampler;
+
+  /**
+   * Production alloc-side fast-path entry (bundle tweak 2, ticket
+   * 86aj0jfwh).
+   *
+   * Called from `profile::record_alloc<Config>` in record.h.  The
+   * fast-path body lives in a free function so the compiler sees a
+   * pure namespace-TLS subtract + branch, with no `Sampler`-typed TLS
+   * lookup on the common path.  Slow path indirects through the
+   * thread-local `tl_sampler` and forwards into
+   * `Sampler::record_alloc_slow` via the existing member entry.
+   *
+   * Returns true iff the current allocation was sampled (in which
+   * case the caller may consult `tl_sampler.last_sample()` to obtain
+   * the published SampledAlloc*).
+   */
+  SNMALLOC_FAST_PATH_INLINE bool tl_record_alloc(
+    uintptr_t alloc_addr,
+    size_t requested_size,
+    size_t allocated_size) noexcept
+  {
+    // One TLS load + sub + store + branch on the common path.
+    bytes_until_sample -= static_cast<int64_t>(requested_size);
+    if (SNMALLOC_LIKELY(bytes_until_sample > 0))
+      return false;
+
+    // Slow path: enter the per-thread Sampler.  Pass the namespace TLS
+    // counter by reference; the Sampler runs its slow-path machinery
+    // and writes the freshly-drawn next interval back through the
+    // reference so the fast path resumes seamlessly.
+    return tl_sampler.record_alloc_from_namespace_tls(
+      alloc_addr, requested_size, allocated_size, bytes_until_sample);
+  }
 } // namespace snmalloc::profile

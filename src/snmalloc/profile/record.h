@@ -132,6 +132,57 @@ namespace snmalloc::profile
   }
 
   /**
+   * Dealloc-fast-path peek (bundle tweak 3, ticket 86aj0jfwh).
+   *
+   * Inlined at the H1 call site in `Allocator::dealloc` so the
+   * overwhelmingly common "this object was never sampled" case stays a
+   * load + branch with NO function call frame.  Returns true iff the
+   * caller has nothing to do (slot null, backing not installed, or
+   * profile not configured) and the rest of the hook can be skipped.
+   *
+   * Behaviour matches the prologue of `record_dealloc`:
+   *   - profile disabled (no provider in config): true (skip)
+   *   - null pointer: true (skip)
+   *   - pagemap entry not owned by frontend or backend-owned: true (skip)
+   *   - slab metadata missing: true (skip)
+   *   - lazy backing array not installed: true (skip)
+   *   - slot atomically observed null: true (skip)
+   *   - non-null slot: false (caller falls through to the full hook,
+   *     which acquires the re-entrancy guard, runs the CAS, removes
+   *     from the SampledList, and recycles the node)
+   *
+   * Force-inlined so the slab-metadata probe + atomic load land
+   * directly at the call site and the common branch needs no call.
+   */
+  template<typename Config>
+  SNMALLOC_FAST_PATH_INLINE bool record_dealloc_peek(void* p) noexcept
+  {
+    if constexpr (!config_has_profile_slot_v<Config>)
+    {
+      // No profile provider: the compiler erases the whole hook.
+      (void)p;
+      return true;
+    }
+    else
+    {
+      if (SNMALLOC_LIKELY(p == nullptr))
+        return true;
+
+      ProfileSlot* slot = find_profile_slot<Config>(p);
+      if (SNMALLOC_LIKELY(slot == nullptr))
+        return true;
+
+      // Relaxed load matches the peek already done inside the full
+      // `record_dealloc`; either we skip cleanly here or the full hook
+      // re-checks under the re-entrancy guard with a CAS.
+      if (SNMALLOC_LIKELY(slot->load(std::memory_order_relaxed) == nullptr))
+        return true;
+
+      return false;
+    }
+  }
+
+  /**
    * Clear a profile slot and recycle its sample, if any.
    *
    * Config-agnostic helper extracted from `record_dealloc` so the
@@ -366,12 +417,19 @@ namespace snmalloc::profile
       if (SNMALLOC_UNLIKELY(p == nullptr))
         return;
 
-      // Sampler::record_alloc has its own internal re-entrancy short-
-      // circuit, so we do not need an outer guard here.  The slow path
-      // inside the sampler builds a ReentrancyGuard before doing any
-      // payload work (NodePool acquire, stack walk, list push).
+      // Bundle tweak 2 (86aj0jfwh): the fast path operates on the
+      // namespace-scope `bytes_until_sample` TLS via `tl_record_alloc`,
+      // which inlines to a single TLS subtract + signed compare with
+      // no Sampler-typed TLS lookup on the common branch.  The slow
+      // path indirects through the per-thread `tl_sampler` and runs
+      // the existing bootstrap / weight / publish machinery.
+      //
+      // The sampler slow path has its own internal re-entrancy short-
+      // circuit, so we do not need an outer guard here.  It builds a
+      // ReentrancyGuard before doing any payload work (NodePool
+      // acquire, stack walk, list push).
       const uintptr_t addr = reinterpret_cast<uintptr_t>(p);
-      const bool fired = tl_sampler.record_alloc(addr, requested, allocated);
+      const bool fired = tl_record_alloc(addr, requested, allocated);
       if (SNMALLOC_LIKELY(!fired))
         return;
 
