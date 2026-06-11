@@ -7,7 +7,9 @@
 //!     expected sample count is `lambda = N * B / R`, with standard
 //!     deviation `sqrt(lambda)` (Poisson).  We assert observed count
 //!     stays inside a 6-sigma envelope and that
-//!     `sum(weight) ~= N * B` to within 5% -- the latter is the
+//!     `sum(weight)` stays inside the analogous 6-sigma envelope for
+//!     the unbiased-sum estimator (variance ~ N * B * R; see the
+//!     constants block below for the derivation).  The latter is the
 //!     core unbiased-estimator guarantee we ship to users.
 //!
 //! 2.  Correctness of [`HeapProfile::write_flamegraph`]: every line
@@ -68,7 +70,18 @@ const SIZE: usize = 64;
 ///
 /// And independently, the unbiased estimator
 ///   sum(weight) ~ N * SIZE = 6_400_000 bytes
-/// must hold to within 5%.
+/// must hold to within the analogous 6-sigma envelope.  The variance
+/// of the unbiased sum estimator under Poisson sampling at rate R is
+///   Var(sum_weight) ~ N * SIZE * R
+/// (each sample contributes a geometric-distributed weight of mean R
+/// and variance ~R^2; lambda = N*SIZE/R samples in expectation gives
+/// total variance lambda * R^2 = N*SIZE*R).  For the constants here:
+///   sigma_bytes  = sqrt(6_400_000 * 4096) ~= 161_951
+///   relative 1-sigma ~= 2.53% of expected, so a hard 5% bound is only
+///   ~1.97 sigma -- that's a one-in-twenty flake under CPU contention,
+///   which is exactly the failure mode tracked by 86aj0h83a.  Asserting
+///   against the derived 6-sigma envelope ([5_428_293, 7_371_707]) is
+///   both more rigorous and dramatically less flaky.
 ///
 /// On the feature-off build this test is a no-op.
 #[test]
@@ -127,14 +140,27 @@ fn accuracy_single_threaded() {
     // sizeclass scaling -- so the comparison against `N * SIZE` is
     // apples-to-apples regardless of which sizeclass the 64-byte
     // request lands in.
-    let expected_bytes = (N_PER_THREAD * SIZE) as u128;
-    let lo_bytes = (expected_bytes as f64 * 0.95) as u128;
-    let hi_bytes = (expected_bytes as f64 * 1.05) as u128;
+    //
+    // The bound is the 6-sigma envelope of the Poisson unbiased-sum
+    // estimator: Var(sum_weight) ~ N * SIZE * RATE (see the doc-comment
+    // above for the derivation).  This is the statistically honest
+    // bound for the chosen (N, SIZE, RATE); a hard percentage cap like
+    // 5% works out to only ~1.97 sigma at these constants and flakes
+    // under sibling cargo-test CPU contention (ticket 86aj0h83a).
+    let expected_bytes_f = (N_PER_THREAD * SIZE) as f64;
+    let sigma_bytes = (expected_bytes_f * RATE as f64).sqrt();
+    let lo_bytes_f = expected_bytes_f - 6.0 * sigma_bytes;
+    let hi_bytes_f = expected_bytes_f + 6.0 * sigma_bytes;
+    // Clamp the lower bound at 0 in case 6*sigma exceeds the mean for
+    // some future smaller-workload tuning -- u128 would wrap otherwise.
+    let lo_bytes: u128 = if lo_bytes_f < 0.0 { 0 } else { lo_bytes_f as u128 };
+    let hi_bytes: u128 = hi_bytes_f as u128;
+    let expected_bytes = expected_bytes_f as u128;
     assert!(
         observed_bytes >= lo_bytes && observed_bytes <= hi_bytes,
         "single-threaded: sum(weight) = {observed_bytes} bytes \
          (baseline {baseline_requested}), expected {expected_bytes} \
-         +/- 5%; window = [{lo_bytes}, {hi_bytes}]"
+         +/- 6 sigma ({sigma_bytes:.0}); window = [{lo_bytes}, {hi_bytes}]"
     );
 
     // Clean up.  Drains the global SampledList back toward empty so
