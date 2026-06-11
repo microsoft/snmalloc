@@ -19,6 +19,16 @@ snmalloc-sys = { version = "0.7.4", path = "snmalloc-sys", default-features = fa
 # dependency footprint -- backtrace transitively pulls in addr2line,
 # gimli, object, etc.
 backtrace = { version = "0.3", optional = true }
+# gzip codec used by `HeapProfile::write_pprof_gz` to emit `.pb.gz`-style
+# pprof streams (the format Pyroscope, Polar Signals, Speedscope, and
+# most cloud pprof importers expect).  Pulled in only by the
+# `profiling` feature so the default build stays free of `flate2` and
+# its `miniz_oxide` dependency.  See Cargo.toml `[features]` below for
+# the gate; we deliberately do NOT introduce a separate `pprof-gz`
+# feature -- gzipped pprof is the dominant on-the-wire encoding and
+# splitting it off would multiply the supported-feature matrix without
+# a meaningful payoff.
+flate2 = { version = "1", optional = true }
 
 # Dev-dependencies are only compiled for `cargo test` / `cargo bench` and
 # never become part of the published crate's transitive deps.  `inferno`
@@ -64,7 +74,7 @@ vendored-stl = ["snmalloc-sys/vendored-stl"]
 check-loads = ["snmalloc-sys/check-loads"]
 pageid = ["snmalloc-sys/pageid"]
 gwp-asan = ["snmalloc-sys/gwp-asan"]
-profiling = ["snmalloc-sys/profiling"]
+profiling = ["snmalloc-sys/profiling", "dep:flate2"]
 # Resolve raw frame addresses captured by the profiler into
 # function/file/line via the `backtrace` crate.  Compose with
 # `profiling` to get a symbolicated flamegraph stream from a live

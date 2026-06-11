@@ -496,10 +496,10 @@ impl HeapProfile {
     ///
     /// The output is **not gzipped**.  The pprof tooling accepts
     /// both encodings (`.pb` for uncompressed, `.pb.gz` for gzipped);
-    /// callers that need gzip can wrap the writer in
-    /// `flate2::GzEncoder` themselves, keeping this crate free of
-    /// the `flate2` dependency.  See `src/pprof.rs` for the
-    /// encoder-design rationale.
+    /// for the gzipped form -- which is what Pyroscope, Polar Signals
+    /// Cloud, Speedscope, and most cloud pprof importers expect on
+    /// the wire -- use [`HeapProfile::write_pprof_gz`].  See
+    /// `src/pprof.rs` for the encoder-design rationale.
     ///
     /// This call is total: it emits a valid (but tiny) Profile even
     /// on an empty snapshot -- including the profiling-feature-off
@@ -538,6 +538,86 @@ impl HeapProfile {
     /// ```
     pub fn write_pprof<W: io::Write>(&self, w: &mut W, weight: Weight) -> io::Result<()> {
         crate::pprof::write_pprof(self, weight, w)
+    }
+
+    /// Write the profile as a **gzip-wrapped** pprof Profile -- the
+    /// `.pb.gz` encoding accepted natively by
+    /// [Pyroscope](https://pyroscope.io/),
+    /// [Polar Signals Cloud](https://www.polarsignals.com/),
+    /// [Parca](https://www.parca.dev/),
+    /// [Speedscope](https://www.speedscope.app/), and the Datadog
+    /// continuous profiler as well as `go tool pprof`.
+    ///
+    /// Semantically equivalent to feeding the byte stream produced by
+    /// [`HeapProfile::write_pprof`] through `flate2::write::GzEncoder`:
+    /// the decoded payload is identical to the uncompressed pprof
+    /// output, including the two `sample_type` axes, the
+    /// `default_sample_type` hint, and the per-sample weight chosen by
+    /// the [`Weight`] argument.  Round-tripping
+    /// `write_pprof_gz(w, weight)` through `flate2::read::GzDecoder`
+    /// yields exactly the same bytes as `write_pprof(w, weight)`.
+    ///
+    /// This call is total: it emits a valid (small) gzip stream even
+    /// on an empty snapshot, matching the contract of
+    /// [`HeapProfile::write_pprof`].  The first two output bytes are
+    /// always the gzip magic `0x1f 0x8b`, so callers can content-sniff
+    /// without parsing.
+    ///
+    /// Only available with the `profiling` Cargo feature, which
+    /// transitively pulls in the `flate2` crate.  The rationale for
+    /// gating gzip on the same feature as the rest of the profiler --
+    /// rather than a dedicated `pprof-gz` -- is that gzipped pprof is
+    /// the dominant on-the-wire encoding for every supported consumer,
+    /// so adding a separate feature would multiply the build matrix
+    /// without a meaningful payoff.
+    ///
+    /// # Example
+    ///
+    /// Render a snapshot directly into a `.pb.gz` file ready to upload
+    /// to a continuous-profiler ingest endpoint:
+    ///
+    /// ```no_run
+    /// # #[cfg(feature = "profiling")]
+    /// # fn main() -> std::io::Result<()> {
+    /// use snmalloc_rs::{SnMalloc, Weight};
+    /// use std::fs::File;
+    ///
+    /// let allocator = SnMalloc::new();
+    /// let profile = allocator.snapshot();
+    ///
+    /// let mut f = File::create("heap.pb.gz")?;
+    /// profile.write_pprof_gz(&mut f, Weight::Allocated)?;
+    /// # Ok(())
+    /// # }
+    /// # #[cfg(not(feature = "profiling"))]
+    /// # fn main() {}
+    /// ```
+    #[cfg(feature = "profiling")]
+    pub fn write_pprof_gz<W: io::Write>(
+        &self,
+        w: &mut W,
+        weight: Weight,
+    ) -> io::Result<()> {
+        // Wrap the caller's writer in a GzEncoder, hand it to the
+        // uncompressed encoder, then `finish()` to flush the gzip
+        // trailer (without which `flate2::read::GzDecoder` and `gunzip`
+        // both reject the stream with "unexpected end of file").
+        // `Compression::default()` is level 6 -- the same default
+        // `gzip(1)` uses; if benchmarks ever show this is a bottleneck
+        // we can revisit, but for typical pprof sizes (tens to
+        // hundreds of KiB) the difference between level 1 and level 6
+        // is negligible compared to the encode-side protobuf work.
+        let mut encoder = flate2::write::GzEncoder::new(
+            w,
+            flate2::Compression::default(),
+        );
+        self.write_pprof(&mut encoder, weight)?;
+        // `finish()` writes the gzip footer + CRC.  Without this the
+        // output is a truncated gzip stream -- silently accepted by
+        // `Drop` (which calls `try_finish` and swallows errors) but
+        // rejected by every conformant decoder.
+        encoder.finish()?;
+        Ok(())
     }
 
     /// Resolve every unique frame address in this profile to
