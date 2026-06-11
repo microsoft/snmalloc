@@ -502,6 +502,46 @@ namespace snmalloc
       {
         auto meta = entry.get_slab_metadata();
 
+#ifdef SNMALLOC_PROFILE
+        /*
+         * H2 heap-profile hook (Phase 3.2).
+         *
+         * This is the remote-ingest fast path on the destination thread:
+         * an object (or, when `DEALLOC_BATCH_RINGS > 0`, a ring of
+         * objects) freed by another thread has been forwarded into this
+         * allocator's message queue, and `dealloc_local_objects_fast`
+         * below is about to splice it back onto the slab's local free
+         * queue.  Once that splice happens the pointer is once again
+         * indistinguishable from a same-thread free, and any per-object
+         * profile state attached to it will be silently reused on the
+         * next allocation -- so we must clear the profile slot here, on
+         * the destination thread, before the splice.
+         *
+         * Idempotence vs. H1:
+         *   - The source thread already called `Allocator::dealloc(p)`
+         *     for each `p` going through `free()`, which fires H1 and
+         *     clears the slot.  Hitting H2 a second time is safe: the
+         *     CAS inside `clear_profile_slot` short-circuits on a null
+         *     slot (see profile/record.h step 3).  The per-thread
+         *     ReentrancyGuard inside `record_dealloc` additionally
+         *     prevents transitive re-entry.
+         *
+         * Granularity:
+         *   - We hook the head of the ring (`msg`).  When
+         *     `DEALLOC_BATCH_RINGS == 0` (the SingletonRemoteMessage
+         *     build), each `handle_dealloc_remote` call carries exactly
+         *     one object and this catches it precisely.  When batched
+         *     rings are enabled, interior nodes have already passed
+         *     through H1 on the source thread; the hook's CAS keeps
+         *     the design correct even in the contrived case where a
+         *     pointer reaches H2 without ever having seen H1.
+         *
+         * Compiles to a no-op for configurations without a
+         * profile-enabled ClientMetaDataProvider.
+         */
+        profile::record_dealloc<Config>(msg.unsafe_ptr());
+#endif
+
         auto unreturned = dealloc_local_objects_fast(
           msg, entry, meta, entropy, domesticate, bytes_returned);
 
