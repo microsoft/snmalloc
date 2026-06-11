@@ -70,6 +70,50 @@ jobs:
     - name: Run tests
       run: cargo test ${{ matrix.release.flag }} --all ${{ matrix.features.args }}
 
+  # ============================================================================
+  # Heap-profiling feature build (Phase 7.5)
+  #
+  # Exercises the `profiling` cargo feature (which propagates
+  # SNMALLOC_PROFILE=ON to the C++ build via snmalloc-sys) on every push.
+  # Restricted to Linux + macOS because the profile code paths are validated
+  # there in the C++ matrix; Windows profile coverage can be added later if
+  # needed.
+  # ============================================================================
+  profiling:
+    runs-on: ${{ matrix.os }}
+    name: "profiling-${{ matrix.os }}-${{ matrix.release.name }}"
+    defaults:
+      run:
+        shell: bash
+        working-directory:
+          ./snmalloc-rs
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-14, macos-15]
+        rust: [stable]
+        release:
+          - name: release
+            flag: "--release"
+          - name: debug
+            flag: ""
+      fail-fast: false
+    steps:
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: update dependency
+      run: |
+        if bash -c 'uname -s | grep 'Linux' >/dev/null'; then
+          sudo apt-get update -y && sudo apt-get --reinstall install -y libc6-dev
+        fi
+      shell: bash
+    - name: Build (profiling)
+      run: cargo build ${{ matrix.release.flag }} --verbose --features profiling
+    - name: Run tests (profiling)
+      run: cargo test ${{ matrix.release.flag }} --all --features profiling
+
   publish-scan:
     runs-on: ubuntu-latest
     name: publish-scan
