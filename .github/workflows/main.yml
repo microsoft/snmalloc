@@ -517,6 +517,68 @@ jobs:
         ctest --parallel --output-on-failure
 
   # ============================================================================
+  # Profile + PGO (clang) — two-stage profile-guided optimization build
+  #
+  # Runs scripts/run-pgo-build.sh end-to-end: stage 1 builds an
+  # instrumented snmalloc + func-profile_overhead-fast, executes it to
+  # populate .profraw data, merges via llvm-profdata, and stage 2
+  # rebuilds with -fprofile-use=<merged.profdata>. The use-stage
+  # libsnmallocshim-rust.a is uploaded as a release artifact so
+  # downstream consumers (snmalloc-rs and friends) can pick up the
+  # PGO-optimized static archive on every push to main.
+  #
+  # macOS is intentionally skipped — the matrix has limited macOS
+  # minutes and the AppleClang/Xcode profraw format is pinned per OS
+  # image, which would force re-merge across runner upgrades. Run
+  # scripts/run-pgo-build.sh locally on macOS.
+  #
+  # LLVM 19 matches the COMPILER_RT_LLVM_VERSION env at the top of
+  # this file and the coverage.yml job, so llvm-profdata's raw-profile
+  # format is consistent across CI legs.
+  # ============================================================================
+  pgo:
+    name: Profile + PGO (clang)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install clang-19 + llvm-19 + ninja
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build clang-19 llvm-19
+    - name: Run two-stage PGO build
+      env:
+        # Route stage artifacts to absolute paths under the runner
+        # workspace so the upload-artifact step below can find them
+        # regardless of where the script's repo_root resolves to.
+        CC: clang-19
+        CXX: clang++-19
+        PGO_STAGE1_DIR: ${{ github.workspace }}/build-pgo-gen
+        PGO_STAGE2_DIR: ${{ github.workspace }}/build-pgo-use
+        PGO_PROFILE_DATA_DIR: ${{ github.workspace }}/build-pgo-gen/pgo-data
+        PGO_PROFILE_FILE: ${{ github.workspace }}/build-pgo-gen/pgo.profdata
+        # SNMALLOC_RUST_SUPPORT=ON materializes libsnmallocshim-rust.a
+        # under the use-stage build directory; that file is the
+        # uploaded artifact below. Use CMake-provided clang names so
+        # the configure step does not fall back to system gcc.
+        PGO_EXTRA_CMAKE_FLAGS: >-
+          -G Ninja
+          -DSNMALLOC_RUST_SUPPORT=ON
+          -DCMAKE_C_COMPILER=clang-19
+          -DCMAKE_CXX_COMPILER=clang++-19
+      run: scripts/run-pgo-build.sh
+    - name: Verify PGO artifact
+      run: |
+        ls -l "${{ github.workspace }}/build-pgo-use/libsnmallocshim-rust.a"
+    - name: Upload PGO artifact (libsnmallocshim-rust.a)
+      uses: actions/upload-artifact@v4
+      with:
+        name: pgo-libsnmallocshim-rust-linux-x64
+        path: ${{ github.workspace }}/build-pgo-use/libsnmallocshim-rust.a
+        if-no-files-found: error
+        retention-days: 14
+
+  # ============================================================================
   # vcpkg integration
   # ============================================================================
   vcpkg-integration:
@@ -601,6 +663,7 @@ jobs:
       qemu-crossbuild,
       windows,
       format,
+      pgo,
       vcpkg-integration
     ]
     runs-on: ubuntu-24.04

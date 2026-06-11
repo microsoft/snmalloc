@@ -403,12 +403,31 @@ profiling benches.
 
 ### CI
 
-PGO is **not** wired into CI in this change — running both stages
-plus a training workload roughly doubles the build matrix wall-clock,
-and the LLVM-version-pinning constraints make it brittle in the
-shared-runner environment. A follow-up ticket will land a separate
-opt-in job that runs the script and uploads the resulting binary as a
-release artifact.
+PGO **is** wired into CI as the `Profile + PGO (clang)` job in
+[`.github/workflows/main.yml`](../.github/workflows/main.yml).  On
+every push to `main` (and on pull-requests targeting `main`) the job
+runs `scripts/run-pgo-build.sh` end-to-end on `ubuntu-24.04` with
+`clang-19` / `llvm-19` pinned to match the rest of the LLVM-versioned
+CI legs (see the `COMPILER_RT_LLVM_VERSION` env at the top of
+`main.yml` and the coverage job in `.github/workflows/coverage.yml`).
+
+The use-stage `build-pgo-use/libsnmallocshim-rust.a` is uploaded as
+the `pgo-libsnmallocshim-rust-linux-x64` build artifact with a
+14-day retention, so downstream consumers can pick up the
+PGO-optimized static archive without re-running the two-stage build
+locally.
+
+The CI job forwards `PGO_STAGE1_DIR`, `PGO_STAGE2_DIR`,
+`PGO_PROFILE_DATA_DIR`, and `PGO_PROFILE_FILE` env vars into the
+script so the build directories live under `${{ github.workspace }}`
+where `actions/upload-artifact@v4` can find them; it also passes
+`PGO_EXTRA_CMAKE_FLAGS=-DSNMALLOC_RUST_SUPPORT=ON ...` so the rust
+shim target is materialized in the use stage.
+
+macOS PGO is **not** wired into CI — the matrix has limited macOS
+minutes and the AppleClang/Xcode `profraw` format is pinned per OS
+image, which would force re-merge across runner upgrades.  Run
+`scripts/run-pgo-build.sh` locally on macOS instead.
 
 ## LTO
 

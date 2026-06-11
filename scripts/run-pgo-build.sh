@@ -39,10 +39,19 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${here}/.." && pwd)"
 
-gen_build_dir="${repo_root}/build-pgo-gen"
-use_build_dir="${repo_root}/build-pgo-use"
-profile_data_dir="${repo_root}/build-pgo-gen/pgo-data"
-profile_merged_file="${repo_root}/build-pgo-gen/pgo.profdata"
+# Default directories. Environment variables (PGO_STAGE1_DIR,
+# PGO_STAGE2_DIR, PGO_PROFILE_FILE) override these so CI can route
+# artifacts to absolute paths under the runner workspace; CLI flags
+# override the env vars in turn.
+gen_build_dir="${PGO_STAGE1_DIR:-${repo_root}/build-pgo-gen}"
+use_build_dir="${PGO_STAGE2_DIR:-${repo_root}/build-pgo-use}"
+profile_data_dir="${PGO_PROFILE_DATA_DIR:-${gen_build_dir}/pgo-data}"
+profile_merged_file="${PGO_PROFILE_FILE:-${gen_build_dir}/pgo.profdata}"
+
+# Extra cmake flags forwarded to both stages. CI uses this to enable
+# SNMALLOC_RUST_SUPPORT=ON so the optimized libsnmallocshim-rust.a
+# falls out of the use-stage build for upload as a release artifact.
+extra_cmake_flags="${PGO_EXTRA_CMAKE_FLAGS:-}"
 
 usage() {
   cat <<EOF
@@ -64,6 +73,16 @@ Options:
 
 The script will detect whether CC/CXX point at clang or gcc and choose
 the right profile-merge path automatically. MSVC is not supported.
+
+Environment variables (used when the matching CLI flag is not passed):
+  PGO_STAGE1_DIR         Stage-1 (generate) build directory.
+  PGO_STAGE2_DIR         Stage-2 (use) build directory.
+  PGO_PROFILE_DATA_DIR   Directory for .profraw / .gcda data.
+  PGO_PROFILE_FILE       Merged .profdata file (clang only).
+  PGO_EXTRA_CMAKE_FLAGS  Extra flags appended to both cmake configure
+                         invocations (e.g. "-DSNMALLOC_RUST_SUPPORT=ON"
+                         to materialize the libsnmallocshim-rust.a
+                         release artifact under stage 2).
 EOF
 }
 
@@ -109,13 +128,15 @@ TRAINING_BINS=("func-profile_overhead-fast")
 
 run_stage1() {
   echo "[pgo] stage 1: configure (${gen_build_dir})"
+  # shellcheck disable=SC2086 # extra_cmake_flags is intentionally word-split
   cmake \
     -S "${repo_root}" \
     -B "${gen_build_dir}" \
     -DCMAKE_BUILD_TYPE=Release \
     -DSNMALLOC_PROFILE=ON \
     -DSNMALLOC_PROFILE_PGO=generate \
-    -DSNMALLOC_PGO_PROFILE_DIR="${profile_data_dir}"
+    -DSNMALLOC_PGO_PROFILE_DIR="${profile_data_dir}" \
+    ${extra_cmake_flags}
 
   echo "[pgo] stage 1: build"
   # Build every training binary plus snmalloc itself. We don't `--target
@@ -175,6 +196,7 @@ run_stage1() {
 
 run_stage2() {
   echo "[pgo] stage 2: configure (${use_build_dir})"
+  # shellcheck disable=SC2086 # extra_cmake_flags is intentionally word-split
   if [[ "${compiler_family}" = "clang" ]]; then
     cmake \
       -S "${repo_root}" \
@@ -182,7 +204,8 @@ run_stage2() {
       -DCMAKE_BUILD_TYPE=Release \
       -DSNMALLOC_PROFILE=ON \
       -DSNMALLOC_PROFILE_PGO=use \
-      -DSNMALLOC_PGO_PROFILE_FILE="${profile_merged_file}"
+      -DSNMALLOC_PGO_PROFILE_FILE="${profile_merged_file}" \
+      ${extra_cmake_flags}
   else
     cmake \
       -S "${repo_root}" \
@@ -190,7 +213,8 @@ run_stage2() {
       -DCMAKE_BUILD_TYPE=Release \
       -DSNMALLOC_PROFILE=ON \
       -DSNMALLOC_PROFILE_PGO=use \
-      -DSNMALLOC_PGO_PROFILE_DIR="${profile_data_dir}"
+      -DSNMALLOC_PGO_PROFILE_DIR="${profile_data_dir}" \
+      ${extra_cmake_flags}
   fi
 
   echo "[pgo] stage 2: build"
