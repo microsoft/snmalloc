@@ -43,6 +43,9 @@ use snmalloc_sys::SnRustProfileRawSample;
 
 use crate::SnMalloc;
 
+#[cfg(feature = "symbolicate")]
+use std::collections::HashMap;
+
 /// One sampled live allocation.
 ///
 /// Field layout intentionally mirrors the raw C struct
@@ -116,6 +119,47 @@ impl Default for Weight {
         Weight::Allocated
     }
 }
+
+/// One symbolicated stack frame: a raw code pointer paired with the
+/// best-effort function name, source file, and line number resolved
+/// from the host process's debug information.
+///
+/// All three text fields are `Option<...>` because the backtrace
+/// crate's `resolve_frame_unsynchronized` callback may legitimately
+/// report nothing for a frame (kernel/JIT/no-debug-info code, stripped
+/// binaries, ASLR-only loaded shared libraries, etc.).  Callers that
+/// want a graceful fallback to hex should pair this with the
+/// raw [`BtSample::stack`] -- [`HeapProfile::write_flamegraph_symbolized`]
+/// does so by emitting `0x..` when `name.is_none()`.
+///
+/// Only present when the `symbolicate` Cargo feature is enabled.  See
+/// [`HeapProfile::symbolize`].
+#[cfg(feature = "symbolicate")]
+#[derive(Clone, Debug, Default)]
+pub struct ResolvedFrame {
+    /// The raw code-pointer key this frame was resolved from.  Stable
+    /// inside one process lifetime and matches the values in
+    /// [`BtSample::stack`].
+    pub address: *const u8,
+    /// Demangled function name, e.g.
+    /// `snmalloc_rs::profile::HeapProfile::snapshot`.
+    /// `None` when the address falls in code without symbol info.
+    pub name: Option<String>,
+    /// Source file path, when known.
+    pub file: Option<String>,
+    /// 1-based source line, when known.
+    pub line: Option<u32>,
+}
+
+// SAFETY: ResolvedFrame carries a raw `*const u8` as an opaque
+// integer-typed identifier (never dereferenced).  The owned String
+// fields are themselves Send + Sync; the pointer is treated as a
+// value, not a reference, so it's safe to send the struct between
+// threads.
+#[cfg(feature = "symbolicate")]
+unsafe impl Send for ResolvedFrame {}
+#[cfg(feature = "symbolicate")]
+unsafe impl Sync for ResolvedFrame {}
 
 /// An owned snapshot of currently-live sampled allocations.
 ///
@@ -300,6 +344,216 @@ impl HeapProfile {
         }
         Ok(())
     }
+
+    /// Resolve every unique frame address in this profile to
+    /// best-effort function/file/line metadata.
+    ///
+    /// The returned [`HashMap`] is keyed by the raw `*const u8`
+    /// addresses that appear in [`BtSample::stack`], so callers can
+    /// look up a frame in O(1) when rendering their own flamegraph or
+    /// speedscope export.  Frames that the symbol backend cannot
+    /// resolve still appear in the map -- with `name`, `file`, and
+    /// `line` all `None` -- so the keyset is exactly the set of unique
+    /// frame addresses in the profile.
+    ///
+    /// This is a deliberately heavyweight operation: under the hood it
+    /// walks the host process's loaded debug info via the `backtrace`
+    /// crate, which on macOS / Linux / Windows means parsing DWARF or
+    /// PDB sections for every frame.  Call it once per snapshot, not
+    /// per render.
+    ///
+    /// Only available with the `symbolicate` Cargo feature; that
+    /// feature transitively pulls in the `backtrace` crate.  The
+    /// design rationale -- pay the dependency cost only when callers
+    /// opt in -- is documented in `Cargo.toml`.
+    ///
+    /// The output is a `HashMap`, not a `BTreeMap`, because callers
+    /// typically use it as a lookup table from raw frame addresses
+    /// (which are not meaningfully orderable) rather than iterating
+    /// in a sorted order.
+    #[cfg(feature = "symbolicate")]
+    pub fn symbolize(&self) -> HashMap<*const u8, ResolvedFrame> {
+        // Collect the set of unique frame addresses across the whole
+        // snapshot first.  A typical workload has thousands of samples
+        // but only hundreds of unique frames, and the backtrace
+        // resolver is the slow part -- visiting each address exactly
+        // once keeps `symbolize` roughly O(unique-frames), not
+        // O(samples * stack-depth).
+        let mut out: HashMap<*const u8, ResolvedFrame> = HashMap::new();
+        for s in &self.samples {
+            for &addr in &s.stack {
+                // `entry(...).or_insert_with(...)` would also work,
+                // but we want to avoid resolving the same address
+                // twice, including in the (rare) case where the
+                // address appears twice in the *same* stack (recursive
+                // call site).  A two-step contains/insert dance keeps
+                // the per-address resolve at one call.
+                if out.contains_key(&addr) {
+                    continue;
+                }
+                out.insert(addr, resolve_one(addr));
+            }
+        }
+        out
+    }
+
+    /// Same as [`HeapProfile::write_flamegraph`], but emits resolved
+    /// frame names (when available) instead of raw hex code pointers.
+    ///
+    /// For each frame:
+    ///
+    /// - if the symbolicator returned a non-`None` `name`, that name
+    ///   is emitted verbatim.  Source-file and line information is
+    ///   intentionally **not** appended -- the folded format is
+    ///   ambiguous if frame strings contain spaces or `;` characters,
+    ///   and most flamegraph viewers truncate the function name to
+    ///   the part before the first space anyway.  Callers who want
+    ///   richer metadata should call [`HeapProfile::symbolize`]
+    ///   directly and render via a format that supports it (e.g.
+    ///   speedscope JSON).
+    /// - otherwise the frame falls back to the same
+    ///   `0x` + 16-hex-digits rendering as [`HeapProfile::write_flamegraph`].
+    ///
+    /// Frame names are sanitised: any `;` or space character in a
+    /// resolved name is replaced with `_`, since both characters are
+    /// reserved separators in the folded format.  Without this, a
+    /// resolved name containing `";"` would split a single frame into
+    /// two on the consumer side.
+    ///
+    /// The output is sorted lexicographically by the rendered stack
+    /// key, the same way [`HeapProfile::write_flamegraph`] sorts.
+    /// Two samples with identical *resolved* stacks (which may differ
+    /// in raw address -- e.g. inlining can produce distinct addresses
+    /// that resolve to the same function) collapse to one folded
+    /// line, with their weights summed.  The total weight emitted is
+    /// therefore identical to [`HeapProfile::write_flamegraph`]'s
+    /// total under the [`Weight::Allocated`] projection.
+    ///
+    /// Only available with the `symbolicate` Cargo feature.
+    #[cfg(feature = "symbolicate")]
+    pub fn write_flamegraph_symbolized<W: io::Write>(
+        &self,
+        w: &mut W,
+    ) -> io::Result<()> {
+        let resolved = self.symbolize();
+        let mut folded: BTreeMap<String, u128> = BTreeMap::new();
+        for s in &self.samples {
+            let key = render_stack_key_symbolized(&s.stack, &resolved);
+            let contribution = Self::sample_weight(s, Weight::Allocated);
+            let entry = folded.entry(key).or_insert(0);
+            *entry = entry.saturating_add(contribution);
+        }
+        for (stack, total) in &folded {
+            writeln!(w, "{} {}", stack, total)?;
+        }
+        Ok(())
+    }
+}
+
+/// Resolve a single frame address via the `backtrace` crate.  Returns
+/// a [`ResolvedFrame`] with whatever metadata the symbol backend
+/// supplied; absent fields stay `None`.
+///
+/// Some frames yield more than one [`backtrace::Symbol`] (typically
+/// inlined functions).  We prefer the first symbol with a non-empty
+/// name -- the outermost / "physical" function -- because that's the
+/// one whose address actually matches the frame.  Inlined-function
+/// details are useful for higher-fidelity tooling (speedscope JSON,
+/// pprof) but would inflate a folded-stack line into something
+/// ambiguous to the consumer.
+#[cfg(feature = "symbolicate")]
+fn resolve_one(addr: *const u8) -> ResolvedFrame {
+    let mut frame = ResolvedFrame {
+        address: addr,
+        name: None,
+        file: None,
+        line: None,
+    };
+    // SAFETY: `resolve_unsynchronized` documents that it is unsafe
+    // because it touches process-global symbolicator state without an
+    // internal lock.  In practice our callers (`symbolize`) are
+    // already single-threaded over their own `HeapProfile`, and the
+    // backtrace crate's documented contract is satisfied for typical
+    // application-level use.  We use the synchronised entry point
+    // (`resolve`) instead so we don't need to enforce that contract
+    // ourselves.
+    backtrace::resolve(addr as *mut core::ffi::c_void, |sym| {
+        // Only the first non-empty name wins; later inlined-frame
+        // symbols are discarded (see function-level comment).
+        if frame.name.is_none() {
+            if let Some(name) = sym.name() {
+                let demangled = alloc::format!("{}", name);
+                if !demangled.is_empty() {
+                    frame.name = Some(demangled);
+                }
+            }
+        }
+        if frame.file.is_none() {
+            if let Some(path) = sym.filename() {
+                if let Some(s) = path.to_str() {
+                    frame.file = Some(String::from(s));
+                }
+            }
+        }
+        if frame.line.is_none() {
+            if let Some(line) = sym.lineno() {
+                frame.line = Some(line);
+            }
+        }
+    });
+    frame
+}
+
+/// Render a [`BtSample::stack`] as the root-first, `;`-joined key
+/// used in the folded format -- with resolved frame names substituted
+/// in wherever the symbolicator produced a non-`None` name.
+///
+/// Frames with no resolved name fall back to the same `0x` +
+/// 16-hex-digit rendering used by [`render_stack_key`], so the
+/// output is always non-empty for a non-empty stack.
+///
+/// Frame names are sanitised to keep the folded format
+/// unambiguous: any `;` or space in a resolved name is replaced with
+/// `_`.  Real-world Rust symbol names don't contain either character,
+/// but symbols from `extern "C"` libraries or hand-crafted assembly
+/// occasionally do, and a stray `;` would silently corrupt a single
+/// frame into two on the consumer side.
+#[cfg(feature = "symbolicate")]
+fn render_stack_key_symbolized(
+    stack: &[*const u8],
+    resolved: &HashMap<*const u8, ResolvedFrame>,
+) -> String {
+    // Same pre-sizing rationale as render_stack_key: ~19 bytes per
+    // hex frame plus a separator.  Symbolicated frames are wider on
+    // average, but pre-sizing for the hex floor still cuts the number
+    // of reallocations.
+    let mut key = String::with_capacity(stack.len().saturating_mul(19));
+    for (i, frame) in stack.iter().rev().enumerate() {
+        if i > 0 {
+            key.push(';');
+        }
+        let resolved_name = resolved
+            .get(frame)
+            .and_then(|r| r.name.as_deref());
+        match resolved_name {
+            Some(name) => {
+                for ch in name.chars() {
+                    // Reserved separators of the folded format.
+                    if ch == ';' || ch == ' ' {
+                        key.push('_');
+                    } else {
+                        key.push(ch);
+                    }
+                }
+            }
+            None => {
+                let addr = *frame as usize;
+                write!(&mut key, "0x{:016x}", addr)
+                    .expect("writing to String is infallible");
+            }
+        }
+    }
+    key
 }
 
 /// Render one [`BtSample::stack`] as the root-first, `;`-joined
@@ -750,5 +1004,146 @@ mod tests {
     #[test]
     fn weight_default_is_allocated() {
         assert_eq!(Weight::default(), Weight::Allocated);
+    }
+
+    /// A uniquely-named, deliberately non-inlined function that
+    /// captures a real return-address backtrace at its own call
+    /// site.  Returning the frames lets the test resolve them
+    /// without relying on a `fn` -> code-pointer cast (which on
+    /// macOS arm64 returns a stub address that resolves to the
+    /// nearest neighbouring symbol, not the function body itself).
+    #[cfg(feature = "symbolicate")]
+    #[inline(never)]
+    fn snmalloc_rs_phase_4_4_symbolize_probe() -> std::vec::Vec<*const u8> {
+        let mut frames: std::vec::Vec<*const u8> = std::vec::Vec::new();
+        backtrace::trace(|frame| {
+            // `ip()` is the instruction pointer of the call site --
+            // i.e. an address inside this probe function or its
+            // callers.  Recording all of them gives the test a
+            // robust signal: at least one frame must resolve back
+            // to the probe's own demangled name.
+            frames.push(frame.ip() as *const u8);
+            true
+        });
+        frames
+    }
+
+    /// `symbolize` resolves a real call-site return address to a
+    /// name containing the enclosing function's identifier.  This
+    /// is the fundamental smoke test for the symbol backend: if it
+    /// fails, no other symbolicator code can possibly work.
+    ///
+    /// We deliberately capture a live backtrace inside a uniquely-
+    /// named function rather than casting a `fn` item to a pointer.
+    /// On macOS arm64 in particular, `fn` items lower to a thunk
+    /// whose address is *between* two functions in the linker map,
+    /// and the symbolicator legitimately reports the neighbour.
+    #[cfg(feature = "symbolicate")]
+    #[test]
+    fn symbolize_resolves_known_function_name() {
+        let frames = snmalloc_rs_phase_4_4_symbolize_probe();
+        assert!(!frames.is_empty(), "backtrace::trace returned no frames");
+        let sample = BtSample {
+            alloc_ptr: core::ptr::null(),
+            requested_size: 1,
+            allocated_size: 1,
+            weight: 1,
+            stack: frames.clone(),
+        };
+        let p = HeapProfile::from_samples(vec![sample]);
+        let resolved = p.symbolize();
+        // At least one resolved frame must mention the probe's
+        // identifier.  The exact frame index isn't fixed -- inlining
+        // of `backtrace::trace`'s own machinery can vary -- but the
+        // probe *itself* is `#[inline(never)]` so it always appears.
+        let any_match = frames.iter().any(|addr| {
+            resolved
+                .get(addr)
+                .and_then(|r| r.name.as_deref())
+                .map(|name| name.contains("snmalloc_rs_phase_4_4_symbolize_probe"))
+                .unwrap_or(false)
+        });
+        assert!(
+            any_match,
+            "no resolved frame contained the probe identifier; \
+             resolved names: {:?}",
+            resolved
+                .values()
+                .filter_map(|r| r.name.as_deref())
+                .collect::<std::vec::Vec<_>>()
+        );
+    }
+
+    /// `symbolize` on an empty profile is a no-op that returns an
+    /// empty map.  This is the contract that lets callers invoke it
+    /// unconditionally on the profiling-feature-off build.
+    #[cfg(feature = "symbolicate")]
+    #[test]
+    fn symbolize_empty_profile_is_empty_map() {
+        let p = HeapProfile::default();
+        let resolved = p.symbolize();
+        assert!(resolved.is_empty());
+    }
+
+    /// Unresolved frames still appear in the map -- with all metadata
+    /// `None`.  This keeps the keyset invariant (every unique frame
+    /// in the snapshot is a key) easy to rely on at the call site.
+    #[cfg(feature = "symbolicate")]
+    #[test]
+    fn symbolize_unresolved_frame_has_none_fields() {
+        // A pointer that is extremely unlikely to land in any loaded
+        // executable's text segment.  Even with ASLR maxed out, the
+        // bottom-of-virtual-address-space pages aren't backed by
+        // code.
+        let addr: *const u8 = 0x1usize as *const u8;
+        let sample = BtSample {
+            alloc_ptr: core::ptr::null(),
+            requested_size: 1,
+            allocated_size: 1,
+            weight: 1,
+            stack: vec![addr],
+        };
+        let p = HeapProfile::from_samples(vec![sample]);
+        let resolved = p.symbolize();
+        let frame = resolved.get(&addr).expect("address should be in the map");
+        assert!(frame.name.is_none());
+        assert!(frame.file.is_none());
+        assert!(frame.line.is_none());
+        assert_eq!(frame.address, addr);
+    }
+
+    /// `write_flamegraph_symbolized` falls back to the hex rendering
+    /// for frames whose name does not resolve.  Combined with the
+    /// above tests, this proves the renderer is total over arbitrary
+    /// frame addresses.
+    #[cfg(feature = "symbolicate")]
+    #[test]
+    fn flamegraph_symbolized_falls_back_to_hex() {
+        let addr: *const u8 = 0xabcdusize as *const u8;
+        let p = HeapProfile::from_samples(vec![BtSample {
+            alloc_ptr: core::ptr::null(),
+            requested_size: 64,
+            allocated_size: 64,
+            weight: 4096,
+            stack: vec![addr],
+        }]);
+        let mut out: std::vec::Vec<u8> = std::vec::Vec::new();
+        p.write_flamegraph_symbolized(&mut out).unwrap();
+        let text = std::string::String::from_utf8(out).unwrap();
+        let lines: std::vec::Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0], "0x000000000000abcd 4096");
+    }
+
+    /// `write_flamegraph_symbolized` on an empty profile writes
+    /// nothing and reports success -- same contract as
+    /// `write_flamegraph`.
+    #[cfg(feature = "symbolicate")]
+    #[test]
+    fn flamegraph_symbolized_empty_profile_is_noop() {
+        let p = HeapProfile::default();
+        let mut out: std::vec::Vec<u8> = std::vec::Vec::new();
+        p.write_flamegraph_symbolized(&mut out).unwrap();
+        assert!(out.is_empty());
     }
 }
