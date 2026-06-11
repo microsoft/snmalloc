@@ -29,6 +29,7 @@
 #include "sampled_list.h"
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 
 #include <cmath>
@@ -38,6 +39,18 @@
 #    include <intrin.h>
 #  else
 #    include <x86intrin.h>
+#  endif
+#endif
+
+// Phase 7.1: cache-line width used for `SamplerHotState` alignment so the
+// per-thread fast-path counter does not false-share with neighbouring data.
+// Apple Silicon (and other 64-bit ARM platforms shipped by Apple) uses a
+// 128-byte L1 line; everything else we care about today is 64 bytes.
+#ifndef SNMALLOC_CACHE_LINE_SIZE
+#  if defined(__APPLE__) && defined(__aarch64__)
+#    define SNMALLOC_CACHE_LINE_SIZE 128
+#  else
+#    define SNMALLOC_CACHE_LINE_SIZE 64
 #  endif
 #endif
 
@@ -128,8 +141,10 @@ namespace snmalloc::profile
       if (SNMALLOC_UNLIKELY(sampler_reentered()))
         return false;
 
-      bytes_until_sample_ -= static_cast<int64_t>(requested_size);
-      if (SNMALLOC_LIKELY(bytes_until_sample_ > 0))
+      hot_.bytes_until_sample -= static_cast<int64_t>(requested_size);
+      // Fast-path stays in branch-predictor's favour: the vast majority of
+      // allocations don't fire a sample (default 1-in-512KiB).
+      if (SNMALLOC_LIKELY(hot_.bytes_until_sample > 0))
       {
         last_sample_ = nullptr;
         return false;
@@ -172,7 +187,7 @@ namespace snmalloc::profile
      */
     [[nodiscard]] int64_t debug_bytes_until_sample() const noexcept
     {
-      return bytes_until_sample_;
+      return hot_.bytes_until_sample;
     }
 
     [[nodiscard]] bool debug_initialized() const noexcept
@@ -208,7 +223,7 @@ namespace snmalloc::profile
       {
         // Sampling disabled. Keep the counter parked far in the future so
         // the fast path keeps returning false without re-entering here.
-        bytes_until_sample_ = INT64_MAX / 2;
+        hot_.bytes_until_sample = INT64_MAX / 2;
         initialized_ = true;
         last_sample_ = nullptr;
         return false;
@@ -221,10 +236,10 @@ namespace snmalloc::profile
         // allocation -- that would reintroduce the same bias from the
         // other direction.
         seed_prng_if_needed();
-        bytes_until_sample_ = draw_exponential(rate, prng_step())
+        hot_.bytes_until_sample = draw_exponential(rate, prng_step())
           - static_cast<int64_t>(requested_size);
         initialized_ = true;
-        if (bytes_until_sample_ > 0)
+        if (hot_.bytes_until_sample > 0)
         {
           last_sample_ = nullptr;
           return false;
@@ -234,15 +249,15 @@ namespace snmalloc::profile
       }
 
       // Compute weight in bytes of request *before* updating the counter.
-      // bytes_until_sample_ here is <= 0 (overshoot).
-      // weight = rate + requested_size + (-bytes_until_sample_)
-      //        = rate - bytes_until_sample_ + requested_size
-      weight_ =
-        rate - static_cast<int64_t>(bytes_until_sample_) + requested_size;
+      // hot_.bytes_until_sample here is <= 0 (overshoot).
+      // weight = rate + requested_size + (-hot_.bytes_until_sample)
+      //        = rate - hot_.bytes_until_sample + requested_size
+      weight_ = rate -
+        static_cast<int64_t>(hot_.bytes_until_sample) + requested_size;
       interval_at_capture_ = rate;
 
       // Reset the countdown by drawing the next interval.
-      bytes_until_sample_ += draw_exponential(rate, prng_step());
+      hot_.bytes_until_sample += draw_exponential(rate, prng_step());
 
       // Now the fun part: claim a node, capture a stack, publish on the
       // global list. Wrap in ReentrancyGuard so any transitive allocator
@@ -371,9 +386,36 @@ namespace snmalloc::profile
       return reinterpret_cast<uintptr_t>(&tid_anchor);
     }
 
+  public:
+    // ---- layout-exposed types (public for Phase 7.3 offset asserts) -----
+    //
+    // Phase 7.1: pull the per-thread fast-path counter into a dedicated
+    // cache-line-aligned struct, with `bytes_until_sample` as the first
+    // member.  Cache-line aligned so concurrent dealloc clears on the same
+    // thread don't false-share with the sampler hot path.
+    struct alignas(SNMALLOC_CACHE_LINE_SIZE) SamplerHotState
+    {
+      int64_t bytes_until_sample{0};
+    };
+
+    /// Phase 7.3 layout check: the hot counter is the first member of the
+    /// hot state struct (offset 0 within the cache-aligned region).
+    static constexpr size_t kBytesUntilSampleOffset =
+      offsetof(SamplerHotState, bytes_until_sample);
+    static_assert(
+      kBytesUntilSampleOffset == 0,
+      "Phase 7.1/7.3: bytes_until_sample must be the first member of "
+      "SamplerHotState so it sits at offset 0 of the cache-aligned region");
+
+  private:
     // ---- state ----------------------------------------------------------
+    //
+    // `hot_` is intentionally the first member of Sampler: when the TLS
+    // sampler is itself cache-aligned (alignas(SamplerHotState) is
+    // inherited via the SamplerHotState member), the hot counter lives in
+    // its own cache line distinct from any colder Sampler state below.
+    SamplerHotState hot_{};
     uint64_t s_[4]{0, 0, 0, 0};
-    int64_t bytes_until_sample_{0};
     uint64_t weight_{0};
     uint64_t interval_at_capture_{0};
     SampledAlloc* last_sample_{nullptr};
