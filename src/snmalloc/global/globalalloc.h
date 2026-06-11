@@ -3,6 +3,14 @@
 #include "../mem/mem.h"
 #include "threadalloc.h"
 
+#ifdef SNMALLOC_PROFILE
+// A1 alloc-side hook lives in profile/record.h.  Already pulled in via
+// backend_helpers.h, but we re-include here so that any TU that
+// instantiates one of the wrappers below picks up the template
+// definition at the point of use.
+#  include "../profile/record.h"
+#endif
+
 namespace snmalloc
 {
   template<SNMALLOC_CONCEPT(IsConfig) Config_ = Config>
@@ -331,24 +339,47 @@ namespace snmalloc
   SNMALLOC_FAST_PATH_INLINE void* alloc()
   {
     constexpr size_t sz = aligned_size(align, size);
+    void* p;
     if constexpr (is_small_sizeclass(sz))
     {
       constexpr auto sc = size_to_sizeclass_const(sz);
-      return ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(
-        sc);
+      p = ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(sc);
     }
     else
     {
-      return ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(
-        sz);
+      p = ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(sz);
     }
+#ifdef SNMALLOC_PROFILE
+    // A1 heap-profile hook (Phase 3.3).
+    //
+    // This is the alloc-side counterpart to the H1 dealloc hook in
+    // corealloc.h.  All variable-size and compile-time-size public alloc
+    // entry points -- malloc/calloc/realloc, operator new, jemalloc and
+    // Rust shims, BSD valloc/pvalloc, NetBSD reallocarr -- funnel through
+    // the three wrappers in this file (alloc, alloc(smallsizeclass_t),
+    // alloc_aligned), so one hook per wrapper covers them all.
+    //
+    // Runs AFTER the inner alloc so we have a real pointer to install
+    // into the per-object profile slot, and so the pagemap's sizeclass
+    // entry is up to date when the hook walks it.
+    //
+    // Compiles to a no-op when the default Config (NoClientMetaDataProvider)
+    // is selected; only profile-enabled configs pay the fast-path tick.
+    profile::record_alloc<Config>(p, sz, sz);
+#endif
+    return p;
   }
 
   template<typename Conts = Uninit, size_t align = 1>
   SNMALLOC_FAST_PATH_INLINE void* alloc(size_t size)
   {
-    return ThreadAlloc::get().alloc<Conts, ThreadAlloc::CheckInit>(
-      aligned_size(align, size));
+    const size_t sz = aligned_size(align, size);
+    void* p =
+      ThreadAlloc::get().alloc<Conts, ThreadAlloc::CheckInit>(sz);
+#ifdef SNMALLOC_PROFILE
+    profile::record_alloc<Config>(p, size, sz);
+#endif
+    return p;
   }
 
   /**
@@ -358,15 +389,25 @@ namespace snmalloc
   template<typename Conts = Uninit>
   SNMALLOC_FAST_PATH_INLINE void* alloc(smallsizeclass_t sizeclass)
   {
-    return ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(
-      sizeclass);
+    void* p =
+      ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(
+        sizeclass);
+#ifdef SNMALLOC_PROFILE
+    const size_t sz = sizeclass_to_size(sizeclass);
+    profile::record_alloc<Config>(p, sz, sz);
+#endif
+    return p;
   }
 
   template<typename Conts = Uninit>
   SNMALLOC_FAST_PATH_INLINE void* alloc_aligned(size_t align, size_t size)
   {
-    return ThreadAlloc::get().alloc<Conts, ThreadAlloc::CheckInit>(
-      aligned_size(align, size));
+    const size_t sz = aligned_size(align, size);
+    void* p = ThreadAlloc::get().alloc<Conts, ThreadAlloc::CheckInit>(sz);
+#ifdef SNMALLOC_PROFILE
+    profile::record_alloc<Config>(p, size, sz);
+#endif
+    return p;
   }
 
   SNMALLOC_API void dealloc(void* p)

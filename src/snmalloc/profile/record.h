@@ -233,27 +233,171 @@ namespace snmalloc::profile
   }
 
   /**
-   * record_alloc -- A1 hook body.  Phase 3.3 wires this up; in Phase 3.1
-   * it is a stub so the header surface is stable.  The intended signature
-   * is `record_alloc<Config>(ptr, requested_size, allocated_size)`; we
-   * leave the parameter list narrow for now since no caller exists.
+   * Look up the per-object profile slot for `p`, installing the lazy
+   * backing array on first sight.  Alloc-side counterpart to
+   * `find_profile_slot`: the alloc hook is the one place we are allowed
+   * (and required) to force the backing into existence -- the dealloc
+   * side must never do so.
    *
-   * When invoked it must:
-   *   1. Tick the per-thread Sampler with `requested_size`.
-   *   2. On a sample fire: acquire a NodePool node, capture the stack,
-   *      populate the SampledAlloc, publish it on the SampledList, and
-   *      install it in the per-object profile slot for `p` (forcing the
-   *      lazy backing to materialise via ClientMeta::get).
+   * Returns nullptr when the pagemap entry is not owned by the frontend
+   * or the slab metadata is missing.  On any other path we return a
+   * valid slot pointer.
    *
-   * Until Phase 3.3 this is intentionally a no-op so corealloc.h's H1
-   * hook compiles in isolation.
+   * Goes directly to `LazyArrayClientMetaDataProvider::install` (which
+   * uses the PAL, not the host allocator) so this never re-enters
+   * snmalloc::alloc from inside an allocation path.
+   */
+  template<typename Config>
+  SNMALLOC_FAST_PATH_INLINE ProfileSlot*
+  find_or_install_profile_slot(void* p) noexcept
+  {
+    static_assert(
+      config_has_profile_slot_v<Config>,
+      "find_or_install_profile_slot requires a "
+      "LazyArrayClientMetaDataProvider<ProfileSlot> config; gate callers "
+      "on config_has_profile_slot_v");
+
+    using ClientMeta = typename Config::ClientMeta;
+    using Storage = typename ClientMeta::StorageType;
+
+    const auto& entry =
+      Config::Backend::template get_metaentry<true>(address_cast(p));
+
+    if (SNMALLOC_UNLIKELY(!entry.is_owned()))
+      return nullptr;
+    if (SNMALLOC_UNLIKELY(entry.is_backend_owned()))
+      return nullptr;
+
+    auto* meta = entry.get_slab_metadata();
+    if (SNMALLOC_UNLIKELY(meta == nullptr))
+      return nullptr;
+
+    auto sc = entry.get_sizeclass();
+    const bool is_small = sc.is_small();
+    const size_t index = is_small ? slab_index(sc, address_cast(p)) : 0;
+    // For small slabs we need the full per-slab object count to size the
+    // lazily-installed backing array; for large allocations the slab
+    // hosts a single object and we install a one-slot array.
+    const size_t slab_object_count =
+      is_small ? sizeclass_to_slab_object_count(sc.as_small()) : 1;
+
+    Storage* storage = &meta->client_meta_;
+    ProfileSlot* backing = storage->backing.load(std::memory_order_acquire);
+    if (SNMALLOC_UNLIKELY(backing == nullptr))
+    {
+      // Force lazy install via the PAL.  May return nullptr on PAL
+      // failure (out of address space); the caller treats that the same
+      // as a pool drop and silently skips the sample.
+      backing = ClientMeta::install(storage, slab_object_count);
+      if (SNMALLOC_UNLIKELY(backing == nullptr))
+        return nullptr;
+    }
+    return &backing[index];
+  }
+
+  /**
+   * record_alloc -- A1 hook body.
+   *
+   * Called from the user-facing `snmalloc::alloc(size_t)` chokepoint in
+   * global/globalalloc.h (and its `alloc_aligned` sibling) for every
+   * successful allocation.  When sampling fires it installs the
+   * SampledAlloc into the per-object profile slot so the H1 dealloc
+   * hook can find it again.
+   *
+   * Steps:
+   *   1. Compile-time bail when the config has no profile provider.
+   *   2. Runtime bail on null pointer or active ReentrancyGuard.
+   *   3. Tick the per-thread Sampler.  Sampler's slow path acquires the
+   *      node, captures the stack, fills payload, and publishes to the
+   *      SampledList -- so on return we already have a Live node on the
+   *      global list whose `alloc_addr` matches `p`.
+   *   4. Install the node into the per-object profile slot.  If the
+   *      slot lookup fails (no slab metadata; pagemap not owned), the
+   *      sample is left on the list but with no slot; the matching
+   *      dealloc will see a nullptr slot and skip cleanup, leaving the
+   *      sample as a leak that the snapshot reader can still observe.
+   *      In practice this never happens: the pointer just came out of
+   *      snmalloc's own alloc path.
+   *   5. CAS the node into the slot.  On CAS-failure (a concurrent
+   *      cross-thread free already cleared the slot from the dealloc
+   *      side -- astronomically rare since the alloc has not yet
+   *      returned), tombstone the sample and return it to the pool.
+   *
+   * Constraints satisfied:
+   *   - Zero cost when profile config not selected: compile-time branch.
+   *   - Re-entrancy safe: the Sampler's own ReentrancyGuard scope wraps
+   *     the slow path; this hook adds nothing on the fast path.
+   *   - Never re-enters snmalloc::alloc: lazy install uses the PAL
+   *     directly; the Sampler's stack-walk + NodePool also use the PAL.
    */
   template<typename Config>
   SNMALLOC_FAST_PATH_INLINE void
   record_alloc(void* p, size_t requested, size_t allocated) noexcept
   {
-    (void)p;
-    (void)requested;
-    (void)allocated;
+    if constexpr (!config_has_profile_slot_v<Config>)
+    {
+      // Fast path: no profile provider means no slot to populate.  The
+      // compiler erases this call entirely.
+      (void)p;
+      (void)requested;
+      (void)allocated;
+      return;
+    }
+    else
+    {
+      if (SNMALLOC_UNLIKELY(p == nullptr))
+        return;
+
+      // Sampler::record_alloc has its own internal re-entrancy short-
+      // circuit, so we do not need an outer guard here.  The slow path
+      // inside the sampler builds a ReentrancyGuard before doing any
+      // payload work (NodePool acquire, stack walk, list push).
+      const uintptr_t addr = reinterpret_cast<uintptr_t>(p);
+      const bool fired = tl_sampler.record_alloc(addr, requested, allocated);
+      if (SNMALLOC_LIKELY(!fired))
+        return;
+
+      SampledAlloc* node = tl_sampler.last_sample();
+      if (node == nullptr)
+      {
+        // Sample fired logically but pool exhausted (or sampler
+        // re-entered).  Nothing to install.
+        return;
+      }
+
+      // Locate (and lazily materialise) the per-object profile slot.
+      // The Sampler is not on its slow path here -- it has returned --
+      // so any nested allocation triggered by the PAL install would
+      // re-enter `record_alloc` and either fast-path out or, on a sample,
+      // recurse exactly one level.  Re-entry is bounded by the
+      // ReentrancyGuard owned by the Sampler slow path; outside of that
+      // we tolerate one level of nesting from PAL-side install.
+      ProfileSlot* slot = find_or_install_profile_slot<Config>(p);
+      if (SNMALLOC_UNLIKELY(slot == nullptr))
+      {
+        // Could not stash the back-pointer.  The sample is on the list
+        // but unreachable from the dealloc side; recycle it now to
+        // avoid a permanent pool leak.
+        SamplerGlobals::list().remove(node);
+        SamplerGlobals::pool().release(node);
+        return;
+      }
+
+      // CAS the node into the slot.  Expected = nullptr.  On race-loss
+      // a concurrent free is already trying to clear this slot for us,
+      // which is impossible given `p` has not yet been returned to the
+      // caller -- defensive code only.
+      SampledAlloc* expected = nullptr;
+      if (SNMALLOC_UNLIKELY(!slot->compare_exchange_strong(
+            expected,
+            node,
+            std::memory_order_release,
+            std::memory_order_relaxed)))
+      {
+        // Lost the race: tombstone and recycle.
+        SamplerGlobals::list().remove(node);
+        SamplerGlobals::pool().release(node);
+      }
+    }
   }
 } // namespace snmalloc::profile
