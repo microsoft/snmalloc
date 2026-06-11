@@ -3,6 +3,12 @@
 
 use core::ffi::c_void;
 
+/// Stack-frame depth captured per sampled allocation.  Must match
+/// `SNMALLOC_PROFILE_STACK_FRAMES` in `src/snmalloc/override/rust_profile.h`
+/// (default 32).  Both ends use the same constant so the `SnRustProfileRawSample`
+/// layout is bit-for-bit identical across the FFI boundary.
+pub const SN_RUST_PROFILE_STACK_FRAMES: usize = 32;
+
 extern "C" {
     /// Allocate the memory with the given alignment and size.
     /// On success, it returns a pointer pointing to the required memory address.
@@ -80,6 +86,74 @@ extern "C" {
     
 }
 
+/// One sampled allocation, mirrored bit-for-bit from
+/// `struct SnRustProfileRawSample` in `src/snmalloc/override/rust_profile.h`.
+///
+/// `repr(C)` keeps the layout pinned to the C side; the inline stack array
+/// is sized by `SN_RUST_PROFILE_STACK_FRAMES`, which must stay in lockstep
+/// with the C `SNMALLOC_PROFILE_STACK_FRAMES` macro.  When the underlying
+/// snmalloc build was configured with `SNMALLOC_PROFILE=OFF` this struct
+/// is still well-defined; the snapshot calls will simply not produce any
+/// samples to populate it.
+#[cfg(feature = "profiling")]
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct SnRustProfileRawSample {
+    /// Pointer returned by the original alloc.  May be null.
+    pub alloc_ptr: *mut c_void,
+    /// Size requested by the caller (bytes).
+    pub requested_size: usize,
+    /// Size actually returned (sizeclass-rounded).
+    pub allocated_size: usize,
+    /// Bytes-of-request weight (Poisson unbiased estimator).
+    pub weight: usize,
+    /// Number of valid entries in `stack` (0..=SN_RUST_PROFILE_STACK_FRAMES).
+    pub stack_depth: u32,
+    /// Captured return addresses, innermost first.  Entries beyond
+    /// `stack_depth` are unspecified.
+    pub stack: [*mut c_void; SN_RUST_PROFILE_STACK_FRAMES],
+}
+
+#[cfg(feature = "profiling")]
+extern "C" {
+    /// Returns `true` iff this build of snmalloc was compiled with
+    /// `SNMALLOC_PROFILE=ON`.  When `false`, every other `sn_rust_profile_*`
+    /// call is a no-op or returns zero / null.
+    pub fn sn_rust_profile_supported() -> bool;
+
+    /// Set the mean sampling interval, in bytes.  Zero disables sampling.
+    /// No-op when `sn_rust_profile_supported()` is false.
+    pub fn sn_rust_profile_set_sampling_rate(bytes: usize);
+
+    /// Get the current mean sampling interval, in bytes.  Returns 0 when
+    /// `sn_rust_profile_supported()` is false.
+    pub fn sn_rust_profile_get_sampling_rate() -> usize;
+
+    /// Begin a snapshot of the currently-live sampled allocations.  The
+    /// returned opaque handle must eventually be released via
+    /// [`sn_rust_profile_snapshot_end`].  May return null if profiling is
+    /// disabled or the snapshot allocation itself failed.
+    pub fn sn_rust_profile_snapshot_begin() -> *mut c_void;
+
+    /// Number of samples in the snapshot identified by `handle`.  Returns
+    /// 0 for a null handle.
+    pub fn sn_rust_profile_snapshot_count(handle: *mut c_void) -> usize;
+
+    /// Copy sample at index `idx` into `*out`.  Returns `false` when
+    /// profiling is disabled, the handle is null, `out` is null, or `idx`
+    /// is out of range.
+    pub fn sn_rust_profile_snapshot_get(
+        handle: *mut c_void,
+        idx: usize,
+        out: *mut SnRustProfileRawSample,
+    ) -> bool;
+
+    /// Release the snapshot allocated by
+    /// [`sn_rust_profile_snapshot_begin`].  Safe to call with a null
+    /// handle.
+    pub fn sn_rust_profile_snapshot_end(handle: *mut c_void);
+}
+
 #[cfg(test)]
 mod rust_tests {
     use super::*;
@@ -124,6 +198,63 @@ mod rust_tests {
             "usable_size should at least equal to the allocated size"
         );
         unsafe { sn_rust_dealloc(ptr as *mut c_void, 32, 8) };
+    }
+}
+
+#[cfg(all(test, feature = "profiling"))]
+mod profile_tests {
+    use super::*;
+    use core::ptr;
+
+    /// Smoke test: with the `profiling` feature on, the snmalloc-sys
+    /// build.rs propagates `SNMALLOC_PROFILE=ON` to the cmake build, so
+    /// the C side must report support and the snapshot lifecycle must be
+    /// callable end-to-end.
+    #[test]
+    fn supported_when_feature_enabled() {
+        let ok = unsafe { sn_rust_profile_supported() };
+        assert!(
+            ok,
+            "sn_rust_profile_supported() must return true when the \
+             `profiling` cargo feature wires SNMALLOC_PROFILE=ON"
+        );
+    }
+
+    #[test]
+    fn sampling_rate_roundtrip() {
+        unsafe {
+            let original = sn_rust_profile_get_sampling_rate();
+            sn_rust_profile_set_sampling_rate(123_456);
+            assert_eq!(sn_rust_profile_get_sampling_rate(), 123_456);
+            // Restore so we don't perturb other tests in the same process.
+            sn_rust_profile_set_sampling_rate(original);
+        }
+    }
+
+    #[test]
+    fn snapshot_lifecycle_is_safe() {
+        unsafe {
+            let h = sn_rust_profile_snapshot_begin();
+            // count() / get() / end() must all tolerate either a valid
+            // handle or null (in case the snapshot allocation itself
+            // failed).  The exact sample count is racy, but the calls
+            // must not crash.
+            let n = sn_rust_profile_snapshot_count(h);
+            if n > 0 && !h.is_null() {
+                let mut sample = SnRustProfileRawSample {
+                    alloc_ptr: ptr::null_mut(),
+                    requested_size: 0,
+                    allocated_size: 0,
+                    weight: 0,
+                    stack_depth: 0,
+                    stack: [ptr::null_mut(); SN_RUST_PROFILE_STACK_FRAMES],
+                };
+                assert!(sn_rust_profile_snapshot_get(h, 0, &mut sample));
+                // Out-of-range index must report failure.
+                assert!(!sn_rust_profile_snapshot_get(h, n, &mut sample));
+            }
+            sn_rust_profile_snapshot_end(h);
+        }
     }
 }
 

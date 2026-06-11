@@ -7,7 +7,14 @@
 #  include "snmalloc/snmalloc.h"
 #endif
 
+#include "rust_profile.h"
+
+#include <stdlib.h>
 #include <string.h>
+
+#ifdef SNMALLOC_PROFILE
+#  include "snmalloc/profile/profile.h"
+#endif
 
 #ifndef SNMALLOC_EXPORT
 #  define SNMALLOC_EXPORT
@@ -63,3 +70,187 @@ SNMALLOC_NAME_MANGLE(rust_usable_size)(const void* ptr)
 {
   return alloc_size(ptr);
 }
+
+// ---------------------------------------------------------------------------
+// Heap profiling C ABI surface (Phase 4.0).
+//
+// These symbols are always present so the Rust FFI is linkable regardless of
+// the C++ build's SNMALLOC_PROFILE setting.  When SNMALLOC_PROFILE is OFF,
+// every function except `sn_rust_profile_supported` is a stub: it returns 0
+// (or false / nullptr) and has no side effects.  The Rust crate may still
+// expose the symbols via its own `profiling` feature gate; the two flags are
+// independent so a `profiling`-enabled crate can link a non-profiling C++
+// build and simply observe `supported() == false`.
+//
+// When SNMALLOC_PROFILE is ON, the bodies delegate to the Phase 2 / Phase 3
+// machinery: snmalloc::profile::Sampler for the sampling-rate controls and
+// snmalloc::profile::SamplerGlobals::list() for snapshots.  No new C++
+// machinery is introduced here.
+// ---------------------------------------------------------------------------
+
+#ifdef SNMALLOC_PROFILE
+
+namespace
+{
+  /**
+   * Heap-allocated snapshot returned to callers as an opaque handle.
+   *
+   * We snapshot the SampledList into a contiguous array of plain-old-data
+   * records so the caller can iterate at its leisure without holding any
+   * reference into the in-process profile state.  The list itself is
+   * lock-free and tolerates concurrent push/remove during the walk; we
+   * copy out everything we need under the SampledList::snapshot callback.
+   *
+   * Backing storage uses malloc/free directly (the libc allocator that
+   * snmalloc itself overrides when used as the global allocator).  This is
+   * fine: snapshots are out-of-band, off the alloc hot path, and the
+   * Sampler's ReentrancyGuard is not held while we are copying out.
+   */
+  struct RustProfileSnapshot
+  {
+    SnRustProfileRawSample* samples;
+    size_t count;
+  };
+} // namespace
+
+extern "C" SNMALLOC_EXPORT bool sn_rust_profile_supported(void)
+{
+  return true;
+}
+
+extern "C" SNMALLOC_EXPORT void
+sn_rust_profile_set_sampling_rate(size_t bytes)
+{
+  snmalloc::profile::Sampler::set_sampling_rate(bytes);
+}
+
+extern "C" SNMALLOC_EXPORT size_t sn_rust_profile_get_sampling_rate(void)
+{
+  return snmalloc::profile::Sampler::get_sampling_rate();
+}
+
+extern "C" SNMALLOC_EXPORT void* sn_rust_profile_snapshot_begin(void)
+{
+  // First pass: count live samples so we know how much to allocate.
+  size_t live = snmalloc::profile::SamplerGlobals::list().debug_count();
+
+  auto* snap = static_cast<RustProfileSnapshot*>(
+    ::malloc(sizeof(RustProfileSnapshot)));
+  if (snap == nullptr)
+    return nullptr;
+
+  snap->samples = nullptr;
+  snap->count = 0;
+
+  if (live == 0)
+    return snap;
+
+  // We may race against concurrent pushes that grow the list between
+  // the count above and the copy below.  Allocate a slight overshoot to
+  // absorb a small burst, then bound the actual copy by both the buffer
+  // capacity and the SampledList's live count at copy time.  Anything
+  // that arrives after the snapshot starts is simply not observed --
+  // that is the standard semantics for a heap-profiler snapshot.
+  const size_t cap = live + 16;
+  snap->samples = static_cast<SnRustProfileRawSample*>(
+    ::malloc(cap * sizeof(SnRustProfileRawSample)));
+  if (snap->samples == nullptr)
+  {
+    ::free(snap);
+    return nullptr;
+  }
+
+  size_t idx = 0;
+  snmalloc::profile::SamplerGlobals::list().snapshot(
+    [&](snmalloc::profile::SampledAlloc* node) noexcept {
+      if (idx >= cap)
+        return;
+      SnRustProfileRawSample& out = snap->samples[idx];
+      out.alloc_ptr = reinterpret_cast<void*>(node->alloc_addr);
+      out.requested_size = node->requested_size;
+      out.allocated_size = node->allocated_size;
+      out.weight = static_cast<size_t>(node->weight);
+      const size_t depth =
+        node->stack_depth <= SNMALLOC_PROFILE_STACK_FRAMES
+        ? node->stack_depth
+        : SNMALLOC_PROFILE_STACK_FRAMES;
+      out.stack_depth = static_cast<uint32_t>(depth);
+      for (size_t i = 0; i < depth; ++i)
+        out.stack[i] = reinterpret_cast<void*>(node->stack[i]);
+      for (size_t i = depth; i < SNMALLOC_PROFILE_STACK_FRAMES; ++i)
+        out.stack[i] = nullptr;
+      ++idx;
+    });
+
+  snap->count = idx;
+  return snap;
+}
+
+extern "C" SNMALLOC_EXPORT size_t sn_rust_profile_snapshot_count(void* handle)
+{
+  if (handle == nullptr)
+    return 0;
+  return static_cast<RustProfileSnapshot*>(handle)->count;
+}
+
+extern "C" SNMALLOC_EXPORT bool sn_rust_profile_snapshot_get(
+  void* handle, size_t idx, SnRustProfileRawSample* out)
+{
+  if (handle == nullptr || out == nullptr)
+    return false;
+  auto* snap = static_cast<RustProfileSnapshot*>(handle);
+  if (idx >= snap->count)
+    return false;
+  *out = snap->samples[idx];
+  return true;
+}
+
+extern "C" SNMALLOC_EXPORT void sn_rust_profile_snapshot_end(void* handle)
+{
+  if (handle == nullptr)
+    return;
+  auto* snap = static_cast<RustProfileSnapshot*>(handle);
+  ::free(snap->samples);
+  ::free(snap);
+}
+
+#else // !SNMALLOC_PROFILE
+
+// Stubs: keep the FFI surface linkable when profiling is compiled out.
+
+extern "C" SNMALLOC_EXPORT bool sn_rust_profile_supported(void)
+{
+  return false;
+}
+
+extern "C" SNMALLOC_EXPORT void
+sn_rust_profile_set_sampling_rate(size_t /*bytes*/)
+{
+}
+
+extern "C" SNMALLOC_EXPORT size_t sn_rust_profile_get_sampling_rate(void)
+{
+  return 0;
+}
+
+extern "C" SNMALLOC_EXPORT void* sn_rust_profile_snapshot_begin(void)
+{
+  return nullptr;
+}
+
+extern "C" SNMALLOC_EXPORT size_t sn_rust_profile_snapshot_count(void* /*h*/)
+{
+  return 0;
+}
+
+extern "C" SNMALLOC_EXPORT bool sn_rust_profile_snapshot_get(
+  void* /*handle*/, size_t /*idx*/, SnRustProfileRawSample* /*out*/)
+{
+  return false;
+}
+
+extern "C" SNMALLOC_EXPORT void sn_rust_profile_snapshot_end(void* /*h*/)
+{
+}
+
+#endif // SNMALLOC_PROFILE

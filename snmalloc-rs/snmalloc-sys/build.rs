@@ -69,6 +69,7 @@ struct BuildFeatures {
     check_loads: bool,
     pageid: bool,
     gwp_asan: bool,
+    profiling: bool,
 }
 
 impl BuildConfig {
@@ -313,6 +314,7 @@ impl BuildFeatures {
             check_loads: cfg!(feature = "check-loads"),
             pageid: cfg!(feature = "pageid"),
             gwp_asan: cfg!(feature = "gwp-asan"),
+            profiling: cfg!(feature = "profiling"),
         }
     }
 }
@@ -493,6 +495,17 @@ fn configure_platform(config: &mut BuildConfig) {
         config.builder.define("SNMALLOC_PAGEID", "false");
         #[cfg(not(feature = "build_cc"))]
         config.builder.define("SNMALLOC_PAGEID", "OFF");
+    }
+
+    if config.features.profiling {
+        // Heap profiling: enabling SNMALLOC_PROFILE lights up the Sampler
+        // and SampledList machinery and switches the rust.cc C exports
+        // from no-op stubs to real bodies.  Off by default to keep the
+        // hot path at zero cost.
+        #[cfg(feature = "build_cc")]
+        config.builder.define("SNMALLOC_PROFILE", "1");
+        #[cfg(not(feature = "build_cc"))]
+        config.builder.define("SNMALLOC_PROFILE", "ON");
     }
 
     if config.features.gwp_asan {
