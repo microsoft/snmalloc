@@ -43,7 +43,15 @@ use core::{
 /// see [`profile`] for details.
 pub mod profile;
 
+/// Runtime configuration helpers (Phase 4.5): a typed [`ProfileConfig`]
+/// struct plus an env-var-driven initializer
+/// ([`SnMalloc::init_profiling_from_env`]) so binaries can opt into
+/// heap profiling at the command line without recompiling.  See
+/// [`config`] for the env-var contract.
+pub mod config;
+
 pub use profile::{BtSample, HeapProfile, Weight};
+pub use config::{ProfileConfig, ENV_PROFILE_ENABLE, ENV_PROFILE_RATE};
 
 /// Memory usage statistics from the snmalloc backend.
 ///
