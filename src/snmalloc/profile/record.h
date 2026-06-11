@@ -165,16 +165,29 @@ namespace snmalloc::profile
     }
     else
     {
-      if (SNMALLOC_LIKELY(p == nullptr))
+      // Bundle tweak F (86aj0kdym): `free(nullptr)` is rare; the common
+      // case is a non-null `p` so the branch predictor should fall through
+      // to the slot probe.  Previously hinted LIKELY by mistake.
+      if (SNMALLOC_UNLIKELY(p == nullptr))
         return true;
 
       ProfileSlot* slot = find_profile_slot<Config>(p);
+      // Bundle tweak F: ~99.999% of frees hit a slab with no profile
+      // backing installed (or the slot lookup short-circuits via the
+      // pagemap not-owned / backend-owned branches), so the slot pointer
+      // is null on the common path.  Keep the LIKELY hint explicit so
+      // the compiler lays out the fast return inline at the call site.
       if (SNMALLOC_LIKELY(slot == nullptr))
         return true;
 
       // Relaxed load matches the peek already done inside the full
       // `record_dealloc`; either we skip cleanly here or the full hook
       // re-checks under the re-entrancy guard with a CAS.
+      //
+      // Bundle tweak F: the slot exists (backing array installed for the
+      // slab) but this specific object is almost always not the one
+      // sampled, so the atomic load returns null on the overwhelming
+      // majority of frees against the slab.
       if (SNMALLOC_LIKELY(slot->load(std::memory_order_relaxed) == nullptr))
         return true;
 

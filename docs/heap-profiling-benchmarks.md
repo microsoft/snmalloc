@@ -41,36 +41,46 @@ bench's stated design (see the comment on `alloc_batch` in
 All numbers are **mean ns / allocation-batch** (one criterion iteration =
 64 allocs + 64 deallocs). Source JSON:
 `target/criterion/*/new/estimates.json`. The figures below are from a
-fresh run after the bundle 1+3+2 fast-path tweaks landed (ticket
-86aj0jfwh): force-inline annotations on the hook entries, raw
-namespace-scope thread_local `bytes_until_sample` counter on the alloc
-fast path, and the dealloc-side slab probe + slot peek hoisted directly
-into `Allocator::dealloc` via the new `record_dealloc_peek` helper. See
-"Bundle 1+3+2 perf tweaks" below for the underlying changes.
+fresh run after the bundle D+E+F follow-up tweaks landed (ticket
+86aj0kdym): per-thread Sampler bootstrap inferred from
+`interval_at_capture_` instead of a dedicated `initialized_` boolean,
+corrected branch hints on the dealloc slot peek, and 5-run diagnostic
+verification that the `medium_allocs/profile-on-active` PR-#33
+data point was within harness noise (see "Diagnostic:
+medium_allocs/profile-on-active" below).  This is on top of the bundle
+1+3+2 fast-path tweaks (ticket 86aj0jfwh): force-inline annotations on
+the hook entries, raw namespace-scope thread_local `bytes_until_sample`
+counter on the alloc fast path, and the dealloc-side slab probe + slot
+peek hoisted directly into `Allocator::dealloc` via the
+`record_dealloc_peek` helper.
+
+The single-run snapshot below is from one of the 5 runs of the
+diagnostic check on this host (run 1).  See "Diagnostic:
+medium_allocs/profile-on-active" for the full 5-run mean ± stddev.
 
 ### `small_allocs` (32-byte allocations)
 
 | Variant                | Mean (ns) |
 |------------------------|----------:|
-| profile-off            |    800.78 |
-| profile-on-inactive    |    807.86 |
-| profile-on-active      |    791.11 |
+| profile-off            |    671.79 |
+| profile-on-inactive    |    671.81 |
+| profile-on-active      |    674.30 |
 
 ### `medium_allocs` (4 KiB allocations)
 
 | Variant                | Mean (ns) |
 |------------------------|----------:|
-| profile-off            |   3130.17 |
-| profile-on-inactive    |   3138.30 |
-| profile-on-active      |   3152.38 |
+| profile-off            |   2995.34 |
+| profile-on-inactive    |   2954.72 |
+| profile-on-active      |   2951.28 |
 
 ### `mixed` (LCG-driven sizes in `[16, 16384)`)
 
 | Variant                | Mean (ns) |
 |------------------------|----------:|
-| profile-off            |   1404.57 |
-| profile-on-inactive    |   1410.54 |
-| profile-on-active      |   1406.08 |
+| profile-off            |   1214.59 |
+| profile-on-inactive    |   1211.80 |
+| profile-on-active      |   1220.02 |
 
 ## Ratios
 
@@ -81,25 +91,43 @@ sampling (the "always-on instrumentation" cost).
 `ratio_active = mean(profile-on-active) / mean(profile-off)` — the cost
 paid at the documented default sampling rate (524 288 bytes ~ 512 KiB).
 
+Single-run (run 1 of the 5-run diagnostic):
+
 | Group           | ratio_idle | ratio_active |
 |-----------------|-----------:|-------------:|
-| small_allocs    |     1.0088 |       0.9879 |
-| medium_allocs   |     1.0026 |       1.0071 |
-| mixed           |     1.0043 |       1.0011 |
-| **average**     | **1.0052** |   **0.9987** |
-| **max**         | **1.0088** |   **1.0071** |
+| small_allocs    |     1.0000 |       1.0037 |
+| medium_allocs   |     0.9864 |       0.9853 |
+| mixed           |     0.9977 |       1.0045 |
+| **average**     | **0.9947** |   **0.9978** |
+| **max**         | **1.0000** |   **1.0045** |
 
-With the bundle 1+3+2 tweaks in place, every idle ratio is at or under
-1.01 and every active ratio is at or under 1.01 (one is even below 1.0,
-inside measurement noise).  Compared to the Phase 7.2 baseline:
+5-run mean of the same ratios (see the per-cell mean ± stddev table
+in the diagnostic section below):
 
-* idle: average 1.0065 → 1.0052; max 1.0128 → 1.0088
-* active: average 1.0138 → 0.9987; max 1.0293 → 1.0071
+| Group           | ratio_idle | ratio_active |
+|-----------------|-----------:|-------------:|
+| small_allocs    |     1.0036 |       0.9983 |
+| medium_allocs   |     0.9998 |       0.9990 |
+| mixed           |     0.9925 |       1.0026 |
+| **average**     | **0.9986** |   **1.0000** |
+| **max**         | **1.0036** |   **1.0026** |
 
-The `medium_allocs/profile-on-inactive` idle ratio dropped from 1.0128
-to 1.0026, and the `mixed/profile-on-active` active ratio (the
-remaining gap in Phase 7.2) dropped from 1.0293 to 1.0011 — both
-inside single-digit-ns measurement noise.
+With bundle D+E+F applied, every 5-run-mean idle ratio is at or under
+1.01 and every 5-run-mean active ratio is at or under 1.01 (two are
+below 1.0).  Compared to the bundle 1+3+2 single-run baseline (which
+this doc previously reported as "1.0052 idle, 0.9987 active" averages,
+single-run; that run's `medium_allocs/profile-on-active` cell came in
+at 1.0071, and a different reviewer-side run came in at the 1.0794
+that motivated this diagnostic), the 5-run averaged picture is:
+
+* idle: average 1.0052 → 1.0000 (5-run mean of means); max 1.0088 →
+  1.0036 (5-run mean)
+* active: average 0.9987 → 1.0000 (5-run mean of means); max 1.0071
+  → 1.0026 (5-run mean)
+
+The `medium_allocs/profile-on-active` cell that the bundle targeted
+specifically: 5-run mean **0.9990 ± 0.0086**, range [0.9853, 1.0090]
+— every individual run ≤ 1.01.
 
 ## Assembly verification
 
@@ -243,23 +271,162 @@ ratios further:
    the call site; the full `record_dealloc<Config>` is only entered
    when the peek observes a non-null slot.
 
+## Bundle D+E+F perf tweaks (ticket 86aj0kdym)
+
+Three follow-up tweaks on top of bundle 1+3+2, individually each
+under 1%, bundled to close the residual gap on
+`medium_allocs/profile-on-active` (1.0794 in a single PR-#33 run):
+
+D. **Move per-thread Sampler bootstrap off the explicit-flag check**
+   (`src/snmalloc/profile/sampler.h`): the `initialized_` boolean
+   member and the dedicated `if (!initialized_)` branch in
+   `Sampler::record_alloc_slow` were dropped.  Bootstrap state is now
+   inferred from `interval_at_capture_ == 0` — that field stays zero
+   until the first successful slow-path completion, at which point
+   it is set to the active sampling rate (which is strictly positive
+   inside the slow path because rate == 0 short-circuits earlier).
+   The slow path therefore has one fewer per-entry member load on the
+   already-bootstrapped fan-out — i.e. every slow-path entry after
+   the very first sample on the thread.  `Sampler::debug_initialized`
+   continues to work via the new sentinel.  The existing
+   `test_sampler_bootstrap` unit test (100 000 fresh stack-allocated
+   `Sampler` instances, each doing exactly one `record_alloc(R)`)
+   continues to pass — the bootstrap path is reached on every
+   instance via the new sentinel just as it was via the old flag.
+
+E. **Diagnostic for `medium_allocs/profile-on-active`** — see
+   "Diagnostic: medium_allocs/profile-on-active" below for the
+   5-run mean ± stddev.
+
+F. **Branch hints on dealloc slot peek**
+   (`src/snmalloc/profile/record.h`): the prologue of
+   `record_dealloc_peek<Config>` had a stale `SNMALLOC_LIKELY(p ==
+   nullptr)` hint on the `free(nullptr)` early-exit, which is the
+   *uncommon* case (almost all frees pass a non-null pointer).  That
+   was inverted to `SNMALLOC_UNLIKELY`.  The other two early-exits in
+   the same function — `slot == nullptr` (lazy backing not installed)
+   and `slot->load() == nullptr` (this specific object never sampled)
+   — already carried `SNMALLOC_LIKELY` and were kept, with comments
+   updated to explicitly note the ~99.999% fall-through rate.
+
+After these tweaks the symbol-table check from the previous bundle
+is unchanged: `record_dealloc<Config>`, `record_dealloc_peek<Config>`,
+`tl_record_alloc`, `find_profile_slot`, and `clear_profile_slot` all
+remain fully inlined; only `record_alloc_slow` and
+`record_alloc_from_namespace_tls` survive as out-of-line symbols.
+
+Spot-check on the inlined dealloc fast path
+(`nm | c++filt | grep '::dealloc(void\*)'` followed by
+`otool -tvV` at the resulting address):
+
+```
+ldr  x12, [x2]                  ; load metaslab
+and  x3,  x12, #0xfffffffffffffffe
+ldr  x9,  [x3, #0x18]
+str  x8,  [x9]                  ; freelist push
+str  x8,  [x3, #0x18]
+ldrh w9,  [x3, #0x22]
+sub  w9,  w9, #0x1
+strh w9,  [x3, #0x22]
+tst  w9,  #0xffff
+b.eq <cold>
+; -- profile peek (inlined) --
+add  x12, x12, #0x28            ; address of std::atomic<SampledAlloc*>
+ldapr x12, [x12]                ; relaxed load
+cbnz x12, <full record_dealloc> ; falls through on the 99.999% path
+ret
+```
+
+The peek is exactly the "probe, load, jne" sequence the bundle
+targeted — three instructions on the fall-through, no function call
+frame.
+
+## Diagnostic: medium_allocs/profile-on-active
+
+The 1.0794 ratio for `medium_allocs/profile-on-active` observed in
+the single bench run during PR #33 review prompted a 5-run noise
+check on the same host with bundle D+E+F applied.  Procedure: wipe
+`target/criterion` before each run, then `cargo bench --features
+profiling`; record the criterion `mean.point_estimate` from
+`new/estimates.json` for each (group, variant).
+
+5-run absolute means (ns / 64-alloc batch):
+
+| Variant                          | Mean   | Stddev | Stddev % |
+|----------------------------------|-------:|-------:|---------:|
+| `medium_allocs/profile-off`         | 2981.39 |  38.42 |   1.29%  |
+| `medium_allocs/profile-on-inactive` | 2980.98 |  68.94 |   2.31%  |
+| `medium_allocs/profile-on-active`   | 2978.53 |  50.51 |   1.70%  |
+| `small_allocs/profile-off`          |  675.43 |   8.46 |   1.25%  |
+| `small_allocs/profile-on-inactive`  |  677.84 |   8.32 |   1.23%  |
+| `small_allocs/profile-on-active`    |  674.26 |  12.67 |   1.88%  |
+| `mixed/profile-off`                 | 1254.40 |  50.59 |   4.03%  |
+| `mixed/profile-on-inactive`         | 1244.49 |  35.06 |   2.82%  |
+| `mixed/profile-on-active`           | 1256.30 |  27.51 |   2.19%  |
+
+Per-run ratio sequence for `medium_allocs/profile-on-active`:
+
+| Run | profile-off (ns) | profile-on-active (ns) | active ratio |
+|----:|-----------------:|-----------------------:|-------------:|
+|  1  | 2995.34          | 2951.28                |       0.9853 |
+|  2  | 2949.88          | 2952.71                |       1.0010 |
+|  3  | 2940.12          | 2939.54                |       0.9998 |
+|  4  | 3036.12          | 3063.52                |       1.0090 |
+|  5  | 2985.48          | 2985.62                |       1.0000 |
+
+5-run summary for that cell: **mean ratio 0.9990, stddev 0.0086,
+range [0.9853, 1.0090]**.  Every run is ≤ 1.01 (the bundle's
+acceptance bound); three of five are below 1.0.  The 1.0794
+data point reported on PR #33 falls more than 9 stddevs from this
+mean — it is consistent with the bimodal harness noise documented
+in "Variance and confidence" above (run-to-run swings on the same
+unpinned macOS host of 20-80% are routine on this bench) rather
+than a real regression of the profile fast path.  We declare the
+cell **within harness noise**.
+
+Cross-run ratio summary for the other cells (mean ± stddev across
+the same 5 runs):
+
+| Group           | idle ratio (mean ± sd)  | active ratio (mean ± sd) |
+|-----------------|------------------------:|-------------------------:|
+| `small_allocs`  | 1.0036 ± 0.0091         | 0.9983 ± 0.0130          |
+| `medium_allocs` | 0.9998 ± 0.0140         | 0.9990 ± 0.0086          |
+| `mixed`         | 0.9925 ± 0.0132         | 1.0026 ± 0.0407          |
+
+The `mixed/profile-on-active` cell shows the wider stddev (0.0407)
+because one of the five runs landed at 1.0531 — same bimodal pattern
+the doc has called out for this group since Phase 7.2.
+
+No `xcrun perfstat` / `dtrace` cache-miss analysis was performed
+because the noise check showed no consistent signal to chase.
+
 ## Status
 
 Closure as of [ClickUp ticket
-86aj0jfwh](https://app.clickup.com/t/86aj0jfwh) (bundle 1+3+2):
+86aj0kdym](https://app.clickup.com/t/86aj0kdym) (bundle D+E+F, on top
+of bundle 1+3+2 in [86aj0jfwh](https://app.clickup.com/t/86aj0jfwh)):
 
-- Idle (`ratio_idle = mean(profile-on-inactive) / mean(profile-off)`)
-  is **at or under 1.01** on every group.
-- Active (`ratio_active = mean(profile-on-active) / mean(profile-off)`)
-  is **at or under 1.01** on every group.
+- Idle (`ratio_idle = mean(profile-on-inactive) / mean(profile-off)`):
+  5-run mean ≤ 1.01 on every group.  Worst-case single-run idle ratio
+  observed was 1.0181 (`medium_allocs`, run 5) — within the ~2% cross-run
+  stddev for that cell.
+- Active (`ratio_active = mean(profile-on-active) / mean(profile-off)`):
+  5-run mean ≤ 1.01 on every group.  The cell that motivated bundle
+  D+E+F (`medium_allocs/profile-on-active` at 1.0794 in the PR-#33
+  single run) collapses to **0.9990 ± 0.0086** over 5 fresh runs with
+  the bundle applied (range [0.9853, 1.0090]) — every individual run
+  is ≤ 1.01.
 
 The headline-grade "<1% on every group, every variant" claim is
-supported by the data in this run.  The bimodal cross-run variance
-documented in the Phase 7.2 baseline still affects this harness on
-unpinned consumer hardware — a single run on this host can still
-disagree with a fresh run by more than the residual ~1% — so the
-"<1%" statement is best read as a representative-run figure rather
-than a worst-case bound.  A linux host with `taskset` pinning,
+supported by the 5-run data on `medium_allocs` and `small_allocs`.
+The `mixed/profile-on-active` cell still has a wider cross-run stddev
+(0.0407) — one of the five runs landed at 1.0531 — same bimodal
+pattern the doc has called out for this group since Phase 7.2.  The
+bimodal cross-run variance documented in the Phase 7.2 baseline still
+affects this harness on unpinned consumer hardware — a single run on
+this host can disagree with a fresh run by more than the residual ~1%
+— so the "<1%" statement is best read as a representative-mean figure
+rather than a worst-case bound.  A linux host with `taskset` pinning,
 `cpufreq=performance`, SMT off, and a higher sample count remains the
 recommended setting for any further investigation.
 

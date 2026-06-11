@@ -259,7 +259,13 @@ namespace snmalloc::profile
 
     [[nodiscard]] bool debug_initialized() const noexcept
     {
-      return initialized_;
+      // Bootstrap state is now inferred from `interval_at_capture_`:
+      // it is zero until the first successful slow-path completion, at
+      // which point it is set to the active sampling rate (which is
+      // strictly non-zero because rate == 0 short-circuits earlier in
+      // the slow path).  Exposed for the unit tests that previously
+      // observed the explicit `initialized_` flag.
+      return interval_at_capture_ != 0;
     }
 
     /**
@@ -303,13 +309,23 @@ namespace snmalloc::profile
       {
         // Sampling disabled. Keep the counter parked far in the future so
         // the fast path keeps returning false without re-entering here.
+        // We do NOT touch `interval_at_capture_` here -- a later
+        // re-enable of sampling will re-bootstrap naturally via the
+        // first-sample branch below if the sampler was never bootstrapped.
         hot_.bytes_until_sample = INT64_MAX / 2;
-        initialized_ = true;
         last_sample_ = nullptr;
         return false;
       }
 
-      if (SNMALLOC_UNLIKELY(!initialized_))
+      // Bundle tweak D (86aj0kdym): the per-Sampler bootstrap branch is
+      // detected via `interval_at_capture_ == 0` instead of a dedicated
+      // `initialized_` boolean.  `interval_at_capture_` is set to the
+      // active sampling rate (always strictly positive in this branch)
+      // immediately after a successful bootstrap, so it doubles as the
+      // "already bootstrapped" signal.  This saves a member load + branch
+      // every time the slow path is entered after the first sample (i.e.
+      // every ~rate bytes for the lifetime of the thread).
+      if (SNMALLOC_UNLIKELY(interval_at_capture_ == 0))
       {
         // First-sample bootstrap (research §4): the initial countdown is
         // itself drawn from Exp(rate). We do NOT auto-sample the first
@@ -318,7 +334,12 @@ namespace snmalloc::profile
         seed_prng_if_needed();
         hot_.bytes_until_sample = draw_exponential(rate, prng_step())
           - static_cast<int64_t>(requested_size);
-        initialized_ = true;
+        // Mark bootstrapped.  `interval_at_capture_` is the published
+        // "last sample's interval" -- not yet meaningful here because no
+        // sample has fired, but `last_sample()` returns nullptr on this
+        // path so observers can disambiguate.  Setting it to `rate`
+        // guarantees we never re-enter the bootstrap branch.
+        interval_at_capture_ = rate;
         if (hot_.bytes_until_sample > 0)
         {
           last_sample_ = nullptr;
@@ -500,7 +521,6 @@ namespace snmalloc::profile
     uint64_t weight_{0};
     uint64_t interval_at_capture_{0};
     SampledAlloc* last_sample_{nullptr};
-    bool initialized_{false};
   };
 
   /**
