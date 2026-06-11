@@ -95,7 +95,13 @@ extern "C" {
 /// snmalloc build was configured with `SNMALLOC_PROFILE=OFF` this struct
 /// is still well-defined; the snapshot calls will simply not produce any
 /// samples to populate it.
-#[cfg(feature = "profiling")]
+///
+/// The struct is exposed unconditionally (independent of the Rust
+/// `profiling` Cargo feature) because the matching C symbols in
+/// `rust.cc` are always linked -- they degrade to no-op stubs when
+/// `SNMALLOC_PROFILE` is undefined.  Keeping the type always-available
+/// lets higher-level Rust wrappers expose a uniform safe API surface
+/// that compiles in both feature-on and feature-off builds.
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct SnRustProfileRawSample {
@@ -114,7 +120,14 @@ pub struct SnRustProfileRawSample {
     pub stack: [*mut c_void; SN_RUST_PROFILE_STACK_FRAMES],
 }
 
-#[cfg(feature = "profiling")]
+// The `sn_rust_profile_*` C symbols are always exported by
+// `src/snmalloc/override/rust.cc` -- when `SNMALLOC_PROFILE` is
+// undefined they degrade to no-op stubs that return `0` / `false` /
+// `nullptr`.  Exposing the Rust extern block unconditionally lets the
+// higher-level `snmalloc-rs` crate expose a uniform safe API in both
+// `profiling`-feature-on and `profiling`-feature-off builds (per the
+// Phase 4.1 contract: `profiling_supported()` returns `false` and
+// `snapshot()` returns an empty profile when the C build is OFF).
 extern "C" {
     /// Returns `true` iff this build of snmalloc was compiled with
     /// `SNMALLOC_PROFILE=ON`.  When `false`, every other `sn_rust_profile_*`

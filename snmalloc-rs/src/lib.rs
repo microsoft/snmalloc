@@ -32,6 +32,19 @@ use core::{
     ptr::NonNull,
 };
 
+/// Safe Rust wrapper over the `sn_rust_profile_*` FFI surface.
+///
+/// The module is compiled unconditionally so that downstream code can
+/// always refer to [`HeapProfile`] / [`BtSample`] / the snapshot
+/// methods on [`SnMalloc`] without conditional compilation.  When the
+/// `profiling` Cargo feature (and the matching C-side
+/// `SNMALLOC_PROFILE` build flag) are not enabled, the FFI returns
+/// no-op responses and the safe wrappers degrade to empty results --
+/// see [`profile`] for details.
+pub mod profile;
+
+pub use profile::{BtSample, HeapProfile};
+
 /// Memory usage statistics from the snmalloc backend.
 ///
 /// These are range-level figures (slab/chunk granularity) reflecting bytes
