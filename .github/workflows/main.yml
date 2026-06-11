@@ -137,6 +137,33 @@ jobs:
             dependencies: "sudo apt install -y ninja-build libc++-dev"
             test-exclude-pattern: "memcpy|external_pointer"
             test-extra-args: "--repeat-until-fail 2"
+          # Profile + TSan: exercise the heap-profiling code paths
+          # (perf-profile_stress + func-profile_*) under ThreadSanitizer.
+          # Uses libc++ because TSan requires a TSan-instrumented C++
+          # runtime; libstdc++ is not instrumented on Ubuntu.  The
+          # `-R profile_` ctest filter restricts the run to profile
+          # tests so the sanitizer overhead stays within the CI budget.
+          - os: "ubuntu-24.04"
+            variant: "Profile + TSan (clang)"
+            build-type: "Debug"
+            extra-cmake-flags: >-
+              -DSNMALLOC_PROFILE=ON
+              -DSNMALLOC_SANITIZER=thread
+              -DCMAKE_CXX_COMPILER=clang++
+              -DCMAKE_CXX_FLAGS=-stdlib="libc++ -g"
+            dependencies: "sudo apt install -y ninja-build libc++-dev"
+            test-extra-args: "-R profile_"
+          # Profile + ASan: exercise the heap-profiling code paths
+          # under AddressSanitizer.  ASan is compatible with libstdc++,
+          # so no extra runtime dependency is needed beyond ninja.
+          - os: "ubuntu-24.04"
+            variant: "Profile + ASan (clang)"
+            build-type: "Debug"
+            extra-cmake-flags: >-
+              -DSNMALLOC_PROFILE=ON
+              -DSNMALLOC_SANITIZER=address
+              -DCMAKE_CXX_COMPILER=clang++
+            test-extra-args: "-R profile_"
     uses: ./.github/workflows/reusable-cmake-build.yml
     with:
       os: ${{matrix.os}}
