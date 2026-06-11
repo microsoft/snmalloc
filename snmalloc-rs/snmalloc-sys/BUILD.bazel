@@ -1,0 +1,36 @@
+# Bazel build file for the `snmalloc-sys` crate.
+#
+# The crate's hand-written `extern "C"` decls in `src/lib.rs` are
+# consumed verbatim by Bazel — no bindgen step. Two flavours:
+#
+#   :snmalloc_sys           Links against the no-profile C archive.
+#   :snmalloc_sys_profiling Links against the SNMALLOC_PROFILE=ON archive
+#                           and enables the `profiling` crate feature.
+#
+# The C archive itself is produced by the rules_foreign_cc `cmake`
+# rules in the root `BUILD.bazel`.
+
+load("@rules_rust//rust:defs.bzl", "rust_library")
+
+package(default_visibility = ["//visibility:public"])
+
+_CRATE_SRCS = ["src/lib.rs"]
+
+rust_library(
+    name = "snmalloc_sys",
+    srcs = _CRATE_SRCS,
+    edition = "2021",
+    deps = [
+        "//:snmalloc-rs",
+    ],
+)
+
+rust_library(
+    name = "snmalloc_sys_profiling",
+    srcs = _CRATE_SRCS,
+    crate_features = ["profiling"],
+    edition = "2021",
+    deps = [
+        "//:snmalloc-rs-profile",
+    ],
+)

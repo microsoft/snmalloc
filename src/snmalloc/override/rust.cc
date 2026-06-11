@@ -55,6 +55,7 @@ namespace snmalloc
 #  include "snmalloc/snmalloc.h"
 #endif
 
+#include "rust.h"
 #include "rust_profile.h"
 
 #include <stdlib.h>

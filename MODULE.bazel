@@ -1,6 +1,26 @@
 module(name = "snmalloc")
 
-bazel_dep(name = "rules_cc", version = "0.2.17")
+bazel_dep(name = "rules_cc", version = "0.2.19")
 bazel_dep(name = "rules_foreign_cc", version = "0.15.1")
-bazel_dep(name = "fuzztest", version = "20250214.0")
-bazel_dep(name = "googletest", version = "1.16.0")
+bazel_dep(name = "fuzztest", version = "20260219.0")
+bazel_dep(name = "googletest", version = "1.17.0.bcr.2")
+
+# -----------------------------------------------------------------------------
+# Rust support (snmalloc-rs / snmalloc-sys).
+#
+# rules_rust gives us `rust_library` / `rust_test`. The snmalloc-sys crate's
+# hand-written `extern "C"` decls in `snmalloc-rs/snmalloc-sys/src/lib.rs`
+# are consumed verbatim; the C archive comes from the root `BUILD.bazel`
+# `cmake(name = "snmalloc-rs", ...)` rules in rules_foreign_cc. No bindgen
+# step is involved — the FFI surface is small and stable, and skipping
+# bindgen removes the libclang / LLVM source-tree transitive dependency.
+# -----------------------------------------------------------------------------
+bazel_dep(name = "rules_rust", version = "0.70.0")
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2021",
+    versions = ["1.90.0"],
+)
+use_repo(rust, "rust_toolchains")
+register_toolchains("@rust_toolchains//:all")

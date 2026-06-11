@@ -641,7 +641,7 @@ use cmake::Config;
 
 fn main() {
     let mut config = BuildConfig::new();
-    
+
     config.builder
         .configure_cpp(config.debug, &config.source_root)
         .configure_output_dir(&config.out_dir);

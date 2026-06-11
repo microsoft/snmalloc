@@ -8,4 +8,8 @@ test --test_output=streamed
 build:macos --macos_minimum_os=10.15
 build:macos --no@fuzztest//fuzztest:use_riegeli
 
+# Rust integration tests (rust_test) print to stderr; keep the output
+# from being suppressed so failures are diagnosable in CI.
+test --test_output=errors
+
 try-import %workspace%/fuzztest.bazelrc

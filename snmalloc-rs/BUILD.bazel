@@ -1,0 +1,66 @@
+# Bazel build file for the `snmalloc-rs` crate.
+#
+# Multiple `rust_library` variants are exposed, each corresponding to a
+# meaningful Cargo feature combination.  Downstream Bazel consumers depend
+# on whichever variant matches their feature requirements; there is no
+# Bazel equivalent of `cargo --features` so the matrix is materialised as
+# separate targets.
+#
+# Tests under `tests/` are sliced into two groups: profiling-gated tests
+# build against `:snmalloc_rs_profiling`; the rest build against the
+# default `:snmalloc_rs`.  Benches under `benches/` are not exposed (the
+# Criterion harness pulls in dev-deps the Bazel target graph does not
+# yet model).
+
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+
+package(default_visibility = ["//visibility:public"])
+
+_CRATE_ROOT = "src/lib.rs"
+
+_CRATE_SRCS = glob(
+    ["src/**/*.rs"],
+    allow_empty = False,
+)
+
+# Default (no-profiling) build.
+rust_library(
+    name = "snmalloc_rs",
+    srcs = _CRATE_SRCS,
+    crate_root = _CRATE_ROOT,
+    edition = "2021",
+    deps = [
+        "//snmalloc-rs/snmalloc-sys:snmalloc_sys",
+    ],
+)
+
+# NOTE: A `snmalloc_rs_profiling` rust_library variant is intentionally
+# omitted from this BUILD.  Wiring it up requires crate_universe
+# registration of the optional dependencies it pulls in (`flate2` for
+# `write_pprof_gz`, plus `backtrace` once we also add the
+# `symbolicate` feature).  That's a follow-up step: see notes on the
+# Bazel-migration ticket for the planned `crate.from_cargo(...)` call
+# wiring against the existing `snmalloc-rs/Cargo.toml`.  Until then,
+# Bazel consumers that need profiling should continue to build the
+# crate via Cargo; the no-profiling default target below is
+# sufficient for the common embedding case.
+
+# ---------------------------------------------------------------------------
+# Tests.  Sliced by whether they require the `profiling` feature.
+# ---------------------------------------------------------------------------
+
+# memory_stats only depends on `sn_rust_statistics` -- no profiling
+# required.
+rust_test(
+    name = "memory_stats_test",
+    srcs = ["tests/memory_stats.rs"],
+    edition = "2021",
+    deps = [":snmalloc_rs"],
+)
+
+# NOTE: profiling-feature integration tests under `tests/profile_*.rs`
+# are not wired into the Bazel target graph yet — they require both
+# the profiling rust_library variants above and the `@crates//`
+# dependencies (`flate2`, `inferno`, `backtrace`).  The Cargo build
+# continues to run them via `cargo test --features profiling`; the
+# Bazel equivalent is deferred to the crate_universe follow-up.
