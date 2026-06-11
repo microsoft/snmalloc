@@ -1425,6 +1425,38 @@ namespace snmalloc
       }
 
       dealloc_cheri_checks(p_tame.unsafe_ptr());
+#ifdef SNMALLOC_PROFILE
+      /*
+       * H3 heap-profile hook (Phase 3.4).
+       *
+       * This is the SecondaryAllocator escape hatch: a pointer arrived
+       * at `dealloc_remote` whose pagemap entry reports !is_owned() and
+       * is non-null.  Such pointers were not allocated by an snmalloc
+       * front-end -- they are GWP-ASan guard pages, a sandboxed
+       * SecondaryAllocator's pool, or other non-snmalloc memory that
+       * snmalloc is being asked to free on behalf of the platform.
+       *
+       * Because they do not own a pagemap entry tied to snmalloc
+       * metadata, they cannot possibly have a profile slot.  But the
+       * H1 hook (in `Allocator::dealloc`) already fired
+       * `record_dealloc` on this same pointer above; calling it again
+       * here is therefore both correct and necessary:
+       *
+       *   - Correct: idempotence is guaranteed by the CAS in
+       *     `clear_profile_slot` (returns null on the second call) and
+       *     by the per-thread ReentrancyGuard inside `record_dealloc`.
+       *   - Necessary: only as a defensive belt-and-braces.  If a
+       *     future code path ever reaches H3 *without* having traversed
+       *     H1 (e.g. an internal forwarding from a different free
+       *     surface), this site still drains the slot.  Today it is a
+       *     no-op for any pointer that already went through H1, which
+       *     is the universal case.
+       *
+       * Compiles to a no-op for configurations without a profile-
+       * enabled ClientMetaDataProvider; see profile/record.h.
+       */
+      profile::record_dealloc<Config>(p_tame.unsafe_ptr());
+#endif
       Config::SecondaryAllocator::deallocate(p_tame.unsafe_ptr());
     }
 
@@ -1456,6 +1488,39 @@ namespace snmalloc
           post();
         },
         [](Allocator* a, void* p) SNMALLOC_FAST_PATH_LAMBDA {
+#ifdef SNMALLOC_PROFILE
+          /*
+           * H4 heap-profile hook (Phase 3.4).
+           *
+           * This is the lazy-init recursion arm of `dealloc_remote_slow`:
+           * `check_init` had to acquire an allocator before the free
+           * could proceed, and the acquired allocator may turn out to
+           * be the originating allocator -- so the design re-enters
+           * `Allocator::dealloc(p)` from the very top.  That re-entry
+           * will fire H1 again on the same pointer.
+           *
+           * H4 sits *just before* that recursive `a->dealloc(p)` for
+           * two reasons:
+           *
+           *   1. Recursion-guard pair with H1.  By recording here, we
+           *      guarantee the profile slot is drained on this stack
+           *      frame even in the (purely hypothetical) future case
+           *      where the recursive `a->dealloc` is replaced by a
+           *      direct slab-local path that bypasses the H1 entry.
+           *
+           *   2. Idempotence is free.  The CAS inside
+           *      `clear_profile_slot` (see profile/record.h step 3)
+           *      makes the first H1 call the only one that observes
+           *      the live slot; H4 (and the subsequent recursive H1)
+           *      are guaranteed to be no-ops.  The ReentrancyGuard
+           *      further short-circuits the recursion at the
+           *      `record_dealloc` entry.
+           *
+           * Compiles to a no-op for configurations without a
+           * profile-enabled ClientMetaDataProvider.
+           */
+          profile::record_dealloc<Config>(p);
+#endif
           // Recheck what kind of dealloc we should do in case the allocator
           // we get from lazy_init is the originating allocator.
           a->dealloc(p); // TODO don't double count statistics
