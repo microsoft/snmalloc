@@ -493,3 +493,80 @@ override the profile in their own `Cargo.toml` — `[profile.release]`
 in a `[dependencies]` member is overridden by the root package's
 profile block, so the LTO setting here is **opt-in** for every
 consumer who hasn't explicitly chosen it for their own build.
+
+### Verification follow-up (ticket 86aj0kdve)
+
+The "Bench numbers" subsection above attributed the `mixed`-group
+speedup to LTO inlining the FFI thunks across the Rust ↔ C boundary on
+the bench's hot path. A symbol-level audit of the bench binary
+contradicts that claim: **the bench does not exercise the FFI thunks at
+all**, so LTO has no path to affect the measured numbers and the
+observed `mixed`-group delta must come from unrelated effects (run-to-
+run variance, or `codegen-units = 1` reshaping the bench harness's own
+Rust code).
+
+What the audit found (host: Apple M4 Pro, rustc 1.95.0,
+`cargo bench --features profiling --no-run`, binary
+`target/release/deps/profile_bench-*`):
+
+1. The bench harness (`snmalloc-rs/benches/profile_bench.rs`)
+   intentionally allocates via `std::alloc::{alloc, dealloc}` without
+   installing `SnMalloc` as `#[global_allocator]`. The module-level
+   doc-comment on `alloc_batch` says so explicitly: "We don't install
+   `SnMalloc` as the global allocator here — the bench process inherits
+   the system allocator." The only `SnMalloc` method the bench calls is
+   `set_sampling_rate`, which routes through
+   `sn_rust_profile_set_sampling_rate`, **not** the alloc/dealloc
+   thunks.
+
+2. `nm -A target/release/deps/profile_bench-*` lists exactly **one**
+   `sn_rust_*` symbol in the linked binary:
+
+   ```text
+   T _sn_rust_profile_set_sampling_rate
+   ```
+
+   The six FFI thunks the LTO change was supposed to inline
+   (`sn_rust_alloc`, `sn_rust_alloc_zeroed`, `sn_rust_dealloc`,
+   `sn_rust_realloc`, `sn_rust_statistics`, `sn_rust_usable_size`) are
+   absent — the linker dead-stripped them because the bench's call
+   graph never references them.
+
+3. The Rust default-allocator entry point `___rust_alloc` is present
+   and its disassembly (`xcrun llvm-objdump -d
+   target/release/deps/profile_bench-* --disassemble-symbols=...___rust_alloc`)
+   branches into `dyld_stub_binder`-resolved imports of `_malloc` and
+   `_posix_memalign` from libSystem. The bench's measured `b.iter`
+   loops dispatch through this path, never touching snmalloc.
+
+4. The undefined-symbol list from the same `nm` run confirms libc as
+   the bench's allocator backend:
+
+   ```text
+   U _malloc
+   U _free
+   U _realloc
+   U _calloc
+   ```
+
+   No `U _sn_rust_alloc` / `U _sn_rust_dealloc` entries — the linker
+   resolved them out of the link entirely along with the rest of the
+   `snmalloc_rs::SnMalloc` `GlobalAlloc` impl.
+
+**Implication.** The fat-LTO + `codegen-units = 1` settings shipped in
+PR #33 are still correct for downstream consumers who install
+`SnMalloc` via `#[global_allocator]` — they will see the FFI thunks
+inlined across the boundary as advertised. But for the in-repo
+`cargo bench --features profiling` workload they cannot affect the
+measured numbers, because the measured path does not go through any
+snmalloc code. The `mixed`-group speedup recorded in the "Bench
+numbers" table above should be read as the natural run-to-run variance
+band of the bench harness on this host, not as evidence that LTO
+inlined the alloc/dealloc thunks.
+
+No source change is required: the LTO settings remain useful for the
+downstream `#[global_allocator]` install case. The follow-up here is
+purely documentation — the LTO claim about the bench numbers was
+overstated, and a future bench that actually exercises the FFI thunks
+on its critical path (i.e. one that installs `SnMalloc` as the global
+allocator) would be the right way to measure cross-crate LTO impact.
