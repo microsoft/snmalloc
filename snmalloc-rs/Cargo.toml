@@ -31,6 +31,16 @@ backtrace = { version = "0.3", optional = true }
 # crossbeam transitive deps we don't otherwise need.
 [dev-dependencies]
 inferno = "0.11"
+# Phase 7.2 benchmark harness.  `default-features = false` keeps the
+# transitive footprint small: we skip the `rayon`-powered HTML report
+# generator (which pulls in plotters, csv, etc.) since the bench
+# numbers are scraped from `target/criterion/**/estimates.json` rather
+# than the HTML page.
+criterion = { version = "0.5", default-features = false }
+
+[[bench]]
+name = "profile_bench"
+harness = false
 
 [features]
 default = ["snmalloc-sys/build_cmake", "snmalloc-sys/usewait-on-address"]
