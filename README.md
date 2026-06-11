@@ -104,6 +104,17 @@ embedders that want to drive the profiler from a non-Rust host:
 | `sn_rust_profile_snapshot_begin` / `_count` / `_get` / `_end` | RAII-style enumeration of currently-live sampled allocations. |
 | `sn_rust_profile_streaming_start` / `_stop` | Register a `void(*)(const SnRustProfileRawSample*)` callback that receives every sample as it occurs. |
 
+Each `SnRustProfileRawSample` carries a `kind` byte (`SN_RUST_PROFILE_KIND_ALLOC` /
+`SN_RUST_PROFILE_KIND_RESIZE`) that tells streaming consumers whether the
+broadcast describes a fresh sampled allocation or an in-place realloc that
+updated the size of an already-sampled allocation. Resize events carry the
+post-resize `requested_size` / `allocated_size` and preserve the original
+sample's stack and Poisson weight; the sampler is not re-rolled on resize.
+Out-of-place realloc (alloc + memcpy + dealloc) is reported via the
+existing alloc and dealloc paths -- there is no synthetic Resize event for
+it. Snapshot mode always reports `kind == ALLOC`; the persisted slot is
+updated in place but its kind tag is not re-stamped.
+
 These are the same exports the Rust crate calls into; see
 `src/snmalloc/override/rust.cc` for the full ABI surface and
 `src/snmalloc/override/rust.h` for the header layout.

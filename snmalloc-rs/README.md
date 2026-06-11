@@ -122,6 +122,31 @@ The closure must be `Fn + Send + Sync + 'static`; samples may be
 dispatched on any thread that trips the sampler. Only one session can
 be active per process at a time.
 
+#### Realloc / Resize events
+
+Each `StreamSample` carries an `EventKind` tag. `EventKind::Alloc` is
+the original alloc-time broadcast; `EventKind::Resize` is emitted when
+an in-place `realloc` updates the size of a previously-sampled
+allocation, and carries the post-resize `requested_size` /
+`allocated_size`. The original alloc-site stack and the sample's
+Poisson weight are preserved across a Resize -- the sampler is not
+re-rolled on resize. Out-of-place realloc (the slow path where snmalloc
+actually allocates a new block and frees the old one) is described by
+the existing Alloc + dealloc broadcasts; consumers that build a live
+"bytes per call site" view can therefore treat Resize events as
+in-place size churn on the same stack without double-counting.
+
+```rust
+use snmalloc_rs::streaming::EventKind;
+
+let _session = ProfilingSession::start(|sample| {
+    match sample.kind() {
+        EventKind::Alloc => { /* a fresh sampled allocation */ }
+        EventKind::Resize => { /* an in-place realloc grew/shrank it */ }
+    }
+});
+```
+
 ### Runtime configuration via env vars
 
 `SnMalloc::init_profiling_from_env()` reads `SNMALLOC_PROFILE_ENABLE`

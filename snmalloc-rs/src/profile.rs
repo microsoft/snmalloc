@@ -46,6 +46,39 @@ use crate::SnMalloc;
 #[cfg(feature = "symbolicate")]
 use std::collections::HashMap;
 
+/// Event kind tag attached to a [`BtSample`].
+///
+/// Snapshot samples are always [`SampleKind::Alloc`]: the persisted
+/// per-object slot is never re-tagged on resize -- only the streaming
+/// broadcast carries a `Resize` event.  The enum is exposed here so
+/// snapshot consumers can pattern-match symmetrically with streaming
+/// consumers (where the same idea is exposed as
+/// [`crate::streaming::EventKind`]); the variants are also forward-
+/// compatible with future kinds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SampleKind {
+    /// A fresh sampled allocation.  This is the only kind produced by
+    /// `SnMalloc::snapshot` in the current implementation.
+    Alloc,
+    /// An in-place realloc updated an existing sample's size.  Not
+    /// currently emitted by snapshot mode -- reserved so that future
+    /// snapshot consumers can match exhaustively against a single enum
+    /// shared with the streaming surface.
+    Resize,
+}
+
+impl SampleKind {
+    /// Decode the raw `kind` byte from a [`SnRustProfileRawSample`].
+    /// Unknown values fall back to [`SampleKind::Alloc`].
+    #[inline]
+    fn from_raw(kind: u8) -> Self {
+        match kind {
+            snmalloc_sys::SN_RUST_PROFILE_KIND_RESIZE => SampleKind::Resize,
+            _ => SampleKind::Alloc,
+        }
+    }
+}
+
 /// One sampled live allocation.
 ///
 /// Field layout intentionally mirrors the raw C struct
@@ -75,6 +108,20 @@ pub struct BtSample {
     /// these into function names + line numbers is Phase 4.5; for
     /// now they are opaque code pointers.
     pub stack: Vec<*const u8>,
+}
+
+impl BtSample {
+    /// Event kind accessor, for symmetry with the streaming-mode
+    /// [`crate::streaming::StreamSample::kind`] API.  Snapshot mode
+    /// always returns [`SampleKind::Alloc`]: the persisted SampledList
+    /// slot never carries a `Resize` tag -- only the streaming
+    /// broadcast does (ticket 86aj0hk9y).  Exposing the accessor here
+    /// regardless lets snapshot- and streaming-mode consumers share
+    /// the same `kind()` shape.
+    #[inline]
+    pub fn kind(&self) -> SampleKind {
+        SampleKind::Alloc
+    }
 }
 
 // SAFETY: BtSample contains raw pointers used purely as opaque
@@ -903,6 +950,7 @@ impl RawSnapshotGuard {
             weight: 0,
             stack_depth: 0,
             stack: [core::ptr::null_mut(); ffi::SN_RUST_PROFILE_STACK_FRAMES],
+            kind: snmalloc_sys::SN_RUST_PROFILE_KIND_ALLOC,
         };
         let ok = unsafe {
             ffi::sn_rust_profile_snapshot_get(self.handle, idx, &mut out)
@@ -961,6 +1009,12 @@ impl SnMalloc {
             for i in 0..depth {
                 stack.push(raw.stack[i] as *const u8);
             }
+            // The C `kind` byte is currently `Alloc` for every persisted
+            // sample (resize events live only in the streaming
+            // broadcast).  Decode it for forward compatibility but do
+            // not store it on `BtSample`: the public field set is
+            // unchanged in v2 of the wire format.
+            let _ = SampleKind::from_raw(raw.kind);
             samples.push(BtSample {
                 alloc_ptr: raw.alloc_ptr as *const u8,
                 requested_size: raw.requested_size,

@@ -47,6 +47,51 @@ use std::sync::{Mutex, OnceLock};
 use snmalloc_sys as ffi;
 use snmalloc_sys::SnRustProfileRawSample;
 
+/// Streaming sample-event kind.  Distinguishes the original alloc-time
+/// broadcast from a Resize broadcast emitted by the in-place realloc
+/// hook (ticket 86aj0hk9y).
+///
+/// - [`EventKind::Alloc`] -- a fresh sampled allocation.  Snapshot
+///   consumers always observe this kind; streaming consumers observe
+///   it on the original alloc-time broadcast.
+/// - [`EventKind::Resize`] -- an in-place realloc updated the size of
+///   an already-sampled allocation.  Only streaming consumers see this
+///   kind.  The borrowed [`StreamSample`] carries the post-resize
+///   `requested_size` and `allocated_size`; the original alloc-site
+///   stack and Poisson weight are unchanged.
+///
+/// Out-of-place realloc (the slow path where snmalloc allocates a new
+/// block, memcpys, and frees the old one) is never reported as
+/// `Resize`: the existing alloc/dealloc broadcasts already describe it
+/// correctly.  Treating `Resize` as additive size churn on the same
+/// stack therefore lets a consumer compute a running "live bytes per
+/// call site" view without double-counting.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum EventKind {
+    /// A fresh sampled allocation.
+    Alloc,
+    /// An in-place realloc updated an existing sample's size.
+    Resize,
+}
+
+impl EventKind {
+    /// Decode the raw `kind` byte from a [`SnRustProfileRawSample`].
+    /// Unknown values (a forward-compat shim from a newer C side) fall
+    /// back to [`EventKind::Alloc`] -- conservative because every
+    /// sample is at least a logical alloc-event from the consumer's
+    /// point of view, and Resize is the only currently-defined
+    /// alternative.
+    #[inline]
+    fn from_raw(kind: u8) -> Self {
+        match kind {
+            snmalloc_sys::SN_RUST_PROFILE_KIND_RESIZE => EventKind::Resize,
+            // SN_RUST_PROFILE_KIND_ALLOC and any forward-compat values
+            // fall through to Alloc.
+            _ => EventKind::Alloc,
+        }
+    }
+}
+
 /// Boxed user closure invoked once per sampled allocation.  Stored
 /// behind a [`Mutex`] in the global handler slot; the trampoline
 /// locks the slot for the (short) duration of each dispatch.
@@ -155,6 +200,21 @@ impl<'a> StreamSample<'a> {
         self.raw.weight as u64
     }
 
+    /// Event kind tag for this broadcast.  See [`EventKind`] for the
+    /// semantic distinction between an alloc-time broadcast
+    /// ([`EventKind::Alloc`]) and an in-place realloc resize-event
+    /// broadcast ([`EventKind::Resize`]).
+    ///
+    /// Consumers that care about live-bytes attribution per call site
+    /// should treat a `Resize` event as updating the latest known
+    /// `requested_size` / `allocated_size` for the original alloc;
+    /// consumers that only count distinct allocations can filter
+    /// `kind() == Alloc` to recover pre-Resize semantics.
+    #[inline]
+    pub fn kind(&self) -> EventKind {
+        EventKind::from_raw(self.raw.kind)
+    }
+
     /// Captured return addresses, innermost first.  Slice length is
     /// `stack_depth`.  Borrowed from the raw sample for the
     /// duration of the callback; if the user needs to keep the
@@ -184,6 +244,7 @@ impl<'a> fmt::Debug for StreamSample<'a> {
             .field("allocated_size", &self.allocated_size())
             .field("weight", &self.weight())
             .field("stack_depth", &self.stack().len())
+            .field("kind", &self.kind())
             .finish()
     }
 }

@@ -30,6 +30,7 @@
 #  include <atomic>
 #  include <snmalloc/backend/globalconfig.h>
 #  include <snmalloc/profile/profile.h>
+#  include <snmalloc/profile/record.h>
 #  include <snmalloc/snmalloc_core.h>
 
 namespace snmalloc
@@ -91,7 +92,20 @@ extern "C" SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(rust_realloc)(
   if (
     size_to_sizeclass_full(aligned_old_size).raw() ==
     size_to_sizeclass_full(aligned_new_size).raw())
+  {
+#ifdef SNMALLOC_PROFILE
+    // In-place realloc fast path (ticket 86aj0hk9y).  Same intent as
+    // the hook in src/snmalloc/global/libc.h's realloc -- broadcast a
+    // Resize event for any allocation that was originally sampled,
+    // and update the persisted slot's sizes in place.  Out-of-place
+    // realloc (the slow path below) does NOT need a hook: the
+    // alloc()/dealloc() calls already fire record_alloc / record_dealloc
+    // for the new and old pointers respectively.
+    snmalloc::profile::record_realloc<snmalloc::Config>(
+      ptr, new_size, aligned_new_size);
+#endif
     return ptr;
+  }
   void* p = alloc(aligned_new_size);
   if (p)
   {
@@ -222,6 +236,12 @@ extern "C" SNMALLOC_EXPORT void* sn_rust_profile_snapshot_begin(void)
         out.stack[i] = reinterpret_cast<void*>(node->stack[i]);
       for (size_t i = depth; i < SNMALLOC_PROFILE_STACK_FRAMES; ++i)
         out.stack[i] = nullptr;
+      // Snapshot consumers always observe `Alloc`: the persisted slot
+      // is never tagged `Resize` (only the streaming broadcast carries
+      // a stack-local copy with that tag).  Pass through whatever the
+      // node stores -- which is `Alloc` by construction -- so the field
+      // is initialised rather than left uninitialised.
+      out.kind = node->kind;
       ++idx;
     });
 
@@ -315,6 +335,11 @@ namespace
       out.stack[i] = reinterpret_cast<void*>(node.stack[i]);
     for (size_t i = depth; i < SNMALLOC_PROFILE_STACK_FRAMES; ++i)
       out.stack[i] = nullptr;
+    // Pass the event kind through verbatim: `record_alloc` sets it to
+    // SampledAllocKind::Alloc, `record_realloc` builds a stack-local
+    // copy with SampledAllocKind::Resize before broadcasting.  The user
+    // callback observes whichever was set.
+    out.kind = node.kind;
 
     user_cb(&out);
   }

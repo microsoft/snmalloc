@@ -36,21 +36,54 @@ extern "C" {
 #endif
 
 /**
+ * Sampled-allocation event kind tag.  Mirrors
+ * `snmalloc::profile::SampledAllocKind`:
+ *   0 = Alloc  -- a fresh sampled allocation (alloc-time broadcast and
+ *                 every persisted snapshot sample).
+ *   1 = Resize -- an in-place realloc updated the size of an existing
+ *                 sample.  Streaming consumers see this kind on the
+ *                 broadcast carrying the post-resize sizes; snapshot
+ *                 consumers do not (the persisted slot stays as Alloc).
+ */
+#define SN_RUST_PROFILE_KIND_ALLOC ((uint8_t)0)
+#define SN_RUST_PROFILE_KIND_RESIZE ((uint8_t)1)
+
+/**
  * One sampled allocation, copied out of the in-process SampledList by
  * sn_rust_profile_snapshot_get.  The layout is a plain C struct so the
  * Rust side can mirror it verbatim with `#[repr(C)]`.
  *
+ * Wire-format version 2 (realloc event hook -- ticket 86aj0hk9y):
+ *   v2 appends a trailing `kind` byte (SN_RUST_PROFILE_KIND_*).  The
+ *   field is non-padded relative to the v1 layout; appending it at the
+ *   tail keeps the v1 prefix bit-identical.  Consumers built against
+ *   the v1 struct must be recompiled against v2 before running on a v2
+ *   shim -- the FFI is not versioned beyond the build-time match
+ *   contract documented on SNMALLOC_PROFILE_STACK_FRAMES.
+ *
  * Fields:
  *   alloc_ptr        Pointer returned by the original alloc.  May be null
  *                    if the alloc-side hook could not record one (rare).
- *   requested_size   Size requested by the caller (bytes).
+ *   requested_size   Size requested by the caller (bytes).  For a Resize
+ *                    event this is the post-resize requested size.
  *   allocated_size   Size actually returned by snmalloc (sizeclass-rounded).
+ *                    For a Resize event this is the post-resize allocated
+ *                    size.
  *   weight           Bytes-of-request weight for this sample (Poisson
- *                    unbiased estimator -- see profile-weight.md).
+ *                    unbiased estimator -- see profile-weight.md).  Carried
+ *                    unchanged across a Resize -- the original sample's
+ *                    Poisson weight still applies; we never re-roll the
+ *                    sampler on resize.
  *   stack_depth      Number of valid entries in `stack` (0..=
  *                    SNMALLOC_PROFILE_STACK_FRAMES).
  *   stack            Captured return addresses, innermost first.  Entries
- *                    beyond `stack_depth` are unspecified.
+ *                    beyond `stack_depth` are unspecified.  Carried
+ *                    unchanged across a Resize -- the original alloc-time
+ *                    stack remains the call site of record.
+ *   kind             SN_RUST_PROFILE_KIND_ALLOC or
+ *                    SN_RUST_PROFILE_KIND_RESIZE.  Snapshot consumers
+ *                    always observe `Alloc`; streaming consumers observe
+ *                    `Resize` for in-place realloc events.
  */
 struct SnRustProfileRawSample
 {
@@ -60,6 +93,7 @@ struct SnRustProfileRawSample
   size_t weight;
   uint32_t stack_depth;
   void* stack[SNMALLOC_PROFILE_STACK_FRAMES];
+  uint8_t kind;
 };
 
 /**

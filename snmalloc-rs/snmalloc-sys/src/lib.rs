@@ -86,6 +86,20 @@ extern "C" {
     
 }
 
+/// Event kind tag for [`SnRustProfileRawSample::kind`].  Mirrors the
+/// C `SN_RUST_PROFILE_KIND_*` macros in `rust_profile.h`:
+///
+/// - `SN_RUST_PROFILE_KIND_ALLOC` (0) -- a fresh sampled allocation.
+///   Snapshot consumers always observe this kind; streaming consumers
+///   observe it on the original alloc-time broadcast.
+/// - `SN_RUST_PROFILE_KIND_RESIZE` (1) -- an in-place realloc updated
+///   the size of an already-sampled allocation.  Only streaming
+///   consumers see this kind; the broadcast carries the post-resize
+///   `requested_size` and `allocated_size`, with the original weight
+///   and stack unchanged.
+pub const SN_RUST_PROFILE_KIND_ALLOC: u8 = 0;
+pub const SN_RUST_PROFILE_KIND_RESIZE: u8 = 1;
+
 /// One sampled allocation, mirrored bit-for-bit from
 /// `struct SnRustProfileRawSample` in `src/snmalloc/override/rust_profile.h`.
 ///
@@ -95,6 +109,12 @@ extern "C" {
 /// snmalloc build was configured with `SNMALLOC_PROFILE=OFF` this struct
 /// is still well-defined; the snapshot calls will simply not produce any
 /// samples to populate it.
+///
+/// Wire-format version 2 (realloc event hook -- ticket 86aj0hk9y):
+/// v2 appends the trailing `kind` byte.  The v1 prefix is bit-identical
+/// so old snapshot consumers that only read the v1 fields work
+/// unchanged; new consumers should consult `kind` to distinguish
+/// `Alloc` from `Resize` events in streaming mode.
 ///
 /// The struct is exposed unconditionally (independent of the Rust
 /// `profiling` Cargo feature) because the matching C symbols in
@@ -107,17 +127,28 @@ extern "C" {
 pub struct SnRustProfileRawSample {
     /// Pointer returned by the original alloc.  May be null.
     pub alloc_ptr: *mut c_void,
-    /// Size requested by the caller (bytes).
+    /// Size requested by the caller (bytes).  For a Resize event this
+    /// is the post-resize requested size.
     pub requested_size: usize,
-    /// Size actually returned (sizeclass-rounded).
+    /// Size actually returned (sizeclass-rounded).  For a Resize event
+    /// this is the post-resize allocated size.
     pub allocated_size: usize,
-    /// Bytes-of-request weight (Poisson unbiased estimator).
+    /// Bytes-of-request weight (Poisson unbiased estimator).  Carried
+    /// unchanged across a Resize event -- the original sample's
+    /// Poisson weight still applies; the sampler is not re-rolled on
+    /// resize.
     pub weight: usize,
     /// Number of valid entries in `stack` (0..=SN_RUST_PROFILE_STACK_FRAMES).
     pub stack_depth: u32,
     /// Captured return addresses, innermost first.  Entries beyond
-    /// `stack_depth` are unspecified.
+    /// `stack_depth` are unspecified.  Carried unchanged across a
+    /// Resize event -- the original alloc-time stack remains the call
+    /// site of record.
     pub stack: [*mut c_void; SN_RUST_PROFILE_STACK_FRAMES],
+    /// Event kind tag: one of [`SN_RUST_PROFILE_KIND_ALLOC`] (0) or
+    /// [`SN_RUST_PROFILE_KIND_RESIZE`] (1).  Snapshot consumers always
+    /// observe `Alloc`; streaming consumers may observe either.
+    pub kind: u8,
 }
 
 // The `sn_rust_profile_*` C symbols are always exported by
@@ -292,6 +323,7 @@ mod profile_tests {
                     weight: 0,
                     stack_depth: 0,
                     stack: [ptr::null_mut(); SN_RUST_PROFILE_STACK_FRAMES],
+                    kind: SN_RUST_PROFILE_KIND_ALLOC,
                 };
                 assert!(sn_rust_profile_snapshot_get(h, 0, &mut sample));
                 // Out-of-range index must report failure.

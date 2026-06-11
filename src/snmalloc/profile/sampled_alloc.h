@@ -36,6 +36,31 @@ namespace snmalloc::profile
     Freed = 2,
   };
 
+  /// Event kind tag attached to a sampled-allocation broadcast.
+  ///
+  /// Streaming consumers see one of:
+  ///   Alloc  -- a brand-new sampled allocation (the original alloc-time
+  ///             broadcast).  This is the default kind stored in the
+  ///             persisted SampledList slot.
+  ///   Resize -- an in-place realloc updated the size of an already-
+  ///             sampled allocation.  Broadcast only; the persisted
+  ///             slot's `kind` is left as `Alloc` (the sample's lifecycle
+  ///             did not change -- only its size did).  The broadcast
+  ///             payload carries the post-resize requested_size /
+  ///             allocated_size.
+  ///
+  /// Out-of-place realloc (alloc + memcpy + dealloc) is NOT a Resize
+  /// event: the underlying alloc-side hook already fires for the new
+  /// pointer and the dealloc-side hook clears the old slot, so the
+  /// streaming stream already reflects the correct lifecycle.  Resize
+  /// is reserved for the in-place fast path where the existing slot is
+  /// updated in place.
+  enum class SampledAllocKind : uint8_t
+  {
+    Alloc = 0,
+    Resize = 1,
+  };
+
   static constexpr size_t MaxStackFrames = SNMALLOC_PROFILE_STACK_FRAMES;
 
   /// Cache-line size (matches snmalloc::CACHELINE_SIZE; duplicated here so
@@ -91,7 +116,13 @@ namespace snmalloc::profile
     /// NodeState. Atomic because the reader may consult it during a
     /// snapshot to detect a node mid-transition.
     std::atomic<uint8_t> state{static_cast<uint8_t>(NodeState::Free)};
-    uint8_t _pad[6]{};
+    /// Event kind tag.  The persisted slot is always `Alloc`; a stack-
+    /// local copy with `kind = Resize` is built by `record_realloc` for
+    /// the streaming broadcast.  Stored as the raw uint8_t backing of
+    /// `SampledAllocKind` so the struct stays POD-compatible across the
+    /// FFI boundary.
+    uint8_t kind{static_cast<uint8_t>(SampledAllocKind::Alloc)};
+    uint8_t _pad[5]{};
 
     SampledAlloc() noexcept = default;
     SampledAlloc(const SampledAlloc&) = delete;
@@ -113,6 +144,7 @@ namespace snmalloc::profile
       tid = 0;
       alloc_seq = 0;
       stack_depth = 0;
+      kind = static_cast<uint8_t>(SampledAllocKind::Alloc);
       for (size_t i = 0; i < MaxStackFrames; ++i)
         stack[i] = 0;
       state.store(
