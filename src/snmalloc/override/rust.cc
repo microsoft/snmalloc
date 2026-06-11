@@ -1,5 +1,52 @@
 #define SNMALLOC_NAME_MANGLE(a) sn_##a
 
+// ---------------------------------------------------------------------------
+// Profile-enabled Config wiring (Phase 4.2).
+//
+// When SNMALLOC_PROFILE is defined, we must replace the default
+// `snmalloc::Config` (which uses NoClientMetaDataProvider) with a profile-
+// enabled Config whose ClientMeta is
+// `LazyArrayClientMetaDataProvider<std::atomic<SampledAlloc*>>`.  Without
+// this, `config_has_profile_slot_v<Config>` is false and the alloc/dealloc
+// hooks in `snmalloc/profile/record.h` compile to no-ops -- so even with
+// `SNMALLOC_PROFILE=ON` no samples would ever be recorded.
+//
+// The pattern is the same one used by the C++ profile tests
+// (e.g. src/test/func/profile_e2e/profile_e2e.cc and
+// src/test/func/profile_integration/profile_integration.cc):
+//
+//   1. Predeclare `snmalloc::Config` as the profile-enabled type.
+//   2. `#define SNMALLOC_PROVIDE_OWN_CONFIG` to suppress the default
+//      typedef in `snmalloc.h`.
+//   3. Pull in `snmalloc.h` (and, on the libc-API path, `malloc.cc` which
+//      transitively includes `snmalloc.h` via `override.h`).
+//
+// When SNMALLOC_PROFILE is undefined this branch is skipped entirely and
+// the shim is byte-identical to its pre-Phase-4.2 form: the default Config
+// is used and the FFI hooks below collapse to the no-op stubs in the
+// `#else` arm.
+// ---------------------------------------------------------------------------
+#ifdef SNMALLOC_PROFILE
+#  include <atomic>
+#  include <snmalloc/backend/globalconfig.h>
+#  include <snmalloc/profile/profile.h>
+#  include <snmalloc/snmalloc_core.h>
+
+namespace snmalloc
+{
+  // Profile-enabled Config: stores `std::atomic<SampledAlloc*>` per
+  // allocation via the lazy provider.  This flips
+  // `config_has_profile_slot_v<Config>` to true, making the alloc and
+  // dealloc hooks do real work and routing live samples into the
+  // `SamplerGlobals::list()` consumed by the `sn_rust_profile_*` exports
+  // below.
+  using Config = snmalloc::StandardConfigClientMeta<
+    LazyArrayClientMetaDataProvider<std::atomic<profile::SampledAlloc*>>>;
+} // namespace snmalloc
+
+#  define SNMALLOC_PROVIDE_OWN_CONFIG
+#endif
+
 // The libc API provided by malloc.cc will always be mangled per above.
 #ifdef SNMALLOC_RUST_LIBC_API
 #  include "malloc.cc"
@@ -11,10 +58,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef SNMALLOC_PROFILE
-#  include "snmalloc/profile/profile.h"
-#endif
 
 #ifndef SNMALLOC_EXPORT
 #  define SNMALLOC_EXPORT
