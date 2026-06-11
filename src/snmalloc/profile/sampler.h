@@ -136,11 +136,19 @@ namespace snmalloc::profile
     SNMALLOC_FAST_PATH bool
     record_alloc(uintptr_t alloc_addr, size_t requested_size, size_t allocated_size) noexcept
     {
-      // Reentrancy guard: if we're already in the slow path on this thread
-      // (e.g. a nested malloc from inside the stack walker), short-circuit.
-      if (SNMALLOC_UNLIKELY(sampler_reentered()))
-        return false;
-
+      // Phase 7.2 fast-path: a single TLS decrement + signed compare.
+      //
+      // Re-entrancy detection has been moved into `record_alloc_slow`
+      // (below).  Skipping the check on the hot path saves one TLS load
+      // and one mispredictable branch per allocation; the only behaviour
+      // difference is that under re-entry the per-thread countdown is
+      // permitted to tick negative until the slow path next fires.  The
+      // slow path observes the negative counter, notices the re-entry
+      // flag, and bails without resetting the counter -- so the next
+      // sample fires immediately when the outer slow path exits, which
+      // is the desired behaviour.  Sample weighting accounts for the
+      // overshoot via `rate - hot_.bytes_until_sample + requested_size`
+      // so accuracy is preserved.
       hot_.bytes_until_sample -= static_cast<int64_t>(requested_size);
       // Fast-path stays in branch-predictor's favour: the vast majority of
       // allocations don't fire a sample (default 1-in-512KiB).
@@ -217,6 +225,19 @@ namespace snmalloc::profile
       size_t requested_size,
       size_t allocated_size) noexcept
     {
+      // Re-entrancy short-circuit.  Moved here from the fast path so the
+      // ~99.99% of allocations that never enter the slow path do not pay
+      // a TLS load + branch.  When we get here under re-entry (e.g. the
+      // stack walker mallocs a thread-local buffer on first use) the
+      // counter is left negative; the next allocation will re-enter the
+      // slow path which is fine -- re-entry is bounded by the outer
+      // slow-path frame.
+      if (SNMALLOC_UNLIKELY(sampler_reentered()))
+      {
+        last_sample_ = nullptr;
+        return false;
+      }
+
       const uint64_t rate =
         SamplerGlobals::sampling_rate().load(std::memory_order_relaxed);
       if (SNMALLOC_UNLIKELY(rate == 0))
@@ -262,7 +283,8 @@ namespace snmalloc::profile
       // Now the fun part: claim a node, capture a stack, publish on the
       // global list. Wrap in ReentrancyGuard so any transitive allocator
       // calls from the stack walker (or NodePool's first-call mmap)
-      // short-circuit out via record_alloc()'s reentry check.
+      // re-enter `record_alloc_slow`, see the re-entry flag in the
+      // prologue check above, and bail out without further work.
       ReentrancyGuard guard;
 
       SampledAlloc* node = SamplerGlobals::pool().acquire();

@@ -213,22 +213,39 @@ namespace snmalloc::profile
       if (SNMALLOC_UNLIKELY(p == nullptr))
         return;
 
-      // Step 1: re-entrancy.  If the sampler is already live on this
+      // Step 1: find the slot.  Returns nullptr if the lazy backing is
+      // not yet installed for this slab -- common case until something
+      // on this slab has been sampled.  This is the cheapest filter
+      // (pure load, no TLS writes) so we run it before any re-entrancy
+      // bookkeeping.  Performance note: the alternative ordering
+      // (re-entrancy check first) was measured to add an extra TLS
+      // load + write to the common-case dealloc path even when no slot
+      // is installed; the slab-metadata probe here is touched anyway
+      // for non-profile dealloc work, so it is effectively free.
+      ProfileSlot* slot = find_profile_slot<Config>(p);
+      if (SNMALLOC_LIKELY(slot == nullptr))
+        return;
+
+      // Step 2: peek at the atomic slot.  If it is already null (the
+      // overwhelmingly common case once a slab has been touched at
+      // least once but the specific object was never sampled), bail
+      // without taking the re-entrancy guard.  This avoids a TLS
+      // store-store-load round-trip on the dealloc fast path.
+      if (SNMALLOC_LIKELY(slot->load(std::memory_order_relaxed) == nullptr))
+        return;
+
+      // Step 3: re-entrancy.  If the sampler is already live on this
       // thread, do nothing.  This can happen when the profile subsystem
       // itself triggers a dealloc during cleanup; we must not recurse.
-      if (sampler_reentered())
+      if (SNMALLOC_UNLIKELY(sampler_reentered()))
         return;
 
       ReentrancyGuard guard;
 
-      // Step 2: find the slot.  Returns nullptr if the lazy backing is
-      // not yet installed for this slab -- common case until something
-      // on this slab has been sampled.
-      ProfileSlot* slot = find_profile_slot<Config>(p);
-      if (slot == nullptr)
-        return;
-
-      // Step 3: atomic clear + cleanup.
+      // Step 4: atomic clear + cleanup.  clear_profile_slot performs
+      // its own relaxed load + CAS to handle the concurrent-free race
+      // (another thread may have cleared the slot between our peek
+      // above and this point).
       (void)clear_profile_slot(slot);
     }
   }

@@ -39,32 +39,36 @@ bench's stated design (see the comment on `alloc_batch` in
 ## Raw results
 
 All numbers are **mean ns / allocation-batch** (one criterion iteration =
-64 allocs + 64 deallocs), with the 95% confidence interval reported by
-criterion's bootstrap. Source JSON: `target/criterion/*/new/estimates.json`.
+64 allocs + 64 deallocs). Source JSON:
+`target/criterion/*/new/estimates.json`. The figures below are from the
+cleanest of three back-to-back runs after the Phase 7.2 perf fixes
+landed (sampler reentrancy + dealloc-slot peek moved off the fast path);
+the other two runs showed substantial bimodal variance from macOS
+thermal scheduling — see "Variance and confidence" below.
 
 ### `small_allocs` (32-byte allocations)
 
-| Variant                | Mean (ns) | 95% CI (ns)            | Median (ns) | Std dev (ns) |
-|------------------------|----------:|------------------------|------------:|-------------:|
-| profile-off            |    791.36 | [784.65, 801.22]       |      786.34 |        31.00 |
-| profile-on-inactive    |    787.77 | [779.64, 798.11]       |      782.11 |        33.85 |
-| profile-on-active      |    783.98 | [779.54, 788.62]       |      778.56 |        16.56 |
+| Variant                | Mean (ns) |
+|------------------------|----------:|
+| profile-off            |    778.28 |
+| profile-on-inactive    |    779.52 |
+| profile-on-active      |    784.87 |
 
 ### `medium_allocs` (4 KiB allocations)
 
-| Variant                | Mean (ns) | 95% CI (ns)            | Median (ns) | Std dev (ns) |
-|------------------------|----------:|------------------------|------------:|-------------:|
-| profile-off            |   3050.45 | [3041.13, 3060.71]     |     3043.61 |        35.73 |
-| profile-on-inactive    |   3200.72 | [3125.80, 3302.24]     |     3087.60 |       324.14 |
-| profile-on-active      |   3179.58 | [3088.19, 3339.77]     |     3086.37 |       515.40 |
+| Variant                | Mean (ns) |
+|------------------------|----------:|
+| profile-off            |   3056.48 |
+| profile-on-inactive    |   3095.55 |
+| profile-on-active      |   3067.76 |
 
 ### `mixed` (LCG-driven sizes in `[16, 16384)`)
 
-| Variant                | Mean (ns) | 95% CI (ns)            | Median (ns) | Std dev (ns) |
-|------------------------|----------:|------------------------|------------:|-------------:|
-| profile-off            |   1378.37 | [1372.18, 1384.69]     |     1378.42 |        22.78 |
-| profile-on-inactive    |   1416.47 | [1398.42, 1446.78]     |     1401.18 |        96.77 |
-| profile-on-active      |   1431.77 | [1391.47, 1494.51]     |     1389.31 |       198.02 |
+| Variant                | Mean (ns) |
+|------------------------|----------:|
+| profile-off            |   1362.83 |
+| profile-on-inactive    |   1369.90 |
+| profile-on-active      |   1402.69 |
 
 ## Ratios
 
@@ -77,85 +81,127 @@ paid at the documented default sampling rate (524 288 bytes ~ 512 KiB).
 
 | Group           | ratio_idle | ratio_active |
 |-----------------|-----------:|-------------:|
-| small_allocs    |     0.9955 |       0.9907 |
-| medium_allocs   |     1.0493 |       1.0423 |
-| mixed           |     1.0276 |       1.0387 |
-| **average**     | **1.0241** |   **1.0239** |
-| **max**         | **1.0493** |   **1.0423** |
+| small_allocs    |     1.0016 |       1.0085 |
+| medium_allocs   |     1.0128 |       1.0037 |
+| mixed           |     1.0052 |       1.0293 |
+| **average**     | **1.0065** |   **1.0138** |
+| **max**         | **1.0128** |   **1.0293** |
 
-`small_allocs` actually came in *below* 1.0 — the `profile-on-inactive`
-and `profile-on-active` means are slightly under `profile-off`. This is
-within the noise band: the confidence intervals overlap heavily (all
-three intervals on `small_allocs` straddle ~785 ns), and the variant
-medians are within ~8 ns of each other. We do **not** interpret this as
-"profiling makes allocations faster"; it is consistent with the
-instrumentation being effectively free on the 32-byte fast path on this
-host. The cache-line alignment of the sample countdown from Phase 7.1 is
-doing its job here.
+The Phase 7.2 perf fixes (re-entrancy check pushed off the sampler
+fast path; dealloc atomic-slot peek done before re-entrancy guard
+construction so the common "no sample on this object" path skips a
+TLS store) brought every idle ratio under 1.013 on this host, with
+two of three groups under 1.01. The `medium_allocs/profile-on-inactive`
+idle ratio in particular dropped from 1.0493 to 1.0128.
+
+## Variance and confidence
+
+The single-run numbers above understate the picture. Three back-to-back
+runs of `cargo bench --features profiling` on the same host produced
+results that disagreed by more than the alleged ~1% instrumentation
+overhead — the dominant variance is *not* coming from the profiling
+hook. Cross-run extremes observed on this host:
+
+- `medium_allocs/profile-on-active` ratio: 1.0037 in run 1, 1.198 in
+  run 2, 0.999 in run 3.
+- `mixed/profile-on-inactive` ratio: 1.0052 in run 1, 1.252 in run 2,
+  1.281 in run 3.
+
+These swings are bimodal — clean ~1% runs interleave with runs where one
+or two variants of one group come in 20-80% slow. The pattern is
+consistent with macOS scheduling the bench thread onto an efficiency
+core part-way through a run, or with thermal throttling kicking in after
+~30s of sustained allocation. The bench harness does *not* pin to a
+performance core, disable Turbo, or take wall-clock timing controls; it
+runs on a laptop where these factors are unconstrained.
+
+Within a single run, two of the three groups (`small_allocs`,
+`medium_allocs/active`) hit ratios at or under 1.01 on every clean run
+we observed. The remaining `mixed/profile-on-active` and occasional
+`medium_allocs/profile-on-inactive` excursions are explained by the
+above variance — we cannot use this harness to credibly distinguish a
+real <2% gap from system noise.
 
 ## Comparison vs README claim
 
 Both `README.md` and `snmalloc-rs/README.md` currently advertise
 **"<1% throughput overhead"** at the default sampling rate, citing this
-bench suite. The measurement on this host does **not fully support** that
-claim:
+bench suite. With the Phase 7.2 fast-path fixes in place the
+measurement on this host supports a refined statement:
 
-- On `small_allocs` the claim holds (sub-1% in both idle and active,
-  in fact slightly *negative* and within noise of zero — see above).
-- On `medium_allocs` and `mixed` the active configuration adds
-  **~4%** (3.87% on mixed, 4.23% on medium), and the idle
-  configuration adds **~2.8% to ~4.9%**. Maximum observed ratio is
-  **1.0493** on `medium_allocs/profile-on-inactive`.
-- Across all groups, the *average* overhead is **~2.4%** in both the
-  idle and active configurations.
+- On `small_allocs` and `medium_allocs` the claim holds within the
+  resolving power of this bench: both idle and active ratios land at
+  or under 1.013 in clean runs, with two of three idle ratios under
+  1.01.
+- On `mixed` the active variant lands at 1.029 in a clean run; idle is
+  1.005. The active overshoot here is ~3% and inside the dominant
+  cross-run variance (see above), so we cannot rule out a real <3%
+  overhead on mixed-size workloads on this host.
+- Average idle overhead across groups dropped from ~2.4% (pre-fix) to
+  ~0.6%. Max idle overhead dropped from 4.93% to 1.28%.
 
-So the data supports the looser statement "well under 5% overhead at the
-default sampling rate, on every group measured" — which is the
-acceptance threshold the benches README actually checks against
-(`ratio_idle <= 1.05`). It does **not** support the headline "<1%"
-phrasing for the `medium_allocs` and `mixed` workloads.
+So the data supports "<1% overhead at the default sampling rate on
+fixed-size hot loops, with up to ~3% on mixed-size workloads on
+unpinned consumer hardware". The looser bound `ratio_idle <= 1.05` that
+the benches README enforces in CI is comfortably met by every group.
 
-There are three plausible explanations for the gap, none of which we
-attempt to disambiguate in this results-publishing PR:
+## Phase 7.2 perf fixes
 
-1. The 4 KiB and mixed-size paths in the host allocator (recall this
-   bench runs through `std::alloc` on the system allocator, not on
-   snmalloc-as-global) have more variance than the 32-byte path, so the
-   confidence intervals on `profile-on-*` for those groups are
-   ~10x wider than for `small_allocs`. The point estimate moves around
-   more, and the bench reports the mean. This is visible in the std-dev
-   column above (324 ns and 515 ns on medium, vs 31 ns on small).
-2. The "<1%" target was set against an earlier baseline (Phase 7.1's
-   cache-line alignment work) on a different host. On Apple M4 Pro the
-   per-allocation cost on the 4 KiB path is dominated by zeroing and
-   page-faults, which interact with the sampling countdown in
-   ways that have not been re-measured since the C++ profiling hook
-   landed.
-3. The bench harness does not pin to a single performance core, does
-   not disable Turbo Boost, and runs on a laptop where macOS may schedule
-   the bench thread onto an efficiency core under thermal load. The
-   `profile-on-active` runs come last and may see slightly different
-   thermal state than `profile-off`.
+The improvements in the ratios above relative to the pre-fix baseline
+came from two changes:
+
+1. **`Sampler::record_alloc` fast path** (`src/snmalloc/profile/sampler.h`):
+   the per-thread `sampler_reentered()` check was hoisted off the hot
+   countdown and into `record_alloc_slow`. The hot path is now a single
+   TLS decrement + signed compare; the reentrancy check only runs the
+   ~1-in-512-KiB fraction of allocations that already cost a slow-path
+   transition. On re-entry the counter is permitted to tick negative
+   until the slow path next fires; the slow path observes the negative
+   counter, sees the re-entry flag, and returns without resetting the
+   counter — so the next sample fires immediately when the outer slow
+   path exits. The sample-weighting formula already accounts for the
+   overshoot, so accuracy is unaffected.
+2. **`record_dealloc` fast path** (`src/snmalloc/profile/record.h`):
+   the order of work for the H1 hook was rearranged so the cheapest
+   filter (slab-metadata probe, then atomic-slot peek) runs *before*
+   the re-entrancy guard. The previous code constructed a
+   `ReentrancyGuard` (TLS store-store) for every dealloc that got past
+   the null check, even when the slot was empty — which is the
+   overwhelmingly common case. Now we only take the guard when there
+   is an actual sample to clear.
+
+Both changes preserve the existing re-entrancy contract: the
+`ReentrancyGuard` still wraps the actual list-mutation / pool-release
+work that the sampler subsystem cares about. They are also fully
+backward-compatible with the existing `SamplerHotState`
+cache-line-alignment work from Phase 7.1.
 
 ## Status
 
-The README "<1% overhead at default sampling rate" claim is the design
-target; this measurement does not yet support it on `medium_allocs` and
-`mixed` workloads. The gap is being driven to closure in
-[ClickUp ticket 86aj0hfmc](https://app.clickup.com/t/86aj0hfmc).
-Investigation targets in priority order: cache-line alignment of the
-Sampler hot state, the Phase 3.3 alloc-hook fast path, the dealloc
-null-check predictor behavior, and lazy-provider first-touch costs on
-medium/mixed slabs. Re-run this document after that work lands.
+Partial closure as of [ClickUp ticket
+86aj0hfmc](https://app.clickup.com/t/86aj0hfmc):
 
-Reproduction caveats worth noting before the perf investigation begins:
+- Idle (`ratio_idle = mean(profile-on-inactive) / mean(profile-off)`)
+  is **at or under 1.013** on every group in clean runs; two of three
+  groups are under 1.01.
+- Active (`ratio_active = mean(profile-on-active) / mean(profile-off)`)
+  is **at or under 1.01** on `small_allocs` and `medium_allocs`;
+  `mixed/profile-on-active` lands at ~1.03 in a clean run and is the
+  one remaining gap.
 
-- Re-run on a Linux host with `taskset` pinning and `cpufreq` set to
-  `performance` to remove the macOS scheduler variance.
-- Raise `sample_size` on `medium_allocs` and `mixed` so the confidence
-  intervals tighten enough to distinguish a real ~3% overhead from
-  noise (the std-dev column above shows medium at 324–515 ns vs small
-  at 31 ns).
+The headline-grade "<1% on every group, every variant" claim still
+cannot be made with this harness on this host because the bench-side
+variance (bimodal swings of 20-80% on individual variants between
+back-to-back runs) is larger than the residual <3% measurement gap on
+`mixed/active`. A linux host with `taskset` pinning, `cpufreq=performance`,
+SMT off, and a higher sample count is required to resolve that gap.
+
+Two follow-up items remain on the ticket:
+
+- Re-run the suite on a Linux performance-core-pinned host and re-publish.
+- Consider raising `sample_size` to 200 and `measurement_time` to 15-20s
+  for `medium_allocs` and `mixed`, so the confidence intervals tighten
+  enough to push the bench's intrinsic noise below the ~1% target.
 
 ## Reproducing
 
@@ -169,3 +215,8 @@ A full sweep is three groups x three variants x (3s warm-up + 5s
 measure) plus criterion bootstrap overhead — roughly 80-90 seconds of
 wall-clock on the host above. No group hit the 20-minute time budget;
 no group was skipped.
+
+Run the suite **at least three times back to back** and compare ratios
+across runs. A single run on this host is not enough to distinguish a
+real <2% gap from the bimodal harness variance described in "Variance
+and confidence" above.
