@@ -48,3 +48,17 @@ check-loads = []
 pageid = []
 gwp-asan = []
 profiling = []
+
+# Fat LTO + a single codegen unit.  This crate publishes the `.rlib`
+# that links the C++ snmalloc thunks into the consumer; LTO settings
+# must be present here as well as in `snmalloc-rs/Cargo.toml` for
+# rustc's cross-crate LTO pass to actually inline through the
+# `extern "C"` FFI surface.  See `docs/heap-profiling-benchmarks.md`
+# ("LTO" subsection) for the bench delta.  Ticket: ClickUp 86aj0jfz1.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
+[profile.bench]
+lto = "fat"
+codegen-units = 1

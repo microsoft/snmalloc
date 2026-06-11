@@ -1,3 +1,11 @@
 [workspace]
 resolver = "2"
 members = ["snmalloc-rs", "snmalloc-rs/snmalloc-sys", "snmalloc-rs/xtask"]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
+[profile.bench]
+lto = "fat"
+codegen-units = 1

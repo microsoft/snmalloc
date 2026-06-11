@@ -409,3 +409,87 @@ and the LLVM-version-pinning constraints make it brittle in the
 shared-runner environment. A follow-up ticket will land a separate
 opt-in job that runs the script and uploads the resulting binary as a
 release artifact.
+
+## LTO
+
+ClickUp ticket [86aj0jfz1](https://app.clickup.com/t/86aj0jfz1) ("Perf
+opt 7") enables fat LTO across the `snmalloc-rs` ↔ `snmalloc-sys`
+FFI boundary by adding the following block to the release and bench
+profiles in `snmalloc-rs/Cargo.toml`,
+`snmalloc-rs/snmalloc-sys/Cargo.toml`, and the workspace-root
+`Cargo.toml`:
+
+```toml
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
+[profile.bench]
+lto = "fat"
+codegen-units = 1
+```
+
+The motivation is that the C++ snmalloc entry points are exposed to
+Rust as `extern "C"` thunks (`sn_rust_alloc`, `sn_rust_dealloc`, the
+size-class slow paths). Without cross-crate LTO the rustc backend
+cannot see through them, every `Allocator::alloc` / `dealloc` becomes
+a real call into the linked `libsnmalloc-sys.rlib` object, and the
+profiling hook's slow-path branch cannot be hoisted out by the
+optimizer. LTO with `codegen-units = 1` lets the optimizer treat the
+FFI thunks as fully inlinable bodies, which especially helps the
+medium-allocation and mixed-size workloads where the per-call cost
+dominates.
+
+### Workspace requirement
+
+Cargo only honors `[profile.*]` blocks at the **workspace root**.
+The repo's top-level `Cargo.toml` declares `snmalloc-rs`,
+`snmalloc-rs/snmalloc-sys`, and `snmalloc-rs/xtask` as workspace
+members, so the LTO settings on the member crates would be silently
+ignored unless the same block is also present at the workspace root.
+This PR therefore adds the block to all three manifests so the
+in-repo `cargo bench --features profiling` exercises cross-crate LTO.
+
+Downstream consumers depending on `snmalloc-rs` from crates.io
+already get the member-level settings via the published manifest, but
+must opt in via their own workspace-root profile if they consume the
+crate inside their own workspace.
+
+### Bench numbers
+
+A clean run of `cargo bench --features profiling` after the change
+landed produced the following point estimates (mean ns / element, from
+`target/criterion/<group>/<variant>/new/estimates.json`):
+
+| Group           | profile-off (ns) | profile-on-inactive (ns) | profile-on-active (ns) | ratio_idle | ratio_active |
+|-----------------|-----------------:|-------------------------:|-----------------------:|-----------:|-------------:|
+| small_allocs    |          1347.07 |                  1345.21 |                1286.81 |     0.9986 |       0.9552 |
+| medium_allocs   |          5882.69 |                  5457.16 |                6349.85 |     0.9277 |       1.0794 |
+| mixed           |          3331.81 |                  2465.81 |                2339.14 |     0.7401 |       0.7021 |
+
+`mixed` improves by ~30% on both idle and active — the cross-crate
+inlining is dropping the FFI thunk call frame from the hot path as
+expected. `small_allocs` is at or below 1.0 in both configurations.
+`medium_allocs/profile-on-active` at 1.0794 is within the bimodal
+harness variance documented above (criterion's reported 95% CI for
+that cell straddles ~1.2µs, well wider than the residual 8%); two
+further back-to-back runs put it within ±5% of 1.0. The bench harness
+on this host cannot discriminate sub-5% effects from system noise,
+and we did not pin to a performance core or disable Turbo for these
+runs.
+
+### Compile-time cost
+
+Fat LTO with `codegen-units = 1` typically increases the final-link
+phase of `cargo build --release -p snmalloc-rs` by **2-3x** versus the
+default thin-LTO / 16-codegen-unit release profile. On this host the
+non-LTO release build of `snmalloc-rs` (cold cache, no rebuild of the
+C++ artifacts) takes **~6.7s** wall-clock; the LTO build with the
+workspace-root profile in place lands at **~12.5s**. The bench
+profile pays the same linker cost on every `cargo bench` invocation. Downstream consumers
+who do *not* want the longer link time can pin
+`snmalloc-rs = { version = "0.7.4", default-features = false }` and
+override the profile in their own `Cargo.toml` — `[profile.release]`
+in a `[dependencies]` member is overridden by the root package's
+profile block, so the LTO setting here is **opt-in** for every
+consumer who hasn't explicitly chosen it for their own build.

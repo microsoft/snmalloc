@@ -80,3 +80,21 @@ profiling = ["snmalloc-sys/profiling", "dep:flate2"]
 # `profiling` to get a symbolicated flamegraph stream from a live
 # snapshot.
 symbolicate = ["dep:backtrace"]
+
+# Fat LTO + a single codegen unit so the Rust optimizer can inline
+# through the FFI boundary into `snmalloc-sys` (the C++ allocator
+# entry points are exposed as `extern "C"` thunks; without cross-crate
+# LTO the rustc backend cannot see through them and every `alloc`/
+# `dealloc` becomes a real call).  Applied to both `release` and
+# `bench` so `cargo bench --features profiling` measures the same
+# code shape the release binaries will ship.  See
+# `docs/heap-profiling-benchmarks.md` ("LTO" subsection) for the
+# bench delta and the compile-time cost (~2-3x slower release link).
+# Ticket: ClickUp 86aj0jfz1 (Perf opt 7).
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
+[profile.bench]
+lto = "fat"
+codegen-units = 1
