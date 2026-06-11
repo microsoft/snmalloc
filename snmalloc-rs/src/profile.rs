@@ -345,6 +345,51 @@ impl HeapProfile {
         Ok(())
     }
 
+    /// Write the profile in Google's [`pprof`][pprof] Profile
+    /// protobuf format (Phase 6.1).
+    ///
+    /// Output is a raw (uncompressed) protobuf byte stream consumable
+    /// by `go tool pprof`, [Pyroscope](https://pyroscope.io/),
+    /// [Polar Signals Cloud](https://www.polarsignals.com/),
+    /// [Parca](https://www.parca.dev/), and the Datadog continuous
+    /// profiler.  Two sample-type axes are emitted:
+    ///
+    /// - `("alloc_objects", "count")` -- one count per sampled
+    ///   allocation.
+    /// - `("alloc_space", "bytes")` -- per-sample bytes under the
+    ///   given [`Weight`] projection.  The default of
+    ///   [`Weight::Allocated`] matches the rest of the snmalloc
+    ///   profile surface; sum of this axis equals
+    ///   [`HeapProfile::total_allocated_bytes`].
+    ///
+    /// Without the `symbolicate` Cargo feature, frame functions are
+    /// named by their hex code-pointer (`"0x000000010a4b9c30"`) and
+    /// the `filename` / `line` fields are empty -- mirroring the
+    /// unsymbolicated path of [`HeapProfile::write_flamegraph`].
+    /// With `symbolicate` on, function names, source files, and line
+    /// numbers from [`HeapProfile::symbolize`] are emitted where
+    /// available, with the hex fallback used for any unresolved
+    /// frame.
+    ///
+    /// The output is **not gzipped**.  The pprof tooling accepts
+    /// both encodings (`.pb` for uncompressed, `.pb.gz` for gzipped);
+    /// callers that need gzip can wrap the writer in
+    /// `flate2::GzEncoder` themselves, keeping this crate free of
+    /// the `flate2` dependency.  See `src/pprof.rs` for the
+    /// encoder-design rationale.
+    ///
+    /// This call is total: it emits a valid (but tiny) Profile even
+    /// on an empty snapshot -- including the profiling-feature-off
+    /// build, where every snapshot is empty by construction.  An
+    /// empty pprof Profile still carries the two `sample_type` axes
+    /// and the `default_sample_type` hint so consumers render it
+    /// cleanly rather than rejecting it.
+    ///
+    /// [pprof]: https://github.com/google/pprof/blob/main/proto/profile.proto
+    pub fn write_pprof<W: io::Write>(&self, w: &mut W, weight: Weight) -> io::Result<()> {
+        crate::pprof::write_pprof(self, weight, w)
+    }
+
     /// Resolve every unique frame address in this profile to
     /// best-effort function/file/line metadata.
     ///

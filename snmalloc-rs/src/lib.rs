@@ -50,6 +50,16 @@ pub mod profile;
 /// [`config`] for the env-var contract.
 pub mod config;
 
+/// Google pprof Profile protobuf encoder (Phase 6.1).
+///
+/// Hand-rolled protobuf3 encoder (no `prost` dependency) covering
+/// the subset of [`pprof`](https://github.com/google/pprof) the
+/// snmalloc heap profile maps onto: two sample-type axes
+/// (`alloc_objects`/count and `alloc_space`/bytes) plus a per-stack
+/// location/function chain.  Exposed externally via the
+/// [`HeapProfile::write_pprof`] convenience wrapper.
+pub(crate) mod pprof;
+
 pub use profile::{BtSample, HeapProfile, Weight};
 pub use config::{ProfileConfig, ENV_PROFILE_ENABLE, ENV_PROFILE_RATE};
 
