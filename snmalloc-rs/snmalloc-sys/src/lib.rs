@@ -167,6 +167,37 @@ extern "C" {
     pub fn sn_rust_profile_snapshot_end(handle: *mut c_void);
 }
 
+// Streaming-mode broadcast (Phase 5.1): a single user callback is invoked
+// once per sampled allocation, off the hot path of `record_alloc`.  The C
+// implementation enforces a single registered callback at a time; the
+// safe Rust wrapper in `snmalloc-rs` layers a `Mutex`-protected
+// `Box<dyn Fn>` on top to expose a borrowed view of the raw sample
+// (`StreamSample`) and an RAII `ProfilingSession` handle.
+//
+// These extern decls are gated on the `profiling` Cargo feature so the
+// linker only references the streaming symbols in feature-on builds.
+// The feature-off (`SNMALLOC_PROFILE` undefined) C stubs still export
+// `sn_rust_profile_streaming_start` / `..._stop` returning `-1`, but
+// the safe Rust layer never invokes them in that configuration -- the
+// entire `streaming` module is itself `cfg`-gated.
+#[cfg(feature = "profiling")]
+extern "C" {
+    /// Register `cb` as the single streaming-mode broadcast handler.
+    /// Returns `0` on success or `-1` if a handler is already
+    /// registered, `cb` is null, or the underlying broadcast slot is
+    /// full.  When `sn_rust_profile_supported()` is false the call is
+    /// a no-op that returns `-1`.
+    pub fn sn_rust_profile_streaming_start(
+        cb: unsafe extern "C" fn(sample: *const SnRustProfileRawSample),
+    ) -> core::ffi::c_int;
+
+    /// Unregister the currently-registered streaming broadcast
+    /// handler.  Returns `0` on success or `-1` if no handler was
+    /// registered.  When `sn_rust_profile_supported()` is false the
+    /// call is a no-op that returns `-1`.
+    pub fn sn_rust_profile_streaming_stop() -> core::ffi::c_int;
+}
+
 #[cfg(test)]
 mod rust_tests {
     use super::*;

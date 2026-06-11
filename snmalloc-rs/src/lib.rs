@@ -60,8 +60,22 @@ pub mod config;
 /// [`HeapProfile::write_pprof`] convenience wrapper.
 pub(crate) mod pprof;
 
+/// Streaming-mode safe Rust wrapper (Phase 5.2).
+///
+/// Lifts the C-level `sn_rust_profile_streaming_*` FFI surface into
+/// an RAII [`streaming::ProfilingSession`] handle plus a borrowed
+/// [`streaming::StreamSample`] view of each broadcast sample.  Only
+/// compiled when the `profiling` Cargo feature is on, since the
+/// underlying FFI symbols only do useful work in that configuration
+/// and the wrapper depends on `std::sync` primitives.
+#[cfg(feature = "profiling")]
+pub mod streaming;
+
 pub use profile::{BtSample, HeapProfile, Weight};
 pub use config::{ProfileConfig, ENV_PROFILE_ENABLE, ENV_PROFILE_RATE};
+
+#[cfg(feature = "profiling")]
+pub use streaming::{ProfilingSession, StreamSample, StreamingError};
 
 /// Memory usage statistics from the snmalloc backend.
 ///
