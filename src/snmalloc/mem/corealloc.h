@@ -9,6 +9,22 @@
 #include "snmalloc/stl/new.h"
 #include "ticker.h"
 
+#ifdef SNMALLOC_PROFILE
+// Forward-declare the H1 hook entry.  The full definition lives in
+// profile/record.h, which depends on commonconfig.h's
+// LazyArrayClientMetaDataProvider; that header is only safe to include
+// AFTER mem/mem.h has finished processing, so the umbrella backend
+// header pulls record.h in once commonconfig.h is visible.  The
+// declaration here is enough to compile the templated dealloc body;
+// the definition is required at the point of template instantiation
+// in TUs that go through snmalloc_core.h / snmalloc.h.
+namespace snmalloc::profile
+{
+  template<typename Config>
+  SNMALLOC_FAST_PATH_INLINE void record_dealloc(void* p) noexcept;
+}
+#endif
+
 #if defined(_MSC_VER)
 #  define ALLOCATOR __declspec(allocator) __declspec(restrict)
 #elif __has_attribute(malloc)
@@ -1024,6 +1040,29 @@ namespace snmalloc
     template<typename CheckInit = CheckInitNoOp>
     SNMALLOC_FAST_PATH void dealloc(void* p_raw) noexcept
     {
+#ifdef SNMALLOC_PROFILE
+      /*
+       * H1 heap-profile hook (Phase 3.1).
+       *
+       * This is the waist of the dealloc API: every public free entry
+       * point (free, ::operator delete, jemalloc-compat, Rust shims, ...)
+       * funnels through here.  The hook clears the per-object profile
+       * slot, removes the SampledAlloc from the live list, and returns
+       * the node to the pool.
+       *
+       * Runs BEFORE the existing dealloc logic so that:
+       *   - profile-side cleanup observes the pointer in its still-live
+       *     state (sizeclass / slab metadata still valid in the pagemap),
+       *   - any subsequent profile-internal dealloc -- e.g. one triggered
+       *     by SampledList unlink walking metadata -- is short-circuited
+       *     by the per-thread ReentrancyGuard inside record_dealloc.
+       *
+       * Compiles to a no-op for configurations without a profile-enabled
+       * ClientMetaDataProvider; see profile/record.h.
+       */
+      profile::record_dealloc<Config>(p_raw);
+#endif
+
 #ifdef __CHERI_PURE_CAPABILITY__
       /*
        * On CHERI platforms, snap the provided pointer to its base, ignoring
