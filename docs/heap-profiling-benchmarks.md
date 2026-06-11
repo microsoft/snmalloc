@@ -220,3 +220,125 @@ Run the suite **at least three times back to back** and compare ratios
 across runs. A single run on this host is not enough to distinguish a
 real <2% gap from the bimodal harness variance described in "Variance
 and confidence" above.
+
+## PGO
+
+The two-stage PGO build is wired up via [`cmake/snmalloc_pgo.cmake`](../cmake/snmalloc_pgo.cmake)
+and driven end-to-end by [`scripts/run-pgo-build.sh`](../scripts/run-pgo-build.sh).
+It supports both Clang/AppleClang and GCC; MSVC is intentionally not
+wired up (the workflow there is `link.exe /LTCG:PGINSTRUMENT` and has
+no in-tree consumer).
+
+### Workflow
+
+The script orchestrates a two-stage build:
+
+```bash
+# clang or AppleClang (default path on Linux + macOS)
+scripts/run-pgo-build.sh
+# stage 1 → build-pgo-gen/
+# stage 2 → build-pgo-use/
+```
+
+Manually, the equivalent commands are:
+
+```bash
+# Stage 1: instrument and train
+cmake -S . -B build-pgo-gen \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DSNMALLOC_PROFILE=ON \
+  -DSNMALLOC_PROFILE_PGO=generate
+cmake --build build-pgo-gen --target func-profile_overhead-fast
+LLVM_PROFILE_FILE=build-pgo-gen/pgo-data/default_%m_%p.profraw \
+  ./build-pgo-gen/func-profile_overhead-fast
+llvm-profdata merge -o build-pgo-gen/pgo.profdata \
+  build-pgo-gen/pgo-data/*.profraw
+
+# Stage 2: consume the merged profile
+cmake -S . -B build-pgo-use \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DSNMALLOC_PROFILE=ON \
+  -DSNMALLOC_PROFILE_PGO=use \
+  -DSNMALLOC_PGO_PROFILE_FILE=$(pwd)/build-pgo-gen/pgo.profdata
+cmake --build build-pgo-use
+```
+
+For GCC the merge step is omitted — `.gcda` files are read in place
+from `SNMALLOC_PGO_PROFILE_DIR`.
+
+### Training workload choice
+
+We train on `func-profile_overhead-fast` (built from
+`src/test/func/profile_overhead/profile_overhead.cc`) rather than the
+Rust `snmalloc-rs/benches/profile_bench.rs` Criterion suite. The
+trade-offs:
+
+- **func-profile_overhead is self-contained C++**, so the training run
+  needs no Rust toolchain, finishes in <1s, and exercises both the
+  alloc fast path and the sampling slow path at the production-default
+  sample rate (524 288 bytes ~ 512 KiB). That maps onto the same
+  hot/cold edges the profile feature is designed for.
+- **The Criterion bench runs in-process against `std::alloc`**, not
+  against snmalloc's allocator directly (see the comment on
+  `alloc_batch` in `profile_bench.rs`). It measures relative profiling
+  overhead, not absolute allocator throughput. PGO instrumentation
+  rebuilt on top of that bench would mostly profile criterion's own
+  loop machinery, not snmalloc's hot path.
+
+If a downstream consumer wants to feed richer training data — e.g. a
+full Rust workload linked against snmalloc-rs — they can drop binaries
+into the `EXTRA_TRAINING_BINS` array in `scripts/run-pgo-build.sh`;
+every executable run before the merge step contributes to the merged
+profile.
+
+### Measured impact
+
+On the M4 Pro host described in the [Machine configuration](#machine-configuration)
+section, the PGO-optimized binary built by `scripts/run-pgo-build.sh`
+clears the same `profile_overhead.cc` self-tests as the non-PGO build
+when run on a quiet machine. Three back-to-back runs of
+`func-profile_overhead-fast` (one-shot harness; no warm-up; not pinned
+to a performance core) on this host:
+
+| Build                            | profile-off ns/alloc (3 runs)        | profile-on ns/alloc (3 runs)         |
+|----------------------------------|--------------------------------------|--------------------------------------|
+| baseline (post-#31, no PGO)      | 9.39, 8.65, 6.66                     | 7.30, 7.77, 7.97                     |
+| PGO use (this change)            | 8.08, 11.78, 46.90                   | 27.90, 6.66, 25.23                   |
+
+We are **not** quoting an aggregate ratio from these numbers. The
+`profile_overhead.cc` harness is a one-shot timer with no warm-up and
+no statistical aggregation; on a thermally-unconstrained laptop it
+shows the same bimodal pattern the Criterion suite does (see
+[Variance and confidence](#variance-and-confidence) above). The
+take-away from this host is that the **infrastructure works**: PGO
+flags propagate, profile data is collected and merged, the use-stage
+build links cleanly, and the resulting binary executes the same code
+path as the non-PGO build. Quantifying the speed-up requires a Linux
+host with `taskset`, `cpufreq=performance`, SMT off, and a benchmark
+harness with proper warm-up — same prerequisites as the existing
+profiling benches.
+
+### Caveats
+
+- LLVM raw-profile format is versioned per major release. **Use the
+  same clang for both stages.** The cmake module passes
+  `-Wno-profile-instr-out-of-date` / `-Wno-profile-instr-unprofiled`
+  so a partial-mismatch (e.g. a small refactor between stages)
+  degrades to "no PGO for the changed functions" rather than failing
+  the build, but a major-version mismatch will still fail at link
+  time with an unreadable profile error.
+- macOS clang ships `llvm-profdata` via `xcrun`. The script falls
+  back to `xcrun -f llvm-profdata` if it is not on `PATH`.
+- The PGO module emits `SNMALLOC_PGO_STAGE="generate|use"` on the
+  `snmalloc` INTERFACE target so downstream code (e.g. the
+  `snmalloc-rs` `build.rs`) can detect the build mode if it ever
+  needs to gate behaviour on it.
+
+### CI
+
+PGO is **not** wired into CI in this change — running both stages
+plus a training workload roughly doubles the build matrix wall-clock,
+and the LLVM-version-pinning constraints make it brittle in the
+shared-runner environment. A follow-up ticket will land a separate
+opt-in job that runs the script and uploads the resulting binary as a
+release artifact.

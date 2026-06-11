@@ -33,6 +33,11 @@ option(SNMALLOC_ENABLE_FUZZING "Enable fuzzing instrumentation tests" OFF)
 option(SNMALLOC_USE_SELF_VENDORED_STL "Avoid using system STL" OFF)
 option(SNMALLOC_COVERAGE "Build with clang source-based coverage instrumentation" OFF)
 option(SNMALLOC_PROFILE "Build with heap profiling support" OFF)
+# Profile-guided optimization plumbing. The option itself is consumed by
+# cmake/snmalloc_pgo.cmake (included further down, once the snmalloc
+# target has been declared) so all targets in the build inherit the
+# correct -fprofile-{generate,use} flags. See cmake/snmalloc_pgo.cmake
+# and scripts/run-pgo-build.sh for the full two-stage workflow.
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_RUST_LIBC_API "Include libc API in the rust library" OFF "SNMALLOC_RUST_SUPPORT" OFF)
@@ -95,6 +100,11 @@ if (SNMALLOC_COVERAGE)
   add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
   add_link_options(-fprofile-instr-generate -fcoverage-mapping)
 endif()
+
+# Profile-guided optimization. Must come before any add_library/add_executable
+# so the generate-stage instrumentation and use-stage layout decisions are
+# applied to every object in the build.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc_pgo.cmake)
 
 if(MSVC AND SNMALLOC_STATIC_LIBRARY AND (SNMALLOC_STATIC_LIBRARY_PREFIX STREQUAL ""))
   message(FATAL_ERROR "Empty static library prefix not supported on MSVC")
