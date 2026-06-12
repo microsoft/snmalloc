@@ -456,7 +456,7 @@ fn configure_platform(config: &mut BuildConfig) {
     config.builder
         .define("SNMALLOC_QEMU_WORKAROUND", if config.features.qemu { "ON" } else { "OFF" })
         .define("SNMALLOC_ENABLE_DYNAMIC_LOADING", if config.features.notls { "ON" } else { "OFF" })
-        .define("USE_SNMALLOC_STATS", if config.features.stats { "ON" } else { "OFF" })
+        .define("SNMALLOC_STATS", if config.features.stats { "ON" } else { "OFF" })
         .define("SNMALLOC_RUST_LIBC_API", if config.features.libc_api { "ON" } else { "OFF" })
         .define("SNMALLOC_USE_CXX17", if cfg!(feature = "usecxx17") { "ON" } else { "OFF" });
 

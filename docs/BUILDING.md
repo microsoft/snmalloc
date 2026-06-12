@@ -89,7 +89,7 @@ cmake /path/to/snmalloc -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/androi
 These can be added to your cmake command line.
 
 ```
--DUSE_SNMALLOC_STATS=ON // Track allocation stats
+-DSNMALLOC_STATS=ON // Track allocation stats
 ```
 
 # Using snmalloc as header-only library

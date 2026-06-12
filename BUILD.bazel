@@ -39,7 +39,7 @@ CMAKE_FLAGS = {
     "SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE": "ON",
     "SNMALLOC_USE_SELF_VENDORED_STL": "OFF",
     "SNMALLOC_IPO": "ON",
-    "USE_SNMALLOC_STATS": "ON",
+    "SNMALLOC_STATS": "ON",
     "SNMALLOC_BUILD_TESTING": "OFF",
 } | select({
     ":release_with_debug": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"},
