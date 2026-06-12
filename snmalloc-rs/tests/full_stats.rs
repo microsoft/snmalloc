@@ -18,7 +18,12 @@
 //! itself feature-gated -- without the `stats` feature the symbol does
 //! not exist (intentional compile-time gate, not a runtime-zero stub).
 
-#![cfg(feature = "stats")]
+// Phase 11.6 -- the scaffold fields (version + bytes_in_use +
+// peak_bytes_in_use) plus the wired backend counters are all
+// covered by the BASIC tier; this test is therefore gated on
+// `stats-basic` (which the legacy `stats` and `stats-full`
+// features both transitively enable in Cargo).
+#![cfg(feature = "stats-basic")]
 
 use snmalloc_rs::{FullAllocStats, SnMalloc, SNMALLOC_FULL_STATS_VERSION};
 use std::alloc::{GlobalAlloc, Layout};

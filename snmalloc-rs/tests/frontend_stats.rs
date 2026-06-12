@@ -28,7 +28,10 @@
 //! so this test only meaningfully exercises wired-up counters when
 //! the feature is on.
 
-#![cfg(feature = "stats")]
+// Phase 11.6 -- this test exercises only FrontendStats fields,
+// which the BASIC tier maintains.  Run under `stats-basic` (or, by
+// implication, `stats-full` / legacy `stats`); skipped otherwise.
+#![cfg(feature = "stats-basic")]
 
 use snmalloc_rs::SnMalloc;
 use std::alloc::{GlobalAlloc, Layout};

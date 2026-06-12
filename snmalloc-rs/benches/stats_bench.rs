@@ -85,14 +85,20 @@ fn mixed_sizes() -> Vec<usize> {
         .collect()
 }
 
-/// Tag used in the criterion group label.  We compile a single
-/// variant per binary -- the feature flag picks which one -- and use
-/// `cfg!(feature = "stats")` to label the criterion sample so the
-/// two `cargo bench` runs land in distinct `target/criterion`
-/// sub-directories.
+/// Tag used in the criterion group label.  Phase 11.6 -- three-way
+/// variant: `stats-off` (no stats compiled), `stats-basic` (BASIC
+/// tier only -- cheap frontend + backend counters, target <= 2%
+/// overhead), and `stats-full` (BASIC + per-size-class histogram +
+/// lifetime histogram, target <= 20% overhead).  A single bench
+/// binary compiles to exactly one of the three variants -- the
+/// Cargo features pick which -- and each lands in a distinct
+/// `target/criterion/<group>/<variant>/...` sub-directory so the
+/// three runs do not overwrite each other.
 fn variant_label() -> &'static str {
-    if cfg!(feature = "stats") {
-        "stats-on"
+    if cfg!(feature = "stats-full") {
+        "stats-full"
+    } else if cfg!(feature = "stats-basic") {
+        "stats-basic"
     } else {
         "stats-off"
     }

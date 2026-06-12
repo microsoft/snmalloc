@@ -34,12 +34,36 @@ option(SNMALLOC_USE_SELF_VENDORED_STL "Avoid using system STL" OFF)
 option(SNMALLOC_COVERAGE "Build with clang source-based coverage instrumentation" OFF)
 option(SNMALLOC_PROFILE "Build with heap profiling support" OFF)
 # Phase 9.2 (ticket 86aj0tr1e) -- per-thread frontend cache stats.
-# When ON, `Allocator` carries a small `FrontendStats` struct with
-# per-thread non-atomic counters for the fast/slow alloc/dealloc and
-# cross-thread message paths.  Off by default so release builds compile
-# to identical code (no new symbols, no new struct fields, no
-# increment sites).  Aggregation lives in `stats_export.cc`.
-option(SNMALLOC_STATS "Build with per-thread frontend cache statistics" OFF)
+# Phase 11.6 (ticket 86aj0ydjv) -- split into BASIC / FULL tiers.
+#
+# `SNMALLOC_STATS` is preserved as a backwards-compatible alias that
+# activates `SNMALLOC_STATS_BASIC` (matches the production-default
+# tier).  Consumers wanting the per-size-class histogram + lifetime
+# histogram opt in to `SNMALLOC_STATS_FULL`, which also implicitly
+# enables `SNMALLOC_STATS_BASIC` (the BASIC counters are a subset of
+# the FULL surface).
+#
+# Tier overhead targets (see docs/heap-profiling-benchmarks.md):
+#   BASIC -- frontend fast/slow path counters + backend
+#            commit/decommit + largebuddy free-chunk histogram.
+#            Target <= 2% overhead vs OFF.  Production default.
+#   FULL  -- BASIC plus per-size-class histogram (9.3) and lifetime
+#            histogram (9.5).  Target <= 20% overhead.  Opt-in for
+#            debugging.
+#
+# Off by default so release builds compile to identical code (no
+# new symbols, no new struct fields, no increment sites).
+option(SNMALLOC_STATS "Backwards-compatible alias for SNMALLOC_STATS_BASIC" OFF)
+option(SNMALLOC_STATS_BASIC "Enable basic frontend + backend stats (<= 2% overhead)" OFF)
+option(SNMALLOC_STATS_FULL "Enable full stats incl. per-sizeclass + lifetime histograms (<= 20% overhead)" OFF)
+
+# Tier resolution: FULL implies BASIC; legacy SNMALLOC_STATS implies BASIC.
+if (SNMALLOC_STATS_FULL)
+  set(SNMALLOC_STATS_BASIC ON CACHE BOOL "Enable basic frontend + backend stats" FORCE)
+endif()
+if (SNMALLOC_STATS AND NOT SNMALLOC_STATS_BASIC AND NOT SNMALLOC_STATS_FULL)
+  set(SNMALLOC_STATS_BASIC ON CACHE BOOL "Enable basic frontend + backend stats" FORCE)
+endif()
 # Profile-guided optimization plumbing. The option itself is consumed by
 # cmake/snmalloc_pgo.cmake (included further down, once the snmalloc
 # target has been declared) so all targets in the build inherit the
@@ -476,6 +500,11 @@ add_as_define(SNMALLOC_QEMU_WORKAROUND)
 add_as_define(SNMALLOC_TRACING)
 add_as_define(SNMALLOC_PROFILE)
 add_as_define(SNMALLOC_STATS)
+# Phase 11.6 -- tiered stats.  BASIC is implied by SNMALLOC_STATS
+# (resolved above), so the existing SNMALLOC_STATS=ON pathway is
+# preserved.  FULL is fully additive: enabling it also enables BASIC.
+add_as_define(SNMALLOC_STATS_BASIC)
+add_as_define(SNMALLOC_STATS_FULL)
 add_as_define(SNMALLOC_CI_BUILD)
 add_as_define(SNMALLOC_PTHREAD_FORK_PROTECTION)
 add_as_define(SNMALLOC_PLATFORM_HAS_GETENTROPY)

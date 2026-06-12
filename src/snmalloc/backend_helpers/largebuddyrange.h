@@ -57,11 +57,18 @@ namespace snmalloc
      */
     static void on_add(size_t size_bits)
     {
+#ifdef SNMALLOC_STATS_BASIC
       auto rel = size_bits - MIN_CHUNK_BITS;
       if (rel < NUM_BUCKETS)
       {
         counts[rel].fetch_add(1, stl::memory_order_relaxed);
       }
+#else
+      // Phase 11.6 -- the backend-path free-chunk histogram is part
+      // of the BASIC tier surface.  Compiles to a no-op when BASIC
+      // is off so Buddy insertion pays zero atomic overhead.
+      (void)size_bits;
+#endif
     }
 
     /**
@@ -73,6 +80,7 @@ namespace snmalloc
      */
     static void on_remove(size_t size_bits)
     {
+#ifdef SNMALLOC_STATS_BASIC
       auto rel = size_bits - MIN_CHUNK_BITS;
       if (rel < NUM_BUCKETS)
       {
@@ -87,6 +95,10 @@ namespace snmalloc
           }
         }
       }
+#else
+      // Phase 11.6 -- BASIC-only; no-op when BASIC is off.
+      (void)size_bits;
+#endif
     }
 
     /**

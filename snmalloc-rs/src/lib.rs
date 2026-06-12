@@ -127,12 +127,12 @@ pub use config::{ProfileConfig, ENV_PROFILE_ENABLE, ENV_PROFILE_RATE};
 /// Bumped to `2` in Phase 11.4 with the addition of the free-chunk
 /// histogram in `FullAllocStats.reserved[0..16]`; see
 /// [`SnMalloc::full_stats`] and [`FullAllocStats::free_chunk_histogram`].
-#[cfg(feature = "stats")]
+#[cfg(feature = "stats-basic")]
 pub use ffi::SNMALLOC_FULL_STATS_VERSION;
 
 /// Re-export of the Phase 11.4 free-chunk histogram bucket count.
 /// Equal to `16`.  See [`FullAllocStats::free_chunk_histogram`].
-#[cfg(feature = "stats")]
+#[cfg(feature = "stats-basic")]
 pub use ffi::SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS;
 
 #[cfg(feature = "profiling")]
@@ -172,15 +172,36 @@ pub struct AllocStats {
 ///
 /// The struct is `Copy` and `Default` (all-zero) so callers can
 /// trivially compute diffs across two snapshots.  Available only
-/// when the `stats` Cargo feature is on; without it `full_stats()`
-/// does not exist (compile-time gate, not a runtime-zero stub).
+/// when the `stats-basic` (or, by implication, the `stats-full` or
+/// legacy `stats`) Cargo feature is on; without one of those
+/// `full_stats()` does not exist (compile-time gate, not a
+/// runtime-zero stub).
+///
+/// Phase 11.6 -- tiered stats.  The struct layout is identical
+/// across the two tiers (ABI preserved); fields that the BASIC
+/// tier does not maintain simply read as zero.  Specifically:
+///
+///   * BASIC populates: `version`, `bytes_in_use`,
+///     `peak_bytes_in_use`, `bytes_mapped`, `bytes_committed`,
+///     `bytes_decommitted_to_os`, `fast_path_allocs`,
+///     `slow_path_allocs`, `fast_path_deallocs`,
+///     `remote_deallocs`, `message_queue_drains`,
+///     `cross_thread_messages_received`, and the
+///     `LargeBuddyRange` free-chunk histogram via
+///     [`FullAllocStats::free_chunk_histogram`].
+///   * FULL adds: `total_live_bytes_by_class`,
+///     `total_live_count_by_class`, `cumulative_alloc_by_class`,
+///     `cumulative_dealloc_by_class`, and
+///     `lifetime_buckets_ns` (the lifetime histogram, which
+///     additionally requires `SNMALLOC_PROFILE` to be on at the
+///     C++ level for the bucket bumps to fire).
 ///
 /// `Default` is implemented manually rather than derived because
 /// stable Rust's `derive(Default)` does not yet cover fixed-size
 /// arrays larger than 32 elements; the explicit impl below
 /// hand-writes the all-zero initializer for the per-size-class
 /// histograms (64 slots each) and the lifetime histogram (32 slots).
-#[cfg(feature = "stats")]
+#[cfg(feature = "stats-basic")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FullAllocStats {
     /// Wire-format version of the snapshot (the producer's
@@ -230,7 +251,7 @@ pub struct FullAllocStats {
     pub reserved: [u64; ffi::SNMALLOC_FULL_STATS_RESERVED_SLOTS],
 }
 
-#[cfg(feature = "stats")]
+#[cfg(feature = "stats-basic")]
 impl FullAllocStats {
     /// Return the Phase 11.4 free-chunk histogram from
     /// `reserved[0..16]` as a typed array.
@@ -256,7 +277,7 @@ impl FullAllocStats {
     }
 }
 
-#[cfg(feature = "stats")]
+#[cfg(feature = "stats-basic")]
 impl Default for FullAllocStats {
     /// All-zero default, matching the post-`memset` state of a fresh
     /// `snmalloc_full_stats` on the C side.  Useful as a baseline when
@@ -335,7 +356,7 @@ impl SnMalloc {
     /// want the extra telemetry surface get a hard compile error
     /// referring to this method, rather than silently linking against
     /// a zero-returning stub.
-    #[cfg(feature = "stats")]
+    #[cfg(feature = "stats-basic")]
     pub fn full_stats() -> FullAllocStats {
         // SAFETY: the C function fills `raw` in full via memset+writes
         // before returning; no field is left uninitialised.  We pass

@@ -100,10 +100,18 @@ namespace snmalloc
      * Record a successful `notify_using` of `size` bytes.  Called from
      * `CommitRange<PAL>::alloc_range` after the PAL hands the pages
      * back as in-use.
+     *
+     * Phase 11.6 -- compiles to a no-op when SNMALLOC_STATS_BASIC is
+     * off, so backend ranges in the BASIC-off tier pay zero atomic
+     * overhead.
      */
     static void on_commit(size_t size)
     {
+#ifdef SNMALLOC_STATS_BASIC
       bytes_committed.fetch_add(size, stl::memory_order_relaxed);
+#else
+      (void)size;
+#endif
     }
 
     /**
@@ -113,9 +121,13 @@ namespace snmalloc
      * (clamped at zero to stay defensive against any future caller
      * that double-frees) and bumps the cumulative
      * `bytes_decommitted_to_os` counter.
+     *
+     * Phase 11.6 -- compiles to a no-op when SNMALLOC_STATS_BASIC is
+     * off, matching the no-op semantics of `on_commit`.
      */
     static void on_decommit(size_t size)
     {
+#ifdef SNMALLOC_STATS_BASIC
       // Defensive clamped subtract.  `fetch_sub` of `size` would
       // underflow if `bytes_committed < size`; under normal operation
       // that cannot happen (every dealloc matches a prior alloc), but
@@ -132,6 +144,9 @@ namespace snmalloc
         }
       }
       bytes_decommitted_to_os.fetch_add(size, stl::memory_order_relaxed);
+#else
+      (void)size;
+#endif
     }
   };
 

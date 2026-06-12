@@ -13,7 +13,9 @@
 #include "../snmalloc.h"
 #include "snmalloc/global/stats_export.h"
 
-#ifdef SNMALLOC_PROFILE
+// Phase 11.6 -- lifetime histogram only needed when both PROFILE
+// (the producer) and FULL (the snapshot consumer surface) are on.
+#if defined(SNMALLOC_PROFILE) && defined(SNMALLOC_STATS_FULL)
 #  include "snmalloc/profile/lifetime_histogram.h"
 #endif
 
@@ -89,7 +91,13 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
   // with the `memset` above).  We still emit the loop under
   // `#ifdef` so a non-profile build does not link against the
   // singleton accessor.
-#ifdef SNMALLOC_PROFILE
+#if defined(SNMALLOC_PROFILE) && defined(SNMALLOC_STATS_FULL)
+  // Phase 11.6 -- the lifetime histogram is part of the FULL tier
+  // surface.  We still require SNMALLOC_PROFILE for the bucket bumps
+  // themselves to happen (profile/record.h gates the increment site),
+  // but in BASIC builds we additionally skip even the snapshot read
+  // here so callers observe a fully zero `lifetime_buckets_ns[]`
+  // array and the BASIC build pays nothing for this surface.
   {
     auto& hist = snmalloc::profile::LifetimeHistogram::get();
     static_assert(
@@ -102,11 +110,15 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
   }
 #endif
 
-#ifdef SNMALLOC_STATS
+#ifdef SNMALLOC_STATS_BASIC
   // Phase 9.2 -- frontend stats aggregation (ticket 86aj0tr1e).
-  // Phase 9.3 -- per-size-class histogram aggregation (ticket
-  // 86aj0tr4p).  Folded into the same pool walk as 9.2 so we only
-  // pay the iteration cost once.
+  // Phase 11.6 -- gated on SNMALLOC_STATS_BASIC; the per-class
+  // histogram aggregation (9.3) is nested inside the FULL guard
+  // below so the BASIC tier does not iterate the
+  // `size_class_stats_global()` array nor read per-allocator
+  // `sc_stats` blocks (the latter does not exist in the BASIC
+  // build at all -- the field is `#ifdef`'d out of the
+  // `Allocator` struct in `corealloc.h`).
   //
   // Sum the per-thread `FrontendStats` blocks across every live
   // allocator in the pool, then add the process-global drain
@@ -118,7 +130,9 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
   // contributions are exact.
   {
     FrontendStats agg{};
+#  ifdef SNMALLOC_STATS_FULL
     SizeClassStats sc_agg{};
+#  endif
     using AllocT = Allocator<Alloc::Config>;
     for (AllocT* a = AllocPool<Alloc::Config>::iterate(); a != nullptr;
          a = AllocPool<Alloc::Config>::iterate(a))
@@ -129,10 +143,14 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
       // loads are atomic at the hardware level.  Either way the
       // snapshot is best-effort; alignment is to the consumer.
       agg.accumulate(a->stats);
+#  ifdef SNMALLOC_STATS_FULL
       sc_agg.accumulate(a->sc_stats);
+#  endif
     }
     frontend_stats_global().snapshot_into(agg);
+#  ifdef SNMALLOC_STATS_FULL
     size_class_stats_global().snapshot_into(sc_agg);
+#  endif
 
     out->fast_path_allocs = agg.fast_path_allocs;
     out->slow_path_allocs = agg.slow_path_allocs;
@@ -142,12 +160,19 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
     out->cross_thread_messages_received =
       agg.cross_thread_messages_received;
 
+#  ifdef SNMALLOC_STATS_FULL
     // Phase 9.3 -- copy the per-class arrays into the FFI struct.
     // `NUM_SMALL_SIZECLASSES` is statically <= the FFI slot count
     // (`SNMALLOC_FULL_STATS_SIZECLASS_SLOTS = 64`); the static
     // assert below makes that contract explicit.  Slots past
     // `NUM_SMALL_SIZECLASSES` stay zero (left clear by the
     // `memset` at the top of this function).
+    //
+    // Phase 11.6 -- in BASIC builds these arrays are left at zero
+    // (per the `memset` above), preserving the FFI wire format so
+    // existing consumers parsing `total_live_bytes_by_class` etc.
+    // continue to compile and link.  Their values are simply
+    // all-zero in the BASIC tier.
     static_assert(
       NUM_SMALL_SIZECLASSES <= SNMALLOC_FULL_STATS_SIZECLASS_SLOTS,
       "Per-class histogram has fewer FFI slots than snmalloc's "
@@ -173,6 +198,7 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
         sc_agg.live_count[i] + sc_agg.cumulative_dealloc[i];
       out->cumulative_dealloc_by_class[i] = sc_agg.cumulative_dealloc[i];
     }
+#  endif // SNMALLOC_STATS_FULL
   }
-#endif
+#endif // SNMALLOC_STATS_BASIC
 }

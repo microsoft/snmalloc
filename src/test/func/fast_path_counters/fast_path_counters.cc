@@ -24,7 +24,11 @@
 // `src/snmalloc/override/stats_export.cc`, which is only compiled into
 // the libsnmalloc shims, not the per-test executables.
 
-#ifdef SNMALLOC_STATS
+// Phase 11.6 -- this test exercises only the BASIC (FrontendStats)
+// counters and so is gated on SNMALLOC_STATS_BASIC.  Both
+// `SNMALLOC_STATS=ON` (legacy alias) and `SNMALLOC_STATS_FULL=ON`
+// implicitly enable BASIC and therefore reach the assertions below.
+#ifdef SNMALLOC_STATS_BASIC
 #  include <atomic>
 #  include <iostream>
 #  include <snmalloc/snmalloc.h>
@@ -36,14 +40,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifndef SNMALLOC_STATS
+#ifndef SNMALLOC_STATS_BASIC
 
 int main(int /*argc*/, char** /*argv*/)
 {
-  // No-op when SNMALLOC_STATS is off.  The build matrix wants the
-  // test binary to link cleanly even without the feature flag so
+  // No-op when SNMALLOC_STATS_BASIC is off.  The build matrix wants
+  // the test binary to link cleanly even without the feature flag so
   // CI doesn't grow a conditional test target.
-  fprintf(stderr, "fast_path_counters: SNMALLOC_STATS=OFF, skipping\n");
+  fprintf(stderr,
+          "fast_path_counters: SNMALLOC_STATS_BASIC=OFF, skipping\n");
   return 0;
 }
 
@@ -250,4 +255,4 @@ int main(int /*argc*/, char** /*argv*/)
   return 0;
 }
 
-#endif // SNMALLOC_STATS
+#endif // SNMALLOC_STATS_BASIC

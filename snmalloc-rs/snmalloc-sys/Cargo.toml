@@ -44,7 +44,29 @@ usecxx17 = []
 check = []
 lto = []
 notls = []
-stats = []
+## Phase 11.6 (ticket 86aj0ydjv) -- tiered allocator stats.
+#
+# Three knobs exposed via Cargo features map to the corresponding
+# CMake options (see snmalloc-sys/build.rs):
+#
+#   * `stats-basic` -- enable the BASIC tier (frontend fast/slow path
+#                      counters + backend commit/decommit accounting +
+#                      largebuddy free-chunk histogram).  Target
+#                      <= 2% overhead vs OFF on the small/medium/
+#                      mixed bench groups.  Maps to
+#                      `-DSNMALLOC_STATS_BASIC=ON`.
+#   * `stats-full`  -- enable the FULL tier (BASIC + per-size-class
+#                      histogram + lifetime histogram).  Target
+#                      <= 20% overhead.  Maps to
+#                      `-DSNMALLOC_STATS_FULL=ON` which, in the
+#                      CMake layer, implicitly also enables BASIC.
+#   * `stats`       -- backwards-compatible alias for `stats-basic`.
+#                      Pre-existing consumers using
+#                      `features = ["stats"]` continue to compile
+#                      and link unchanged.
+stats = ["stats-basic"]
+stats-basic = []
+stats-full = ["stats-basic"]
 usewait-on-address = []
 libc-api = []
 tracing = []

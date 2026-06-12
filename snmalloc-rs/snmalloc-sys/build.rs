@@ -60,6 +60,16 @@ struct BuildFeatures {
     notls: bool,
     win8compat: bool,
     stats: bool,
+    // Phase 11.6 -- tiered stats.  `stats_basic` enables the BASIC
+    // counter tier (frontend + backend, target <= 2% overhead);
+    // `stats_full` adds the per-size-class + lifetime histograms.
+    // The Cargo-feature wiring guarantees `stats-full` implies
+    // `stats-basic` (see snmalloc-sys/Cargo.toml `[features]`); we
+    // still mirror the implication here as a belt-and-braces guard
+    // so the CMake layer always sees a consistent BASIC=ON whenever
+    // FULL=ON, regardless of how the caller specified features.
+    stats_basic: bool,
+    stats_full: bool,
     android_lld: bool,
     local_dynamic_tls: bool,
     libc_api: bool,
@@ -330,6 +340,16 @@ impl BuildFeatures {
             notls: cfg!(feature = "notls"),
             win8compat: cfg!(feature = "win8compat"),
             stats: cfg!(feature = "stats"),
+            // Phase 11.6 -- tiered stats.  `stats-full` implies
+            // `stats-basic` in Cargo, so the OR below collapses to
+            // a single source of truth.  Legacy `stats` is an alias
+            // for `stats-basic` (`stats = ["stats-basic"]` in
+            // Cargo.toml), so callers passing the old feature name
+            // still light up the BASIC tier without changes.
+            stats_basic: cfg!(feature = "stats-basic")
+                || cfg!(feature = "stats-full")
+                || cfg!(feature = "stats"),
+            stats_full: cfg!(feature = "stats-full"),
             android_lld: cfg!(feature = "android-lld"),
             local_dynamic_tls: cfg!(feature = "local_dynamic_tls"),
             libc_api: cfg!(feature = "libc-api"),
@@ -481,7 +501,16 @@ fn configure_platform(config: &mut BuildConfig) {
     config.builder
         .define("SNMALLOC_QEMU_WORKAROUND", if config.features.qemu { "ON" } else { "OFF" })
         .define("SNMALLOC_ENABLE_DYNAMIC_LOADING", if config.features.notls { "ON" } else { "OFF" })
-        .define("SNMALLOC_STATS", if config.features.stats { "ON" } else { "OFF" })
+        // Phase 11.6 -- tiered stats.  We deliberately drive BASIC
+        // and FULL separately rather than relying on the legacy
+        // SNMALLOC_STATS=ON pathway: the CMake layer treats
+        // SNMALLOC_STATS as a backwards-compatible alias for
+        // SNMALLOC_STATS_BASIC, but consumers who explicitly
+        // request `stats-full` should land in the FULL tier without
+        // depending on the alias resolution order.
+        .define("SNMALLOC_STATS_BASIC", if config.features.stats_basic { "ON" } else { "OFF" })
+        .define("SNMALLOC_STATS_FULL",  if config.features.stats_full  { "ON" } else { "OFF" })
+        .define("SNMALLOC_STATS",       if config.features.stats_basic { "ON" } else { "OFF" })
         .define("SNMALLOC_RUST_LIBC_API", if config.features.libc_api { "ON" } else { "OFF" })
         .define("SNMALLOC_USE_CXX17", if cfg!(feature = "usecxx17") { "ON" } else { "OFF" });
 

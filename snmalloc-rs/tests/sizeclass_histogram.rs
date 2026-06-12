@@ -28,7 +28,13 @@
 //! counters compile away to no-ops on the C++ side, and the symbol
 //! does not exist on the Rust side.
 
-#![cfg(feature = "stats")]
+// Phase 11.6 -- the per-size-class histogram is FULL-tier only.
+// Under `stats-basic` the `*_by_class[]` arrays are all-zero by
+// design (the BASIC tier deliberately skips the per-class hot-path
+// stores to stay inside the <= 2% overhead budget), so this test
+// would not have meaningful deltas to assert against.  Gated to
+// `stats-full` accordingly.
+#![cfg(feature = "stats-full")]
 
 use snmalloc_rs::SnMalloc;
 use std::alloc::{GlobalAlloc, Layout};
