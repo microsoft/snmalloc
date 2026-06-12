@@ -140,11 +140,19 @@ unsafe impl Sync for BtSample {}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HotSpotKey {
     /// Group by the deepest non-allocator frame.  In the
-    /// unsymbolicated build this currently degrades to
+    /// unsymbolicated build this degrades to
     /// [`HotSpotKey::LeafFrame`] (we cannot tell allocator frames
-    /// from user frames by address alone); the `symbolicate`
-    /// feature gives this variant its full intended meaning in a
-    /// follow-up.
+    /// from user frames by address alone); a one-shot
+    /// `eprintln!` warns when `CallSite` is requested in a build
+    /// without the `symbolicate` feature.  With `symbolicate`
+    /// enabled the variant walks each sample's stack from leaf
+    /// outward, skipping frames whose resolved symbol begins with
+    /// an allocator namespace prefix (e.g. `snmalloc::`,
+    /// `snmalloc_rs::`, `snmalloc_sys::`, or the mangled C++
+    /// `_ZN8snmalloc`), and buckets on the first non-allocator
+    /// frame.  When the entire stack is allocator-internal the
+    /// bucketing falls back to the leaf frame so no sample is
+    /// ever dropped on the floor.
     CallSite,
     /// Group by the innermost (deepest) frame in each sample's
     /// captured stack.  Most precise "which exact return address
@@ -508,10 +516,15 @@ impl HeapProfile {
     ///   internal frames.  In the unsymbolicated build we cannot tell
     ///   allocator frames apart from user frames by name, so this
     ///   degrades to "the deepest (innermost) frame in each stack"
-    ///   -- functionally equivalent to [`HotSpotKey::LeafFrame`].
-    ///   When the `symbolicate` feature is on, future revisions of
-    ///   this method may skip frames whose resolved name begins with
-    ///   an allocator prefix (e.g. `snmalloc_rs::`, `__rust_alloc`).
+    ///   -- functionally equivalent to [`HotSpotKey::LeafFrame`] --
+    ///   and emits a one-shot `eprintln!` warning advertising the
+    ///   `symbolicate` feature.  When the `symbolicate` feature is
+    ///   enabled we walk each sample's stack from leaf outward and
+    ///   skip frames whose demangled symbol starts with an allocator
+    ///   namespace prefix (e.g. `snmalloc::`, `snmalloc_rs::`,
+    ///   `snmalloc_sys::`, or the mangled C++ `_ZN8snmalloc`).  If
+    ///   the whole stack is allocator-internal the leaf is used so
+    ///   no sample is silently dropped.
     /// - [`HotSpotKey::LeafFrame`] -- group by the innermost frame
     ///   (`stack[0]`).  Most precise "which exact instruction
     ///   pointer allocated" view; samples with an empty stack land
@@ -553,6 +566,26 @@ impl HeapProfile {
             return Vec::new();
         }
 
+        // CallSite-specific scaffolding.  In a symbolicate-enabled
+        // build we resolve every unique frame once, then route the
+        // per-sample bucketing through `callsite_bucket_frame`,
+        // which walks from leaf outward skipping allocator-internal
+        // frames.  In a build without `symbolicate` we have no way
+        // to tell allocator frames from user frames by address
+        // alone, so we degrade to LeafFrame and emit a one-shot
+        // notice on stderr -- once per process -- to flag that
+        // CallSite needs the feature to do anything different.
+        #[cfg(feature = "symbolicate")]
+        let resolved_for_callsite: Option<HashMap<*const u8, ResolvedFrame>> =
+            if matches!(key, HotSpotKey::CallSite) {
+                Some(self.symbolize())
+            } else {
+                None
+            };
+        if matches!(key, HotSpotKey::CallSite) {
+            warn_callsite_unsymbolicated_once();
+        }
+
         // Group key: a vec of frame addresses representing the
         // canonical key shape.  CallSite/LeafFrame produce single-
         // element keys (innermost frame); FullStack produces the
@@ -565,7 +598,7 @@ impl HeapProfile {
         let mut buckets: BTreeMap<Vec<usize>, (u128, u64)> = BTreeMap::new();
         for s in &self.samples {
             let group_key: Vec<usize> = match key {
-                HotSpotKey::CallSite | HotSpotKey::LeafFrame => {
+                HotSpotKey::LeafFrame => {
                     // Innermost (leaf) frame, or 0 if empty.  Using
                     // usize for the key keeps Ord well-defined
                     // (raw pointers don't implement Ord in core).
@@ -576,6 +609,28 @@ impl HeapProfile {
                         .map(|p| p as usize)
                         .unwrap_or(0);
                     alloc::vec![leaf]
+                }
+                HotSpotKey::CallSite => {
+                    // In the symbolicate build we walk the stack
+                    // and pick the first non-allocator frame.  In
+                    // the non-symbolicate build we have nothing to
+                    // dispatch on, so the bucket key is just the
+                    // leaf -- functionally identical to LeafFrame.
+                    #[cfg(feature = "symbolicate")]
+                    let bucket = {
+                        let resolved = resolved_for_callsite
+                            .as_ref()
+                            .expect("resolved map built above for CallSite");
+                        callsite_bucket_frame(&s.stack, resolved) as usize
+                    };
+                    #[cfg(not(feature = "symbolicate"))]
+                    let bucket = s
+                        .stack
+                        .first()
+                        .copied()
+                        .map(|p| p as usize)
+                        .unwrap_or(0);
+                    alloc::vec![bucket]
                 }
                 HotSpotKey::FullStack => {
                     s.stack.iter().map(|p| *p as usize).collect()
@@ -592,9 +647,9 @@ impl HeapProfile {
             .into_iter()
             .map(|(k, (bytes, count))| {
                 // For Leaf/CallSite the single key entry *is* the
-                // leaf.  For FullStack we still report the leaf
-                // (the innermost frame) so the output shape is the
-                // same across grouping modes.
+                // bucket frame.  For FullStack we still report the
+                // leaf (the innermost frame) so the output shape is
+                // the same across grouping modes.
                 let leaf = k.first().copied().unwrap_or(0) as *const u8;
                 let stack: Vec<*const u8> = match key {
                     HotSpotKey::FullStack => {
@@ -1024,6 +1079,111 @@ impl HeapProfile {
         }
         Ok(())
     }
+}
+
+/// One-shot stderr warning emitted the first time
+/// [`HeapProfile::top_sites`] is called with [`HotSpotKey::CallSite`]
+/// in a build that does **not** enable the `symbolicate` Cargo
+/// feature.  Without symbolicate the variant degrades to
+/// [`HotSpotKey::LeafFrame`]; the warning advertises the feature so
+/// the caller knows the variant exists for a reason.  Guarded by a
+/// process-global `Once` so we don't spam stderr on a hot loop.
+#[cfg(not(feature = "symbolicate"))]
+fn warn_callsite_unsymbolicated_once() {
+    static WARN_ONCE: std::sync::Once = std::sync::Once::new();
+    WARN_ONCE.call_once(|| {
+        // Deliberately route through eprintln (not log::warn) so
+        // we don't introduce a new dependency.  The message is a
+        // single line so it doesn't crowd stderr in a CI log.
+        std::eprintln!(
+            "snmalloc_rs: HotSpotKey::CallSite is degenerating to \
+             LeafFrame because the `symbolicate` Cargo feature is \
+             disabled; rebuild with `--features symbolicate` to \
+             group by the first non-allocator frame"
+        );
+    });
+}
+
+/// Companion no-op used in symbolicate-enabled builds so the
+/// caller in `top_sites` doesn't need a `#[cfg]` on every line.
+/// The actual "do we need to warn?" decision is made by the
+/// build configuration -- callers can always invoke this
+/// unconditionally.
+#[cfg(feature = "symbolicate")]
+#[inline]
+fn warn_callsite_unsymbolicated_once() {}
+
+/// Allocator-namespace prefix matcher used by the CallSite
+/// bucketing path.  Returns `true` iff the resolved frame name
+/// belongs to one of snmalloc's own crates / C++ namespaces and
+/// should therefore be skipped while searching for the first user
+/// frame.
+///
+/// The list intentionally covers both demangled and mangled
+/// forms.  `backtrace::resolve` returns demangled names on macOS
+/// and most modern Linux toolchains, but mangled fallbacks do
+/// occasionally show up (stripped binaries, custom symbol
+/// providers); recognising both keeps the filter robust.
+#[cfg(feature = "symbolicate")]
+fn is_allocator_frame_name(name: &str) -> bool {
+    // Demangled C++:           "snmalloc::..."
+    // Demangled Rust crates:   "snmalloc_rs::...", "snmalloc_sys::..."
+    // Mangled C++ (Itanium):   "_ZN8snmalloc..." (8 == strlen("snmalloc"))
+    // The crate also exposes a few free helper functions whose
+    // demangled names start with `snmalloc_rs::` so the crate-name
+    // prefix covers those too.
+    name.starts_with("snmalloc::")
+        || name.starts_with("snmalloc_rs::")
+        || name.starts_with("snmalloc_sys::")
+        || name.starts_with("_ZN8snmalloc")
+        // The Rust standard allocator GlobalAlloc thunks land in
+        // `__rust_alloc` / `__rust_dealloc` and are equally
+        // uninteresting as bucket keys -- the user wants the
+        // frame *above* them.
+        || name.starts_with("__rust_alloc")
+        || name.starts_with("__rust_dealloc")
+        || name.starts_with("__rust_realloc")
+        || name.starts_with("__rg_alloc")
+        || name.starts_with("__rg_dealloc")
+        || name.starts_with("__rg_realloc")
+}
+
+/// Walk a captured stack innermost-first and return the first
+/// frame whose resolved symbol name is **not** in an allocator
+/// namespace, falling back to the leaf frame if every frame is
+/// allocator-internal or if the stack is empty.
+///
+/// Used by [`HeapProfile::top_sites`] for [`HotSpotKey::CallSite`]
+/// grouping in the symbolicate build.  The fallback path keeps
+/// the contract that every sample lands in *some* bucket -- even
+/// if it was sampled from deep inside `snmalloc::` itself, which
+/// happens when the leaf is on the allocator's own hot path.
+#[cfg(feature = "symbolicate")]
+fn callsite_bucket_frame(
+    stack: &[*const u8],
+    resolved: &HashMap<*const u8, ResolvedFrame>,
+) -> *const u8 {
+    if stack.is_empty() {
+        return core::ptr::null();
+    }
+    for &addr in stack {
+        let in_allocator = resolved
+            .get(&addr)
+            .and_then(|r| r.name.as_deref())
+            .map(is_allocator_frame_name)
+            // A frame with no resolved name (e.g. JITed code,
+            // stripped symbol) is *not* assumed to be allocator
+            // internal -- treat it as a user frame so we don't
+            // silently fall off the end of the stack.
+            .unwrap_or(false);
+        if !in_allocator {
+            return addr;
+        }
+    }
+    // Every frame was allocator-internal: fall back to the leaf so
+    // we don't return a null pointer that would collapse with the
+    // "empty stack" bucket.
+    stack[0]
 }
 
 /// Resolve a single frame address via the `backtrace` crate.  Returns

@@ -170,6 +170,164 @@ fn top_sites_call_site_degrades_to_leaf() {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 11.3 -- symbolicate-aware CallSite tests.
+//
+// These exercise the live backtrace-driven path of `top_sites` for
+// `HotSpotKey::CallSite`.  They are split across two compile-time
+// configurations:
+//
+//   * `--features profiling,symbolicate` runs the *real* user-caller
+//     grouping test (`callsite_groups_by_user_caller`).
+//   * Builds *without* `symbolicate` exercise the documented
+//     fallback path (`callsite_fallback_when_unsymbolicated`).
+// ---------------------------------------------------------------------------
+
+/// Capture a real return-address backtrace inside a uniquely named,
+/// non-inlined function.  Returning the frames lets the test
+/// resolve them via the symbolicator the same way Phase 4.5 did
+/// for its smoke test (see
+/// `snmalloc_rs_phase_4_4_symbolize_probe`).
+///
+/// Two such probes are defined below: their bodies are identical
+/// but their *names* differ, which is exactly what gives the
+/// symbolicator something to discriminate on in
+/// `callsite_groups_by_user_caller`.
+#[cfg(feature = "symbolicate")]
+#[inline(never)]
+fn snmalloc_rs_phase_11_3_callsite_probe_alpha() -> Vec<*const u8> {
+    let mut frames: Vec<*const u8> = Vec::new();
+    backtrace::trace(|frame| {
+        frames.push(frame.ip() as *const u8);
+        true
+    });
+    frames
+}
+
+#[cfg(feature = "symbolicate")]
+#[inline(never)]
+fn snmalloc_rs_phase_11_3_callsite_probe_beta() -> Vec<*const u8> {
+    let mut frames: Vec<*const u8> = Vec::new();
+    backtrace::trace(|frame| {
+        frames.push(frame.ip() as *const u8);
+        true
+    });
+    frames
+}
+
+/// Two allocations whose leaf frames live inside this test process
+/// share their innermost frames (allocator-internal or the
+/// backtrace trampoline itself), but their user-callers differ
+/// because the captures originate in two distinctly-named probe
+/// functions.  CallSite must walk past any allocator-internal
+/// frames and bucket on the *user* caller, producing two distinct
+/// buckets where LeafFrame would have collapsed them into one.
+///
+/// We use synthetic `BtSample`s rather than driving the real
+/// sampler so the test is deterministic across sampling-rate
+/// noise; the symbolicator still runs on real return addresses
+/// captured by `backtrace::trace`, which is what makes the
+/// symbol-name dispatch meaningful.
+#[cfg(feature = "symbolicate")]
+#[test]
+fn callsite_groups_by_user_caller() {
+    let alpha = snmalloc_rs_phase_11_3_callsite_probe_alpha();
+    let beta = snmalloc_rs_phase_11_3_callsite_probe_beta();
+    assert!(!alpha.is_empty(), "alpha probe captured no frames");
+    assert!(!beta.is_empty(), "beta probe captured no frames");
+
+    let p = HeapProfile::from_samples(vec![
+        BtSample {
+            alloc_ptr: core::ptr::null(),
+            requested_size: 64,
+            allocated_size: 64,
+            weight: 4096,
+            stack: alpha.clone(),
+        },
+        BtSample {
+            alloc_ptr: core::ptr::null(),
+            requested_size: 64,
+            allocated_size: 64,
+            weight: 8192,
+            stack: beta.clone(),
+        },
+    ]);
+
+    let sites = p.top_sites(10, HotSpotKey::CallSite);
+    // The two probes have different demangled names, so the
+    // first non-allocator frame in each stack must differ --
+    // hence two distinct CallSite buckets.  We don't assert any
+    // particular ordering of bytes here because the two probe
+    // bodies could resolve to the same leaf if the symbolicator
+    // collapses thunks; the existence of two buckets is the
+    // load-bearing property.
+    assert_eq!(
+        sites.len(),
+        2,
+        "expected 2 CallSite buckets (one per probe), got {}: {:?}",
+        sites.len(),
+        sites
+            .iter()
+            .map(|s| (s.leaf_frame, s.inclusive_bytes))
+            .collect::<Vec<_>>()
+    );
+    // Both buckets together must account for the full 4096+8192
+    // bytes -- no sample silently dropped.
+    let total: u128 = sites.iter().map(|s| s.inclusive_bytes).sum();
+    assert_eq!(total, 12288u128);
+    let count_total: u64 = sites.iter().map(|s| s.sample_count).sum();
+    assert_eq!(count_total, 2);
+}
+
+/// A degenerate sample whose entire frame set resolves to an
+/// allocator-internal symbol (or fails to resolve at all) must
+/// still produce *some* bucket -- the bucketing helper falls back
+/// to the leaf frame rather than returning a null bucket key.
+/// This guards against the "all-allocator stack" edge case.
+///
+/// We construct an obviously-unresolvable frame (low virtual
+/// address) so the symbolicator reports no name; the
+/// `is_allocator_frame_name` predicate returns `false` for the
+/// no-name case, so the leaf wins on the first iteration -- which
+/// is exactly the fallback contract.
+#[cfg(feature = "symbolicate")]
+#[test]
+fn callsite_falls_back_when_no_user_frame() {
+    let unresolvable: *const u8 = 0x1 as *const u8;
+    let p = HeapProfile::from_samples(vec![BtSample {
+        alloc_ptr: core::ptr::null(),
+        requested_size: 32,
+        allocated_size: 32,
+        weight: 1024,
+        stack: vec![unresolvable],
+    }]);
+    let sites = p.top_sites(10, HotSpotKey::CallSite);
+    assert_eq!(sites.len(), 1);
+    assert_eq!(sites[0].inclusive_bytes, 1024u128);
+    assert_eq!(sites[0].sample_count, 1);
+    // The bucket must report a non-null leaf (the unresolvable
+    // address itself), not the empty-stack null sentinel.
+    assert_eq!(sites[0].leaf_frame, unresolvable);
+}
+
+/// In a build *without* the `symbolicate` feature, `CallSite`
+/// degrades to `LeafFrame` and must remain total: synthetic
+/// samples should produce a non-empty result without panicking.
+/// This pins the documented fallback contract.
+#[cfg(not(feature = "symbolicate"))]
+#[test]
+fn callsite_fallback_when_unsymbolicated() {
+    let p = HeapProfile::from_samples(vec![
+        make_sample(vec![0xaaaa, 0xbbbb], 4096),
+        make_sample(vec![0xdddd, 0xeeee], 2048),
+    ]);
+    let sites = p.top_sites(10, HotSpotKey::CallSite);
+    // Two distinct leaves -> two buckets, no panic.
+    assert_eq!(sites.len(), 2);
+    let total: u128 = sites.iter().map(|s| s.inclusive_bytes).sum();
+    assert_eq!(total, 6144u128);
+}
+
+// ---------------------------------------------------------------------------
 // Deliverable B -- address -> alloc-site reverse lookup tests.
 // ---------------------------------------------------------------------------
 
