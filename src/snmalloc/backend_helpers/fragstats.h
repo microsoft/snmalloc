@@ -93,8 +93,14 @@ namespace snmalloc
    */
   struct BackendFragCounters
   {
-    static inline stl::Atomic<size_t> bytes_committed{0};
-    static inline stl::Atomic<size_t> bytes_decommitted_to_os{0};
+    // Phase 11.10: place each atomic on its own 64-byte cache line to
+    // eliminate false-sharing.  Without padding the two counters land
+    // in adjacent 8-byte slots in the same line; on the `medium_allocs`
+    // bench every chunk-class alloc bumps `bytes_committed` and may
+    // racily contend with a concurrent thread's `bytes_decommitted_to_os`
+    // increment on the same line, costing inter-core invalidations.
+    alignas(64) static inline stl::Atomic<size_t> bytes_committed{0};
+    alignas(64) static inline stl::Atomic<size_t> bytes_decommitted_to_os{0};
 
     /**
      * Record a successful `notify_using` of `size` bytes.  Called from
