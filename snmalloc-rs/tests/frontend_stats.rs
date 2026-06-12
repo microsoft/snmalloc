@@ -35,6 +35,15 @@
 
 use snmalloc_rs::SnMalloc;
 use std::alloc::{GlobalAlloc, Layout};
+
+// Install snmalloc as the process-wide allocator for this test binary so
+// every allocation (including those made implicitly by Rust's std
+// collections used inside the tests below) feeds the same per-thread
+// snmalloc counters that `SnMalloc::full_stats()` exposes.  Without this
+// install the test binary's allocations route through the OS allocator
+// and the counters remain at zero.  See ClickUp 86aj0yehx (Phase 11.7).
+#[global_allocator]
+static ALLOC: SnMalloc = SnMalloc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;

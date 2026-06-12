@@ -28,6 +28,14 @@
 use snmalloc_rs::{FullAllocStats, SnMalloc, SNMALLOC_FULL_STATS_VERSION};
 use std::alloc::{GlobalAlloc, Layout};
 
+// Install snmalloc as the process-wide allocator for this test binary so
+// every allocation feeds the same per-thread snmalloc counters that
+// `SnMalloc::full_stats()` exposes.  Without this install the test
+// binary's allocations route through the OS allocator and the counters
+// remain at zero.  See ClickUp 86aj0yehx (Phase 11.7).
+#[global_allocator]
+static ALLOC: SnMalloc = SnMalloc;
+
 /// Helper: confirm every field that the scaffold has *not* wired up
 /// is zero.  Keeping this check in one place makes it obvious which
 /// fields are deliberately left for wave-2 tickets to populate.

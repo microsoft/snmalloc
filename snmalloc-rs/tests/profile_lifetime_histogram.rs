@@ -19,6 +19,14 @@ use std::alloc::{GlobalAlloc, Layout};
 use std::thread;
 use std::time::Duration;
 
+// Install snmalloc as the process-wide allocator for this test binary so
+// every allocation routes through the sampling path that the
+// allocation-lifetime histogram observes.  Without this install the
+// test binary's allocations would route through the OS allocator and
+// never feed the histogram.  See ClickUp 86aj0yehx (Phase 11.7).
+#[global_allocator]
+static ALLOC: SnMalloc = SnMalloc;
+
 /// Number of buckets exposed by the FFI / Rust mirror (must match
 /// `SN_RUST_PROFILE_LIFETIME_BUCKETS` in `snmalloc-sys`).
 const N_BUCKETS: usize = snmalloc_sys::SN_RUST_PROFILE_LIFETIME_BUCKETS;

@@ -39,6 +39,14 @@
 use snmalloc_rs::SnMalloc;
 use std::alloc::{GlobalAlloc, Layout};
 
+// Install snmalloc as the process-wide allocator for this test binary so
+// every allocation feeds the per-class histogram counters that
+// `SnMalloc::full_stats()` exposes.  Without this install the test
+// binary's allocations route through the OS allocator and the counters
+// remain at zero.  See ClickUp 86aj0yehx (Phase 11.7).
+#[global_allocator]
+static ALLOC: SnMalloc = SnMalloc;
+
 /// Number of objects to allocate of the pinned size.  Chosen large
 /// enough that the per-class signal dominates any background
 /// per-class traffic from other concurrently-running cargo tests
