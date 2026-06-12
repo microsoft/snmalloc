@@ -93,7 +93,7 @@ namespace snmalloc
         Pagemap::concretePagemap.init(base, length);
 
       // Make this a alloc_config constant.
-      if (length < MIN_HEAP_SIZE_FOR_THREAD_LOCAL_BUDDY)
+      if (length < MIN_HEAP_SIZE_FOR_THREAD_LOCAL_CACHE)
       {
         LocalState::set_small_heap();
       }
