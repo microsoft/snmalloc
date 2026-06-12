@@ -10,14 +10,14 @@
 // src/snmalloc/profile/sampled_list.h header for the invariants).
 //
 // To run with sanitizers (when added to CI):
-//   cmake -B build-tsan -DSNMALLOC_PROFILE=ON \
+//   cmake -B build-tsan -DSNMALLOC_PROFILE=ON
 //         -DCMAKE_CXX_FLAGS="-fsanitize=thread" -DCMAKE_BUILD_TYPE=Debug
 //   cmake --build build-tsan -j --target perf-profile_stress-fast
 //   ctest --test-dir build-tsan -V -R perf-profile_stress
 //
 //   # AddressSanitizer variant:
-//   cmake -B build-asan -DSNMALLOC_PROFILE=ON \
-//         -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer" \
+//   cmake -B build-asan -DSNMALLOC_PROFILE=ON
+//         -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-pointer"
 //         -DCMAKE_BUILD_TYPE=Debug
 //   cmake --build build-asan -j --target perf-profile_stress-fast
 //   ctest --test-dir build-asan -V -R perf-profile_stress
