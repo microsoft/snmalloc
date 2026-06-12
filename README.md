@@ -159,6 +159,12 @@ stays within the 1% budget on the standard sizes. Builds with
 `SNMALLOC_PROFILE=OFF` are bit-for-bit identical on the hot path to
 those without any profiling code at all.
 
+### Further reading
+
+- See [PMU profiling](docs/profiling-pmu.md) for cache-miss,
+  false-sharing, and branch-hint attribution recipes using `perf` on
+  Linux and Instruments on macOS.
+
 # Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
