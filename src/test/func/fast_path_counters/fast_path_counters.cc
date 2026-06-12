@@ -140,12 +140,18 @@ int main(int /*argc*/, char** /*argv*/)
   ptrs.clear();
 
   auto after_dealloc = snapshot();
+  // Phase 11.9: fast_path_deallocs is pre-credited at small_refill
+  // (alloc-time batching, symmetric with fast_path_allocs). The
+  // counter therefore rises during the alloc phase, not the dealloc
+  // phase. Measure from `before` rather than `after_alloc` so the
+  // pre-credit lands inside the measurement window.
   uint64_t dealloc_delta =
-    after_dealloc.fast_path_deallocs - after_alloc.fast_path_deallocs;
-  // All N frees should hit the local-owner branch (we allocated and
-  // freed on the same thread), so the counter should rise by N.
-  // Allow a small slack to absorb any incidental cross-thread frees
-  // that might race past our snapshot points.
+    after_dealloc.fast_path_deallocs - before.fast_path_deallocs;
+  // Each refill pre-credits the dealloc counter by the refill
+  // batch size; N=1000 allocs trigger ~2 refills (~1024 credit
+  // total), and the subsequent N frees do not bump the counter
+  // again. We require the cumulative rise to cover the N frees
+  // that occurred.
   check_ge(dealloc_delta, N - 10, "fast_path_deallocs delta (1k frees)");
 
   // --------------------------------------------------------------------
