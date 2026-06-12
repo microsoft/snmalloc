@@ -9,6 +9,16 @@
 #include "snmalloc/stl/new.h"
 #include "ticker.h"
 
+#ifdef SNMALLOC_STATS
+// Phase 9.2 -- per-thread frontend cache stats.  The on-thread counters
+// are non-atomic uint64_t, but the cross-thread teardown-drain
+// aggregator uses `stl::Atomic` so `frontend_stats_global()` can be
+// summed in parallel with concurrent allocators publishing their
+// counters at thread exit.  Brought in only under SNMALLOC_STATS so the
+// header-only build stays unchanged when stats are off.
+#  include "snmalloc/stl/atomic.h"
+#endif
+
 #ifdef SNMALLOC_PROFILE
 // Forward-declare the H1 hook entry.  The full definition lives in
 // profile/record.h, which depends on commonconfig.h's
@@ -106,6 +116,107 @@ namespace snmalloc
     // mimalloc.
     freelist::Iter<> small_fast_free_lists[NUM_SMALL_SIZECLASSES] = {};
   };
+
+#ifdef SNMALLOC_STATS
+  // Phase 9.2 -- per-thread frontend cache stats (ticket 86aj0tr1e).
+  //
+  // `FrontendStats` is the on-thread counter block embedded in every
+  // `Allocator`.  All fields are `uint64_t` and are mutated only on the
+  // owning thread, so increments compile to plain memory loads/stores
+  // (no atomic ops on the alloc/dealloc hot paths).  Cross-thread reads
+  // happen via `snmalloc_get_full_stats` which walks the allocator pool
+  // (allocators that have torn down their thread already drained their
+  // counters into `frontend_stats_global` below before releasing
+  // themselves back to the pool).
+  struct FrontendStats
+  {
+    /// Allocations satisfied by popping from `small_fast_free_lists`.
+    uint64_t fast_path_allocs{0};
+    /// Allocations that fell through to `small_refill` /
+    /// `small_refill_slow` (slab took a turn at refill).
+    uint64_t slow_path_allocs{0};
+    /// Deallocations whose pagemap entry pointed at this allocator
+    /// (the "local" branch of `Allocator::dealloc`).
+    uint64_t fast_path_deallocs{0};
+    /// Deallocations whose pagemap entry pointed at a remote
+    /// allocator; routed through the remote dealloc cache.
+    uint64_t remote_deallocs{0};
+    /// Number of times this thread drained its incoming message queue.
+    uint64_t message_queue_drains{0};
+    /// Cross-thread messages dequeued by this thread (one per call to
+    /// the dequeue callback inside `handle_message_queue_slow`).
+    uint64_t cross_thread_messages_received{0};
+
+    /// Add another snapshot's counters into this one.  Used both by
+    /// the FullAllocStats aggregator and by the thread-exit drain.
+    void accumulate(const FrontendStats& other) noexcept
+    {
+      fast_path_allocs += other.fast_path_allocs;
+      slow_path_allocs += other.slow_path_allocs;
+      fast_path_deallocs += other.fast_path_deallocs;
+      remote_deallocs += other.remote_deallocs;
+      message_queue_drains += other.message_queue_drains;
+      cross_thread_messages_received += other.cross_thread_messages_received;
+    }
+  };
+
+  /// Per-counter atomic aggregator that collects per-thread stats at
+  /// thread teardown.  Threads that have exited no longer appear in
+  /// `AllocPool::iterate()`, so without this drain their counters
+  /// would silently vanish from the FullAllocStats snapshot.  The
+  /// individual counters use `std::atomic` so the producer-side
+  /// `fetch_add` at teardown is safe against the consumer-side read in
+  /// `snmalloc_get_full_stats`; relaxed ordering is sufficient because
+  /// the snapshot is a debugging/observability surface and does not
+  /// participate in any happens-before chain with allocator state.
+  struct FrontendStatsGlobal
+  {
+    stl::Atomic<uint64_t> fast_path_allocs{0};
+    stl::Atomic<uint64_t> slow_path_allocs{0};
+    stl::Atomic<uint64_t> fast_path_deallocs{0};
+    stl::Atomic<uint64_t> remote_deallocs{0};
+    stl::Atomic<uint64_t> message_queue_drains{0};
+    stl::Atomic<uint64_t> cross_thread_messages_received{0};
+
+    void drain_from(const FrontendStats& s) noexcept
+    {
+      fast_path_allocs.fetch_add(
+        s.fast_path_allocs, stl::memory_order_relaxed);
+      slow_path_allocs.fetch_add(
+        s.slow_path_allocs, stl::memory_order_relaxed);
+      fast_path_deallocs.fetch_add(
+        s.fast_path_deallocs, stl::memory_order_relaxed);
+      remote_deallocs.fetch_add(
+        s.remote_deallocs, stl::memory_order_relaxed);
+      message_queue_drains.fetch_add(
+        s.message_queue_drains, stl::memory_order_relaxed);
+      cross_thread_messages_received.fetch_add(
+        s.cross_thread_messages_received, stl::memory_order_relaxed);
+    }
+
+    void snapshot_into(FrontendStats& out) const noexcept
+    {
+      out.fast_path_allocs +=
+        fast_path_allocs.load(stl::memory_order_relaxed);
+      out.slow_path_allocs +=
+        slow_path_allocs.load(stl::memory_order_relaxed);
+      out.fast_path_deallocs +=
+        fast_path_deallocs.load(stl::memory_order_relaxed);
+      out.remote_deallocs +=
+        remote_deallocs.load(stl::memory_order_relaxed);
+      out.message_queue_drains +=
+        message_queue_drains.load(stl::memory_order_relaxed);
+      out.cross_thread_messages_received +=
+        cross_thread_messages_received.load(stl::memory_order_relaxed);
+    }
+  };
+
+  inline FrontendStatsGlobal& frontend_stats_global() noexcept
+  {
+    static FrontendStatsGlobal g;
+    return g;
+  }
+#endif // SNMALLOC_STATS
 
   /**
    * The core, stateful, part of a memory allocator.
@@ -208,6 +319,22 @@ namespace snmalloc
      * Ticker to query the clock regularly at a lower cost.
      */
     Ticker<typename Config::Pal> ticker;
+
+#ifdef SNMALLOC_STATS
+    // Phase 9.2 -- per-thread frontend cache stats (ticket 86aj0tr1e).
+    //
+    // Embedded in every `Allocator` so the alloc / dealloc fast paths
+    // can bump a counter via a plain memory load+store -- the
+    // `Allocator` is per-thread, so no atomic ops are required on the
+    // hot path.  Cross-thread reads happen via
+    // `snmalloc_get_full_stats`, which walks `AllocPool::iterate()`
+    // and sums each live allocator's `stats` plus the
+    // `frontend_stats_global()` aggregator (which catches counters
+    // drained by allocators returned to the pool at thread teardown).
+   public:
+    FrontendStats stats{};
+   private:
+#endif
 
     /**
      * The message queue needs to be accessible from other threads
@@ -449,6 +576,13 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH decltype(auto)
     handle_message_queue_slow(Action action, Args... args) noexcept(noexc)
     {
+#ifdef SNMALLOC_STATS
+      // Phase 9.2 -- message-queue drain counter.  Bumped once per
+      // entry into the slow path (i.e. once per drain attempt).  The
+      // per-message counter `cross_thread_messages_received` is bumped
+      // inside the dequeue callback below.
+      stats.message_queue_drains++;
+#endif
       bool need_post = false;
       size_t bytes_freed = 0;
       auto local_state = backend_state_ptr();
@@ -458,6 +592,12 @@ namespace snmalloc
                            };
       auto cb = [this, domesticate, &need_post, &bytes_freed](
                   capptr::Alloc<RemoteMessage> msg) SNMALLOC_FAST_PATH_LAMBDA {
+#ifdef SNMALLOC_STATS
+        // Phase 9.2 -- per-message counter.  One call to this
+        // callback corresponds to one cross-thread message dequeued
+        // by the destination thread.
+        stats.cross_thread_messages_received++;
+#endif
         auto& entry =
           Config::Backend::get_metaentry(snmalloc::address_cast(msg));
         handle_dealloc_remote(entry, msg, need_post, domesticate, bytes_freed);
@@ -715,6 +855,11 @@ namespace snmalloc
       auto* fl = &small_fast_free_lists[sizeclass];
       if (SNMALLOC_LIKELY(!fl->empty()))
       {
+#ifdef SNMALLOC_STATS
+        // Phase 9.2 -- fast-path alloc counter.  Non-atomic write
+        // against the per-thread `Allocator::stats`.
+        stats.fast_path_allocs++;
+#endif
         auto p = fl->take(key, domesticate);
         return finish_alloc<Conts>(p, size);
       }
@@ -836,6 +981,15 @@ namespace snmalloc
       freelist::Iter<>& fast_free_list,
       size_t size) noexcept(noexcept(Conts::failure(0)))
     {
+#ifdef SNMALLOC_STATS
+      // Phase 9.2 -- slow-path alloc counter.  Bumped at entry to
+      // `small_refill` regardless of whether the refill is satisfied
+      // by the local stash (`alloc_classes[sizeclass]`) or falls
+      // through to `small_refill_slow` (which itself goes to the
+      // backend).  Counts every small alloc that missed the fast
+      // free list.
+      stats.slow_path_allocs++;
+#endif
       void* result = Config::SecondaryAllocator::allocate(
         [size]() -> stl::Pair<size_t, size_t> {
           return {size, natural_alignment(size)};
@@ -1165,11 +1319,26 @@ namespace snmalloc
        */
       if (SNMALLOC_LIKELY(public_state() == entry.get_remote()))
       {
+#ifdef SNMALLOC_STATS
+        // Phase 9.2 -- fast-path dealloc counter.  Bumped on the
+        // local-owner branch (pagemap says this allocator owns the
+        // pointer's slab).
+        stats.fast_path_deallocs++;
+#endif
         dealloc_cheri_checks(p_tame.unsafe_ptr());
         dealloc_local_object(p_tame, entry);
         return;
       }
 
+#ifdef SNMALLOC_STATS
+      // Phase 9.2 -- remote dealloc counter.  Bumped on the
+      // cross-allocator branch (pagemap says some other allocator
+      // owns the pointer's slab, so this thread routes it through
+      // its `remote_dealloc_cache`).  Counted on the producer side
+      // (the freeing thread); the consumer-side counterpart is
+      // `cross_thread_messages_received` below.
+      stats.remote_deallocs++;
+#endif
       dealloc_remote<CheckInit>(entry, p_tame);
     }
 
@@ -1634,6 +1803,27 @@ namespace snmalloc
 
       return posted;
     }
+
+#ifdef SNMALLOC_STATS
+   public:
+    // Phase 9.2 -- drain per-thread counters into the process-global
+    // aggregator and zero the local block.  Called from
+    // `ThreadAlloc::teardown` *after* the per-thread allocator is
+    // about to be released back to `AllocPool`, so the next thread
+    // that acquires this allocator starts from a clean slate.  We
+    // deliberately do NOT drain on every `flush()`: `flush()` is
+    // also invoked operationally (e.g. by `debug_is_empty` or by
+    // user code) on live threads, and draining there would erase
+    // an allocator's counters mid-lifetime.  Counters published
+    // here remain visible via `snmalloc_get_full_stats` because
+    // the FullAllocStats getter sums the live pool walk and the
+    // global drain pot.
+    void drain_stats_to_global() noexcept
+    {
+      frontend_stats_global().drain_from(stats);
+      stats = FrontendStats{};
+    }
+#endif
 
     /**
      * If result parameter is non-null, then false is assigned into the

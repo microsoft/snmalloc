@@ -33,6 +33,13 @@ option(SNMALLOC_ENABLE_FUZZING "Enable fuzzing instrumentation tests" OFF)
 option(SNMALLOC_USE_SELF_VENDORED_STL "Avoid using system STL" OFF)
 option(SNMALLOC_COVERAGE "Build with clang source-based coverage instrumentation" OFF)
 option(SNMALLOC_PROFILE "Build with heap profiling support" OFF)
+# Phase 9.2 (ticket 86aj0tr1e) -- per-thread frontend cache stats.
+# When ON, `Allocator` carries a small `FrontendStats` struct with
+# per-thread non-atomic counters for the fast/slow alloc/dealloc and
+# cross-thread message paths.  Off by default so release builds compile
+# to identical code (no new symbols, no new struct fields, no
+# increment sites).  Aggregation lives in `stats_export.cc`.
+option(SNMALLOC_STATS "Build with per-thread frontend cache statistics" OFF)
 # Profile-guided optimization plumbing. The option itself is consumed by
 # cmake/snmalloc_pgo.cmake (included further down, once the snmalloc
 # target has been declared) so all targets in the build inherit the
@@ -468,6 +475,7 @@ endfunction()
 add_as_define(SNMALLOC_QEMU_WORKAROUND)
 add_as_define(SNMALLOC_TRACING)
 add_as_define(SNMALLOC_PROFILE)
+add_as_define(SNMALLOC_STATS)
 add_as_define(SNMALLOC_CI_BUILD)
 add_as_define(SNMALLOC_PTHREAD_FORK_PROTECTION)
 add_as_define(SNMALLOC_PLATFORM_HAS_GETENTROPY)

@@ -117,6 +117,18 @@ namespace snmalloc
       times_teardown_called++;
       if (bits::is_pow2(times_teardown_called) || times_teardown_called < 128)
         alloc->flush();
+#ifdef SNMALLOC_STATS
+      // Phase 9.2 -- drain this thread's frontend stats into the
+      // process-global aggregator before releasing the allocator
+      // back to the pool.  Allocators are pooled and may be
+      // reacquired by an unrelated thread; without this drain that
+      // thread would start observing this thread's counters as
+      // its own.  Counters live on through
+      // `frontend_stats_global()`, which is summed into every
+      // `snmalloc_get_full_stats` snapshot alongside the live pool
+      // walk.
+      alloc->drain_stats_to_global();
+#endif
       AllocPool<Config>::release(alloc);
       alloc = const_cast<Alloc*>(&default_alloc);
     }

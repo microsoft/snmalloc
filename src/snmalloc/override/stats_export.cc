@@ -81,4 +81,40 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
       out->lifetime_buckets_ns[i] = hist.bucket(i);
   }
 #endif
+
+#ifdef SNMALLOC_STATS
+  // Phase 9.2 -- frontend stats aggregation (ticket 86aj0tr1e).
+  //
+  // Sum the per-thread `FrontendStats` blocks across every live
+  // allocator in the pool, then add the process-global drain
+  // aggregator (populated at thread teardown by `Allocator::flush`).
+  // Live allocators publish their counters non-atomically on the
+  // owning thread; the cross-thread read here observes a slightly
+  // stale view, which is fine for an observability snapshot.  The
+  // teardown drain uses relaxed atomics so terminated-thread
+  // contributions are exact.
+  {
+    FrontendStats agg{};
+    using AllocT = Allocator<Alloc::Config>;
+    for (AllocT* a = AllocPool<Alloc::Config>::iterate(); a != nullptr;
+         a = AllocPool<Alloc::Config>::iterate(a))
+    {
+      // Non-atomic read against a per-thread `stats` block.  We may
+      // observe a torn 64-bit increment on 32-bit platforms, but on
+      // 64-bit hosts (the ones this allocator targets) word-sized
+      // loads are atomic at the hardware level.  Either way the
+      // snapshot is best-effort; alignment is to the consumer.
+      agg.accumulate(a->stats);
+    }
+    frontend_stats_global().snapshot_into(agg);
+
+    out->fast_path_allocs = agg.fast_path_allocs;
+    out->slow_path_allocs = agg.slow_path_allocs;
+    out->fast_path_deallocs = agg.fast_path_deallocs;
+    out->remote_deallocs = agg.remote_deallocs;
+    out->message_queue_drains = agg.message_queue_drains;
+    out->cross_thread_messages_received =
+      agg.cross_thread_messages_received;
+  }
+#endif
 }

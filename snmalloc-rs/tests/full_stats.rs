@@ -26,27 +26,15 @@ use std::alloc::{GlobalAlloc, Layout};
 /// Helper: confirm every field that the scaffold has *not* wired up
 /// is zero.  Keeping this check in one place makes it obvious which
 /// fields are deliberately left for wave-2 tickets to populate.
+///
+/// Phase 9.2 (ticket 86aj0tr1e) wires the hot-path counters; those
+/// fields are no longer asserted-zero here.  The dedicated
+/// `frontend_stats.rs` test exercises them; this test focuses on
+/// the still-unimplemented wave-2 fields (9.3 / 9.4 / 9.5).
 fn assert_all_unimplemented_fields_are_zero(s: &FullAllocStats) {
     // Phase 9.4 fields are now wired and asserted positively below in
     // the dedicated test; they are intentionally NOT checked for zero
     // here.
-
-    // Phase 9.2 -- hot-path counters.
-    assert_eq!(s.fast_path_allocs, 0, "9.2: fast_path_allocs not yet wired");
-    assert_eq!(s.slow_path_allocs, 0, "9.2: slow_path_allocs not yet wired");
-    assert_eq!(
-        s.fast_path_deallocs, 0,
-        "9.2: fast_path_deallocs not yet wired"
-    );
-    assert_eq!(s.remote_deallocs, 0, "9.2: remote_deallocs not yet wired");
-    assert_eq!(
-        s.message_queue_drains, 0,
-        "9.2: message_queue_drains not yet wired"
-    );
-    assert_eq!(
-        s.cross_thread_messages_received, 0,
-        "9.2: cross_thread_messages_received not yet wired"
-    );
 
     // Phase 9.3 -- per-size-class histograms.
     assert!(
