@@ -380,10 +380,17 @@ namespace snmalloc
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
-  template<size_t size>
+  /**
+   * Compile-time sized dealloc. The optional `align` parameter mirrors
+   * the `align` parameter on `alloc<size, Conts, align>` so the
+   * sized-dealloc sanity check sees the size that was actually
+   * reserved (post `aligned_size`), not the raw requested `size`.
+   */
+  template<size_t size, size_t align = 1>
   SNMALLOC_FAST_PATH_INLINE void dealloc(void* p)
   {
-    check_size(p, size);
+    constexpr size_t sz = aligned_size(align, size);
+    check_size(p, sz);
     ThreadAlloc::get().dealloc<ThreadAlloc::CheckInit>(p);
   }
 
