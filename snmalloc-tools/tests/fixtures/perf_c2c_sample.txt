@@ -1,0 +1,11 @@
+=================================================
+                Shared Data Cache Line Table
+=================================================
+#       Total      Tot  --------- Cacheline ----------
+#      Hitm     Hitm    Address                Node
+#
+       125      125    0xffff8881deadbe00      0
+        -------- Pid 12345 cpu 0 ip 0xffffffff80104000 sym_a+0x10
+        -------- Pid 12345 cpu 1 ip 0xffffffff80105000 sym_b+0x20
+        80       80    0xffff8881cafef000      0
+        -------- Pid 67890 cpu 2 ip 0xffffffff80106000 sym_c+0x40

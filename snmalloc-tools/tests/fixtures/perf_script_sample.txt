@@ -1,0 +1,9 @@
+my-app 12345 [001] 1234567.890123: 1 branch-misses: 0xffffffff80104000 sym_a+0x10 (/usr/local/bin/my-app)
+	0xffffffff80104000 sym_a+0x10 (/usr/local/bin/my-app)
+	0xffffffff80105000 sym_b+0x20 (/usr/local/bin/my-app)
+
+my-app 12345 [001] 1234567.890456: 1 cache-misses: 0xffffffff80200000 sym_c+0x40 (/usr/local/bin/my-app)
+	0xffffffff80200000 sym_c+0x40 (/usr/local/bin/my-app)
+
+my-app 12345 [001] 1234567.890789: 1 mem_load_retired.l3_miss:pp: 0xffffffff80300000 0x00007fdeadbeef00 sym_d+0x80 (/usr/local/bin/my-app)
+	0xffffffff80300000 sym_d+0x80 (/usr/local/bin/my-app)

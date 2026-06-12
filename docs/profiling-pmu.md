@@ -17,6 +17,12 @@ samples can be **joined** with allocator state.
 > joins shown here. Each is available once the corresponding phase
 > lands; the manual command sequences below work today against the
 > primitives that already exist.
+>
+> Phase 10.4 is now merged: the joins below are automated via the
+> `snmalloc-tools` subcommands listed in the table (`profile-top`,
+> `pmu-join cache-misses`, `pmu-join c2c`, `branch-misses`).  See
+> `snmalloc-tools/README.md` for the live-process limitation that
+> applies to the cache-miss / c2c joiners.
 
 ## Overview
 

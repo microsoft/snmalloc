@@ -1,0 +1,5 @@
+[
+  {"file": "src/snmalloc/mem/freelist.h", "line": 412, "kind": "LIKELY"},
+  {"file": "src/snmalloc/mem/corealloc.h", "line": 437, "kind": "UNLIKELY"},
+  {"file": "src/snmalloc/mem/sizeclass.h", "line": 81, "kind": "LIKELY"}
+]
