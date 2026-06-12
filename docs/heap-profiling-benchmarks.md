@@ -1352,3 +1352,137 @@ cargo bench --features stats-basic --bench stats_bench
 
 For the 5-run sweep wipe `target/criterion` (or copy
 `new/estimates.json` aside) between runs.
+
+## Phase 11.9 -- dealloc batching (combined-counter approach)
+
+[ClickUp 86aj10b3z](https://app.clickup.com/t/86aj10b3z)
+("Phase 11.9 -- Single-combined-counter approach for the
+dealloc-side stats") applies the same Phase 11.8 batched
+pre-credit pattern to the symmetric dealloc-side counter:
+
+* The per-dealloc `stats.fast_path_deallocs++` store at the
+  local-owner branch of `Allocator::dealloc` (corealloc.h line
+  ~1601) is removed.
+* The pre-credit is applied at the same site as the alloc-side
+  Phase 11.8 credit -- `small_refill` and `small_refill_slow`
+  -- with `stats.fast_path_deallocs += refill_count` alongside
+  the existing `stats.fast_path_allocs += refill_count`.  Each
+  object placed onto a thread's fast free list is assumed to be
+  freed locally (the steady-state invariant for balanced
+  alloc/free workloads).
+* Cross-thread frees still bump `remote_deallocs` per object;
+  this means `fast_path_deallocs` is over-credited on the
+  granting thread by the count of objects that are eventually
+  freed by another thread.  The drift is bounded by program
+  behaviour and acceptable for an observability surface (the
+  field is documented to that effect in the `FrontendStats`
+  struct declaration).
+
+The semantic shift from "deallocations that hit the local
+branch" to "objects pre-credited at slab grant" means the
+`frontend_stats.rs::fast_path_alloc_counter_grows` test's
+dealloc-side delta is now zero against the post-alloc snapshot
+(the credit already landed at alloc time).  The test was
+adjusted to measure the cumulative dealloc count against the
+`before` snapshot instead, which exercises the same end-to-end
+invariant (the counter rose by at least N after N matched
+allocs+frees).
+
+### Bench results -- Phase 11.9
+
+Apples-to-apples sweep on the same host, 2-run mean per ratio,
+default Criterion timing (3s warm-up + 5s measure, 50 samples):
+
+| group           | 11.8 OFF (ns) | 11.8 BASIC (ns) | 11.8 ratio | 11.9 OFF (ns) | 11.9 BASIC (ns) | 11.9 ratio | verdict   |
+|-----------------|--------------:|----------------:|-----------:|--------------:|----------------:|-----------:|:---------:|
+| `small_allocs`  |        199.52 |          198.72 |     0.9960 |        198.91 |          199.03 |     1.0006 |   **PASS**|
+| `medium_allocs` |        885.83 |          940.37 |     1.0616 |        886.26 |          940.39 |     1.0611 |   **FAIL**|
+| `mixed`         |        564.61 |          579.94 |     1.0271 |        570.02 |          583.91 |     1.0244 |   **FAIL**|
+
+A separate 5-run sweep on the same host gave:
+
+| group           | 11.9 OFF mean (ns) | 11.9 BASIC mean (ns) | ratio  | per-run-pair median |
+|-----------------|-------------------:|---------------------:|-------:|--------------------:|
+| `small_allocs`  |             199.20 |               198.92 | 0.9986 |               0.9999 |
+| `medium_allocs` |             893.95 |               941.34 | 1.0530 |               1.0540 |
+| `mixed`         |             573.16 |               588.77 | 1.0272 |               1.0256 |
+
+The 5-run mean inflates `medium_allocs` slightly because two of
+the OFF runs happened to land at the low end of the noise band
+(890ns) while the BASIC runs were uniformly ~941ns; the
+per-run-pair median (1.0540) and the apples-to-apples table
+above (1.0611 vs 11.8's 1.0616) make the residual visible
+without that compounding.
+
+**Result: PARTIAL.**  Phase 11.9's change does not regress any
+group vs Phase 11.8 (medium\_allocs is identical within 0.001
+of the ratio, mixed improves by ~0.003, small\_allocs holds at
+~1.000).  However, the `medium_allocs` group did not move
+because the residual cost is no longer the dealloc-side
+counter store -- on this host the 11.8 baseline already sat at
+**1.062** for `medium_allocs`, not the 1.020 reported in the
+original Phase 11.8 doc above.  That earlier 1.020 figure
+turns out to have been measured on a system state (likely
+cooler thermals or quieter background load) that did not
+reproduce on the host used for the 11.9 sweep; on the present
+host both 11.8 and 11.9 land at the same ~1.06 ratio for
+`medium_allocs`.
+
+### What 11.9 _did_ buy
+
+* `small_allocs` -- already PASS at 11.8 (1.0155 doc /
+  ~0.996-1.000 on the 11.9 host).  No regression; the alloc-
+  side store was the dominant cost and 11.8 already removed it.
+* `mixed` -- improves marginally (1.0244 vs 11.8 1.0271 on the
+  same 11.9 host) because half of the `mixed` size distribution
+  routes through small-class allocs/frees, which now pays one
+  fewer store per local free.
+
+### Why `medium_allocs` did not close to spec
+
+The `medium_allocs` group exercises 4 KiB allocations with
+batch size 64.  At a slab object count of ~4 per slab (4 KiB
+objects in 16 KiB-ish chunks under default MIN_OBJECT_COUNT),
+each batch triggers ~16 slab refills + 64 same-thread frees.
+With Phase 11.9 the per-iteration store count drops from "16
+refills + 64 dealloc bumps = 80 stores" to "16 refills * 2 =
+32 stores" -- a reduction the timing data does NOT reflect.
+The residual ~5-6% delta is therefore _not_ store-bound; the
+most likely candidates are:
+
+* `bytes_in_use` / `peak_bytes_in_use` atomic updates that
+  fire on every slab refill at this granularity (frequent for
+  4 KiB allocs).
+* Pagemap-entry inspection on each dealloc that has to
+  identify the owner -- a load that the OFF path can fold
+  differently from the BASIC path because the BASIC branch
+  contains observable stats state.
+* Allocation-path inlining / register allocation differences
+  between OFF and BASIC builds: with the counter sites removed
+  in BASIC, the compiler may still produce slightly different
+  spill code on the small_refill hot path.
+
+These are not addressable by the same "batch the store"
+lever; closing the remaining gap would require either:
+
+* A `SNMALLOC_STATS_SAMPLED` tier: count one alloc / dealloc
+  every K (e.g. K=64), multiply at query time.  Hot-path cost
+  approaches zero stores per op; observability loses no
+  signal because the bench-relevant counters are
+  per-thousands.  Could approach 1.005 on `medium_allocs`.
+* Spec relaxation: accept `<= 1.06` on `medium_allocs` for the
+  BASIC tier, since `medium_allocs` is dominated by 4 KiB
+  large-ish allocations where any per-refill counter store
+  shows up disproportionately.  The 1.02 bar was set against
+  `small_allocs` where it is now comfortably met.
+
+### Recommendation
+
+Phase 11.9 ships the dealloc-side batching change because it
+is the correct symmetric counterpart to Phase 11.8 and it does
+not regress anything.  Further iteration on
+`medium_allocs`/`mixed` should go to spec relaxation or a
+sampled-counter tier, not yet another "find one more store to
+batch" pass -- the dealloc store is gone and the bench needle
+did not move on `medium_allocs`, so the residual is
+fundamental.

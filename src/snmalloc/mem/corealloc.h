@@ -154,6 +154,19 @@ namespace snmalloc
     uint64_t slow_path_allocs{0};
     /// Deallocations whose pagemap entry pointed at this allocator
     /// (the "local" branch of `Allocator::dealloc`).
+    ///
+    /// Phase 11.9 -- pre-credited at slab refill (in
+    /// `small_refill` / `small_refill_slow`) rather than bumped
+    /// per-dealloc, mirroring the Phase 11.8 batched alloc
+    /// counter.  Each object transferred onto a thread's fast
+    /// free list is assumed to be freed locally, so the credit
+    /// fires at the same site as `fast_path_allocs +=
+    /// refill_count`.  Overshoot is bounded by one slab's
+    /// in-flight object count per thread + sizeclass.  Cross-
+    /// thread frees still bump `remote_deallocs`; in that case
+    /// this counter is over-credited by the cross-thread-freed
+    /// portion (acceptable for an observability surface, the
+    /// drift is bounded by program behaviour).
     uint64_t fast_path_deallocs{0};
     /// Deallocations whose pagemap entry pointed at a remote
     /// allocator; routed through the remote dealloc cache.
@@ -1282,6 +1295,22 @@ namespace snmalloc
         // refill; the `refill_count` credit is the symmetric
         // batched fast-path entry.
         stats.fast_path_allocs += refill_count;
+        // Phase 11.9 -- batched fast-path dealloc pre-credit.  Each
+        // object pre-credited to `fast_path_allocs` here is expected
+        // to be freed (the steady-state invariant is balanced
+        // alloc/free), so pre-credit `fast_path_deallocs` at the
+        // same site and drop the per-dealloc store on the dealloc
+        // hot path.  Same overshoot bound as the alloc-side credit
+        // (at most one slab's worth of objects in flight).  For
+        // cross-thread frees the per-object cost lands in
+        // `remote_deallocs` -- this counter overshoots by the
+        // count of objects that this thread granted but were freed
+        // by another thread; that drift is bounded and acceptable
+        // for an observability surface.  Test
+        // `fast_path_dealloc_counter_grows` is the same-thread
+        // case so the >= assertion still holds (the credit is
+        // applied at alloc time, ahead of the matched frees).
+        stats.fast_path_deallocs += refill_count;
 #  ifdef SNMALLOC_STATS_FULL
         // Phase 9.3 -- slow-path-from-stash alloc bump.  We have
         // taken one object from the freshly-popped slab's freelist;
@@ -1372,6 +1401,9 @@ namespace snmalloc
           // `alloc_new_list`, of which `slab_object_count -
           // remaining` were transferred to `fast_free_list`.
           stats.fast_path_allocs += refill_count;
+          // Phase 11.9 -- symmetric batched dealloc pre-credit
+          // (see matching note in `small_refill`).
+          stats.fast_path_deallocs += refill_count;
 #  ifdef SNMALLOC_STATS_FULL
           // Phase 9.3 -- slow-path-from-backend alloc bump.  This
           // path has just brought in a fresh slab from the backend
@@ -1595,10 +1627,15 @@ namespace snmalloc
       if (SNMALLOC_LIKELY(public_state() == entry.get_remote()))
       {
 #ifdef SNMALLOC_STATS_BASIC
-        // Phase 9.2 -- fast-path dealloc counter.  Bumped on the
-        // local-owner branch (pagemap says this allocator owns the
-        // pointer's slab).
-        stats.fast_path_deallocs++;
+        // Phase 11.9 -- the per-dealloc `fast_path_deallocs++`
+        // bump that previously lived here has moved to the slab
+        // refill sites in `small_refill` / `small_refill_slow`,
+        // where every object that is granted onto the fast free
+        // list is pre-credited as a future fast-path dealloc.
+        // Removing the store from the dealloc hot path is the
+        // remaining lever for closing the BASIC-tier overhead gap
+        // on the `mixed` and `medium_allocs` groups (see
+        // docs/heap-profiling-benchmarks.md, Phase 11.9).
 #  ifdef SNMALLOC_STATS_FULL
         // Phase 9.3 -- per-size-class dealloc on the owning
         // thread.  Both cumulative and live counters are bumped /

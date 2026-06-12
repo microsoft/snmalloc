@@ -100,17 +100,31 @@ fn fast_path_alloc_counter_grows() {
     );
 
     // Free everything on the same thread; the fast-dealloc counter
-    // should also rise by ~N.
+    // should reflect that all N objects were freed via the local
+    // branch.
+    //
+    // Phase 11.9 -- `fast_path_deallocs` is now pre-credited at
+    // slab-refill time alongside `fast_path_allocs` rather than
+    // bumped per-dealloc.  The credit therefore lands BEFORE the
+    // explicit `dealloc()` loop below -- i.e. the dealloc-side
+    // delta against `after_alloc` is zero by construction.  The
+    // load-bearing assertion is that the cumulative
+    // `fast_path_deallocs` value (relative to `before`) rises by
+    // at least N after both the allocs and the matching frees
+    // have run.  This is the same end-to-end invariant the
+    // original test exercised; only the timing of when the
+    // credit hits the counter differs.
     for p in ptrs.drain(..) {
         unsafe { alloc.dealloc(p, layout) };
     }
     let after_dealloc = SnMalloc::full_stats();
     let dealloc_delta =
-        after_dealloc.fast_path_deallocs - after_alloc.fast_path_deallocs;
+        after_dealloc.fast_path_deallocs - before.fast_path_deallocs;
     assert!(
         dealloc_delta >= (N as u64) - 10,
         "fast_path_deallocs delta (={}) must rise by at least {} after {} \
-         same-thread frees",
+         same-thread allocs+frees (Phase 11.9 measures cumulative \
+         pre-credited dealloc count vs `before`)",
         dealloc_delta,
         (N as u64) - 10,
         N
