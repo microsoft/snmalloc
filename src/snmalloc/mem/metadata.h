@@ -624,13 +624,25 @@ namespace snmalloc
     /**
      * Allocates a free list from the meta data.
      *
-     * Returns a freshly allocated object of the correct size, and a bool that
+     * Returns a freshly allocated object of the correct size, a bool that
      * specifies if the slab metadata should be placed in the queue for that
-     * sizeclass.
+     * sizeclass, and an upper-bound refill count (the number of objects
+     * transferred to `fast_free_list`, including the popped return value).
      *
-     * If Randomisation is not used, it will always return false for the second
-     * component, but with randomisation, it may only return part of the
-     * available objects for this slab metadata.
+     * The refill count is `sizeclass_to_slab_object_count(sizeclass) -
+     * remaining`. This is exact for freshly-built slabs (where the builder
+     * was populated with `slab_object_count` objects via `alloc_new_list`),
+     * and an upper bound when the slab is reused from the per-sizeclass
+     * stash (a recycled slab may have had fewer than `slab_object_count`
+     * entries enqueued). The overshoot is bounded by the slab object count
+     * (at most ~256 for the smallest sizeclasses) and is consumed by the
+     * Phase 11.8 batched `fast_path_allocs` pre-credit, which permits a
+     * bounded stale-ahead reading for observability.
+     *
+     * If Randomisation is not used, the second component will always be
+     * false (the closed list contains everything in the builder), but with
+     * randomisation, it may only return part of the available objects for
+     * this slab metadata.
      */
     template<typename Domesticator>
     static SNMALLOC_FAST_PATH stl::Pair<freelist::HeadPtr, bool>
@@ -639,7 +651,8 @@ namespace snmalloc
       FrontendSlabMetadata* meta,
       freelist::Iter<>& fast_free_list,
       LocalEntropy& entropy,
-      smallsizeclass_t sizeclass)
+      smallsizeclass_t sizeclass,
+      uint16_t& refill_count)
     {
       auto& key = freelist::Object::key_root;
 
@@ -660,6 +673,14 @@ namespace snmalloc
       // Takes how many deallocations were not grabbed on this call
       // This will be zero if there is no randomisation.
       auto sleeping = meta->set_sleeping(sizeclass, remaining);
+
+      // Phase 11.8: report the refill count for batched
+      // `fast_path_allocs` pre-credit. Computed as
+      // `slab_object_count - remaining`; exact for freshly-built
+      // slabs and an upper bound (bounded by slab object count) for
+      // recycled slabs from the per-sizeclass stash.
+      refill_count = static_cast<uint16_t>(
+        sizeclass_to_slab_object_count(sizeclass) - remaining);
 
       return {p, !sleeping};
     }

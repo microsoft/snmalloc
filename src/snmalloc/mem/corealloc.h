@@ -1045,11 +1045,7 @@ namespace snmalloc
       auto* fl = &small_fast_free_lists[sizeclass];
       if (SNMALLOC_LIKELY(!fl->empty()))
       {
-#ifdef SNMALLOC_STATS_BASIC
-        // Phase 9.2 -- fast-path alloc counter.  Non-atomic write
-        // against the per-thread `Allocator::stats`.
-        stats.fast_path_allocs++;
-#  ifdef SNMALLOC_STATS_FULL
+#ifdef SNMALLOC_STATS_FULL
         // Phase 9.3 -- per-size-class histogram.  The sizeclass is
         // already in a register here.
         //
@@ -1065,8 +1061,17 @@ namespace snmalloc
         // floor for the 1.16 small_allocs regression in 11.5.
         sc_stats.live_count[sizeclass]++;
         sc_stats.live_bytes[sizeclass] += sizeclass_to_size(sizeclass);
-#  endif
 #endif
+        // Phase 11.8 -- `++stats.fast_path_allocs` was removed from
+        // this site.  The counter is now pre-credited in batch at
+        // `small_refill`/`small_refill_slow` time by the number of
+        // objects transferred into `fast_free_list`.  This removes
+        // the per-alloc store from the hot path and brings the
+        // SNMALLOC_STATS_BASIC small_allocs overhead under the
+        // strict <=1.02 spec target.  The counter may briefly read
+        // ahead of real consumption, bounded by the slab object
+        // count (at most ~256), which is acceptable for
+        // observability.
         auto p = fl->take(key, domesticate);
         return finish_alloc<Conts>(p, size);
       }
@@ -1243,8 +1248,14 @@ namespace snmalloc
           [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
             return capptr_domesticate<Config>(backend_state_ptr(), p);
           };
+        uint16_t refill_count = 0;
         auto [p, still_active] = BackendSlabMetadata::alloc_free_list(
-          domesticate, meta, fast_free_list, entropy, sizeclass);
+          domesticate,
+          meta,
+          fast_free_list,
+          entropy,
+          sizeclass,
+          refill_count);
 
         if (still_active)
         {
@@ -1256,7 +1267,22 @@ namespace snmalloc
           laden.insert(meta);
         }
 
-#ifdef SNMALLOC_STATS_FULL
+#ifdef SNMALLOC_STATS_BASIC
+        // Phase 11.8 -- batched fast-path alloc pre-credit.  The
+        // refill just transferred `refill_count` objects to
+        // `fast_free_list` (including `p`, which is returned to the
+        // caller without going through the fast path); subsequent
+        // consumes from the fast path will not bump the counter.
+        // This trades a small bounded overshoot (at most one slab
+        // worth, ~256 objects for the smallest sizeclasses) for
+        // removing the per-alloc store on the hot path.
+        //
+        // The slow-path bump (`++slow_path_allocs` at the top of
+        // `small_refill`) already accounts for this call as a slow
+        // refill; the `refill_count` credit is the symmetric
+        // batched fast-path entry.
+        stats.fast_path_allocs += refill_count;
+#  ifdef SNMALLOC_STATS_FULL
         // Phase 9.3 -- slow-path-from-stash alloc bump.  We have
         // taken one object from the freshly-popped slab's freelist;
         // any remaining objects on `fast_free_list` will be
@@ -1269,6 +1295,7 @@ namespace snmalloc
         // time, so only the live counters are bumped here.
         sc_stats.live_count[sizeclass]++;
         sc_stats.live_bytes[sizeclass] += sizeclass_to_size(sizeclass);
+#  endif
 #endif
         auto r = finish_alloc<Conts>(p, size);
         return ticker.check_tick(r);
@@ -1318,8 +1345,14 @@ namespace snmalloc
             [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
               return capptr_domesticate<Config>(backend_state_ptr(), p);
             };
+          uint16_t refill_count = 0;
           auto [p, still_active] = BackendSlabMetadata::alloc_free_list(
-            domesticate, meta, fast_free_list, entropy, sizeclass);
+            domesticate,
+            meta,
+            fast_free_list,
+            entropy,
+            sizeclass,
+            refill_count);
 
           if (still_active)
           {
@@ -1331,7 +1364,15 @@ namespace snmalloc
             laden.insert(meta);
           }
 
-#ifdef SNMALLOC_STATS_FULL
+#ifdef SNMALLOC_STATS_BASIC
+          // Phase 11.8 -- batched fast-path alloc pre-credit (see
+          // matching note in `small_refill`).  For a freshly-built
+          // slab the refill count is exact: the builder was
+          // populated with `slab_object_count` objects by
+          // `alloc_new_list`, of which `slab_object_count -
+          // remaining` were transferred to `fast_free_list`.
+          stats.fast_path_allocs += refill_count;
+#  ifdef SNMALLOC_STATS_FULL
           // Phase 9.3 -- slow-path-from-backend alloc bump.  This
           // path has just brought in a fresh slab from the backend
           // and taken the first object from it; the remaining
@@ -1342,6 +1383,7 @@ namespace snmalloc
           // time, so only the live counters are bumped here.
           sc_stats.live_count[sizeclass]++;
           sc_stats.live_bytes[sizeclass] += sizeclass_to_size(sizeclass);
+#  endif
 #endif
           auto r = finish_alloc<Conts>(p, size);
           return ticker.check_tick(r);

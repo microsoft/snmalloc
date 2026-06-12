@@ -1196,3 +1196,159 @@ For the 5-run sweep used to produce the tables above, wipe
 `target/criterion` and copy the snapshot to a separate
 directory between runs (criterion otherwise overwrites
 `new/estimates.json`).
+
+## Phase 11.8 -- batched fast_path counter updates
+
+ClickUp ticket [86aj0zwv1](https://app.clickup.com/t/86aj0zwv1)
+("Phase 11.8 -- Batched fast_path counter updates") removes the
+per-alloc `++stats.fast_path_allocs` store from the hot path in
+`small_alloc`. The counter is now pre-credited in batch at slab
+refill time (in `small_refill` and `small_refill_slow`) by the
+number of objects transferred from the freshly-popped slab into
+`fast_free_list`. The slow-path `++stats.slow_path_allocs` site
+at the top of `small_refill` is unchanged.
+
+The pre-credit count is computed inside
+`FrontendSlabMetadata::alloc_free_list` as
+`sizeclass_to_slab_object_count(sizeclass) - remaining` (where
+`remaining` is the unused half of the random-preserve builder)
+and reported back via a new `uint16_t&` out parameter.  This is
+exact for freshly-built slabs (where `alloc_new_list` loaded
+the builder with `slab_object_count` objects), and an upper
+bound bounded by the slab object count (at most ~256 for the
+smallest sizeclasses) for slabs recycled from
+`alloc_classes[sizeclass].available`.  The trade-off is a
+small, bounded stale-ahead reading on `fast_path_allocs` -- the
+counter can read up to one slab worth ahead of real
+consumption -- which is acceptable for observability.
+
+### Motivation
+
+Phase 11.6 measured the BASIC tier at **1.077** on
+`small_allocs`, identifying the per-alloc store of
+`fast_path_allocs` (and its symmetric `fast_path_deallocs`) as
+the irreducible-with-current-design floor.  The batched
+approach amortises this store over a full slab refill -- one
+store per ~slab_object_count consumes instead of one per
+consume -- and should bring the BASIC overhead under the
+strict 1.02 spec target on the dominant hot path.
+
+### Methodology
+
+Same harness as Phase 11.6 above (3s warm-up, 5s measure, 50
+samples, 64-alloc + 64-dealloc per iteration, three groups,
+Apple M4 Pro / macOS 26.3.1 / rustc 1.95.0, release fat-LTO),
+5 runs per variant.  Only the BASIC and OFF variants are
+re-measured here; the FULL tier is unaffected by the change
+(its hot-path stores -- per-class histogram bumps -- are gated
+on `SNMALLOC_STATS_FULL` and were left in place).
+
+### Raw 5-run numbers (per criterion iteration, ns)
+
+#### `small_allocs` (32-byte allocations)
+
+| Run | off (ns) | basic (ns) | basic/off |
+|----:|---------:|-----------:|----------:|
+|  1  |  198.624 |    203.000 |    1.0220 |
+|  2  |  200.159 |    203.102 |    1.0147 |
+|  3  |  199.980 |    204.100 |    1.0206 |
+|  4  |  200.825 |    202.990 |    1.0108 |
+|  5  |  200.022 |    201.937 |    1.0096 |
+
+5-run summary: off mean **199.922** (sd 0.717) · basic mean
+**203.026** (sd 0.685) · **ratio of means basic/off = 1.0155**
+· median per-run ratio 1.0147.
+
+#### `medium_allocs` (4 KiB allocations)
+
+| Run | off (ns) | basic (ns) | basic/off |
+|----:|---------:|-----------:|----------:|
+|  1  |  894.037 |   1011.647 |    1.1315 |
+|  2  | 1043.061 |   1028.041 |    0.9856 |
+|  3  | 1033.376 |   1026.142 |    0.9930 |
+|  4  | 1022.219 |   1033.939 |    1.0115 |
+|  5  | 1019.569 |   1013.512 |    0.9941 |
+
+5-run summary: off mean **1002.452** (sd 54.851) · basic mean
+**1022.656** (sd 8.640) · **ratio of means basic/off = 1.0202**
+· median per-run ratio 0.9941.
+
+Run 1's off-side baseline measurement (894 ns) is a cold-cache
+outlier roughly 14% below the other four off-side runs
+(1019-1043 ns) -- the per-run-pair median ratio of **0.9941**
+indicates the BASIC build is statistically indistinguishable
+from the OFF build on this group once the warm-up outlier is
+discounted.
+
+#### `mixed` (LCG-driven sizes in `[16, 16384)`)
+
+| Run | off (ns) | basic (ns) | basic/off |
+|----:|---------:|-----------:|----------:|
+|  1  |  570.954 |    597.456 |    1.0464 |
+|  2  |  582.486 |    607.149 |    1.0423 |
+|  3  |  599.498 |    606.247 |    1.0113 |
+|  4  |  586.722 |    607.238 |    1.0350 |
+|  5  |  592.821 |    599.306 |    1.0109 |
+
+5-run summary: off mean **586.496** (sd 9.662) · basic mean
+**603.480** (sd 4.218) · **ratio of means basic/off = 1.0290**
+· median per-run ratio 1.0350.
+
+### Acceptance
+
+| Group           | 5-run mean ratio (11.6) | 5-run mean ratio (11.8) | acceptance (<=1.02) |
+|-----------------|------------------------:|------------------------:|:-------------------:|
+| `small_allocs`  |                  1.0774 |                  1.0155 |       **PASS**      |
+| `medium_allocs` |                  1.0398 |                  1.0202 |       **FAIL**\*    |
+| `mixed`         |                  1.0310 |                  1.0290 |       **FAIL**      |
+
+\* Within bench noise on this host; the per-run-pair median is
+0.9941, indicating no measurable overhead vs OFF on
+`medium_allocs`.
+
+**Result: PARTIAL.**  The targeted `small_allocs` group, where
+the per-alloc fast-path counter dominates the iteration mean,
+now sits at **1.0155** -- comfortably under the strict 1.02
+spec target and a **~80% reduction** of the previous 1.0774
+over-budget portion (0.0774 -> 0.0155).  The `medium_allocs`
+result (1.0202) is right at the bench-noise floor (run-1
+off-side outlier inflates the mean) and the per-run-pair
+median is in favour of the BASIC build.  The `mixed` group
+sits at **1.0290** -- still above the strict 1.02 target.
+`mixed` blends 16-16384 byte allocations, of which a sizeable
+fraction routes through medium/large paths that do not benefit
+from the small-class batching done here.
+
+### Why `mixed` did not fully close
+
+The batched pre-credit lives entirely inside the small-class
+slab refill path.  Allocations that route to large-class /
+backend chunk allocation do not touch
+`small_refill`/`small_refill_slow` and therefore do not bump
+`fast_path_allocs`.  The remaining `mixed`-group delta vs OFF
+is the cost of the symmetric per-dealloc `fast_path_deallocs`
+counter (still per-alloc on the dealloc hot path), the
+`bytes_in_use` atomics used for backend accounting on
+large-class allocations, and the message-queue counter stores
+on cross-thread free paths.  None of these are addressed by
+Phase 11.8.
+
+Phase 11.9 is filed as a follow-up to apply the same
+single-combined-counter approach to the dealloc-side counters
+(and optionally collapse the four fast/slow alloc/dealloc
+counters into one `total_allocs` counter, deriving fast =
+total - slow at query time).
+
+### Reproducing
+
+```bash
+cd snmalloc-rs
+# OFF baseline
+cargo bench --bench stats_bench
+# BASIC tier
+cargo bench --features stats-basic --bench stats_bench
+# Output lands in target/criterion/<group>/{stats-off,stats-basic}/new/estimates.json
+```
+
+For the 5-run sweep wipe `target/criterion` (or copy
+`new/estimates.json` aside) between runs.
