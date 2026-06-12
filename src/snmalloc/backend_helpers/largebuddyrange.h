@@ -5,9 +5,105 @@
 #include "buddy.h"
 #include "empty_range.h"
 #include "range_helpers.h"
+#include "snmalloc/stl/atomic.h"
 
 namespace snmalloc
 {
+  /**
+   * Process-global log2-bucketed histogram of free chunks held inside
+   * `LargeBuddyRange` instances (Phase 11.4).
+   *
+   * snmalloc has several `LargeBuddyRange` instantiations active at
+   * runtime: the process-singleton `GlobalR` (lifted via
+   * `GlobalRange`/`StaticRange`) and one per-thread `LargeObjectRange`
+   * local cache.  This struct aggregates the free-chunk population
+   * across every live `Buddy<BuddyChunkRep<...>>` instance into one
+   * shared array of atomics, keyed by `log2(block_size) - MIN_CHUNK_BITS`.
+   *
+   * The histogram occupies the first 16 slots of
+   * `FullAllocStats.reserved[]`, covering chunk sizes from
+   * `MIN_CHUNK_SIZE` up to `MIN_CHUNK_SIZE << 15`.  That range is
+   * sufficient for the configurations snmalloc ships -- the largest
+   * cacheable size on x86-64 is `bits::BITS - 1 = 62 bits`, which
+   * exceeds 16 buckets, but free chunks above `MIN_CHUNK_BITS + 15`
+   * are exceedingly rare and not particularly useful for the
+   * fragmentation diagnostics this histogram targets.  Buckets that
+   * fall outside the 16-slot window are silently dropped (the
+   * counters never decrement below zero either, matching
+   * `BackendFragCounters` semantics).
+   *
+   * Updates are `memory_order_relaxed`: the counters are not used for
+   * synchronisation, only for observability.  Both `Buddy` mutators
+   * and the FullAllocStats reader run while holding their respective
+   * locks, but the histogram itself is unsynchronised; a concurrent
+   * reader may observe a transient inconsistency at the moment a
+   * block consolidates from bucket `idx` to `idx+1` (one bucket may
+   * read low while the other reads high), which we accept for a
+   * telemetry-grade snapshot.
+   */
+  struct LargeBuddyFreeChunkHistogram
+  {
+    /** Number of log2 buckets exposed through the FFI struct. */
+    static constexpr size_t NUM_BUCKETS = 16;
+
+    /** Per-bucket free-block count. */
+    static inline stl::Atomic<size_t> counts[NUM_BUCKETS]{};
+
+    /**
+     * Record one new free block entering the buddy allocator at the
+     * given log-size (in absolute bits, e.g. log2 of MIN_CHUNK_SIZE
+     * for the smallest chunk).  Out-of-window updates are silently
+     * dropped.
+     */
+    static void on_add(size_t size_bits)
+    {
+      auto rel = size_bits - MIN_CHUNK_BITS;
+      if (rel < NUM_BUCKETS)
+      {
+        counts[rel].fetch_add(1, stl::memory_order_relaxed);
+      }
+    }
+
+    /**
+     * Record one free block leaving the buddy allocator at the given
+     * log-size.  Uses a clamped-subtract compare-exchange loop so
+     * that an out-of-order observation (e.g. a buddy that consolidated
+     * across a bucket the reader never saw) cannot underflow the
+     * counter.
+     */
+    static void on_remove(size_t size_bits)
+    {
+      auto rel = size_bits - MIN_CHUNK_BITS;
+      if (rel < NUM_BUCKETS)
+      {
+        auto prev = counts[rel].load(stl::memory_order_relaxed);
+        while (true)
+        {
+          auto next = (prev > 0) ? (prev - 1) : 0;
+          if (counts[rel].compare_exchange_weak(
+                prev, next, stl::memory_order_relaxed))
+          {
+            break;
+          }
+        }
+      }
+    }
+
+    /**
+     * Snapshot the histogram into `out[0..NUM_BUCKETS-1]`.  Each load
+     * is independent (`memory_order_relaxed`), so the snapshot is not
+     * transactional.  Suitable for fragmentation diagnostics; not
+     * suitable for invariants that require an exact total.
+     */
+    static void snapshot(uint64_t (&out)[NUM_BUCKETS])
+    {
+      for (size_t i = 0; i < NUM_BUCKETS; ++i)
+      {
+        out[i] = static_cast<uint64_t>(
+          counts[i].load(stl::memory_order_relaxed));
+      }
+    }
+  };
   /**
    * Class for using the pagemap entries for the buddy allocator.
    */
@@ -220,8 +316,19 @@ namespace snmalloc
 
       /**
        * Buddy allocator used to represent this range of memory.
+       *
+       * The fourth template argument plugs the Phase 11.4 free-chunk
+       * histogram hook in -- every insertion/removal into the buddy
+       * cache or red-black tree bumps the matching log-size bucket of
+       * `LargeBuddyFreeChunkHistogram`, which the FullAllocStats
+       * getter then reads via `get_free_chunk_count_by_log_size`.
        */
-      Buddy<BuddyChunkRep<Pagemap>, MIN_CHUNK_BITS, MAX_SIZE_BITS> buddy_large;
+      Buddy<
+        BuddyChunkRep<Pagemap>,
+        MIN_CHUNK_BITS,
+        MAX_SIZE_BITS,
+        LargeBuddyFreeChunkHistogram>
+        buddy_large;
 
       /**
        * The parent might not support deallocation if this buddy allocator
@@ -387,6 +494,35 @@ namespace snmalloc
           capptr::Arena<void>::unsafe_from(reinterpret_cast<void*>(
             buddy_large.add_block(base.unsafe_uintptr(), size)));
         dealloc_overflow(overflow);
+      }
+
+      /**
+       * Snapshot the process-global log2-bucketed free-chunk histogram
+       * for `LargeBuddyRange` instances (Phase 11.4).
+       *
+       * The histogram aggregates free-chunk populations across EVERY
+       * live `LargeBuddyRange` Buddy in the process -- the
+       * single-instance `GlobalR` plus every per-thread local cache --
+       * so the snapshot does not vary across `Type` instantiations.
+       * The method is provided as an instance accessor on `Type` to
+       * match the rest of the range API surface and to give the
+       * FullAllocStats getter a uniform call shape regardless of which
+       * range it is querying.
+       *
+       * `out[i]` corresponds to chunks of size
+       * `1 << (MIN_CHUNK_BITS + i)` bytes for `i` in
+       * `[0, NUM_BUCKETS - 1]`.  Block sizes beyond
+       * `MIN_CHUNK_BITS + 15` are not tracked; the histogram is
+       * deliberately sized to fit the first 16 slots of
+       * `FullAllocStats.reserved[]`.
+       *
+       * Marked `const` -- only atomic reads happen.  Safe to call
+       * from any thread at any point in the process lifetime.
+       */
+      void get_free_chunk_count_by_log_size(
+        uint64_t (&out)[LargeBuddyFreeChunkHistogram::NUM_BUCKETS]) const
+      {
+        LargeBuddyFreeChunkHistogram::snapshot(out);
       }
     };
   };

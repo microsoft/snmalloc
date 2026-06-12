@@ -123,8 +123,17 @@ pub use config::{ProfileConfig, ENV_PROFILE_ENABLE, ENV_PROFILE_RATE};
 /// Re-export of the Phase 9.1 wire-format version constant.  Lets
 /// downstream consumers compare against `FullAllocStats::version`
 /// without depending on the `snmalloc-sys` crate directly.
+///
+/// Bumped to `2` in Phase 11.4 with the addition of the free-chunk
+/// histogram in `FullAllocStats.reserved[0..16]`; see
+/// [`SnMalloc::full_stats`] and [`FullAllocStats::free_chunk_histogram`].
 #[cfg(feature = "stats")]
 pub use ffi::SNMALLOC_FULL_STATS_VERSION;
+
+/// Re-export of the Phase 11.4 free-chunk histogram bucket count.
+/// Equal to `16`.  See [`FullAllocStats::free_chunk_histogram`].
+#[cfg(feature = "stats")]
+pub use ffi::SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS;
 
 #[cfg(feature = "profiling")]
 pub use streaming::{ProfilingSession, StreamSample, StreamingError};
@@ -212,6 +221,39 @@ pub struct FullAllocStats {
     pub cumulative_dealloc_by_class: [u64; ffi::SNMALLOC_FULL_STATS_SIZECLASS_SLOTS],
     /// Phase 9.5 -- log2-spaced allocation-lifetime histogram.
     pub lifetime_buckets_ns: [u64; ffi::SNMALLOC_FULL_STATS_LIFETIME_BUCKETS],
+    /// Forward-compat reserve pool.  As of `SNMALLOC_FULL_STATS_VERSION = 2`
+    /// (Phase 11.4) `reserved[0..16]` carries the log2-bucketed
+    /// `LargeBuddyRange` free-chunk histogram; prefer the typed
+    /// accessor [`FullAllocStats::free_chunk_histogram`] for that view.
+    /// Slots `reserved[16..]` remain zero and are reserved for future
+    /// additive extensions.
+    pub reserved: [u64; ffi::SNMALLOC_FULL_STATS_RESERVED_SLOTS],
+}
+
+#[cfg(feature = "stats")]
+impl FullAllocStats {
+    /// Return the Phase 11.4 free-chunk histogram from
+    /// `reserved[0..16]` as a typed array.
+    ///
+    /// Bucket `i` is the count of currently-free chunks of size
+    /// `1 << (MIN_CHUNK_BITS + i)` bytes held inside any
+    /// `LargeBuddyRange` Buddy at the moment the snapshot was taken;
+    /// `MIN_CHUNK_BITS` is `14` (16 KiB) on the default build, so the
+    /// 16 buckets cover sizes from 16 KiB up to `16 KiB << 15` = 512 MiB.
+    ///
+    /// Returns an all-zero array when the producer is older than
+    /// `SNMALLOC_FULL_STATS_VERSION = 2` (the slot pool reads as zero
+    /// in that case).
+    #[inline]
+    pub fn free_chunk_histogram(
+        &self,
+    ) -> [u64; ffi::SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS] {
+        let mut out = [0u64; ffi::SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS];
+        out.copy_from_slice(
+            &self.reserved[..ffi::SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS],
+        );
+        out
+    }
 }
 
 #[cfg(feature = "stats")]
@@ -241,6 +283,7 @@ impl Default for FullAllocStats {
             cumulative_alloc_by_class: [0u64; ffi::SNMALLOC_FULL_STATS_SIZECLASS_SLOTS],
             cumulative_dealloc_by_class: [0u64; ffi::SNMALLOC_FULL_STATS_SIZECLASS_SLOTS],
             lifetime_buckets_ns: [0u64; ffi::SNMALLOC_FULL_STATS_LIFETIME_BUCKETS],
+            reserved: [0u64; ffi::SNMALLOC_FULL_STATS_RESERVED_SLOTS],
         }
     }
 }
@@ -318,6 +361,7 @@ impl SnMalloc {
             cumulative_alloc_by_class: raw.cumulative_alloc_by_class,
             cumulative_dealloc_by_class: raw.cumulative_dealloc_by_class,
             lifetime_buckets_ns: raw.lifetime_buckets_ns,
+            reserved: raw.reserved,
         }
     }
 

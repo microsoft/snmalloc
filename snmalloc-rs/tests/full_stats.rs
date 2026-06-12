@@ -161,6 +161,69 @@ fn full_stats_backend_frag_invariants() {
     assert_eq!(after.version, SNMALLOC_FULL_STATS_VERSION);
 }
 
+/// Phase 11.4 -- the `LargeBuddyRange` free-chunk histogram (carried
+/// in `reserved[0..16]`, exposed via `free_chunk_histogram()`) must
+/// grow under a live workload and remain non-zero after a free pushes
+/// chunks back into the buddy free list.
+#[test]
+fn full_stats_freechunk_histogram_populates() {
+    let alloc = SnMalloc::new();
+
+    // Allocate a known size mix to drive several log-size buckets
+    // through the buddy free list.  Ten 1 MiB allocations followed by
+    // ten frees is enough to populate at least one bucket (the local
+    // cache buddy ends up holding the freed 1 MiB chunks; on the
+    // default build with MIN_CHUNK_BITS == 14 those land at idx == 6).
+    let layout = Layout::from_size_align(1 << 20, 64).unwrap();
+    const N: usize = 10;
+    let mut ptrs: [*mut u8; N] = [core::ptr::null_mut(); N];
+    for slot in ptrs.iter_mut() {
+        let p = unsafe { alloc.alloc(layout) };
+        assert!(!p.is_null(), "1 MiB allocation must not return null");
+        *slot = p;
+    }
+    // Release every block back to the allocator; the chunks land in
+    // the buddy free list (some may consolidate up a bucket, which is
+    // fine -- we only assert that *some* bucket is non-zero).
+    for slot in ptrs.iter().copied() {
+        unsafe { alloc.dealloc(slot, layout) };
+    }
+
+    let snap = SnMalloc::full_stats();
+    assert_eq!(snap.version, SNMALLOC_FULL_STATS_VERSION);
+
+    let hist = snap.free_chunk_histogram();
+    assert_eq!(
+        hist.len(),
+        snmalloc_rs::SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS,
+        "free_chunk_histogram length must match the FFI bucket count"
+    );
+
+    // At least one bucket must be non-zero after the workload above.
+    let nonzero = hist.iter().filter(|&&c| c != 0).count();
+    assert!(
+        nonzero > 0,
+        "expected at least one non-zero free-chunk bucket after \
+         {} x 1 MiB alloc+free; got histogram {:?}",
+        N,
+        hist
+    );
+
+    // The typed accessor and the raw `reserved[]` view must agree --
+    // `free_chunk_histogram` is a direct copy of the first 16 slots.
+    for i in 0..snmalloc_rs::SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS {
+        assert_eq!(
+            hist[i],
+            snap.reserved[i],
+            "free_chunk_histogram[{}] ({}) must equal reserved[{}] ({})",
+            i,
+            hist[i],
+            i,
+            snap.reserved[i]
+        );
+    }
+}
+
 #[test]
 fn full_stats_peak_is_monotone_after_dealloc() {
     let alloc = SnMalloc::new();

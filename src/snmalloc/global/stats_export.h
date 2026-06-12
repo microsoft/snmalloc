@@ -47,8 +47,33 @@
  * is consumed.  Consumers should read this field first and treat any
  * value greater than the version they were compiled against as
  * "additional fields present, ignored" -- the prefix layout is stable.
+ *
+ * History:
+ *
+ *   1 -- initial wire format (Phase 9.1 scaffold + waves 9.2-9.6).
+ *
+ *   2 -- Phase 11.4: `reserved[0..15]` is now the
+ *        `LargeBuddyRange` free-chunk histogram (log2-bucketed counts
+ *        of currently-free chunks at sizes
+ *        `1 << (MIN_CHUNK_BITS + i)` for `i` in
+ *        `[0, SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS - 1]`).  Older
+ *        version-1 consumers that ignore the reserved block continue
+ *        to read the same `bytes_committed` /
+ *        `bytes_decommitted_to_os` values: the change is strictly
+ *        additive within the existing reserved slot pool, so the
+ *        offsets of every previously-defined field are preserved.
  */
-#define SNMALLOC_FULL_STATS_VERSION 1u
+#define SNMALLOC_FULL_STATS_VERSION 2u
+
+/**
+ * Number of log2 buckets occupied by the Phase 11.4 free-chunk
+ * histogram.  The histogram lives in `reserved[0..N-1]` where
+ * `N == SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS`; bucket `i` carries
+ * the count of currently-free chunks of size
+ * `1 << (MIN_CHUNK_BITS + i)` bytes held inside any
+ * `LargeBuddyRange` Buddy.
+ */
+#define SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS 16u
 
 /**
  * Number of size-class slots reserved in the per-class histograms.
@@ -111,9 +136,14 @@ extern "C" {
  *     log2-spaced allocation-lifetime histogram.
  *
  *   `reserved[]`
- *     Forward-compat slot pool; zero at the scaffold stage.  New fields
- *     added in later versions are taken from this pool without
- *     shifting the layout of existing fields.
+ *     Forward-compat slot pool.  As of `SNMALLOC_FULL_STATS_VERSION = 2`
+ *     (Phase 11.4) the first `SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS`
+ *     (== 16) slots carry the log2-bucketed free-chunk histogram of
+ *     the `LargeBuddyRange` pools: `reserved[i]` is the count of
+ *     currently-free chunks of size `1 << (MIN_CHUNK_BITS + i)` bytes
+ *     for `i` in `[0, 15]`.  Slots `reserved[16..]` remain zero and
+ *     are still available for future additive extensions; the offsets
+ *     of every previously-defined field above stay fixed.
  */
 struct snmalloc_full_stats
 {

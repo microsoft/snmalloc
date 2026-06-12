@@ -41,6 +41,7 @@
 // and avoid a new .cc file in the build graph; the linker collapses
 // the multiple TU definitions to one shared instance.
 
+#include "largebuddyrange.h"
 #include "snmalloc/stl/atomic.h"
 
 #include <stddef.h>
@@ -57,6 +58,11 @@ namespace snmalloc
    * `struct snmalloc_full_stats`; the underlying atomics are
    * `size_t`-typed but the cast is safe on every platform snmalloc
    * supports (size_t is at most 64 bits).
+   *
+   * The `free_chunk_count_by_log_size` histogram was added in Phase
+   * 11.4 alongside the bump of `SNMALLOC_FULL_STATS_VERSION` to 2.
+   * The 16 buckets correspond to chunk sizes from `MIN_CHUNK_SIZE`
+   * (typically 16 KiB) up to `MIN_CHUNK_SIZE << 15`, log2-spaced.
    */
   struct BackendFragStats
   {
@@ -64,6 +70,14 @@ namespace snmalloc
     uint64_t bytes_committed;
     /** Cumulative bytes returned to the OS via `notify_not_using`. */
     uint64_t bytes_decommitted_to_os;
+    /**
+     * Phase 11.4 -- log2-bucketed free-chunk histogram aggregated
+     * across every live `LargeBuddyRange` Buddy in the process.
+     * `free_chunk_count_by_log_size[i]` is the live count of free
+     * chunks of size `1 << (MIN_CHUNK_BITS + i)` bytes.
+     */
+    uint64_t free_chunk_count_by_log_size
+      [LargeBuddyFreeChunkHistogram::NUM_BUCKETS];
   };
 
   /**
@@ -134,10 +148,23 @@ namespace snmalloc
    */
   inline BackendFragStats get_backend_frag_stats()
   {
-    return {
-      static_cast<uint64_t>(
-        BackendFragCounters::bytes_committed.load(stl::memory_order_relaxed)),
+    BackendFragStats out{};
+    out.bytes_committed = static_cast<uint64_t>(
+      BackendFragCounters::bytes_committed.load(stl::memory_order_relaxed));
+    out.bytes_decommitted_to_os =
       static_cast<uint64_t>(BackendFragCounters::bytes_decommitted_to_os.load(
-        stl::memory_order_relaxed))};
+        stl::memory_order_relaxed));
+    // Phase 11.4 -- snapshot the process-global LargeBuddyRange
+    // free-chunk histogram into the output.  The histogram is owned
+    // by `LargeBuddyFreeChunkHistogram` (see `largebuddyrange.h`)
+    // and is updated from inside `Buddy::add_block` /
+    // `Buddy::remove_block` whenever a chunk enters or leaves the
+    // free list at any log-size bucket.  Reading is free of any
+    // template-state dependency, so we do not need to look up the
+    // active Config's backend here -- a direct static snapshot is
+    // sufficient and matches the calling convention used for the
+    // `BackendFragCounters` reads above.
+    LargeBuddyFreeChunkHistogram::snapshot(out.free_chunk_count_by_log_size);
+    return out;
   }
 } // namespace snmalloc

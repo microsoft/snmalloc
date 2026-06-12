@@ -61,7 +61,22 @@ extern "C" {
 /// `reserved[]` pool so the prefix layout is stable; consumers should
 /// read this field first and tolerate higher version numbers from
 /// newer producers.
-pub const SNMALLOC_FULL_STATS_VERSION: u32 = 1;
+///
+/// History:
+///
+/// * `1` -- initial wire format (Phase 9.1 scaffold + waves 9.2-9.6).
+/// * `2` -- Phase 11.4: `reserved[0..15]` carries the
+///   `LargeBuddyRange` free-chunk histogram (log2-bucketed counts of
+///   currently-free chunks).  See [`SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS`].
+pub const SNMALLOC_FULL_STATS_VERSION: u32 = 2;
+
+/// Number of log2 buckets occupied by the Phase 11.4 free-chunk
+/// histogram inside `reserved[]`.  Bucket `i` carries the count of
+/// currently-free chunks of size `1 << (MIN_CHUNK_BITS + i)` bytes
+/// held inside any `LargeBuddyRange` Buddy.  Must match
+/// `SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS` in
+/// `src/snmalloc/global/stats_export.h`.
+pub const SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS: usize = 16;
 
 /// Number of size-class slots in the per-class histograms.  Must match
 /// `SNMALLOC_FULL_STATS_SIZECLASS_SLOTS` in

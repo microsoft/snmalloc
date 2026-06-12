@@ -57,6 +57,26 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
     auto frag = snmalloc::get_backend_frag_stats();
     out->bytes_committed = frag.bytes_committed;
     out->bytes_decommitted_to_os = frag.bytes_decommitted_to_os;
+
+    // Phase 11.4 -- copy the LargeBuddyRange free-chunk histogram
+    // into the first `SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS` slots
+    // of `reserved[]`.  This is the additive change that bumps the
+    // wire-format version from 1 to 2.  Consumers compiled against
+    // version 1 see `reserved[0..15]` as part of the opaque
+    // forward-compat block and ignore it -- the change does not
+    // disturb the layout of any previously-defined field above.
+    static_assert(
+      SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS <=
+        SNMALLOC_FULL_STATS_RESERVED_SLOTS,
+      "Free-chunk histogram must fit in reserved[] slot pool.");
+    static_assert(
+      static_cast<size_t>(SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS) ==
+        snmalloc::LargeBuddyFreeChunkHistogram::NUM_BUCKETS,
+      "Free-chunk histogram bucket count must match the C ABI macro.");
+    for (size_t i = 0; i < SNMALLOC_FULL_STATS_FREECHUNK_BUCKETS; ++i)
+    {
+      out->reserved[i] = frag.free_chunk_count_by_log_size[i];
+    }
   }
 
   // Phase 9.5 -- lifetime histogram.
