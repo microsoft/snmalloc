@@ -705,6 +705,13 @@ fn main() {
 
 /// Locate the JSON sidecar produced by CMake's `branch_hints_inventory`
 /// target (if any) and copy it into OUT_DIR. Emits no errors on failure.
+///
+/// Phase 11.2: the script is now vendored at
+/// `upstream/scripts/dump_branch_hints.py` so this works for consumers
+/// installing from the published `snmalloc-sys` crate, not just developers
+/// building inside the source tree. The vendored copy is the only one
+/// shipped in the crate tarball — the surrounding repo's `scripts/` dir is
+/// not included in the package (see `Cargo.toml` `include`).
 fn export_branch_hints_sidecar(config: &BuildConfig) {
     let dest = PathBuf::from(&config.out_dir).join("branch_hints.json");
 
@@ -725,13 +732,46 @@ fn export_branch_hints_sidecar(config: &BuildConfig) {
     // keeps the sidecar available for downstream consumers without making
     // them depend on a separate `cmake --build` invocation. Failures are
     // silent — the build must succeed without python3 installed.
+    //
+    // The script is resolved against `source_root` (= CARGO_MANIFEST_DIR
+    // /upstream); Phase 11.2 vendors it at `upstream/scripts/`. When
+    // building from the published crate that's the only copy available;
+    // when building inside the snmalloc repo it's the local vendored copy
+    // (a duplicate of the canonical repo-root `scripts/` script).
     if !candidates.iter().any(|p| p.is_file()) {
         let script = config.source_root.join("scripts").join("dump_branch_hints.py");
         let fallback = PathBuf::from(&config.out_dir).join("snmalloc_branch_hints.json");
         if script.is_file() {
+            // Trigger a rebuild if the vendored script changes (e.g. after
+            // a re-vendor). The output path is also tracked below via the
+            // rerun-if-changed for `src`.
+            println!("cargo:rerun-if-changed={}", script.display());
+            // The script walks `--source-dir` and reports paths relative to
+            // `--repo-root`. When snmalloc-sys is built from the published
+            // crate `upstream/` is a real directory, so the natural choice
+            // (`--repo-root <upstream>`, default `<upstream>/src/snmalloc`)
+            // works fine. In the dev tree though `upstream/src` is a
+            // symlink pointing at the real repo `src/`, so rglob yields
+            // canonicalised paths that no longer sit under `<upstream>`
+            // and `Path.relative_to` blows up. Canonicalise both ends here
+            // so the same invocation handles both layouts: derive the
+            // source-dir from the resolved `<upstream>/src/snmalloc`, and
+            // use *its* repo root (parent of `src`) as `--repo-root`.
+            let source_dir = config
+                .source_root
+                .join("src")
+                .join("snmalloc")
+                .canonicalize()
+                .unwrap_or_else(|_| config.source_root.join("src").join("snmalloc"));
+            let repo_root = source_dir
+                .parent() // .../src
+                .and_then(|p| p.parent()) // repo root
+                .map(PathBuf::from)
+                .unwrap_or_else(|| config.source_root.clone());
             let status = std::process::Command::new("python3")
                 .arg(&script)
-                .arg("--repo-root").arg(&config.source_root)
+                .arg("--repo-root").arg(&repo_root)
+                .arg("--source-dir").arg(&source_dir)
                 .arg("-o").arg(&fallback)
                 .status();
             if matches!(status, Ok(s) if s.success()) {

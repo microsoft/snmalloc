@@ -17,6 +17,12 @@ include = [
     "upstream/CMakeLists.txt",
     "upstream/src/**",
     "upstream/fuzzing/**",
+    # Phase 11.2: vendor scripts/dump_branch_hints.py so the published
+    # snmalloc-sys tarball can regenerate the branch-hints JSON sidecar
+    # consumed by snmalloc-tools (Phase 10.4). Without this entry the
+    # script lives only at the upstream repo root and is stripped from the
+    # crate package.
+    "upstream/scripts/**",
 ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
