@@ -974,6 +974,45 @@ install(EXPORT snmallocConfig
   DESTINATION "share/snmalloc"
 )
 
+# Branch-hint inventory sidecar (Phase 10.2).
+#
+# Emits a JSON map of every SNMALLOC_LIKELY(...) / SNMALLOC_UNLIKELY(...)
+# call site in src/snmalloc/. snmalloc-tools (Phase 10.4) consumes this to
+# convert raw branch-miss IPs from `perf record -e branch-misses` into
+# semantic "this hint was inverted" findings.
+#
+# Kept as a stand-alone target (not wired into the main library build) so
+# that a missing Python interpreter never blocks ordinary builds. CMake's
+# FindPython3 is tried optionally; if not found we skip the target with a
+# status message rather than failing configuration.
+set(SNMALLOC_BRANCH_HINTS_JSON "${CMAKE_BINARY_DIR}/snmalloc_branch_hints.json")
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if (Python3_Interpreter_FOUND)
+  add_custom_command(
+    OUTPUT ${SNMALLOC_BRANCH_HINTS_JSON}
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/scripts/dump_branch_hints.py
+      --repo-root ${CMAKE_SOURCE_DIR}
+      --pretty
+      -o ${SNMALLOC_BRANCH_HINTS_JSON}
+    DEPENDS ${CMAKE_SOURCE_DIR}/scripts/dump_branch_hints.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Dumping SNMALLOC_LIKELY/UNLIKELY inventory to ${SNMALLOC_BRANCH_HINTS_JSON}"
+    VERBATIM)
+  add_custom_target(branch_hints_inventory
+    DEPENDS ${SNMALLOC_BRANCH_HINTS_JSON})
+  # Best-effort install. The sidecar is small and harmless when present, and
+  # downstream tooling (snmalloc-tools, snmalloc-rs build.rs) looks for it
+  # under share/snmalloc/.
+  install(FILES ${SNMALLOC_BRANCH_HINTS_JSON}
+    DESTINATION share/snmalloc
+    OPTIONAL)
+else()
+  message(STATUS
+    "Python3 not found; skipping branch_hints_inventory target. "
+    "Build will succeed without the snmalloc_branch_hints.json sidecar.")
+endif()
+
 if (SNMALLOC_ENABLE_FUZZING)
   add_subdirectory(fuzzing)
 endif()

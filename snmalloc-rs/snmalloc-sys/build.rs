@@ -656,7 +656,7 @@ fn main() {
     println!("cargo:rustc-link-search={}/build/Debug", config.out_dir);
     println!("cargo:rustc-link-search={}/build/Release", config.out_dir);
     let mut _dst = config.builder.build_lib(&config.target_lib);
-    
+
     if config.is_linux() {
         // Use whole-archive to ensure all symbols (including FFI exports) are included
         // This is critical for LTO and ensuring sn_rust_* symbols are available
@@ -668,4 +668,67 @@ fn main() {
     }
 
     configure_linking(&config);
+
+    // Best-effort: copy the branch-hint inventory sidecar (Phase 10.2) into
+    // OUT_DIR so downstream Rust consumers (snmalloc-tools, Phase 10.4) can
+    // locate it via a stable path. Failures are deliberately non-fatal —
+    // ordinary builds must keep working even when CMake's
+    // branch_hints_inventory target hasn't run (e.g. no Python on the host,
+    // or building with `feature = "build_cc"`).
+    export_branch_hints_sidecar(&config);
+}
+
+/// Locate the JSON sidecar produced by CMake's `branch_hints_inventory`
+/// target (if any) and copy it into OUT_DIR. Emits no errors on failure.
+fn export_branch_hints_sidecar(config: &BuildConfig) {
+    let dest = PathBuf::from(&config.out_dir).join("branch_hints.json");
+
+    // Search a few well-known locations relative to the CMake out dir. The
+    // exact path depends on whether the cmake crate placed artifacts in
+    // OUT_DIR, OUT_DIR/build, etc.; we tried each search path above for the
+    // link step, so use the same set here.
+    let mut candidates = vec![
+        PathBuf::from(&config.out_dir).join("snmalloc_branch_hints.json"),
+        PathBuf::from(&config.out_dir).join("build").join("snmalloc_branch_hints.json"),
+        config.source_root.join("snmalloc_branch_hints.json"),
+    ];
+
+    // Best-effort: if neither location already has the sidecar, try running
+    // the dump script directly. The CMake `branch_hints_inventory` target
+    // is intentionally not a dep of the main library, so it doesn't fire
+    // during a normal `cargo build`. Calling python3 here as a fallback
+    // keeps the sidecar available for downstream consumers without making
+    // them depend on a separate `cmake --build` invocation. Failures are
+    // silent — the build must succeed without python3 installed.
+    if !candidates.iter().any(|p| p.is_file()) {
+        let script = config.source_root.join("scripts").join("dump_branch_hints.py");
+        let fallback = PathBuf::from(&config.out_dir).join("snmalloc_branch_hints.json");
+        if script.is_file() {
+            let status = std::process::Command::new("python3")
+                .arg(&script)
+                .arg("--repo-root").arg(&config.source_root)
+                .arg("-o").arg(&fallback)
+                .status();
+            if matches!(status, Ok(s) if s.success()) {
+                candidates.insert(0, fallback);
+            }
+        }
+    }
+
+    for src in candidates.iter() {
+        if src.is_file() {
+            if let Err(err) = std::fs::copy(src, &dest) {
+                println!(
+                    "cargo:warning=snmalloc-sys: could not copy branch_hints sidecar {} -> {}: {}",
+                    src.display(), dest.display(), err);
+            } else {
+                // Re-run if the source ever changes.
+                println!("cargo:rerun-if-changed={}", src.display());
+                println!("cargo:rustc-env=SNMALLOC_BRANCH_HINTS_JSON={}", dest.display());
+            }
+            return;
+        }
+    }
+    // No sidecar found — fine. Downstream tooling treats absence as
+    // "inventory unavailable" and falls back to a no-op.
 }
