@@ -158,6 +158,61 @@ extern "C" {
     pub fn snmalloc_get_full_stats(out: *mut snmalloc_full_stats);
 }
 
+// --------------------------------------------------------------------
+// Phase 9.7 -- runtime tunables.
+//
+// Three process-wide knobs that used to be compile-time constants:
+//
+//   * sample interval (bytes) -- mean Poisson interval for the heap
+//     profiler.  Mirrors back into `Sampler::set_sampling_rate` when
+//     the C build has `SNMALLOC_PROFILE` defined; otherwise the value
+//     is stored only and takes effect on the next profile-enabled
+//     build of the same binary.
+//
+//   * decay rate (ms) -- target window for returning unused chunks
+//     to the OS.  At 9.7 the setter and getter are wired; the
+//     backend read-side hook is a follow-up (the existing decay
+//     path is entangled enough that point-fixing it carries a
+//     regression risk best handled in its own ticket).
+//
+//   * max local cache (bytes) -- per-thread cache cap.  Same
+//     status as decay rate: setter / getter live, read-side hook
+//     is a follow-up.
+//
+// All six symbols are exported unconditionally by the C build (see
+// `src/snmalloc/override/runtime_config.cc`).  They are NOT gated on
+// the `profiling` or `stats` Cargo feature: runtime tunables are
+// useful even when telemetry is compiled out.
+//
+// Lock-free, wait-free, safe from any thread at any point in the
+// process lifetime, including before the first allocation -- the
+// underlying storage is a function-local `std::atomic` whose
+// magic-statics init is thread-safe per C++17.
+extern "C" {
+    /// Set the mean Poisson sampling interval, in bytes.  Zero
+    /// disables sampling.  Mirrors into the profiler's
+    /// `Sampler::set_sampling_rate` when the C build was compiled
+    /// with `SNMALLOC_PROFILE`; otherwise stored only.
+    pub fn snmalloc_set_sample_interval(bytes: u64);
+
+    /// Set the chunk decay window, in milliseconds.  Zero is a
+    /// valid value -- once the read-side backend hook lands it
+    /// will mean "decay immediately".
+    pub fn snmalloc_set_decay_rate(milliseconds: u32);
+
+    /// Set the per-thread local-cache cap, in bytes.
+    pub fn snmalloc_set_max_local_cache(bytes: u64);
+
+    /// Get the current mean Poisson sampling interval, in bytes.
+    pub fn snmalloc_get_sample_interval() -> u64;
+
+    /// Get the current chunk decay window, in milliseconds.
+    pub fn snmalloc_get_decay_rate() -> u32;
+
+    /// Get the current per-thread local-cache cap, in bytes.
+    pub fn snmalloc_get_max_local_cache() -> u64;
+}
+
 #[cfg(feature = "libc-api")]
 extern "C" {
     /// Allocate `count` items of `size` length each.

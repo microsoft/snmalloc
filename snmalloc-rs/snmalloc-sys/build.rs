@@ -251,9 +251,18 @@ impl BuilderDefine for cc::Build {
         // archive as rust.cc on the `build_cc` path so the symbol is
         // available to the Rust binding regardless of which build
         // backend the consumer picked.
+        //
+        // Phase 9.7: runtime_config.cc carries the
+        // `snmalloc_{set,get}_sample_interval` / `_decay_rate` /
+        // `_max_local_cache` C ABI shims backing
+        // `snmalloc::RuntimeConfig`.  Bundled alongside stats_export
+        // so the tunables are available on the build_cc path too;
+        // the runtime knobs are independent of the `profiling` /
+        // `stats` Cargo features and useful in every build flavour.
         self.include(source_root.join("src"))
             .file(source_root.join("src/snmalloc/override/rust.cc"))
             .file(source_root.join("src/snmalloc/override/stats_export.cc"))
+            .file(source_root.join("src/snmalloc/override/runtime_config.cc"))
             .cpp(true)
             .debug(debug)
             .static_crt(true)

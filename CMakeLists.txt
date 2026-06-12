@@ -786,9 +786,16 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   # Phase 9 tickets populate additional fields without changing the
   # file list.
   set(STATS_EXPORT src/snmalloc/override/stats_export.cc)
-  set(RUST src/snmalloc/override/rust.cc ${STATS_EXPORT})
+  # Phase 9.7: runtime_config.cc carries the C ABI shims
+  # (`snmalloc_{set,get}_sample_interval` / `_decay_rate` /
+  # `_max_local_cache`) backing `snmalloc::RuntimeConfig`.  Linked in
+  # alongside stats_export.cc into both the Rust shim and the libc
+  # shim so the tunables are available in every build flavour, with
+  # or without `SNMALLOC_PROFILE` / `SNMALLOC_STATS`.
+  set(RUNTIME_CONFIG src/snmalloc/override/runtime_config.cc)
+  set(RUST src/snmalloc/override/rust.cc ${STATS_EXPORT} ${RUNTIME_CONFIG})
 
-  set(ALLOC ${MALLOC} ${NEW} ${STATS_EXPORT})
+  set(ALLOC ${MALLOC} ${NEW} ${STATS_EXPORT} ${RUNTIME_CONFIG})
   set(ALL ${ALLOC} ${MEMCPY})
 
   if (SNMALLOC_STATIC_LIBRARY)

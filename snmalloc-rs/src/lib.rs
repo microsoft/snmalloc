@@ -315,6 +315,70 @@ impl SnMalloc {
         }
     }
 
+    // ------------------------------------------------------------------
+    // Phase 9.7 -- runtime tunables.
+    //
+    // Three process-wide knobs (Poisson sample interval, chunk decay
+    // window, per-thread local-cache cap) that used to be compile-time
+    // constants.  Exposed unconditionally -- NOT gated on the `stats`
+    // or `profiling` features -- because the underlying C ABI shims
+    // are always linked into the Rust archive, and the tunables are
+    // useful in every build flavour.  Setting the sample interval in
+    // a non-profile build is harmless (stored only); rebuilding with
+    // `profiling` on then picks it up automatically.
+    //
+    // All six methods are safe to call from any thread at any point in
+    // the process lifetime, including before the first allocation.
+
+    /// Set the mean Poisson sampling interval for the heap profiler,
+    /// in bytes.  Zero disables sampling.  Mirrors into the profiler's
+    /// `Sampler::set_sampling_rate` when the underlying C build has
+    /// `SNMALLOC_PROFILE` defined (the `profiling` Cargo feature
+    /// sets that flag); otherwise stored only.
+    ///
+    /// This is the same knob that
+    /// `sn_rust_profile_set_sampling_rate` controls in profile-feature
+    /// builds; it is exposed independently so non-profile builds can
+    /// stage a value before the profiler is compiled in.
+    #[inline]
+    pub fn set_sample_interval(bytes: u64) {
+        unsafe { ffi::snmalloc_set_sample_interval(bytes) }
+    }
+
+    /// Get the current mean Poisson sampling interval, in bytes.
+    #[inline]
+    pub fn sample_interval() -> u64 {
+        unsafe { ffi::snmalloc_get_sample_interval() }
+    }
+
+    /// Set the chunk decay window, in milliseconds.  Zero is a valid
+    /// value.  The backend read-side hook for this tunable is a
+    /// follow-up; at present the setter stores only.
+    #[inline]
+    pub fn set_decay_rate(milliseconds: u32) {
+        unsafe { ffi::snmalloc_set_decay_rate(milliseconds) }
+    }
+
+    /// Get the current chunk decay window, in milliseconds.
+    #[inline]
+    pub fn decay_rate() -> u32 {
+        unsafe { ffi::snmalloc_get_decay_rate() }
+    }
+
+    /// Set the per-thread local-cache cap, in bytes.  The per-thread
+    /// cache read-side hook is a follow-up; at present the setter
+    /// stores only.
+    #[inline]
+    pub fn set_max_local_cache(bytes: u64) {
+        unsafe { ffi::snmalloc_set_max_local_cache(bytes) }
+    }
+
+    /// Get the current per-thread local-cache cap, in bytes.
+    #[inline]
+    pub fn max_local_cache() -> u64 {
+        unsafe { ffi::snmalloc_get_max_local_cache() }
+    }
+
     /// Allocates memory with the given layout, returning a non-null pointer on success
     #[inline(always)]
     pub fn alloc_aligned(&self, layout: Layout) -> Option<NonNull<u8>> {
