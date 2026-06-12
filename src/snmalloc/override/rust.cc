@@ -29,6 +29,7 @@
 #ifdef SNMALLOC_PROFILE
 #  include <atomic>
 #  include <snmalloc/backend/globalconfig.h>
+#  include <snmalloc/profile/addr_lookup.h>
 #  include <snmalloc/profile/profile.h>
 #  include <snmalloc/profile/record.h>
 #  include <snmalloc/snmalloc_core.h>
@@ -392,6 +393,57 @@ extern "C" SNMALLOC_EXPORT int sn_rust_profile_streaming_stop(void)
   return 0;
 }
 
+// ---------------------------------------------------------------------------
+// Address -> alloc-site reverse lookup (Phase 10.1B).
+//
+// Given a heap address `addr` (e.g. one harvested from a Linux perf PMU
+// cycle/cache-miss sample), copy the frames of the originating sampled
+// allocation into `out_frames` and return the number of frames written.
+// The address may point anywhere inside the live allocation -- interior
+// pointers are accepted.
+//
+// Returns:
+//   -1   if no live sampled allocation contains `addr` (including the
+//        common "address belongs to a non-sampled allocation" case).
+//   -1   if `out_frames` is null and `max_frames > 0`, or if profiling
+//        is disabled at build time.
+//   >=0  number of frames written (innermost first), bounded by
+//        `max_frames` and by the C++-side `MaxStackFrames` cap.
+//
+// Pure read: never mutates allocator state.  Tolerates concurrent
+// alloc/free via the lock-free SampledList snapshot used internally.
+// ---------------------------------------------------------------------------
+
+extern "C" SNMALLOC_EXPORT intptr_t sn_rust_profile_lookup_alloc_site(
+  uintptr_t addr,
+  uintptr_t* out_frames,
+  size_t max_frames,
+  uintptr_t* out_base_addr,
+  size_t* out_allocated_size)
+{
+  if (out_frames == nullptr && max_frames > 0)
+    return -1;
+
+  auto result = snmalloc::profile::lookup_alloc_site(addr);
+  if (!result.has_value())
+    return -1;
+
+  const auto& f = *result;
+  if (out_base_addr != nullptr)
+    *out_base_addr = f.base_addr;
+  if (out_allocated_size != nullptr)
+    *out_allocated_size = f.allocated_size;
+
+  // Cap the copy by both the caller's buffer and our captured depth so
+  // a smaller buffer truncates rather than overflows.  The return value
+  // is the number actually written (i.e. usable by the caller); the
+  // caller can detect truncation by comparing against `max_frames`.
+  const size_t to_copy = f.depth < max_frames ? f.depth : max_frames;
+  for (size_t i = 0; i < to_copy; ++i)
+    out_frames[i] = f.frames[i];
+  return static_cast<intptr_t>(to_copy);
+}
+
 #else // !SNMALLOC_PROFILE
 
 // Stubs: keep the FFI surface linkable when profiling is compiled out.
@@ -438,6 +490,16 @@ extern "C" SNMALLOC_EXPORT int sn_rust_profile_streaming_start(
 }
 
 extern "C" SNMALLOC_EXPORT int sn_rust_profile_streaming_stop(void)
+{
+  return -1;
+}
+
+extern "C" SNMALLOC_EXPORT intptr_t sn_rust_profile_lookup_alloc_site(
+  uintptr_t /*addr*/,
+  uintptr_t* /*out_frames*/,
+  size_t /*max_frames*/,
+  uintptr_t* /*out_base_addr*/,
+  size_t* /*out_allocated_size*/)
 {
   return -1;
 }

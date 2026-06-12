@@ -111,7 +111,7 @@ pub(crate) mod pprof;
 #[cfg(feature = "profiling")]
 pub mod streaming;
 
-pub use profile::{BtSample, HeapProfile, Weight};
+pub use profile::{BtSample, Frames, HeapProfile, HotSite, HotSpotKey, Weight};
 pub use config::{ProfileConfig, ENV_PROFILE_ENABLE, ENV_PROFILE_RATE};
 
 #[cfg(feature = "profiling")]

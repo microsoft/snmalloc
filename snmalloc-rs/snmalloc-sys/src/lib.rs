@@ -196,6 +196,25 @@ extern "C" {
     /// [`sn_rust_profile_snapshot_begin`].  Safe to call with a null
     /// handle.
     pub fn sn_rust_profile_snapshot_end(handle: *mut c_void);
+
+    /// Reverse-lookup the alloc-site of `addr` against the live
+    /// sampled-allocation list (Phase 10.1B).
+    ///
+    /// Writes up to `max_frames` captured return addresses (innermost
+    /// first) into `out_frames`.  Optionally writes the matched
+    /// allocation's base and sizeclass-rounded size into the trailing
+    /// out parameters; both may be null when the caller is uninterested.
+    ///
+    /// Returns `>=0` on hit (number of frames written) or `-1` on miss
+    /// / unsupported build.  `out_frames` may be null iff `max_frames`
+    /// is zero.
+    pub fn sn_rust_profile_lookup_alloc_site(
+        addr: usize,
+        out_frames: *mut usize,
+        max_frames: usize,
+        out_base_addr: *mut usize,
+        out_allocated_size: *mut usize,
+    ) -> isize;
 }
 
 // Streaming-mode broadcast (Phase 5.1): a single user callback is invoked

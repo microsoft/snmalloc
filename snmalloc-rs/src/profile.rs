@@ -131,6 +131,87 @@ impl BtSample {
 unsafe impl Send for BtSample {}
 unsafe impl Sync for BtSample {}
 
+/// Grouping key for [`HeapProfile::top_sites`].
+///
+/// Each variant collapses samples that share the chosen key into a
+/// single hot-spot row whose `inclusive_bytes` is the sum of the
+/// per-sample [`Weight::Allocated`] projection.  See the method
+/// docs on [`HeapProfile::top_sites`] for the full semantics.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HotSpotKey {
+    /// Group by the deepest non-allocator frame.  In the
+    /// unsymbolicated build this currently degrades to
+    /// [`HotSpotKey::LeafFrame`] (we cannot tell allocator frames
+    /// from user frames by address alone); the `symbolicate`
+    /// feature gives this variant its full intended meaning in a
+    /// follow-up.
+    CallSite,
+    /// Group by the innermost (deepest) frame in each sample's
+    /// captured stack.  Most precise "which exact return address
+    /// allocated" view.
+    LeafFrame,
+    /// Group by the entire captured stack as an ordered sequence.
+    /// Two samples land in the same row iff every frame matches.
+    FullStack,
+}
+
+/// One row in the [`HeapProfile::top_sites`] result.
+///
+/// All bytes are reported under the [`Weight::Allocated`]
+/// projection.  `inclusive_bytes` is `u128` for the same overflow-
+/// safety reason as [`HeapProfile::total_allocated_bytes`].
+#[derive(Clone, Debug)]
+pub struct HotSite {
+    /// Innermost frame of the originating stack(s).  For
+    /// [`HotSpotKey::FullStack`] grouping this is `stack[0]`; for
+    /// [`HotSpotKey::CallSite`] / [`HotSpotKey::LeafFrame`] this
+    /// is the single frame that was used as the bucket key.
+    /// Address `0` denotes "no stack captured" (an unusual case
+    /// produced only by sampler-internal failures to walk the
+    /// stack).
+    pub leaf_frame: *const u8,
+    /// The frames that make up the key.  For
+    /// [`HotSpotKey::CallSite`] / [`HotSpotKey::LeafFrame`] this
+    /// holds a single element (the leaf); for
+    /// [`HotSpotKey::FullStack`] it holds the full captured stack
+    /// in innermost-first order, matching [`BtSample::stack`].
+    pub stack: Vec<*const u8>,
+    /// Sum of the [`Weight::Allocated`] projection across every
+    /// sample that bucketed under this row's key.
+    pub inclusive_bytes: u128,
+    /// Number of distinct snapshot samples that bucketed here.
+    pub sample_count: u64,
+}
+
+// SAFETY: HotSite carries raw pointers used purely as opaque
+// integer-typed identifiers (frame return addresses).  We never
+// dereference them; the rest of the struct is owned data.
+unsafe impl Send for HotSite {}
+unsafe impl Sync for HotSite {}
+
+/// Captured frames returned by [`crate::SnMalloc::lookup_alloc_site`].
+///
+/// `frames` is innermost-first to match [`BtSample::stack`].
+/// `base_addr` and `allocated_size` describe the live byte range
+/// the original lookup address fell into -- callers can derive the
+/// offset of the queried interior pointer as `addr - base_addr`.
+#[derive(Clone, Debug)]
+pub struct Frames {
+    /// Captured return addresses, innermost first.
+    pub frames: Vec<*const u8>,
+    /// Base address of the matched live allocation.
+    pub base_addr: *const u8,
+    /// Sizeclass-rounded byte length of the matched live allocation.
+    pub allocated_size: usize,
+}
+
+// SAFETY: Frames carries raw pointers used purely as opaque
+// integer-typed identifiers (frame return addresses and a base
+// allocation pointer).  We never dereference them; the rest of the
+// struct is owned data.
+unsafe impl Send for Frames {}
+unsafe impl Sync for Frames {}
+
 /// Which per-sample weight projection to use when aggregating a
 /// [`HeapProfile`] for export (e.g. a flame graph).
 ///
@@ -277,8 +358,15 @@ pub struct HeapProfile {
 }
 
 impl HeapProfile {
-    /// Internal constructor used by `SnMalloc::snapshot`.
-    pub(crate) fn from_samples(samples: Vec<BtSample>) -> Self {
+    /// Construct a [`HeapProfile`] from an owned vector of samples.
+    ///
+    /// Primarily used by [`SnMalloc::snapshot`] to publish the
+    /// snapshot collected through the FFI, but also exposed
+    /// publicly so test code and downstream consumers can build a
+    /// synthetic profile from `BtSample` values (e.g. to exercise
+    /// the [`HeapProfile::top_sites`] aggregator or to replay a
+    /// pre-recorded profile).
+    pub fn from_samples(samples: Vec<BtSample>) -> Self {
         Self { samples }
     }
 
@@ -369,6 +457,143 @@ impl HeapProfile {
             total = total.saturating_add(s.weight as u128);
         }
         total
+    }
+
+    /// Return the top `n` hot-spots in this profile, ranked by
+    /// inclusive allocated bytes under the given [`HotSpotKey`]
+    /// grouping.  Pure post-processing over the existing snapshot
+    /// samples; no FFI calls.
+    ///
+    /// "Inclusive" here means: every sample whose stack matches the
+    /// grouping key contributes its full [`Weight::Allocated`]
+    /// projection to the bucket.  Two samples whose stacks differ in
+    /// some non-key frame will still aggregate into the same row when
+    /// they share the key frame(s) -- which is exactly the semantic
+    /// callers want when investigating "where is all the memory being
+    /// allocated by call site X".
+    ///
+    /// The three available groupings:
+    ///
+    /// - [`HotSpotKey::CallSite`] -- group by the deepest (innermost)
+    ///   frame in each stack that is *not* one of the allocator's own
+    ///   internal frames.  In the unsymbolicated build we cannot tell
+    ///   allocator frames apart from user frames by name, so this
+    ///   degrades to "the deepest (innermost) frame in each stack"
+    ///   -- functionally equivalent to [`HotSpotKey::LeafFrame`].
+    ///   When the `symbolicate` feature is on, future revisions of
+    ///   this method may skip frames whose resolved name begins with
+    ///   an allocator prefix (e.g. `snmalloc_rs::`, `__rust_alloc`).
+    /// - [`HotSpotKey::LeafFrame`] -- group by the innermost frame
+    ///   (`stack[0]`).  Most precise "which exact instruction
+    ///   pointer allocated" view; samples with an empty stack land
+    ///   in a single "<unknown>" bucket keyed on the null pointer.
+    /// - [`HotSpotKey::FullStack`] -- group by the entire captured
+    ///   stack as an ordered sequence.  Differs from `LeafFrame`
+    ///   exactly when two different *callers* of the same leaf
+    ///   function would otherwise collapse into one row.
+    ///
+    /// Output is sorted by descending inclusive bytes; ties broken
+    /// by descending sample count, then ascending key (for
+    /// determinism).  Returns at most `n` entries; `n = 0` returns
+    /// an empty vec.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # #[cfg(feature = "profiling")]
+    /// # fn main() {
+    /// use snmalloc_rs::{SnMalloc, HotSpotKey};
+    ///
+    /// let allocator = SnMalloc::new();
+    /// let profile = allocator.snapshot();
+    ///
+    /// for site in profile.top_sites(10, HotSpotKey::LeafFrame) {
+    ///     println!(
+    ///         "leaf {:p}: {} samples, ~{} live bytes",
+    ///         site.leaf_frame,
+    ///         site.sample_count,
+    ///         site.inclusive_bytes,
+    ///     );
+    /// }
+    /// # }
+    /// # #[cfg(not(feature = "profiling"))]
+    /// # fn main() {}
+    /// ```
+    pub fn top_sites(&self, n: usize, key: HotSpotKey) -> Vec<HotSite> {
+        if n == 0 {
+            return Vec::new();
+        }
+
+        // Group key: a vec of frame addresses representing the
+        // canonical key shape.  CallSite/LeafFrame produce single-
+        // element keys (innermost frame); FullStack produces the
+        // whole stack.  Using Vec<*const u8> uniformly avoids the
+        // overhead of an enum-keyed map while still letting us
+        // reconstruct the leaf for the HotSite output.
+        //
+        // `BTreeMap` keeps the bucketing deterministic and lets us
+        // break ties by ascending key without an extra sort step.
+        let mut buckets: BTreeMap<Vec<usize>, (u128, u64)> = BTreeMap::new();
+        for s in &self.samples {
+            let group_key: Vec<usize> = match key {
+                HotSpotKey::CallSite | HotSpotKey::LeafFrame => {
+                    // Innermost (leaf) frame, or 0 if empty.  Using
+                    // usize for the key keeps Ord well-defined
+                    // (raw pointers don't implement Ord in core).
+                    let leaf = s
+                        .stack
+                        .first()
+                        .copied()
+                        .map(|p| p as usize)
+                        .unwrap_or(0);
+                    alloc::vec![leaf]
+                }
+                HotSpotKey::FullStack => {
+                    s.stack.iter().map(|p| *p as usize).collect()
+                }
+            };
+            let contribution = Self::sample_weight(s, Weight::Allocated);
+            let entry = buckets.entry(group_key).or_insert((0u128, 0u64));
+            entry.0 = entry.0.saturating_add(contribution);
+            entry.1 = entry.1.saturating_add(1);
+        }
+
+        // Flatten to a Vec so we can sort by descending bytes.
+        let mut rows: Vec<HotSite> = buckets
+            .into_iter()
+            .map(|(k, (bytes, count))| {
+                // For Leaf/CallSite the single key entry *is* the
+                // leaf.  For FullStack we still report the leaf
+                // (the innermost frame) so the output shape is the
+                // same across grouping modes.
+                let leaf = k.first().copied().unwrap_or(0) as *const u8;
+                let stack: Vec<*const u8> = match key {
+                    HotSpotKey::FullStack => {
+                        k.iter().map(|&u| u as *const u8).collect()
+                    }
+                    HotSpotKey::CallSite | HotSpotKey::LeafFrame => {
+                        alloc::vec![leaf]
+                    }
+                };
+                HotSite {
+                    leaf_frame: leaf,
+                    stack,
+                    inclusive_bytes: bytes,
+                    sample_count: count,
+                }
+            })
+            .collect();
+
+        // Descending bytes, then descending sample count, then
+        // ascending leaf frame address (for determinism).
+        rows.sort_by(|a, b| {
+            b.inclusive_bytes
+                .cmp(&a.inclusive_bytes)
+                .then_with(|| b.sample_count.cmp(&a.sample_count))
+                .then_with(|| (a.leaf_frame as usize).cmp(&(b.leaf_frame as usize)))
+        });
+        rows.truncate(n);
+        rows
     }
 
     /// Per-sample byte contribution under the given [`Weight`]
@@ -1047,6 +1272,84 @@ impl SnMalloc {
     /// fixed at zero.
     pub fn profiling_supported(&self) -> bool {
         unsafe { ffi::sn_rust_profile_supported() }
+    }
+
+    /// Reverse-lookup the alloc-site of `addr` against the live
+    /// sampled-allocation list.
+    ///
+    /// Returns the captured alloc-time call stack and the matched
+    /// allocation's base / size iff:
+    ///
+    /// - the underlying allocation was selected by the Poisson sampler,
+    /// - the allocation is still live at the moment of the call, and
+    /// - `addr` falls inside `[base, base + allocated_size)` (interior
+    ///   pointers are accepted).
+    ///
+    /// Returns `None` otherwise -- including for any address that
+    /// belongs to a non-sampled allocation, which is the common case
+    /// under the default 1-in-512KiB sampling rate.  Also returns
+    /// `None` when profiling is disabled at C-build time.
+    ///
+    /// Pure read: never mutates allocator state.  Concurrent allocs
+    /// and frees are tolerated by the underlying lock-free
+    /// `SampledList` snapshot used internally; a sample that fires
+    /// after the call begins may or may not be observed.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # #[cfg(feature = "profiling")]
+    /// # fn main() {
+    /// use snmalloc_rs::SnMalloc;
+    ///
+    /// let allocator = SnMalloc::new();
+    /// // Suppose `addr` came from a PMU sample (Linux perf cycle event).
+    /// let addr: *const u8 = core::ptr::null();
+    /// if let Some(site) = allocator.lookup_alloc_site(addr) {
+    ///     println!(
+    ///         "PMU sample at {:p} belongs to alloc {:p}..+{}; alloc-stack {} frames",
+    ///         addr,
+    ///         site.base_addr,
+    ///         site.allocated_size,
+    ///         site.frames.len(),
+    ///     );
+    /// }
+    /// # }
+    /// # #[cfg(not(feature = "profiling"))]
+    /// # fn main() {}
+    /// ```
+    pub fn lookup_alloc_site(&self, addr: *const u8) -> Option<Frames> {
+        // Capacity matches the C++-side cap (SNMALLOC_PROFILE_STACK_FRAMES);
+        // the FFI never writes more than this.  Using a Vec lets us hand
+        // the buffer to the C call as a mutable pointer; we resize down
+        // to the returned length on success.
+        let mut buf: Vec<usize> = alloc::vec![0usize; ffi::SN_RUST_PROFILE_STACK_FRAMES];
+        let mut base_addr: usize = 0;
+        let mut allocated_size: usize = 0;
+        let rc = unsafe {
+            ffi::sn_rust_profile_lookup_alloc_site(
+                addr as usize,
+                buf.as_mut_ptr(),
+                buf.len(),
+                &mut base_addr as *mut usize,
+                &mut allocated_size as *mut usize,
+            )
+        };
+        if rc < 0 {
+            return None;
+        }
+        let n = rc as usize;
+        // Defensive: the FFI contract caps the write at our buffer
+        // capacity, so this branch should never fire -- but a stray
+        // mis-sized write would otherwise produce a corrupt frames Vec.
+        let n = n.min(buf.len());
+        buf.truncate(n);
+        let frames: Vec<*const u8> = buf.into_iter().map(|u| u as *const u8).collect();
+        Some(Frames {
+            frames,
+            base_addr: base_addr as *const u8,
+            allocated_size,
+        })
     }
 }
 

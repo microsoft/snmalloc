@@ -212,6 +212,55 @@ SNMALLOC_EXPORT int sn_rust_profile_streaming_start(
  */
 SNMALLOC_EXPORT int sn_rust_profile_streaming_stop(void);
 
+// ---------------------------------------------------------------------------
+// Address -> alloc-site reverse lookup (Phase 10.1B).
+//
+// Given an arbitrary heap address `addr` (typically harvested from a
+// PMU sample such as a Linux `perf` cycle event), copy the captured
+// alloc-time call stack of the originating sampled allocation -- if it
+// is still live -- into `out_frames`.
+//
+// Lookup matches an *interior* address: the query succeeds for any
+// `addr` falling inside `[base, base + allocated_size)` of any live
+// sampled allocation.  Out-of-band addresses (addresses that belong to
+// a non-sampled allocation, or that have been freed) return -1.
+//
+// Parameters:
+//   addr               The address to look up.
+//   out_frames         Caller-owned buffer for the captured return
+//                      addresses, innermost first.  Up to `max_frames`
+//                      entries written.  May be null iff `max_frames`
+//                      is zero (the caller only wants the base / size
+//                      via the out parameters below).
+//   max_frames         Capacity of `out_frames`.  If the captured
+//                      depth exceeds this, the prefix is written and
+//                      truncation is indicated by the returned count
+//                      equalling `max_frames` (callers needing to
+//                      detect truncation can size their buffer at
+//                      SNMALLOC_PROFILE_STACK_FRAMES, which is the
+//                      C++-side cap).
+//   out_base_addr      Optional out parameter: receives the base
+//                      address of the matched allocation.  May be null.
+//   out_allocated_size Optional out parameter: receives the sizeclass-
+//                      rounded byte length of the matched allocation.
+//                      May be null.
+//
+// Returns:
+//   >=0  on hit: the number of frames written to `out_frames`.
+//   -1   on miss (no live sampled allocation contains `addr`), on null
+//        `out_frames` with `max_frames > 0`, or when SNMALLOC_PROFILE
+//        is undefined at build time.
+//
+// Pure read: never mutates allocator state.  Tolerates concurrent
+// alloc/free via the lock-free SampledList snapshot used internally.
+// ---------------------------------------------------------------------------
+SNMALLOC_EXPORT intptr_t sn_rust_profile_lookup_alloc_site(
+  uintptr_t addr,
+  uintptr_t* out_frames,
+  size_t max_frames,
+  uintptr_t* out_base_addr,
+  size_t* out_allocated_size);
+
 #ifdef __cplusplus
 }
 #endif
