@@ -58,8 +58,8 @@ int main()
   }
 
   /*
-   * This large object is sized to end up in our alloc's local buddy allocators
-   * when it's released.
+   * This large object is sized to end up in our alloc's thread-local
+   * cache range when it's released.
    */
   message("Grab large object");
   ptraddr_t alarge;
@@ -266,7 +266,7 @@ int main()
       SNMALLOC_CHECK(sz == Aal::capptr_size_round(sz));
     }
 
-    for (size_t sc = 0; sc < bits::BITS; sc++)
+    for (size_t sc = 0; sc < NUM_LARGE_CLASSES; sc++)
     {
       size_t sz = sizeclass_full_to_size(sizeclass_t::from_large_class(sc));
       SNMALLOC_CHECK(sz == Aal::capptr_size_round(sz));
