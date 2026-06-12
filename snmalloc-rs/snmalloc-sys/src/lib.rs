@@ -55,6 +55,109 @@ extern "C" {
     );
 }
 
+/// Wire-format version constant mirroring
+/// `SNMALLOC_FULL_STATS_VERSION` in `src/snmalloc/global/stats_export.h`.
+/// New fields added in subsequent revisions are taken from the trailing
+/// `reserved[]` pool so the prefix layout is stable; consumers should
+/// read this field first and tolerate higher version numbers from
+/// newer producers.
+pub const SNMALLOC_FULL_STATS_VERSION: u32 = 1;
+
+/// Number of size-class slots in the per-class histograms.  Must match
+/// `SNMALLOC_FULL_STATS_SIZECLASS_SLOTS` in
+/// `src/snmalloc/global/stats_export.h`.
+pub const SNMALLOC_FULL_STATS_SIZECLASS_SLOTS: usize = 64;
+
+/// Number of histogram buckets for the allocation-lifetime
+/// distribution.  Must match `SNMALLOC_FULL_STATS_LIFETIME_BUCKETS` in
+/// `src/snmalloc/global/stats_export.h`.
+pub const SNMALLOC_FULL_STATS_LIFETIME_BUCKETS: usize = 32;
+
+/// Number of forward-compat reserved slots in the trailing array.
+/// Must match `SNMALLOC_FULL_STATS_RESERVED_SLOTS` in
+/// `src/snmalloc/global/stats_export.h`.
+pub const SNMALLOC_FULL_STATS_RESERVED_SLOTS: usize = 64;
+
+/// Aggregated allocator telemetry snapshot (Phase 9.1 scaffold).
+///
+/// Bit-for-bit mirror of `struct snmalloc_full_stats` in
+/// `src/snmalloc/global/stats_export.h`.  Field order and types here
+/// MUST match the C header exactly; the FFI getter
+/// [`snmalloc_get_full_stats`] writes through this layout.
+///
+/// At the scaffold stage only `version`, `bytes_in_use`, and
+/// `peak_bytes_in_use` carry meaningful values; every other field is
+/// zero.  The remaining fields will be populated by the Phase 9
+/// wave-2 tickets (9.2 hot-path counters, 9.3 per-class histograms,
+/// 9.4 mapping accounting, 9.5 lifetime histogram) without changing
+/// the wire layout.
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct snmalloc_full_stats {
+    /// Wire-format version (`SNMALLOC_FULL_STATS_VERSION` at producer
+    /// build time).
+    pub version: u32,
+    /// Explicit padding to align the trailing u64 fields.  Matches the
+    /// `_pad0` slot in the C header.
+    pub _pad0: u32,
+
+    /// Live OS-level reservation bytes (range granularity).
+    pub bytes_in_use: u64,
+    /// High-water mark of `bytes_in_use`.
+    pub peak_bytes_in_use: u64,
+
+    /// Phase 9.4 -- bytes currently mapped from the OS.
+    pub bytes_mapped: u64,
+    /// Phase 9.4 -- bytes currently committed (writable / RSS-eligible).
+    pub bytes_committed: u64,
+    /// Phase 9.4 -- cumulative bytes decommitted back to the OS.
+    pub bytes_decommitted_to_os: u64,
+
+    /// Phase 9.2 -- allocations satisfied entirely on the fast path.
+    pub fast_path_allocs: u64,
+    /// Phase 9.2 -- allocations that fell through to the slow path.
+    pub slow_path_allocs: u64,
+    /// Phase 9.2 -- deallocations satisfied entirely on the fast path.
+    pub fast_path_deallocs: u64,
+    /// Phase 9.2 -- deallocations routed to a remote allocator.
+    pub remote_deallocs: u64,
+    /// Phase 9.2 -- number of times the cross-thread message queue
+    /// has been drained.
+    pub message_queue_drains: u64,
+    /// Phase 9.2 -- total messages received from other threads.
+    pub cross_thread_messages_received: u64,
+
+    /// Phase 9.3 -- live bytes by size class.
+    pub total_live_bytes_by_class: [u64; SNMALLOC_FULL_STATS_SIZECLASS_SLOTS],
+    /// Phase 9.3 -- live object count by size class.
+    pub total_live_count_by_class: [u64; SNMALLOC_FULL_STATS_SIZECLASS_SLOTS],
+    /// Phase 9.3 -- cumulative allocation count by size class.
+    pub cumulative_alloc_by_class: [u64; SNMALLOC_FULL_STATS_SIZECLASS_SLOTS],
+    /// Phase 9.3 -- cumulative deallocation count by size class.
+    pub cumulative_dealloc_by_class: [u64; SNMALLOC_FULL_STATS_SIZECLASS_SLOTS],
+
+    /// Phase 9.5 -- log2-spaced allocation-lifetime histogram.
+    pub lifetime_buckets_ns: [u64; SNMALLOC_FULL_STATS_LIFETIME_BUCKETS],
+
+    /// Forward-compat reserve pool; new fields in later revisions are
+    /// taken from here without shifting existing offsets.
+    pub reserved: [u64; SNMALLOC_FULL_STATS_RESERVED_SLOTS],
+}
+
+extern "C" {
+    /// Populate `*out` with a coherent snapshot of allocator
+    /// telemetry.  The implementation zero-initialises `*out` first,
+    /// then fills in `version`, `bytes_in_use`, and `peak_bytes_in_use`;
+    /// all other fields read as zero at the scaffold stage and will be
+    /// wired up by the Phase 9 wave-2 tickets.
+    ///
+    /// `out` must be non-null and point at a properly-aligned
+    /// `snmalloc_full_stats`.  No allocator state is mutated -- the
+    /// call is a pure read backed by atomic counters, safe to call
+    /// from any thread at any point in the process lifetime.
+    pub fn snmalloc_get_full_stats(out: *mut snmalloc_full_stats);
+}
+
 #[cfg(feature = "libc-api")]
 extern "C" {
     /// Allocate `count` items of `size` length each.

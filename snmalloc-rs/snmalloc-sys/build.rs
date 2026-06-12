@@ -245,8 +245,15 @@ impl BuilderDefine for cc::Build {
     }
 
     fn configure_cpp(&mut self, debug: bool, source_root: &Path) -> &mut Self {
+        // Phase 9.1: stats_export.cc carries the
+        // `snmalloc_get_full_stats` C ABI symbol consumed by the Rust
+        // `SnMalloc::full_stats()` getter.  Compiled into the same
+        // archive as rust.cc on the `build_cc` path so the symbol is
+        // available to the Rust binding regardless of which build
+        // backend the consumer picked.
         self.include(source_root.join("src"))
             .file(source_root.join("src/snmalloc/override/rust.cc"))
+            .file(source_root.join("src/snmalloc/override/stats_export.cc"))
             .cpp(true)
             .debug(debug)
             .static_crt(true)

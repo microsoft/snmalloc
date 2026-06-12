@@ -114,6 +114,12 @@ pub mod streaming;
 pub use profile::{BtSample, Frames, HeapProfile, HotSite, HotSpotKey, Weight};
 pub use config::{ProfileConfig, ENV_PROFILE_ENABLE, ENV_PROFILE_RATE};
 
+/// Re-export of the Phase 9.1 wire-format version constant.  Lets
+/// downstream consumers compare against `FullAllocStats::version`
+/// without depending on the `snmalloc-sys` crate directly.
+#[cfg(feature = "stats")]
+pub use ffi::SNMALLOC_FULL_STATS_VERSION;
+
 #[cfg(feature = "profiling")]
 pub use streaming::{ProfilingSession, StreamSample, StreamingError};
 
@@ -127,6 +133,110 @@ pub struct AllocStats {
     pub current_memory_usage: usize,
     /// High-water mark of `current_memory_usage`.
     pub peak_memory_usage: usize,
+}
+
+/// Aggregated allocator telemetry snapshot (Phase 9.1 scaffold).
+///
+/// Idiomatic Rust mirror of `struct snmalloc_full_stats` from the C
+/// header `src/snmalloc/global/stats_export.h`.  Field semantics are
+/// documented on the FFI struct
+/// [`snmalloc_sys::snmalloc_full_stats`]; the Rust mirror exists so
+/// callers don't need to depend on the `snmalloc-sys` crate directly.
+///
+/// At the scaffold stage only `version`, `bytes_in_use`, and
+/// `peak_bytes_in_use` carry meaningful values; every other field is
+/// zero.  Subsequent Phase 9 tickets populate the remaining fields:
+///
+///   * 9.2 -- fast/slow path alloc/dealloc and cross-thread message
+///            counters;
+///   * 9.3 -- per-size-class live / cumulative byte and count
+///            histograms;
+///   * 9.4 -- `bytes_mapped` / `bytes_committed` /
+///            `bytes_decommitted_to_os`;
+///   * 9.5 -- `lifetime_buckets_ns` allocation-lifetime histogram.
+///
+/// The struct is `Copy` and `Default` (all-zero) so callers can
+/// trivially compute diffs across two snapshots.  Available only
+/// when the `stats` Cargo feature is on; without it `full_stats()`
+/// does not exist (compile-time gate, not a runtime-zero stub).
+///
+/// `Default` is implemented manually rather than derived because
+/// stable Rust's `derive(Default)` does not yet cover fixed-size
+/// arrays larger than 32 elements; the explicit impl below
+/// hand-writes the all-zero initializer for the per-size-class
+/// histograms (64 slots each) and the lifetime histogram (32 slots).
+#[cfg(feature = "stats")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FullAllocStats {
+    /// Wire-format version of the snapshot (the producer's
+    /// `SNMALLOC_FULL_STATS_VERSION`).  Callers MAY compare against
+    /// [`ffi::SNMALLOC_FULL_STATS_VERSION`] to detect newer fields they
+    /// don't yet know about; the prefix layout is stable.
+    pub version: u32,
+    /// Bytes currently reserved from the OS (range granularity, same
+    /// source as [`SnMalloc::memory_stats`]).
+    pub bytes_in_use: u64,
+    /// High-water mark of `bytes_in_use`.
+    pub peak_bytes_in_use: u64,
+    /// Phase 9.4 -- bytes currently mapped from the OS.
+    pub bytes_mapped: u64,
+    /// Phase 9.4 -- bytes currently committed (writable / RSS-eligible).
+    pub bytes_committed: u64,
+    /// Phase 9.4 -- cumulative bytes decommitted back to the OS.
+    pub bytes_decommitted_to_os: u64,
+    /// Phase 9.2 -- allocations satisfied entirely on the fast path.
+    pub fast_path_allocs: u64,
+    /// Phase 9.2 -- allocations that fell through to the slow path.
+    pub slow_path_allocs: u64,
+    /// Phase 9.2 -- deallocations satisfied entirely on the fast path.
+    pub fast_path_deallocs: u64,
+    /// Phase 9.2 -- deallocations routed to a remote allocator.
+    pub remote_deallocs: u64,
+    /// Phase 9.2 -- cross-thread message-queue drain count.
+    pub message_queue_drains: u64,
+    /// Phase 9.2 -- total cross-thread messages received.
+    pub cross_thread_messages_received: u64,
+    /// Phase 9.3 -- live bytes by size class.
+    pub total_live_bytes_by_class: [u64; ffi::SNMALLOC_FULL_STATS_SIZECLASS_SLOTS],
+    /// Phase 9.3 -- live object count by size class.
+    pub total_live_count_by_class: [u64; ffi::SNMALLOC_FULL_STATS_SIZECLASS_SLOTS],
+    /// Phase 9.3 -- cumulative allocations by size class.
+    pub cumulative_alloc_by_class: [u64; ffi::SNMALLOC_FULL_STATS_SIZECLASS_SLOTS],
+    /// Phase 9.3 -- cumulative deallocations by size class.
+    pub cumulative_dealloc_by_class: [u64; ffi::SNMALLOC_FULL_STATS_SIZECLASS_SLOTS],
+    /// Phase 9.5 -- log2-spaced allocation-lifetime histogram.
+    pub lifetime_buckets_ns: [u64; ffi::SNMALLOC_FULL_STATS_LIFETIME_BUCKETS],
+}
+
+#[cfg(feature = "stats")]
+impl Default for FullAllocStats {
+    /// All-zero default, matching the post-`memset` state of a fresh
+    /// `snmalloc_full_stats` on the C side.  Useful as a baseline when
+    /// computing deltas across two snapshots; the
+    /// `SNMALLOC_FULL_STATS_VERSION` constant is intentionally NOT
+    /// populated here so a `Default::default()` value is trivially
+    /// distinguishable from a real snapshot.
+    fn default() -> Self {
+        Self {
+            version: 0,
+            bytes_in_use: 0,
+            peak_bytes_in_use: 0,
+            bytes_mapped: 0,
+            bytes_committed: 0,
+            bytes_decommitted_to_os: 0,
+            fast_path_allocs: 0,
+            slow_path_allocs: 0,
+            fast_path_deallocs: 0,
+            remote_deallocs: 0,
+            message_queue_drains: 0,
+            cross_thread_messages_received: 0,
+            total_live_bytes_by_class: [0u64; ffi::SNMALLOC_FULL_STATS_SIZECLASS_SLOTS],
+            total_live_count_by_class: [0u64; ffi::SNMALLOC_FULL_STATS_SIZECLASS_SLOTS],
+            cumulative_alloc_by_class: [0u64; ffi::SNMALLOC_FULL_STATS_SIZECLASS_SLOTS],
+            cumulative_dealloc_by_class: [0u64; ffi::SNMALLOC_FULL_STATS_SIZECLASS_SLOTS],
+            lifetime_buckets_ns: [0u64; ffi::SNMALLOC_FULL_STATS_LIFETIME_BUCKETS],
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -158,6 +268,51 @@ impl SnMalloc {
         let mut peak = 0usize;
         unsafe { ffi::sn_rust_statistics(&mut current, &mut peak) };
         AllocStats { current_memory_usage: current, peak_memory_usage: peak }
+    }
+
+    /// Capture a full allocator-telemetry snapshot (Phase 9.1 scaffold).
+    ///
+    /// Calls the underlying `snmalloc_get_full_stats` C ABI and copies
+    /// every field across into the idiomatic Rust mirror
+    /// [`FullAllocStats`].  Only `version`, `bytes_in_use`, and
+    /// `peak_bytes_in_use` carry meaningful values at the scaffold
+    /// stage; all other fields read as zero and will be populated by
+    /// the Phase 9 wave-2 tickets (9.2 / 9.3 / 9.4 / 9.5).
+    ///
+    /// No allocator state is mutated -- the call is a pure read backed
+    /// by atomic counters and safe to invoke from any thread.
+    ///
+    /// Gated behind the `stats` Cargo feature so consumers that don't
+    /// want the extra telemetry surface get a hard compile error
+    /// referring to this method, rather than silently linking against
+    /// a zero-returning stub.
+    #[cfg(feature = "stats")]
+    pub fn full_stats() -> FullAllocStats {
+        // SAFETY: the C function fills `raw` in full via memset+writes
+        // before returning; no field is left uninitialised.  We pass
+        // a stack-local pointer with the correct alignment.
+        let mut raw: ffi::snmalloc_full_stats = unsafe { core::mem::zeroed() };
+        unsafe { ffi::snmalloc_get_full_stats(&mut raw) };
+
+        FullAllocStats {
+            version: raw.version,
+            bytes_in_use: raw.bytes_in_use,
+            peak_bytes_in_use: raw.peak_bytes_in_use,
+            bytes_mapped: raw.bytes_mapped,
+            bytes_committed: raw.bytes_committed,
+            bytes_decommitted_to_os: raw.bytes_decommitted_to_os,
+            fast_path_allocs: raw.fast_path_allocs,
+            slow_path_allocs: raw.slow_path_allocs,
+            fast_path_deallocs: raw.fast_path_deallocs,
+            remote_deallocs: raw.remote_deallocs,
+            message_queue_drains: raw.message_queue_drains,
+            cross_thread_messages_received: raw.cross_thread_messages_received,
+            total_live_bytes_by_class: raw.total_live_bytes_by_class,
+            total_live_count_by_class: raw.total_live_count_by_class,
+            cumulative_alloc_by_class: raw.cumulative_alloc_by_class,
+            cumulative_dealloc_by_class: raw.cumulative_dealloc_by_class,
+            lifetime_buckets_ns: raw.lifetime_buckets_ns,
+        }
     }
 
     /// Allocates memory with the given layout, returning a non-null pointer on success

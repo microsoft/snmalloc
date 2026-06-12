@@ -778,9 +778,17 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   set(MALLOC src/snmalloc/override/malloc.cc)
   set(NEW src/snmalloc/override/new.cc)
   set(MEMCPY src/snmalloc/override/memcpy.cc)
-  set(RUST src/snmalloc/override/rust.cc)
+  # Phase 9.1: stats_export.cc carries the `snmalloc_get_full_stats` C
+  # ABI symbol consumed by the Rust binding (and by any other C/C++
+  # consumer of the libsnmalloc shims).  Wired into both the Rust
+  # static library targets and the libc shim so the symbol ships
+  # alongside the rest of the export surface on Linux/macOS.  Wave-2
+  # Phase 9 tickets populate additional fields without changing the
+  # file list.
+  set(STATS_EXPORT src/snmalloc/override/stats_export.cc)
+  set(RUST src/snmalloc/override/rust.cc ${STATS_EXPORT})
 
-  set(ALLOC ${MALLOC} ${NEW})
+  set(ALLOC ${MALLOC} ${NEW} ${STATS_EXPORT})
   set(ALL ${ALLOC} ${MEMCPY})
 
   if (SNMALLOC_STATIC_LIBRARY)
