@@ -124,10 +124,6 @@ void test_tasks(size_t num_tasks, size_t count, size_t size)
   swapcount = count;
   swapsize = size;
 
-#ifdef USE_SNMALLOC_STATS
-  Stats s0;
-  current_alloc_pool()->aggregate_stats(s0);
-#endif
   std::cout << "Begin parallel test:" << std::endl;
 
   {
@@ -181,12 +177,6 @@ int main(int argc, char** argv)
 
   if (opt.has("--stats"))
   {
-#ifdef USE_SNMALLOC_STATS
-    Stats s;
-    current_alloc_pool()->aggregate_stats(s);
-    s.print<Alloc>(std::cout);
-#endif
-
     usage::print_memory();
   }
 

@@ -5,14 +5,40 @@
 namespace snmalloc
 {
   /**
+   * Default no-op histogram hook for `Buddy`.  Whenever a free block is
+   * inserted into or removed from the buddy allocator's per-bucket
+   * cache/tree, the buddy invokes `Histogram::on_add(size_bits)` /
+   * `Histogram::on_remove(size_bits)`.  The default specialisation is
+   * empty so callers (e.g. `SmallBuddyRange`) that do not want to track
+   * a histogram pay zero overhead -- the inlined no-op compiles away.
+   */
+  struct BuddyNoHistogram
+  {
+    static void on_add(size_t /*size_bits*/) {}
+    static void on_remove(size_t /*size_bits*/) {}
+  };
+
+  /**
    * Class representing a buddy allocator
    *
    * Underlying node `Rep` representation is passed in.
    *
    * The allocator can handle blocks between inclusive MIN_SIZE_BITS and
    * exclusive MAX_SIZE_BITS.
+   *
+   * `Histogram` is a free-chunk-count callback hook with two static
+   * methods (`on_add(size_bits)` / `on_remove(size_bits)`) invoked
+   * whenever the per-bucket cache/tree population changes by one.  The
+   * default `BuddyNoHistogram` is a pair of no-ops; `LargeBuddyRange`
+   * substitutes a process-global atomic histogram so the Phase 11.4
+   * FullAllocStats getter can report a log2-bucketed view of free
+   * chunks.
    */
-  template<typename Rep, size_t MIN_SIZE_BITS, size_t MAX_SIZE_BITS>
+  template<
+    typename Rep,
+    size_t MIN_SIZE_BITS,
+    size_t MAX_SIZE_BITS,
+    typename Histogram = BuddyNoHistogram>
   class Buddy
   {
     static_assert(MAX_SIZE_BITS > MIN_SIZE_BITS);
@@ -77,6 +103,12 @@ namespace snmalloc
             return false;
 
           e = entries[idx].tree.remove_min();
+          // One free block leaves the system at this bucket: either the
+          // matched cache slot is overwritten with the tree's minimum
+          // (so the tree shrinks by one) or, if the tree was already
+          // empty, `remove_min` returns `Rep::null` and the slot
+          // becomes null.  Both branches net to -1 entry at `idx`.
+          Histogram::on_remove(MIN_SIZE_BITS + idx);
           return true;
         }
       }
@@ -95,6 +127,7 @@ namespace snmalloc
         return false;
 
       entries[idx].tree.remove_path(path);
+      Histogram::on_remove(MIN_SIZE_BITS + idx);
       return true;
     }
 
@@ -139,6 +172,9 @@ namespace snmalloc
         if (Rep::equal(Rep::null, e))
         {
           e = addr;
+          // One new free block enters the system at this bucket via
+          // the inline cache.
+          Histogram::on_add(MIN_SIZE_BITS + idx);
           return Rep::null;
         }
       }
@@ -146,6 +182,9 @@ namespace snmalloc
       auto path = entries[idx].tree.get_root_path();
       entries[idx].tree.find(path, addr);
       entries[idx].tree.insert_path(path, addr);
+      // One new free block enters the system at this bucket via the
+      // red-black tree (cache slots were all full).
+      Histogram::on_add(MIN_SIZE_BITS + idx);
       invariant();
       return Rep::null;
     }
@@ -174,6 +213,11 @@ namespace snmalloc
       if (addr != Rep::null)
       {
         validate_block(addr, size);
+        // One free block leaves the system at this bucket -- either
+        // popped directly from the tree (when `tree.remove_min` was
+        // non-null) or selected from a cache slot via the swap loop
+        // above.  Either way, the net population at `idx` falls by 1.
+        Histogram::on_remove(MIN_SIZE_BITS + idx);
         return addr;
       }
 

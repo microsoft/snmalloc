@@ -60,6 +60,16 @@ struct BuildFeatures {
     notls: bool,
     win8compat: bool,
     stats: bool,
+    // Phase 11.6 -- tiered stats.  `stats_basic` enables the BASIC
+    // counter tier (frontend + backend, target <= 2% overhead);
+    // `stats_full` adds the per-size-class + lifetime histograms.
+    // The Cargo-feature wiring guarantees `stats-full` implies
+    // `stats-basic` (see snmalloc-sys/Cargo.toml `[features]`); we
+    // still mirror the implication here as a belt-and-braces guard
+    // so the CMake layer always sees a consistent BASIC=ON whenever
+    // FULL=ON, regardless of how the caller specified features.
+    stats_basic: bool,
+    stats_full: bool,
     android_lld: bool,
     local_dynamic_tls: bool,
     libc_api: bool,
@@ -69,6 +79,7 @@ struct BuildFeatures {
     check_loads: bool,
     pageid: bool,
     gwp_asan: bool,
+    profiling: bool,
 }
 
 impl BuildConfig {
@@ -244,8 +255,33 @@ impl BuilderDefine for cc::Build {
     }
 
     fn configure_cpp(&mut self, debug: bool, source_root: &Path) -> &mut Self {
+        // Phase 9.1: stats_export.cc carries the
+        // `snmalloc_get_full_stats` C ABI symbol consumed by the Rust
+        // `SnMalloc::full_stats()` getter.  Compiled into the same
+        // archive as rust.cc on the `build_cc` path so the symbol is
+        // available to the Rust binding regardless of which build
+        // backend the consumer picked.
+        //
+        // Phase 9.7: runtime_config.cc carries the
+        // `snmalloc_{set,get}_sample_interval` / `_decay_rate` /
+        // `_max_local_cache` C ABI shims backing
+        // `snmalloc::RuntimeConfig`.  Bundled alongside stats_export
+        // so the tunables are available on the build_cc path too;
+        // the runtime knobs are independent of the `profiling` /
+        // `stats` Cargo features and useful in every build flavour.
+        //
+        // Phase 9.6: stats_dump.cc carries the
+        // `snmalloc_dump_stats_to_buffer` C ABI plus the C++ overloads
+        // for the text-dump API.  Pure formatter over the Phase 9.1
+        // `snmalloc_get_full_stats`; bundled here so the Rust
+        // `SnMalloc::dump_stats` wrapper sees the symbol in every
+        // build flavour, with or without `stats` / `profiling`
+        // features.
         self.include(source_root.join("src"))
             .file(source_root.join("src/snmalloc/override/rust.cc"))
+            .file(source_root.join("src/snmalloc/override/stats_export.cc"))
+            .file(source_root.join("src/snmalloc/override/runtime_config.cc"))
+            .file(source_root.join("src/snmalloc/override/stats_dump.cc"))
             .cpp(true)
             .debug(debug)
             .static_crt(true)
@@ -304,6 +340,16 @@ impl BuildFeatures {
             notls: cfg!(feature = "notls"),
             win8compat: cfg!(feature = "win8compat"),
             stats: cfg!(feature = "stats"),
+            // Phase 11.6 -- tiered stats.  `stats-full` implies
+            // `stats-basic` in Cargo, so the OR below collapses to
+            // a single source of truth.  Legacy `stats` is an alias
+            // for `stats-basic` (`stats = ["stats-basic"]` in
+            // Cargo.toml), so callers passing the old feature name
+            // still light up the BASIC tier without changes.
+            stats_basic: cfg!(feature = "stats-basic")
+                || cfg!(feature = "stats-full")
+                || cfg!(feature = "stats"),
+            stats_full: cfg!(feature = "stats-full"),
             android_lld: cfg!(feature = "android-lld"),
             local_dynamic_tls: cfg!(feature = "local_dynamic_tls"),
             libc_api: cfg!(feature = "libc-api"),
@@ -313,6 +359,7 @@ impl BuildFeatures {
             check_loads: cfg!(feature = "check-loads"),
             pageid: cfg!(feature = "pageid"),
             gwp_asan: cfg!(feature = "gwp-asan"),
+            profiling: cfg!(feature = "profiling"),
         }
     }
 }
@@ -454,7 +501,16 @@ fn configure_platform(config: &mut BuildConfig) {
     config.builder
         .define("SNMALLOC_QEMU_WORKAROUND", if config.features.qemu { "ON" } else { "OFF" })
         .define("SNMALLOC_ENABLE_DYNAMIC_LOADING", if config.features.notls { "ON" } else { "OFF" })
-        .define("USE_SNMALLOC_STATS", if config.features.stats { "ON" } else { "OFF" })
+        // Phase 11.6 -- tiered stats.  We deliberately drive BASIC
+        // and FULL separately rather than relying on the legacy
+        // SNMALLOC_STATS=ON pathway: the CMake layer treats
+        // SNMALLOC_STATS as a backwards-compatible alias for
+        // SNMALLOC_STATS_BASIC, but consumers who explicitly
+        // request `stats-full` should land in the FULL tier without
+        // depending on the alias resolution order.
+        .define("SNMALLOC_STATS_BASIC", if config.features.stats_basic { "ON" } else { "OFF" })
+        .define("SNMALLOC_STATS_FULL",  if config.features.stats_full  { "ON" } else { "OFF" })
+        .define("SNMALLOC_STATS",       if config.features.stats_basic { "ON" } else { "OFF" })
         .define("SNMALLOC_RUST_LIBC_API", if config.features.libc_api { "ON" } else { "OFF" })
         .define("SNMALLOC_USE_CXX17", if cfg!(feature = "usecxx17") { "ON" } else { "OFF" });
 
@@ -493,6 +549,17 @@ fn configure_platform(config: &mut BuildConfig) {
         config.builder.define("SNMALLOC_PAGEID", "false");
         #[cfg(not(feature = "build_cc"))]
         config.builder.define("SNMALLOC_PAGEID", "OFF");
+    }
+
+    if config.features.profiling {
+        // Heap profiling: enabling SNMALLOC_PROFILE lights up the Sampler
+        // and SampledList machinery and switches the rust.cc C exports
+        // from no-op stubs to real bodies.  Off by default to keep the
+        // hot path at zero cost.
+        #[cfg(feature = "build_cc")]
+        config.builder.define("SNMALLOC_PROFILE", "1");
+        #[cfg(not(feature = "build_cc"))]
+        config.builder.define("SNMALLOC_PROFILE", "ON");
     }
 
     if config.features.gwp_asan {
@@ -628,7 +695,7 @@ use cmake::Config;
 
 fn main() {
     let mut config = BuildConfig::new();
-    
+
     config.builder
         .configure_cpp(config.debug, &config.source_root)
         .configure_output_dir(&config.out_dir);
@@ -643,7 +710,7 @@ fn main() {
     println!("cargo:rustc-link-search={}/build/Debug", config.out_dir);
     println!("cargo:rustc-link-search={}/build/Release", config.out_dir);
     let mut _dst = config.builder.build_lib(&config.target_lib);
-    
+
     if config.is_linux() {
         // Use whole-archive to ensure all symbols (including FFI exports) are included
         // This is critical for LTO and ensuring sn_rust_* symbols are available
@@ -655,4 +722,107 @@ fn main() {
     }
 
     configure_linking(&config);
+
+    // Best-effort: copy the branch-hint inventory sidecar (Phase 10.2) into
+    // OUT_DIR so downstream Rust consumers (snmalloc-tools, Phase 10.4) can
+    // locate it via a stable path. Failures are deliberately non-fatal —
+    // ordinary builds must keep working even when CMake's
+    // branch_hints_inventory target hasn't run (e.g. no Python on the host,
+    // or building with `feature = "build_cc"`).
+    export_branch_hints_sidecar(&config);
+}
+
+/// Locate the JSON sidecar produced by CMake's `branch_hints_inventory`
+/// target (if any) and copy it into OUT_DIR. Emits no errors on failure.
+///
+/// Phase 11.2: the script is now vendored at
+/// `upstream/scripts/dump_branch_hints.py` so this works for consumers
+/// installing from the published `snmalloc-sys` crate, not just developers
+/// building inside the source tree. The vendored copy is the only one
+/// shipped in the crate tarball — the surrounding repo's `scripts/` dir is
+/// not included in the package (see `Cargo.toml` `include`).
+fn export_branch_hints_sidecar(config: &BuildConfig) {
+    let dest = PathBuf::from(&config.out_dir).join("branch_hints.json");
+
+    // Search a few well-known locations relative to the CMake out dir. The
+    // exact path depends on whether the cmake crate placed artifacts in
+    // OUT_DIR, OUT_DIR/build, etc.; we tried each search path above for the
+    // link step, so use the same set here.
+    let mut candidates = vec![
+        PathBuf::from(&config.out_dir).join("snmalloc_branch_hints.json"),
+        PathBuf::from(&config.out_dir).join("build").join("snmalloc_branch_hints.json"),
+        config.source_root.join("snmalloc_branch_hints.json"),
+    ];
+
+    // Best-effort: if neither location already has the sidecar, try running
+    // the dump script directly. The CMake `branch_hints_inventory` target
+    // is intentionally not a dep of the main library, so it doesn't fire
+    // during a normal `cargo build`. Calling python3 here as a fallback
+    // keeps the sidecar available for downstream consumers without making
+    // them depend on a separate `cmake --build` invocation. Failures are
+    // silent — the build must succeed without python3 installed.
+    //
+    // The script is resolved against `source_root` (= CARGO_MANIFEST_DIR
+    // /upstream); Phase 11.2 vendors it at `upstream/scripts/`. When
+    // building from the published crate that's the only copy available;
+    // when building inside the snmalloc repo it's the local vendored copy
+    // (a duplicate of the canonical repo-root `scripts/` script).
+    if !candidates.iter().any(|p| p.is_file()) {
+        let script = config.source_root.join("scripts").join("dump_branch_hints.py");
+        let fallback = PathBuf::from(&config.out_dir).join("snmalloc_branch_hints.json");
+        if script.is_file() {
+            // Trigger a rebuild if the vendored script changes (e.g. after
+            // a re-vendor). The output path is also tracked below via the
+            // rerun-if-changed for `src`.
+            println!("cargo:rerun-if-changed={}", script.display());
+            // The script walks `--source-dir` and reports paths relative to
+            // `--repo-root`. When snmalloc-sys is built from the published
+            // crate `upstream/` is a real directory, so the natural choice
+            // (`--repo-root <upstream>`, default `<upstream>/src/snmalloc`)
+            // works fine. In the dev tree though `upstream/src` is a
+            // symlink pointing at the real repo `src/`, so rglob yields
+            // canonicalised paths that no longer sit under `<upstream>`
+            // and `Path.relative_to` blows up. Canonicalise both ends here
+            // so the same invocation handles both layouts: derive the
+            // source-dir from the resolved `<upstream>/src/snmalloc`, and
+            // use *its* repo root (parent of `src`) as `--repo-root`.
+            let source_dir = config
+                .source_root
+                .join("src")
+                .join("snmalloc")
+                .canonicalize()
+                .unwrap_or_else(|_| config.source_root.join("src").join("snmalloc"));
+            let repo_root = source_dir
+                .parent() // .../src
+                .and_then(|p| p.parent()) // repo root
+                .map(PathBuf::from)
+                .unwrap_or_else(|| config.source_root.clone());
+            let status = std::process::Command::new("python3")
+                .arg(&script)
+                .arg("--repo-root").arg(&repo_root)
+                .arg("--source-dir").arg(&source_dir)
+                .arg("-o").arg(&fallback)
+                .status();
+            if matches!(status, Ok(s) if s.success()) {
+                candidates.insert(0, fallback);
+            }
+        }
+    }
+
+    for src in candidates.iter() {
+        if src.is_file() {
+            if let Err(err) = std::fs::copy(src, &dest) {
+                println!(
+                    "cargo:warning=snmalloc-sys: could not copy branch_hints sidecar {} -> {}: {}",
+                    src.display(), dest.display(), err);
+            } else {
+                // Re-run if the source ever changes.
+                println!("cargo:rerun-if-changed={}", src.display());
+                println!("cargo:rustc-env=SNMALLOC_BRANCH_HINTS_JSON={}", dest.display());
+            }
+            return;
+        }
+    }
+    // No sidecar found — fine. Downstream tooling treats absence as
+    // "inventory unavailable" and falls back to a no-op.
 }

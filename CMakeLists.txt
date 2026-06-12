@@ -32,6 +32,43 @@ option(SNMALLOC_PTHREAD_FORK_PROTECTION "Guard against forking while allocator l
 option(SNMALLOC_ENABLE_FUZZING "Enable fuzzing instrumentation tests" OFF)
 option(SNMALLOC_USE_SELF_VENDORED_STL "Avoid using system STL" OFF)
 option(SNMALLOC_COVERAGE "Build with clang source-based coverage instrumentation" OFF)
+option(SNMALLOC_PROFILE "Build with heap profiling support" OFF)
+# Phase 9.2 (ticket 86aj0tr1e) -- per-thread frontend cache stats.
+# Phase 11.6 (ticket 86aj0ydjv) -- split into BASIC / FULL tiers.
+#
+# `SNMALLOC_STATS` is preserved as a backwards-compatible alias that
+# activates `SNMALLOC_STATS_BASIC` (matches the production-default
+# tier).  Consumers wanting the per-size-class histogram + lifetime
+# histogram opt in to `SNMALLOC_STATS_FULL`, which also implicitly
+# enables `SNMALLOC_STATS_BASIC` (the BASIC counters are a subset of
+# the FULL surface).
+#
+# Tier overhead targets (see docs/heap-profiling-benchmarks.md):
+#   BASIC -- frontend fast/slow path counters + backend
+#            commit/decommit + largebuddy free-chunk histogram.
+#            Target <= 2% overhead vs OFF.  Production default.
+#   FULL  -- BASIC plus per-size-class histogram (9.3) and lifetime
+#            histogram (9.5).  Target <= 20% overhead.  Opt-in for
+#            debugging.
+#
+# Off by default so release builds compile to identical code (no
+# new symbols, no new struct fields, no increment sites).
+option(SNMALLOC_STATS "Backwards-compatible alias for SNMALLOC_STATS_BASIC" OFF)
+option(SNMALLOC_STATS_BASIC "Enable basic frontend + backend stats (<= 2% overhead)" OFF)
+option(SNMALLOC_STATS_FULL "Enable full stats incl. per-sizeclass + lifetime histograms (<= 20% overhead)" OFF)
+
+# Tier resolution: FULL implies BASIC; legacy SNMALLOC_STATS implies BASIC.
+if (SNMALLOC_STATS_FULL)
+  set(SNMALLOC_STATS_BASIC ON CACHE BOOL "Enable basic frontend + backend stats" FORCE)
+endif()
+if (SNMALLOC_STATS AND NOT SNMALLOC_STATS_BASIC AND NOT SNMALLOC_STATS_FULL)
+  set(SNMALLOC_STATS_BASIC ON CACHE BOOL "Enable basic frontend + backend stats" FORCE)
+endif()
+# Profile-guided optimization plumbing. The option itself is consumed by
+# cmake/snmalloc_pgo.cmake (included further down, once the snmalloc
+# target has been declared) so all targets in the build inherit the
+# correct -fprofile-{generate,use} flags. See cmake/snmalloc_pgo.cmake
+# and scripts/run-pgo-build.sh for the full two-stage workflow.
 # Options that apply only if we're not building the header-only library
 cmake_dependent_option(SNMALLOC_RUST_SUPPORT "Build static library for rust" OFF "NOT SNMALLOC_HEADER_ONLY_LIBRARY" OFF)
 cmake_dependent_option(SNMALLOC_RUST_LIBC_API "Include libc API in the rust library" OFF "SNMALLOC_RUST_SUPPORT" OFF)
@@ -94,6 +131,11 @@ if (SNMALLOC_COVERAGE)
   add_compile_options(-fprofile-instr-generate -fcoverage-mapping)
   add_link_options(-fprofile-instr-generate -fcoverage-mapping)
 endif()
+
+# Profile-guided optimization. Must come before any add_library/add_executable
+# so the generate-stage instrumentation and use-stage layout decisions are
+# applied to every object in the build.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/snmalloc_pgo.cmake)
 
 if(MSVC AND SNMALLOC_STATIC_LIBRARY AND (SNMALLOC_STATIC_LIBRARY_PREFIX STREQUAL ""))
   message(FATAL_ERROR "Empty static library prefix not supported on MSVC")
@@ -456,6 +498,13 @@ endfunction()
 
 add_as_define(SNMALLOC_QEMU_WORKAROUND)
 add_as_define(SNMALLOC_TRACING)
+add_as_define(SNMALLOC_PROFILE)
+add_as_define(SNMALLOC_STATS)
+# Phase 11.6 -- tiered stats.  BASIC is implied by SNMALLOC_STATS
+# (resolved above), so the existing SNMALLOC_STATS=ON pathway is
+# preserved.  FULL is fully additive: enabling it also enables BASIC.
+add_as_define(SNMALLOC_STATS_BASIC)
+add_as_define(SNMALLOC_STATS_FULL)
 add_as_define(SNMALLOC_CI_BUILD)
 add_as_define(SNMALLOC_PTHREAD_FORK_PROTECTION)
 add_as_define(SNMALLOC_PLATFORM_HAS_GETENTROPY)
@@ -549,9 +598,10 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   # against both fast and check testlib variants.
   set(TESTLIB_ONLY_TESTS
     bits first_operation memory memory_usage multi_atexit multi_threadatexit
+    profile_sampler
     redblack statistics teardown
     contention external_pointer large_alloc lotsofthreads post_teardown
-    singlethread startup
+    singlethread startup stack_walker_bench
   )
 
   function(make_tests TAG DEFINES)
@@ -765,9 +815,32 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   set(MALLOC src/snmalloc/override/malloc.cc)
   set(NEW src/snmalloc/override/new.cc)
   set(MEMCPY src/snmalloc/override/memcpy.cc)
-  set(RUST src/snmalloc/override/rust.cc)
+  # Phase 9.1: stats_export.cc carries the `snmalloc_get_full_stats` C
+  # ABI symbol consumed by the Rust binding (and by any other C/C++
+  # consumer of the libsnmalloc shims).  Wired into both the Rust
+  # static library targets and the libc shim so the symbol ships
+  # alongside the rest of the export surface on Linux/macOS.  Wave-2
+  # Phase 9 tickets populate additional fields without changing the
+  # file list.
+  set(STATS_EXPORT src/snmalloc/override/stats_export.cc)
+  # Phase 9.7: runtime_config.cc carries the C ABI shims
+  # (`snmalloc_{set,get}_sample_interval` / `_decay_rate` /
+  # `_max_local_cache`) backing `snmalloc::RuntimeConfig`.  Linked in
+  # alongside stats_export.cc into both the Rust shim and the libc
+  # shim so the tunables are available in every build flavour, with
+  # or without `SNMALLOC_PROFILE` / `SNMALLOC_STATS`.
+  set(RUNTIME_CONFIG src/snmalloc/override/runtime_config.cc)
+  # Phase 9.6: stats_dump.cc carries the `snmalloc_dump_stats_to_buffer`
+  # C ABI plus the `snmalloc::dump_stats(FILE*)` /
+  # `snmalloc::dump_stats_to_string(std::string&)` C++ overloads.
+  # Pure formatter over `snmalloc_get_full_stats` (from 9.1); ships
+  # alongside the rest of the export surface in every build flavour
+  # so consumers always have a text dump available regardless of which
+  # SNMALLOC_STATS / SNMALLOC_PROFILE combination they compiled.
+  set(STATS_DUMP src/snmalloc/override/stats_dump.cc)
+  set(RUST src/snmalloc/override/rust.cc ${STATS_EXPORT} ${RUNTIME_CONFIG} ${STATS_DUMP})
 
-  set(ALLOC ${MALLOC} ${NEW})
+  set(ALLOC ${MALLOC} ${NEW} ${STATS_EXPORT} ${RUNTIME_CONFIG} ${STATS_DUMP})
   set(ALL ${ALLOC} ${MEMCPY})
 
   if (SNMALLOC_STATIC_LIBRARY)
@@ -960,6 +1033,45 @@ install(EXPORT snmallocConfig
   NAMESPACE snmalloc::
   DESTINATION "share/snmalloc"
 )
+
+# Branch-hint inventory sidecar (Phase 10.2).
+#
+# Emits a JSON map of every SNMALLOC_LIKELY(...) / SNMALLOC_UNLIKELY(...)
+# call site in src/snmalloc/. snmalloc-tools (Phase 10.4) consumes this to
+# convert raw branch-miss IPs from `perf record -e branch-misses` into
+# semantic "this hint was inverted" findings.
+#
+# Kept as a stand-alone target (not wired into the main library build) so
+# that a missing Python interpreter never blocks ordinary builds. CMake's
+# FindPython3 is tried optionally; if not found we skip the target with a
+# status message rather than failing configuration.
+set(SNMALLOC_BRANCH_HINTS_JSON "${CMAKE_BINARY_DIR}/snmalloc_branch_hints.json")
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if (Python3_Interpreter_FOUND)
+  add_custom_command(
+    OUTPUT ${SNMALLOC_BRANCH_HINTS_JSON}
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_SOURCE_DIR}/scripts/dump_branch_hints.py
+      --repo-root ${CMAKE_SOURCE_DIR}
+      --pretty
+      -o ${SNMALLOC_BRANCH_HINTS_JSON}
+    DEPENDS ${CMAKE_SOURCE_DIR}/scripts/dump_branch_hints.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Dumping SNMALLOC_LIKELY/UNLIKELY inventory to ${SNMALLOC_BRANCH_HINTS_JSON}"
+    VERBATIM)
+  add_custom_target(branch_hints_inventory
+    DEPENDS ${SNMALLOC_BRANCH_HINTS_JSON})
+  # Best-effort install. The sidecar is small and harmless when present, and
+  # downstream tooling (snmalloc-tools, snmalloc-rs build.rs) looks for it
+  # under share/snmalloc/.
+  install(FILES ${SNMALLOC_BRANCH_HINTS_JSON}
+    DESTINATION share/snmalloc
+    OPTIONAL)
+else()
+  message(STATUS
+    "Python3 not found; skipping branch_hints_inventory target. "
+    "Build will succeed without the snmalloc_branch_hints.json sidecar.")
+endif()
 
 if (SNMALLOC_ENABLE_FUZZING)
   add_subdirectory(fuzzing)

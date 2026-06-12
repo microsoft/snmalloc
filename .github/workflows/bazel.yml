@@ -1,0 +1,57 @@
+name: Bazel build
+
+# Smoke-test that the Bazel target graph keeps working alongside the
+# Cargo build.  We exercise the rust_library variants and at least
+# one rust_test -- enough to catch the common regressions in the
+# dual-build layer.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  bazel:
+    name: bazel build + test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The Bazel team officially recommends bazelisk on CI so a
+      # `.bazelversion` (or the MODULE.bazel) pins the toolchain
+      # rather than the system bazel.
+      - name: Install bazelisk
+        run: |
+          sudo curl -L -o /usr/local/bin/bazel \
+            https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64
+          sudo chmod +x /usr/local/bin/bazel
+          bazel --version
+
+      # Cache the Bazel disk cache so subsequent runs skip the
+      # rules_rust toolchain download (~150 MB) and the cmake
+      # action's output.  The cache key folds in MODULE.bazel.lock so
+      # any dependency bump invalidates the cache rather than
+      # silently reusing a stale repo set.
+      - name: Cache Bazel
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/bazel
+          key: bazel-${{ runner.os }}-${{ hashFiles('MODULE.bazel.lock', 'MODULE.bazel') }}-${{ github.sha }}
+          restore-keys: |
+            bazel-${{ runner.os }}-${{ hashFiles('MODULE.bazel.lock', 'MODULE.bazel') }}-
+            bazel-${{ runner.os }}-
+
+      - name: Bazel build :: snmalloc-rs Rust library (default)
+        run: bazel build //snmalloc-rs:snmalloc_rs
+
+      - name: Bazel build :: snmalloc-sys Rust library (default + profiling)
+        run: |
+          bazel build \
+            //snmalloc-rs/snmalloc-sys:snmalloc_sys \
+            //snmalloc-rs/snmalloc-sys:snmalloc_sys_profiling
+
+      - name: Bazel test :: snmalloc-rs integration tests
+        run: bazel test //snmalloc-rs:all

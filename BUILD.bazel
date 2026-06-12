@@ -8,6 +8,7 @@ filegroup(
             "src/test/*.h",
             "src/test/*.cc",
             "CMakeLists.txt",
+	    "cmake/**/*.cmake",
         ],
     ),
     visibility = ["//visibility:private"],
@@ -39,7 +40,7 @@ CMAKE_FLAGS = {
     "SNMALLOC_OPTIMISE_FOR_CURRENT_MACHINE": "ON",
     "SNMALLOC_USE_SELF_VENDORED_STL": "OFF",
     "SNMALLOC_IPO": "ON",
-    "USE_SNMALLOC_STATS": "ON",
+    "SNMALLOC_STATS": "ON",
     "SNMALLOC_BUILD_TESTING": "OFF",
 } | select({
     ":release_with_debug": {"CMAKE_BUILD_TYPE": "RelWithDebInfo"},
@@ -87,6 +88,36 @@ cmake(
     out_static_libs = [
         "libsnmallocshim-static.a",
         "libsnmalloc-new-override.a",
+        "libsnmallocshim-rust.a",
+    ],
+    postfix_script = "ninja",
+    visibility = ["//visibility:public"],
+)
+
+# Profile-enabled variant of the Rust shim archive.  Same source set as
+# `:snmalloc-rs` but with SNMALLOC_PROFILE=ON so the `sn_rust_profile_*`
+# exports in `rust.cc` switch from the no-op stubs to real bodies.  Used
+# by the `snmalloc_sys_profiling` Rust target.
+cmake(
+    name = "snmalloc-rs-profile",
+    cache_entries = CMAKE_FLAGS | {
+        "SNMALLOC_RUST_SUPPORT": "ON",
+        "SNMALLOC_PROFILE": "ON",
+    },
+    generate_args = ["-G Ninja"],
+    lib_source = ":srcs",
+    out_shared_libs = select({
+        "@bazel_tools//src/conditions:darwin": [
+            "libsnmallocshim-checks-memcpy-only.dylib",
+            "libsnmallocshim-checks.dylib",
+            "libsnmallocshim.dylib",
+        ],
+        "//conditions:default": [],
+    }),
+    out_static_libs = [
+        "libsnmallocshim-static.a",
+        "libsnmalloc-new-override.a",
+        "libsnmallocshim-rust.a",
     ],
     postfix_script = "ninja",
     visibility = ["//visibility:public"],

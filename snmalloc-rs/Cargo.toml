@@ -14,6 +14,53 @@ readme = "README.md"
 
 [dependencies]
 snmalloc-sys = { version = "0.7.4", path = "snmalloc-sys", default-features = false }
+# Optional symbolicator for heap-profile frames.  Pulled in only by
+# the `symbolicate` feature so the default build keeps a minimal
+# dependency footprint -- backtrace transitively pulls in addr2line,
+# gimli, object, etc.
+backtrace = { version = "0.3", optional = true }
+# gzip codec used by `HeapProfile::write_pprof_gz` to emit `.pb.gz`-style
+# pprof streams (the format Pyroscope, Polar Signals, Speedscope, and
+# most cloud pprof importers expect).  Pulled in only by the
+# `profiling` feature so the default build stays free of `flate2` and
+# its `miniz_oxide` dependency.  See Cargo.toml `[features]` below for
+# the gate; we deliberately do NOT introduce a separate `pprof-gz`
+# feature -- gzipped pprof is the dominant on-the-wire encoding and
+# splitting it off would multiply the supported-feature matrix without
+# a meaningful payoff.
+flate2 = { version = "1", optional = true }
+
+# Dev-dependencies are only compiled for `cargo test` / `cargo bench` and
+# never become part of the published crate's transitive deps.  `inferno`
+# is the pure-Rust port of Brendan Gregg's `flamegraph.pl` and is used
+# by `tests/profile_viewer_roundtrip.rs` (Phase 4.6) to verify that the
+# folded-stack output produced by `HeapProfile::write_flamegraph` round-
+# trips through a real SVG-rendering flamegraph viewer.  Version pinned
+# to 0.11 to keep MSRV aligned with the rest of the workspace; later
+# 0.12.x releases bump `rust-version` to 1.71 and pull in additional
+# crossbeam transitive deps we don't otherwise need.
+[dev-dependencies]
+inferno = "0.11"
+# Phase 7.2 benchmark harness.  `default-features = false` keeps the
+# transitive footprint small: we skip the `rayon`-powered HTML report
+# generator (which pulls in plotters, csv, etc.) since the bench
+# numbers are scraped from `target/criterion/**/estimates.json` rather
+# than the HTML page.
+criterion = { version = "0.5", default-features = false }
+
+[[bench]]
+name = "profile_bench"
+harness = false
+
+# Phase 11.1 SNMALLOC_STATS=ON acceptance bench.  Installs SnMalloc as
+# `#[global_allocator]` so the FFI thunks (which carry the stats
+# counter sites) are actually exercised.  Run twice: once without
+# `--features stats` to capture the baseline, once with it to capture
+# the stats-on numbers; the ratio is the acceptance metric.  See the
+# bench file's module-level doc-comment for details.
+[[bench]]
+name = "stats_bench"
+harness = false
 
 [features]
 default = ["snmalloc-sys/build_cmake", "snmalloc-sys/usewait-on-address"]
@@ -28,7 +75,21 @@ usecxx17 = ["snmalloc-sys/usecxx17"]
 check = ["snmalloc-sys/check"]
 lto = ["snmalloc-sys/lto"]
 notls = ["snmalloc-sys/notls"]
-stats = ["snmalloc-sys/stats"]
+## Phase 11.6 -- tiered allocator stats.  See
+## `snmalloc-sys/Cargo.toml` for the full description; this crate
+## just propagates the three knobs into the sys crate.  The legacy
+## `stats` feature continues to act as an alias for `stats-basic`,
+## so downstream `features = ["stats"]` users get the BASIC tier
+## automatically.
+stats = ["stats-basic"]
+stats-basic = ["snmalloc-sys/stats-basic"]
+# `stats-full` implies `stats-basic` so consumers passing only
+# `--features stats-full` light up both the snmalloc-rs-side
+# `stats-basic` gate (which guards `SnMalloc::full_stats()` and the
+# `FullAllocStats` re-exports) and the snmalloc-sys-side `stats-full`
+# feature.  Without this implication the FULL tier could compile the
+# C++ side but leave the Rust accessor compiled out.
+stats-full = ["stats-basic", "snmalloc-sys/stats-full"]
 usewait-on-address = ["snmalloc-sys/usewait-on-address"]
 libc-api = ["snmalloc-sys/libc-api"]
 tracing = ["snmalloc-sys/tracing"]
@@ -37,3 +98,27 @@ vendored-stl = ["snmalloc-sys/vendored-stl"]
 check-loads = ["snmalloc-sys/check-loads"]
 pageid = ["snmalloc-sys/pageid"]
 gwp-asan = ["snmalloc-sys/gwp-asan"]
+profiling = ["snmalloc-sys/profiling", "dep:flate2"]
+# Resolve raw frame addresses captured by the profiler into
+# function/file/line via the `backtrace` crate.  Compose with
+# `profiling` to get a symbolicated flamegraph stream from a live
+# snapshot.
+symbolicate = ["dep:backtrace"]
+
+# Fat LTO + a single codegen unit so the Rust optimizer can inline
+# through the FFI boundary into `snmalloc-sys` (the C++ allocator
+# entry points are exposed as `extern "C"` thunks; without cross-crate
+# LTO the rustc backend cannot see through them and every `alloc`/
+# `dealloc` becomes a real call).  Applied to both `release` and
+# `bench` so `cargo bench --features profiling` measures the same
+# code shape the release binaries will ship.  See
+# `docs/heap-profiling-benchmarks.md` ("LTO" subsection) for the
+# bench delta and the compile-time cost (~2-3x slower release link).
+# Ticket: ClickUp 86aj0jfz1 (Perf opt 7).
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
+[profile.bench]
+lto = "fat"
+codegen-units = 1

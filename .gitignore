@@ -27,3 +27,8 @@
 
 # rust target
 /target
+
+# bazel convenience symlinks (created in the workspace root by `bazel
+# build` / `bazel test`).  The actual outputs live under the user's
+# bazel cache so the symlinks are pure noise on commit.
+/bazel-*

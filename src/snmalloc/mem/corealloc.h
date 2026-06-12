@@ -9,6 +9,48 @@
 #include "snmalloc/stl/new.h"
 #include "ticker.h"
 
+#ifdef SNMALLOC_STATS_BASIC
+// Phase 9.2 / Phase 11.6 -- per-thread frontend cache stats.  The
+// on-thread counters are non-atomic uint64_t, but the cross-thread
+// teardown-drain aggregator uses `stl::Atomic` so
+// `frontend_stats_global()` can be summed in parallel with concurrent
+// allocators publishing their counters at thread exit.  Brought in only
+// under SNMALLOC_STATS_BASIC so the header-only build stays unchanged
+// when stats are off.  `SNMALLOC_STATS_FULL` implicitly enables BASIC
+// (see CMakeLists.txt), so the FULL per-size-class arrays below also
+// see the atomic include.
+#  include "snmalloc/stl/atomic.h"
+#endif
+
+#ifdef SNMALLOC_PROFILE
+// Forward-declare the H1 hook entry.  The full definition lives in
+// profile/record.h, which depends on commonconfig.h's
+// LazyArrayClientMetaDataProvider; that header is only safe to include
+// AFTER mem/mem.h has finished processing, so the umbrella backend
+// header pulls record.h in once commonconfig.h is visible.  The
+// declaration here is enough to compile the templated dealloc body;
+// the definition is required at the point of template instantiation
+// in TUs that go through snmalloc_core.h / snmalloc.h.
+namespace snmalloc::profile
+{
+  template<typename Config>
+  SNMALLOC_FAST_PATH_INLINE void record_dealloc(void* p) noexcept;
+
+  // Bundle tweak 3 (ticket 86aj0jfwh): peek-only helper extracted from
+  // `record_dealloc` so the inline slot probe + null check at the
+  // dealloc call-site in `Allocator::dealloc` can fast-path out
+  // *before* taking on any further function-call cost.  Returns `true`
+  // when the dealloc fast path is done (no sample to clear), `false`
+  // when the caller should fall through to the full hook.  The
+  // implementation lives in profile/record.h alongside the full hook
+  // so they share the slab-metadata probe.  Templated +
+  // `SNMALLOC_FAST_PATH_INLINE` so it inlines into `Allocator::dealloc`
+  // and the load+branch live directly at the call site.
+  template<typename Config>
+  SNMALLOC_FAST_PATH_INLINE bool record_dealloc_peek(void* p) noexcept;
+}
+#endif
+
 #if defined(_MSC_VER)
 #  define ALLOCATOR __declspec(allocator) __declspec(restrict)
 #elif __has_attribute(malloc)
@@ -77,6 +119,315 @@ namespace snmalloc
     // mimalloc.
     freelist::Iter<> small_fast_free_lists[NUM_SMALL_SIZECLASSES] = {};
   };
+
+#ifdef SNMALLOC_STATS_BASIC
+  // Phase 9.2 -- per-thread frontend cache stats (ticket 86aj0tr1e).
+  //
+  // `FrontendStats` is the on-thread counter block embedded in every
+  // `Allocator`.  All fields are `uint64_t` and are mutated only on the
+  // owning thread, so increments compile to plain memory loads/stores
+  // (no atomic ops on the alloc/dealloc hot paths).  Cross-thread reads
+  // happen via `snmalloc_get_full_stats` which walks the allocator pool
+  // (allocators that have torn down their thread already drained their
+  // counters into `frontend_stats_global` below before releasing
+  // themselves back to the pool).
+  //
+  // Phase 11.5 -- aligned to `CACHELINE_SIZE` so the per-thread stats
+  // block sits on its own line(s), never sharing a cache line with the
+  // adjacent hot Allocator members (notably the trailing `ticker`
+  // field and the leading `sc_stats` block).  Without this, the
+  // fast-path counter store dirties a line that is also touched by
+  // unrelated code, causing extra cache-line transitions on every
+  // allocation when those neighbours are read.
+  //
+  // Phase 11.6 -- this struct + its global aggregator now live under
+  // SNMALLOC_STATS_BASIC, the cheap counter tier.  The per-size-class
+  // histogram (SizeClassStats below) is split out under
+  // SNMALLOC_STATS_FULL so production builds can pay the BASIC budget
+  // (target <= 2%) without the FULL histogram store overhead.
+  struct alignas(CACHELINE_SIZE) FrontendStats
+  {
+    /// Phase 11.12 -- combined alloc counter packing both the
+    /// cumulative-alloc total (low 48 bits) and the slow-path call
+    /// count (high 16 bits) into one 64-bit word so the
+    /// `small_refill` slow path can credit both fields with a single
+    /// store rather than two adjacent loads-modify-stores.
+    ///
+    /// Layout:
+    ///   bits 0-47  : cumulative_allocs (fast + slow combined)
+    ///   bits 48-63 : slow_path_calls
+    ///
+    /// Decoded at snapshot time in `stats_export.cc` back into the
+    /// public `fast_path_allocs` / `slow_path_allocs` fields so the
+    /// ABI surface (`FullAllocStats`) is unchanged.
+    ///
+    /// Wrap budget: 16-bit slow counter saturates at 65535 refills.
+    /// At ~256 objects/refill for the smallest sizeclasses that's
+    /// ~16M allocs (per-thread, per-counter-reset) -- effectively
+    /// unbounded for any realistic workload; observability surface
+    /// is best-effort anyway.  Stays well below the 48-bit total
+    /// bucket so the packed `+=` never overflows from low into high.
+    uint64_t packed_allocs{0};
+
+    /// Bit shift positioning the slow-call lane within
+    /// `packed_allocs` (bits 48-63).
+    static constexpr uint64_t PACKED_ALLOCS_SLOW_SHIFT = 48;
+    /// Mask covering the low (total-alloc) lane of `packed_allocs`.
+    static constexpr uint64_t PACKED_ALLOCS_TOTAL_MASK =
+      (uint64_t{1} << PACKED_ALLOCS_SLOW_SHIFT) - 1;
+    /// Pre-packed `+1` increment in the slow-call lane; OR'd /
+    /// added to `refill_count` at the refill site so a single
+    /// 64-bit add updates both lanes in one store.
+    static constexpr uint64_t PACKED_ALLOCS_SLOW_INC =
+      uint64_t{1} << PACKED_ALLOCS_SLOW_SHIFT;
+
+    /// Decode the slow-path call count from `packed_allocs`.
+    [[nodiscard]] uint64_t slow_path_allocs() const noexcept
+    {
+      return packed_allocs >> PACKED_ALLOCS_SLOW_SHIFT;
+    }
+    /// Decode the cumulative-alloc total from `packed_allocs`
+    /// (fast + slow combined).
+    [[nodiscard]] uint64_t total_allocs() const noexcept
+    {
+      return packed_allocs & PACKED_ALLOCS_TOTAL_MASK;
+    }
+    /// Decode the fast-path alloc count from `packed_allocs`.
+    /// Equals `total_allocs() - slow_path_allocs()` and is the same
+    /// quantity surfaced as `FullAllocStats::fast_path_allocs`.
+    [[nodiscard]] uint64_t fast_path_allocs() const noexcept
+    {
+      return total_allocs() - slow_path_allocs();
+    }
+    /// Deallocations whose pagemap entry pointed at this allocator
+    /// (the "local" branch of `Allocator::dealloc`).
+    ///
+    /// Phase 11.9 -- pre-credited at slab refill (in
+    /// `small_refill` / `small_refill_slow`) rather than bumped
+    /// per-dealloc, mirroring the Phase 11.8 batched alloc
+    /// counter.  Each object transferred onto a thread's fast
+    /// free list is assumed to be freed locally, so the credit
+    /// fires at the same site as `fast_path_allocs +=
+    /// refill_count`.  Overshoot is bounded by one slab's
+    /// in-flight object count per thread + sizeclass.  Cross-
+    /// thread frees still bump `remote_deallocs`; in that case
+    /// this counter is over-credited by the cross-thread-freed
+    /// portion (acceptable for an observability surface, the
+    /// drift is bounded by program behaviour).
+    uint64_t fast_path_deallocs{0};
+    /// Deallocations whose pagemap entry pointed at a remote
+    /// allocator; routed through the remote dealloc cache.
+    uint64_t remote_deallocs{0};
+    /// Number of times this thread drained its incoming message queue.
+    uint64_t message_queue_drains{0};
+    /// Cross-thread messages dequeued by this thread (one per call to
+    /// the dequeue callback inside `handle_message_queue_slow`).
+    uint64_t cross_thread_messages_received{0};
+
+    /// Add another snapshot's counters into this one.  Used both by
+    /// the FullAllocStats aggregator and by the thread-exit drain.
+    void accumulate(const FrontendStats& other) noexcept
+    {
+      // Phase 11.12 -- packed addition.  The high 16 bits (slow
+      // call count) and low 48 bits (cumulative total) live in
+      // disjoint bit ranges, so a plain `+=` correctly accumulates
+      // each lane independently as long as neither lane overflows
+      // its sub-field width (16-bit slow lane saturates at 65535
+      // refills per source; well above the realistic per-thread
+      // count for any process lifetime).
+      packed_allocs += other.packed_allocs;
+      fast_path_deallocs += other.fast_path_deallocs;
+      remote_deallocs += other.remote_deallocs;
+      message_queue_drains += other.message_queue_drains;
+      cross_thread_messages_received += other.cross_thread_messages_received;
+    }
+  };
+#endif // SNMALLOC_STATS_BASIC
+
+#ifdef SNMALLOC_STATS_FULL
+  // Phase 9.3 -- per-size-class histogram (ticket 86aj0tr4p).
+  //
+  // `SizeClassStats` is the on-thread per-small-sizeclass counter
+  // block embedded in every `Allocator` alongside `FrontendStats`.
+  // All four arrays are indexed by `smallsizeclass_t` and mutated
+  // only on the owning thread, so increments compile to plain
+  // memory loads/stores -- no atomic ops on the alloc / dealloc hot
+  // paths.  Cross-thread reads happen via `snmalloc_get_full_stats`,
+  // which walks the allocator pool and additionally sums in the
+  // process-global `size_class_stats_global()` aggregator that
+  // catches counters drained by allocators returned to the pool at
+  // thread teardown.
+  //
+  // Bytes / counts are tracked with int64 deltas so that
+  // cross-thread frees (which on the freeing thread bump
+  // `cumulative_dealloc` but on the OWNING thread are what reduces
+  // live count) net out correctly when summed across the pool.
+  // Specifically: the freeing thread bumps `cumulative_dealloc[sc]`
+  // on its own block; the owning thread's `live_*[sc]` decrement
+  // happens on the same block that recorded the alloc (the
+  // slab-local fast dealloc, or the message-queue drain path).
+  //
+  // Phase 11.5 -- the per-class `cumulative_alloc[sc]` array is no
+  // longer maintained on the hot path.  Its value is derived at
+  // snapshot time from the invariant
+  //     cumulative_alloc[sc] = live_count[sc] + cumulative_dealloc[sc]
+  // which holds because every alloc/dealloc pair conserves the
+  // identity `cumulative_alloc - cumulative_dealloc = live_count`
+  // at the per-class granularity once summed across the pool.
+  // Removing the hot-path increment saves one store per small
+  // alloc.  The field is retained for ABI/output stability and is
+  // populated only at snapshot time in `snmalloc_get_full_stats`.
+  //
+  // Phase 11.5 -- aligned to `CACHELINE_SIZE` so the per-thread
+  // size-class array sits on its own cache line(s), never sharing a
+  // line with the adjacent Allocator state (the leading
+  // `FrontendStats stats` block above, or the trailing private
+  // members below).  Avoids false-sharing that amplified the
+  // small_allocs regression in the Phase 11.1 baseline.
+  struct alignas(CACHELINE_SIZE) SizeClassStats
+  {
+    /// Live byte total per small sizeclass on this thread.  Bumped
+    /// on alloc, decremented on local dealloc / message-queue
+    /// drain.
+    uint64_t live_bytes[NUM_SMALL_SIZECLASSES] = {};
+    /// Live object count per small sizeclass on this thread.
+    uint64_t live_count[NUM_SMALL_SIZECLASSES] = {};
+    /// Cumulative allocations per small sizeclass on this thread.
+    /// Phase 11.5 -- NOT maintained on the hot path; derived at
+    /// snapshot time from `live_count + cumulative_dealloc`.  Kept
+    /// in the struct so the aggregator / FFI output layout stays
+    /// stable.  Producer paths leave this field at zero.
+    uint64_t cumulative_alloc[NUM_SMALL_SIZECLASSES] = {};
+    /// Cumulative deallocations per small sizeclass on this thread
+    /// (monotone -- never decreases).  Bumped on the freeing thread,
+    /// which may or may not be the owning thread.
+    uint64_t cumulative_dealloc[NUM_SMALL_SIZECLASSES] = {};
+
+    /// Add another snapshot's per-class counters into this one.
+    /// Used by both the FullAllocStats aggregator and the
+    /// thread-exit drain.
+    void accumulate(const SizeClassStats& other) noexcept
+    {
+      for (size_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
+      {
+        live_bytes[i] += other.live_bytes[i];
+        live_count[i] += other.live_count[i];
+        cumulative_alloc[i] += other.cumulative_alloc[i];
+        cumulative_dealloc[i] += other.cumulative_dealloc[i];
+      }
+    }
+  };
+#endif // SNMALLOC_STATS_FULL
+
+#ifdef SNMALLOC_STATS_BASIC
+  /// Per-counter atomic aggregator that collects per-thread stats at
+  /// thread teardown.  Threads that have exited no longer appear in
+  /// `AllocPool::iterate()`, so without this drain their counters
+  /// would silently vanish from the FullAllocStats snapshot.  The
+  /// individual counters use `std::atomic` so the producer-side
+  /// `fetch_add` at teardown is safe against the consumer-side read in
+  /// `snmalloc_get_full_stats`; relaxed ordering is sufficient because
+  /// the snapshot is a debugging/observability surface and does not
+  /// participate in any happens-before chain with allocator state.
+  struct FrontendStatsGlobal
+  {
+    // Phase 11.12 -- packed (fast+slow) alloc counter; matching
+    // layout to `FrontendStats::packed_allocs`.  One atomic
+    // fetch_add at thread-exit drain instead of two adjacent ones.
+    stl::Atomic<uint64_t> packed_allocs{0};
+    stl::Atomic<uint64_t> fast_path_deallocs{0};
+    stl::Atomic<uint64_t> remote_deallocs{0};
+    stl::Atomic<uint64_t> message_queue_drains{0};
+    stl::Atomic<uint64_t> cross_thread_messages_received{0};
+
+    void drain_from(const FrontendStats& s) noexcept
+    {
+      packed_allocs.fetch_add(
+        s.packed_allocs, stl::memory_order_relaxed);
+      fast_path_deallocs.fetch_add(
+        s.fast_path_deallocs, stl::memory_order_relaxed);
+      remote_deallocs.fetch_add(
+        s.remote_deallocs, stl::memory_order_relaxed);
+      message_queue_drains.fetch_add(
+        s.message_queue_drains, stl::memory_order_relaxed);
+      cross_thread_messages_received.fetch_add(
+        s.cross_thread_messages_received, stl::memory_order_relaxed);
+    }
+
+    void snapshot_into(FrontendStats& out) const noexcept
+    {
+      out.packed_allocs +=
+        packed_allocs.load(stl::memory_order_relaxed);
+      out.fast_path_deallocs +=
+        fast_path_deallocs.load(stl::memory_order_relaxed);
+      out.remote_deallocs +=
+        remote_deallocs.load(stl::memory_order_relaxed);
+      out.message_queue_drains +=
+        message_queue_drains.load(stl::memory_order_relaxed);
+      out.cross_thread_messages_received +=
+        cross_thread_messages_received.load(stl::memory_order_relaxed);
+    }
+  };
+
+  inline FrontendStatsGlobal& frontend_stats_global() noexcept
+  {
+    static FrontendStatsGlobal g;
+    return g;
+  }
+#endif // SNMALLOC_STATS_BASIC
+
+#ifdef SNMALLOC_STATS_FULL
+  /// Per-counter atomic aggregator that collects per-thread size-class
+  /// stats at thread teardown.  Symmetric to `FrontendStatsGlobal`: the
+  /// individual array slots use `stl::Atomic` so the producer-side
+  /// `fetch_add` at teardown is safe against the consumer-side read in
+  /// `snmalloc_get_full_stats`; relaxed ordering is sufficient because
+  /// the snapshot is a debugging/observability surface and does not
+  /// participate in any happens-before chain with allocator state.
+  struct SizeClassStatsGlobal
+  {
+    stl::Atomic<uint64_t> live_bytes[NUM_SMALL_SIZECLASSES]{};
+    stl::Atomic<uint64_t> live_count[NUM_SMALL_SIZECLASSES]{};
+    stl::Atomic<uint64_t> cumulative_alloc[NUM_SMALL_SIZECLASSES]{};
+    stl::Atomic<uint64_t> cumulative_dealloc[NUM_SMALL_SIZECLASSES]{};
+
+    void drain_from(const SizeClassStats& s) noexcept
+    {
+      for (size_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
+      {
+        live_bytes[i].fetch_add(
+          s.live_bytes[i], stl::memory_order_relaxed);
+        live_count[i].fetch_add(
+          s.live_count[i], stl::memory_order_relaxed);
+        cumulative_alloc[i].fetch_add(
+          s.cumulative_alloc[i], stl::memory_order_relaxed);
+        cumulative_dealloc[i].fetch_add(
+          s.cumulative_dealloc[i], stl::memory_order_relaxed);
+      }
+    }
+
+    void snapshot_into(SizeClassStats& out) const noexcept
+    {
+      for (size_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
+      {
+        out.live_bytes[i] +=
+          live_bytes[i].load(stl::memory_order_relaxed);
+        out.live_count[i] +=
+          live_count[i].load(stl::memory_order_relaxed);
+        out.cumulative_alloc[i] +=
+          cumulative_alloc[i].load(stl::memory_order_relaxed);
+        out.cumulative_dealloc[i] +=
+          cumulative_dealloc[i].load(stl::memory_order_relaxed);
+      }
+    }
+  };
+
+  inline SizeClassStatsGlobal& size_class_stats_global() noexcept
+  {
+    static SizeClassStatsGlobal g;
+    return g;
+  }
+#endif // SNMALLOC_STATS_FULL
 
   /**
    * The core, stateful, part of a memory allocator.
@@ -179,6 +530,37 @@ namespace snmalloc
      * Ticker to query the clock regularly at a lower cost.
      */
     Ticker<typename Config::Pal> ticker;
+
+#ifdef SNMALLOC_STATS_BASIC
+    // Phase 9.2 -- per-thread frontend cache stats (ticket 86aj0tr1e).
+    //
+    // Embedded in every `Allocator` so the alloc / dealloc fast paths
+    // can bump a counter via a plain memory load+store -- the
+    // `Allocator` is per-thread, so no atomic ops are required on the
+    // hot path.  Cross-thread reads happen via
+    // `snmalloc_get_full_stats`, which walks `AllocPool::iterate()`
+    // and sums each live allocator's `stats` plus the
+    // `frontend_stats_global()` aggregator (which catches counters
+    // drained by allocators returned to the pool at thread teardown).
+   public:
+    FrontendStats stats{};
+#  ifdef SNMALLOC_STATS_FULL
+    // Phase 9.3 -- per-thread per-size-class histogram (ticket
+    // 86aj0tr4p).  Same lifetime / drain semantics as `stats`: the
+    // per-thread block lives inside the `Allocator`, mutated only on
+    // the owning thread, and drained into
+    // `size_class_stats_global()` by `drain_stats_to_global` at
+    // thread teardown.
+    //
+    // Phase 11.6 -- gated to SNMALLOC_STATS_FULL so the BASIC tier
+    // does not pay the 4*NUM_SMALL_SIZECLASSES * sizeof(uint64_t) of
+    // per-Allocator footprint nor the per-alloc per-class store
+    // overhead.  See docs/heap-profiling-benchmarks.md
+    // (`Phase 11.6 -- tiered SNMALLOC_STATS overhead`).
+    SizeClassStats sc_stats{};
+#  endif
+   private:
+#endif
 
     /**
      * The message queue needs to be accessible from other threads
@@ -420,6 +802,13 @@ namespace snmalloc
     SNMALLOC_SLOW_PATH decltype(auto)
     handle_message_queue_slow(Action action, Args... args) noexcept(noexc)
     {
+#ifdef SNMALLOC_STATS_BASIC
+      // Phase 9.2 -- message-queue drain counter.  Bumped once per
+      // entry into the slow path (i.e. once per drain attempt).  The
+      // per-message counter `cross_thread_messages_received` is bumped
+      // inside the dequeue callback below.
+      stats.message_queue_drains++;
+#endif
       bool need_post = false;
       size_t bytes_freed = 0;
       auto local_state = backend_state_ptr();
@@ -429,6 +818,12 @@ namespace snmalloc
                            };
       auto cb = [this, domesticate, &need_post, &bytes_freed](
                   capptr::Alloc<RemoteMessage> msg) SNMALLOC_FAST_PATH_LAMBDA {
+#ifdef SNMALLOC_STATS_BASIC
+        // Phase 9.2 -- per-message counter.  One call to this
+        // callback corresponds to one cross-thread message dequeued
+        // by the destination thread.
+        stats.cross_thread_messages_received++;
+#endif
         auto& entry =
           Config::Backend::get_metaentry(snmalloc::address_cast(msg));
         handle_dealloc_remote(entry, msg, need_post, domesticate, bytes_freed);
@@ -485,9 +880,77 @@ namespace snmalloc
       if (SNMALLOC_LIKELY(entry.get_remote() == public_state()))
       {
         auto meta = entry.get_slab_metadata();
+#ifdef SNMALLOC_STATS_FULL
+        // Phase 9.3 -- snapshot bytes_returned so we can compute
+        // the delta contributed by this message and decrement the
+        // per-size-class live counters on this (owning) thread.
+        // Pairs with the `cumulative_dealloc` bump that the freeing
+        // thread made on its own per-thread block: the live
+        // counters now drop on the owning thread, so summing per
+        // class across the pool nets out the cross-thread free.
+        size_t pre_bytes = bytes_returned;
+#endif
+
+#ifdef SNMALLOC_PROFILE
+        /*
+         * H2 heap-profile hook (Phase 3.2).
+         *
+         * This is the remote-ingest fast path on the destination thread:
+         * an object (or, when `DEALLOC_BATCH_RINGS > 0`, a ring of
+         * objects) freed by another thread has been forwarded into this
+         * allocator's message queue, and `dealloc_local_objects_fast`
+         * below is about to splice it back onto the slab's local free
+         * queue.  Once that splice happens the pointer is once again
+         * indistinguishable from a same-thread free, and any per-object
+         * profile state attached to it will be silently reused on the
+         * next allocation -- so we must clear the profile slot here, on
+         * the destination thread, before the splice.
+         *
+         * Idempotence vs. H1:
+         *   - The source thread already called `Allocator::dealloc(p)`
+         *     for each `p` going through `free()`, which fires H1 and
+         *     clears the slot.  Hitting H2 a second time is safe: the
+         *     CAS inside `clear_profile_slot` short-circuits on a null
+         *     slot (see profile/record.h step 3).  The per-thread
+         *     ReentrancyGuard inside `record_dealloc` additionally
+         *     prevents transitive re-entry.
+         *
+         * Granularity:
+         *   - We hook the head of the ring (`msg`).  When
+         *     `DEALLOC_BATCH_RINGS == 0` (the SingletonRemoteMessage
+         *     build), each `handle_dealloc_remote` call carries exactly
+         *     one object and this catches it precisely.  When batched
+         *     rings are enabled, interior nodes have already passed
+         *     through H1 on the source thread; the hook's CAS keeps
+         *     the design correct even in the contrived case where a
+         *     pointer reaches H2 without ever having seen H1.
+         *
+         * Compiles to a no-op for configurations without a
+         * profile-enabled ClientMetaDataProvider.
+         */
+        profile::record_dealloc<Config>(msg.unsafe_ptr());
+#endif
 
         auto unreturned = dealloc_local_objects_fast(
           msg, entry, meta, entropy, domesticate, bytes_returned);
+
+#ifdef SNMALLOC_STATS_FULL
+        // Phase 9.3 -- receive-side live decrement.  The delta of
+        // `bytes_returned` is `objsize * length`; recovering
+        // `length` via division avoids reaching into
+        // `dealloc_local_objects_fast` (which is a static helper
+        // shared with the in-thread destroy path in `flush`).  Only
+        // small sizeclasses contribute to the histogram.
+        if (entry.get_sizeclass().is_small())
+        {
+          smallsizeclass_t sc = entry.get_sizeclass().as_small();
+          size_t objsize = sizeclass_full_to_size(entry.get_sizeclass());
+          size_t delta_bytes = bytes_returned - pre_bytes;
+          size_t length = delta_bytes / objsize;
+          sc_stats.live_count[sc] -= length;
+          sc_stats.live_bytes[sc] -= delta_bytes;
+        }
+#endif
 
         /*
          * dealloc_local_objects_fast has updated the free list but not updated
@@ -646,6 +1109,33 @@ namespace snmalloc
       auto* fl = &small_fast_free_lists[sizeclass];
       if (SNMALLOC_LIKELY(!fl->empty()))
       {
+#ifdef SNMALLOC_STATS_FULL
+        // Phase 9.3 -- per-size-class histogram.  The sizeclass is
+        // already in a register here.
+        //
+        // Phase 11.5 -- `cumulative_alloc[sizeclass]++` was removed
+        // from this site; it is derived at snapshot time from
+        // `live_count + cumulative_dealloc` (see SizeClassStats
+        // doc-comment).  The two remaining bumps are adjacent
+        // non-atomic stores to the cache-line-aligned `sc_stats`
+        // block.  `sizeclass_to_size` is a constexpr table lookup.
+        //
+        // Phase 11.6 -- gated to SNMALLOC_STATS_FULL because the
+        // two per-class stores were measured as the dominant
+        // floor for the 1.16 small_allocs regression in 11.5.
+        sc_stats.live_count[sizeclass]++;
+        sc_stats.live_bytes[sizeclass] += sizeclass_to_size(sizeclass);
+#endif
+        // Phase 11.8 -- `++stats.fast_path_allocs` was removed from
+        // this site.  The counter is now pre-credited in batch at
+        // `small_refill`/`small_refill_slow` time by the number of
+        // objects transferred into `fast_free_list`.  This removes
+        // the per-alloc store from the hot path and brings the
+        // SNMALLOC_STATS_BASIC small_allocs overhead under the
+        // strict <=1.02 spec target.  The counter may briefly read
+        // ahead of real consumption, bounded by the slab object
+        // count (at most ~256), which is acceptable for
+        // observability.
         auto p = fl->take(key, domesticate);
         return finish_alloc<Conts>(p, size);
       }
@@ -767,6 +1257,12 @@ namespace snmalloc
       freelist::Iter<>& fast_free_list,
       size_t size) noexcept(noexcept(Conts::failure(0)))
     {
+      // Phase 11.12 -- the slow-path bump that was here
+      // (`stats.slow_path_allocs++`) is now packed into the single
+      // combined-counter store below at the
+      // `fast_path_allocs += refill_count` / refill-credit site.
+      // That collapses two separate counter stores into one packed
+      // `+=` on the small-alloc refill path.
       void* result = Config::SecondaryAllocator::allocate(
         [size]() -> stl::Pair<size_t, size_t> {
           return {size, natural_alignment(size)};
@@ -813,8 +1309,14 @@ namespace snmalloc
           [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
             return capptr_domesticate<Config>(backend_state_ptr(), p);
           };
+        uint16_t refill_count = 0;
         auto [p, still_active] = BackendSlabMetadata::alloc_free_list(
-          domesticate, meta, fast_free_list, entropy, sizeclass);
+          domesticate,
+          meta,
+          fast_free_list,
+          entropy,
+          sizeclass,
+          refill_count);
 
         if (still_active)
         {
@@ -826,6 +1328,60 @@ namespace snmalloc
           laden.insert(meta);
         }
 
+#ifdef SNMALLOC_STATS_BASIC
+        // Phase 11.12 -- ONE packed store updates both lanes of
+        // `packed_allocs`:
+        //   - low 48 bits: += `refill_count` (cumulative-alloc total;
+        //     includes `p`, the object returned to the caller, per
+        //     the `alloc_free_list` contract documented in
+        //     metadata.h).
+        //   - high 16 bits: += 1 (slow-path call count -- the bump
+        //     that used to live at `small_refill` entry as
+        //     `++slow_path_allocs`).
+        // The two lanes occupy disjoint bit ranges so the packed
+        // `+=` is correct as long as neither lane overflows its
+        // sub-field width (the 16-bit slow lane saturates at 65535
+        // refills, ~16M allocs, well outside any realistic workload).
+        //
+        // This collapses what was previously TWO independent
+        // load-modify-store sequences (`slow_path_allocs++` at the
+        // top + `fast_path_allocs += refill_count` here) into ONE,
+        // shrinking the medium-alloc refill hot path -- the residual
+        // BASIC overhead Phase 11.11 disassembly identified.
+        stats.packed_allocs +=
+          static_cast<uint64_t>(refill_count) +
+          FrontendStats::PACKED_ALLOCS_SLOW_INC;
+        // Phase 11.9 -- batched fast-path dealloc pre-credit.  Each
+        // object pre-credited to `fast_path_allocs` here is expected
+        // to be freed (the steady-state invariant is balanced
+        // alloc/free), so pre-credit `fast_path_deallocs` at the
+        // same site and drop the per-dealloc store on the dealloc
+        // hot path.  Same overshoot bound as the alloc-side credit
+        // (at most one slab's worth of objects in flight).  For
+        // cross-thread frees the per-object cost lands in
+        // `remote_deallocs` -- this counter overshoots by the
+        // count of objects that this thread granted but were freed
+        // by another thread; that drift is bounded and acceptable
+        // for an observability surface.  Test
+        // `fast_path_dealloc_counter_grows` is the same-thread
+        // case so the >= assertion still holds (the credit is
+        // applied at alloc time, ahead of the matched frees).
+        stats.fast_path_deallocs += refill_count;
+#  ifdef SNMALLOC_STATS_FULL
+        // Phase 9.3 -- slow-path-from-stash alloc bump.  We have
+        // taken one object from the freshly-popped slab's freelist;
+        // any remaining objects on `fast_free_list` will be
+        // accounted for by the fast-path bump on subsequent
+        // `small_alloc` calls.  Counted alongside
+        // `stats.slow_path_allocs` which already fired at the top
+        // of `small_refill`.
+        //
+        // Phase 11.5 -- `cumulative_alloc` is derived at snapshot
+        // time, so only the live counters are bumped here.
+        sc_stats.live_count[sizeclass]++;
+        sc_stats.live_bytes[sizeclass] += sizeclass_to_size(sizeclass);
+#  endif
+#endif
         auto r = finish_alloc<Conts>(p, size);
         return ticker.check_tick(r);
       }
@@ -874,8 +1430,14 @@ namespace snmalloc
             [this](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
               return capptr_domesticate<Config>(backend_state_ptr(), p);
             };
+          uint16_t refill_count = 0;
           auto [p, still_active] = BackendSlabMetadata::alloc_free_list(
-            domesticate, meta, fast_free_list, entropy, sizeclass);
+            domesticate,
+            meta,
+            fast_free_list,
+            entropy,
+            sizeclass,
+            refill_count);
 
           if (still_active)
           {
@@ -887,6 +1449,34 @@ namespace snmalloc
             laden.insert(meta);
           }
 
+#ifdef SNMALLOC_STATS_BASIC
+          // Phase 11.12 -- ONE packed store updates both lanes of
+          // `packed_allocs` at this refill site (see matching note
+          // in `small_refill`).  For a freshly-built slab the
+          // refill_count credit is exact: the builder was populated
+          // with `slab_object_count` objects by `alloc_new_list`,
+          // of which `slab_object_count - remaining` were
+          // transferred to `fast_free_list`.  The +1 in the high
+          // lane records this slow-path call.
+          stats.packed_allocs +=
+            static_cast<uint64_t>(refill_count) +
+            FrontendStats::PACKED_ALLOCS_SLOW_INC;
+          // Phase 11.9 -- symmetric batched dealloc pre-credit
+          // (see matching note in `small_refill`).
+          stats.fast_path_deallocs += refill_count;
+#  ifdef SNMALLOC_STATS_FULL
+          // Phase 9.3 -- slow-path-from-backend alloc bump.  This
+          // path has just brought in a fresh slab from the backend
+          // and taken the first object from it; the remaining
+          // objects sit on `fast_free_list` and will be accounted
+          // for by the fast-path bump on subsequent calls.
+          //
+          // Phase 11.5 -- `cumulative_alloc` is derived at snapshot
+          // time, so only the live counters are bumped here.
+          sc_stats.live_count[sizeclass]++;
+          sc_stats.live_bytes[sizeclass] += sizeclass_to_size(sizeclass);
+#  endif
+#endif
           auto r = finish_alloc<Conts>(p, size);
           return ticker.check_tick(r);
         },
@@ -1024,6 +1614,41 @@ namespace snmalloc
     template<typename CheckInit = CheckInitNoOp>
     SNMALLOC_FAST_PATH void dealloc(void* p_raw) noexcept
     {
+#ifdef SNMALLOC_PROFILE
+      /*
+       * H1 heap-profile hook (Phase 3.1).
+       *
+       * This is the waist of the dealloc API: every public free entry
+       * point (free, ::operator delete, jemalloc-compat, Rust shims, ...)
+       * funnels through here.  The hook clears the per-object profile
+       * slot, removes the SampledAlloc from the live list, and returns
+       * the node to the pool.
+       *
+       * Runs BEFORE the existing dealloc logic so that:
+       *   - profile-side cleanup observes the pointer in its still-live
+       *     state (sizeclass / slab metadata still valid in the pagemap),
+       *   - any subsequent profile-internal dealloc -- e.g. one triggered
+       *     by SampledList unlink walking metadata -- is short-circuited
+       *     by the per-thread ReentrancyGuard inside record_dealloc.
+       *
+       * Bundle tweak 3 (ticket 86aj0jfwh): the slab-metadata probe +
+       * atomic-slot peek that handles the overwhelmingly common "this
+       * object was never sampled" case is split out into
+       * `record_dealloc_peek`, which is force-inlined.  When the peek
+       * returns true (slot null or backing not installed) we skip the
+       * full hook entirely -- no function-call frame is created on the
+       * common path.  Only the rare case where a non-null slot is
+       * observed pays the call into `record_dealloc`.
+       *
+       * Compiles to a no-op for configurations without a profile-enabled
+       * ClientMetaDataProvider; see profile/record.h.
+       */
+      if (!profile::record_dealloc_peek<Config>(p_raw))
+      {
+        profile::record_dealloc<Config>(p_raw);
+      }
+#endif
+
 #ifdef __CHERI_PURE_CAPABILITY__
       /*
        * On CHERI platforms, snap the provided pointer to its base, ignoring
@@ -1061,11 +1686,68 @@ namespace snmalloc
        */
       if (SNMALLOC_LIKELY(public_state() == entry.get_remote()))
       {
+#ifdef SNMALLOC_STATS_BASIC
+        // Phase 11.9 -- the per-dealloc `fast_path_deallocs++`
+        // bump that previously lived here has moved to the slab
+        // refill sites in `small_refill` / `small_refill_slow`,
+        // where every object that is granted onto the fast free
+        // list is pre-credited as a future fast-path dealloc.
+        // Removing the store from the dealloc hot path is the
+        // remaining lever for closing the BASIC-tier overhead gap
+        // on the `mixed` and `medium_allocs` groups (see
+        // docs/heap-profiling-benchmarks.md, Phase 11.9).
+#  ifdef SNMALLOC_STATS_FULL
+        // Phase 9.3 -- per-size-class dealloc on the owning
+        // thread.  Both cumulative and live counters are bumped /
+        // decremented here because the alloc was also recorded on
+        // this same per-thread block (the owner case).  Large
+        // allocations have `is_small_sizeclass() == false` -- skip
+        // those (the small histogram only covers
+        // `NUM_SMALL_SIZECLASSES`).
+        if (entry.get_sizeclass().is_small())
+        {
+          smallsizeclass_t sc = entry.get_sizeclass().as_small();
+          sc_stats.cumulative_dealloc[sc]++;
+          // `live_count` / `live_bytes` cannot underflow because
+          // every local-fast-path dealloc pairs with a prior alloc
+          // on this same per-thread block.  Cross-thread frees that
+          // arrive via the message queue are handled in
+          // `handle_dealloc_remote` below.
+          sc_stats.live_count[sc]--;
+          sc_stats.live_bytes[sc] -= sizeclass_to_size(sc);
+        }
+#  endif
+#endif
         dealloc_cheri_checks(p_tame.unsafe_ptr());
         dealloc_local_object(p_tame, entry);
         return;
       }
 
+#ifdef SNMALLOC_STATS_BASIC
+      // Phase 9.2 -- remote dealloc counter.  Bumped on the
+      // cross-allocator branch (pagemap says some other allocator
+      // owns the pointer's slab, so this thread routes it through
+      // its `remote_dealloc_cache`).  Counted on the producer side
+      // (the freeing thread); the consumer-side counterpart is
+      // `cross_thread_messages_received` below.
+      stats.remote_deallocs++;
+#  ifdef SNMALLOC_STATS_FULL
+      // Phase 9.3 -- per-size-class cumulative_dealloc on the
+      // freeing thread.  We bump `cumulative_dealloc` here so the
+      // process-wide "how many frees have happened for this class"
+      // metric stays accurate even when the freeing thread is not
+      // the owning thread.  The live_count / live_bytes
+      // decrement is paired up later when the destination thread
+      // ingests the message in `handle_dealloc_remote`, which
+      // brings the per-class stats back to zero net across the
+      // pool.  Large allocations are skipped (no small-class
+      // slot).
+      if (entry.get_sizeclass().is_small())
+      {
+        sc_stats.cumulative_dealloc[entry.get_sizeclass().as_small()]++;
+      }
+#  endif
+#endif
       dealloc_remote<CheckInit>(entry, p_tame);
     }
 
@@ -1346,6 +2028,38 @@ namespace snmalloc
       }
 
       dealloc_cheri_checks(p_tame.unsafe_ptr());
+#ifdef SNMALLOC_PROFILE
+      /*
+       * H3 heap-profile hook (Phase 3.4).
+       *
+       * This is the SecondaryAllocator escape hatch: a pointer arrived
+       * at `dealloc_remote` whose pagemap entry reports !is_owned() and
+       * is non-null.  Such pointers were not allocated by an snmalloc
+       * front-end -- they are GWP-ASan guard pages, a sandboxed
+       * SecondaryAllocator's pool, or other non-snmalloc memory that
+       * snmalloc is being asked to free on behalf of the platform.
+       *
+       * Because they do not own a pagemap entry tied to snmalloc
+       * metadata, they cannot possibly have a profile slot.  But the
+       * H1 hook (in `Allocator::dealloc`) already fired
+       * `record_dealloc` on this same pointer above; calling it again
+       * here is therefore both correct and necessary:
+       *
+       *   - Correct: idempotence is guaranteed by the CAS in
+       *     `clear_profile_slot` (returns null on the second call) and
+       *     by the per-thread ReentrancyGuard inside `record_dealloc`.
+       *   - Necessary: only as a defensive belt-and-braces.  If a
+       *     future code path ever reaches H3 *without* having traversed
+       *     H1 (e.g. an internal forwarding from a different free
+       *     surface), this site still drains the slot.  Today it is a
+       *     no-op for any pointer that already went through H1, which
+       *     is the universal case.
+       *
+       * Compiles to a no-op for configurations without a profile-
+       * enabled ClientMetaDataProvider; see profile/record.h.
+       */
+      profile::record_dealloc<Config>(p_tame.unsafe_ptr());
+#endif
       Config::SecondaryAllocator::deallocate(p_tame.unsafe_ptr());
     }
 
@@ -1377,6 +2091,39 @@ namespace snmalloc
           post();
         },
         [](Allocator* a, void* p) SNMALLOC_FAST_PATH_LAMBDA {
+#ifdef SNMALLOC_PROFILE
+          /*
+           * H4 heap-profile hook (Phase 3.4).
+           *
+           * This is the lazy-init recursion arm of `dealloc_remote_slow`:
+           * `check_init` had to acquire an allocator before the free
+           * could proceed, and the acquired allocator may turn out to
+           * be the originating allocator -- so the design re-enters
+           * `Allocator::dealloc(p)` from the very top.  That re-entry
+           * will fire H1 again on the same pointer.
+           *
+           * H4 sits *just before* that recursive `a->dealloc(p)` for
+           * two reasons:
+           *
+           *   1. Recursion-guard pair with H1.  By recording here, we
+           *      guarantee the profile slot is drained on this stack
+           *      frame even in the (purely hypothetical) future case
+           *      where the recursive `a->dealloc` is replaced by a
+           *      direct slab-local path that bypasses the H1 entry.
+           *
+           *   2. Idempotence is free.  The CAS inside
+           *      `clear_profile_slot` (see profile/record.h step 3)
+           *      makes the first H1 call the only one that observes
+           *      the live slot; H4 (and the subsequent recursive H1)
+           *      are guaranteed to be no-ops.  The ReentrancyGuard
+           *      further short-circuits the recursion at the
+           *      `record_dealloc` entry.
+           *
+           * Compiles to a no-op for configurations without a
+           * profile-enabled ClientMetaDataProvider.
+           */
+          profile::record_dealloc<Config>(p);
+#endif
           // Recheck what kind of dealloc we should do in case the allocator
           // we get from lazy_init is the originating allocator.
           a->dealloc(p); // TODO don't double count statistics
@@ -1465,6 +2212,37 @@ namespace snmalloc
 
       return posted;
     }
+
+#ifdef SNMALLOC_STATS_BASIC
+   public:
+    // Phase 9.2 -- drain per-thread counters into the process-global
+    // aggregator and zero the local block.  Called from
+    // `ThreadAlloc::teardown` *after* the per-thread allocator is
+    // about to be released back to `AllocPool`, so the next thread
+    // that acquires this allocator starts from a clean slate.  We
+    // deliberately do NOT drain on every `flush()`: `flush()` is
+    // also invoked operationally (e.g. by `debug_is_empty` or by
+    // user code) on live threads, and draining there would erase
+    // an allocator's counters mid-lifetime.  Counters published
+    // here remain visible via `snmalloc_get_full_stats` because
+    // the FullAllocStats getter sums the live pool walk and the
+    // global drain pot.
+    void drain_stats_to_global() noexcept
+    {
+      frontend_stats_global().drain_from(stats);
+      stats = FrontendStats{};
+#  ifdef SNMALLOC_STATS_FULL
+      // Phase 9.3 -- drain per-class histogram into the
+      // process-global aggregator.  Symmetric to the FrontendStats
+      // drain above: pool-reuse semantics mean a different thread
+      // may pick up this allocator next, so its sc_stats block
+      // must start from zero.  The drained counters live on
+      // through `size_class_stats_global()`.
+      size_class_stats_global().drain_from(sc_stats);
+      sc_stats = SizeClassStats{};
+#  endif
+    }
+#endif
 
     /**
      * If result parameter is non-null, then false is assigned into the

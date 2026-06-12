@@ -36,6 +36,7 @@
 #endif
 #include "pal_noalloc.h"
 #include "pal_plain.h"
+#include "pal_stack_walker.h"
 
 namespace snmalloc
 {

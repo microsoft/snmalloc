@@ -17,6 +17,12 @@ include = [
     "upstream/CMakeLists.txt",
     "upstream/src/**",
     "upstream/fuzzing/**",
+    # Phase 11.2: vendor scripts/dump_branch_hints.py so the published
+    # snmalloc-sys tarball can regenerate the branch-hints JSON sidecar
+    # consumed by snmalloc-tools (Phase 10.4). Without this entry the
+    # script lives only at the upstream repo root and is stripped from the
+    # crate package.
+    "upstream/scripts/**",
 ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -38,7 +44,29 @@ usecxx17 = []
 check = []
 lto = []
 notls = []
-stats = []
+## Phase 11.6 (ticket 86aj0ydjv) -- tiered allocator stats.
+#
+# Three knobs exposed via Cargo features map to the corresponding
+# CMake options (see snmalloc-sys/build.rs):
+#
+#   * `stats-basic` -- enable the BASIC tier (frontend fast/slow path
+#                      counters + backend commit/decommit accounting +
+#                      largebuddy free-chunk histogram).  Target
+#                      <= 2% overhead vs OFF on the small/medium/
+#                      mixed bench groups.  Maps to
+#                      `-DSNMALLOC_STATS_BASIC=ON`.
+#   * `stats-full`  -- enable the FULL tier (BASIC + per-size-class
+#                      histogram + lifetime histogram).  Target
+#                      <= 20% overhead.  Maps to
+#                      `-DSNMALLOC_STATS_FULL=ON` which, in the
+#                      CMake layer, implicitly also enables BASIC.
+#   * `stats`       -- backwards-compatible alias for `stats-basic`.
+#                      Pre-existing consumers using
+#                      `features = ["stats"]` continue to compile
+#                      and link unchanged.
+stats = ["stats-basic"]
+stats-basic = []
+stats-full = ["stats-basic"]
 usewait-on-address = []
 libc-api = []
 tracing = []
@@ -47,3 +75,18 @@ vendored-stl = []
 check-loads = []
 pageid = []
 gwp-asan = []
+profiling = []
+
+# Fat LTO + a single codegen unit.  This crate publishes the `.rlib`
+# that links the C++ snmalloc thunks into the consumer; LTO settings
+# must be present here as well as in `snmalloc-rs/Cargo.toml` for
+# rustc's cross-crate LTO pass to actually inline through the
+# `extern "C"` FFI surface.  See `docs/heap-profiling-benchmarks.md`
+# ("LTO" subsection) for the bench delta.  Ticket: ClickUp 86aj0jfz1.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+
+[profile.bench]
+lto = "fat"
+codegen-units = 1
