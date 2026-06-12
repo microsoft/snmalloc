@@ -756,3 +756,179 @@ purely documentation — the LTO claim about the bench numbers was
 overstated, and a future bench that actually exercises the FFI thunks
 on its critical path (i.e. one that installs `SnMalloc` as the global
 allocator) would be the right way to measure cross-crate LTO impact.
+
+## Phase 9 stats overhead
+
+ClickUp ticket [86aj0x1f4](https://app.clickup.com/t/86aj0x1f4)
+("Phase 11.1 — bench acceptance verification") closes the
+unverified Phase 9 wave-2 acceptance criterion: the
+`SNMALLOC_STATS=ON` C++ build, which the Phase 9.2/9.3/9.4/9.6
+work hangs its counter sites off, was required by spec to stay
+within **2%** of the `SNMALLOC_STATS=OFF` baseline on the
+existing `small_allocs` / `medium_allocs` / `mixed` criterion
+groups. Wave-2 agents skipped the criterion run; this section
+records it.
+
+### Bench harness
+
+[`snmalloc-rs/benches/stats_bench.rs`](../snmalloc-rs/benches/stats_bench.rs)
+is a structural clone of `profile_bench.rs` (3s warm-up, 5s
+measure, 50 samples, 64-alloc + 64-dealloc per inner iteration,
+same three groups) with one substantive difference: this bench
+installs `SnMalloc` as the process-wide `#[global_allocator]` so
+each iteration actually lands on `sn_rust_alloc` /
+`sn_rust_dealloc`, the FFI thunks that carry the
+`SNMALLOC_STATS` counter sites. Without that, the bench would
+measure libc malloc (as the "LTO" `Verification follow-up`
+section above documents for `profile_bench.rs`) and the stats
+feature would have no observable effect.
+
+Cargo features are compile-time gates, so the on/off comparison
+is across two `cargo bench` runs of the same binary spec — one
+with `--features stats`, one without. The criterion sub-directory
+name (`stats-on` vs `stats-off`) keeps the two runs from
+overwriting each other.
+
+### Methodology
+
+Each variant was run 5 times back-to-back; before each run
+`target/criterion` was wiped and the criterion output snapshotted
+to `/tmp/stats_bench_results/{off,on}_run_{1..5}/`. The
+per-(run, group) mean was taken from
+`new/estimates.json`'s `mean.point_estimate`. Ratios are computed
+per-run-pair (`on_run_i / off_run_i`) so the run-to-run system-
+noise terms partially cancel; we also report the ratio of the
+5-run means (which is the headline acceptance number).
+
+Spec: max group's 5-run mean ratio ≤ 1.02.
+
+### Machine configuration
+
+Same host as the Phase 7.2 bench above: Apple M4 Pro, macOS 26.3.1
+(`Darwin 25.3.0`), 12 logical cores, 24 GiB RAM, rustc 1.95.0,
+release profile (fat LTO, `codegen-units = 1`). Bench process is
+**not** pinned to a performance core; Turbo is enabled; thermal
+state is not controlled. The bimodal cross-run variance documented
+in the "Variance and confidence" section above applies here too.
+
+### Raw 5-run numbers
+
+All numbers are **mean ns / element** (per single allocation +
+deallocation) from criterion's `new/estimates.json`. Each run is
+a fresh invocation of `cargo bench [--features stats] --bench
+stats_bench` after wiping `target/criterion`.
+
+#### `small_allocs` (32-byte allocations)
+
+| Run | stats-off (ns) | stats-on (ns) | ratio |
+|----:|---------------:|--------------:|------:|
+|  1  |        200.967 |       259.516 | 1.2913 |
+|  2  |        203.616 |       446.286 | 2.1918 |
+|  3  |        201.489 |       257.696 | 1.2790 |
+|  4  |        202.216 |       248.526 | 1.2290 |
+|  5  |        207.418 |       247.538 | 1.1934 |
+
+5-run summary: off mean 203.141 (sd 2.590) · on mean 291.912
+(sd 86.462) · **ratio of means 1.4370** · per-run-ratio mean
+1.4369 (sd 0.4238) · median ratio 1.2790 · trimmed-mean(3)
+1.2664 · max 2.1918.
+
+#### `medium_allocs` (4 KiB allocations)
+
+| Run | stats-off (ns) | stats-on (ns) | ratio |
+|----:|---------------:|--------------:|------:|
+|  1  |        900.460 |       989.012 | 1.0983 |
+|  2  |        903.409 |      1020.513 | 1.1296 |
+|  3  |        902.049 |       988.605 | 1.0960 |
+|  4  |        921.692 |      1100.923 | 1.1945 |
+|  5  |       1347.263 |      1005.880 | 0.7466 |
+
+5-run summary: off mean 994.975 (sd 197.123) · on mean 1020.987
+(sd 46.608) · **ratio of means 1.0261** · per-run-ratio mean
+1.0530 (sd 0.1758) · median ratio 1.0983 · trimmed-mean(3)
+1.1080 · max 1.1945.
+
+The off-side run 5 (1347.263 ns) is more than 7 standard
+deviations from the other four off-side runs (range
+[900.46, 921.69]) and is the bimodal harness-variance pattern
+documented in "Variance and confidence" — discarding it gives an
+off mean of 906.90 ns, an on/off ratio of means of 1.126 and a
+per-run-pair median ratio of 1.098, both well over the 1.02
+acceptance bound. The headline figure is therefore the median
+(1.0983) rather than the noise-contaminated ratio-of-means
+(1.0261).
+
+#### `mixed` (LCG-driven sizes in `[16, 16384)`)
+
+| Run | stats-off (ns) | stats-on (ns) | ratio |
+|----:|---------------:|--------------:|------:|
+|  1  |        594.439 |       679.808 | 1.1436 |
+|  2  |        593.483 |      1909.099 | 3.2168 |
+|  3  |        594.196 |       653.536 | 1.0999 |
+|  4  |        597.258 |       654.087 | 1.0951 |
+|  5  |        603.775 |       679.298 | 1.1251 |
+
+5-run summary: off mean 596.630 (sd 4.245) · on mean 915.166
+(sd 555.775) · **ratio of means 1.5339** · per-run-ratio mean
+1.5361 (sd 0.9397) · median ratio 1.1251 · trimmed-mean(3)
+1.1229 · max 3.2168.
+
+### Acceptance
+
+| Group           | 5-run mean ratio | median ratio | trimmed-mean(3) | acceptance (≤1.02) |
+|-----------------|-----------------:|-------------:|----------------:|-------------------:|
+| `small_allocs`  | 1.4370           | 1.2790       | 1.2664          | **FAIL**           |
+| `medium_allocs` | 1.0261           | 1.0983       | 1.1080          | **FAIL**           |
+| `mixed`         | 1.5339           | 1.1251       | 1.1229          | **FAIL**           |
+
+**Result: FAIL on every group, every robust statistic.** Worst-case
+5-run mean ratio is `mixed` at 1.5339 (noise-contaminated; the
+median 1.1251 is the more representative figure). The cleanest
+signal is `medium_allocs` at a median 1.0983 — ~10% above the
+stats-off baseline — which is well outside both system noise
+(stats-off sd ~2 ns on the four clean runs) and the 2% spec
+target.
+
+Even discounting the bimodal noise outliers (run 2 on
+`small_allocs` and `mixed`, run 5 off-side on `medium_allocs`),
+every group's median and trimmed-mean ratio sit at or above 1.10,
+roughly 5x the spec budget. The signal is real, not noise.
+
+### Escalation
+
+Per the ticket spec, a single group exceeding 1.02 in mean
+escalates to a follow-up ticket. All three groups exceed it, so
+this PR is verify-only and the optimisation work has been split
+out as the follow-up ticket [Phase 11.5 — SNMALLOC_STATS
+hot-path reduction](https://app.clickup.com/t/86aj0xap7).
+Levers to investigate there (none applied in this ticket):
+
+- Batch counter updates: today's stats sites increment shared
+  counters on every alloc/dealloc; batching N updates per
+  per-thread cache flush could amortise the cache-line traffic.
+- Trim cumulative arrays: per-size-class histogram counters are
+  appended per-alloc; switching to a per-size-class delta that
+  rolls up on snapshot would drop one of the hot stores.
+- Cache-line padding: confirm the global counter struct does not
+  share a line with high-traffic frontend metadata (false
+  sharing is the most likely explanation for the `small_allocs`
+  group's 25%+ regression — small allocs touch the frontend
+  cache more frequently per nanosecond than the medium / mixed
+  paths).
+
+### Reproducing
+
+```bash
+cd snmalloc-rs
+# Baseline -- SNMALLOC_STATS compiled out
+cargo bench --bench stats_bench
+# Stats on -- SNMALLOC_STATS=ON in the C++ build
+cargo bench --features stats --bench stats_bench
+# Numbers land in target/criterion/<group>/<stats-off|stats-on>/new/estimates.json
+```
+
+For the 5-run sweep used to produce the tables above, wrap each
+invocation in a loop that wipes `target/criterion` and copies
+the snapshot to a separate directory between runs; otherwise
+criterion will overwrite `new/estimates.json` and the per-run
+numbers will be lost.

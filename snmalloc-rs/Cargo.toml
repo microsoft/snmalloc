@@ -52,6 +52,16 @@ criterion = { version = "0.5", default-features = false }
 name = "profile_bench"
 harness = false
 
+# Phase 11.1 SNMALLOC_STATS=ON acceptance bench.  Installs SnMalloc as
+# `#[global_allocator]` so the FFI thunks (which carry the stats
+# counter sites) are actually exercised.  Run twice: once without
+# `--features stats` to capture the baseline, once with it to capture
+# the stats-on numbers; the ratio is the acceptance metric.  See the
+# bench file's module-level doc-comment for details.
+[[bench]]
+name = "stats_bench"
+harness = false
+
 [features]
 default = ["snmalloc-sys/build_cmake", "snmalloc-sys/usewait-on-address"]
 build_cc = ["snmalloc-sys/build_cc"]
