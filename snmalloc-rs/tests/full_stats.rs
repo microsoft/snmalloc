@@ -27,13 +27,9 @@ use std::alloc::{GlobalAlloc, Layout};
 /// is zero.  Keeping this check in one place makes it obvious which
 /// fields are deliberately left for wave-2 tickets to populate.
 fn assert_all_unimplemented_fields_are_zero(s: &FullAllocStats) {
-    // Phase 9.4 -- mapping accounting.
-    assert_eq!(s.bytes_mapped, 0, "9.4: bytes_mapped not yet wired");
-    assert_eq!(s.bytes_committed, 0, "9.4: bytes_committed not yet wired");
-    assert_eq!(
-        s.bytes_decommitted_to_os, 0,
-        "9.4: bytes_decommitted_to_os not yet wired"
-    );
+    // Phase 9.4 fields are now wired and asserted positively below in
+    // the dedicated test; they are intentionally NOT checked for zero
+    // here.
 
     // Phase 9.2 -- hot-path counters.
     assert_eq!(s.fast_path_allocs, 0, "9.2: fast_path_allocs not yet wired");
@@ -131,6 +127,63 @@ fn full_stats_bytes_in_use_grows_with_live_allocation() {
 
     // Release the buffer back to the allocator.
     unsafe { alloc.dealloc(ptr, layout) };
+}
+
+#[test]
+fn full_stats_backend_frag_invariants() {
+    // Phase 9.4 -- `bytes_mapped` / `bytes_committed` /
+    // `bytes_decommitted_to_os` must satisfy the documented
+    // invariants once an allocation has driven traffic through the
+    // CommitRange.
+    let alloc = SnMalloc::new();
+
+    // Push enough memory through the backend that we exercise the
+    // commit path -- a 1 MiB allocation forces the local cache to
+    // refill from the global range, which is where the
+    // `notify_using` hook lives.  Multiple allocations make the
+    // counter non-zero even when the local cache was warm.
+    let layout = Layout::from_size_align(1 << 20, 64).unwrap();
+    let p1 = unsafe { alloc.alloc(layout) };
+    let p2 = unsafe { alloc.alloc(layout) };
+    assert!(!p1.is_null() && !p2.is_null());
+
+    let snap = SnMalloc::full_stats();
+
+    // The cumulative commit counter must be positive after we've
+    // forced at least one parent-range refill.
+    assert!(
+        snap.bytes_committed > 0,
+        "bytes_committed must be > 0 after live allocations; got {}",
+        snap.bytes_committed
+    );
+
+    // Live committed bytes can never exceed live mapped bytes -- the
+    // commit happens on top of an existing mapping.  (`bytes_mapped`
+    // is sourced from `StatsRange::get_current_usage`, which is the
+    // live OS reservation.)
+    assert!(
+        snap.bytes_committed <= snap.bytes_mapped,
+        "bytes_committed ({}) must be <= bytes_mapped ({})",
+        snap.bytes_committed,
+        snap.bytes_mapped
+    );
+
+    unsafe { alloc.dealloc(p1, layout) };
+    unsafe { alloc.dealloc(p2, layout) };
+
+    // After freeing, bytes_committed may or may not have dropped
+    // (depends on whether the local cache decided to release back to
+    // the parent range), but the cumulative decommit counter is
+    // non-decreasing and the version is unchanged.
+    let after = SnMalloc::full_stats();
+    assert!(
+        after.bytes_decommitted_to_os >= snap.bytes_decommitted_to_os,
+        "bytes_decommitted_to_os must be monotone non-decreasing \
+         (snap = {}, after = {})",
+        snap.bytes_decommitted_to_os,
+        after.bytes_decommitted_to_os
+    );
+    assert_eq!(after.version, SNMALLOC_FULL_STATS_VERSION);
 }
 
 #[test]

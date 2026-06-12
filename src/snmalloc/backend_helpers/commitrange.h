@@ -1,6 +1,7 @@
 #pragma once
 #include "../pal/pal.h"
 #include "empty_range.h"
+#include "fragstats.h"
 #include "range_helpers.h"
 
 namespace snmalloc
@@ -44,6 +45,11 @@ namespace snmalloc
             parent.dealloc_range(range, size);
             return CapPtr<void, ChunkBounds>(nullptr);
           }
+
+          // Phase 9.4 -- record successful commit for FullAllocStats.
+          // Skipped on the failure path above so the counter only
+          // reflects pages the PAL actually accepted.
+          BackendFragCounters::on_commit(size);
         }
         return range;
       }
@@ -56,6 +62,11 @@ namespace snmalloc
           size,
           PAL::page_size);
         PAL::notify_not_using(base.unsafe_ptr(), size);
+        // Phase 9.4 -- record the decommit for FullAllocStats.  The
+        // PAL hook itself returns void, so we mirror the alloc-side
+        // semantics: every dealloc that reaches here is treated as a
+        // successful release back to the OS.
+        BackendFragCounters::on_decommit(size);
         parent.dealloc_range(base, size);
       }
     };

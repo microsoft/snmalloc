@@ -7,6 +7,7 @@
 #include "commonconfig.h"
 #include "defaultpagemapentry.h"
 #include "empty_range.h"
+#include "fragstats.h"
 #include "globalrange.h"
 #include "indirectrange.h"
 #include "largebuddyrange.h"

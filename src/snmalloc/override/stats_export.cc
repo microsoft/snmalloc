@@ -39,4 +39,19 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
     static_cast<uint64_t>(Alloc::Config::Backend::get_current_usage());
   out->peak_bytes_in_use =
     static_cast<uint64_t>(Alloc::Config::Backend::get_peak_usage());
+
+  // Phase 9.4 -- backend fragmentation.
+  //
+  // `bytes_mapped` reuses the same `StatsRange` accounting that drives
+  // `bytes_in_use`: snmalloc only ever has live mappings for memory it
+  // also has a backend reservation for, so the two figures are
+  // numerically identical at any instant.  The other two come from
+  // the `BackendFragCounters` pool that `CommitRange<PAL>` writes
+  // through on every `notify_using` / `notify_not_using`.
+  out->bytes_mapped = out->bytes_in_use;
+  {
+    auto frag = snmalloc::get_backend_frag_stats();
+    out->bytes_committed = frag.bytes_committed;
+    out->bytes_decommitted_to_os = frag.bytes_decommitted_to_os;
+  }
 }
