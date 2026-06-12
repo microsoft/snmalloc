@@ -160,6 +160,60 @@ namespace snmalloc
     }
   };
 
+  // Phase 9.3 -- per-size-class histogram (ticket 86aj0tr4p).
+  //
+  // `SizeClassStats` is the on-thread per-small-sizeclass counter
+  // block embedded in every `Allocator` alongside `FrontendStats`.
+  // All four arrays are indexed by `smallsizeclass_t` and mutated
+  // only on the owning thread, so increments compile to plain
+  // memory loads/stores -- no atomic ops on the alloc / dealloc hot
+  // paths.  Cross-thread reads happen via `snmalloc_get_full_stats`,
+  // which walks the allocator pool and additionally sums in the
+  // process-global `size_class_stats_global()` aggregator that
+  // catches counters drained by allocators returned to the pool at
+  // thread teardown.
+  //
+  // Bytes / counts are tracked with int64 deltas so that
+  // cross-thread frees (which on the freeing thread bump
+  // `cumulative_dealloc` but on the OWNING thread are what reduces
+  // live count) net out correctly when summed across the pool.
+  // Specifically: the freeing thread bumps `cumulative_dealloc[sc]`
+  // on its own block; the owning thread's `cumulative_alloc[sc]`
+  // and `live_*[sc]` decrement happens on the same block that
+  // recorded the alloc (the slab-local fast dealloc, or the
+  // message-queue drain path).  See `bump_alloc` / `bump_dealloc`
+  // below.
+  struct SizeClassStats
+  {
+    /// Live byte total per small sizeclass on this thread.  Bumped
+    /// on alloc, decremented on local dealloc / message-queue
+    /// drain.
+    uint64_t live_bytes[NUM_SMALL_SIZECLASSES] = {};
+    /// Live object count per small sizeclass on this thread.
+    uint64_t live_count[NUM_SMALL_SIZECLASSES] = {};
+    /// Cumulative allocations per small sizeclass on this thread
+    /// (monotone -- never decreases).
+    uint64_t cumulative_alloc[NUM_SMALL_SIZECLASSES] = {};
+    /// Cumulative deallocations per small sizeclass on this thread
+    /// (monotone -- never decreases).  Bumped on the freeing thread,
+    /// which may or may not be the owning thread.
+    uint64_t cumulative_dealloc[NUM_SMALL_SIZECLASSES] = {};
+
+    /// Add another snapshot's per-class counters into this one.
+    /// Used by both the FullAllocStats aggregator and the
+    /// thread-exit drain.
+    void accumulate(const SizeClassStats& other) noexcept
+    {
+      for (size_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
+      {
+        live_bytes[i] += other.live_bytes[i];
+        live_count[i] += other.live_count[i];
+        cumulative_alloc[i] += other.cumulative_alloc[i];
+        cumulative_dealloc[i] += other.cumulative_dealloc[i];
+      }
+    }
+  };
+
   /// Per-counter atomic aggregator that collects per-thread stats at
   /// thread teardown.  Threads that have exited no longer appear in
   /// `AllocPool::iterate()`, so without this drain their counters
@@ -214,6 +268,57 @@ namespace snmalloc
   inline FrontendStatsGlobal& frontend_stats_global() noexcept
   {
     static FrontendStatsGlobal g;
+    return g;
+  }
+
+  /// Per-counter atomic aggregator that collects per-thread size-class
+  /// stats at thread teardown.  Symmetric to `FrontendStatsGlobal`: the
+  /// individual array slots use `stl::Atomic` so the producer-side
+  /// `fetch_add` at teardown is safe against the consumer-side read in
+  /// `snmalloc_get_full_stats`; relaxed ordering is sufficient because
+  /// the snapshot is a debugging/observability surface and does not
+  /// participate in any happens-before chain with allocator state.
+  struct SizeClassStatsGlobal
+  {
+    stl::Atomic<uint64_t> live_bytes[NUM_SMALL_SIZECLASSES]{};
+    stl::Atomic<uint64_t> live_count[NUM_SMALL_SIZECLASSES]{};
+    stl::Atomic<uint64_t> cumulative_alloc[NUM_SMALL_SIZECLASSES]{};
+    stl::Atomic<uint64_t> cumulative_dealloc[NUM_SMALL_SIZECLASSES]{};
+
+    void drain_from(const SizeClassStats& s) noexcept
+    {
+      for (size_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
+      {
+        live_bytes[i].fetch_add(
+          s.live_bytes[i], stl::memory_order_relaxed);
+        live_count[i].fetch_add(
+          s.live_count[i], stl::memory_order_relaxed);
+        cumulative_alloc[i].fetch_add(
+          s.cumulative_alloc[i], stl::memory_order_relaxed);
+        cumulative_dealloc[i].fetch_add(
+          s.cumulative_dealloc[i], stl::memory_order_relaxed);
+      }
+    }
+
+    void snapshot_into(SizeClassStats& out) const noexcept
+    {
+      for (size_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
+      {
+        out.live_bytes[i] +=
+          live_bytes[i].load(stl::memory_order_relaxed);
+        out.live_count[i] +=
+          live_count[i].load(stl::memory_order_relaxed);
+        out.cumulative_alloc[i] +=
+          cumulative_alloc[i].load(stl::memory_order_relaxed);
+        out.cumulative_dealloc[i] +=
+          cumulative_dealloc[i].load(stl::memory_order_relaxed);
+      }
+    }
+  };
+
+  inline SizeClassStatsGlobal& size_class_stats_global() noexcept
+  {
+    static SizeClassStatsGlobal g;
     return g;
   }
 #endif // SNMALLOC_STATS
@@ -333,6 +438,13 @@ namespace snmalloc
     // drained by allocators returned to the pool at thread teardown).
    public:
     FrontendStats stats{};
+    // Phase 9.3 -- per-thread per-size-class histogram (ticket
+    // 86aj0tr4p).  Same lifetime / drain semantics as `stats`: the
+    // per-thread block lives inside the `Allocator`, mutated only on
+    // the owning thread, and drained into
+    // `size_class_stats_global()` by `drain_stats_to_global` at
+    // thread teardown.
+    SizeClassStats sc_stats{};
    private:
 #endif
 
@@ -654,6 +766,16 @@ namespace snmalloc
       if (SNMALLOC_LIKELY(entry.get_remote() == public_state()))
       {
         auto meta = entry.get_slab_metadata();
+#ifdef SNMALLOC_STATS
+        // Phase 9.3 -- snapshot bytes_returned so we can compute
+        // the delta contributed by this message and decrement the
+        // per-size-class live counters on this (owning) thread.
+        // Pairs with the `cumulative_dealloc` bump that the freeing
+        // thread made on its own per-thread block: the live
+        // counters now drop on the owning thread, so summing per
+        // class across the pool nets out the cross-thread free.
+        size_t pre_bytes = bytes_returned;
+#endif
 
 #ifdef SNMALLOC_PROFILE
         /*
@@ -697,6 +819,24 @@ namespace snmalloc
 
         auto unreturned = dealloc_local_objects_fast(
           msg, entry, meta, entropy, domesticate, bytes_returned);
+
+#ifdef SNMALLOC_STATS
+        // Phase 9.3 -- receive-side live decrement.  The delta of
+        // `bytes_returned` is `objsize * length`; recovering
+        // `length` via division avoids reaching into
+        // `dealloc_local_objects_fast` (which is a static helper
+        // shared with the in-thread destroy path in `flush`).  Only
+        // small sizeclasses contribute to the histogram.
+        if (entry.get_sizeclass().is_small())
+        {
+          smallsizeclass_t sc = entry.get_sizeclass().as_small();
+          size_t objsize = sizeclass_full_to_size(entry.get_sizeclass());
+          size_t delta_bytes = bytes_returned - pre_bytes;
+          size_t length = delta_bytes / objsize;
+          sc_stats.live_count[sc] -= length;
+          sc_stats.live_bytes[sc] -= delta_bytes;
+        }
+#endif
 
         /*
          * dealloc_local_objects_fast has updated the free list but not updated
@@ -859,6 +999,13 @@ namespace snmalloc
         // Phase 9.2 -- fast-path alloc counter.  Non-atomic write
         // against the per-thread `Allocator::stats`.
         stats.fast_path_allocs++;
+        // Phase 9.3 -- per-size-class histogram.  The sizeclass is
+        // already in a register here, so the bump is three
+        // adjacent non-atomic increments.  `sizeclass_to_size` is
+        // a constexpr table lookup.
+        sc_stats.cumulative_alloc[sizeclass]++;
+        sc_stats.live_count[sizeclass]++;
+        sc_stats.live_bytes[sizeclass] += sizeclass_to_size(sizeclass);
 #endif
         auto p = fl->take(key, domesticate);
         return finish_alloc<Conts>(p, size);
@@ -1049,6 +1196,18 @@ namespace snmalloc
           laden.insert(meta);
         }
 
+#ifdef SNMALLOC_STATS
+        // Phase 9.3 -- slow-path-from-stash alloc bump.  We have
+        // taken one object from the freshly-popped slab's freelist;
+        // any remaining objects on `fast_free_list` will be
+        // accounted for by the fast-path bump on subsequent
+        // `small_alloc` calls.  Counted alongside
+        // `stats.slow_path_allocs` which already fired at the top
+        // of `small_refill`.
+        sc_stats.cumulative_alloc[sizeclass]++;
+        sc_stats.live_count[sizeclass]++;
+        sc_stats.live_bytes[sizeclass] += sizeclass_to_size(sizeclass);
+#endif
         auto r = finish_alloc<Conts>(p, size);
         return ticker.check_tick(r);
       }
@@ -1110,6 +1269,16 @@ namespace snmalloc
             laden.insert(meta);
           }
 
+#ifdef SNMALLOC_STATS
+          // Phase 9.3 -- slow-path-from-backend alloc bump.  This
+          // path has just brought in a fresh slab from the backend
+          // and taken the first object from it; the remaining
+          // objects sit on `fast_free_list` and will be accounted
+          // for by the fast-path bump on subsequent calls.
+          sc_stats.cumulative_alloc[sizeclass]++;
+          sc_stats.live_count[sizeclass]++;
+          sc_stats.live_bytes[sizeclass] += sizeclass_to_size(sizeclass);
+#endif
           auto r = finish_alloc<Conts>(p, size);
           return ticker.check_tick(r);
         },
@@ -1324,6 +1493,25 @@ namespace snmalloc
         // local-owner branch (pagemap says this allocator owns the
         // pointer's slab).
         stats.fast_path_deallocs++;
+        // Phase 9.3 -- per-size-class dealloc on the owning
+        // thread.  Both cumulative and live counters are bumped /
+        // decremented here because the alloc was also recorded on
+        // this same per-thread block (the owner case).  Large
+        // allocations have `is_small_sizeclass() == false` -- skip
+        // those (the small histogram only covers
+        // `NUM_SMALL_SIZECLASSES`).
+        if (entry.get_sizeclass().is_small())
+        {
+          smallsizeclass_t sc = entry.get_sizeclass().as_small();
+          sc_stats.cumulative_dealloc[sc]++;
+          // `live_count` / `live_bytes` cannot underflow because
+          // every local-fast-path dealloc pairs with a prior alloc
+          // on this same per-thread block.  Cross-thread frees that
+          // arrive via the message queue are handled in
+          // `handle_dealloc_remote` below.
+          sc_stats.live_count[sc]--;
+          sc_stats.live_bytes[sc] -= sizeclass_to_size(sc);
+        }
 #endif
         dealloc_cheri_checks(p_tame.unsafe_ptr());
         dealloc_local_object(p_tame, entry);
@@ -1338,6 +1526,20 @@ namespace snmalloc
       // (the freeing thread); the consumer-side counterpart is
       // `cross_thread_messages_received` below.
       stats.remote_deallocs++;
+      // Phase 9.3 -- per-size-class cumulative_dealloc on the
+      // freeing thread.  We bump `cumulative_dealloc` here so the
+      // process-wide "how many frees have happened for this class"
+      // metric stays accurate even when the freeing thread is not
+      // the owning thread.  The live_count / live_bytes
+      // decrement is paired up later when the destination thread
+      // ingests the message in `handle_dealloc_remote`, which
+      // brings the per-class stats back to zero net across the
+      // pool.  Large allocations are skipped (no small-class
+      // slot).
+      if (entry.get_sizeclass().is_small())
+      {
+        sc_stats.cumulative_dealloc[entry.get_sizeclass().as_small()]++;
+      }
 #endif
       dealloc_remote<CheckInit>(entry, p_tame);
     }
@@ -1822,6 +2024,14 @@ namespace snmalloc
     {
       frontend_stats_global().drain_from(stats);
       stats = FrontendStats{};
+      // Phase 9.3 -- drain per-class histogram into the
+      // process-global aggregator.  Symmetric to the FrontendStats
+      // drain above: pool-reuse semantics mean a different thread
+      // may pick up this allocator next, so its sc_stats block
+      // must start from zero.  The drained counters live on
+      // through `size_class_stats_global()`.
+      size_class_stats_global().drain_from(sc_stats);
+      sc_stats = SizeClassStats{};
     }
 #endif
 

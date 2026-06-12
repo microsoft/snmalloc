@@ -28,31 +28,18 @@ use std::alloc::{GlobalAlloc, Layout};
 /// fields are deliberately left for wave-2 tickets to populate.
 ///
 /// Phase 9.2 (ticket 86aj0tr1e) wires the hot-path counters; those
-/// fields are no longer asserted-zero here.  The dedicated
-/// `frontend_stats.rs` test exercises them; this test focuses on
-/// the still-unimplemented wave-2 fields (9.3 / 9.4 / 9.5).
+/// fields are no longer asserted-zero here.  Phase 9.3 (ticket
+/// 86aj0tr4p) wires the per-size-class histogram; the dedicated
+/// `sizeclass_histogram.rs` test exercises that.  This test focuses
+/// on the still-unimplemented wave-2 fields (9.5).
 fn assert_all_unimplemented_fields_are_zero(s: &FullAllocStats) {
     // Phase 9.4 fields are now wired and asserted positively below in
     // the dedicated test; they are intentionally NOT checked for zero
     // here.
 
-    // Phase 9.3 -- per-size-class histograms.
-    assert!(
-        s.total_live_bytes_by_class.iter().all(|&b| b == 0),
-        "9.3: total_live_bytes_by_class not yet wired"
-    );
-    assert!(
-        s.total_live_count_by_class.iter().all(|&c| c == 0),
-        "9.3: total_live_count_by_class not yet wired"
-    );
-    assert!(
-        s.cumulative_alloc_by_class.iter().all(|&c| c == 0),
-        "9.3: cumulative_alloc_by_class not yet wired"
-    );
-    assert!(
-        s.cumulative_dealloc_by_class.iter().all(|&c| c == 0),
-        "9.3: cumulative_dealloc_by_class not yet wired"
-    );
+    // Phase 9.3 fields are now wired and exercised in
+    // `sizeclass_histogram.rs`; they are intentionally NOT checked
+    // for zero here.
 
     // Phase 9.5 -- allocation-lifetime histogram.
     assert!(

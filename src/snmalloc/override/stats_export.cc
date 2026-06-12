@@ -84,6 +84,9 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
 
 #ifdef SNMALLOC_STATS
   // Phase 9.2 -- frontend stats aggregation (ticket 86aj0tr1e).
+  // Phase 9.3 -- per-size-class histogram aggregation (ticket
+  // 86aj0tr4p).  Folded into the same pool walk as 9.2 so we only
+  // pay the iteration cost once.
   //
   // Sum the per-thread `FrontendStats` blocks across every live
   // allocator in the pool, then add the process-global drain
@@ -95,6 +98,7 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
   // contributions are exact.
   {
     FrontendStats agg{};
+    SizeClassStats sc_agg{};
     using AllocT = Allocator<Alloc::Config>;
     for (AllocT* a = AllocPool<Alloc::Config>::iterate(); a != nullptr;
          a = AllocPool<Alloc::Config>::iterate(a))
@@ -105,8 +109,10 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
       // loads are atomic at the hardware level.  Either way the
       // snapshot is best-effort; alignment is to the consumer.
       agg.accumulate(a->stats);
+      sc_agg.accumulate(a->sc_stats);
     }
     frontend_stats_global().snapshot_into(agg);
+    size_class_stats_global().snapshot_into(sc_agg);
 
     out->fast_path_allocs = agg.fast_path_allocs;
     out->slow_path_allocs = agg.slow_path_allocs;
@@ -115,6 +121,25 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
     out->message_queue_drains = agg.message_queue_drains;
     out->cross_thread_messages_received =
       agg.cross_thread_messages_received;
+
+    // Phase 9.3 -- copy the per-class arrays into the FFI struct.
+    // `NUM_SMALL_SIZECLASSES` is statically <= the FFI slot count
+    // (`SNMALLOC_FULL_STATS_SIZECLASS_SLOTS = 64`); the static
+    // assert below makes that contract explicit.  Slots past
+    // `NUM_SMALL_SIZECLASSES` stay zero (left clear by the
+    // `memset` at the top of this function).
+    static_assert(
+      NUM_SMALL_SIZECLASSES <= SNMALLOC_FULL_STATS_SIZECLASS_SLOTS,
+      "Per-class histogram has fewer FFI slots than snmalloc's "
+      "small-class count; bump SNMALLOC_FULL_STATS_SIZECLASS_SLOTS "
+      "to keep the FullAllocStats wire format wide enough.");
+    for (size_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
+    {
+      out->total_live_bytes_by_class[i] = sc_agg.live_bytes[i];
+      out->total_live_count_by_class[i] = sc_agg.live_count[i];
+      out->cumulative_alloc_by_class[i] = sc_agg.cumulative_alloc[i];
+      out->cumulative_dealloc_by_class[i] = sc_agg.cumulative_dealloc[i];
+    }
   }
 #endif
 }
