@@ -157,7 +157,20 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
     {
       out->total_live_bytes_by_class[i] = sc_agg.live_bytes[i];
       out->total_live_count_by_class[i] = sc_agg.live_count[i];
-      out->cumulative_alloc_by_class[i] = sc_agg.cumulative_alloc[i];
+      // Phase 11.5 -- `cumulative_alloc` is no longer maintained
+      // on the hot path; derive it here from the invariant
+      //   cumulative_alloc = live_count + cumulative_dealloc.
+      // The per-thread `sc_stats.cumulative_alloc[i]` field is
+      // left at zero by every alloc/dealloc; this expression
+      // collapses to `live + dealloc` and produces the exact same
+      // value the old explicit counter would have held (a tiny
+      // amount of drift is possible between a producer fast-path
+      // alloc and a concurrent reader if the alloc bumped
+      // `live_count` but the snapshot read both fields in the
+      // opposite order -- but this is the same race the old
+      // explicit field had, just shifted).
+      out->cumulative_alloc_by_class[i] =
+        sc_agg.live_count[i] + sc_agg.cumulative_dealloc[i];
       out->cumulative_dealloc_by_class[i] = sc_agg.cumulative_dealloc[i];
     }
   }

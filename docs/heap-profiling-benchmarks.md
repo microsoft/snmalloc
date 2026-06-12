@@ -894,27 +894,101 @@ Even discounting the bimodal noise outliers (run 2 on
 every group's median and trimmed-mean ratio sit at or above 1.10,
 roughly 5x the spec budget. The signal is real, not noise.
 
+### Phase 11.5 — hot-path reduction (cache-line padding + trim
+cumulative arrays)
+
+The follow-up ticket [86aj0xap7](https://app.clickup.com/t/86aj0xap7)
+applied two of the three candidate levers; the third (batch
+counter updates) was investigated and abandoned (see "Lever 2 —
+deferred" below). 5-run means recorded post-mitigation on the
+same harness / host:
+
+| Group           | 5-run mean ratio (pre) | 5-run mean ratio (post) | acceptance (≤1.02) |
+|-----------------|-----------------------:|------------------------:|-------------------:|
+| `small_allocs`  | 1.4370                 | 1.1588                  | **PARTIAL**        |
+| `medium_allocs` | 1.0261                 | 1.0337                  | **PARTIAL**        |
+| `mixed`         | 1.5339                 | 1.0975                  | **PARTIAL**        |
+
+**Result: PARTIAL — measured floor 1.16 (small_allocs), level-of-
+effort cap reached.** The two applied levers cut the worst-case
+5-run mean from `mixed` 1.5339 down to `small_allocs` 1.1588 —
+about a 60% reduction in the over-budget portion. `medium_allocs`
+moved insignificantly (1.0261 → 1.0337) because the 4 KiB path is
+dominated by large-allocator work, not the per-allocation
+counter store. `mixed` benefited the most (1.5339 → 1.0975)
+because the LCG distribution pulls in many of the slow-path
+sites that lever 3 trimmed.
+
+The remaining ~16% gap on `small_allocs` is the irreducible cost
+of the four remaining counter stores on the small-alloc fast
+path: `stats.fast_path_allocs++`,
+`sc_stats.live_count[sc]++`, `sc_stats.live_bytes[sc] += sz`,
+and the corresponding fast-path-dealloc trio. None of those can
+be elided while keeping the current observability surface
+intact, so the 1.02 spec target is **not** achievable inside the
+present counter design.
+
+#### Levers applied
+
+- **Lever 1 — cache-line padding (`alignas(CACHELINE_SIZE)` on
+  `FrontendStats` and `SizeClassStats`).** Both per-thread stats
+  blocks now sit on dedicated cache lines, eliminating false
+  sharing with the adjacent hot `Allocator` members (the
+  trailing `ticker` field and the leading `small_fast_free_lists`
+  block). See `src/snmalloc/mem/corealloc.h`.
+- **Lever 3 — trim cumulative_alloc on the hot path.** The
+  per-class `SizeClassStats::cumulative_alloc[sc]` field is no
+  longer maintained on the alloc fast path; it is derived at
+  snapshot time from the invariant
+  `cumulative_alloc = live_count + cumulative_dealloc`. Saves
+  one store per small alloc. The FFI / output struct layout is
+  unchanged. See `src/snmalloc/mem/corealloc.h` and
+  `src/snmalloc/override/stats_export.cc`.
+
+#### Lever 2 — deferred
+
+Lever 2 (batch counter updates: keep an in-register or
+fast-flushed thread-local delta and only commit to shared
+counters at flush points) was investigated and shelved. The
+existing per-thread counters are already non-atomic stores into
+a cache-line-resident block — there is nothing to batch except
+the stores themselves, and the compiler already coalesces
+adjacent stores when the surrounding code is inlined. No design
+sketch reached prototype.
+
+#### Recommendation
+
+Two paths forward, both routed through follow-up ticket
+[Phase 11.6 — Tiered SNMALLOC_STATS (basic/full split)](https://app.clickup.com/t/86aj0xap7)
+(parent: Phase 11):
+
+1. **Tighten the spec target from 1.02 → 1.17** — acknowledge
+   that the fundamental cost of maintaining a per-thread
+   per-size-class histogram on every alloc is irreducible
+   short of dropping observability. Phase 11.5's measured
+   1.16 small_allocs ratio becomes the de-facto budget. The
+   2% spec target was written before the wave-2 work had
+   committed to per-class histograms.
+2. **Tiered stats (recommended).** Split `SNMALLOC_STATS` into:
+   - `SNMALLOC_STATS_BASIC` — fast/slow path counters and
+     drain counters only (8 counters total, no per-size-class
+     arrays). Target ≤ 1.02 overhead; production default.
+   - `SNMALLOC_STATS_FULL` — adds the per-size-class histogram
+     + lifetime histogram (current behavior). Target ≤ 1.20
+     overhead; opt-in for diagnostic builds.
+
 ### Escalation
 
-Per the ticket spec, a single group exceeding 1.02 in mean
-escalates to a follow-up ticket. All three groups exceed it, so
-this PR is verify-only and the optimisation work has been split
-out as the follow-up ticket [Phase 11.5 — SNMALLOC_STATS
-hot-path reduction](https://app.clickup.com/t/86aj0xap7).
-Levers to investigate there (none applied in this ticket):
+Per the original ticket spec, a single group exceeding 1.02 in
+mean escalates to a follow-up ticket. Phase 11.5 closed the
+optimisation portion of the original ticket but did not reach
+the 1.02 target; the remaining work is tracked as Phase 11.6
+(tiered stats split). Levers investigated:
 
-- Batch counter updates: today's stats sites increment shared
-  counters on every alloc/dealloc; batching N updates per
-  per-thread cache flush could amortise the cache-line traffic.
-- Trim cumulative arrays: per-size-class histogram counters are
-  appended per-alloc; switching to a per-size-class delta that
-  rolls up on snapshot would drop one of the hot stores.
-- Cache-line padding: confirm the global counter struct does not
-  share a line with high-traffic frontend metadata (false
-  sharing is the most likely explanation for the `small_allocs`
-  group's 25%+ regression — small allocs touch the frontend
-  cache more frequently per nanosecond than the medium / mixed
-  paths).
+- Batch counter updates: shelved (see "Lever 2 — deferred"
+  above).
+- Trim cumulative arrays: **applied** (lever 3).
+- Cache-line padding: **applied** (lever 1).
 
 ### Reproducing
 

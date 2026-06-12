@@ -128,7 +128,15 @@ namespace snmalloc
   // (allocators that have torn down their thread already drained their
   // counters into `frontend_stats_global` below before releasing
   // themselves back to the pool).
-  struct FrontendStats
+  //
+  // Phase 11.5 -- aligned to `CACHELINE_SIZE` so the per-thread stats
+  // block sits on its own line(s), never sharing a cache line with the
+  // adjacent hot Allocator members (notably the trailing `ticker`
+  // field and the leading `sc_stats` block).  Without this, the
+  // fast-path counter store dirties a line that is also touched by
+  // unrelated code, causing extra cache-line transitions on every
+  // allocation when those neighbours are read.
+  struct alignas(CACHELINE_SIZE) FrontendStats
   {
     /// Allocations satisfied by popping from `small_fast_free_lists`.
     uint64_t fast_path_allocs{0};
@@ -178,12 +186,28 @@ namespace snmalloc
   // `cumulative_dealloc` but on the OWNING thread are what reduces
   // live count) net out correctly when summed across the pool.
   // Specifically: the freeing thread bumps `cumulative_dealloc[sc]`
-  // on its own block; the owning thread's `cumulative_alloc[sc]`
-  // and `live_*[sc]` decrement happens on the same block that
-  // recorded the alloc (the slab-local fast dealloc, or the
-  // message-queue drain path).  See `bump_alloc` / `bump_dealloc`
-  // below.
-  struct SizeClassStats
+  // on its own block; the owning thread's `live_*[sc]` decrement
+  // happens on the same block that recorded the alloc (the
+  // slab-local fast dealloc, or the message-queue drain path).
+  //
+  // Phase 11.5 -- the per-class `cumulative_alloc[sc]` array is no
+  // longer maintained on the hot path.  Its value is derived at
+  // snapshot time from the invariant
+  //     cumulative_alloc[sc] = live_count[sc] + cumulative_dealloc[sc]
+  // which holds because every alloc/dealloc pair conserves the
+  // identity `cumulative_alloc - cumulative_dealloc = live_count`
+  // at the per-class granularity once summed across the pool.
+  // Removing the hot-path increment saves one store per small
+  // alloc.  The field is retained for ABI/output stability and is
+  // populated only at snapshot time in `snmalloc_get_full_stats`.
+  //
+  // Phase 11.5 -- aligned to `CACHELINE_SIZE` so the per-thread
+  // size-class array sits on its own cache line(s), never sharing a
+  // line with the adjacent Allocator state (the leading
+  // `FrontendStats stats` block above, or the trailing private
+  // members below).  Avoids false-sharing that amplified the
+  // small_allocs regression in the Phase 11.1 baseline.
+  struct alignas(CACHELINE_SIZE) SizeClassStats
   {
     /// Live byte total per small sizeclass on this thread.  Bumped
     /// on alloc, decremented on local dealloc / message-queue
@@ -191,8 +215,11 @@ namespace snmalloc
     uint64_t live_bytes[NUM_SMALL_SIZECLASSES] = {};
     /// Live object count per small sizeclass on this thread.
     uint64_t live_count[NUM_SMALL_SIZECLASSES] = {};
-    /// Cumulative allocations per small sizeclass on this thread
-    /// (monotone -- never decreases).
+    /// Cumulative allocations per small sizeclass on this thread.
+    /// Phase 11.5 -- NOT maintained on the hot path; derived at
+    /// snapshot time from `live_count + cumulative_dealloc`.  Kept
+    /// in the struct so the aggregator / FFI output layout stays
+    /// stable.  Producer paths leave this field at zero.
     uint64_t cumulative_alloc[NUM_SMALL_SIZECLASSES] = {};
     /// Cumulative deallocations per small sizeclass on this thread
     /// (monotone -- never decreases).  Bumped on the freeing thread,
@@ -1000,10 +1027,14 @@ namespace snmalloc
         // against the per-thread `Allocator::stats`.
         stats.fast_path_allocs++;
         // Phase 9.3 -- per-size-class histogram.  The sizeclass is
-        // already in a register here, so the bump is three
-        // adjacent non-atomic increments.  `sizeclass_to_size` is
-        // a constexpr table lookup.
-        sc_stats.cumulative_alloc[sizeclass]++;
+        // already in a register here.
+        //
+        // Phase 11.5 -- `cumulative_alloc[sizeclass]++` was removed
+        // from this site; it is derived at snapshot time from
+        // `live_count + cumulative_dealloc` (see SizeClassStats
+        // doc-comment).  The two remaining bumps are adjacent
+        // non-atomic stores to the cache-line-aligned `sc_stats`
+        // block.  `sizeclass_to_size` is a constexpr table lookup.
         sc_stats.live_count[sizeclass]++;
         sc_stats.live_bytes[sizeclass] += sizeclass_to_size(sizeclass);
 #endif
@@ -1204,7 +1235,9 @@ namespace snmalloc
         // `small_alloc` calls.  Counted alongside
         // `stats.slow_path_allocs` which already fired at the top
         // of `small_refill`.
-        sc_stats.cumulative_alloc[sizeclass]++;
+        //
+        // Phase 11.5 -- `cumulative_alloc` is derived at snapshot
+        // time, so only the live counters are bumped here.
         sc_stats.live_count[sizeclass]++;
         sc_stats.live_bytes[sizeclass] += sizeclass_to_size(sizeclass);
 #endif
@@ -1275,7 +1308,9 @@ namespace snmalloc
           // and taken the first object from it; the remaining
           // objects sit on `fast_free_list` and will be accounted
           // for by the fast-path bump on subsequent calls.
-          sc_stats.cumulative_alloc[sizeclass]++;
+          //
+          // Phase 11.5 -- `cumulative_alloc` is derived at snapshot
+          // time, so only the live counters are bumped here.
           sc_stats.live_count[sizeclass]++;
           sc_stats.live_bytes[sizeclass] += sizeclass_to_size(sizeclass);
 #endif
