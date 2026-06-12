@@ -109,6 +109,13 @@ namespace snmalloc::profile
     /// acquire/release races (a node freed and re-acquired between reader
     /// passes will have a different `alloc_seq`).
     uint64_t alloc_seq{0};
+    /// Wall-clock nanoseconds at sample-fire, captured from
+    /// `std::chrono::steady_clock` in `Sampler::record_alloc_slow`.
+    /// Used by `clear_profile_slot` (the dealloc path for sampled
+    /// allocations) to compute the elapsed lifetime and bump the
+    /// global `LifetimeHistogram` (Phase 9.5).  Zero on nodes that
+    /// were never published as part of a fired sample.
+    uint64_t alloc_ts_ns{0};
 
     uintptr_t stack[MaxStackFrames];
 
@@ -143,6 +150,7 @@ namespace snmalloc::profile
       sample_interval_at_capture = 0;
       tid = 0;
       alloc_seq = 0;
+      alloc_ts_ns = 0;
       stack_depth = 0;
       kind = static_cast<uint8_t>(SampledAllocKind::Alloc);
       for (size_t i = 0; i < MaxStackFrames; ++i)

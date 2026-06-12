@@ -444,6 +444,30 @@ extern "C" SNMALLOC_EXPORT intptr_t sn_rust_profile_lookup_alloc_site(
   return static_cast<intptr_t>(to_copy);
 }
 
+// ---------------------------------------------------------------------------
+// Allocation-lifetime histogram (Phase 9.5).
+//
+// Read-side accessor for the `snmalloc::profile::LifetimeHistogram`
+// singleton populated by `clear_profile_slot` on every cleanly-freed
+// sampled allocation.  Mirrors the per-bucket counts into the caller's
+// buffer; truncates if `len` is shorter than `kLifetimeBuckets`.  Pure
+// read -- no allocator state is mutated; relaxed loads on each bucket.
+// ---------------------------------------------------------------------------
+extern "C" SNMALLOC_EXPORT size_t sn_rust_profile_lifetime_histogram(
+  uint64_t* out_buckets, size_t len)
+{
+  if (out_buckets == nullptr || len == 0)
+    return 0;
+  const size_t to_copy =
+    len < snmalloc::profile::kLifetimeBuckets
+    ? len
+    : snmalloc::profile::kLifetimeBuckets;
+  auto& hist = snmalloc::profile::LifetimeHistogram::get();
+  for (size_t i = 0; i < to_copy; ++i)
+    out_buckets[i] = hist.bucket(i);
+  return to_copy;
+}
+
 #else // !SNMALLOC_PROFILE
 
 // Stubs: keep the FFI surface linkable when profiling is compiled out.
@@ -502,6 +526,13 @@ extern "C" SNMALLOC_EXPORT intptr_t sn_rust_profile_lookup_alloc_site(
   size_t* /*out_allocated_size*/)
 {
   return -1;
+}
+
+extern "C" SNMALLOC_EXPORT size_t sn_rust_profile_lifetime_histogram(
+  uint64_t* /*out_buckets*/, size_t /*len*/)
+{
+  // No samples possible without SNMALLOC_PROFILE: return 0 written.
+  return 0;
 }
 
 #endif // SNMALLOC_PROFILE

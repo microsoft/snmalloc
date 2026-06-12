@@ -261,6 +261,42 @@ SNMALLOC_EXPORT intptr_t sn_rust_profile_lookup_alloc_site(
   uintptr_t* out_base_addr,
   size_t* out_allocated_size);
 
+// ---------------------------------------------------------------------------
+// Allocation-lifetime histogram (Phase 9.5).
+//
+// log2-spaced histogram of sampled-allocation lifetimes in nanoseconds.
+// Bucket `i` covers lifetimes whose `floor(log2(lifetime_ns))` equals
+// `i`; bucket `SN_RUST_PROFILE_LIFETIME_BUCKETS - 1` saturates for
+// long-lived samples.  Buckets are accumulated process-wide and persist
+// across snapshot lifecycles.
+//
+// Only meaningful when this build of snmalloc was compiled with
+// `SNMALLOC_PROFILE=ON`; when off, the function still exports but
+// writes nothing and returns 0.
+// ---------------------------------------------------------------------------
+
+/// Number of lifetime histogram buckets.  Matches
+/// `SNMALLOC_FULL_STATS_LIFETIME_BUCKETS` and
+/// `snmalloc::profile::kLifetimeBuckets`.
+#define SN_RUST_PROFILE_LIFETIME_BUCKETS ((size_t)32)
+
+/**
+ * Copy the lifetime-histogram buckets into `out_buckets`.
+ *
+ * Writes `min(len, SN_RUST_PROFILE_LIFETIME_BUCKETS)` `uint64_t`
+ * entries, in bucket-index order.  Returns the number of entries
+ * actually written.  Returns 0 (and writes nothing) when:
+ *   - `out_buckets` is NULL, OR
+ *   - `len` is zero, OR
+ *   - `SNMALLOC_PROFILE` is undefined at build time.
+ *
+ * The buckets are read with relaxed atomic loads; the histogram is
+ * lock-free and tolerates concurrent record_lifetime_ns calls during
+ * the read.  No allocator state is mutated.
+ */
+SNMALLOC_EXPORT size_t sn_rust_profile_lifetime_histogram(
+  uint64_t* out_buckets, size_t len);
+
 #ifdef __cplusplus
 }
 #endif

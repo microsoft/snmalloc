@@ -48,6 +48,7 @@
 
 #include "../ds_core/defines.h"
 #include "allocation_sample_list.h"
+#include "lifetime_histogram.h"
 #include "node_pool.h"
 #include "reentrancy_guard.h"
 #include "sampled_alloc.h"
@@ -55,6 +56,7 @@
 #include "sampler.h"
 
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
@@ -67,6 +69,23 @@ namespace snmalloc::profile
    * same slot (double-free, cross-thread free) linearise through CAS.
    */
   using ProfileSlot = std::atomic<SampledAlloc*>;
+
+  /**
+   * Wall-clock-style monotonic nanosecond reading used to stamp
+   * sampled-allocation lifetimes (Phase 9.5).
+   *
+   * Steady clock so an NTP step on the wall-clock cannot synthesise
+   * negative lifetimes; nanosecond resolution because the resulting
+   * value feeds a log2-binned histogram (`LifetimeHistogram`) where
+   * sub-microsecond fidelity matters.  The reading itself is the same
+   * one std::chrono uses internally -- a leaf function with no
+   * allocator re-entry.
+   */
+  SNMALLOC_FAST_PATH_INLINE uint64_t lifetime_now_ns() noexcept
+  {
+    return static_cast<uint64_t>(
+      std::chrono::steady_clock::now().time_since_epoch().count());
+  }
 
   /**
    * Compile-time predicate: does `Config` ship a profile-enabled
@@ -231,6 +250,32 @@ namespace snmalloc::profile
           std::memory_order_relaxed))
     {
       return nullptr;
+    }
+
+    // Phase 9.5 -- lifetime histogram bump.
+    //
+    // The successful CAS above is the linearisation point for this
+    // sample's death: at most one thread reaches this branch per
+    // published sample (double-free / cross-thread free races CAS-
+    // fail in the same slot and return early).  Compute the elapsed
+    // lifetime in nanoseconds and update the log2-binned histogram.
+    //
+    // `alloc_ts_ns == 0` means the sample lacks a recorded timestamp
+    // (e.g. a node that was published before the 9.5 stamp landed, or
+    // a test harness path that bypassed `record_alloc`).  Skipping
+    // those keeps the histogram free of spuriously-huge buckets that
+    // would otherwise come from `now - 0`.
+    const uint64_t alloc_ts = expected->alloc_ts_ns;
+    if (alloc_ts != 0)
+    {
+      const uint64_t now_ns = lifetime_now_ns();
+      // Steady clock guarantees monotonic non-decreasing values, but
+      // a same-tick alloc+dealloc can produce `now_ns == alloc_ts`.
+      // Treat that as a 1-bucket lifetime (the histogram floor) so
+      // every cleanly-paired sample bumps exactly one bucket.
+      const uint64_t lifetime_ns =
+        (now_ns > alloc_ts) ? (now_ns - alloc_ts) : 1;
+      LifetimeHistogram::get().record_lifetime_ns(lifetime_ns);
     }
 
     // Tombstone the SampledList entry, then return node to the pool.
@@ -453,6 +498,18 @@ namespace snmalloc::profile
         // re-entered).  Nothing to install.
         return;
       }
+
+      // Phase 9.5 -- stamp the wall-clock-style monotonic nanosecond
+      // timestamp on the SampledAlloc *now*, before it becomes
+      // reachable from the dealloc hook.  We do this here (in
+      // `record.h`) rather than inside the sampler slow path so that
+      // ticket 9.7 (sampler.h runtime config) and 9.5 don't collide on
+      // the same file.  Relaxed store: the dealloc-side reader runs on
+      // the same allocation's free path, which already synchronises
+      // with this thread via the per-object slot CAS (`release` /
+      // `acquire`) installed a few lines below -- the timestamp's
+      // visibility piggybacks on that release.
+      node->alloc_ts_ns = lifetime_now_ns();
 
       // Locate (and lazily materialise) the per-object profile slot.
       // The Sampler is not on its slow path here -- it has returned --

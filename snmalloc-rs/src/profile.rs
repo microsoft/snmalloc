@@ -404,6 +404,35 @@ impl HeapProfile {
         self.samples.len()
     }
 
+    /// Log2-spaced allocation-lifetime histogram (Phase 9.5).
+    ///
+    /// Returns a snapshot of the process-wide histogram of sampled
+    /// allocation lifetimes, in nanoseconds.  Bucket `i` covers
+    /// lifetimes whose `floor(log2(lifetime_ns))` equals `i`; bucket
+    /// 31 saturates for lifetimes >= 2^31 ns (~2.1 s).  The buckets
+    /// accumulate across the entire process lifetime -- not just this
+    /// `HeapProfile` -- so two successive calls let consumers compute
+    /// a delta over a measurement window.
+    ///
+    /// When the underlying snmalloc build was compiled without
+    /// `SNMALLOC_PROFILE` (i.e. [`SnMalloc::profiling_supported`]
+    /// returns `false`) the histogram is necessarily all zeros: no
+    /// sample ever fires, so no lifetime is recorded.
+    pub fn lifetime_histogram() -> [u64; ffi::SN_RUST_PROFILE_LIFETIME_BUCKETS] {
+        let mut buckets = [0u64; ffi::SN_RUST_PROFILE_LIFETIME_BUCKETS];
+        // SAFETY: passing a stack-local `[u64; N]` and its length; the
+        // FFI implementation writes at most `len` `u64`s and treats the
+        // buffer as opaque.  On unsupported builds the call writes
+        // nothing and returns 0.
+        let _written = unsafe {
+            ffi::sn_rust_profile_lifetime_histogram(
+                buckets.as_mut_ptr(),
+                ffi::SN_RUST_PROFILE_LIFETIME_BUCKETS,
+            )
+        };
+        buckets
+    }
+
     /// `true` iff the snapshot contains no samples.
     pub fn is_empty(&self) -> bool {
         self.samples.is_empty()

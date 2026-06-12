@@ -13,6 +13,10 @@
 #include "../snmalloc.h"
 #include "snmalloc/global/stats_export.h"
 
+#ifdef SNMALLOC_PROFILE
+#  include "snmalloc/profile/lifetime_histogram.h"
+#endif
+
 #include <string.h>
 
 using namespace snmalloc;
@@ -54,4 +58,27 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
     out->bytes_committed = frag.bytes_committed;
     out->bytes_decommitted_to_os = frag.bytes_decommitted_to_os;
   }
+
+  // Phase 9.5 -- lifetime histogram.
+  //
+  // Bump-recorded in `clear_profile_slot` (the dealloc path for
+  // sampled allocations) whenever a sample completes its lifecycle.
+  // Only meaningful when `SNMALLOC_PROFILE` is defined: without
+  // profile support, no sample ever fires so the histogram singleton
+  // is never touched and the field below stays at zero (consistent
+  // with the `memset` above).  We still emit the loop under
+  // `#ifdef` so a non-profile build does not link against the
+  // singleton accessor.
+#ifdef SNMALLOC_PROFILE
+  {
+    auto& hist = snmalloc::profile::LifetimeHistogram::get();
+    static_assert(
+      snmalloc::profile::kLifetimeBuckets ==
+        SNMALLOC_FULL_STATS_LIFETIME_BUCKETS,
+      "LifetimeHistogram bucket count must match "
+      "SNMALLOC_FULL_STATS_LIFETIME_BUCKETS");
+    for (size_t i = 0; i < SNMALLOC_FULL_STATS_LIFETIME_BUCKETS; ++i)
+      out->lifetime_buckets_ns[i] = hist.bucket(i);
+  }
+#endif
 }

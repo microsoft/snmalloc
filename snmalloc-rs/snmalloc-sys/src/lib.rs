@@ -373,7 +373,24 @@ extern "C" {
         out_base_addr: *mut usize,
         out_allocated_size: *mut usize,
     ) -> isize;
+
+    /// Copy the lifetime-histogram buckets (Phase 9.5) into
+    /// `out_buckets`.  Writes `min(len, SN_RUST_PROFILE_LIFETIME_BUCKETS)`
+    /// `u64` entries in bucket-index order and returns the number of
+    /// entries written.  Returns `0` (and writes nothing) when
+    /// `out_buckets` is null, `len` is zero, or the C build has
+    /// `SNMALLOC_PROFILE` undefined.
+    pub fn sn_rust_profile_lifetime_histogram(
+        out_buckets: *mut u64,
+        len: usize,
+    ) -> usize;
 }
+
+/// Number of buckets in the allocation-lifetime histogram (Phase 9.5).
+/// Must match `SN_RUST_PROFILE_LIFETIME_BUCKETS` in
+/// `src/snmalloc/override/rust_profile.h` and
+/// `snmalloc::profile::kLifetimeBuckets`.
+pub const SN_RUST_PROFILE_LIFETIME_BUCKETS: usize = 32;
 
 // Streaming-mode broadcast (Phase 5.1): a single user callback is invoked
 // once per sampled allocation, off the hot path of `record_alloc`.  The C
