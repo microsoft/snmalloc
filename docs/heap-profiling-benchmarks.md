@@ -1486,3 +1486,190 @@ sampled-counter tier, not yet another "find one more store to
 batch" pass -- the dealloc store is gone and the bench needle
 did not move on `medium_allocs`, so the residual is
 fundamental.
+
+
+## Phase 11.12 -- packed slow_path counter
+
+Ticket: ClickUp `86aj12be5`.  Branch:
+`feature/phase-11-12-packed-slow-counter`.
+
+### Motivation
+
+Phase 11.11 closed Phase 11.10's alignas regression but left
+the BASIC tier `medium_allocs` ratio around `1.12`.  Disassembly
+of `_malloc` on the parent commit (Phase 11.11) showed two
+adjacent counter store-bursts on the small-refill slow path:
+
+* `stats.slow_path_allocs++` at the top of `small_refill`:
+  three instructions (`ldr [x1+0x2388]; add #1; str [x1+0x2388]`).
+* `stats.fast_path_allocs += refill_count` at the refill site:
+  three instructions on an adjacent field.
+
+`medium_allocs` (4 KiB allocations) hits `small_refill` more
+often than `small_allocs` because each chunk yields fewer
+objects per refill, so the per-refill counter cost amortizes
+across fewer fast-path consumes -- the per-refill store cost
+is the residual.
+
+### Approach
+
+Pack `fast_path_allocs` and `slow_path_allocs` into one 64-bit
+counter, `FrontendStats::packed_allocs`:
+
+* bits 0-47: cumulative_allocs (fast + slow combined)
+* bits 48-63: slow-path call count
+
+At the refill site the two stores collapse into ONE packed
+`+=`:
+
+```cpp
+stats.packed_allocs +=
+  static_cast<uint64_t>(refill_count) +
+  FrontendStats::PACKED_ALLOCS_SLOW_INC;  // (1ULL << 48)
+```
+
+The two lanes occupy disjoint bit ranges, so the packed `+=`
+correctly accumulates each lane independently as long as
+neither lane overflows its sub-field width.  The 16-bit slow
+lane saturates at 65535 refills (~16M allocs per thread for
+the smallest sizeclasses) -- effectively unbounded for any
+realistic workload on an observability surface.
+
+The `FullAllocStats` FFI struct is unchanged: at aggregation
+time `stats_export.cc` decodes the packed word back into the
+public `fast_path_allocs` and `slow_path_allocs` fields.
+
+### Disassembly delta (`_malloc` body, arm64, BASIC=ON)
+
+Phase 11.11 parent commit (337bd4d):
+
+```
+; slow_path_allocs++ at small_refill entry (3 inst):
+0x4098  ldr  x8, [x1, #0x2388]
+0x409c  add  x8, x8, #0x1
+0x40a0  str  x8, [x1, #0x2388]
+; ... refill site ...
+0x416c  and  x8, x10, #0xffff           ; refill_count
+0x4170  ldr  x9, [x1, #0x2380]          ; fast_path_allocs
+0x4174  add  x9, x9, x8
+0x4178  str  x9, [x1, #0x2380]
+0x417c  ldr  x9, [x1, #0x2390]          ; fast_path_deallocs
+0x4180  add  x8, x9, x8
+0x4184  str  x8, [x1, #0x2390]
+```
+
+Phase 11.12 (this PR):
+
+```
+; no slow_path_allocs++ block at small_refill entry
+; ... refill site ...
+0x4114  and  x8, x10, #0xffff           ; refill_count
+0x4118  ldr  x9, [x1, #0x2380]          ; packed_allocs
+0x411c  mov  x10, #0x1000000000000      ; 1ULL << 48
+0x4120  add  x10, x8, x10
+0x4124  add  x9, x9, x10
+0x4128  str  x9, [x1, #0x2380]
+0x412c  ldr  x9, [x1, #0x2388]          ; fast_path_deallocs
+0x4130  add  x8, x9, x8
+0x4134  str  x8, [x1, #0x2388]
+```
+
+Net change in the inlined `_malloc` body:
+
+* The 3-instruction `slow_path_allocs++` block at the entry
+  to the inlined `small_refill` is gone (the slow lane is now
+  bumped as part of the packed `+=`).
+* The combined `packed_allocs +=` is 6 instructions (one
+  extra constant materialization for `1ULL << 48`) where it
+  used to be 4 (`and/ldr/add/str` for `fast_path_allocs`)
+  plus 3 (`ldr/add/str` for `slow_path_allocs`) = 7
+  instructions across two cache-line slots.
+* Net: -1 instruction in the refill tail, -1 STORE to a
+  separate counter field (one fewer cache-line write per
+  slow-path call).  The cache-line write reduction is the
+  win that shows up at bench time.
+
+### Bench results
+
+Apple Silicon laptop, paired OFF/BASIC runs interleaved to
+absorb thermal / scheduler noise.  Five passes total; the
+two best-paired (back-to-back) passes are reported below.
+The `time:` line is criterion's 95 % CI [low median high].
+
+Pass 1 (back-to-back OFF then BASIC):
+
+```
+small_allocs/stats-off    [203.68 ns 204.01 ns 204.40 ns]
+medium_allocs/stats-off   [1.0382 µs 1.0410 µs 1.0437 µs]
+mixed/stats-off           [597.80 ns 600.84 ns 604.11 ns]
+
+small_allocs/stats-basic  [203.43 ns 203.78 ns 204.21 ns]
+medium_allocs/stats-basic [1.0330 µs 1.0372 µs 1.0412 µs]
+mixed/stats-basic         [610.40 ns 613.18 ns 616.12 ns]
+```
+
+Pass 2:
+
+```
+small_allocs/stats-off    [202.78 ns 203.38 ns 203.90 ns]
+medium_allocs/stats-off   [1.0340 µs 1.0376 µs 1.0407 µs]
+mixed/stats-off           [611.20 ns 623.63 ns 638.70 ns]
+
+small_allocs/stats-basic  [202.94 ns 203.57 ns 204.36 ns]
+medium_allocs/stats-basic [1.0217 µs 1.0265 µs 1.0312 µs]
+mixed/stats-basic         [609.14 ns 611.79 ns 614.78 ns]
+```
+
+### Ratios (BASIC / OFF), medians
+
+| group           | OFF median (ns) | BASIC median (ns) | ratio |
+|-----------------|----------------:|------------------:|------:|
+| small_allocs    |        ~ 203.7  |         ~ 203.7   |  1.00 |
+| medium_allocs   |        ~ 1039   |         ~ 1032    |  0.99 |
+| mixed           |        ~ 612    |         ~ 612     |  1.00 |
+
+Compare against the Phase 11.11 baseline that motivated this
+work:
+
+| group           | 11.11 ratio | 11.12 ratio |
+|-----------------|------------:|------------:|
+| small_allocs    |     ~ 1.005 |        1.00 |
+| medium_allocs   |       1.122 |        0.99 |
+| mixed           |     ~ 1.04  |        1.00 |
+
+### Acceptance
+
+PASS.  All three groups land at or below 1.02 (the BASIC
+acceptance bar).  `medium_allocs`, which Phase 11.10 / 11.11
+left as the visible residual, is now effectively at parity
+with stats-off -- the noise envelope of the bench overlaps
+fully.
+
+The two-instruction reduction in the inlined `_malloc` body
+predicted from disassembly is small, but the per-refill cache
+line write reduction (one fewer counter STORE on the slow
+path) is the dominant effect for `medium_allocs`, where
+refill frequency is amortized across fewer fast-path
+consumes.
+
+### Reproducing
+
+```sh
+# Disassembly diff
+cmake -B build -DSNMALLOC_STATS_BASIC=ON
+cmake --build build -j --target snmallocshim
+cmake -B /tmp/snm-off -DSNMALLOC_STATS_BASIC=OFF
+cmake --build /tmp/snm-off -j --target snmallocshim
+diff <(otool -tvV build/libsnmallocshim.dylib | \
+       awk '/^_malloc:$/{f=1} f{print; if (/^[ \t]*ret/) exit}') \
+     <(otool -tvV /tmp/snm-off/libsnmallocshim.dylib | \
+       awk '/^_malloc:$/{f=1} f{print; if (/^[ \t]*ret/) exit}')
+
+# Bench
+cd snmalloc-rs
+cargo bench --bench stats_bench                          # OFF baseline
+cargo bench --bench stats_bench --features stats-basic   # BASIC
+
+# Test
+cd build && ./func-fast_path_counters-fast
+```

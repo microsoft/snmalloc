@@ -119,8 +119,10 @@ int main(int /*argc*/, char** /*argv*/)
   }
 
   auto after_alloc = snapshot();
+  // Phase 11.12 -- decode via accessors; the underlying field is
+  // now a single packed 64-bit word.
   uint64_t alloc_delta =
-    after_alloc.fast_path_allocs - before.fast_path_allocs;
+    after_alloc.fast_path_allocs() - before.fast_path_allocs();
   // Every slow refill consumes one "missed fast-path" slot (the
   // pointer returned by the refill itself does not pass through the
   // fast-path counter), so for N allocs of one sizeclass we expect
@@ -242,14 +244,14 @@ int main(int /*argc*/, char** /*argv*/)
   // --------------------------------------------------------------------
   // Total slow-path allocs across the run should be at least one
   // (the first slab open).
-  if (after_drain.slow_path_allocs < 1)
+  if (after_drain.slow_path_allocs() < 1)
   {
     std::cerr << "expected slow_path_allocs >= 1, got "
-              << after_drain.slow_path_allocs << "\n";
+              << after_drain.slow_path_allocs() << "\n";
     return 1;
   }
   std::cout << "fast_path_counters: slow_path_allocs (end) = "
-            << after_drain.slow_path_allocs << "\n";
+            << after_drain.slow_path_allocs() << "\n";
 
   std::cout << "fast_path_counters: all checks passed\n";
   return 0;

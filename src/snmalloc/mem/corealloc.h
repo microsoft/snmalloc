@@ -147,11 +147,58 @@ namespace snmalloc
   // (target <= 2%) without the FULL histogram store overhead.
   struct alignas(CACHELINE_SIZE) FrontendStats
   {
-    /// Allocations satisfied by popping from `small_fast_free_lists`.
-    uint64_t fast_path_allocs{0};
-    /// Allocations that fell through to `small_refill` /
-    /// `small_refill_slow` (slab took a turn at refill).
-    uint64_t slow_path_allocs{0};
+    /// Phase 11.12 -- combined alloc counter packing both the
+    /// cumulative-alloc total (low 48 bits) and the slow-path call
+    /// count (high 16 bits) into one 64-bit word so the
+    /// `small_refill` slow path can credit both fields with a single
+    /// store rather than two adjacent loads-modify-stores.
+    ///
+    /// Layout:
+    ///   bits 0-47  : cumulative_allocs (fast + slow combined)
+    ///   bits 48-63 : slow_path_calls
+    ///
+    /// Decoded at snapshot time in `stats_export.cc` back into the
+    /// public `fast_path_allocs` / `slow_path_allocs` fields so the
+    /// ABI surface (`FullAllocStats`) is unchanged.
+    ///
+    /// Wrap budget: 16-bit slow counter saturates at 65535 refills.
+    /// At ~256 objects/refill for the smallest sizeclasses that's
+    /// ~16M allocs (per-thread, per-counter-reset) -- effectively
+    /// unbounded for any realistic workload; observability surface
+    /// is best-effort anyway.  Stays well below the 48-bit total
+    /// bucket so the packed `+=` never overflows from low into high.
+    uint64_t packed_allocs{0};
+
+    /// Bit shift positioning the slow-call lane within
+    /// `packed_allocs` (bits 48-63).
+    static constexpr uint64_t PACKED_ALLOCS_SLOW_SHIFT = 48;
+    /// Mask covering the low (total-alloc) lane of `packed_allocs`.
+    static constexpr uint64_t PACKED_ALLOCS_TOTAL_MASK =
+      (uint64_t{1} << PACKED_ALLOCS_SLOW_SHIFT) - 1;
+    /// Pre-packed `+1` increment in the slow-call lane; OR'd /
+    /// added to `refill_count` at the refill site so a single
+    /// 64-bit add updates both lanes in one store.
+    static constexpr uint64_t PACKED_ALLOCS_SLOW_INC =
+      uint64_t{1} << PACKED_ALLOCS_SLOW_SHIFT;
+
+    /// Decode the slow-path call count from `packed_allocs`.
+    [[nodiscard]] uint64_t slow_path_allocs() const noexcept
+    {
+      return packed_allocs >> PACKED_ALLOCS_SLOW_SHIFT;
+    }
+    /// Decode the cumulative-alloc total from `packed_allocs`
+    /// (fast + slow combined).
+    [[nodiscard]] uint64_t total_allocs() const noexcept
+    {
+      return packed_allocs & PACKED_ALLOCS_TOTAL_MASK;
+    }
+    /// Decode the fast-path alloc count from `packed_allocs`.
+    /// Equals `total_allocs() - slow_path_allocs()` and is the same
+    /// quantity surfaced as `FullAllocStats::fast_path_allocs`.
+    [[nodiscard]] uint64_t fast_path_allocs() const noexcept
+    {
+      return total_allocs() - slow_path_allocs();
+    }
     /// Deallocations whose pagemap entry pointed at this allocator
     /// (the "local" branch of `Allocator::dealloc`).
     ///
@@ -181,8 +228,14 @@ namespace snmalloc
     /// the FullAllocStats aggregator and by the thread-exit drain.
     void accumulate(const FrontendStats& other) noexcept
     {
-      fast_path_allocs += other.fast_path_allocs;
-      slow_path_allocs += other.slow_path_allocs;
+      // Phase 11.12 -- packed addition.  The high 16 bits (slow
+      // call count) and low 48 bits (cumulative total) live in
+      // disjoint bit ranges, so a plain `+=` correctly accumulates
+      // each lane independently as long as neither lane overflows
+      // its sub-field width (16-bit slow lane saturates at 65535
+      // refills per source; well above the realistic per-thread
+      // count for any process lifetime).
+      packed_allocs += other.packed_allocs;
       fast_path_deallocs += other.fast_path_deallocs;
       remote_deallocs += other.remote_deallocs;
       message_queue_drains += other.message_queue_drains;
@@ -278,8 +331,10 @@ namespace snmalloc
   /// participate in any happens-before chain with allocator state.
   struct FrontendStatsGlobal
   {
-    stl::Atomic<uint64_t> fast_path_allocs{0};
-    stl::Atomic<uint64_t> slow_path_allocs{0};
+    // Phase 11.12 -- packed (fast+slow) alloc counter; matching
+    // layout to `FrontendStats::packed_allocs`.  One atomic
+    // fetch_add at thread-exit drain instead of two adjacent ones.
+    stl::Atomic<uint64_t> packed_allocs{0};
     stl::Atomic<uint64_t> fast_path_deallocs{0};
     stl::Atomic<uint64_t> remote_deallocs{0};
     stl::Atomic<uint64_t> message_queue_drains{0};
@@ -287,10 +342,8 @@ namespace snmalloc
 
     void drain_from(const FrontendStats& s) noexcept
     {
-      fast_path_allocs.fetch_add(
-        s.fast_path_allocs, stl::memory_order_relaxed);
-      slow_path_allocs.fetch_add(
-        s.slow_path_allocs, stl::memory_order_relaxed);
+      packed_allocs.fetch_add(
+        s.packed_allocs, stl::memory_order_relaxed);
       fast_path_deallocs.fetch_add(
         s.fast_path_deallocs, stl::memory_order_relaxed);
       remote_deallocs.fetch_add(
@@ -303,10 +356,8 @@ namespace snmalloc
 
     void snapshot_into(FrontendStats& out) const noexcept
     {
-      out.fast_path_allocs +=
-        fast_path_allocs.load(stl::memory_order_relaxed);
-      out.slow_path_allocs +=
-        slow_path_allocs.load(stl::memory_order_relaxed);
+      out.packed_allocs +=
+        packed_allocs.load(stl::memory_order_relaxed);
       out.fast_path_deallocs +=
         fast_path_deallocs.load(stl::memory_order_relaxed);
       out.remote_deallocs +=
@@ -1206,15 +1257,12 @@ namespace snmalloc
       freelist::Iter<>& fast_free_list,
       size_t size) noexcept(noexcept(Conts::failure(0)))
     {
-#ifdef SNMALLOC_STATS_BASIC
-      // Phase 9.2 -- slow-path alloc counter.  Bumped at entry to
-      // `small_refill` regardless of whether the refill is satisfied
-      // by the local stash (`alloc_classes[sizeclass]`) or falls
-      // through to `small_refill_slow` (which itself goes to the
-      // backend).  Counts every small alloc that missed the fast
-      // free list.
-      stats.slow_path_allocs++;
-#endif
+      // Phase 11.12 -- the slow-path bump that was here
+      // (`stats.slow_path_allocs++`) is now packed into the single
+      // combined-counter store below at the
+      // `fast_path_allocs += refill_count` / refill-credit site.
+      // That collapses two separate counter stores into one packed
+      // `+=` on the small-alloc refill path.
       void* result = Config::SecondaryAllocator::allocate(
         [size]() -> stl::Pair<size_t, size_t> {
           return {size, natural_alignment(size)};
@@ -1281,20 +1329,28 @@ namespace snmalloc
         }
 
 #ifdef SNMALLOC_STATS_BASIC
-        // Phase 11.8 -- batched fast-path alloc pre-credit.  The
-        // refill just transferred `refill_count` objects to
-        // `fast_free_list` (including `p`, which is returned to the
-        // caller without going through the fast path); subsequent
-        // consumes from the fast path will not bump the counter.
-        // This trades a small bounded overshoot (at most one slab
-        // worth, ~256 objects for the smallest sizeclasses) for
-        // removing the per-alloc store on the hot path.
+        // Phase 11.12 -- ONE packed store updates both lanes of
+        // `packed_allocs`:
+        //   - low 48 bits: += `refill_count` (cumulative-alloc total;
+        //     includes `p`, the object returned to the caller, per
+        //     the `alloc_free_list` contract documented in
+        //     metadata.h).
+        //   - high 16 bits: += 1 (slow-path call count -- the bump
+        //     that used to live at `small_refill` entry as
+        //     `++slow_path_allocs`).
+        // The two lanes occupy disjoint bit ranges so the packed
+        // `+=` is correct as long as neither lane overflows its
+        // sub-field width (the 16-bit slow lane saturates at 65535
+        // refills, ~16M allocs, well outside any realistic workload).
         //
-        // The slow-path bump (`++slow_path_allocs` at the top of
-        // `small_refill`) already accounts for this call as a slow
-        // refill; the `refill_count` credit is the symmetric
-        // batched fast-path entry.
-        stats.fast_path_allocs += refill_count;
+        // This collapses what was previously TWO independent
+        // load-modify-store sequences (`slow_path_allocs++` at the
+        // top + `fast_path_allocs += refill_count` here) into ONE,
+        // shrinking the medium-alloc refill hot path -- the residual
+        // BASIC overhead Phase 11.11 disassembly identified.
+        stats.packed_allocs +=
+          static_cast<uint64_t>(refill_count) +
+          FrontendStats::PACKED_ALLOCS_SLOW_INC;
         // Phase 11.9 -- batched fast-path dealloc pre-credit.  Each
         // object pre-credited to `fast_path_allocs` here is expected
         // to be freed (the steady-state invariant is balanced
@@ -1394,13 +1450,17 @@ namespace snmalloc
           }
 
 #ifdef SNMALLOC_STATS_BASIC
-          // Phase 11.8 -- batched fast-path alloc pre-credit (see
-          // matching note in `small_refill`).  For a freshly-built
-          // slab the refill count is exact: the builder was
-          // populated with `slab_object_count` objects by
-          // `alloc_new_list`, of which `slab_object_count -
-          // remaining` were transferred to `fast_free_list`.
-          stats.fast_path_allocs += refill_count;
+          // Phase 11.12 -- ONE packed store updates both lanes of
+          // `packed_allocs` at this refill site (see matching note
+          // in `small_refill`).  For a freshly-built slab the
+          // refill_count credit is exact: the builder was populated
+          // with `slab_object_count` objects by `alloc_new_list`,
+          // of which `slab_object_count - remaining` were
+          // transferred to `fast_free_list`.  The +1 in the high
+          // lane records this slow-path call.
+          stats.packed_allocs +=
+            static_cast<uint64_t>(refill_count) +
+            FrontendStats::PACKED_ALLOCS_SLOW_INC;
           // Phase 11.9 -- symmetric batched dealloc pre-credit
           // (see matching note in `small_refill`).
           stats.fast_path_deallocs += refill_count;

@@ -152,8 +152,18 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
     size_class_stats_global().snapshot_into(sc_agg);
 #  endif
 
-    out->fast_path_allocs = agg.fast_path_allocs;
-    out->slow_path_allocs = agg.slow_path_allocs;
+    // Phase 11.12 -- decode the packed combined-alloc counter back
+    // into the public `fast_path_allocs` / `slow_path_allocs`
+    // fields so the FullAllocStats wire format is unchanged.
+    //   total = (packed & PACKED_ALLOCS_TOTAL_MASK)  // cumulative allocs
+    //   slow  = (packed >> PACKED_ALLOCS_SLOW_SHIFT) // slow-path calls
+    //   fast  = total - slow                         // implied
+    const uint64_t packed = agg.packed_allocs;
+    const uint64_t slow =
+      packed >> FrontendStats::PACKED_ALLOCS_SLOW_SHIFT;
+    const uint64_t total = packed & FrontendStats::PACKED_ALLOCS_TOTAL_MASK;
+    out->fast_path_allocs = total - slow;
+    out->slow_path_allocs = slow;
     out->fast_path_deallocs = agg.fast_path_deallocs;
     out->remote_deallocs = agg.remote_deallocs;
     out->message_queue_drains = agg.message_queue_drains;
