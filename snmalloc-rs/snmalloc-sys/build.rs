@@ -259,10 +259,19 @@ impl BuilderDefine for cc::Build {
         // so the tunables are available on the build_cc path too;
         // the runtime knobs are independent of the `profiling` /
         // `stats` Cargo features and useful in every build flavour.
+        //
+        // Phase 9.6: stats_dump.cc carries the
+        // `snmalloc_dump_stats_to_buffer` C ABI plus the C++ overloads
+        // for the text-dump API.  Pure formatter over the Phase 9.1
+        // `snmalloc_get_full_stats`; bundled here so the Rust
+        // `SnMalloc::dump_stats` wrapper sees the symbol in every
+        // build flavour, with or without `stats` / `profiling`
+        // features.
         self.include(source_root.join("src"))
             .file(source_root.join("src/snmalloc/override/rust.cc"))
             .file(source_root.join("src/snmalloc/override/stats_export.cc"))
             .file(source_root.join("src/snmalloc/override/runtime_config.cc"))
+            .file(source_root.join("src/snmalloc/override/stats_dump.cc"))
             .cpp(true)
             .debug(debug)
             .static_crt(true)

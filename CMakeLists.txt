@@ -801,9 +801,17 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   # shim so the tunables are available in every build flavour, with
   # or without `SNMALLOC_PROFILE` / `SNMALLOC_STATS`.
   set(RUNTIME_CONFIG src/snmalloc/override/runtime_config.cc)
-  set(RUST src/snmalloc/override/rust.cc ${STATS_EXPORT} ${RUNTIME_CONFIG})
+  # Phase 9.6: stats_dump.cc carries the `snmalloc_dump_stats_to_buffer`
+  # C ABI plus the `snmalloc::dump_stats(FILE*)` /
+  # `snmalloc::dump_stats_to_string(std::string&)` C++ overloads.
+  # Pure formatter over `snmalloc_get_full_stats` (from 9.1); ships
+  # alongside the rest of the export surface in every build flavour
+  # so consumers always have a text dump available regardless of which
+  # SNMALLOC_STATS / SNMALLOC_PROFILE combination they compiled.
+  set(STATS_DUMP src/snmalloc/override/stats_dump.cc)
+  set(RUST src/snmalloc/override/rust.cc ${STATS_EXPORT} ${RUNTIME_CONFIG} ${STATS_DUMP})
 
-  set(ALLOC ${MALLOC} ${NEW} ${STATS_EXPORT} ${RUNTIME_CONFIG})
+  set(ALLOC ${MALLOC} ${NEW} ${STATS_EXPORT} ${RUNTIME_CONFIG} ${STATS_DUMP})
   set(ALL ${ALLOC} ${MEMCPY})
 
   if (SNMALLOC_STATIC_LIBRARY)

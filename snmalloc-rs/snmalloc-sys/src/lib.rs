@@ -156,6 +156,27 @@ extern "C" {
     /// call is a pure read backed by atomic counters, safe to call
     /// from any thread at any point in the process lifetime.
     pub fn snmalloc_get_full_stats(out: *mut snmalloc_full_stats);
+
+    /// Format the current allocator telemetry snapshot into `buf`.
+    /// Behaves like `snprintf`:
+    ///
+    ///   * if `buf` is non-null and `buf_len` is large enough, the
+    ///     full formatted text (with a trailing NUL terminator) is
+    ///     written;
+    ///   * if `buf_len` is too small, as many bytes as fit are
+    ///     written and the buffer is NUL-terminated whenever
+    ///     `buf_len > 0`;
+    ///   * if `buf` is null or `buf_len` is zero, nothing is written.
+    ///
+    /// Returns the number of bytes that *would* have been written,
+    /// not counting the trailing NUL.  Callers wanting to size the
+    /// buffer exactly should call once with `(null, 0)`, allocate
+    /// `n + 1` bytes, then call again.
+    ///
+    /// Symbol is exported unconditionally by the C build; format
+    /// content tracks whichever telemetry fields are wired in the
+    /// snapshot at the call site.
+    pub fn snmalloc_dump_stats_to_buffer(buf: *mut u8, buf_len: usize) -> usize;
 }
 
 // --------------------------------------------------------------------

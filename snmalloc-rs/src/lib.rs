@@ -90,6 +90,12 @@ pub mod profile;
 /// [`config`] for the env-var contract.
 pub mod config;
 
+/// Text-dump API (Phase 9.6) -- safe Rust wrapper around the
+/// `snmalloc_dump_stats_to_buffer` C ABI.  Two-phase
+/// (size-query + alloc + fill) write into a borrowed
+/// `std::io::Write` sink.  See [`SnMalloc::dump_stats`].
+pub mod stats_dump;
+
 /// Google pprof Profile protobuf encoder (Phase 6.1).
 ///
 /// Hand-rolled protobuf3 encoder (no `prost` dependency) covering
@@ -378,6 +384,7 @@ impl SnMalloc {
     pub fn max_local_cache() -> u64 {
         unsafe { ffi::snmalloc_get_max_local_cache() }
     }
+
 
     /// Allocates memory with the given layout, returning a non-null pointer on success
     #[inline(always)]
