@@ -26,14 +26,14 @@ For simplicity, we gloss over much of the "lazy initialization" that would actua
    Because the two exercise similar bits of machinery, we now track them in parallel in prose despite their sequential nature.
 
 4. The `BackendAllocator` has a chain of "range" types that it uses to manage address space.
-   By default (and in the case we are considering), that chain begins with a per-thread "small buddy allocator range".
+   By default (and in the case we are considering), that chain begins with a per-thread *small arena range*.
 
    1. For the metadata allocation, the size is (well) below `MIN_CHUNK_SIZE` and so this allocator, which by supposition is empty, attempts to `refill` itself from its parent.
       This results in a request for a `MIN_CHUNK_SIZE` chunk from the parent allocator.
 
    2. For the chunk allocation, the size is `MIN_CHUNK_SIZE` or larger, so this allocator immediately forwards the request to its parent.
 
-5. The next range allocator in the chain is a per-thread *large* buddy allocator that refills in 2 MiB granules.
+5. The next range allocator in the chain is a per-thread `LargeArenaRange` that refills in 2 MiB granules.
    (2 MiB chosen because it is a typical superpage size.)
    At this point, both requests are for at least one and no more than a few times `MIN_CHUNK_SIZE` bytes.
 
@@ -48,7 +48,7 @@ For simplicity, we gloss over much of the "lazy initialization" that would actua
 8. The next entry in the chain is a `StatsRange` which serves to accumulate statistics.
    We ignore this stage and continue onwards.
 
-9. The next entry in the chain is another *large* buddy allocator which refills at 16 MiB but can hold regions
+9. The next entry in the chain is another `LargeArenaRange` which refills at 16 MiB but can hold regions
    of any size up to the entire address space.
    The first request triggers a `refill`, continuing along the chain as a 16 MiB request.
    (Recall that the second allocation will be handled at an earlier point on the chain.)
@@ -61,15 +61,15 @@ For simplicity, we gloss over much of the "lazy initialization" that would actua
 12. Having wound the chain onto our stack, we now unwind!
     The `PagemapRegisterRange` ensures that the Pagemap entries for allocations passing through it are mapped and returns the allocation unaltered.
 
-13. The global large buddy allocator splits the 16 MiB refill into 8, 4, and 2 MiB regions it retains as well as returning the remaining 2 MiB back along the chain.
+13. The global `LargeArenaRange` carves the request out of its 16 MiB refill and keeps the unused remainder as a single free block in its internal red-black trees of free ranges, returning the carved portion back along the chain.
 
 14. The `StatsRange` makes its observations, the `GlobalRange` now unlocks the global component of the chain, and the `CommitRange` ensures that the allocation is mapped.
     Aside from these side effects, these propagate the allocation along the chain unaltered.
 
-15. We now arrive back at the thread-local large buddy allocator, which takes its 2 MiB refill and breaks it down into powers of two down to the requested `MIN_CHUNK_SIZE`.
-    The second allocation (of the chunk), will either return or again break down one of these intermediate chunks.
+15. We now arrive back at the thread-local `LargeArenaRange`, which takes its 2 MiB refill and carves out the requested chunk(s); the unused remainder stays in its free-range trees.
+    The second allocation (of the chunk) will either be satisfied from this leftover or trigger another carve.
 
-16. For the first (metadata) allocation, the thread-local *small* allocator breaks the `MIN_CHUNK_SIZE` allocation down into powers of two down to `PAGEMAP_METADATA_STRUCT_SIZE` and returns one of that size.
+16. For the first (metadata) allocation, the thread-local *small arena range* takes its `MIN_CHUNK_SIZE` refill, hands back a sub-chunk fragment large enough for `PAGEMAP_METADATA_STRUCT_SIZE`, and tracks the remainder as free sub-chunk space using tree nodes stored inside the free fragments themselves.
     The second allocation will have been forwarded and so is not additionally handled here.
 
 Exciting, no?
@@ -98,26 +98,19 @@ For chunks owned by the *frontend* (`REMOTE_BACKEND_MARKER` not asserted),
 
    2. A bit (`META_BOUNDARY_BIT`) that serves to limit chunk coalescing on platforms where that may not be possible, such as CHERI.
 
-See `src/backend/metatypes.h` and `src/mem/metaslab.h`.
+See `src/snmalloc/mem/metadata.h`.
 
 For chunks owned by a *backend* (`REMOTE_BACKEND_MARKER` asserted), there are again multiple possibilities.
 
-For chunks owned by a *small buddy allocator*, the remainder of the `MetaEntry` is zero.
+For chunks owned by a *small arena range* (`SmallArenaRange`), the remainder of the `MetaEntry` is zero.
 That is, it appears to have small sizeclass 0 and an implausible `RemoteAllocator*`.
+The free-fragment tree itself is stored in-band, inside the free space of the chunk, rather than in the pagemap (see `InplaceRep` in `src/snmalloc/backend_helpers/inplacerep.h`).
 
-For chunks owned by a *large buddy allocator*, the `MetaEntry` is instead a node in a red-black tree of all such chunks.
-Its contents can be decoded as follows:
+For chunks owned by a `LargeArenaRange`, the `MetaEntry` is instead a node in the red-black trees of free ranges.
+A free block of *N* units consumes the `MetaEntry`s of its first *min(N, 3)* unit-aligned addresses; their words encode the bin-tree node (unit 0), the range-tree node (unit 1, for blocks of two or more units), and the large-chunk count (unit 2, for blocks of three or more units).
+The pagemap reserves the low `MetaEntryBase::BACKEND_LAYOUT_FIRST_FREE_BIT` bits of each word for the meta-entry layout itself; the tree-node encoding (left/right pointers, red bit, variant tag, large-size count) lives at or above that bit.
 
-1. The `meta` field's `META_BOUNDARY_BIT` is preserved, with the same meaning as in the frontend case, above.
-
-2. `meta` (resp. `remote_and_sizeclass`) includes a pointer to the left (resp. right) *chunk* of address space.
-   (The corresponding child *node* in this tree is found by taking the *address* of this chunk and looking up the `MetaEntry` in the Pagemap.
-   This trick of pointing at the child's chunk rather than at the child `MetaEntry` is particularly useful on CHERI:
-   it allows us to capture the authority to the chunk without needing another pointer and costs just a shift and add.)
-
-3. The `meta` field's `LargeBuddyRep::RED_BIT` is used to carry the red/black color of this node.
-
-See `src/backend/largebuddyrange.h`.
+See `PagemapRep` in `src/snmalloc/backend_helpers/largearenarange.h`.
 
 ### Encoding a MetaEntry
 
@@ -131,17 +124,19 @@ The following cases apply:
    * has "small" sizeclass 0, which has size 0.
    * has no associated metadata structure.
 
-2. The address is part of a free chunk in a backend's Large Buddy Allocator:
+2. The address is part of a free chunk in a backend `LargeArenaRange`:
    The `MetaEntry`...
    * has `REMOTE_BACKEND_MARKER` asserted in `remote_and_sizeclass`.
    * has "small" sizeclass 0, which has size 0.
-   * the remainder of its `MetaEntry` structure will be a Large Buddy Allocator rbtree node.
+   * the remainder of its `MetaEntry` structure (and those of the next one or two unit-aligned `MetaEntry`s if the free block spans them) carries the `Arena`'s red-black-tree node encoding.
    * has no associated metadata structure.
 
-3. The address is part of a free chunk inside a backend's Small Buddy Allocator:
+3. The address is part of a free fragment inside a backend `SmallArenaRange`:
    Here, the `MetaEntry` is zero aside from the asserted `REMOTE_BACKEND_MARKER` bit, and so it...
    * has "small" sizeclass 0, which has size 0.
    * has no associated metadata structure.
+
+   The tree of free sub-chunk fragments for this chunk is stored inside the free fragments themselves (`InplaceRep`), not in the pagemap.
 
 4. The address is part of a live large allocation (spanning one or more 16KiB chunks):
    Here, the `MetaEntry`...

@@ -58,8 +58,8 @@ int main()
   }
 
   /*
-   * This large object is sized to end up in our alloc's local buddy allocators
-   * when it's released.
+   * This large object is sized to end up in our alloc's thread-local
+   * cache range when it's released.
    */
   message("Grab large object");
   ptraddr_t alarge;

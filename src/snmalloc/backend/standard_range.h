@@ -46,8 +46,8 @@ namespace snmalloc
       bits::next_pow2_bits_const(PAL::page_size);
 
   public:
-    // Source for object allocations and metadata
-    // Use buddy allocators to cache locally.
+    // Source for object allocations and metadata; thread-local cache
+    // for chunk-sized ranges.
     using LargeObjectRange = Pipe<
       Stats,
       StaticConditionalRange<LargeArenaRange<
