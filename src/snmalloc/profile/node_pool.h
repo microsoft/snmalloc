@@ -107,8 +107,7 @@ namespace snmalloc::profile
       for (uint32_t i = 0; i < Capacity; ++i)
       {
         new (&nodes_[i]) SampledAlloc();
-        nodes_[i].pool_next =
-          (i + 1 == Capacity) ? nullptr : &nodes_[i + 1];
+        nodes_[i].pool_next = (i + 1 == Capacity) ? nullptr : &nodes_[i + 1];
       }
 
       Head h{};
@@ -151,9 +150,8 @@ namespace snmalloc::profile
         SampledAlloc* top = &nodes_[h.parts.idx];
         SampledAlloc* nxt = top->pool_next;
         Head nh{};
-        nh.parts.idx = (nxt == nullptr)
-          ? kNullIdx
-          : static_cast<uint32_t>(nxt - nodes_);
+        nh.parts.idx =
+          (nxt == nullptr) ? kNullIdx : static_cast<uint32_t>(nxt - nodes_);
         nh.parts.tag = h.parts.tag + 1;
         if (head_.compare_exchange_weak(
               cur,
@@ -162,11 +160,9 @@ namespace snmalloc::profile
               std::memory_order_acquire))
         {
           top->reset_for_acquire();
-          top->alloc_seq =
-            seq_.fetch_add(1, std::memory_order_relaxed) + 1;
+          top->alloc_seq = seq_.fetch_add(1, std::memory_order_relaxed) + 1;
           top->state.store(
-            static_cast<uint8_t>(NodeState::Live),
-            std::memory_order_relaxed);
+            static_cast<uint8_t>(NodeState::Live), std::memory_order_relaxed);
           return top;
         }
       }
@@ -218,7 +214,10 @@ namespace snmalloc::profile
       return Capacity;
     }
 
-    [[nodiscard]] SampledAlloc* base() noexcept { return nodes_; }
+    [[nodiscard]] SampledAlloc* base() noexcept
+    {
+      return nodes_;
+    }
 
     /**
      * Reset drops counter. Test-only helper.
@@ -237,8 +236,10 @@ namespace snmalloc::profile
         uint32_t idx;
         uint32_t tag;
       } parts;
+
       uint64_t raw;
     };
+
     static_assert(sizeof(Head) == 8, "Head must pack into one 64-bit word");
 
     static void* os_reserve(size_t bytes) noexcept

@@ -8,13 +8,9 @@ concurrency:
 
 # Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the master branch
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main, snmalloc1 ]
-
-  # Allows you to run this workflow manually from the Actions tab
+  # Auto triggers (push / pull_request) removed on the
+  # jayakasadev/snmalloc fork to save CI costs.  Re-enable upstream
+  # or run manually from the Actions tab.
   workflow_dispatch:
 
 env:

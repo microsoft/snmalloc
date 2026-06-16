@@ -32,15 +32,15 @@
 // truth simplifies the Rust binding (FILE pointers do not cross the
 // FFI boundary cleanly on every host).
 
-#include "../snmalloc.h"
 #include "snmalloc/global/stats_dump.h"
+
+#include "../snmalloc.h"
 #include "snmalloc/global/stats_export.h"
 
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
 #include <string>
 
 #ifndef SNMALLOC_EXPORT
@@ -69,17 +69,16 @@ namespace
   /// returns the number of bytes that would have been emitted (so
   /// callers can detect truncation against `cap`).  Always
   /// NUL-terminates `buf` when `cap > 0`.
-  static void
-  cursor_printf(WriteCursor* cursor, const char* fmt, ...)
+  static void cursor_printf(WriteCursor* cursor, const char* fmt, ...)
   {
     va_list args;
     va_start(args, fmt);
     // Reserve one byte for the trailing NUL; vsnprintf's size argument
     // is "buffer length including terminator".
     size_t remaining =
-      (cursor->buf != nullptr && cursor->cap > cursor->written)
-      ? (cursor->cap - cursor->written)
-      : 0;
+      (cursor->buf != nullptr && cursor->cap > cursor->written) ?
+      (cursor->cap - cursor->written) :
+      0;
     int n = vsnprintf(
       cursor->buf != nullptr ? cursor->buf + cursor->written : nullptr,
       remaining,
@@ -102,9 +101,8 @@ namespace
     {
       // vsnprintf wrote min(emitted, remaining - 1) bytes (+ NUL).
       // The bytes actually in the buffer are bounded by remaining - 1.
-      size_t actually_written = emitted < (remaining - 1)
-        ? emitted
-        : (remaining - 1);
+      size_t actually_written =
+        emitted < (remaining - 1) ? emitted : (remaining - 1);
       cursor->written += actually_written;
     }
   }
@@ -112,8 +110,7 @@ namespace
   /// Render `bytes` in human-readable form (KiB / MiB / GiB).  Uses
   /// fixed-point "%.1f" to match tcmalloc's output column shape.
   /// Writes into `out` which must hold at least 32 bytes.
-  static void
-  bytes_to_human(uint64_t bytes, char* out, size_t out_cap)
+  static void bytes_to_human(uint64_t bytes, char* out, size_t out_cap)
   {
     constexpr double kKiB = 1024.0;
     constexpr double kMiB = kKiB * 1024.0;
@@ -138,19 +135,33 @@ namespace
     // Lower and upper bounds in nanoseconds.  Avoid uint64_t overflow
     // by capping at 1 << 63.  The histogram caps the last bucket
     // anyway so the visual representation just needs to be useful.
-    uint64_t lo = (bucket >= 63u) ? (uint64_t{1} << 63) : (uint64_t{1} << bucket);
-    uint64_t hi = (bucket >= 62u) ? (uint64_t{1} << 63) : (uint64_t{1} << (bucket + 1u));
+    uint64_t lo =
+      (bucket >= 63u) ? (uint64_t{1} << 63) : (uint64_t{1} << bucket);
+    uint64_t hi =
+      (bucket >= 62u) ? (uint64_t{1} << 63) : (uint64_t{1} << (bucket + 1u));
 
-    auto fmt_one = [](uint64_t ns, char* dst, size_t cap)
-    {
+    auto fmt_one = [](uint64_t ns, char* dst, size_t cap) {
       if (ns >= 3'600'000'000'000ull)
-        snprintf(dst, cap, "%llu hr", static_cast<unsigned long long>(ns / 3'600'000'000'000ull));
+        snprintf(
+          dst,
+          cap,
+          "%llu hr",
+          static_cast<unsigned long long>(ns / 3'600'000'000'000ull));
       else if (ns >= 1'000'000'000ull)
-        snprintf(dst, cap, "%llu s", static_cast<unsigned long long>(ns / 1'000'000'000ull));
+        snprintf(
+          dst,
+          cap,
+          "%llu s",
+          static_cast<unsigned long long>(ns / 1'000'000'000ull));
       else if (ns >= 1'000'000ull)
-        snprintf(dst, cap, "%llu ms", static_cast<unsigned long long>(ns / 1'000'000ull));
+        snprintf(
+          dst,
+          cap,
+          "%llu ms",
+          static_cast<unsigned long long>(ns / 1'000'000ull));
       else if (ns >= 1'000ull)
-        snprintf(dst, cap, "%llu us", static_cast<unsigned long long>(ns / 1'000ull));
+        snprintf(
+          dst, cap, "%llu us", static_cast<unsigned long long>(ns / 1'000ull));
       else
         snprintf(dst, cap, "%llu ns", static_cast<unsigned long long>(ns));
     };
@@ -177,55 +188,67 @@ namespace
   /// Core formatter.  Writes the dump into `cursor`; uses NULL/0 for
   /// size-querying.  All input data comes from a fresh
   /// `snmalloc_get_full_stats` snapshot.
-  static void
-  format_dump(WriteCursor* cursor, const snmalloc_full_stats* s)
+  static void format_dump(WriteCursor* cursor, const snmalloc_full_stats* s)
   {
     char human[32];
 
-    cursor_printf(cursor,
-      "------------------------------------------------\n");
+    cursor_printf(cursor, "------------------------------------------------\n");
 
     bytes_to_human(s->bytes_in_use, human, sizeof(human));
-    cursor_printf(cursor,
+    cursor_printf(
+      cursor,
       "MALLOC:   %12llu (%s) Bytes in use by application\n",
-      static_cast<unsigned long long>(s->bytes_in_use), human);
+      static_cast<unsigned long long>(s->bytes_in_use),
+      human);
 
     bytes_to_human(s->peak_bytes_in_use, human, sizeof(human));
-    cursor_printf(cursor,
+    cursor_printf(
+      cursor,
       "MALLOC: + %12llu (%s) Peak bytes in use\n",
-      static_cast<unsigned long long>(s->peak_bytes_in_use), human);
+      static_cast<unsigned long long>(s->peak_bytes_in_use),
+      human);
 
     bytes_to_human(s->bytes_committed, human, sizeof(human));
-    cursor_printf(cursor,
+    cursor_printf(
+      cursor,
       "MALLOC: + %12llu (%s) Bytes committed to OS\n",
-      static_cast<unsigned long long>(s->bytes_committed), human);
+      static_cast<unsigned long long>(s->bytes_committed),
+      human);
 
     bytes_to_human(s->bytes_decommitted_to_os, human, sizeof(human));
-    cursor_printf(cursor,
+    cursor_printf(
+      cursor,
       "MALLOC: + %12llu (%s) Bytes decommitted (returned to OS)\n",
-      static_cast<unsigned long long>(s->bytes_decommitted_to_os), human);
+      static_cast<unsigned long long>(s->bytes_decommitted_to_os),
+      human);
 
-    cursor_printf(cursor,
+    cursor_printf(
+      cursor,
       "MALLOC:   %12llu              Fast-path allocations\n",
       static_cast<unsigned long long>(s->fast_path_allocs));
 
-    cursor_printf(cursor,
+    cursor_printf(
+      cursor,
       "MALLOC:   %12llu              Slow-path allocations\n",
       static_cast<unsigned long long>(s->slow_path_allocs));
 
-    cursor_printf(cursor,
+    cursor_printf(
+      cursor,
       "MALLOC:   %12llu              Fast-path deallocations\n",
       static_cast<unsigned long long>(s->fast_path_deallocs));
 
-    cursor_printf(cursor,
+    cursor_printf(
+      cursor,
       "MALLOC:   %12llu              Cross-thread deallocations\n",
       static_cast<unsigned long long>(s->remote_deallocs));
 
-    cursor_printf(cursor,
+    cursor_printf(
+      cursor,
       "MALLOC:   %12llu              Message-queue drains\n",
       static_cast<unsigned long long>(s->message_queue_drains));
 
-    cursor_printf(cursor,
+    cursor_printf(
+      cursor,
       "MALLOC:   %12llu              Cross-thread messages received\n",
       static_cast<unsigned long long>(s->cross_thread_messages_received));
 
@@ -239,9 +262,10 @@ namespace
     bool any_class = false;
     for (unsigned i = 0; i < SNMALLOC_FULL_STATS_SIZECLASS_SLOTS; ++i)
     {
-      if (s->total_live_count_by_class[i] != 0 ||
-          s->cumulative_alloc_by_class[i] != 0 ||
-          s->cumulative_dealloc_by_class[i] != 0)
+      if (
+        s->total_live_count_by_class[i] != 0 ||
+        s->cumulative_alloc_by_class[i] != 0 ||
+        s->cumulative_dealloc_by_class[i] != 0)
       {
         any_class = true;
         break;
@@ -249,18 +273,20 @@ namespace
     }
     if (any_class)
     {
-      cursor_printf(cursor,
-        "------------------------------------------------\n");
-      cursor_printf(cursor,
-        "Class   Size         Live    TotalAllocs    TotalDeallocs\n");
+      cursor_printf(
+        cursor, "------------------------------------------------\n");
+      cursor_printf(
+        cursor, "Class   Size         Live    TotalAllocs    TotalDeallocs\n");
       for (unsigned i = 0; i < SNMALLOC_FULL_STATS_SIZECLASS_SLOTS; ++i)
       {
-        if (s->total_live_count_by_class[i] == 0 &&
-            s->cumulative_alloc_by_class[i] == 0 &&
-            s->cumulative_dealloc_by_class[i] == 0)
+        if (
+          s->total_live_count_by_class[i] == 0 &&
+          s->cumulative_alloc_by_class[i] == 0 &&
+          s->cumulative_dealloc_by_class[i] == 0)
           continue;
         uint64_t bytes = sizeclass_slot_to_bytes(i);
-        cursor_printf(cursor,
+        cursor_printf(
+          cursor,
           "%5u  %5llu  %11llu  %13llu  %15llu\n",
           i,
           static_cast<unsigned long long>(bytes),
@@ -286,26 +312,30 @@ namespace
     }
     if (any_bucket)
     {
-      cursor_printf(cursor,
-        "------------------------------------------------\n");
-      cursor_printf(cursor,
-        "Lifetime histogram (log2 ns buckets):\n");
-      cursor_printf(cursor,
-        "  bucket  range                       count\n");
-      char range[48];
+      cursor_printf(
+        cursor, "------------------------------------------------\n");
+      cursor_printf(cursor, "Lifetime histogram (log2 ns buckets):\n");
+      cursor_printf(cursor, "  bucket  range                       count\n");
+      // 64 bytes covers `[%s - %s)` with two 23-byte lo/hi formatted
+      // strings plus the 5 framing chars plus the trailing NUL.  GCC's
+      // `-Wformat-truncation` correctly flagged the previous 48 as
+      // borderline-too-small under the worst-case `%llu hr` expansion.
+      char range[64];
       for (unsigned i = 0; i < SNMALLOC_FULL_STATS_LIFETIME_BUCKETS; ++i)
       {
         if (s->lifetime_buckets_ns[i] == 0)
           continue;
         lifetime_range_to_human(i, range, sizeof(range));
-        cursor_printf(cursor,
-          "  %6u  %-26s %12llu\n", i, range,
+        cursor_printf(
+          cursor,
+          "  %6u  %-26s %12llu\n",
+          i,
+          range,
           static_cast<unsigned long long>(s->lifetime_buckets_ns[i]));
       }
     }
 
-    cursor_printf(cursor,
-      "------------------------------------------------\n");
+    cursor_printf(cursor, "------------------------------------------------\n");
   }
 } // namespace
 

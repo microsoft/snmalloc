@@ -17,8 +17,8 @@ cc_test(
         "ADDRESS_SANITIZER",
     ],
     linkstatic = True,
-    malloc = "//:snmalloc",
     deps = [
+        "//:snmalloc_hdrs",
         "@fuzztest//fuzztest",
         "@fuzztest//fuzztest:fuzztest_gtest_main",
     ],

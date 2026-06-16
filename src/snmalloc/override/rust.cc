@@ -177,8 +177,7 @@ extern "C" SNMALLOC_EXPORT bool sn_rust_profile_supported(void)
   return true;
 }
 
-extern "C" SNMALLOC_EXPORT void
-sn_rust_profile_set_sampling_rate(size_t bytes)
+extern "C" SNMALLOC_EXPORT void sn_rust_profile_set_sampling_rate(size_t bytes)
 {
   snmalloc::profile::Sampler::set_sampling_rate(bytes);
 }
@@ -193,8 +192,8 @@ extern "C" SNMALLOC_EXPORT void* sn_rust_profile_snapshot_begin(void)
   // First pass: count live samples so we know how much to allocate.
   size_t live = snmalloc::profile::SamplerGlobals::list().debug_count();
 
-  auto* snap = static_cast<RustProfileSnapshot*>(
-    ::malloc(sizeof(RustProfileSnapshot)));
+  auto* snap =
+    static_cast<RustProfileSnapshot*>(::malloc(sizeof(RustProfileSnapshot)));
   if (snap == nullptr)
     return nullptr;
 
@@ -229,10 +228,9 @@ extern "C" SNMALLOC_EXPORT void* sn_rust_profile_snapshot_begin(void)
       out.requested_size = node->requested_size;
       out.allocated_size = node->allocated_size;
       out.weight = static_cast<size_t>(node->weight);
-      const size_t depth =
-        node->stack_depth <= SNMALLOC_PROFILE_STACK_FRAMES
-        ? node->stack_depth
-        : SNMALLOC_PROFILE_STACK_FRAMES;
+      const size_t depth = node->stack_depth <= SNMALLOC_PROFILE_STACK_FRAMES ?
+        node->stack_depth :
+        SNMALLOC_PROFILE_STACK_FRAMES;
       out.stack_depth = static_cast<uint32_t>(depth);
       for (size_t i = 0; i < depth; ++i)
         out.stack[i] = reinterpret_cast<void*>(node->stack[i]);
@@ -314,8 +312,8 @@ namespace
    * the live SampledAlloc into the FFI-stable POD and invokes the user
    * callback.  Marked `noexcept` per the AllocationSampleCallback contract.
    */
-  void streaming_broadcast_shim(
-    const snmalloc::profile::SampledAlloc& node) noexcept
+  void
+  streaming_broadcast_shim(const snmalloc::profile::SampledAlloc& node) noexcept
   {
     auto user_cb = g_streaming_user_cb.load(std::memory_order_acquire);
     if (user_cb == nullptr)
@@ -329,9 +327,9 @@ namespace
     out.requested_size = node.requested_size;
     out.allocated_size = node.allocated_size;
     out.weight = static_cast<size_t>(node.weight);
-    const size_t depth = node.stack_depth <= SNMALLOC_PROFILE_STACK_FRAMES
-      ? node.stack_depth
-      : SNMALLOC_PROFILE_STACK_FRAMES;
+    const size_t depth = node.stack_depth <= SNMALLOC_PROFILE_STACK_FRAMES ?
+      node.stack_depth :
+      SNMALLOC_PROFILE_STACK_FRAMES;
     out.stack_depth = static_cast<uint32_t>(depth);
     for (size_t i = 0; i < depth; ++i)
       out.stack[i] = reinterpret_cast<void*>(node.stack[i]);
@@ -347,8 +345,8 @@ namespace
   }
 } // namespace
 
-extern "C" SNMALLOC_EXPORT int sn_rust_profile_streaming_start(
-  void (*cb)(const SnRustProfileRawSample*))
+extern "C" SNMALLOC_EXPORT int
+sn_rust_profile_streaming_start(void (*cb)(const SnRustProfileRawSample*))
 {
   if (cb == nullptr)
     return -1;
@@ -363,8 +361,9 @@ extern "C" SNMALLOC_EXPORT int sn_rust_profile_streaming_start(
     return -1;
   }
 
-  const int rc = snmalloc::profile::AllocationSampleList::global()
-                   .register_handler(streaming_broadcast_shim);
+  const int rc =
+    snmalloc::profile::AllocationSampleList::global().register_handler(
+      streaming_broadcast_shim);
   if (rc != snmalloc::profile::AllocationSampleList::kOk)
   {
     // Couldn't register the shim (all slots full from C++-side
@@ -383,8 +382,9 @@ extern "C" SNMALLOC_EXPORT int sn_rust_profile_streaming_stop(void)
   // record_alloc holds no mutex around the broadcast call -- an
   // in-flight broadcast loaded the shim before we unregistered will
   // still observe a non-null user_cb until we clear that next.
-  const int rc = snmalloc::profile::AllocationSampleList::global()
-                   .unregister_handler(streaming_broadcast_shim);
+  const int rc =
+    snmalloc::profile::AllocationSampleList::global().unregister_handler(
+      streaming_broadcast_shim);
 
   auto prev = g_streaming_user_cb.exchange(nullptr, std::memory_order_acq_rel);
 
@@ -453,15 +453,14 @@ extern "C" SNMALLOC_EXPORT intptr_t sn_rust_profile_lookup_alloc_site(
 // buffer; truncates if `len` is shorter than `kLifetimeBuckets`.  Pure
 // read -- no allocator state is mutated; relaxed loads on each bucket.
 // ---------------------------------------------------------------------------
-extern "C" SNMALLOC_EXPORT size_t sn_rust_profile_lifetime_histogram(
-  uint64_t* out_buckets, size_t len)
+extern "C" SNMALLOC_EXPORT size_t
+sn_rust_profile_lifetime_histogram(uint64_t* out_buckets, size_t len)
 {
   if (out_buckets == nullptr || len == 0)
     return 0;
-  const size_t to_copy =
-    len < snmalloc::profile::kLifetimeBuckets
-    ? len
-    : snmalloc::profile::kLifetimeBuckets;
+  const size_t to_copy = len < snmalloc::profile::kLifetimeBuckets ?
+    len :
+    snmalloc::profile::kLifetimeBuckets;
   auto& hist = snmalloc::profile::LifetimeHistogram::get();
   for (size_t i = 0; i < to_copy; ++i)
     out_buckets[i] = hist.bucket(i);
@@ -479,8 +478,7 @@ extern "C" SNMALLOC_EXPORT bool sn_rust_profile_supported(void)
 
 extern "C" SNMALLOC_EXPORT void
 sn_rust_profile_set_sampling_rate(size_t /*bytes*/)
-{
-}
+{}
 
 extern "C" SNMALLOC_EXPORT size_t sn_rust_profile_get_sampling_rate(void)
 {
@@ -503,12 +501,10 @@ extern "C" SNMALLOC_EXPORT bool sn_rust_profile_snapshot_get(
   return false;
 }
 
-extern "C" SNMALLOC_EXPORT void sn_rust_profile_snapshot_end(void* /*h*/)
-{
-}
+extern "C" SNMALLOC_EXPORT void sn_rust_profile_snapshot_end(void* /*h*/) {}
 
-extern "C" SNMALLOC_EXPORT int sn_rust_profile_streaming_start(
-  void (*)(const SnRustProfileRawSample*))
+extern "C" SNMALLOC_EXPORT int
+sn_rust_profile_streaming_start(void (*)(const SnRustProfileRawSample*))
 {
   return -1;
 }
@@ -528,8 +524,8 @@ extern "C" SNMALLOC_EXPORT intptr_t sn_rust_profile_lookup_alloc_site(
   return -1;
 }
 
-extern "C" SNMALLOC_EXPORT size_t sn_rust_profile_lifetime_histogram(
-  uint64_t* /*out_buckets*/, size_t /*len*/)
+extern "C" SNMALLOC_EXPORT size_t
+sn_rust_profile_lifetime_histogram(uint64_t* /*out_buckets*/, size_t /*len*/)
 {
   // No samples possible without SNMALLOC_PROFILE: return 0 written.
   return 0;

@@ -88,12 +88,24 @@ fn lifetime_histogram_observes_sleep_window() {
     // assertion.
     let before = HeapProfile::lifetime_histogram();
 
-    // 1 MiB allocation -- large enough that it almost certainly
-    // fires a sample on its own under any sampling rate, and small
-    // enough that the underlying mmap is cheap.
+    // Allocate a *batch* of 1 MiB buffers rather than a single one.
+    // The Phase 9.5 lifetime hook only fires when the dealloc path
+    // observes a sampled slot, and on macos-14 release builds we
+    // sporadically see the sample fall on a different countdown
+    // boundary than the rate=1 reset above implies (the per-thread
+    // countdown is not flushed by `set_sampling_rate`).  Issuing N
+    // allocs makes the loss of any one of them irrelevant -- the
+    // assertion only requires *one* sample to complete the round-trip,
+    // and with rate=1 every alloc after the first guaranteed-fired
+    // one keeps firing.  See ticket 86aj0h83a for the macos-14 flake.
+    const N_BUFS: usize = 16;
     let layout = Layout::from_size_align(1 << 20, 64).unwrap();
-    let ptr = unsafe { a.alloc(layout) };
-    assert!(!ptr.is_null(), "1 MiB alloc must succeed");
+    let mut ptrs: Vec<*mut u8> = Vec::with_capacity(N_BUFS);
+    for _ in 0..N_BUFS {
+        let ptr = unsafe { a.alloc(layout) };
+        assert!(!ptr.is_null(), "1 MiB alloc must succeed");
+        ptrs.push(ptr);
+    }
 
     // Sleep at least 50 ms.  thread::sleep guarantees a lower bound
     // on the wall-clock delay; the actual elapsed time may be larger
@@ -102,7 +114,9 @@ fn lifetime_histogram_observes_sleep_window() {
     // bucket asserted below.
     thread::sleep(Duration::from_millis(50));
 
-    unsafe { a.dealloc(ptr, layout) };
+    for ptr in ptrs {
+        unsafe { a.dealloc(ptr, layout) };
+    }
 
     let after = HeapProfile::lifetime_histogram();
     a.set_sampling_rate(saved_rate);
@@ -116,8 +130,8 @@ fn lifetime_histogram_observes_sleep_window() {
 
     assert!(
         total >= 1,
-        "expected at least one lifetime bump across the 50ms window; \
-         got per-bucket delta {:?}",
+        "expected at least one lifetime bump across the 50ms window \
+         from {N_BUFS} sampled allocs; got per-bucket delta {:?}",
         delta
     );
 

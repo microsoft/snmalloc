@@ -24,48 +24,50 @@
 #endif
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-/**
- * Allocate `size` bytes with the given `alignment`.  Both must satisfy
- * the constraints documented on the Rust side (`alignment` > 0 and a
- * power of two).  Returns NULL on out-of-memory.
- */
-SNMALLOC_EXPORT void* sn_rust_alloc(size_t alignment, size_t size);
+  /**
+   * Allocate `size` bytes with the given `alignment`.  Both must satisfy
+   * the constraints documented on the Rust side (`alignment` > 0 and a
+   * power of two).  Returns NULL on out-of-memory.
+   */
+  SNMALLOC_EXPORT void* sn_rust_alloc(size_t alignment, size_t size);
 
-/**
- * Like `sn_rust_alloc` but zero-initialises the returned region.
- */
-SNMALLOC_EXPORT void* sn_rust_alloc_zeroed(size_t alignment, size_t size);
+  /**
+   * Like `sn_rust_alloc` but zero-initialises the returned region.
+   */
+  SNMALLOC_EXPORT void* sn_rust_alloc_zeroed(size_t alignment, size_t size);
 
-/**
- * Deallocate the region previously returned by `sn_rust_alloc` /
- * `sn_rust_alloc_zeroed` / `sn_rust_realloc`.  `alignment` and `size`
- * must match the values used at allocation time.
- */
-SNMALLOC_EXPORT void sn_rust_dealloc(void* ptr, size_t alignment, size_t size);
+  /**
+   * Deallocate the region previously returned by `sn_rust_alloc` /
+   * `sn_rust_alloc_zeroed` / `sn_rust_realloc`.  `alignment` and `size`
+   * must match the values used at allocation time.
+   */
+  SNMALLOC_EXPORT void
+  sn_rust_dealloc(void* ptr, size_t alignment, size_t size);
 
-/**
- * Resize the allocation at `ptr` from `old_size` to `new_size` bytes
- * (both with the same `alignment`).  Returns NULL on failure, in which
- * case the original allocation is left intact.
- */
-SNMALLOC_EXPORT void* sn_rust_realloc(
-  void* ptr, size_t alignment, size_t old_size, size_t new_size);
+  /**
+   * Resize the allocation at `ptr` from `old_size` to `new_size` bytes
+   * (both with the same `alignment`).  Returns NULL on failure, in which
+   * case the original allocation is left intact.
+   */
+  SNMALLOC_EXPORT void* sn_rust_realloc(
+    void* ptr, size_t alignment, size_t old_size, size_t new_size);
 
-/**
- * Write the current and peak OS-level memory reservation, in bytes,
- * into the two output pointers.  Both must be non-NULL.
- */
-SNMALLOC_EXPORT void sn_rust_statistics(
-  size_t* current_memory_usage, size_t* peak_memory_usage);
+  /**
+   * Write the current and peak OS-level memory reservation, in bytes,
+   * into the two output pointers.  Both must be non-NULL.
+   */
+  SNMALLOC_EXPORT void
+  sn_rust_statistics(size_t* current_memory_usage, size_t* peak_memory_usage);
 
-/**
- * Return the usable size in bytes of the allocation at `ptr` (i.e.
- * the size class snmalloc rounded up to).  Returns 0 for NULL.
- */
-SNMALLOC_EXPORT size_t sn_rust_usable_size(const void* ptr);
+  /**
+   * Return the usable size in bytes of the allocation at `ptr` (i.e.
+   * the size class snmalloc rounded up to).  Returns 0 for NULL.
+   */
+  SNMALLOC_EXPORT size_t sn_rust_usable_size(const void* ptr);
 
 #ifdef __cplusplus
 }

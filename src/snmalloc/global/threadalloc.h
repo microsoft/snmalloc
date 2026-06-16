@@ -27,7 +27,14 @@
 #  endif
 #  define SNMALLOC_THREAD_TEARDOWN_DEFINED
 extern "C" int __cxa_thread_atexit_impl(void(func)(void*), void*, void*);
-extern "C" void* __dso_handle;
+// libstdc++'s <bits/c++config.h> may declare __dso_handle with C++
+// linkage (and const-qualified) when pulled in transitively via STL
+// headers from snmalloc's profile sources.  Matching that decl here
+// keeps both translation-unit and link orderings happy across gcc,
+// libstdc++, and libc++.  The `weak` attribute tolerates any
+// remaining redeclaration mismatch the linker may surface from
+// CRT-provided variants.
+__attribute__((weak)) extern void* __dso_handle;
 #endif
 
 #if defined(SNMALLOC_USE_CXX11_DESTRUCTORS)
@@ -117,7 +124,7 @@ namespace snmalloc
       times_teardown_called++;
       if (bits::is_pow2(times_teardown_called) || times_teardown_called < 128)
         alloc->flush();
-#ifdef SNMALLOC_STATS_BASIC
+#  ifdef SNMALLOC_STATS_BASIC
       // Phase 9.2 -- drain this thread's frontend stats into the
       // process-global aggregator before releasing the allocator
       // back to the pool.  Allocators are pooled and may be
@@ -130,7 +137,7 @@ namespace snmalloc
       // both tiers reach this drain.  The drain function itself
       // also internally gates the per-size-class drain on FULL.
       alloc->drain_stats_to_global();
-#endif
+#  endif
       AllocPool<Config>::release(alloc);
       alloc = const_cast<Alloc*>(&default_alloc);
     }
@@ -222,8 +229,7 @@ namespace snmalloc
 #    if __has_attribute(destructor)
     [[gnu::destructor]]
 #    endif
-    static void
-    pthread_cleanup_main_thread()
+    static void pthread_cleanup_main_thread()
     {
       ThreadAlloc::teardown();
     }

@@ -30,13 +30,6 @@
 // NodePool).  We deliberately do NOT construct a Config that wires the
 // lazy provider into a real Backend: that integration is Phase 3.3.
 
-#include <snmalloc/snmalloc.h>
-
-#include <snmalloc/profile/profile.h>
-#include <snmalloc/profile/record.h>
-
-#include <test/setup.h>
-
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -46,6 +39,10 @@
 #include <iostream>
 #include <mutex>
 #include <queue>
+#include <snmalloc/profile/profile.h>
+#include <snmalloc/profile/record.h>
+#include <snmalloc/snmalloc.h>
+#include <test/setup.h>
 #include <thread>
 #include <vector>
 
@@ -152,8 +149,7 @@ namespace
     // Simulate H2 on destination thread for the same forwarded pointer.
     SampledAlloc* second = clear_profile_slot(&slot);
     check(
-      second == nullptr,
-      "second clear (H2) is a no-op -- no double release");
+      second == nullptr, "second clear (H2) is a no-op -- no double release");
 
     const size_t live_post = SamplerGlobals::list().debug_count();
     check(
@@ -177,8 +173,8 @@ namespace
     std::atomic<bool> producers_done{false};
   };
 
-  void cross_thread_producer(
-    CrossThreadQueue& cq, size_t count, size_t base_size)
+  void
+  cross_thread_producer(CrossThreadQueue& cq, size_t count, size_t base_size)
   {
     for (size_t i = 0; i < count; ++i)
     {
@@ -252,8 +248,7 @@ namespace
         // Each producer feeds its dedicated consumer (different thread).
         // Sizes span small + medium classes to stretch slab geometry.
         const size_t base = 32 + (i * 96);
-        cross_thread_producer(
-          queues[i % queues.size()], PER_PRODUCER, base);
+        cross_thread_producer(queues[i % queues.size()], PER_PRODUCER, base);
       });
     }
 
@@ -278,8 +273,7 @@ namespace
     // never touched, but draining is still a safe assertion.
     const size_t live_end = SamplerGlobals::list().debug_count();
     check(
-      live_end == 0,
-      "no SampledAlloc nodes leaked across cross-thread stress");
+      live_end == 0, "no SampledAlloc nodes leaked across cross-thread stress");
 
     check(true, "cross-thread stress completed without crash");
   }

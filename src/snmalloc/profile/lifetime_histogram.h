@@ -115,8 +115,7 @@ namespace snmalloc::profile
       _BitScanReverse64(&index, ns);
       const size_t b = static_cast<size_t>(index);
 #else
-      const size_t b =
-        static_cast<size_t>(63 - __builtin_clzll(ns));
+      const size_t b = static_cast<size_t>(63 - __builtin_clzll(ns));
 #endif
       return b >= kLifetimeBuckets ? (kLifetimeBuckets - 1) : b;
     }

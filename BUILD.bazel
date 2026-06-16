@@ -1,4 +1,20 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "cmake")
+
+# Header-only view of the snmalloc API.  No allocator-override
+# symbols (libsnmalloc-new-override) are linked, so consumers that
+# only want to call header-only inline templates (e.g.
+# `snmalloc::memcpy<true>` in the fuzzer) can depend on this without
+# their process's malloc/free being silently replaced.
+#
+# This is intentionally distinct from `:snmalloc` (the cmake() rule
+# that builds the static archives and overrides operator new/delete).
+cc_library(
+    name = "snmalloc_hdrs",
+    hdrs = glob(["src/snmalloc/**/*.h"]),
+    strip_include_prefix = "src",
+    visibility = ["//visibility:public"],
+)
 
 filegroup(
     name = "srcs",

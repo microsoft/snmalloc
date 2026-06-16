@@ -35,18 +35,24 @@
 
 #pragma once
 
-// Deliberately lightweight: this header is included from corealloc.h
-// behind `#ifdef SNMALLOC_PROFILE`, and corealloc.h itself transitively
-// includes everything we need (metadata.h for FrontendSlabMetadata,
-// commonconfig.h for LazyArrayClientMetaDataProvider, etc).  Pulling
-// commonconfig.h or metadata.h in here directly would create a cycle:
+// Pull in `snmalloc_core.h` so this header is self-sufficient: any
+// translation unit (test sources, downstream Bazel targets, etc.)
+// can `#include <snmalloc/profile/record.h>` without having first
+// included `<snmalloc/snmalloc.h>` and rely on
+// `LazyArrayClientMetaDataProvider`, `address_cast`, `slab_index`,
+// etc. being visible.  Older versions of this header documented a
+// cycle of the form
 //   commonconfig.h -> mem/mem.h -> mem/corealloc.h -> profile/record.h.
-//
-// Consumers that include profile/record.h *without* having corealloc.h
-// already in scope (none today) must arrange for those headers to be
-// available at template-instantiation time.
-
+// In practice that cycle does not exist: `mem/corealloc.h` only
+// forward-references the record_* entry points by name in comments,
+// not via `#include`.  `backend_helpers.h` itself includes
+// `commonconfig.h` *before* it includes us under `#ifdef
+// SNMALLOC_PROFILE`, so the `#pragma once` here makes any
+// re-entry a cheap no-op.  Adding the include here means the
+// pre-clang-format manual ordering (snmalloc.h before record.h) is
+// no longer load-bearing -- ticket 86aj2dwjz / cleanup PR.
 #include "../ds_core/defines.h"
+#include "../snmalloc_core.h"
 #include "allocation_sample_list.h"
 #include "lifetime_histogram.h"
 #include "node_pool.h"

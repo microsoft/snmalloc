@@ -187,10 +187,7 @@ namespace snmalloc::profile
       if (h == node)
       {
         if (head_.compare_exchange_strong(
-              h,
-              succ,
-              std::memory_order_release,
-              std::memory_order_relaxed))
+              h, succ, std::memory_order_release, std::memory_order_relaxed))
           return;
         // Lost race -- fall through to scan.
       }

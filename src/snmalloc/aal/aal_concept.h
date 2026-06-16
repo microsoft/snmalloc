@@ -13,33 +13,28 @@ namespace snmalloc
    * machine word size, and an upper bound on the address space size
    */
   template<typename AAL>
-  concept IsAAL_static_members =
-    requires() {
-      typename stl::integral_constant<uint64_t, AAL::aal_features>;
-      typename stl::integral_constant<int, AAL::aal_name>;
-      typename stl::integral_constant<size_t, AAL::bits>;
-      typename stl::integral_constant<size_t, AAL::address_bits>;
-    };
+  concept IsAAL_static_members = requires() {
+    typename stl::integral_constant<uint64_t, AAL::aal_features>;
+    typename stl::integral_constant<int, AAL::aal_name>;
+    typename stl::integral_constant<size_t, AAL::bits>;
+    typename stl::integral_constant<size_t, AAL::address_bits>;
+  };
 
   /**
    * AALs provide a prefetch operation.
    */
   template<typename AAL>
   concept IsAAL_prefetch = requires(void* ptr) {
-                             {
-                               AAL::prefetch(ptr)
-                               } noexcept -> ConceptSame<void>;
-                           };
+    { AAL::prefetch(ptr) } noexcept -> ConceptSame<void>;
+  };
 
   /**
    * AALs provide a notion of high-precision timing.
    */
   template<typename AAL>
   concept IsAAL_tick = requires() {
-                         {
-                           AAL::tick()
-                           } noexcept -> ConceptSame<uint64_t>;
-                       };
+    { AAL::tick() } noexcept -> ConceptSame<uint64_t>;
+  };
 
   template<typename AAL>
   concept IsAAL_capptr_methods =
@@ -51,7 +46,7 @@ namespace snmalloc
        */
       {
         AAL::template capptr_bound<void, capptr::bounds::Chunk>(auth, sz)
-        } noexcept -> ConceptSame<capptr::Chunk<void>>;
+      } noexcept -> ConceptSame<capptr::Chunk<void>>;
 
       /**
        * "Amplify" by copying the address of one pointer into one of higher
@@ -59,7 +54,7 @@ namespace snmalloc
        */
       {
         AAL::capptr_rebound(auth, ret)
-        } noexcept -> ConceptSame<capptr::Chunk<void>>;
+      } noexcept -> ConceptSame<capptr::Chunk<void>>;
 
       /**
        * Round up an allocation size to a size this architecture can represent.
@@ -78,9 +73,7 @@ namespace snmalloc
        * That is, capptr_size_round is not needed on the user-facing fast paths,
        * merely internally for bootstrap and metadata management.
        */
-      {
-        AAL::capptr_size_round(sz)
-        } noexcept -> ConceptSame<size_t>;
+      { AAL::capptr_size_round(sz) } noexcept -> ConceptSame<size_t>;
     };
 
   template<typename AAL>

@@ -23,6 +23,16 @@ include = [
     # script lives only at the upstream repo root and is stripped from the
     # crate package.
     "upstream/scripts/**",
+    # Vendor the upstream cmake/ directory so the bundled
+    # snmalloc CMakeLists.txt can `include(...)` its sidecar
+    # modules.  Today this is `snmalloc_pgo.cmake` (included
+    # unconditionally at CMakeLists.txt:138) and
+    # `run_coverage.cmake` (referenced from coverage runs).
+    # Without this whitelist, `cargo package` strips the
+    # directory and downstream `cargo build` of the published
+    # `snmalloc-sys` tarball fails with
+    # `include could not find requested file: snmalloc_pgo.cmake`.
+    "upstream/cmake/**",
 ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

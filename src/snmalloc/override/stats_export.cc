@@ -10,8 +10,9 @@
 // / `peak_bytes_in_use` fields are zeroed via `memset` first, leaving
 // the wave-2 tickets free to populate them without touching this file.
 
-#include "../snmalloc.h"
 #include "snmalloc/global/stats_export.h"
+
+#include "../snmalloc.h"
 
 // Phase 11.6 -- lifetime histogram only needed when both PROFILE
 // (the producer) and FULL (the snapshot consumer surface) are on.
@@ -159,16 +160,14 @@ snmalloc_get_full_stats(struct snmalloc_full_stats* out)
     //   slow  = (packed >> PACKED_ALLOCS_SLOW_SHIFT) // slow-path calls
     //   fast  = total - slow                         // implied
     const uint64_t packed = agg.packed_allocs;
-    const uint64_t slow =
-      packed >> FrontendStats::PACKED_ALLOCS_SLOW_SHIFT;
+    const uint64_t slow = packed >> FrontendStats::PACKED_ALLOCS_SLOW_SHIFT;
     const uint64_t total = packed & FrontendStats::PACKED_ALLOCS_TOTAL_MASK;
     out->fast_path_allocs = total - slow;
     out->slow_path_allocs = slow;
     out->fast_path_deallocs = agg.fast_path_deallocs;
     out->remote_deallocs = agg.remote_deallocs;
     out->message_queue_drains = agg.message_queue_drains;
-    out->cross_thread_messages_received =
-      agg.cross_thread_messages_received;
+    out->cross_thread_messages_received = agg.cross_thread_messages_received;
 
 #  ifdef SNMALLOC_STATS_FULL
     // Phase 9.3 -- copy the per-class arrays into the FFI struct.

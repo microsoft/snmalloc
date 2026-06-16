@@ -47,8 +47,7 @@ int main(int /*argc*/, char** /*argv*/)
   // No-op when SNMALLOC_STATS_BASIC is off.  The build matrix wants
   // the test binary to link cleanly even without the feature flag so
   // CI doesn't grow a conditional test target.
-  fprintf(stderr,
-          "fast_path_counters: SNMALLOC_STATS_BASIC=OFF, skipping\n");
+  fprintf(stderr, "fast_path_counters: SNMALLOC_STATS_BASIC=OFF, skipping\n");
   return 0;
 }
 
@@ -77,8 +76,8 @@ namespace
   {
     if (actual < expected)
     {
-      std::cerr << "fast_path_counters: " << name << " expected >= "
-                << expected << ", got " << actual << "\n";
+      std::cerr << "fast_path_counters: " << name << " expected >= " << expected
+                << ", got " << actual << "\n";
       std::exit(1);
     }
     std::cout << "fast_path_counters: " << name << " = " << actual
@@ -234,7 +233,6 @@ int main(int /*argc*/, char** /*argv*/)
     if (p != nullptr)
       snmalloc::dealloc(p);
   }
-
 
   auto after_drain = snapshot();
   uint64_t msg_delta = after_drain.cross_thread_messages_received -

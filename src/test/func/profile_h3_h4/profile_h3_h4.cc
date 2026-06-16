@@ -47,13 +47,6 @@
 // The tests use only the publicly-exposed primitives in
 // `snmalloc::profile` plus standard `snmalloc::libc::*` calls.
 
-#include <snmalloc/snmalloc.h>
-
-#include <snmalloc/profile/profile.h>
-#include <snmalloc/profile/record.h>
-
-#include <test/setup.h>
-
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -61,6 +54,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <snmalloc/profile/profile.h>
+#include <snmalloc/profile/record.h>
+#include <snmalloc/snmalloc.h>
+#include <test/setup.h>
 #include <thread>
 #include <vector>
 
@@ -139,14 +136,11 @@ namespace
     // CAS contract must hold for any caller.
     SampledAlloc* second = clear_profile_slot(&slot);
     check(
-      second == nullptr,
-      "second clear (H3) is a no-op -- no double release");
+      second == nullptr, "second clear (H3) is a no-op -- no double release");
 
     // H4 (recursive lazy-init arm of dealloc_remote_slow)
     SampledAlloc* third = clear_profile_slot(&slot);
-    check(
-      third == nullptr,
-      "third clear (H4) is a no-op -- no double release");
+    check(third == nullptr, "third clear (H4) is a no-op -- no double release");
 
     const size_t live_post = SamplerGlobals::list().debug_count();
     check(
@@ -301,8 +295,8 @@ int main(int argc, char** argv)
 #ifdef SNMALLOC_PROFILE
   std::cout << "  (SNMALLOC_PROFILE is defined: H3+H4 hooks compiled in)\n";
 #else
-  std::cout
-    << "  (SNMALLOC_PROFILE is undefined: H3+H4 hooks are compile-time no-ops)\n";
+  std::cout << "  (SNMALLOC_PROFILE is undefined: H3+H4 hooks are compile-time "
+               "no-ops)\n";
 #endif
 
   test_triple_clear_idempotence();

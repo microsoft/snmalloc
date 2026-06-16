@@ -153,7 +153,8 @@ namespace snmalloc
 
 #ifdef NDEBUG
 #  define SNMALLOC_ASSERT_MSG(...) \
-    {}
+    { \
+    }
 #else
 #  define SNMALLOC_ASSERT_MSG(expr, fmt, ...) \
     do \

@@ -8,17 +8,9 @@ concurrency:
 
 # Controls when the workflow will run
 on:
-  schedule:
-    - cron: "0 0 * * 1"  # Runs every Monday at midnight UTC
-  # Triggers the workflow on push to main or any branch starting bench.
-  # The bench/** branches can be used for test before merge any PR that
-  # might regress performance.
-  push:
-    branches:
-      - 'main'
-      - 'bench/**'
-
-  # Allows you to run this workflow manually from the Actions tab
+  # Auto triggers (schedule / push) removed on the
+  # jayakasadev/snmalloc fork to save CI costs.  Re-enable upstream
+  # or run manually from the Actions tab.
   workflow_dispatch:
 
 jobs:

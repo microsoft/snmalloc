@@ -29,10 +29,9 @@
 #include "sampled_list.h"
 
 #include <atomic>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
-
-#include <cmath>
 
 #if defined(__x86_64__) || defined(_M_X64)
 #  if defined(_MSC_VER)
@@ -157,8 +156,10 @@ namespace snmalloc::profile
      * lifetime -- it stays on the list until the corresponding dealloc
      * hook removes it (Phase 3).
      */
-    SNMALLOC_FAST_PATH_INLINE bool
-    record_alloc(uintptr_t alloc_addr, size_t requested_size, size_t allocated_size) noexcept
+    SNMALLOC_FAST_PATH_INLINE bool record_alloc(
+      uintptr_t alloc_addr,
+      size_t requested_size,
+      size_t allocated_size) noexcept
     {
       // Phase 7.2 fast-path: a single TLS decrement + signed compare.
       //
@@ -229,7 +230,10 @@ namespace snmalloc::profile
      * Weight in bytes-of-request of the most recent sample. Valid only
      * immediately after record_alloc returned true.
      */
-    [[nodiscard]] uint64_t last_weight() const noexcept { return weight_; }
+    [[nodiscard]] uint64_t last_weight() const noexcept
+    {
+      return weight_;
+    }
 
     /**
      * Sampling interval that was in force at the moment of the last sample.
@@ -275,8 +279,7 @@ namespace snmalloc::profile
      */
     static void set_sampling_rate(size_t bytes) noexcept
     {
-      SamplerGlobals::sampling_rate().store(
-        bytes, std::memory_order_relaxed);
+      SamplerGlobals::sampling_rate().store(bytes, std::memory_order_relaxed);
     }
 
     [[nodiscard]] static size_t get_sampling_rate() noexcept
@@ -332,8 +335,8 @@ namespace snmalloc::profile
         // allocation -- that would reintroduce the same bias from the
         // other direction.
         seed_prng_if_needed();
-        hot_.bytes_until_sample = draw_exponential(rate, prng_step())
-          - static_cast<int64_t>(requested_size);
+        hot_.bytes_until_sample = draw_exponential(rate, prng_step()) -
+          static_cast<int64_t>(requested_size);
         // Mark bootstrapped.  `interval_at_capture_` is the published
         // "last sample's interval" -- not yet meaningful here because no
         // sample has fired, but `last_sample()` returns nullptr on this
@@ -353,8 +356,14 @@ namespace snmalloc::profile
       // hot_.bytes_until_sample here is <= 0 (overshoot).
       // weight = rate + requested_size + (-hot_.bytes_until_sample)
       //        = rate - hot_.bytes_until_sample + requested_size
-      weight_ = rate -
-        static_cast<int64_t>(hot_.bytes_until_sample) + requested_size;
+      //
+      // Compute the signed sum in int64_t then narrow back to uint64_t
+      // in one explicit cast so -Wsign-conversion doesn't fire on the
+      // mixed-signedness intermediates.
+      weight_ = static_cast<uint64_t>(
+        static_cast<int64_t>(rate) -
+        static_cast<int64_t>(hot_.bytes_until_sample) +
+        static_cast<int64_t>(requested_size));
       interval_at_capture_ = rate;
 
       // Reset the countdown by drawing the next interval.
@@ -444,8 +453,12 @@ namespace snmalloc::profile
       __asm__ volatile("mrs %0, cntvct_el0" : "=r"(v));
       return v;
 #else
-      uint64_t x = 0;
-      return reinterpret_cast<uintptr_t>(&x);
+      // Fallback entropy: the address of a thread-local rather than a
+      // stack local (`&x` trips -Wreturn-stack-address on 32-bit gcc).
+      // The exact value doesn't matter -- only mixed into the PRNG seed
+      // at construction time.
+      thread_local uint64_t entropy = 0;
+      return reinterpret_cast<uintptr_t>(&entropy);
 #endif
     }
 
@@ -544,9 +557,7 @@ namespace snmalloc::profile
    * the published SampledAlloc*).
    */
   SNMALLOC_FAST_PATH_INLINE bool tl_record_alloc(
-    uintptr_t alloc_addr,
-    size_t requested_size,
-    size_t allocated_size) noexcept
+    uintptr_t alloc_addr, size_t requested_size, size_t allocated_size) noexcept
   {
     // One TLS load + sub + store + branch on the common path.
     bytes_until_sample -= static_cast<int64_t>(requested_size);

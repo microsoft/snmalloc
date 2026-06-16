@@ -111,11 +111,12 @@ namespace snmalloc
     {
       for (size_t i = 0; i < NUM_BUCKETS; ++i)
       {
-        out[i] = static_cast<uint64_t>(
-          counts[i].load(stl::memory_order_relaxed));
+        out[i] =
+          static_cast<uint64_t>(counts[i].load(stl::memory_order_relaxed));
       }
     }
   };
+
   /**
    * Class for using the pagemap entries for the buddy allocator.
    */

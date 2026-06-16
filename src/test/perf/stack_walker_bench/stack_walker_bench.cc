@@ -18,16 +18,14 @@
 
 // The walker header is self-contained header-only PAL code; including it
 // directly here is fine. It does not need anything from snmalloc_core.h.
-#include <snmalloc/pal/pal_stack_walker.h>
-
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
-#include <vector>
-
 #include <snmalloc/ds_core/defines.h> // NOINLINE, snmalloc::Debug
+#include <snmalloc/pal/pal_stack_walker.h>
+#include <vector>
 
 namespace
 {
@@ -67,8 +65,7 @@ namespace
   // timed loop measures the true stack depth, not the post-return depth.
   static volatile size_t g_last_captured_depth = 0;
 
-  SNMALLOC_FAST_PATH_INLINE void
-  consume(const uintptr_t* frames, size_t depth)
+  SNMALLOC_FAST_PATH_INLINE void consume(const uintptr_t* frames, size_t depth)
   {
     // XOR-fold every captured frame address into a single sink. This
     // forces the compiler to emit the store of every `out[depth] = pc`
@@ -211,14 +208,12 @@ int main(int argc, char** argv)
     }
 
     double ns_per_iter = double(best_ns) / double(iters);
-    double ns_per_frame =
-      captured > 0 ? ns_per_iter / double(captured) : 0.0;
+    double ns_per_frame = captured > 0 ? ns_per_iter / double(captured) : 0.0;
 
-    std::cout << "  depth_requested=" << depth
-              << " depth_captured=" << captured
+    std::cout << "  depth_requested=" << depth << " depth_captured=" << captured
               << " total=" << best_ns << " ns"
-              << " ns/iter=" << ns_per_iter
-              << " ns/frame=" << ns_per_frame << std::endl;
+              << " ns/iter=" << ns_per_iter << " ns/frame=" << ns_per_frame
+              << std::endl;
 
     DepthResult dr;
     dr.depth = depth;
@@ -262,9 +257,8 @@ int main(int argc, char** argv)
       std::cout << "  slope_ns_per_frame=" << slope << std::endl;
       if (slope > kPerFrameCeilingNs)
       {
-        std::cerr << "FAIL: slope ns/frame=" << slope
-                  << " exceeds ceiling of " << kPerFrameCeilingNs
-                  << std::endl;
+        std::cerr << "FAIL: slope ns/frame=" << slope << " exceeds ceiling of "
+                  << kPerFrameCeilingNs << std::endl;
         return 1;
       }
     }

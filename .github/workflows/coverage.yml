@@ -13,11 +13,9 @@ name: Coverage
 # exercises.
 
 on:
-  pull_request:
-    branches: [ main ]
-  schedule:
-    # Nightly at 04:00 UTC; cheapest free-runner slot.
-    - cron: '0 4 * * *'
+  # Auto triggers (pull_request / schedule) removed on the
+  # jayakasadev/snmalloc fork to save CI costs.  Re-enable upstream
+  # or run manually from the Actions tab.
   workflow_dispatch:
 
 # Default token; the build does not push, comment, or modify any

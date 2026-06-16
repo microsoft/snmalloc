@@ -54,10 +54,10 @@ namespace snmalloc::profile
    * captured return addresses -- innermost first -- plus an explicit
    * `depth` so the caller knows how many entries are populated.
    *
-   * The array length matches `MaxStackFrames` (= `SNMALLOC_PROFILE_STACK_FRAMES`)
-   * so the layout mirrors what a SampledAlloc actually stores; no
-   * truncation happens on the C++ side.  Frames beyond `depth` are
-   * undefined (typically zero).
+   * The array length matches `MaxStackFrames` (=
+   * `SNMALLOC_PROFILE_STACK_FRAMES`) so the layout mirrors what a SampledAlloc
+   * actually stores; no truncation happens on the C++ side.  Frames beyond
+   * `depth` are undefined (typically zero).
    */
   struct LookupFrames
   {
@@ -115,18 +115,16 @@ namespace snmalloc::profile
     // construction off the alloc hot path.
     std::vector<Entry> entries;
 
-    SamplerGlobals::list().snapshot(
-      [&](SampledAlloc* node) noexcept {
-        // Skip pathological zero-size entries: every live SampledAlloc
-        // must carry a positive allocated_size (the sampler asserts on
-        // size_to_sizeclass), but a defensive check costs nothing here
-        // and keeps the bound `[base, base + size)` half-open in the
-        // strict sense.
-        if (node->allocated_size == 0)
-          return;
-        entries.push_back(Entry{
-          node->alloc_addr, node->allocated_size, node});
-      });
+    SamplerGlobals::list().snapshot([&](SampledAlloc* node) noexcept {
+      // Skip pathological zero-size entries: every live SampledAlloc
+      // must carry a positive allocated_size (the sampler asserts on
+      // size_to_sizeclass), but a defensive check costs nothing here
+      // and keeps the bound `[base, base + size)` half-open in the
+      // strict sense.
+      if (node->allocated_size == 0)
+        return;
+      entries.push_back(Entry{node->alloc_addr, node->allocated_size, node});
+    });
 
     if (entries.empty())
       return std::nullopt;
@@ -139,9 +137,7 @@ namespace snmalloc::profile
     std::sort(
       entries.begin(),
       entries.end(),
-      [](const Entry& a, const Entry& b) noexcept {
-        return a.base < b.base;
-      });
+      [](const Entry& a, const Entry& b) noexcept { return a.base < b.base; });
 
     // Binary search: find the greatest base <= addr, then check the
     // half-open range [base, base + size).  std::upper_bound gives us
@@ -166,9 +162,9 @@ namespace snmalloc::profile
     // both source and destination so a malformed `stack_depth` value
     // cannot cause an out-of-bounds read.
     LookupFrames out;
-    const size_t depth = cand.node->stack_depth <= MaxStackFrames
-      ? cand.node->stack_depth
-      : MaxStackFrames;
+    const size_t depth = cand.node->stack_depth <= MaxStackFrames ?
+      cand.node->stack_depth :
+      MaxStackFrames;
     out.depth = depth;
     out.base_addr = cand.base;
     out.allocated_size = cand.size;

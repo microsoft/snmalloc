@@ -6,10 +6,10 @@ name: Bazel build
 # dual-build layer.
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  # Auto triggers (push / pull_request) removed on the
+  # jayakasadev/snmalloc fork to save CI costs.  Re-enable upstream
+  # or run manually from the Actions tab.
+  workflow_dispatch:
 
 jobs:
   bazel:

@@ -27,8 +27,6 @@
 // work.  The OFF flavour (SNMALLOC_PROFILE undefined) runs the same
 // allocation pattern as a smoke test with all hooks compiled out.
 
-#include <test/setup.h>
-
 #include <atomic>
 #include <cmath>
 #include <cstddef>
@@ -40,14 +38,13 @@
 #include <mutex>
 #include <queue>
 #include <random>
-#include <thread>
-#include <vector>
-
 #include <snmalloc/backend/globalconfig.h>
-#include <snmalloc/snmalloc_core.h>
-
 #include <snmalloc/profile/profile.h>
 #include <snmalloc/profile/record.h>
+#include <snmalloc/snmalloc_core.h>
+#include <test/setup.h>
+#include <thread>
+#include <vector>
 
 namespace snmalloc
 {
@@ -277,9 +274,8 @@ namespace
     // are the samples our 16 producers minted; anything not in this
     // set that appears post-drain belongs to system-internal allocs.
     std::vector<uint64_t> pre_free_seqs;
-    SamplerGlobals::list().snapshot([&](SampledAlloc* n) {
-      pre_free_seqs.push_back(n->alloc_seq);
-    });
+    SamplerGlobals::list().snapshot(
+      [&](SampledAlloc* n) { pre_free_seqs.push_back(n->alloc_seq); });
 
     const size_t observed = pre_free_seqs.size();
     const double expected =

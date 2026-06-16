@@ -26,13 +26,6 @@
 // LazyArrayClientMetaDataProvider declaration in commonconfig.h is
 // visible when record.h is processed (record.h is intentionally
 // lightweight and does not pull in commonconfig.h itself).
-#include <snmalloc/snmalloc.h>
-
-#include <snmalloc/profile/profile.h>
-#include <snmalloc/profile/record.h>
-
-#include <test/setup.h>
-
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -40,13 +33,17 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <snmalloc/profile/profile.h>
+#include <snmalloc/profile/record.h>
+#include <snmalloc/snmalloc.h>
+#include <test/setup.h>
 #include <thread>
 #include <vector>
 
 using snmalloc::profile::clear_profile_slot;
 using snmalloc::profile::config_has_profile_slot_v;
-using snmalloc::profile::ProfileSlot;
 using snmalloc::profile::profile_in_progress;
+using snmalloc::profile::ProfileSlot;
 using snmalloc::profile::record_dealloc;
 using snmalloc::profile::ReentrancyGuard;
 using snmalloc::profile::SampledAlloc;
@@ -109,14 +106,17 @@ namespace
   {
     std::cout << "test_clear_null_slot\n";
 
-    check(clear_profile_slot(nullptr) == nullptr,
-          "clear_profile_slot(nullptr) returns nullptr");
+    check(
+      clear_profile_slot(nullptr) == nullptr,
+      "clear_profile_slot(nullptr) returns nullptr");
 
     ProfileSlot empty{nullptr};
-    check(clear_profile_slot(&empty) == nullptr,
-          "clear_profile_slot(&{nullptr}) returns nullptr");
-    check(empty.load(std::memory_order_relaxed) == nullptr,
-          "null slot remains null after clear");
+    check(
+      clear_profile_slot(&empty) == nullptr,
+      "clear_profile_slot(&{nullptr}) returns nullptr");
+    check(
+      empty.load(std::memory_order_relaxed) == nullptr,
+      "null slot remains null after clear");
   }
 
   // =========================================================================
@@ -134,19 +134,20 @@ namespace
     SampledAlloc* node = publish_sample(slot);
     check(node != nullptr, "pool acquire produced a node");
 
-    const size_t live_after_publish =
-      SamplerGlobals::list().debug_count();
-    check(live_after_publish >= 1,
-          "SampledList shows >=1 live node after publish");
+    const size_t live_after_publish = SamplerGlobals::list().debug_count();
+    check(
+      live_after_publish >= 1, "SampledList shows >=1 live node after publish");
 
     SampledAlloc* cleared = clear_profile_slot(&slot);
     check(cleared == node, "clear_profile_slot returns the cleared node");
-    check(slot.load(std::memory_order_relaxed) == nullptr,
-          "slot is cleared to nullptr");
+    check(
+      slot.load(std::memory_order_relaxed) == nullptr,
+      "slot is cleared to nullptr");
 
     const size_t live_after_clear = SamplerGlobals::list().debug_count();
-    check(live_after_clear + 1 == live_after_publish,
-          "SampledList live-count shrank by exactly one");
+    check(
+      live_after_clear + 1 == live_after_publish,
+      "SampledList live-count shrank by exactly one");
 
     // Second clear is a safe no-op.
     SampledAlloc* second = clear_profile_slot(&slot);
@@ -180,14 +181,16 @@ namespace
       std::atomic<bool> go{false};
 
       std::thread ta([&] {
-        while (!go.load(std::memory_order_acquire)) {}
-        a_result.store(
-          clear_profile_slot(&slot), std::memory_order_release);
+        while (!go.load(std::memory_order_acquire))
+        {
+        }
+        a_result.store(clear_profile_slot(&slot), std::memory_order_release);
       });
       std::thread tb([&] {
-        while (!go.load(std::memory_order_acquire)) {}
-        b_result.store(
-          clear_profile_slot(&slot), std::memory_order_release);
+        while (!go.load(std::memory_order_acquire))
+        {
+        }
+        b_result.store(clear_profile_slot(&slot), std::memory_order_release);
       });
 
       go.store(true, std::memory_order_release);
@@ -331,7 +334,13 @@ namespace
     // Allocate and free in interleaved sizes that span small + medium
     // sizeclasses.  This stresses the H1 hook over a wider range of
     // PagemapEntry shapes.
-    for (size_t sz : {16, 64, 256, 1024, 4096, 16384})
+    for (size_t sz :
+         {size_t{16},
+          size_t{64},
+          size_t{256},
+          size_t{1024},
+          size_t{4096},
+          size_t{16384}})
     {
       void* p = snmalloc::libc::malloc(sz);
       if (p != nullptr)

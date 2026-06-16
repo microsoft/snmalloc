@@ -54,31 +54,32 @@
 #endif
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-/**
- * Format the current allocator telemetry snapshot into `buf`.
- *
- * Behaves like `snprintf` w.r.t. truncation:
- *   * if `buf` is non-NULL and `buf_len` is large enough, the full
- *     formatted text (including a trailing NUL terminator) is written.
- *   * if `buf_len` is too small, as many bytes as fit are written and
- *     the buffer is NUL-terminated when `buf_len > 0`.
- *   * if `buf` is NULL or `buf_len` is zero, nothing is written.
- *
- * Returns the number of bytes that *would* have been written *not*
- * counting the trailing NUL.  A caller wanting to size the buffer
- * exactly should call once with `(NULL, 0)`, allocate `n + 1` bytes,
- * then call again with the real buffer.
- *
- * The function captures a fresh snapshot via
- * `snmalloc_get_full_stats` at every call; there is no internal
- * caching.  Safe to invoke from any thread at any point in the
- * process lifetime.
- */
-SNMALLOC_EXPORT size_t
-snmalloc_dump_stats_to_buffer(char* buf, size_t buf_len);
+  /**
+   * Format the current allocator telemetry snapshot into `buf`.
+   *
+   * Behaves like `snprintf` w.r.t. truncation:
+   *   * if `buf` is non-NULL and `buf_len` is large enough, the full
+   *     formatted text (including a trailing NUL terminator) is written.
+   *   * if `buf_len` is too small, as many bytes as fit are written and
+   *     the buffer is NUL-terminated when `buf_len > 0`.
+   *   * if `buf` is NULL or `buf_len` is zero, nothing is written.
+   *
+   * Returns the number of bytes that *would* have been written *not*
+   * counting the trailing NUL.  A caller wanting to size the buffer
+   * exactly should call once with `(NULL, 0)`, allocate `n + 1` bytes,
+   * then call again with the real buffer.
+   *
+   * The function captures a fresh snapshot via
+   * `snmalloc_get_full_stats` at every call; there is no internal
+   * caching.  Safe to invoke from any thread at any point in the
+   * process lifetime.
+   */
+  SNMALLOC_EXPORT size_t
+  snmalloc_dump_stats_to_buffer(char* buf, size_t buf_len);
 
 #ifdef __cplusplus
 } // extern "C"

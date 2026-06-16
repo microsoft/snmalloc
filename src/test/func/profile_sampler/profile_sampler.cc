@@ -14,12 +14,6 @@
 // These tests touch only the profile/ headers and do not exercise any
 // allocator path -- Phase 2.2 deliverables are purely additive.
 
-#include <test/opt.h>
-#include <test/setup.h>
-#include <test/snmalloc_testlib.h>
-
-#include <snmalloc/profile/profile.h>
-
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -27,6 +21,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <snmalloc/profile/profile.h>
+#include <test/opt.h>
+#include <test/setup.h>
+#include <test/snmalloc_testlib.h>
 #include <thread>
 #include <vector>
 
@@ -36,8 +34,8 @@ using snmalloc::profile::ReentrancyGuard;
 using snmalloc::profile::SampledAlloc;
 using snmalloc::profile::SampledList;
 using snmalloc::profile::Sampler;
-using snmalloc::profile::SamplerGlobals;
 using snmalloc::profile::sampler_reentered;
+using snmalloc::profile::SamplerGlobals;
 
 namespace
 {
@@ -86,23 +84,21 @@ namespace
     const double total_bytes = static_cast<double>(N) * R;
     const double expected_samples = total_bytes / static_cast<double>(T);
     const double mean_interval =
-      total_bytes / std::max<size_t>(sample_count, 1);
+      total_bytes / static_cast<double>(std::max<size_t>(sample_count, 1));
 
     std::cout << "    N=" << N << " R=" << R << " T=" << T << "\n";
-    std::cout << "    samples=" << sample_count
-              << "  expected~" << expected_samples << "\n";
+    std::cout << "    samples=" << sample_count << "  expected~"
+              << expected_samples << "\n";
     std::cout << "    mean_interval=" << mean_interval << " bytes\n";
     std::cout << "    weight_sum=" << weight_sum
               << "  total_request_bytes=" << total_bytes << "\n";
 
     // Expected within +/- 25% (3-sigma at this N is ~14%; loose for CI noise).
     check(
-      sample_count >
-        static_cast<size_t>(expected_samples * 0.75),
+      sample_count > static_cast<size_t>(expected_samples * 0.75),
       "sample count not pathologically low");
     check(
-      sample_count <
-        static_cast<size_t>(expected_samples * 1.25),
+      sample_count < static_cast<size_t>(expected_samples * 1.25),
       "sample count not pathologically high");
 
     // Weight sum should equal total bytes within ~5%.
@@ -128,7 +124,7 @@ namespace
     Sampler::set_sampling_rate(T);
 
     const double p = static_cast<double>(R) / static_cast<double>(T);
-    const double expected = N * p;             // ~1562.5
+    const double expected = N * p; // ~1562.5
     const double sigma = std::sqrt(N * p * (1 - p)); // ~39
 
     size_t hits = 0;
@@ -170,7 +166,8 @@ namespace
     Sampler s;
     Sampler::set_sampling_rate(64); // very aggressive; first call would fire
     ReentrancyGuard g;
-    check(!s.record_alloc(1024 * 1024), "record_alloc returns false under guard");
+    check(
+      !s.record_alloc(1024 * 1024), "record_alloc returns false under guard");
   }
 
   // -------------------------------------------------------------------------
@@ -289,7 +286,7 @@ namespace
           auto* n = pool.acquire();
           if (n == nullptr)
             continue;
-          n->alloc_addr = (t << 32) | i;
+          n->alloc_addr = (static_cast<uint64_t>(t) << 32) | i;
           list.push(n);
         }
       });
@@ -335,7 +332,7 @@ namespace
           auto* n = pool.acquire();
           if (n == nullptr)
             continue;
-          n->alloc_addr = (t << 32) | i;
+          n->alloc_addr = (static_cast<uint64_t>(t) << 32) | i;
           list.push(n);
           vec.push_back(n);
         }
@@ -473,18 +470,18 @@ namespace
       }
     }
 
-    std::cout << "    phase1 T=" << T1 << "  hits=" << hits1
-              << "  sum=" << sum1 << "  expected~" << (N1 * R) << "\n";
-    std::cout << "    phase2 T=" << T2 << "  hits=" << hits2
-              << "  sum=" << sum2 << "  expected~" << (N2 * R) << "\n";
+    std::cout << "    phase1 T=" << T1 << "  hits=" << hits1 << "  sum=" << sum1
+              << "  expected~" << (N1 * R) << "\n";
+    std::cout << "    phase2 T=" << T2 << "  hits=" << hits2 << "  sum=" << sum2
+              << "  expected~" << (N2 * R) << "\n";
 
     // Hits should be roughly proportional to N*R/T.
     check(hits1 > hits2, "smaller T yields more samples");
     // Each batch's weighted sum should approximate its true bytes.
     const double e1 = std::fabs(double(sum1) - double(N1 * R)) / (N1 * R);
     const double e2 = std::fabs(double(sum2) - double(N2 * R)) / (N2 * R);
-    std::cout << "    phase1 weight err=" << (e1 * 100) << "%  phase2 err="
-              << (e2 * 100) << "%\n";
+    std::cout << "    phase1 weight err=" << (e1 * 100)
+              << "%  phase2 err=" << (e2 * 100) << "%\n";
     check(e1 < 0.15, "phase1 weight unbiased within 15%");
     check(e2 < 0.25, "phase2 weight unbiased within 25%");
   }

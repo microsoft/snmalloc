@@ -91,8 +91,8 @@ namespace snmalloc
     bool PerformCheck = true,
     typename F,
     SNMALLOC_CONCEPT(IsConfig) Config = Config>
-  SNMALLOC_FAST_PATH_INLINE auto check_bound(
-    const void* ptr, size_t len, const char* msg, F f = []() {})
+  SNMALLOC_FAST_PATH_INLINE auto
+  check_bound(const void* ptr, size_t len, const char* msg, F f = []() {})
   {
     if constexpr (PerformCheck)
     {

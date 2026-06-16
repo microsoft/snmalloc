@@ -24,8 +24,6 @@
 // no-op and broadcast is never called: we degrade to a smoke test that
 // just checks zero callbacks fire.
 
-#include <test/setup.h>
-
 #include <atomic>
 #include <cmath>
 #include <cstddef>
@@ -34,13 +32,12 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include <vector>
-
 #include <snmalloc/backend/globalconfig.h>
-#include <snmalloc/snmalloc_core.h>
-
 #include <snmalloc/profile/profile.h>
 #include <snmalloc/profile/record.h>
+#include <snmalloc/snmalloc_core.h>
+#include <test/setup.h>
+#include <vector>
 
 namespace snmalloc
 {
@@ -106,6 +103,7 @@ namespace
 
   // Second callback (used to assert multi-subscriber broadcast).
   std::atomic<size_t> g_cb2_count{0};
+
   [[maybe_unused]] void second_callback(const SampledAlloc&) noexcept
   {
     g_cb2_count.fetch_add(1, std::memory_order_relaxed);
@@ -184,8 +182,7 @@ namespace
 
     const size_t cb_observed = g_cb_count.load(std::memory_order_relaxed);
     const size_t list_observed = SamplerGlobals::list().debug_count();
-    const double expected =
-      static_cast<double>(N) * OBJ_SIZE / SAMPLING_RATE;
+    const double expected = static_cast<double>(N) * OBJ_SIZE / SAMPLING_RATE;
     const double sigma = std::sqrt(expected);
     const double low = expected - 6 * sigma;
     const double high = expected + 6 * sigma;
@@ -221,8 +218,7 @@ namespace
 
     const int urc =
       AllocationSampleList::global().unregister_handler(counting_callback);
-    check(
-      urc == AllocationSampleList::kOk, "unregister_handler succeeds");
+    check(urc == AllocationSampleList::kOk, "unregister_handler succeeds");
     check(
       AllocationSampleList::global().subscriber_count() == 0,
       "subscriber_count returns to zero after unregister");
@@ -273,8 +269,7 @@ namespace
 
     const size_t after = g_cb_count.load();
     check(
-      after == before,
-      "no further callbacks fire after unregister_handler");
+      after == before, "no further callbacks fire after unregister_handler");
 
     for (auto* p : ptrs)
       snmalloc::libc::free(p);
@@ -405,8 +400,7 @@ int main(int argc, char** argv)
 
   std::cout << "[profile_streaming]\n";
 #ifdef SNMALLOC_PROFILE
-  std::cout
-    << "  (SNMALLOC_PROFILE is defined: streaming hook is live)\n";
+  std::cout << "  (SNMALLOC_PROFILE is defined: streaming hook is live)\n";
 #else
   std::cout
     << "  (SNMALLOC_PROFILE is undefined: smoke-only, hooks compiled out)\n";

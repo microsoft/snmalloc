@@ -39,15 +39,6 @@
 //   profiling is off the test compiles to a smoke pass and exercises only
 //   the layout assertions (which hold in both build configurations).
 
-#include <test/setup.h>
-
-#include <snmalloc/backend/globalconfig.h>
-#include <snmalloc/snmalloc.h>
-
-#include <snmalloc/profile/profile.h>
-#include <snmalloc/profile/record.h>
-#include <snmalloc/profile/sampler.h>
-
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -55,6 +46,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <snmalloc/backend/globalconfig.h>
+#include <snmalloc/profile/profile.h>
+#include <snmalloc/profile/record.h>
+#include <snmalloc/profile/sampler.h>
+#include <snmalloc/snmalloc.h>
+#include <test/setup.h>
 #include <vector>
 
 using snmalloc::profile::config_has_profile_slot_v;
@@ -93,8 +90,8 @@ namespace
 
     // (1a) Lazy provider's per-slab inline footprint is exactly one
     // pointer. This is the contract every config-author leans on.
-    using LazyT = snmalloc::LazyArrayClientMetaDataProvider<
-      std::atomic<SampledAlloc*>>;
+    using LazyT =
+      snmalloc::LazyArrayClientMetaDataProvider<std::atomic<SampledAlloc*>>;
     static_assert(
       sizeof(LazyT::StorageType) == sizeof(void*),
       "LazyArrayClientMetaDataProvider::StorageType must be one pointer "
@@ -119,8 +116,8 @@ namespace
     // are layout-identical.  Both use NoClientMetaDataProvider, so the
     // lazy provider type is compiled into the TU yet contributes nothing.
     using DefaultEntry = snmalloc::Config::PagemapEntry;
-    using ExplicitNoProvConfig = snmalloc::StandardConfigClientMeta<
-      snmalloc::NoClientMetaDataProvider>;
+    using ExplicitNoProvConfig =
+      snmalloc::StandardConfigClientMeta<snmalloc::NoClientMetaDataProvider>;
     using ExplicitEntry = ExplicitNoProvConfig::PagemapEntry;
     static_assert(
       sizeof(DefaultEntry) == sizeof(ExplicitEntry),
@@ -181,8 +178,7 @@ namespace
     const auto end = clock::now();
 
     const auto ns =
-      std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
-        .count();
+      std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
     // Each iteration = 1 alloc + 1 free.
     return static_cast<double>(ns) / static_cast<double>(iterations);
   }
@@ -244,8 +240,7 @@ int main(int argc, char** argv)
   std::cout
     << "  (SNMALLOC_PROFILE is defined: runtime overhead bench enabled)\n";
 #else
-  std::cout
-    << "  (SNMALLOC_PROFILE is undefined: layout-only smoke pass)\n";
+  std::cout << "  (SNMALLOC_PROFILE is undefined: layout-only smoke pass)\n";
 #endif
 
   test_layout_static();

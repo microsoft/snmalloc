@@ -178,20 +178,22 @@ namespace snmalloc
     /// Pre-packed `+1` increment in the slow-call lane; OR'd /
     /// added to `refill_count` at the refill site so a single
     /// 64-bit add updates both lanes in one store.
-    static constexpr uint64_t PACKED_ALLOCS_SLOW_INC =
-      uint64_t{1} << PACKED_ALLOCS_SLOW_SHIFT;
+    static constexpr uint64_t PACKED_ALLOCS_SLOW_INC = uint64_t{1}
+      << PACKED_ALLOCS_SLOW_SHIFT;
 
     /// Decode the slow-path call count from `packed_allocs`.
     [[nodiscard]] uint64_t slow_path_allocs() const noexcept
     {
       return packed_allocs >> PACKED_ALLOCS_SLOW_SHIFT;
     }
+
     /// Decode the cumulative-alloc total from `packed_allocs`
     /// (fast + slow combined).
     [[nodiscard]] uint64_t total_allocs() const noexcept
     {
       return packed_allocs & PACKED_ALLOCS_TOTAL_MASK;
     }
+
     /// Decode the fast-path alloc count from `packed_allocs`.
     /// Equals `total_allocs() - slow_path_allocs()` and is the same
     /// quantity surfaced as `FullAllocStats::fast_path_allocs`.
@@ -199,6 +201,7 @@ namespace snmalloc
     {
       return total_allocs() - slow_path_allocs();
     }
+
     /// Deallocations whose pagemap entry pointed at this allocator
     /// (the "local" branch of `Allocator::dealloc`).
     ///
@@ -342,12 +345,10 @@ namespace snmalloc
 
     void drain_from(const FrontendStats& s) noexcept
     {
-      packed_allocs.fetch_add(
-        s.packed_allocs, stl::memory_order_relaxed);
+      packed_allocs.fetch_add(s.packed_allocs, stl::memory_order_relaxed);
       fast_path_deallocs.fetch_add(
         s.fast_path_deallocs, stl::memory_order_relaxed);
-      remote_deallocs.fetch_add(
-        s.remote_deallocs, stl::memory_order_relaxed);
+      remote_deallocs.fetch_add(s.remote_deallocs, stl::memory_order_relaxed);
       message_queue_drains.fetch_add(
         s.message_queue_drains, stl::memory_order_relaxed);
       cross_thread_messages_received.fetch_add(
@@ -356,12 +357,10 @@ namespace snmalloc
 
     void snapshot_into(FrontendStats& out) const noexcept
     {
-      out.packed_allocs +=
-        packed_allocs.load(stl::memory_order_relaxed);
+      out.packed_allocs += packed_allocs.load(stl::memory_order_relaxed);
       out.fast_path_deallocs +=
         fast_path_deallocs.load(stl::memory_order_relaxed);
-      out.remote_deallocs +=
-        remote_deallocs.load(stl::memory_order_relaxed);
+      out.remote_deallocs += remote_deallocs.load(stl::memory_order_relaxed);
       out.message_queue_drains +=
         message_queue_drains.load(stl::memory_order_relaxed);
       out.cross_thread_messages_received +=
@@ -395,10 +394,8 @@ namespace snmalloc
     {
       for (size_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
       {
-        live_bytes[i].fetch_add(
-          s.live_bytes[i], stl::memory_order_relaxed);
-        live_count[i].fetch_add(
-          s.live_count[i], stl::memory_order_relaxed);
+        live_bytes[i].fetch_add(s.live_bytes[i], stl::memory_order_relaxed);
+        live_count[i].fetch_add(s.live_count[i], stl::memory_order_relaxed);
         cumulative_alloc[i].fetch_add(
           s.cumulative_alloc[i], stl::memory_order_relaxed);
         cumulative_dealloc[i].fetch_add(
@@ -410,10 +407,8 @@ namespace snmalloc
     {
       for (size_t i = 0; i < NUM_SMALL_SIZECLASSES; i++)
       {
-        out.live_bytes[i] +=
-          live_bytes[i].load(stl::memory_order_relaxed);
-        out.live_count[i] +=
-          live_count[i].load(stl::memory_order_relaxed);
+        out.live_bytes[i] += live_bytes[i].load(stl::memory_order_relaxed);
+        out.live_count[i] += live_count[i].load(stl::memory_order_relaxed);
         out.cumulative_alloc[i] +=
           cumulative_alloc[i].load(stl::memory_order_relaxed);
         out.cumulative_dealloc[i] +=
@@ -542,7 +537,7 @@ namespace snmalloc
     // and sums each live allocator's `stats` plus the
     // `frontend_stats_global()` aggregator (which catches counters
     // drained by allocators returned to the pool at thread teardown).
-   public:
+  public:
     FrontendStats stats{};
 #  ifdef SNMALLOC_STATS_FULL
     // Phase 9.3 -- per-thread per-size-class histogram (ticket
@@ -559,7 +554,7 @@ namespace snmalloc
     // (`Phase 11.6 -- tiered SNMALLOC_STATS overhead`).
     SizeClassStats sc_stats{};
 #  endif
-   private:
+  private:
 #endif
 
     /**
@@ -677,7 +672,7 @@ namespace snmalloc
     }
 
     friend class ThreadAlloc;
-    constexpr Allocator(bool){};
+    constexpr Allocator(bool) {};
 
   public:
     /**
@@ -1183,7 +1178,7 @@ namespace snmalloc
         // Deal with alloc zero of with a small object here.
         // Alternative semantics giving nullptr is also allowed by the
         // standard.
-        return self->small_alloc<Conts, CheckInit>(1);
+        return self->template small_alloc<Conts, CheckInit>(1);
       }
 
       return self->template handle_message_queue<noexcept(Conts::failure(0))>(
@@ -1311,12 +1306,7 @@ namespace snmalloc
           };
         uint16_t refill_count = 0;
         auto [p, still_active] = BackendSlabMetadata::alloc_free_list(
-          domesticate,
-          meta,
-          fast_free_list,
-          entropy,
-          sizeclass,
-          refill_count);
+          domesticate, meta, fast_free_list, entropy, sizeclass, refill_count);
 
         if (still_active)
         {
@@ -1348,8 +1338,7 @@ namespace snmalloc
         // top + `fast_path_allocs += refill_count` here) into ONE,
         // shrinking the medium-alloc refill hot path -- the residual
         // BASIC overhead Phase 11.11 disassembly identified.
-        stats.packed_allocs +=
-          static_cast<uint64_t>(refill_count) +
+        stats.packed_allocs += static_cast<uint64_t>(refill_count) +
           FrontendStats::PACKED_ALLOCS_SLOW_INC;
         // Phase 11.9 -- batched fast-path dealloc pre-credit.  Each
         // object pre-credited to `fast_path_allocs` here is expected
@@ -1458,8 +1447,7 @@ namespace snmalloc
           // of which `slab_object_count - remaining` were
           // transferred to `fast_free_list`.  The +1 in the high
           // lane records this slow-path call.
-          stats.packed_allocs +=
-            static_cast<uint64_t>(refill_count) +
+          stats.packed_allocs += static_cast<uint64_t>(refill_count) +
             FrontendStats::PACKED_ALLOCS_SLOW_INC;
           // Phase 11.9 -- symmetric batched dealloc pre-credit
           // (see matching note in `small_refill`).
@@ -2214,7 +2202,7 @@ namespace snmalloc
     }
 
 #ifdef SNMALLOC_STATS_BASIC
-   public:
+  public:
     // Phase 9.2 -- drain per-thread counters into the process-global
     // aggregator and zero the local block.  Called from
     // `ThreadAlloc::teardown` *after* the per-thread allocator is

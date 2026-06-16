@@ -38,8 +38,8 @@
 #include "../ds_core/defines.h"
 #include "pal_consts.h"
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 // ---------------------------------------------------------------------------
 // Override hooks
@@ -216,6 +216,7 @@ namespace snmalloc
     struct FramePointerWalker
     {
       static constexpr StackWalkerKind kind = StackWalkerKind::FramePointer;
+
       static constexpr const char* name() noexcept
       {
         return "fp";
@@ -255,10 +256,8 @@ namespace snmalloc
           //     corruption)
           //   - pointer-aligned
           if (SNMALLOC_UNLIKELY(
-                fp_u < bounds.lo ||
-                fp_u + 2 * sizeof(void*) > bounds.hi ||
-                fp_u <= prev_fp ||
-                (fp_u & (sizeof(void*) - 1)) != 0))
+                fp_u < bounds.lo || fp_u + 2 * sizeof(void*) > bounds.hi ||
+                fp_u <= prev_fp || (fp_u & (sizeof(void*) - 1)) != 0))
             break;
 
           void* next_fp_raw = fp[0];
@@ -306,6 +305,7 @@ namespace snmalloc
     struct NullStackWalker
     {
       static constexpr StackWalkerKind kind = StackWalkerKind::Null;
+
       static constexpr const char* name() noexcept
       {
         return "null";

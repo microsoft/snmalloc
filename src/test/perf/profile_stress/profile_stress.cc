@@ -45,8 +45,6 @@
 // prints "skipped" and returns 0.  This keeps the test cheap on the
 // off-profile CI matrix while still verifying the compile path.
 
-#include <test/setup.h>
-
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -54,16 +52,16 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <test/setup.h>
 #include <thread>
 #include <vector>
 
 #ifdef SNMALLOC_PROFILE
 
 #  include <snmalloc/backend/globalconfig.h>
-#  include <snmalloc/snmalloc_core.h>
-
 #  include <snmalloc/profile/profile.h>
 #  include <snmalloc/profile/record.h>
+#  include <snmalloc/snmalloc_core.h>
 
 namespace snmalloc
 {
@@ -214,8 +212,7 @@ int main(int argc, char** argv)
   workers.reserve(kNumWorkers);
   for (size_t i = 0; i < kNumWorkers; ++i)
   {
-    workers.emplace_back(
-      [&, i] { per_thread_allocs[i] = worker_loop(i); });
+    workers.emplace_back([&, i] { per_thread_allocs[i] = worker_loop(i); });
   }
 
   std::thread sampler(sampler_loop);
@@ -229,8 +226,7 @@ int main(int argc, char** argv)
     total_allocs += n;
 
   const size_t snapshots = g_snapshot_count.load(std::memory_order_relaxed);
-  const size_t max_obs =
-    g_max_observed_samples.load(std::memory_order_relaxed);
+  const size_t max_obs = g_max_observed_samples.load(std::memory_order_relaxed);
   const size_t total_snap =
     g_total_snapshot_samples.load(std::memory_order_relaxed);
 

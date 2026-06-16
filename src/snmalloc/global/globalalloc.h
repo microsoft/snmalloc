@@ -374,8 +374,7 @@ namespace snmalloc
   SNMALLOC_FAST_PATH_INLINE void* alloc(size_t size)
   {
     const size_t sz = aligned_size(align, size);
-    void* p =
-      ThreadAlloc::get().alloc<Conts, ThreadAlloc::CheckInit>(sz);
+    void* p = ThreadAlloc::get().alloc<Conts, ThreadAlloc::CheckInit>(sz);
 #ifdef SNMALLOC_PROFILE
     profile::record_alloc<Config>(p, size, sz);
 #endif
@@ -389,9 +388,8 @@ namespace snmalloc
   template<typename Conts = Uninit>
   SNMALLOC_FAST_PATH_INLINE void* alloc(smallsizeclass_t sizeclass)
   {
-    void* p =
-      ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(
-        sizeclass);
+    void* p = ThreadAlloc::get().template alloc<Conts, ThreadAlloc::CheckInit>(
+      sizeclass);
 #ifdef SNMALLOC_PROFILE
     const size_t sz = sizeclass_to_size(sizeclass);
     profile::record_alloc<Config>(p, sz, sz);

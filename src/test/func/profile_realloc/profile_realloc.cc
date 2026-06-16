@@ -32,21 +32,18 @@
 // compile-time no-ops and the test degrades to a smoke run that
 // just exercises the realloc shim.
 
-#include <test/setup.h>
-
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <iostream>
-#include <vector>
-
 #include <snmalloc/backend/globalconfig.h>
-#include <snmalloc/snmalloc_core.h>
-
 #include <snmalloc/profile/profile.h>
 #include <snmalloc/profile/record.h>
+#include <snmalloc/snmalloc_core.h>
+#include <test/setup.h>
+#include <vector>
 
 namespace snmalloc
 {
@@ -159,8 +156,7 @@ namespace
       return;
     }
     check(matched != nullptr, "alloc was sampled");
-    check(
-      pre_requested == OBJ_SIZE, "pre-realloc requested_size == OBJ_SIZE");
+    check(pre_requested == OBJ_SIZE, "pre-realloc requested_size == OBJ_SIZE");
 
     // Realloc to a slightly larger size that still rounds into the
     // SAME sizeclass.  alloc_size(p) gives us the sizeclass-rounded
@@ -282,8 +278,7 @@ namespace
         original_remains = true;
     });
     check(
-      !original_remains,
-      "out-of-place realloc cleared the original sample");
+      !original_remains, "out-of-place realloc cleared the original sample");
 
     snmalloc::libc::free(p2);
     drain_global_sampled_list();
@@ -320,8 +315,7 @@ namespace
     void* p2 = snmalloc::libc::realloc(p, 96);
     const size_t after = SamplerGlobals::list().debug_count();
 
-    check(
-      after == before, "unsampled realloc produced zero new samples");
+    check(after == before, "unsampled realloc produced zero new samples");
 
     snmalloc::libc::free(p2);
     drain_global_sampled_list();
@@ -339,8 +333,7 @@ namespace
   std::atomic<size_t> g_last_resize_requested{0};
   std::atomic<size_t> g_last_resize_allocated{0};
 
-  [[maybe_unused]] void
-  resize_counting_callback(const SampledAlloc& s) noexcept
+  [[maybe_unused]] void resize_counting_callback(const SampledAlloc& s) noexcept
   {
     if (s.kind == static_cast<uint8_t>(SampledAllocKind::Resize))
     {
@@ -362,8 +355,7 @@ namespace
     drain_global_sampled_list();
 
 #ifndef SNMALLOC_PROFILE
-    check(
-      true, "SNMALLOC_PROFILE undefined: skipping resize broadcast test");
+    check(true, "SNMALLOC_PROFILE undefined: skipping resize broadcast test");
     return;
 #else
     g_resize_count.store(0, std::memory_order_relaxed);
@@ -378,8 +370,8 @@ namespace
     }
     drain_global_sampled_list();
 
-    const int rc = AllocationSampleList::global().register_handler(
-      resize_counting_callback);
+    const int rc =
+      AllocationSampleList::global().register_handler(resize_counting_callback);
     check(
       rc == AllocationSampleList::kOk,
       "AllocationSampleList::register_handler returned kOk");
@@ -394,8 +386,7 @@ namespace
     // Snapshot the alloc-event count before the realloc so we can
     // distinguish the broadcast it triggers from any concurrent
     // alloc-event broadcasts that fired during the malloc above.
-    const size_t resize_before =
-      g_resize_count.load(std::memory_order_relaxed);
+    const size_t resize_before = g_resize_count.load(std::memory_order_relaxed);
 
     if (allocated_before <= OBJ_SIZE)
     {
@@ -412,8 +403,7 @@ namespace
     void* p2 = snmalloc::libc::realloc(p, new_requested);
     check(p2 == p, "in-place realloc returned the same pointer");
 
-    const size_t resize_after =
-      g_resize_count.load(std::memory_order_relaxed);
+    const size_t resize_after = g_resize_count.load(std::memory_order_relaxed);
     check(
       resize_after > resize_before,
       "in-place realloc fired at least one Resize broadcast event");

@@ -76,8 +76,8 @@ namespace snmalloc
      * `free_chunk_count_by_log_size[i]` is the live count of free
      * chunks of size `1 << (MIN_CHUNK_BITS + i)` bytes.
      */
-    uint64_t free_chunk_count_by_log_size
-      [LargeBuddyFreeChunkHistogram::NUM_BUCKETS];
+    uint64_t
+      free_chunk_count_by_log_size[LargeBuddyFreeChunkHistogram::NUM_BUCKETS];
   };
 
   /**

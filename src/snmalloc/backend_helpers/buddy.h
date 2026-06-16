@@ -15,6 +15,7 @@ namespace snmalloc
   struct BuddyNoHistogram
   {
     static void on_add(size_t /*size_bits*/) {}
+
     static void on_remove(size_t /*size_bits*/) {}
   };
 

@@ -11,7 +11,7 @@ struct PoolAEntry : Pooled<PoolAEntry>
 {
   int field;
 
-  PoolAEntry() : field(1){};
+  PoolAEntry() : field(1) {};
 };
 
 using PoolA = Pool<PoolAEntry>;
@@ -20,7 +20,7 @@ struct PoolBEntry : Pooled<PoolBEntry>
 {
   int field;
 
-  PoolBEntry() : field(0){};
+  PoolBEntry() : field(0) {};
 };
 
 using PoolB = Pool<PoolBEntry>;
@@ -46,7 +46,7 @@ struct PoolSortEntry : Pooled<PoolSortEntry>
 {
   int field;
 
-  PoolSortEntry() : field(1){};
+  PoolSortEntry() : field(1) {};
 };
 
 using PoolSort = Pool<PoolSortEntry>;

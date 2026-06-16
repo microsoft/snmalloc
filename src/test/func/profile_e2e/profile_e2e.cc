@@ -32,8 +32,6 @@
 // the OFF build the alloc hook is a compile-time no-op and the body
 // will observe zero samples (which we explicitly assert against).
 
-#include <test/setup.h>
-
 #include <atomic>
 #include <cmath>
 #include <cstddef>
@@ -42,14 +40,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include <thread>
-#include <vector>
-
 #include <snmalloc/backend/globalconfig.h>
-#include <snmalloc/snmalloc_core.h>
-
 #include <snmalloc/profile/profile.h>
 #include <snmalloc/profile/record.h>
+#include <snmalloc/snmalloc_core.h>
+#include <test/setup.h>
+#include <thread>
+#include <vector>
 
 namespace snmalloc
 {
@@ -150,16 +147,15 @@ namespace
     }
 
     const size_t observed = live_count();
-    const double expected =
-      static_cast<double>(N) * OBJ_SIZE / SAMPLING_RATE;
+    const double expected = static_cast<double>(N) * OBJ_SIZE / SAMPLING_RATE;
     // For a Poisson process the standard deviation equals sqrt(mean).
     // Use a generous 6-sigma envelope.
     const double sigma = std::sqrt(expected);
     const double low = expected - 6 * sigma;
     const double high = expected + 6 * sigma;
     std::cout << "    samples observed = " << observed
-              << "  expected ~= " << expected
-              << "  (+/- 6 sigma = " << sigma << ")\n";
+              << "  expected ~= " << expected << "  (+/- 6 sigma = " << sigma
+              << ")\n";
     check(
       static_cast<double>(observed) >= low &&
         static_cast<double>(observed) <= high,
@@ -179,8 +175,7 @@ namespace
     });
     check(all_have_stack, "every sample has a non-zero stack depth");
     check(all_have_addr, "every sample has a non-zero alloc_addr");
-    check(
-      all_have_size, "every sample's requested_size matches OBJ_SIZE");
+    check(all_have_size, "every sample's requested_size matches OBJ_SIZE");
 
     // Free everything; H1 should drain the list back to empty.
     for (auto* p : ptrs)
@@ -258,20 +253,18 @@ namespace
     // address space for some other (e.g. system-internal) allocation
     // that itself fires a sample.
     std::vector<uint64_t> pre_free_seqs;
-    SamplerGlobals::list().snapshot([&](SampledAlloc* n) {
-      pre_free_seqs.push_back(n->alloc_seq);
-    });
+    SamplerGlobals::list().snapshot(
+      [&](SampledAlloc* n) { pre_free_seqs.push_back(n->alloc_seq); });
 
     const size_t observed = pre_free_seqs.size();
     const size_t total_bytes = N_THREADS * N_PER_THREAD * OBJ_SIZE;
-    const double expected =
-      static_cast<double>(total_bytes) / SAMPLING_RATE;
+    const double expected = static_cast<double>(total_bytes) / SAMPLING_RATE;
     const double sigma = std::sqrt(expected);
     const double low = expected - 6 * sigma;
     const double high = expected + 6 * sigma;
     std::cout << "    samples observed = " << observed
-              << "  expected ~= " << expected
-              << "  (+/- 6 sigma = " << sigma << ")\n";
+              << "  expected ~= " << expected << "  (+/- 6 sigma = " << sigma
+              << ")\n";
     check(
       static_cast<double>(observed) >= low &&
         static_cast<double>(observed) <= high,
@@ -298,8 +291,8 @@ namespace
         }
       }
     });
-    std::cout << "    remaining samples from pre-free pool = "
-              << real_leaks << " / " << pre_free_seqs.size() << "\n";
+    std::cout << "    remaining samples from pre-free pool = " << real_leaks
+              << " / " << pre_free_seqs.size() << "\n";
     // We allow a very small absolute leak count under cross-thread
     // free stress: there is a known O(1) per-run race in the
     // sampler's slow path where a node can be published on the global
@@ -361,11 +354,10 @@ namespace
     for (size_t i = 0; i < 64; ++i)
       mallocs.push_back(snmalloc::libc::malloc(128));
     const size_t after_malloc = live_count();
-    std::cout << "    malloc samples = "
-              << (after_malloc - before_malloc) << "\n";
+    std::cout << "    malloc samples = " << (after_malloc - before_malloc)
+              << "\n";
     check(
-      after_malloc > before_malloc,
-      "malloc path produced at least one sample");
+      after_malloc > before_malloc, "malloc path produced at least one sample");
 
     const size_t before_calloc = live_count();
     std::vector<void*> callocs;
@@ -373,11 +365,10 @@ namespace
     for (size_t i = 0; i < 64; ++i)
       callocs.push_back(snmalloc::libc::calloc(4, 32));
     const size_t after_calloc = live_count();
-    std::cout << "    calloc samples = "
-              << (after_calloc - before_calloc) << "\n";
+    std::cout << "    calloc samples = " << (after_calloc - before_calloc)
+              << "\n";
     check(
-      after_calloc > before_calloc,
-      "calloc path produced at least one sample");
+      after_calloc > before_calloc, "calloc path produced at least one sample");
 
     // Aligned alloc via snmalloc::libc::aligned_alloc -> alloc_aligned
     // wrapper in globalalloc.h.  This exercises the third hook site.
@@ -442,9 +433,7 @@ namespace
       ptrs.push_back(snmalloc::libc::malloc(128));
     const size_t after = live_count();
 
-    check(
-      after == before,
-      "rate=0: 1000 mallocs produced zero new samples");
+    check(after == before, "rate=0: 1000 mallocs produced zero new samples");
 
     for (auto* p : ptrs)
       snmalloc::libc::free(p);

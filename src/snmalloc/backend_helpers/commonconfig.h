@@ -194,8 +194,8 @@ namespace snmalloc
      * returns the physical pages to the OS while leaving the (small)
      * virtual reservation in place.
      */
-    SNMALLOC_SLOW_PATH static T* install(
-      StorageType* base, size_t slab_object_count)
+    SNMALLOC_SLOW_PATH static T*
+    install(StorageType* base, size_t slab_object_count)
     {
       const size_t raw_bytes = slab_object_count * sizeof(T);
       const size_t alloc_bytes = round_to_page(raw_bytes);

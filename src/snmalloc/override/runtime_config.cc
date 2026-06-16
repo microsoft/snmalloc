@@ -22,8 +22,9 @@
 // process lifetime, including before the first allocation; see the
 // `RuntimeConfig` header for the lazy-init contract.
 
-#include "../snmalloc.h"
 #include "snmalloc/global/runtime_config.h"
+
+#include "../snmalloc.h"
 
 #ifdef SNMALLOC_PROFILE
 #  include "../profile/sampler.h"
@@ -37,8 +38,7 @@
 
 using snmalloc::RuntimeConfig;
 
-extern "C" SNMALLOC_EXPORT void
-snmalloc_set_sample_interval(uint64_t bytes)
+extern "C" SNMALLOC_EXPORT void snmalloc_set_sample_interval(uint64_t bytes)
 {
   RuntimeConfig::set_sample_interval_bytes(bytes);
 #ifdef SNMALLOC_PROFILE
@@ -53,14 +53,12 @@ snmalloc_set_sample_interval(uint64_t bytes)
 #endif
 }
 
-extern "C" SNMALLOC_EXPORT void
-snmalloc_set_decay_rate(uint32_t milliseconds)
+extern "C" SNMALLOC_EXPORT void snmalloc_set_decay_rate(uint32_t milliseconds)
 {
   RuntimeConfig::set_decay_rate_ms(milliseconds);
 }
 
-extern "C" SNMALLOC_EXPORT void
-snmalloc_set_max_local_cache(uint64_t bytes)
+extern "C" SNMALLOC_EXPORT void snmalloc_set_max_local_cache(uint64_t bytes)
 {
   RuntimeConfig::set_max_local_cache_bytes(bytes);
 }

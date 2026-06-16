@@ -170,8 +170,7 @@ namespace snmalloc::profile
     {
       for (size_t i = 0; i < kMaxSubscribers; ++i)
       {
-        AllocationSampleCallback cb =
-          slots_[i].load(std::memory_order_acquire);
+        AllocationSampleCallback cb = slots_[i].load(std::memory_order_acquire);
         if (cb != nullptr)
         {
           cb(sample);

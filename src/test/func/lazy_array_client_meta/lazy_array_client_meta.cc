@@ -23,8 +23,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
-#include <snmalloc/snmalloc_core.h>
 #include <snmalloc/backend_helpers/commonconfig.h>
+#include <snmalloc/snmalloc_core.h>
 #include <test/setup.h>
 #include <test/snmalloc_testlib.h>
 
@@ -75,7 +75,7 @@ namespace
 static void test_zero_initialised()
 {
   Storage s{};
-  if (s.backing.load(std::memory_order_relaxed) != nullptr)
+  if (s.backing.load(snmalloc::stl::memory_order_relaxed) != nullptr)
   {
     std::cout << "Failed: default-constructed StorageType is not "
                  "zero-initialised (backing pointer non-null)"
@@ -88,7 +88,7 @@ static void test_no_allocation_before_first_get()
 {
   Storage s{};
   // No call to get() yet: backing array must still be unallocated.
-  if (s.backing.load(std::memory_order_relaxed) != nullptr)
+  if (s.backing.load(snmalloc::stl::memory_order_relaxed) != nullptr)
   {
     std::cout << "Failed: backing array allocated before first get()"
               << std::endl;
@@ -107,7 +107,7 @@ static void test_get_allocates_and_is_stable()
   // First get(): triggers PAL-backed install of the backing array.
   auto& r0 = Provider::get(&s, /*index=*/3, slab_object_count);
 
-  auto* backing_after = s.backing.load(std::memory_order_relaxed);
+  auto* backing_after = s.backing.load(snmalloc::stl::memory_order_relaxed);
   if (backing_after == nullptr)
   {
     std::cout << "Failed: backing pointer still null after first get()"
@@ -143,7 +143,7 @@ static void test_get_allocates_and_is_stable()
   }
 
   // The backing pointer must not drift across get() calls.
-  if (s.backing.load(std::memory_order_relaxed) != backing_after)
+  if (s.backing.load(snmalloc::stl::memory_order_relaxed) != backing_after)
   {
     std::cout << "Failed: backing pointer changed across get() calls"
               << std::endl;
