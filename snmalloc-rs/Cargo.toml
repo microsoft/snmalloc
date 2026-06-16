@@ -30,6 +30,21 @@ backtrace = { version = "0.3", optional = true }
 # a meaningful payoff.
 flate2 = { version = "1", optional = true }
 
+# Criterion is also a dev-dependency below (used by the existing
+# `profile_bench` / `stats_bench` bench harnesses), but we also need it
+# as an *optional* regular dependency so the `criterion-integration`
+# feature can light up the `src/criterion.rs` helper without forcing
+# `cargo build` consumers to take on criterion + plotters.  Cargo
+# unifies the two entries: when the feature is off and we are only
+# running benches, the dev-dep alone is in effect (and `src/criterion.rs`
+# is `#[cfg]`-ed out anyway).  `default-features = false` keeps the
+# transitive footprint tight -- we do not need criterion's HTML
+# reporter to expose the streaming-session glue.  Picking a regular
+# optional dep here (rather than collapsing onto the dev-dep alone) is
+# required because Cargo features can only reference deps declared in
+# `[dependencies]` via the `dep:<name>` syntax.
+criterion = { version = "0.5", default-features = false, optional = true }
+
 # Dev-dependencies are only compiled for `cargo test` / `cargo bench` and
 # never become part of the published crate's transitive deps.  `inferno`
 # is the pure-Rust port of Brendan Gregg's `flamegraph.pl` and is used
@@ -60,6 +75,15 @@ harness = false
 # bench file's module-level doc-comment for details.
 [[bench]]
 name = "stats_bench"
+harness = false
+
+# Ticket 86aj2dww6 -- usage example for the `criterion-integration`
+# feature.  Uses the default criterion harness (so we can call
+# `criterion_main!` from inside a `#[cfg]` block); the feature-off
+# variant compiles to an empty `main` so `cargo build --benches`
+# without `--features criterion-integration` still succeeds.
+[[bench]]
+name = "criterion_profile_example"
 harness = false
 
 [features]
@@ -104,6 +128,15 @@ profiling = ["snmalloc-sys/profiling", "dep:flate2"]
 # `profiling` to get a symbolicated flamegraph stream from a live
 # snapshot.
 symbolicate = ["dep:backtrace"]
+# Ticket 86aj2dww6 -- thin glue around `criterion::Bencher` that runs
+# the bench under a `ProfilingSession` and writes a folded-stack
+# flamegraph after the measurement loop finishes.  Pulls in
+# `criterion` as a regular (non-dev) dep so the helper is callable
+# from downstream `[[bench]]` targets.  Compose with `profiling`; the
+# helper module is gated on both features being on, so enabling this
+# alone is a no-op compile-time-wise but is still rejected at runtime
+# (no session can start without the underlying C-side SNMALLOC_PROFILE).
+criterion-integration = ["dep:criterion"]
 
 # Fat LTO + a single codegen unit so the Rust optimizer can inline
 # through the FFI boundary into `snmalloc-sys` (the C++ allocator

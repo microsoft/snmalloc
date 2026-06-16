@@ -117,6 +117,17 @@ pub(crate) mod pprof;
 #[cfg(feature = "profiling")]
 pub mod streaming;
 
+/// Criterion bench-profiling helper (ticket 86aj2dww6).
+///
+/// Provides [`criterion::bench_with_profile`] and
+/// [`criterion::bench_with_profile_batched`], thin wrappers around a
+/// single [`streaming::ProfilingSession`] that surround the criterion
+/// measurement loop.  Gated on `feature = "profiling"` AND
+/// `feature = "criterion-integration"` so that neither criterion nor
+/// flate2 are pulled into a default build.
+#[cfg(all(feature = "profiling", feature = "criterion-integration"))]
+pub mod criterion;
+
 pub use profile::{BtSample, Frames, HeapProfile, HotSite, HotSpotKey, Weight};
 pub use config::{ProfileConfig, ENV_PROFILE_ENABLE, ENV_PROFILE_RATE};
 

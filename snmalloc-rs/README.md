@@ -38,6 +38,7 @@ There are the following features defined in this crate:
 - `gwp-asan`: Enable GWP-ASan integration. Requires `SNMALLOC_GWP_ASAN_INCLUDE_PATH` and `SNMALLOC_GWP_ASAN_LIBRARY_PATH`.
 - `profiling`: Enable the statistical heap profiler. Activates the C-side `SNMALLOC_PROFILE=ON` build and exposes the `HeapProfile` / `ProfilingSession` APIs documented below.
 - `symbolicate`: Resolve raw frame addresses captured by the profiler into function/file/line via the [`backtrace`](https://crates.io/crates/backtrace) crate. Compose with `profiling`.
+- `criterion-integration`: Expose `snmalloc_rs::criterion::bench_with_profile` / `bench_with_profile_batched`, thin glue around `criterion::Bencher` that runs a bench under a single `ProfilingSession` and writes a folded-stack flamegraph after the measurement loop. Compose with `profiling`. See [Bench profiling](#bench-profiling) below.
 
 ## Heap Profiling
 
@@ -257,6 +258,89 @@ Callers who want the always-raw rendering -- e.g. to post-process the
 addresses with an external symbolicator, or to keep golden output
 stable across `symbolicate`-on / `symbolicate`-off builds -- can call
 `write_flamegraph_raw` instead. Both methods are always available.
+
+### Bench profiling
+
+The `criterion-integration` feature (compose with `profiling`) exposes
+two helpers in `snmalloc_rs::criterion` that wrap a
+[`criterion`](https://docs.rs/criterion) bench function in a single
+[`ProfilingSession`]. The session is opened once per bench function
+(not per iteration -- start/stop is too expensive to amortise across
+short iterations) and the accumulated samples are written as a
+folded-stack flamegraph after `bencher.iter` returns. The profile
+covers exactly the iterations criterion timed, so there is no drift
+between the measured window and the sampled window.
+
+Enable in `Cargo.toml`:
+
+```toml
+[dev-dependencies]
+snmalloc-rs = { version = "0.8", features = ["profiling", "criterion-integration"] }
+criterion = { version = "0.5", default-features = false }
+```
+
+`bench_with_profile` covers `criterion::Bencher::iter`:
+
+```rust,no_run
+use criterion::{black_box, Bencher, Criterion};
+use snmalloc_rs::{criterion::bench_with_profile, SnMalloc};
+use std::path::Path;
+
+fn bench_my_workload(c: &mut Criterion) {
+    SnMalloc.set_sampling_rate(65_536); // 64 KiB for higher-res bench profiles
+    c.bench_function("my_workload", |b: &mut Bencher| {
+        bench_with_profile(b, Path::new("target/criterion/my_workload.folded"), || {
+            let v: Vec<u64> = (0..1024).collect();
+            black_box(v);
+        });
+    });
+}
+```
+
+`bench_with_profile_batched` covers `Bencher::iter_batched` -- forward
+`setup`, `routine`, and `BatchSize` straight through:
+
+```rust,no_run
+use criterion::{black_box, BatchSize, Bencher, Criterion};
+use snmalloc_rs::{criterion::bench_with_profile_batched, SnMalloc};
+use std::path::Path;
+
+fn bench_with_setup(c: &mut Criterion) {
+    SnMalloc.set_sampling_rate(65_536);
+    c.bench_function("with_setup", |b: &mut Bencher| {
+        bench_with_profile_batched(
+            b,
+            Path::new("target/criterion/with_setup.folded"),
+            || (0..1024u64).rev().collect::<Vec<u64>>(), // setup, not measured
+            |mut v| { v.sort(); black_box(v); },         // routine, measured + profiled
+            BatchSize::SmallInput,
+        );
+    });
+}
+```
+
+A runnable end-to-end example lives at
+`benches/criterion_profile_example.rs`.
+
+#### Tuning tips
+
+- **Streaming startup / shutdown cost.** Opening a `ProfilingSession`
+  registers a process-global trampoline plus a mutex-guarded handler
+  slot; dropping it tears them down and waits for any in-flight
+  dispatch. That fixed cost amortises poorly across sub-microsecond
+  bench bodies. If the inner body completes in tens of nanoseconds,
+  prefer wrapping a body that itself loops (so the per-session cost
+  amortises against meaningful work) rather than a tight per-iteration
+  body.
+- **Per-thread event buffer sizing.** Samples are dispatched through a
+  single trampoline; an aggressive sampling rate combined with a
+  heavily-allocating bench body can saturate the handler.  Tune
+  [`SnMalloc::set_sampling_rate`](https://docs.rs/snmalloc-rs)
+  (typical values: `65_536` for a one-off high-resolution profile,
+  `524_288` for production-shaped overhead) and consider
+  [`SnMalloc::set_max_local_cache`](https://docs.rs/snmalloc-rs) for
+  the per-thread cache cap that bounds how many samples per second the
+  trampoline can observe.
 
 ### Feature-off behaviour
 
