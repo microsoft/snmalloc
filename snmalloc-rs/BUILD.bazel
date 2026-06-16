@@ -52,6 +52,36 @@ rust_library(
     ],
 )
 
+# Profile-enabled build without the `profiling` Cargo feature (no flate2).
+#
+# Same Rust source as `:snmalloc_rs` but binds the `:snmalloc_sys_profiling`
+# C archive (SNMALLOC_PROFILE=ON, so the `sn_rust_profile_*` extern decls
+# resolve).  The Cargo `profiling` feature is intentionally NOT enabled —
+# `snapshot()`, `write_flamegraph()`, and `init_profiling_from_env()` are
+# unconditional in the wrapper crate.  `write_pprof_gz` is gated behind the
+# Cargo feature and therefore not available on this variant.
+#
+# Why this exists: `:snmalloc_rs_profiling` depends on `@crates//:flate2`
+# wired through this module's `crate_universe` extension with
+# `dev_dependency = True`.  That scopes `@crates` to this fork's dev/CI
+# loop; downstream Bazel consumers (capitalintent monorepo) cannot resolve
+# `@crates//:flate2` and therefore cannot use `:snmalloc_rs_profiling`
+# directly.  `:snmalloc_rs_profile_compat` lets them opt into the profile
+# build without registering flate2.
+rust_library(
+    name = "snmalloc_rs_profile_compat",
+    srcs = _CRATE_SRCS,
+    aliases = {
+        "//snmalloc-rs/snmalloc-sys:snmalloc_sys_profiling": "snmalloc_sys",
+    },
+    crate_name = "snmalloc_rs",
+    crate_root = _CRATE_ROOT,
+    edition = "2021",
+    deps = [
+        "//snmalloc-rs/snmalloc-sys:snmalloc_sys_profiling",
+    ],
+)
+
 # ---------------------------------------------------------------------------
 # Tests.  Sliced by whether they require the `profiling` feature.
 # ---------------------------------------------------------------------------
