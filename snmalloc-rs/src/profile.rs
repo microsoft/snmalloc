@@ -1592,6 +1592,83 @@ impl SnMalloc {
     }
 }
 
+/// Resolve a default filesystem path to write a serialised heap
+/// profile (folded-stack, pprof, etc.) to, using the precedence chain
+/// recommended for Bazel + dev integrations.  See
+/// `snmalloc-rs/docs/bazel.md` for the cookbook explaining the
+/// rationale for each fallback step.
+///
+/// Precedence (first match wins):
+///
+/// 1. `SNMALLOC_PROFILE_OUT` -- explicit override.  Always honoured
+///    verbatim; lets operators / CI scripts redirect output without
+///    recompiling.
+/// 2. `TEST_UNDECLARED_OUTPUTS_DIR` -- Bazel's per-test scratch
+///    directory.  When set, the file is written as
+///    `$TEST_UNDECLARED_OUTPUTS_DIR/heap.folded` so that Bazel
+///    automatically uploads it as a declared test output (visible in
+///    BES / RBE result UIs).
+/// 3. `std::env::temp_dir()` -- final fallback for plain `cargo run`
+///    / `cargo test` invocations.  The PID is appended
+///    (`heap_{pid}.folded`) so concurrent processes don't clobber each
+///    other.
+///
+/// The returned path is intentionally `.folded`-suffixed -- this is
+/// the most broadly consumable format produced by
+/// [`HeapProfile::write_flamegraph`] / [`HeapProfile::write_flamegraph_with`].
+/// Callers writing pprof or another format should `with_extension`
+/// the returned path.
+///
+/// Only available with the `profiling` Cargo feature.
+///
+/// # Example
+///
+/// ```no_run
+/// # #[cfg(feature = "profiling")]
+/// # fn main() -> std::io::Result<()> {
+/// use snmalloc_rs::SnMalloc;
+/// use snmalloc_rs::profile::default_output_path;
+/// use std::fs::File;
+///
+/// let profile = SnMalloc.snapshot();
+/// let path = default_output_path();
+/// let mut f = File::create(&path)?;
+/// profile.write_flamegraph(&mut f)?;
+/// # Ok(())
+/// # }
+/// # #[cfg(not(feature = "profiling"))]
+/// # fn main() {}
+/// ```
+#[cfg(feature = "profiling")]
+pub fn default_output_path() -> std::path::PathBuf {
+    // 1. Explicit override wins.  An empty string is treated as
+    //    "unset" so a stray `SNMALLOC_PROFILE_OUT=` in a shell
+    //    profile doesn't accidentally point us at the current
+    //    directory.
+    if let Ok(p) = std::env::var("SNMALLOC_PROFILE_OUT") {
+        if !p.is_empty() {
+            return std::path::PathBuf::from(p);
+        }
+    }
+    // 2. Bazel sets TEST_UNDECLARED_OUTPUTS_DIR per
+    //    https://bazel.build/reference/test-encyclopedia#initial-conditions
+    //    so any file written there is uploaded by Bazel as a
+    //    declared test artefact.
+    if let Ok(dir) = std::env::var("TEST_UNDECLARED_OUTPUTS_DIR") {
+        if !dir.is_empty() {
+            let mut p = std::path::PathBuf::from(dir);
+            p.push("heap.folded");
+            return p;
+        }
+    }
+    // 3. Final fallback for plain `cargo run` / `cargo test` /
+    //    interactive use.  Stamp the PID so concurrent runs don't
+    //    overwrite each other.
+    let mut p = std::env::temp_dir();
+    p.push(std::format!("heap_{}.folded", std::process::id()));
+    p
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

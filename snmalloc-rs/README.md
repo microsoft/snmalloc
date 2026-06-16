@@ -41,6 +41,8 @@ There are the following features defined in this crate:
 
 ## Heap Profiling
 
+See [`docs/bazel.md`](docs/bazel.md) for the Bazel-integration cookbook (profile-output path resolution, BES upload limits, opt-in `rust_test` snippet).
+
 The `profiling` Cargo feature enables a low-overhead statistical heap
 profiler in the underlying snmalloc build. Each allocation has an
 independent Poisson probability of being recorded with its call stack;
