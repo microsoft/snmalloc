@@ -34,16 +34,23 @@ rust_library(
     ],
 )
 
-# NOTE: A `snmalloc_rs_profiling` rust_library variant is intentionally
-# omitted from this BUILD.  Wiring it up requires crate_universe
-# registration of the optional dependencies it pulls in (`flate2` for
-# `write_pprof_gz`, plus `backtrace` once we also add the
-# `symbolicate` feature).  That's a follow-up step: see notes on the
-# Bazel-migration ticket for the planned `crate.from_cargo(...)` call
-# wiring against the existing `snmalloc-rs/Cargo.toml`.  Until then,
-# Bazel consumers that need profiling should continue to build the
-# crate via Cargo; the no-profiling default target below is
-# sufficient for the common embedding case.
+# Profiling-enabled build (Cargo feature `profiling`).  Pulls flate2
+# via the root MODULE.bazel `crate_universe` extension (dev-only scope
+# -- downstream consumers register their own flate2).  The
+# `symbolicate` feature still requires `backtrace` and is deferred:
+# `tests/profile_symbolize.rs` is intentionally not wired below.
+rust_library(
+    name = "snmalloc_rs_profiling",
+    srcs = _CRATE_SRCS,
+    crate_features = ["profiling"],
+    crate_name = "snmalloc_rs",
+    crate_root = _CRATE_ROOT,
+    edition = "2021",
+    deps = [
+        "//snmalloc-rs/snmalloc-sys:snmalloc_sys_profiling",
+        "@crates//:flate2",
+    ],
+)
 
 # ---------------------------------------------------------------------------
 # Tests.  Sliced by whether they require the `profiling` feature.
@@ -58,9 +65,40 @@ rust_test(
     deps = [":snmalloc_rs"],
 )
 
-# NOTE: profiling-feature integration tests under `tests/profile_*.rs`
-# are not wired into the Bazel target graph yet — they require both
-# the profiling rust_library variants above and the `@crates//`
-# dependencies (`flate2`, `inferno`, `backtrace`).  The Cargo build
-# continues to run them via `cargo test --features profiling`; the
-# Bazel equivalent is deferred to the crate_universe follow-up.
+# Profiling-feature integration tests.  All link against
+# :snmalloc_rs_profiling so the `cfg(feature = "profiling")` blocks
+# are live and the C archive carries `SNMALLOC_PROFILE=ON`.
+#
+# Excluded by design:
+#   * profile_symbolize.rs       -- requires the `symbolicate` feature
+#                                   (transitive `backtrace`); separate
+#                                   follow-up ticket once we register
+#                                   backtrace via crate_universe.
+#   * profile_viewer_roundtrip.rs / profile_pprof_roundtrip.rs --
+#                                   depend on dev-deps (`inferno`) or
+#                                   external host tooling (`go tool
+#                                   pprof`); kept in the Cargo bench
+#                                   harness only.
+[
+    rust_test(
+        name = "{}_test".format(name),
+        srcs = ["tests/{}.rs".format(name)],
+        crate_features = ["profiling"],
+        edition = "2021",
+        deps = [
+            ":snmalloc_rs_profiling",
+            "//snmalloc-rs/snmalloc-sys:snmalloc_sys_profiling",
+            "@crates//:flate2",
+        ],
+    )
+    for name in [
+        "profile_snapshot",
+        "profile_streaming",
+        "profile_lifetime_histogram",
+        "profile_accuracy",
+        "profile_pprof",
+        "profile_pprof_gz",
+        "profile_realloc",
+        "profile_runtime_config",
+    ]
+]

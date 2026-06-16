@@ -29,6 +29,9 @@ rust_library(
     name = "snmalloc_sys_profiling",
     srcs = _CRATE_SRCS,
     crate_features = ["profiling"],
+    # Same crate ident as `:snmalloc_sys` so downstream `use snmalloc_sys::*`
+    # resolves regardless of which variant snmalloc-rs builds against.
+    crate_name = "snmalloc_sys",
     edition = "2021",
     deps = [
         "//:snmalloc-rs-profile",

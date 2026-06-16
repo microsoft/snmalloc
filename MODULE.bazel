@@ -33,3 +33,23 @@ rust.toolchain(
     versions = ["1.90.0"],
 )
 use_repo(rust, "rust_toolchains")
+
+# crate_universe entries for snmalloc-rs optional dependencies. Currently
+# just flate2 (pulled by the `profiling` Cargo feature via `dep:flate2`
+# for `HeapProfile::write_pprof_gz`). `dev_dependency = True` keeps these
+# scoped to snmalloc's own dev/CI loop so downstream consumers depending
+# on `@snmalloc//snmalloc-rs:snmalloc_rs_profiling` do not transitively
+# pull crate_universe -- they're expected to register flate2 themselves
+# via their own crate_universe extension and inject it through the
+# `flate2` repo alias (see snmalloc-rs/BUILD.bazel).
+crate = use_extension(
+    "@rules_rust//crate_universe:extension.bzl",
+    "crate",
+    dev_dependency = True,
+)
+crate.spec(
+    package = "flate2",
+    version = "1",
+)
+crate.from_specs()
+use_repo(crate, "crates")
