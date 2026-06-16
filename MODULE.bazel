@@ -34,9 +34,14 @@ rust.toolchain(
 )
 use_repo(rust, "rust_toolchains")
 
-# crate_universe entries for snmalloc-rs optional dependencies. Currently
-# just flate2 (pulled by the `profiling` Cargo feature via `dep:flate2`
-# for `HeapProfile::write_pprof_gz`).
+# crate_universe entries for snmalloc-rs optional dependencies. Currently:
+#   * flate2    -- pulled by the `profiling` Cargo feature via `dep:flate2`
+#                  for `HeapProfile::write_pprof_gz`.
+#   * backtrace -- pulled by the `symbolicate` Cargo feature via
+#                  `dep:backtrace` to resolve raw frame addresses captured
+#                  by the profiler into function/file/line at dump time.
+#                  Required for the `:snmalloc_rs_profiling_symbolicated`
+#                  target (CU-86aj360ae).
 #
 # The materialised repo is named `snmalloc_crates` (not the default `crates`)
 # to avoid colliding with downstream consumers' own `crate_universe` usage:
@@ -59,6 +64,10 @@ crate = use_extension(
 crate.spec(
     package = "flate2",
     version = "1",
+)
+crate.spec(
+    package = "backtrace",
+    version = "0.3",
 )
 crate.from_specs(name = "snmalloc_crates")
 use_repo(crate, crates = "snmalloc_crates")

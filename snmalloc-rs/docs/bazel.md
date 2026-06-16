@@ -102,3 +102,67 @@ keys on a wrapper `sh_binary` or pass `--action_env=...` on the
 command line. The resolution chain in `default_output_path()` is
 identical regardless of the host rule kind — the helper only inspects
 the process environment at call time.
+
+## Choosing a profiling variant
+
+The fork exposes three `rust_library` targets for the profiling
+matrix. Pick the one matching how the consumer binary will read the
+output:
+
+| Target | Cargo features | Output frames | When to use |
+| --- | --- | --- | --- |
+| `:snmalloc_rs` | _(none)_ | n/a (no profiler) | Default. The Cargo `profiling` feature is off and the C-side `SNMALLOC_PROFILE` is off too. |
+| `:snmalloc_rs_profiling` | `profiling` | 16-hex-digit raw addresses | Profiler on, but the pprof / folded output carries `0x...` frames. Operators symbolize externally with `atos` / `addr2line` / `llvm-symbolizer`. Lightest dep footprint. |
+| `:snmalloc_rs_profiling_symbolicated` | `profiling`, `symbolicate` | Resolved `function (file:line)` frames | Profiler on **and** frames are resolved in-process via the `backtrace` crate at dump time. Drop the pprof straight into Grafana Pyroscope / Polar Signals / `go tool pprof -http=:8080 -` and the function names show up. |
+
+The `:snmalloc_rs_profile_compat` target also exists as an escape
+hatch — it binds the profile-enabled C archive but leaves the Cargo
+`profiling` feature off (and therefore does not depend on flate2).
+That's useful for downstream Bazel modules that cannot resolve
+`@crates//:flate2` from this fork's `crate_universe` extension.
+
+### Switching a downstream binary to symbolicated output
+
+Change a single `deps` entry in the consumer `BUILD.bazel`:
+
+```python
+# Before — operators have to atos every frame by hand:
+rust_binary(
+    name = "konfig_bin_heapprof",
+    srcs = [...],
+    deps = [
+        "@snmalloc//snmalloc-rs:snmalloc_rs_profiling",
+        # ...
+    ],
+)
+
+# After — frames are resolved at dump time, pprof viewers show
+# function names directly:
+rust_binary(
+    name = "konfig_bin_heapprof",
+    srcs = [...],
+    deps = [
+        "@snmalloc//snmalloc-rs:snmalloc_rs_profiling_symbolicated",
+        # ...
+    ],
+)
+```
+
+No API change is required — `HeapProfile::write_flamegraph` and
+`HeapProfile::write_pprof_gz` are the same call sites as in the
+un-symbolicate build. The renderer detects the feature at compile
+time and emits resolved frames automatically; unresolved frames
+(kernel, JIT, stripped code) fall back to the same 16-hex-digit
+form as the non-symbolicate variant. See the
+`snmalloc-rs/README.md` "Symbolicated output" section for the
+matching Cargo-side recipe and the runtime caveats.
+
+### Cost
+
+`backtrace` pulls `addr2line` + `gimli` + `object` transitively
+(~500 kB live set, parses the binary's debug info on first use). If
+the consumer binary already links those crates for any other reason
+(panic backtraces, `tracing-error`, etc.) the incremental cost is
+near zero — which is the common case for production Rust binaries.
+If you measure the cost and it's unwelcome, stay on
+`:snmalloc_rs_profiling` and symbolize the raw pprof externally.

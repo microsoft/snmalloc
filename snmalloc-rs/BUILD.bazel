@@ -36,9 +36,10 @@ rust_library(
 
 # Profiling-enabled build (Cargo feature `profiling`).  Pulls flate2
 # via the root MODULE.bazel `crate_universe` extension (dev-only scope
-# -- downstream consumers register their own flate2).  The
-# `symbolicate` feature still requires `backtrace` and is deferred:
-# `tests/profile_symbolize.rs` is intentionally not wired below.
+# -- downstream consumers register their own flate2).  Raw frame
+# addresses are emitted as 16-hex-digit pointers; see
+# `:snmalloc_rs_profiling_symbolicated` below for the variant that
+# resolves them into function/file/line via `backtrace`.
 rust_library(
     name = "snmalloc_rs_profiling",
     srcs = _CRATE_SRCS,
@@ -48,6 +49,43 @@ rust_library(
     edition = "2021",
     deps = [
         "//snmalloc-rs/snmalloc-sys:snmalloc_sys_profiling",
+        "@crates//:flate2",
+    ],
+)
+
+# Profiling + symbolicate build (Cargo features `profiling`,
+# `symbolicate`).  Same C archive as `:snmalloc_rs_profiling` (the
+# symbolicator is purely Rust-side) but additionally pulls in
+# `backtrace` so `HeapProfile::write_flamegraph` and
+# `HeapProfile::write_pprof_gz` resolve raw frame addresses into
+# function/file/line at dump time.
+#
+# Use this instead of `:snmalloc_rs_profiling` when:
+#   * the downstream binary will serve pprof bodies to a UI that
+#     cannot symbolicate externally (Grafana Pyroscope, Polar Signals,
+#     internal dashboards, `go tool pprof -http=:8080 -`), OR
+#   * operators are capturing one-off heap profiles by hand and would
+#     otherwise have to `atos -o <bin> -l <load_base> <addr>` for
+#     every frame.
+#
+# Cost: `backtrace` pulls `addr2line` + `gimli` + `object` transitively
+# (~500 kB live set at startup, parses the binary's debug info on
+# first use).  If the consumer binary already links those crates for
+# any other reason (panic backtraces, tracing-error, etc.) the
+# incremental cost is near zero.  See CU-86aj360ae for the gap analysis.
+rust_library(
+    name = "snmalloc_rs_profiling_symbolicated",
+    srcs = _CRATE_SRCS,
+    crate_features = [
+        "profiling",
+        "symbolicate",
+    ],
+    crate_name = "snmalloc_rs",
+    crate_root = _CRATE_ROOT,
+    edition = "2021",
+    deps = [
+        "//snmalloc-rs/snmalloc-sys:snmalloc_sys_profiling",
+        "@crates//:backtrace",
         "@crates//:flate2",
     ],
 )
@@ -100,15 +138,15 @@ rust_test(
 # are live and the C archive carries `SNMALLOC_PROFILE=ON`.
 #
 # Excluded by design:
-#   * profile_symbolize.rs       -- requires the `symbolicate` feature
-#                                   (transitive `backtrace`); separate
-#                                   follow-up ticket once we register
-#                                   backtrace via crate_universe.
 #   * profile_viewer_roundtrip.rs / profile_pprof_roundtrip.rs --
 #                                   depend on dev-deps (`inferno`) or
 #                                   external host tooling (`go tool
 #                                   pprof`); kept in the Cargo bench
 #                                   harness only.
+#
+# `profile_symbolize.rs` is wired separately below against
+# `:snmalloc_rs_profiling_symbolicated` (it carries
+# `#![cfg(feature = "symbolicate")]`).
 [
     rust_test(
         name = "{}_test".format(name),
@@ -132,3 +170,23 @@ rust_test(
         "profile_runtime_config",
     ]
 ]
+
+# Symbolicate-feature integration test.  Compiled against the
+# `:snmalloc_rs_profiling_symbolicated` variant so the
+# `#![cfg(feature = "symbolicate")]` body is live and the symbolicator
+# (`backtrace`) is in the link.  CU-86aj360ae.
+rust_test(
+    name = "profile_symbolize_test",
+    srcs = ["tests/profile_symbolize.rs"],
+    crate_features = [
+        "profiling",
+        "symbolicate",
+    ],
+    edition = "2021",
+    deps = [
+        ":snmalloc_rs_profiling_symbolicated",
+        "//snmalloc-rs/snmalloc-sys:snmalloc_sys_profiling",
+        "@crates//:backtrace",
+        "@crates//:flate2",
+    ],
+)
