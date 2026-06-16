@@ -96,6 +96,32 @@ Then render to SVG:
 inferno-flamegraph < heap.folded > heap.svg
 ```
 
+### When to use snapshot vs streaming
+
+The two profiling modes answer different questions and have different
+biases. Pick the one that matches your workload:
+
+| | `SnMalloc::snapshot()` | `ProfilingSession::start` (streaming) |
+| - | - | - |
+| **What it captures** | Sampled allocations *currently live* in the process at the time of the call. | *Every* sampled event (alloc / dealloc / resize) as it happens. |
+| **Best for** | "What is holding memory *right now*?" — heap-state audits, leak triage, before/after diffs across a steady-state. | "Which call site is the highest-rate allocator?" — hot-path optimisation, rate-based attribution, transient-churn analysis. |
+| **Bias** | Biased toward long-lived allocations — short-lived churn (allocate-and-free inside a request, scratch buffers in a tight loop) is freed before the snapshot and vanishes from view. | None on the event stream itself, but the consumer pays for storage / aggregation of every event. |
+| **Output** | In-process `HeapProfile`; serialise via `write_pprof` / `write_flamegraph`. | Live callback; the application chooses how to persist events (commonly a JSON-Lines log file). |
+| **Tooling** | `snmalloc-tools profile-top` for top-N live sites. | `snmalloc-tools rate-report` for per-site alloc/dealloc rate + peak-live-bytes. |
+
+**Rule of thumb.** If the question is "where is my live heap?" use a
+snapshot. If the question is "which call site is hottest and how
+churny is it?" use streaming. A snapshot will systematically
+under-count a hot allocate-and-free site; a streaming log captures
+that churn but requires you to keep an event log around.
+
+The `snmalloc-tools` CLI ships dedicated subcommands for each mode:
+`profile-top` walks a snapshot, and `rate-report` stream-parses a
+streaming event log file without loading the whole log into memory
+(safe for multi-million-event traces). See
+[`snmalloc-tools/README.md`](../snmalloc-tools/README.md) for the
+streaming-log on-disk schema.
+
 ### Streaming mode
 
 For long-running services, `ProfilingSession::start` registers a

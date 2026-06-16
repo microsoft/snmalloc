@@ -32,6 +32,7 @@ use snmalloc_tools::branch_hints::{BranchHintIndex, HintKind};
 use snmalloc_tools::joiner;
 use snmalloc_tools::perf_c2c::{self, C2cLine};
 use snmalloc_tools::perf_script;
+use snmalloc_tools::rate_report;
 
 /// snmalloc-tools — CLI for joining perf PMU output with snmalloc's
 /// in-tree allocation-site lookup and branch-hint inventory.
@@ -57,6 +58,9 @@ enum Cmd {
     /// Cross-reference `perf script` branch-miss samples with the
     /// Phase 10.2 branch-hint inventory.
     BranchMisses(BranchMissesArgs),
+    /// Stream-parse a snmalloc streaming event log and emit a per-site
+    /// rate report (alloc/dealloc counts, peak live bytes, alloc rate).
+    RateReport(RateReportArgs),
 }
 
 #[derive(Args, Debug)]
@@ -122,6 +126,25 @@ struct C2cArgs {
 }
 
 #[derive(Args, Debug)]
+struct RateReportArgs {
+    /// Path to the streaming event log to read.  Must be JSON-Lines
+    /// (one event object per line).  See
+    /// `snmalloc_tools::rate_report` module docs for the schema.  The
+    /// file is stream-parsed -- 6M-event logs are fine.
+    #[arg(long)]
+    input: PathBuf,
+    /// Limit to the top-N highest-alloc-count sites.  `0` means "no
+    /// limit"; the report still arrives sorted by alloc-count desc.
+    #[arg(long, default_value_t = 0)]
+    top: usize,
+    /// Render as a fixed-width pretty table instead of CSV.  The
+    /// default (CSV) is the friendliest format for downstream
+    /// awk/jq/spreadsheet pipelines.
+    #[arg(long)]
+    pretty: bool,
+}
+
+#[derive(Args, Debug)]
 struct BranchMissesArgs {
     /// Path to the `perf script` output to parse.
     #[arg(long = "perf-script")]
@@ -146,6 +169,7 @@ fn main() -> Result<()> {
             PmuJoinKind::C2c(c) => run_c2c(c),
         },
         Cmd::BranchMisses(a) => run_branch_misses(a),
+        Cmd::RateReport(a) => run_rate_report(a),
     }
 }
 
@@ -371,6 +395,26 @@ fn run_branch_misses(args: BranchMissesArgs) -> Result<()> {
                 r.ip, r.miss_count, kind, file, line
             );
         }
+    }
+    Ok(())
+}
+
+// -- rate-report ----------------------------------------------------------
+
+fn run_rate_report(args: RateReportArgs) -> Result<()> {
+    let mut rows = rate_report::read_path(&args.input)?;
+    if args.top > 0 && rows.len() > args.top {
+        rows.truncate(args.top);
+    }
+    // Writing to a locked stdout once per run is materially faster
+    // than repeated `println!` for large reports, and matters when a
+    // user pipes the output through downstream tools.
+    let stdout = std::io::stdout();
+    let mut out = stdout.lock();
+    if args.pretty {
+        rate_report::write_pretty(&rows, &mut out)?;
+    } else {
+        rate_report::write_csv(&rows, &mut out)?;
     }
     Ok(())
 }

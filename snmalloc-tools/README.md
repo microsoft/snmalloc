@@ -27,10 +27,56 @@ snmalloc-tools branch-misses --perf-script <file> --hints <branch_hints.json> [-
     Parse `perf script` output and cross-reference with the Phase
     10.2 branch-hint inventory.  High-miss-rate inverted hints are
     candidates for `LIKELY` <-> `UNLIKELY` swap.
+
+snmalloc-tools rate-report --input <streaming-log.jsonl> [--top N] [--pretty]
+    Stream-parse a snmalloc streaming event log (JSON Lines) and
+    emit a per-site row: alloc/dealloc counts, peak live bytes,
+    alloc-rate per second.  Output is CSV by default; `--pretty`
+    emits a fixed-width table.  Stream-based — 6M-event logs use
+    O(distinct sites) memory, not O(events).
 ```
 
-All subcommands accept `--json` for structured output; the default is
-a plain-text table.
+All subcommands except `rate-report` accept `--json` for structured
+output; the default is a plain-text table.  `rate-report` emits CSV
+by default (the friendliest format for downstream awk/jq/spreadsheet
+pipelines) and a fixed-width table under `--pretty`.
+
+## Streaming event-log schema (`rate-report`)
+
+`rate-report` consumes **JSON Lines** (UTF-8, one event object per
+line).  The producer is typically an application using
+[`snmalloc_rs::ProfilingSession`](../snmalloc-rs/src/streaming.rs)
+that serialises each callback to a file.  Schema:
+
+```jsonl
+{"ts_ns": 1000000, "kind": "alloc", "site": "0x55a0c0001000", "size": 4096}
+{"ts_ns": 1001000, "kind": "dealloc", "site": "0x55a0c0001000", "size": 4096}
+```
+
+Fields:
+
+- `ts_ns` (u64, optional) — monotonic-clock timestamp in nanoseconds.
+  Used to compute the alloc-rate denominator; when missing across all
+  records the rate column is reported as `0.0`.
+- `kind` (string, required) — one of `"alloc"`, `"dealloc"`,
+  `"resize"`.  Unknown values are skipped (forward-compat).
+- `site` (string, required) — the allocation site key.  Typically the
+  leaf-frame address as `0x` + 16 hex digits, matching the
+  `site_leaf` field emitted by the other subcommands.
+- `size` (u64, optional) — bytes attributable to this event.
+
+Malformed lines are skipped silently — the reader is resilient to
+truncated tails and the occasional blank line.  See
+`tests/fixtures/streaming_log_sample.jsonl` for a worked example.
+
+## Snapshot vs streaming
+
+`profile-top` walks a `HeapProfile::snapshot()` (currently-live
+sampled allocations) and is biased toward long-lived state;
+`rate-report` walks a streaming log and captures transient churn.
+See the "When to use snapshot vs streaming" section in
+[`../snmalloc-rs/README.md`](../snmalloc-rs/README.md) for a fuller
+treatment of the tradeoff.
 
 ## Live-process limitation (important)
 
@@ -70,6 +116,9 @@ the branch-hint inventory is a static sidecar.
 - `perf_c2c_sample.txt` — two contended cache lines with detail rows.
 - `branch_hints_sample.json` — three hint sites matching the schema
   in `scripts/dump_branch_hints.py`.
+- `streaming_log_sample.jsonl` — eight events across two sites,
+  exercising alloc, dealloc, resize, and the peak-then-drop pattern
+  that `rate-report` is built to surface.
 
 The integration tests in `tests/integration.rs` exercise each
 parser/joiner against these fixtures.

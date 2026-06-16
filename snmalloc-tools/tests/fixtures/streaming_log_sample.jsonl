@@ -1,0 +1,8 @@
+{"ts_ns": 1000000000, "kind": "alloc", "site": "0x0000aaaa00000001", "size": 1024}
+{"ts_ns": 1000100000, "kind": "alloc", "site": "0x0000aaaa00000001", "size": 1024}
+{"ts_ns": 1000200000, "kind": "alloc", "site": "0x0000aaaa00000001", "size": 1024}
+{"ts_ns": 1000300000, "kind": "alloc", "site": "0x0000bbbb00000002", "size": 4096}
+{"ts_ns": 1000400000, "kind": "dealloc", "site": "0x0000aaaa00000001", "size": 1024}
+{"ts_ns": 1500000000, "kind": "alloc", "site": "0x0000aaaa00000001", "size": 1024}
+{"ts_ns": 1900000000, "kind": "dealloc", "site": "0x0000aaaa00000001", "size": 1024}
+{"ts_ns": 2000000000, "kind": "resize", "site": "0x0000bbbb00000002", "size": 8192}
