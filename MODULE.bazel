@@ -36,14 +36,22 @@ use_repo(rust, "rust_toolchains")
 
 # crate_universe entries for snmalloc-rs optional dependencies. Currently
 # just flate2 (pulled by the `profiling` Cargo feature via `dep:flate2`
-# for `HeapProfile::write_pprof_gz`). Must NOT be `dev_dependency = True`:
-# the matching BUILD label `@crates//:flate2` is referenced unconditionally
-# by `snmalloc-rs/BUILD.bazel`'s `:snmalloc_rs_profiling` target, and Bazel
-# skips dev_dependencies of non-root modules. With dev scoping on, any
-# downstream consumer depending on `:snmalloc_rs_profiling` analyze-fails
-# with `No repository visible as '@crates' from repository '@@snmalloc+'`.
-# (The flate2-free `:snmalloc_rs_profile_compat` target remains available
-# for consumers that do not need `write_pprof_gz`.)
+# for `HeapProfile::write_pprof_gz`).
+#
+# The materialised repo is named `snmalloc_crates` (not the default `crates`)
+# to avoid colliding with downstream consumers' own `crate_universe` usage:
+#   * `dev_dependency = True` would hide the repo from non-root modules,
+#     breaking downstream consumers of `:snmalloc_rs_profiling` with
+#     `No repository visible as '@crates' from repository '@@snmalloc+'`.
+#   * Default-named (`crates`) non-dev declarations from multiple modules
+#     merge into one global crate universe and bzlmod refuses with
+#     `Defined two crate universes with the same name in different
+#     MODULE.bazel files (crates)`.
+# `use_repo(crate, crates = "snmalloc_crates")` aliases the renamed repo
+# back to `@crates` inside this module's namespace so
+# `snmalloc-rs/BUILD.bazel`'s `@crates//:flate2` references keep working;
+# downstream modules see only the unaliased `@snmalloc_crates`, leaving
+# their own `@crates` namespace untouched.
 crate = use_extension(
     "@rules_rust//crate_universe:extension.bzl",
     "crate",
@@ -52,5 +60,5 @@ crate.spec(
     package = "flate2",
     version = "1",
 )
-crate.from_specs()
-use_repo(crate, "crates")
+crate.from_specs(name = "snmalloc_crates")
+use_repo(crate, crates = "snmalloc_crates")
