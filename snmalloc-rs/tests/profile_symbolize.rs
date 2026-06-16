@@ -9,12 +9,13 @@
 //!    code, etc.; we deliberately tolerate the unresolved portion
 //!    and only assert on the majority case.
 //!
-//! 2. [`HeapProfile::write_flamegraph_symbolized`] emits valid folded
-//!    output: every line parses as `STACK WEIGHT`, every stack is
-//!    unique (the collapse step still works after substitution), and
-//!    the sum of folded weights equals the equivalent
-//!    [`HeapProfile::write_flamegraph`] total under the documented
-//!    default projection ([`snmalloc_rs::Weight::Allocated`]).
+//! 2. [`HeapProfile::write_flamegraph`] in a `symbolicate` build emits
+//!    valid folded output with resolved frame names: every line parses
+//!    as `STACK WEIGHT`, every stack is unique (the collapse step
+//!    still works after substitution), and the sum of folded weights
+//!    equals the equivalent [`HeapProfile::write_flamegraph_raw`]
+//!    total under the documented default projection
+//!    ([`snmalloc_rs::Weight::Allocated`]).
 //!
 //! Skipped (with a `return`, not `#[ignore]`) when the `profiling`
 //! Cargo feature is OFF -- the file still compiles in that
@@ -131,16 +132,17 @@ fn symbolize_resolves_majority_of_live_frames() {
     a.set_sampling_rate(saved);
 }
 
-/// `write_flamegraph_symbolized` produces a syntactically-valid
-/// folded-stack stream:
+/// `write_flamegraph` in a `symbolicate` build produces a
+/// syntactically-valid folded-stack stream:
 ///   - one line per unique resolved stack (no duplicates),
 ///   - every line parses as `STACK WEIGHT`,
 ///   - the summed weight equals
 ///     `HeapProfile::total_allocated_bytes` -- which is also what
-///     `write_flamegraph` sums to under the default projection, so
-///     the substitution-from-hex-to-name path preserves total weight.
+///     `write_flamegraph_raw` sums to under the default projection,
+///     so the substitution-from-hex-to-name path preserves total
+///     weight.
 #[test]
-fn flamegraph_symbolized_renders_cleanly() {
+fn flamegraph_symbolicated_renders_cleanly() {
     let _l = lock();
     let a = SnMalloc::new();
     if !a.profiling_supported() {
@@ -162,7 +164,7 @@ fn flamegraph_symbolized_renders_cleanly() {
     assert!(snap.len() >= 100, "snapshot too small: {}", snap.len());
 
     let mut buf: Vec<u8> = Vec::new();
-    snap.write_flamegraph_symbolized(&mut buf)
+    snap.write_flamegraph(&mut buf)
         .expect("Vec<u8> write is infallible");
     let text = std::str::from_utf8(&buf).expect("folded format is ASCII");
 

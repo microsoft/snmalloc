@@ -232,7 +232,8 @@ unsafe impl Sync for Frames {}
 ///   "bytes mapped from snmalloc" view a heap-profile user usually
 ///   wants when chasing live-memory regressions, since it accounts
 ///   for sizeclass slack.  This is the default for
-///   [`HeapProfile::write_flamegraph`].
+///   [`HeapProfile::write_flamegraph`] (and
+///   [`HeapProfile::write_flamegraph_raw`]).
 /// - [`Weight::Requested`] -- bytes the caller asked for, i.e. just
 ///   the raw per-sample `weight`.  Matches the "bytes asked of malloc"
 ///   view, which is what most user-level heap-attribution dashboards
@@ -292,8 +293,8 @@ impl Default for Weight {
 /// report nothing for a frame (kernel/JIT/no-debug-info code, stripped
 /// binaries, ASLR-only loaded shared libraries, etc.).  Callers that
 /// want a graceful fallback to hex should pair this with the
-/// raw [`BtSample::stack`] -- [`HeapProfile::write_flamegraph_symbolized`]
-/// does so by emitting `0x..` when `name.is_none()`.
+/// raw [`BtSample::stack`] -- the symbolicated [`HeapProfile::write_flamegraph`]
+/// path does so by emitting `0x..` when `name.is_none()`.
 ///
 /// Only present when the `symbolicate` Cargo feature is enabled.  See
 /// [`HeapProfile::symbolize`].
@@ -718,11 +719,10 @@ impl HeapProfile {
     ///
     /// where:
     ///
-    /// - frames are rendered as zero-padded 16-hex-digit code pointers,
-    ///   ordered **root-first** (outermost on the left, innermost /
-    ///   leaf on the right) as required by every collapsed-format
-    ///   consumer; the in-memory [`BtSample::stack`] is innermost-first,
-    ///   so we reverse on the way out, and
+    /// - frames are rendered **root-first** (outermost on the left,
+    ///   innermost / leaf on the right) as required by every
+    ///   collapsed-format consumer; the in-memory [`BtSample::stack`]
+    ///   is innermost-first, so we reverse on the way out, and
     /// - the trailing integer is the summed per-sample weight (in
     ///   bytes) across every snapshot sample whose stack is identical.
     ///
@@ -731,11 +731,28 @@ impl HeapProfile {
     /// view in `profile-weight.md`.  For [`Weight::Requested`] or
     /// other projections call [`HeapProfile::write_flamegraph_with`].
     ///
-    /// Frames are rendered as raw hex code pointers; symbolicating
-    /// them into function/file/line is Phase 4.5 (see
-    /// [Symbolicator ticket]).  Consumers can pipe the output of this
-    /// function directly into `flamegraph.pl` or `inferno-flamegraph`
-    /// without any further processing:
+    /// # Frame rendering
+    ///
+    /// With the `symbolicate` Cargo feature enabled, frames are
+    /// resolved to demangled function names (via the `backtrace`
+    /// crate), falling back to a `0x` + 16-hex-digit code pointer for
+    /// any frame the symbol backend cannot resolve.  This is the
+    /// default behaviour because every interactive viewer
+    /// (`flamegraph.pl`, `inferno`, speedscope) is dramatically more
+    /// useful with named frames -- and an unresolved frame degrades
+    /// to the same hex rendering as the raw path, so the output is
+    /// always meaningful.
+    ///
+    /// Without the `symbolicate` feature, frames render as the raw
+    /// hex code pointers -- identical to
+    /// [`HeapProfile::write_flamegraph_raw`].  Callers who want the
+    /// raw rendering even in a `symbolicate` build (e.g. to
+    /// post-process with an external symbolicator) should call
+    /// [`HeapProfile::write_flamegraph_raw`] explicitly.
+    ///
+    /// Consumers can pipe the output of this function directly into
+    /// `flamegraph.pl` or `inferno-flamegraph` without any further
+    /// processing:
     ///
     /// ```text
     /// my-binary > heap.folded     # your code calls write_flamegraph
@@ -780,11 +797,39 @@ impl HeapProfile {
     /// # fn main() {}
     /// ```
     pub fn write_flamegraph<W: io::Write>(&self, w: &mut W) -> io::Result<()> {
+        #[cfg(feature = "symbolicate")]
+        {
+            self.write_flamegraph_symbolicated_inner(w)
+        }
+        #[cfg(not(feature = "symbolicate"))]
+        {
+            self.write_flamegraph_raw(w)
+        }
+    }
+
+    /// Write the profile in the collapsed / folded-stack format using
+    /// raw `0x` + 16-hex-digit code-pointer frames -- the
+    /// always-available rendering that does not depend on the
+    /// `symbolicate` Cargo feature.
+    ///
+    /// Identical output to [`HeapProfile::write_flamegraph`] in a build
+    /// **without** the `symbolicate` feature.  In a `symbolicate`
+    /// build, the default [`HeapProfile::write_flamegraph`] resolves
+    /// frame names; this method opts back into the raw rendering for
+    /// callers who want to post-process the addresses with an external
+    /// symbolicator (e.g. `addr2line`, `llvm-symbolizer`) or who need
+    /// stable golden output across symbolicate-on / symbolicate-off
+    /// builds.
+    ///
+    /// All other semantics -- weight projection
+    /// ([`Weight::Allocated`]), determinism, empty-profile no-op,
+    /// performance -- match [`HeapProfile::write_flamegraph`].
+    pub fn write_flamegraph_raw<W: io::Write>(&self, w: &mut W) -> io::Result<()> {
         self.write_flamegraph_with(Weight::Allocated, w)
     }
 
-    /// Same as [`HeapProfile::write_flamegraph`], but with an explicit
-    /// [`Weight`] projection.
+    /// Same as [`HeapProfile::write_flamegraph_raw`], but with an
+    /// explicit [`Weight`] projection.
     ///
     /// Stacks with zero total weight (e.g. every contributing sample
     /// had `requested_size == 0` under [`Weight::Allocated`]) are
@@ -844,7 +889,7 @@ impl HeapProfile {
     /// Without the `symbolicate` Cargo feature, frame functions are
     /// named by their hex code-pointer (`"0x000000010a4b9c30"`) and
     /// the `filename` / `line` fields are empty -- mirroring the
-    /// unsymbolicated path of [`HeapProfile::write_flamegraph`].
+    /// raw rendering of [`HeapProfile::write_flamegraph_raw`].
     /// With `symbolicate` on, function names, source files, and line
     /// numbers from [`HeapProfile::symbolize`] are emitted where
     /// available, with the hex fallback used for any unresolved
@@ -1028,8 +1073,10 @@ impl HeapProfile {
         out
     }
 
-    /// Same as [`HeapProfile::write_flamegraph`], but emits resolved
-    /// frame names (when available) instead of raw hex code pointers.
+    /// Internal symbolicated implementation backing
+    /// [`HeapProfile::write_flamegraph`] in a `symbolicate` build.
+    /// Emits resolved frame names (when available) instead of raw hex
+    /// code pointers.
     ///
     /// For each frame:
     ///
@@ -1043,7 +1090,8 @@ impl HeapProfile {
     ///   directly and render via a format that supports it (e.g.
     ///   speedscope JSON).
     /// - otherwise the frame falls back to the same
-    ///   `0x` + 16-hex-digits rendering as [`HeapProfile::write_flamegraph`].
+    ///   `0x` + 16-hex-digits rendering as
+    ///   [`HeapProfile::write_flamegraph_raw`].
     ///
     /// Frame names are sanitised: any `;` or space character in a
     /// resolved name is replaced with `_`, since both characters are
@@ -1052,17 +1100,19 @@ impl HeapProfile {
     /// two on the consumer side.
     ///
     /// The output is sorted lexicographically by the rendered stack
-    /// key, the same way [`HeapProfile::write_flamegraph`] sorts.
+    /// key, the same way [`HeapProfile::write_flamegraph_raw`] sorts.
     /// Two samples with identical *resolved* stacks (which may differ
     /// in raw address -- e.g. inlining can produce distinct addresses
     /// that resolve to the same function) collapse to one folded
     /// line, with their weights summed.  The total weight emitted is
-    /// therefore identical to [`HeapProfile::write_flamegraph`]'s
+    /// therefore identical to [`HeapProfile::write_flamegraph_raw`]'s
     /// total under the [`Weight::Allocated`] projection.
     ///
-    /// Only available with the `symbolicate` Cargo feature.
+    /// Only available with the `symbolicate` Cargo feature.  Private:
+    /// callers should use [`HeapProfile::write_flamegraph`], which
+    /// dispatches to this implementation when `symbolicate` is on.
     #[cfg(feature = "symbolicate")]
-    pub fn write_flamegraph_symbolized<W: io::Write>(
+    fn write_flamegraph_symbolicated_inner<W: io::Write>(
         &self,
         w: &mut W,
     ) -> io::Result<()> {
@@ -1933,13 +1983,14 @@ mod tests {
         assert_eq!(frame.address, addr);
     }
 
-    /// `write_flamegraph_symbolized` falls back to the hex rendering
-    /// for frames whose name does not resolve.  Combined with the
-    /// above tests, this proves the renderer is total over arbitrary
-    /// frame addresses.
+    /// In a `symbolicate` build, [`HeapProfile::write_flamegraph`]
+    /// dispatches to the symbolicated path and falls back to the hex
+    /// rendering for frames whose name does not resolve.  Combined
+    /// with the above tests, this proves the renderer is total over
+    /// arbitrary frame addresses.
     #[cfg(feature = "symbolicate")]
     #[test]
-    fn flamegraph_symbolized_falls_back_to_hex() {
+    fn flamegraph_symbolicated_falls_back_to_hex() {
         let addr: *const u8 = 0xabcdusize as *const u8;
         let p = HeapProfile::from_samples(vec![BtSample {
             alloc_ptr: core::ptr::null(),
@@ -1949,22 +2000,55 @@ mod tests {
             stack: vec![addr],
         }]);
         let mut out: std::vec::Vec<u8> = std::vec::Vec::new();
-        p.write_flamegraph_symbolized(&mut out).unwrap();
+        p.write_flamegraph(&mut out).unwrap();
         let text = std::string::String::from_utf8(out).unwrap();
         let lines: std::vec::Vec<&str> = text.lines().collect();
         assert_eq!(lines.len(), 1);
         assert_eq!(lines[0], "0x000000000000abcd 4096");
     }
 
-    /// `write_flamegraph_symbolized` on an empty profile writes
-    /// nothing and reports success -- same contract as
-    /// `write_flamegraph`.
+    /// In a `symbolicate` build,
+    /// [`HeapProfile::write_flamegraph`] on an empty profile still
+    /// writes nothing and reports success -- same contract as the
+    /// raw path.
     #[cfg(feature = "symbolicate")]
     #[test]
-    fn flamegraph_symbolized_empty_profile_is_noop() {
+    fn flamegraph_symbolicated_empty_profile_is_noop() {
         let p = HeapProfile::default();
         let mut out: std::vec::Vec<u8> = std::vec::Vec::new();
-        p.write_flamegraph_symbolized(&mut out).unwrap();
+        p.write_flamegraph(&mut out).unwrap();
         assert!(out.is_empty());
+    }
+
+    /// [`HeapProfile::write_flamegraph_raw`] always emits raw hex
+    /// frames regardless of the `symbolicate` feature, and is a
+    /// no-op on an empty profile.
+    #[test]
+    fn flamegraph_raw_empty_profile_is_noop() {
+        let p = HeapProfile::default();
+        let mut out: std::vec::Vec<u8> = std::vec::Vec::new();
+        p.write_flamegraph_raw(&mut out).expect("infallible Vec<u8> write");
+        assert!(out.is_empty());
+    }
+
+    /// [`HeapProfile::write_flamegraph_raw`] emits the raw hex
+    /// rendering regardless of whether the `symbolicate` feature is
+    /// enabled.
+    #[test]
+    fn flamegraph_raw_uses_hex_addresses() {
+        let addr: *const u8 = 0xabcdusize as *const u8;
+        let p = HeapProfile::from_samples(vec![BtSample {
+            alloc_ptr: core::ptr::null(),
+            requested_size: 64,
+            allocated_size: 64,
+            weight: 4096,
+            stack: vec![addr],
+        }]);
+        let mut out: std::vec::Vec<u8> = std::vec::Vec::new();
+        p.write_flamegraph_raw(&mut out).unwrap();
+        let text = std::string::String::from_utf8(out).unwrap();
+        let lines: std::vec::Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0], "0x000000000000abcd 4096");
     }
 }

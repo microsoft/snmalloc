@@ -231,8 +231,9 @@ for.
 
 With the additional `symbolicate` feature, the profiler resolves raw
 frame addresses to function names, source files, and line numbers via
-the `backtrace` crate. A symbolicated folded-stack flamegraph is
-emitted via `write_flamegraph_symbolized`:
+the `backtrace` crate. `write_flamegraph` then emits a symbolicated
+folded-stack flamegraph **by default** -- the same call site as the
+non-symbolicate build, no API change required:
 
 ```rust
 # #[cfg(feature = "symbolicate")] {
@@ -241,14 +242,19 @@ use std::fs::File;
 
 let profile = SnMalloc.snapshot();
 let mut out = File::create("heap.folded")?;
-profile.write_flamegraph_symbolized(&mut out)?;
+profile.write_flamegraph(&mut out)?;
 # }
 # Ok::<(), std::io::Error>(())
 ```
 
 Unresolved frames fall back to the same `0x` + 16-hex-digit rendering
-used in the un-symbolicated build, so the renderer is total over
+used in the un-symbolicate build, so the renderer is total over
 arbitrary frame addresses.
+
+Callers who want the always-raw rendering -- e.g. to post-process the
+addresses with an external symbolicator, or to keep golden output
+stable across `symbolicate`-on / `symbolicate`-off builds -- can call
+`write_flamegraph_raw` instead. Both methods are always available.
 
 ### Feature-off behaviour
 
