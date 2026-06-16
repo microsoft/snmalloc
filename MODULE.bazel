@@ -36,16 +36,17 @@ use_repo(rust, "rust_toolchains")
 
 # crate_universe entries for snmalloc-rs optional dependencies. Currently
 # just flate2 (pulled by the `profiling` Cargo feature via `dep:flate2`
-# for `HeapProfile::write_pprof_gz`). `dev_dependency = True` keeps these
-# scoped to snmalloc's own dev/CI loop so downstream consumers depending
-# on `@snmalloc//snmalloc-rs:snmalloc_rs_profiling` do not transitively
-# pull crate_universe -- they're expected to register flate2 themselves
-# via their own crate_universe extension and inject it through the
-# `flate2` repo alias (see snmalloc-rs/BUILD.bazel).
+# for `HeapProfile::write_pprof_gz`). Must NOT be `dev_dependency = True`:
+# the matching BUILD label `@crates//:flate2` is referenced unconditionally
+# by `snmalloc-rs/BUILD.bazel`'s `:snmalloc_rs_profiling` target, and Bazel
+# skips dev_dependencies of non-root modules. With dev scoping on, any
+# downstream consumer depending on `:snmalloc_rs_profiling` analyze-fails
+# with `No repository visible as '@crates' from repository '@@snmalloc+'`.
+# (The flate2-free `:snmalloc_rs_profile_compat` target remains available
+# for consumers that do not need `write_pprof_gz`.)
 crate = use_extension(
     "@rules_rust//crate_universe:extension.bzl",
     "crate",
-    dev_dependency = True,
 )
 crate.spec(
     package = "flate2",
