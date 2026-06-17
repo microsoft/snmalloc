@@ -129,6 +129,9 @@ pub mod streaming;
 pub mod criterion;
 
 pub use profile::{BtSample, Frames, HeapProfile, HotSite, HotSpotKey, Weight};
+
+#[cfg(feature = "symbolicate")]
+pub use profile::clear_symbol_cache;
 pub use config::{ProfileConfig, ENV_PROFILE_ENABLE, ENV_PROFILE_RATE};
 
 /// Re-export of the Phase 9.1 wire-format version constant.  Lets

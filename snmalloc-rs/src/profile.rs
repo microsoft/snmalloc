@@ -45,6 +45,8 @@ use crate::SnMalloc;
 
 #[cfg(feature = "symbolicate")]
 use std::collections::HashMap;
+#[cfg(feature = "symbolicate")]
+use std::sync::{Arc, Mutex, OnceLock};
 
 /// Event kind tag attached to a [`BtSample`].
 ///
@@ -1055,19 +1057,21 @@ impl HeapProfile {
         // resolver is the slow part -- visiting each address exactly
         // once keeps `symbolize` roughly O(unique-frames), not
         // O(samples * stack-depth).
+        //
+        // Within a process lifetime the (address -> resolved frame)
+        // mapping is stable: code addresses don't move once a binary
+        // is loaded.  Routing each first-time resolve through a
+        // process-global cache means the gimli/backtrace parse cost
+        // is paid once per address across the whole process, not once
+        // per `HeapProfile::symbolize` call.  See [`clear_symbol_cache`]
+        // for the (rare) case where invalidation is needed.
         let mut out: HashMap<*const u8, ResolvedFrame> = HashMap::new();
         for s in &self.samples {
             for &addr in &s.stack {
-                // `entry(...).or_insert_with(...)` would also work,
-                // but we want to avoid resolving the same address
-                // twice, including in the (rare) case where the
-                // address appears twice in the *same* stack (recursive
-                // call site).  A two-step contains/insert dance keeps
-                // the per-address resolve at one call.
                 if out.contains_key(&addr) {
                     continue;
                 }
-                out.insert(addr, resolve_one(addr));
+                out.insert(addr, symbol_cache::resolve(addr));
             }
         }
         out
@@ -1288,6 +1292,83 @@ fn resolve_one(addr: *const u8) -> ResolvedFrame {
         }
     });
     frame
+}
+
+/// Process-global memoization for [`resolve_one`].
+///
+/// The `backtrace` crate parses the host binary's debug info on every
+/// `resolve` call -- on macOS this is a ~17 MB transient Vec inside
+/// `gimli::macho::Object::parse` and a ~20 ms self-CPU hit per scrape
+/// (measured against `:konfig_bin_heapprof` in CU-86aj360ae).  Code
+/// addresses don't move within a process, so once we've resolved an
+/// address the answer is stable until the process exits.  Caching
+/// at our layer (rather than per-call) makes the second and later
+/// `HeapProfile::symbolize` calls roughly free for the addresses they
+/// share with the first.
+///
+/// The cache is held behind `Arc<Mutex<...>>` so that
+/// [`clear_symbol_cache`] can flush the contents without dropping the
+/// cell itself -- tests rely on the cell's identity surviving a
+/// flush so they can assert "the cache is the same object across
+/// `write_pprof_gz` calls" (CU-86aj3uw04 acceptance).
+#[cfg(feature = "symbolicate")]
+pub(crate) mod symbol_cache {
+    use super::{resolve_one, Arc, HashMap, Mutex, OnceLock, ResolvedFrame};
+
+    type Map = Mutex<HashMap<usize, ResolvedFrame>>;
+    static CACHE: OnceLock<Arc<Map>> = OnceLock::new();
+
+    /// Return the process-global cache cell.  The `Arc` clone is
+    /// cheap; the pointer inside it is stable across calls.
+    pub(crate) fn handle() -> Arc<Map> {
+        CACHE
+            .get_or_init(|| Arc::new(Mutex::new(HashMap::new())))
+            .clone()
+    }
+
+    /// Cached entry point for [`super::resolve_one`].  First hit pays
+    /// the backtrace/gimli parse cost; every subsequent hit returns
+    /// a clone of the cached [`ResolvedFrame`].  The lock is released
+    /// across the (potentially slow) `resolve_one` call so two
+    /// threads racing on distinct cold addresses don't serialize.
+    pub(crate) fn resolve(addr: *const u8) -> ResolvedFrame {
+        let cell = handle();
+        let key = addr as usize;
+        {
+            let map = cell.lock().expect("symbol cache poisoned");
+            if let Some(frame) = map.get(&key) {
+                return frame.clone();
+            }
+        }
+        let resolved = resolve_one(addr);
+        let mut map = cell.lock().expect("symbol cache poisoned");
+        // A racing thread may have inserted while we were resolving.
+        // Prefer the existing entry; it is value-equivalent to the
+        // one we just computed.
+        map.entry(key).or_insert(resolved).clone()
+    }
+
+    /// Drop every cached entry.  The cache cell itself stays alive
+    /// (see [`handle`]).  Useful for tests and for the rare case of a
+    /// self-modifying binary that wants to invalidate stale entries.
+    pub fn clear() {
+        if let Some(cell) = CACHE.get() {
+            cell.lock().expect("symbol cache poisoned").clear();
+        }
+    }
+}
+
+/// Drop every entry from the process-global symbolicator cache used
+/// by [`HeapProfile::symbolize`].  Subsequent symbolize calls will
+/// re-resolve each address from scratch (paying the
+/// backtrace/gimli parse cost).  The cache cell itself is **not**
+/// dropped, so this is safe to call concurrently with an in-flight
+/// symbolize.
+///
+/// Only available with the `symbolicate` Cargo feature.
+#[cfg(feature = "symbolicate")]
+pub fn clear_symbol_cache() {
+    symbol_cache::clear();
 }
 
 /// Render a [`BtSample::stack`] as the root-first, `;`-joined key
@@ -2127,5 +2208,74 @@ mod tests {
         let lines: std::vec::Vec<&str> = text.lines().collect();
         assert_eq!(lines.len(), 1);
         assert_eq!(lines[0], "0x000000000000abcd 4096");
+    }
+
+    /// CU-86aj3uw04 acceptance: the symbol cache cell that backs
+    /// [`HeapProfile::symbolize`] is process-global and survives across
+    /// multiple `write_pprof_gz` calls.  We compare the raw pointer of
+    /// the inner `Arc<Mutex<_>>` allocation -- two calls observing the
+    /// same pointer prove they are looking at the same cache.
+    ///
+    /// We additionally hit the cache through a real `symbolize` call
+    /// (driven by `write_pprof_gz`) before each handle fetch, so the
+    /// `OnceLock` is guaranteed to have been initialised by the same
+    /// path production callers exercise.
+    #[cfg(all(feature = "profiling", feature = "symbolicate"))]
+    #[test]
+    fn symbol_cache_cell_stable_across_pprof_writes() {
+        use std::sync::Arc;
+
+        let frames = snmalloc_rs_phase_4_4_symbolize_probe();
+        let p = HeapProfile::from_samples(vec![BtSample {
+            alloc_ptr: core::ptr::null(),
+            requested_size: 64,
+            allocated_size: 64,
+            weight: 4096,
+            stack: frames,
+        }]);
+
+        // Force cache init through the same code path as production.
+        let mut out1: std::vec::Vec<u8> = std::vec::Vec::new();
+        p.write_pprof_gz(&mut out1, Weight::Allocated).unwrap();
+        let ptr1 = Arc::as_ptr(&super::symbol_cache::handle());
+
+        let mut out2: std::vec::Vec<u8> = std::vec::Vec::new();
+        p.write_pprof_gz(&mut out2, Weight::Allocated).unwrap();
+        let ptr2 = Arc::as_ptr(&super::symbol_cache::handle());
+
+        assert_eq!(ptr1, ptr2, "symbol cache cell must be process-global");
+
+        // Flushing must not drop the cell itself -- pointer stays
+        // equal even after `clear_symbol_cache`.
+        super::clear_symbol_cache();
+        let ptr3 = Arc::as_ptr(&super::symbol_cache::handle());
+        assert_eq!(ptr1, ptr3, "clear_symbol_cache must preserve cell identity");
+    }
+
+    /// Caching is observable: a second `symbolize` against a sample
+    /// containing the same address as the first must return a frame
+    /// equal to the cached one, including when the cache is the only
+    /// thing keeping the previous resolve alive (i.e. the second
+    /// `HeapProfile` is a fresh value).
+    #[cfg(feature = "symbolicate")]
+    #[test]
+    fn symbol_cache_returns_equal_frame_on_second_call() {
+        let frames = snmalloc_rs_phase_4_4_symbolize_probe();
+        assert!(!frames.is_empty());
+        let addr = frames[0];
+
+        super::clear_symbol_cache();
+
+        let first = super::symbol_cache::resolve(addr);
+        let second = super::symbol_cache::resolve(addr);
+
+        // Either both resolved to the same name, or both came back
+        // None (resolver had no info for this address).  Pointer
+        // identity on the String is not guaranteed -- we clone out of
+        // the cache to keep the API by-value -- but the contents
+        // must agree.
+        assert_eq!(first.name, second.name);
+        assert_eq!(first.file, second.file);
+        assert_eq!(first.line, second.line);
     }
 }
