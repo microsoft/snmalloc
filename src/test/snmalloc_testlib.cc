@@ -174,6 +174,12 @@ namespace snmalloc
   {
     Aal::pause();
   }
+
+  // Force-emit message_impl's COMDAT here so testlib-only tests (redblack,
+  // seqset) that see only its non-inline declaration can link. volatile keeps
+  // the odr-use non-elidable.
+  [[maybe_unused]] static void (*volatile force_message_impl)(
+    const char* const) = &message_impl;
 } // namespace snmalloc
 
 // -- override/malloc.cc symbols with testlib_ prefix -----------------------
