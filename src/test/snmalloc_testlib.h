@@ -41,10 +41,18 @@ namespace snmalloc
   void dealloc(void* p, size_t size);
   void dealloc(void* p, size_t size, size_t align);
 
-  template<size_t size>
+  /**
+   * Compile-time sized dealloc with optional alignment.
+   *
+   * The `align` parameter mirrors the `align` parameter on the
+   * `alloc<size, ZeroMem, align>` overload below: it is applied via
+   * `aligned_size` so the size fed to the sized-dealloc sanity check
+   * matches the size that was actually reserved.
+   */
+  template<size_t size, size_t align = 1>
   inline void dealloc(void* p)
   {
-    dealloc(p, size);
+    dealloc(p, aligned_size(align, size));
   }
 
   void debug_teardown();
@@ -115,12 +123,13 @@ namespace snmalloc
    * goes straight to the sizeclass-based fast path.  Otherwise falls back
    * to the dynamic alloc.
    */
-  template<size_t size, ZeroMem zero_mem = ZeroMem::NoZero>
+  template<size_t size, ZeroMem zero_mem = ZeroMem::NoZero, size_t align = 1>
   inline void* alloc()
   {
-    if constexpr (is_small_sizeclass(size))
+    constexpr size_t sz = aligned_size(align, size);
+    if constexpr (is_small_sizeclass(sz))
     {
-      constexpr auto sc = size_to_sizeclass_const(size);
+      constexpr auto sc = size_to_sizeclass_const(sz);
       if constexpr (zero_mem == ZeroMem::YesZero)
       {
         return libc::malloc_small_zero(sc);
@@ -132,7 +141,7 @@ namespace snmalloc
     }
     else
     {
-      return alloc<zero_mem>(size);
+      return alloc<zero_mem>(sz);
     }
   }
 } // namespace snmalloc

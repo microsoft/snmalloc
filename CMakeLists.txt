@@ -548,6 +548,7 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   # These are mitigation-independent and can be compiled once, then linked
   # against both fast and check testlib variants.
   set(TESTLIB_ONLY_TESTS
+    aligned_dealloc arena arenabins largearenarange smallarenarange
     bits first_operation memory memory_usage multi_atexit multi_threadatexit
     redblack statistics teardown
     contention external_pointer large_alloc lotsofthreads post_teardown
