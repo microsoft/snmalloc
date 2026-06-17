@@ -656,7 +656,8 @@ namespace snmalloc
           smallsizeclass_t sizeclass,
           freelist::Iter<>* fl,
           size_t size) SNMALLOC_FAST_PATH_LAMBDA {
-          return alloc->small_refill<Conts, CheckInit>(sizeclass, *fl, size);
+          return alloc->template small_refill<Conts, CheckInit>(
+            sizeclass, *fl, size);
         },
         this,
         sizeclass,
@@ -693,7 +694,7 @@ namespace snmalloc
         // Deal with alloc zero of with a small object here.
         // Alternative semantics giving nullptr is also allowed by the
         // standard.
-        return self->small_alloc<Conts, CheckInit>(1);
+        return self->template small_alloc<Conts, CheckInit>(1);
       }
 
       return self->template handle_message_queue<noexcept(Conts::failure(0))>(
@@ -891,7 +892,7 @@ namespace snmalloc
           return ticker.check_tick(r);
         },
         [](Allocator* a, size_t size) SNMALLOC_FAST_PATH_LAMBDA {
-          return a->small_alloc<Conts, CheckInitNoOp>(size);
+          return a->template small_alloc<Conts, CheckInitNoOp>(size);
         },
         size);
     }
