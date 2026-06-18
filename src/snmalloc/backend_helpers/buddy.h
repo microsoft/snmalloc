@@ -27,6 +27,10 @@ namespace snmalloc
     // All RBtrees at or above this index should be empty.
     size_t empty_at_or_above{0};
 
+    // Tracks the total memory (in bytes) held by this buddy allocator,
+    // updated at the API boundary. Debug builds only.
+    size_t debug_buddy_total{0};
+
     size_t to_index(size_t size)
     {
       SNMALLOC_ASSERT(size != 0);
@@ -47,14 +51,48 @@ namespace snmalloc
       UNUSED(addr, size);
     }
 
+    /**
+     * Walk all levels and sum the memory stored in cache slots and
+     * tree nodes.
+     */
+    size_t debug_count_total()
+    {
+      size_t total = 0;
+      for (size_t i = 0; i < entries.size(); i++)
+      {
+        size_t block_size = bits::one_at_bit(i + MIN_SIZE_BITS);
+
+        // Count non-null cache entries.
+        for (auto& e : entries[i].cache)
+        {
+          if (!Rep::equal(Rep::null, e))
+            total += block_size;
+        }
+
+        // Count tree nodes.
+        total += entries[i].tree.count() * block_size;
+      }
+      return total;
+    }
+
     void invariant()
     {
 #ifndef NDEBUG
       for (size_t i = empty_at_or_above; i < entries.size(); i++)
       {
         SNMALLOC_ASSERT(entries[i].tree.is_empty());
-        // TODO check cache is empty
+        for (auto& e : entries[i].cache)
+        {
+          SNMALLOC_ASSERT(Rep::equal(Rep::null, e));
+        }
       }
+
+      auto counted = debug_count_total();
+      SNMALLOC_ASSERT_MSG(
+        debug_buddy_total == counted,
+        "Buddy memory mismatch: tracked={} counted={}",
+        debug_buddy_total,
+        counted);
 #endif
     }
 
@@ -114,20 +152,27 @@ namespace snmalloc
     typename Rep::Contents add_block(typename Rep::Contents addr, size_t size)
     {
       validate_block(addr, size);
+      debug_buddy_total += size;
 
       if (remove_buddy(addr, size))
       {
+        // The buddy (also of `size`) was already tracked when it was
+        // originally stored. Remove both halves: the new block we just
+        // tracked and the buddy that was already tracked.
+        debug_buddy_total -= 2 * size;
+
         // Add to next level cache
         size *= 2;
         addr = Rep::align_down(addr, size);
         if (size == bits::one_at_bit(MAX_SIZE_BITS))
         {
-          // Invariant should be checked on all non-tail return paths.
-          // Holds trivially here with current design.
+          // Consolidated block is too large for this allocator —
+          // it leaves entirely. Both halves were already subtracted above.
           invariant();
-          // Too big for this buddy allocator.
           return addr;
         }
+        // Recursively add the consolidated block. The recursive call
+        // will do debug_buddy_total += size for the merged block.
         return add_block(addr, size);
       }
 
@@ -173,6 +218,7 @@ namespace snmalloc
 
       if (addr != Rep::null)
       {
+        debug_buddy_total -= size;
         validate_block(addr, size);
         return addr;
       }
