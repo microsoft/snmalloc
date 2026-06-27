@@ -338,6 +338,21 @@ int main(int argc, char** argv)
   test_reallocarr((size_t)~0, 1, 0, SUCCESS, false);
   test_reallocarr((size_t)~0, 1, 16, SUCCESS, false);
 
+  // reallocarr must report EOVERFLOW when nmemb*size overflows, even when the
+  // truncated product is exactly zero. half*half is 2^BITS on 32- and 64-bit.
+  {
+    const size_t half = bits::one_at_bit(bits::BITS / 2);
+    void* p = testlib_malloc(16);
+    EXPECT(p != nullptr, "reallocarr overflow: alloc failed\n");
+    errno = SUCCESS;
+    int r = testlib_reallocarr(&p, half, half);
+    EXPECT(
+      r == EOVERFLOW, "reallocarr overflow: expected EOVERFLOW got {}\n", r);
+    // p must be left untouched on overflow.
+    EXPECT(p != nullptr, "reallocarr overflow: ptr should be unchanged\n");
+    testlib_free(p);
+  }
+
   for (smallsizeclass_t sc(0); sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
   {
     const size_t size = bits::one_at_bit(sc);

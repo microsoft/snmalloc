@@ -153,14 +153,14 @@ namespace snmalloc::libc
     int err = errno;
     bool overflow = false;
     size_t sz = bits::umul(size, nmemb, overflow);
+    if (SNMALLOC_UNLIKELY(overflow))
+    {
+      return set_error_and_return(EOVERFLOW);
+    }
     if (SNMALLOC_UNLIKELY(sz == 0))
     {
       errno = err;
       return 0;
-    }
-    if (SNMALLOC_UNLIKELY(overflow))
-    {
-      return set_error_and_return(EOVERFLOW);
     }
 
     void** ptr = reinterpret_cast<void**>(ptr_);
