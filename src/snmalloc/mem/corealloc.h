@@ -533,7 +533,7 @@ namespace snmalloc
 
       snmalloc_check_client(
         mitigations(sanity_checks),
-        is_start_of_object(entry.get_sizeclass(), address_cast(msg)),
+        is_start_of_object(entry.get_offset_and_sizeclass(), address_cast(msg)),
         "Not deallocating start of an object");
 
       size_t objsize = sizeclass_full_to_size(entry.get_sizeclass());
@@ -701,10 +701,11 @@ namespace snmalloc
         [](Allocator* self, size_t size) SNMALLOC_FAST_PATH_LAMBDA {
           return CheckInit::check_init(
             [self, size]() SNMALLOC_FAST_PATH_LAMBDA {
-              if (size > bits::one_at_bit(bits::BITS - 1))
+              if (size > MAX_LARGE_SIZECLASS_SIZE)
               {
-                // Cannot allocate something that is more that half the size of
-                // the address space
+                // Cannot allocate something the sizeclass encoding cannot
+                // represent (equals `2 ^ ENCODED_ADDRESS_BITS` in
+                // `sizeclasstable.h` — well above any plausible request).
                 return Conts::failure(size);
               }
 
@@ -720,12 +721,13 @@ namespace snmalloc
 
               // Grab slab of correct size
               // Set remote as large allocator remote.
+              const auto sc = size_to_sizeclass_full(size);
+              const size_t chunk_size = sizeclass_full_to_size(sc);
               auto [chunk, meta] = Config::Backend::alloc_chunk(
                 self->get_backend_local_state(),
-                large_size_to_chunk_size(size),
-                PagemapEntry::encode(
-                  self->public_state(), size_to_sizeclass_full(size)),
-                size_to_sizeclass_full(size));
+                chunk_size,
+                PagemapEntry::encode(self->public_state(), sc),
+                sc);
 
 #ifdef SNMALLOC_TRACING
               message<1024>(
@@ -1080,7 +1082,7 @@ namespace snmalloc
 
       snmalloc_check_client(
         mitigations(sanity_checks),
-        is_start_of_object(entry.get_sizeclass(), address_cast(p)),
+        is_start_of_object(entry.get_offset_and_sizeclass(), address_cast(p)),
         "Not deallocating start of an object");
 
       auto cp = p.as_static<freelist::Object::T<>>();
@@ -1118,8 +1120,7 @@ namespace snmalloc
         // XXX: because large objects have unique metadata associated with them,
         // the ring size here is one.  We should probably assert that.
 
-        size_t entry_sizeclass = entry.get_sizeclass().as_large();
-        size_t size = bits::one_at_bit(entry_sizeclass);
+        size_t size = sizeclass_full_to_size(entry.get_sizeclass());
 
 #ifdef SNMALLOC_TRACING
         message<1024>("Large deallocation: {}", size);

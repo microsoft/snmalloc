@@ -67,6 +67,172 @@ void test_align_size()
     abort();
 }
 
+void test_uniform_large_sizeclasses()
+{
+  using namespace snmalloc;
+  bool failed = false;
+
+  // Sentinel sanity: default-constructed sizeclass_t is the unmapped sentinel
+  // and not classified as small.
+  if (sizeclass_t{}.raw() != 0)
+  {
+    std::cout << "Default sizeclass_t raw is " << sizeclass_t{}.raw()
+              << " expected 0" << std::endl;
+    failed = true;
+  }
+  if (sizeclass_t{}.is_default() != true)
+  {
+    std::cout << "Default sizeclass_t .is_default() is false" << std::endl;
+    failed = true;
+  }
+  if (sizeclass_t{}.is_small())
+  {
+    std::cout << "Default sizeclass_t.is_small() is true" << std::endl;
+    failed = true;
+  }
+
+  // Encoding sanity: small range and large range are disjoint and adjacent
+  // in the value space.
+  if (sizeclass_t::from_small_class(smallsizeclass_t(0)).raw() != 1)
+  {
+    std::cout << "from_small_class(0).raw() != 1" << std::endl;
+    failed = true;
+  }
+  if (
+    sizeclass_t::from_small_class(smallsizeclass_t(NUM_SMALL_SIZECLASSES - 1))
+        .raw() +
+      1 !=
+    sizeclass_t::from_large_class(0).raw())
+  {
+    std::cout << "Small/large ranges are not adjacent" << std::endl;
+    failed = true;
+  }
+  if (
+    sizeclass_t::from_large_class(NUM_LARGE_CLASSES - 1).raw() >=
+    SIZECLASS_REP_SIZE)
+  {
+    std::cout << "Largest large sizeclass overflows SIZECLASS_REP_SIZE"
+              << std::endl;
+    failed = true;
+  }
+  if (!sizeclass_t::from_small_class(smallsizeclass_t(0)).is_small())
+  {
+    std::cout << "from_small_class(0).is_small() is false" << std::endl;
+    failed = true;
+  }
+  if (sizeclass_t::from_large_class(0).is_small())
+  {
+    std::cout << "from_large_class(0).is_small() is true" << std::endl;
+    failed = true;
+  }
+
+  // Large sizeclasses are strictly increasing in size with lc.
+  size_t prev_size = 0;
+  for (size_t lc = 0; lc < NUM_LARGE_CLASSES; lc++)
+  {
+    size_t size = sizeclass_full_to_size(sizeclass_t::from_large_class(lc));
+    if (size <= prev_size)
+    {
+      std::cout << "Non-monotonic large sizeclass: lc=" << lc
+                << " size=" << size << " prev=" << prev_size << std::endl;
+      failed = true;
+    }
+    prev_size = size;
+  }
+
+  // Round-trip identity on pow2 large sizes: every pow2 size S in
+  // [MAX_SMALL_SIZECLASS_SIZE * 2, MAX_LARGE_SIZECLASS_SIZE] must
+  // satisfy sizeclass_full_to_size(size_to_sizeclass_full(S)) == S.
+  // Bound the loop by ENCODED_ADDRESS_BITS so `bits::one_at_bit(b)`
+  // never shifts by >= BITS (the bound check itself would fail on
+  // 32-bit otherwise).
+  for (size_t b = MAX_SMALL_SIZECLASS_BITS + 1; b <= ENCODED_ADDRESS_BITS; b++)
+  {
+    size_t S = bits::one_at_bit(b);
+    sizeclass_t sc = size_to_sizeclass_full(S);
+    size_t rs = sizeclass_full_to_size(sc);
+    if (rs != S)
+    {
+      std::cout << "Pow2 round-trip failed: S=" << S << " round=" << rs
+                << std::endl;
+      failed = true;
+    }
+
+    // For every non-pow2 size X strictly between adjacent pow2 [P, 2P),
+    // `size_to_sizeclass_full(X)` must select the smallest sizeclass
+    // whose size is >= X. Compute the expected sizeclass independently
+    // by scanning all large classes. Only check when 2P is still
+    // representable.
+    if (b < ENCODED_ADDRESS_BITS)
+    {
+      size_t mid = S + (S >> 1);
+      sizeclass_t sc_mid = size_to_sizeclass_full(mid);
+      size_t rs_mid = sizeclass_full_to_size(sc_mid);
+
+      // Independent computation: smallest large class size >= mid.
+      size_t expect = 0;
+      for (size_t lc = 0; lc < NUM_LARGE_CLASSES; lc++)
+      {
+        size_t sz = sizeclass_full_to_size(sizeclass_t::from_large_class(lc));
+        if (sz >= mid)
+        {
+          expect = sz;
+          break;
+        }
+      }
+      if (expect == 0)
+      {
+        std::cout << "No large class >= mid=" << mid << std::endl;
+        failed = true;
+      }
+      else if (rs_mid != expect)
+      {
+        std::cout << "Non-pow2 should round to smallest enclosing class: X="
+                  << mid << " round=" << rs_mid << " expected=" << expect
+                  << std::endl;
+        failed = true;
+      }
+    }
+  }
+
+  // `round_size` contract: for every representable large class size
+  // S, `round_size(S) == S` and `round_size(S_prev + 1) == S` (the
+  // smallest enclosing class). `DefaultConts::success` (corealloc.h)
+  // uses `round_size` to size the `calloc` zeroing range, so any
+  // drift here would over- or under-zero. This is the deterministic
+  // gate for that contract; the `calloc` smoke test in `memory.cc`
+  // would not necessarily fault on an overshoot into backend free
+  // range.
+  {
+    size_t prev = 0;
+    for (size_t lc = 0; lc < NUM_LARGE_CLASSES; lc++)
+    {
+      size_t S = sizeclass_full_to_size(sizeclass_t::from_large_class(lc));
+      if (round_size(S) != S)
+      {
+        std::cout << "round_size identity failed at large class: S=" << S
+                  << " round_size=" << round_size(S) << std::endl;
+        failed = true;
+      }
+      if (prev != 0 && prev + 1 < S)
+      {
+        size_t probe = prev + 1;
+        if (round_size(probe) != S)
+        {
+          std::cout << "round_size(prev+1) blow-up: probe=" << probe
+                    << " round_size=" << round_size(probe) << " expected=" << S
+                    << std::endl;
+          failed = true;
+        }
+      }
+      prev = S;
+    }
+  }
+
+  if (failed)
+    abort();
+}
+
 int main(int, char**)
 {
   setup();
@@ -149,4 +315,5 @@ int main(int, char**)
     abort();
 
   test_align_size();
+  test_uniform_large_sizeclasses();
 }
