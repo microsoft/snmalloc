@@ -21,6 +21,26 @@ namespace snmalloc
 
     static constexpr AalName aal_name = RISCV;
 
+    static inline uint64_t tick() noexcept
+    {
+#if __riscv_xlen == 64
+      uint64_t t;
+      __asm__ volatile("rdtime %0" : "=r"(t));
+      return t;
+#else
+      uint32_t hi;
+      uint32_t hi2;
+      uint32_t lo;
+      do
+      {
+        __asm__ volatile("rdtimeh %0" : "=r"(hi));
+        __asm__ volatile("rdtime %0" : "=r"(lo));
+        __asm__ volatile("rdtimeh %0" : "=r"(hi2));
+      } while (hi != hi2);
+      return (static_cast<uint64_t>(hi) << 32) | lo;
+#endif
+    }
+
     static void inline pause()
     {
       /*
