@@ -17,7 +17,7 @@ bazel_dep(name = "googletest", version = "1.17.0.bcr.2", dev_dependency = True)
 # FFI surface is small and stable, and skipping bindgen removes the libclang /
 # LLVM source-tree transitive dependency.
 # -----------------------------------------------------------------------------
-bazel_dep(name = "rules_rust", version = "0.70.0")
+bazel_dep(name = "rules_rust", version = "0.71.3")
 
 # Rust toolchain is registered for snmalloc's own dev/CI loop only.
 # Downstream consumers register their own toolchain; pulling this one in
@@ -42,23 +42,33 @@ use_repo(rust, "rust_toolchains")
 #                  Required for the `:snmalloc_rs_profiling_symbolicated`
 #                  target.
 #
-# The materialised repo is named `snmalloc_crates` (not the default `crates`)
-# to avoid colliding with downstream consumers' own `crate_universe` usage:
-#   * `dev_dependency = True` would hide the repo from non-root modules,
-#     breaking downstream consumers of `:snmalloc_rs_profiling` with
-#     `No repository visible as '@crates' from repository '@@snmalloc+'`.
-#   * Default-named (`crates`) non-dev declarations from multiple modules
-#     merge into one global crate universe and bzlmod refuses with
-#     `Defined two crate universes with the same name in different
-#     MODULE.bazel files (crates)`.
-# `use_repo(crate, crates = "snmalloc_crates")` aliases the renamed repo
-# back to `@crates` inside this module's namespace so
-# `snmalloc-rs/BUILD.bazel`'s `@crates//:flate2` references keep working;
-# downstream modules see only the unaliased `@snmalloc_crates`, leaving
-# their own `@crates` namespace untouched.
+# dev_dependency = True: this crate_universe extension is for snmalloc's own
+# dev/CI loop (tests under snmalloc-rs/BUILD.bazel) only. bzlmod skips
+# dev_dependency extensions entirely when this module is a non-root
+# dependency, so a downstream consumer's own `bazel mod deps`/lockfile
+# resolution never evaluates `crate.from_specs()` here and never needs a
+# lockfile for it — the actual fix for rules_rust >=0.71.1's "is in a
+# non-root module but has no lockfile" requirement. The cost: downstream
+# consumers cannot resolve `@crates`/`@snmalloc_crates` and therefore cannot
+# build `:snmalloc_rs_profiling` / `:snmalloc_rs_profiling_symbolicated`
+# directly (`No repository visible as '@crates' from repository
+# '@@snmalloc+'`) -- use `:snmalloc_rs_profile_compat` instead (see
+# snmalloc-rs/BUILD.bazel), which gets the SNMALLOC_PROFILE=ON C archive
+# without the flate2/backtrace Rust-side deps.
+#
+# The materialised repo is still named `snmalloc_crates` (not the default
+# `crates`) to avoid colliding with downstream consumers' own `crate_universe`
+# usage: default-named (`crates`) non-dev declarations from multiple modules
+# merge into one global crate universe, and bzlmod refuses with `Defined two
+# crate universes with the same name in different MODULE.bazel files
+# (crates)`. `use_repo(crate, crates = "snmalloc_crates")` aliases the
+# renamed repo back to `@crates` inside THIS module's own namespace only, so
+# `snmalloc-rs/BUILD.bazel`'s `@crates//:flate2` references keep working when
+# snmalloc itself is the root module (its own tests/CI).
 crate = use_extension(
-    "@rules_rust//crate_universe:extension.bzl",
+    "@rules_rust//crate_universe:extensions.bzl",
     "crate",
+    dev_dependency = True,
 )
 crate.spec(
     package = "flate2",
