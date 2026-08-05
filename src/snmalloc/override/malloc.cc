@@ -20,7 +20,9 @@ namespace
     size_t alloc_size = alloc->alloc_size(ptr);
     size_t diff = alloc_size - req_size;
     
-    // We have 1 byte to store the difference (max 255 bytes of padding).
+    // We use the last byte of the allocation to store the padding size.
+    // If the padding exceeds 255 bytes, we cannot store it, so we fall back 
+    // to reporting the full alloc_size (standard Windows _msize behavior).
     if (diff > 0 && diff <= 255)
     {
       alloc->set_client_meta_data<bool>(ptr, true);
