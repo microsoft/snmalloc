@@ -1,5 +1,5 @@
 #pragma once
-
+#include <atomic>
 #include "../mem/mem.h"
 
 namespace snmalloc
@@ -102,33 +102,34 @@ namespace snmalloc
     }
   };
 
-  // Specialization for bool to pack 8 bits into a single uint8_t
   template <>
   struct ArrayClientMetaDataProvider<bool>
   {
-    using StorageType = uint8_t;
+    using StorageType = std::atomic<uint8_t>;
 
     struct BitRef
     {
-      uint8_t* byte;
+      std::atomic<uint8_t>* byte;
       uint8_t mask;
 
       BitRef& operator=(bool val)
       {
         if (val)
         {
-          *byte |= mask;
+          // Thread-safe bit set
+          byte->fetch_or(mask, std::memory_order_relaxed);
         }
         else
         {
-          *byte &= static_cast<uint8_t>(~mask);
+          // Thread-safe bit clear
+          byte->fetch_and(static_cast<uint8_t>(~mask), std::memory_order_relaxed);
         }
         return *this;
       }
 
       operator bool() const
       {
-        return (*byte & mask) != 0;
+        return (byte->load(std::memory_order_relaxed) & mask) != 0;
       }
     };
 
