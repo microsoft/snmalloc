@@ -102,6 +102,52 @@ namespace snmalloc
     }
   };
 
+  // Specialization for bool to pack 8 bits into a single uint8_t
+  template <>
+  struct ArrayClientMetaDataProvider<bool>
+  {
+    using StorageType = uint8_t;
+
+    struct BitRef
+    {
+      uint8_t* byte;
+      uint8_t mask;
+
+      BitRef& operator=(bool val)
+      {
+        if (val)
+        {
+          *byte |= mask;
+        }
+        else
+        {
+          *byte &= static_cast<uint8_t>(~mask);
+        }
+        return *this;
+      }
+
+      operator bool() const
+      {
+        return (*byte & mask) != 0;
+      }
+    };
+
+    using DataRef = BitRef;
+
+    static size_t required_count(size_t max_count)
+    {
+      return (max_count + 7) / 8;
+    }
+
+    static DataRef get(StorageType* base, size_t index)
+    {
+      return BitRef{
+        &base[index / 8], 
+        static_cast<uint8_t>(1 << (index % 8))
+      };
+    }
+  };
+
   /**
    * Class containing definitions that are likely to be used by all except for
    * the most unusual back-end implementations.  This can be subclassed as a
