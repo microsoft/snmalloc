@@ -1,5 +1,9 @@
 ## Changelog
 
+### 0.7.5
+
+- Tracking upstream to match version 0.7.5.
+
 ### 0.7.4
 
 - Tracking upstream to match version 0.7.4.
