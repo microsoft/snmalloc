@@ -54,11 +54,11 @@ jobs:
       # Don't abort runners if a single one fails
       fail-fast: false
     steps:
-    - uses: actions-rs/toolchain@v1
+    - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # v1.0.7
       with:
         toolchain: ${{ matrix.rust }}
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
     - name: update dependency
       run: |
         if bash -c 'uname -s | grep 'Linux' >/dev/null'; then
@@ -77,11 +77,11 @@ jobs:
       run:
         shell: bash
     steps:
-    - uses: actions-rs/toolchain@v1
+    - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # v1.0.7
       with:
         toolchain: stable
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
     - name: update dependency
       run: sudo apt-get update -y && sudo apt-get --reinstall install -y libc6-dev
     - name: Dry-run workspace publish
