@@ -151,10 +151,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: Bazel - ${{ matrix.os }} ${{ matrix.build-type }}
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - uses: bazelbuild/setup-bazelisk@b39c379c82683a5f25d34f0d062761f62693e0b2 # v3.0.0
     - name: Mount bazel cache  # Optional
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: "~/.cache/bazel"
         key: bazel-${{ matrix.os }}-${{ matrix.build-type }}
@@ -258,7 +258,7 @@ jobs:
     runs-on: ${{matrix.arch.host-os}}
     name: Crossbuild - ${{matrix.build-type}} ${{matrix.arch.triple}}
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install cross-compile toolchain and QEMU
       run: >
         sudo apt update &&
@@ -371,7 +371,7 @@ jobs:
     name: Format check
     # We don't need to do the build for this job, but we need to configure it to get the clang-format target
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install clang-tidy and clang-format
       run: |
         sudo apt update
@@ -400,7 +400,7 @@ jobs:
     name: Fuzzing
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DSNMALLOC_ENABLE_FUZZING=ON -DFUZZTEST_FUZZING_MODE=ON -DCMAKE_CXX_COMPILER=clang++
     - name: Build
@@ -420,17 +420,17 @@ jobs:
     runs-on: ${{matrix.os}}
     name: GWP-ASan - ${{matrix.os}} ${{matrix.profile}}
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Ninja
       run: sudo apt-get install -y ninja-build
     - name: Set up sccache
-      uses: hendrikmuhs/ccache-action@5ebbd400eff9e74630f759d94ddd7b6c26299639 # v1.2.20
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
       with:
         variant: sccache
         key: gwp-asan-${{matrix.os}}-${{matrix.profile}}
     - name: Cache compiler-rt
       id: cache-compiler-rt
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           ${{ runner.temp }}/compiler-rt
@@ -484,7 +484,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: vcpkg - ${{ matrix.os }} ${{ matrix.feature }}
     steps:
-    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Bootstrap vcpkg
       shell: bash
