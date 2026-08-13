@@ -62,7 +62,7 @@ jobs:
           path: bencher.dev.sn.json
 
       # Upload to graphing service
-      - uses: bencherdev/bencher@main
+      - uses: bencherdev/bencher@4c83b25441d145ee273adaf74be30f2382e6ba85
       - name: Upload benchmark results to Bencher
         run: |
           bencher run \
