@@ -7,6 +7,17 @@ RUN git clone https://github.com/daanx/mimalloc-bench &&\
     git reset --hard a4ce904286365c7adfba54f0eea3a2df3fc95bd1
 
 WORKDIR /mimalloc-bench
+
+# Skip the Bazel install: it is only needed to build Google's tcmalloc (tcg),
+# which this Dockerfile does not build or benchmark, and its apt repository
+# key (https://bazel.build/bazel-release.pub.gpg) is no longer served,
+# breaking the "packages" phase below.
+RUN sed -i '/^[[:space:]]*aptinstallbazel[[:space:]]*$/d' build-bench-env.sh && \
+    if grep -qE '^[[:space:]]*aptinstallbazel[[:space:]]*$' build-bench-env.sh; then \
+      echo "error: aptinstallbazel call still present in build-bench-env.sh" >&2; \
+      exit 1; \
+    fi
+
 # Install dependencies
 RUN ./build-bench-env.sh packages
 
