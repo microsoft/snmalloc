@@ -50,7 +50,7 @@ jobs:
     runs-on: ${{ inputs.host-os }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
     - name: Validate coverage inputs
       if: inputs.coverage
@@ -63,7 +63,7 @@ jobs:
 
     - name: Build on FreeBSD
       if: inputs.vm-type == 'freebsd'
-      uses: vmactions/freebsd-vm@v1
+      uses: vmactions/freebsd-vm@83b151f58c6047089f4c80eb5ba2039d158ce093 # v1.5.3
       with:
         release: ${{ inputs.vm-version }}
         usesh: true
@@ -84,7 +84,7 @@ jobs:
 
     - name: Build on NetBSD
       if: inputs.vm-type == 'netbsd'
-      uses: vmactions/netbsd-vm@v1
+      uses: vmactions/netbsd-vm@00081e82b14bc40114eb97f32b4455306828516b # v1.4.6
       with:
         release: ${{ inputs.vm-version }}
         usesh: true
@@ -105,7 +105,7 @@ jobs:
 
     - name: Build on OpenBSD
       if: inputs.vm-type == 'openbsd'
-      uses: vmactions/openbsd-vm@v0
+      uses: vmactions/openbsd-vm@2cbd7618ff813d8235acc5ade8cb5260dcee4502 # v0.1.2
       with:
         release: ${{ inputs.vm-version }}
         usesh: true
@@ -126,7 +126,7 @@ jobs:
 
     - name: Upload coverage artifact
       if: inputs.coverage
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: coverage-${{ inputs.coverage-artifact-name }}
         path: ${{ github.workspace }}/build/coverage.json
