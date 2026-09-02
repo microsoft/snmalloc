@@ -32,7 +32,7 @@ jobs:
 
       # Setup docker buildx
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Build and run benchmarks in Docker
         id: docker_build
@@ -62,7 +62,7 @@ jobs:
           path: bencher.dev.sn.json
 
       # Upload to graphing service
-      - uses: bencherdev/bencher@4c83b25441d145ee273adaf74be30f2382e6ba85
+      - uses: bencherdev/bencher@8d75325c3bc59403a2186a056b472c4f49d42838
       - name: Upload benchmark results to Bencher
         run: |
           bencher run \
