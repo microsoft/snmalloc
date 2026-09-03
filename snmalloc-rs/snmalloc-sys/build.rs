@@ -217,6 +217,14 @@ impl BuildConfig {
 
 trait BuilderDefine {
     fn define(&mut self, key: &str, value: &str) -> &mut Self;
+    /// Set a CMake-style boolean option.
+    ///
+    /// CMake reads `-DKEY=OFF` as "not enabled". The C preprocessor does not:
+    /// `-DKEY=OFF` *defines* `KEY`, and snmalloc guards these options with
+    /// `#if defined(KEY)` / `#ifdef KEY`, so forwarding the "OFF" string on the
+    /// `build_cc` path enables every option it was meant to disable. Emit the
+    /// macro on that path only when the option is actually on.
+    fn define_bool(&mut self, key: &str, enabled: bool) -> &mut Self;
     fn flag_if_supported(&mut self, flag: &str) -> &mut Self;
     fn build_lib(&mut self, target_lib: &str) -> std::path::PathBuf;
     fn configure_output_dir(&mut self, out_dir: &str) -> &mut Self;
@@ -229,7 +237,15 @@ impl BuilderDefine for cc::Build {
     fn define(&mut self, key: &str, value: &str) -> &mut Self {
         self.define(key, Some(value))
     }
-    
+
+    fn define_bool(&mut self, key: &str, enabled: bool) -> &mut Self {
+        if enabled {
+            self.define(key, None)
+        } else {
+            self
+        }
+    }
+
     fn flag_if_supported(&mut self, flag: &str) -> &mut Self {
         self.flag_if_supported(flag)
     }
@@ -261,7 +277,11 @@ impl BuilderDefine for cmake::Config {
     fn define(&mut self, key: &str, value: &str) -> &mut Self {
         self.define(key, value)
     }
-    
+
+    fn define_bool(&mut self, key: &str, enabled: bool) -> &mut Self {
+        self.define(key, if enabled { "ON" } else { "OFF" })
+    }
+
     fn flag_if_supported(&mut self, _flag: &str) -> &mut Self {
         self
     }
@@ -452,11 +472,11 @@ fn configure_platform(config: &mut BuildConfig) {
 
     // Feature configurations
     config.builder
-        .define("SNMALLOC_QEMU_WORKAROUND", if config.features.qemu { "ON" } else { "OFF" })
-        .define("SNMALLOC_ENABLE_DYNAMIC_LOADING", if config.features.notls { "ON" } else { "OFF" })
-        .define("USE_SNMALLOC_STATS", if config.features.stats { "ON" } else { "OFF" })
-        .define("SNMALLOC_RUST_LIBC_API", if config.features.libc_api { "ON" } else { "OFF" })
-        .define("SNMALLOC_USE_CXX17", if cfg!(feature = "usecxx17") { "ON" } else { "OFF" });
+        .define_bool("SNMALLOC_QEMU_WORKAROUND", config.features.qemu)
+        .define_bool("SNMALLOC_ENABLE_DYNAMIC_LOADING", config.features.notls)
+        .define_bool("USE_SNMALLOC_STATS", config.features.stats)
+        .define_bool("SNMALLOC_RUST_LIBC_API", config.features.libc_api)
+        .define_bool("SNMALLOC_USE_CXX17", cfg!(feature = "usecxx17"));
 
     if config.features.tracing {
         config.builder.define("SNMALLOC_TRACING", "ON");
