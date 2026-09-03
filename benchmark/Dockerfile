@@ -4,19 +4,9 @@ FROM ubuntu:24.04
 RUN apt-get update && apt-get install -y --no-install-recommends git gpg ca-certificates python3-numpy
 RUN git clone https://github.com/daanx/mimalloc-bench &&\
     cd mimalloc-bench && \
-    git reset --hard a4ce904286365c7adfba54f0eea3a2df3fc95bd1
+    git reset --hard fcb165f028667d68389437c113b9cc1a05a32e10
 
 WORKDIR /mimalloc-bench
-
-# Skip the Bazel install: it is only needed to build Google's tcmalloc (tcg),
-# which this Dockerfile does not build or benchmark, and its apt repository
-# key (https://bazel.build/bazel-release.pub.gpg) is no longer served,
-# breaking the "packages" phase below.
-RUN sed -i '/^[[:space:]]*aptinstallbazel[[:space:]]*$/d' build-bench-env.sh && \
-    if grep -qE '^[[:space:]]*aptinstallbazel[[:space:]]*$' build-bench-env.sh; then \
-      echo "error: aptinstallbazel call still present in build-bench-env.sh" >&2; \
-      exit 1; \
-    fi
 
 # Install dependencies
 RUN ./build-bench-env.sh packages
@@ -30,7 +20,7 @@ RUN ./build-bench-env.sh bench
 RUN ./build-bench-env.sh redis
 
 RUN ./build-bench-env.sh rocksdb \
-  && find /mimalloc-bench/extern/rocksdb-8.1.1 -name "*.o" -delete
+  && find /mimalloc-bench/extern/rocksdb-10.10.1 -name "*.o" -delete
 
 RUN ./build-bench-env.sh lean \
   && find /mimalloc-bench/extern/lean -name "*.o" -delete
