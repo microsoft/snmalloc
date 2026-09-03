@@ -37,8 +37,14 @@ namespace snmalloc
       LogRange<2>,
       GlobalRange>;
 
-    // Track stats of the committed memory
-    using Stats = Pipe<GlobalR, CommitRange<PAL>, StatsRange>;
+    // Decay range caches deallocated memory and gradually releases it
+    // back to the parent, avoiding expensive repeated decommit/recommit
+    // cycles for transient allocation patterns.
+    using DecayR = Pipe<GlobalR, CommitRange<PAL>, DecayRange<PAL, Pagemap>>;
+
+    // Track stats of the memory handed out (outside decay so stats
+    // methods are directly visible to StatsCombiner).
+    using Stats = Pipe<DecayR, StatsRange>;
 
   private:
     static constexpr size_t page_size_bits =
