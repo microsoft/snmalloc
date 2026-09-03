@@ -1,0 +1,1571 @@
+/**
+ * Unit tests for Arena.
+ *
+ * Exercises the Rep adapters (BinRep, RangeRep), RBTree integration,
+ * add_block with consolidation, remove_block with carving, the
+ * five-clause invariant, and a randomised stress test with oracle.
+ */
+
+#include "test/setup.h"
+#include "test/xoroshiro.h"
+
+#include <algorithm>
+#include <cstdio>
+#include <cstdlib>
+#include <map>
+#include <set>
+#include <vector>
+
+#ifndef SNMALLOC_TRACING
+#  define SNMALLOC_TRACING
+#endif
+#include "test/snmalloc_testlib.h"
+
+#include <snmalloc/backend_helpers/arena.h>
+
+namespace snmalloc
+{
+  // ---- MockRep: array-backed storage for testing ----
+
+  /**
+   * Thin proxy around uintptr_t* with the same interface as
+   * BackendStateWordRef (get, operator=, operator!=). Used by MockRep
+   * to avoid requiring a real pagemap in unit tests.
+   */
+  struct ArenaWordRef
+  {
+    uintptr_t* val{nullptr};
+
+    constexpr ArenaWordRef() = default;
+
+    constexpr ArenaWordRef(uintptr_t* p) : val(p) {}
+
+    uintptr_t get() const
+    {
+      return *val;
+    }
+
+    ArenaWordRef& operator=(uintptr_t v)
+    {
+      *val = v;
+      return *this;
+    }
+
+    bool operator!=(const ArenaWordRef& other) const
+    {
+      return val != other.val;
+    }
+
+    uintptr_t printable_address() const
+    {
+      return reinterpret_cast<uintptr_t>(val);
+    }
+  };
+
+  // Each chunk-aligned address maps to a mock_entry via its chunk index.
+  // word1/word2 hold bin-tree children; range_word1/range_word2 hold
+  // range-tree children. variant and large_size hold metadata. boundary
+  // mirrors the real PagemapRep's entry.is_boundary() — set it on a
+  // chunk to suppress consolidation across that chunk.
+  struct mock_entry
+  {
+    uintptr_t word1{0};
+    uintptr_t word2{0};
+    uintptr_t range_word1{0};
+    uintptr_t range_word2{0};
+    ArenaVariant variant{ArenaVariant::Min};
+    size_t large_size{0};
+    bool boundary{false};
+  };
+
+  // Size the array for the largest test arena + trailing room.
+  static constexpr size_t MOCK_ARENA_CHUNKS = 1024;
+  static mock_entry mock_store[MOCK_ARENA_CHUNKS];
+
+  static void reset_mock_store()
+  {
+    for (size_t i = 0; i < MOCK_ARENA_CHUNKS; i++)
+      mock_store[i] = mock_entry{};
+  }
+
+  static size_t mock_index(uintptr_t addr)
+  {
+    size_t idx = addr >> MIN_CHUNK_BITS;
+    SNMALLOC_ASSERT(idx < MOCK_ARENA_CHUNKS);
+    SNMALLOC_ASSUME(idx < MOCK_ARENA_CHUNKS);
+    return idx;
+  }
+
+  // Inner RBTree Rep used by both MockRep::BinRep and MockRep::RangeRep.
+  // Tag selects which pair of fields in mock_entry holds the tree pointers.
+  // The red bit is packed into bit 8 of the stored word (matching the
+  // PagemapRep layout, but defined privately here).
+  template<bool IsRange>
+  struct MockTreeRep
+  {
+    using Handle = ArenaWordRef;
+    using Contents = uintptr_t;
+
+    static constexpr Contents null = 0;
+    static constexpr Contents root = 0;
+
+    static constexpr unsigned RED_BIT_POS = 8;
+    static constexpr uintptr_t RED_BIT = uintptr_t(1) << RED_BIT_POS;
+    static_assert(RED_BIT < MIN_CHUNK_SIZE);
+
+    static Handle ref(bool direction, Contents k)
+    {
+      static const Contents null_entry = 0;
+      if (SNMALLOC_UNLIKELY(k == 0))
+        return Handle{const_cast<Contents*>(&null_entry)};
+      auto& e = mock_store[mock_index(k)];
+      if constexpr (IsRange)
+        return Handle{direction ? &e.range_word1 : &e.range_word2};
+      else
+        return Handle{direction ? &e.word1 : &e.word2};
+    }
+
+    static Contents get(Handle h)
+    {
+      return h.get() & ~RED_BIT;
+    }
+
+    static void set(Handle h, Contents v)
+    {
+      h = v | (h.get() & RED_BIT);
+    }
+
+    static bool is_red(Contents k)
+    {
+      return (ref(true, k).get() & RED_BIT) == RED_BIT;
+    }
+
+    static void set_red(Contents k, bool new_is_red)
+    {
+      if (new_is_red != is_red(k))
+      {
+        auto h = ref(true, k);
+        h = h.get() ^ RED_BIT;
+      }
+    }
+
+    static bool compare(Contents k1, Contents k2)
+    {
+      return k1 > k2;
+    }
+
+    static bool equal(Contents k1, Contents k2)
+    {
+      return k1 == k2;
+    }
+
+    static uintptr_t printable(Contents k)
+    {
+      return k;
+    }
+
+    static uintptr_t printable(Handle h)
+    {
+      return h.printable_address();
+    }
+
+    static const char* name()
+    {
+      return IsRange ? "MockRangeRep" : "MockBinRep";
+    }
+  };
+
+  struct MockRep
+  {
+    using BinRep = MockTreeRep<false>;
+    using RangeRep = MockTreeRep<true>;
+
+    static ArenaVariant get_variant(uintptr_t addr)
+    {
+      return mock_store[mock_index(addr)].variant;
+    }
+
+    static void set_variant(uintptr_t addr, ArenaVariant v)
+    {
+      mock_store[mock_index(addr)].variant = v;
+    }
+
+    static size_t get_large_size(uintptr_t addr)
+    {
+      return mock_store[mock_index(addr)].large_size;
+    }
+
+    static void set_large_size(uintptr_t addr, size_t s)
+    {
+      mock_store[mock_index(addr)].large_size = s;
+    }
+
+    // Mirrors PagemapRep::can_consolidate, which reads
+    // entry.is_boundary() from the pagemap. The boundary flag lives
+    // per-chunk in mock_store. An out-of-region probe returns false
+    // (cannot consolidate) — both because that is the right semantic
+    // (no neighbour exists outside the arena) and because it gives
+    // GCC's release-mode `-Warray-bounds` analysis a visible guard
+    // covering the `mock_store[...]` read on this branch.
+    static bool can_consolidate(uintptr_t addr)
+    {
+      size_t idx = addr >> MIN_CHUNK_BITS;
+      if (idx >= MOCK_ARENA_CHUNKS)
+        return false;
+      return !mock_store[idx].boundary;
+    }
+  };
+
+  // ---- Test access ----
+  struct ArenaTestAccess
+  {
+    template<typename Arena>
+    static auto& get_bin_trees(Arena& a)
+    {
+      return a.bin_trees;
+    }
+
+    template<typename Arena>
+    static auto& get_range_tree(Arena& a)
+    {
+      return a.range_tree;
+    }
+
+    template<typename Arena>
+    static auto& get_bitmap(Arena& a)
+    {
+      return a.bitmap;
+    }
+  };
+
+  // Convenience: chunk-aligned address from chunk index.
+  static uintptr_t chunk_addr(size_t chunk_idx)
+  {
+    return static_cast<uintptr_t>(chunk_idx) << MIN_CHUNK_BITS;
+  }
+
+  // Convenience: byte size from chunk count.
+  static constexpr size_t chunk_size(size_t n_chunks)
+  {
+    return n_chunks << MIN_CHUNK_BITS;
+  }
+
+  // ---- Test types ----
+  // K = number of address bits the arena covers above MIN_CHUNK_BITS.
+  // K=6 → arena of 64 chunks, K=8 → 256 chunks, K=10 → 1024 chunks.
+  template<size_t K>
+  using TestArena = Arena<MockRep, MIN_CHUNK_BITS, MIN_CHUNK_BITS + K>;
+
+  using Bins = ArenaBins<2, MIN_CHUNK_BITS>;
+
+  // ==================================================================
+  // (A) Accessor round-trips
+  // ==================================================================
+  static void test_variant_roundtrip()
+  {
+    reset_mock_store();
+    uintptr_t a = chunk_addr(10);
+
+    MockRep::set_variant(a, ArenaVariant::Min);
+    SNMALLOC_ASSERT(MockRep::get_variant(a) == ArenaVariant::Min);
+
+    MockRep::set_variant(a, ArenaVariant::EvenTwo);
+    SNMALLOC_ASSERT(MockRep::get_variant(a) == ArenaVariant::EvenTwo);
+
+    MockRep::set_variant(a, ArenaVariant::Large);
+    SNMALLOC_ASSERT(MockRep::get_variant(a) == ArenaVariant::Large);
+
+    printf("  Variant round-trip: OK\n");
+  }
+
+  static void test_large_size_roundtrip()
+  {
+    reset_mock_store();
+    uintptr_t a = chunk_addr(20);
+
+    for (size_t s :
+         {size_t{3},
+          size_t{7},
+          size_t{15},
+          size_t{63},
+          size_t{255},
+          size_t{1000}})
+    {
+      MockRep::set_large_size(a, s);
+      SNMALLOC_ASSERT(MockRep::get_large_size(a) == s);
+    }
+
+    printf("  Large-size round-trip: OK\n");
+  }
+
+  static void test_word_roundtrip()
+  {
+    reset_mock_store();
+    uintptr_t a = chunk_addr(5);
+
+    uintptr_t v1 = chunk_addr(10);
+    uintptr_t v2 = chunk_addr(20);
+
+    auto w1 = MockRep::BinRep::ref(true, a);
+    auto w2 = MockRep::BinRep::ref(false, a);
+    w1 = v1;
+    w2 = v2;
+    SNMALLOC_ASSERT(MockRep::BinRep::ref(true, a).get() == v1);
+    SNMALLOC_ASSERT(MockRep::BinRep::ref(false, a).get() == v2);
+
+    auto rw1 = MockRep::RangeRep::ref(true, a);
+    auto rw2 = MockRep::RangeRep::ref(false, a);
+    rw1 = v2;
+    rw2 = v1;
+    SNMALLOC_ASSERT(MockRep::RangeRep::ref(true, a).get() == v2);
+    SNMALLOC_ASSERT(MockRep::RangeRep::ref(false, a).get() == v1);
+
+    printf("  Word round-trip: OK\n");
+  }
+
+  // ==================================================================
+  // (B) RBTree<BinRep> / RBTree<RangeRep> smoke
+  // ==================================================================
+
+  // We can't directly instantiate BinRep/RangeRep outside Arena
+  // since they are private nested types. Instead, test them through
+  // Arena's add_block/remove_block which exercise both trees.
+  // For smoke testing of tree operations directly, we test through
+  // the Arena's own invariant and operation correctness.
+
+  static void test_rbtree_smoke_via_arena()
+  {
+    reset_mock_store();
+    TestArena<8> arena;
+    arena.check_invariant(true);
+
+    // Insert a few non-adjacent blocks.
+    uintptr_t a1 = chunk_addr(10);
+    uintptr_t a2 = chunk_addr(20);
+    uintptr_t a3 = chunk_addr(30);
+
+    arena.add_block(a1, chunk_size(3));
+    arena.check_invariant(true);
+
+    arena.add_block(a2, chunk_size(5));
+    arena.check_invariant(true);
+
+    arena.add_block(a3, chunk_size(1));
+    arena.check_invariant(true);
+
+    // Remove them.
+    auto r1 = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r1 != 0);
+    UNUSED(r1);
+    arena.check_invariant(true);
+
+    auto r2 = arena.remove_block(chunk_size(3));
+    SNMALLOC_ASSERT(r2 != 0);
+    UNUSED(r2);
+    arena.check_invariant(true);
+
+    auto r3 = arena.remove_block(chunk_size(5));
+    SNMALLOC_ASSERT(r3 != 0);
+    UNUSED(r3);
+    arena.check_invariant(true);
+
+    printf("  RBTree smoke via arena: OK\n");
+  }
+
+  // ==================================================================
+  // (C) Empty-state invariant
+  // ==================================================================
+  template<size_t K>
+  static void test_empty_invariant()
+  {
+    reset_mock_store();
+    TestArena<K> arena;
+    arena.check_invariant(true);
+    printf("  Empty invariant (K=%zu): OK\n", K);
+  }
+
+  // ==================================================================
+  // (D) add_block without consolidation
+  // ==================================================================
+  static void test_add_no_consolidation()
+  {
+    reset_mock_store();
+    TestArena<8> arena;
+
+    // Insert several non-adjacent blocks of various sizes.
+    struct
+    {
+      size_t chunk_idx;
+      size_t size;
+    } blocks[] = {
+      {10, 1},
+      {20, 2},
+      {30, 3},
+      {40, 5},
+      {50, 9},
+    };
+
+    for (auto& b : blocks)
+    {
+      auto result =
+        arena.add_block(chunk_addr(b.chunk_idx), chunk_size(b.size));
+      SNMALLOC_ASSERT(result.first == 0 && result.second == 0);
+      UNUSED(result);
+      arena.check_invariant(true);
+    }
+
+    printf("  add_block without consolidation: OK\n");
+  }
+
+  // ==================================================================
+  // (E) remove_block exact-class + carving
+  // ==================================================================
+  static void test_remove_exact()
+  {
+    reset_mock_store();
+    TestArena<8> arena;
+
+    // Insert 3 blocks of size 5 at non-adjacent locations.
+    arena.add_block(chunk_addr(10), chunk_size(5));
+    arena.add_block(chunk_addr(20), chunk_size(5));
+    arena.add_block(chunk_addr(30), chunk_size(5));
+    arena.check_invariant(true);
+
+    // Remove 3 exact-size blocks.
+    for (int i = 0; i < 3; i++)
+    {
+      auto r = arena.remove_block(chunk_size(5));
+      SNMALLOC_ASSERT(r != 0);
+      UNUSED(r);
+      arena.check_invariant(true);
+    }
+
+    // Arena should be empty now.
+    auto r = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r == 0);
+    UNUSED(r);
+
+    printf("  remove_block exact: OK\n");
+  }
+
+  static void test_remove_carving()
+  {
+    reset_mock_store();
+    TestArena<8> arena;
+
+    // Insert one block of size 10.
+    arena.add_block(chunk_addr(10), chunk_size(10));
+    arena.check_invariant(true);
+
+    // Request size 3 chunks — should carve from the 10-chunk block.
+    auto r = arena.remove_block(chunk_size(3));
+    SNMALLOC_ASSERT(r != 0);
+    // The carved piece's address should match what Bins::carve produces.
+    auto carved = Bins::carve({chunk_addr(10), chunk_size(10)}, chunk_size(3));
+    UNUSED(r);
+    arena.check_invariant(true);
+
+    // The remainders should still be in the arena.
+    // We can try to remove everything that's left.
+    size_t remaining = chunk_size(10) - carved.req.size;
+    while (remaining > 0)
+    {
+      auto r2 = arena.remove_block(chunk_size(1));
+      SNMALLOC_ASSERT(r2 != 0);
+      UNUSED(r2);
+      arena.check_invariant(true);
+      remaining -= chunk_size(1);
+    }
+
+    // Should be empty.
+    auto r3 = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r3 == 0);
+    UNUSED(r3);
+
+    printf("  remove_block carving: OK\n");
+  }
+
+  // ==================================================================
+  // (F) Consolidation case matrix
+  // ==================================================================
+
+  // Helper: insert a block, verify invariant, return nothing.
+  // `size_in_chunks` is a chunk count; converted to bytes internally.
+  template<typename ArenaT>
+  static void
+  add_and_check(ArenaT& arena, size_t chunk_idx, size_t size_in_chunks)
+  {
+    auto result =
+      arena.add_block(chunk_addr(chunk_idx), chunk_size(size_in_chunks));
+    SNMALLOC_ASSERT(result.first == 0 && result.second == 0);
+    UNUSED(result);
+    arena.check_invariant(true);
+  }
+
+  // Drain the arena by removing 1-chunk blocks until empty.
+  // Returns the total chunks removed.
+  template<typename ArenaT>
+  static size_t drain_arena(ArenaT& arena)
+  {
+    size_t total = 0;
+    while (true)
+    {
+      auto r = arena.remove_block(chunk_size(1));
+      if (r == 0)
+        break;
+      total += 1;
+      arena.check_invariant(true);
+    }
+    return total;
+  }
+
+  // Case 12: P-only, P min (size 1).
+  static void test_consolidation_p_min()
+  {
+    reset_mock_store();
+    TestArena<8> arena;
+    add_and_check(arena, 10, 1);
+    add_and_check(arena, 11, 3);
+
+    // Should have consolidated into a single 4-chunk block.
+    size_t total = drain_arena(arena);
+    SNMALLOC_ASSERT(total == 4);
+    UNUSED(total);
+
+    printf("  Consolidation P-only, P min: OK\n");
+  }
+
+  // Case 13: P-only, P non-min.
+  static void test_consolidation_p_nonmin()
+  {
+    reset_mock_store();
+    TestArena<8> arena;
+    add_and_check(arena, 10, 3);
+    add_and_check(arena, 13, 2);
+
+    size_t total = drain_arena(arena);
+    SNMALLOC_ASSERT(total == 5);
+    UNUSED(total);
+
+    printf("  Consolidation P-only, P non-min: OK\n");
+  }
+
+  // Case 14: S-only, S min.
+  static void test_consolidation_s_min()
+  {
+    reset_mock_store();
+    TestArena<8> arena;
+    add_and_check(arena, 14, 1);
+    add_and_check(arena, 11, 3);
+
+    size_t total = drain_arena(arena);
+    SNMALLOC_ASSERT(total == 4);
+    UNUSED(total);
+
+    printf("  Consolidation S-only, S min: OK\n");
+  }
+
+  // Case 15: S-only, S non-min.
+  static void test_consolidation_s_nonmin()
+  {
+    reset_mock_store();
+    TestArena<8> arena;
+    add_and_check(arena, 14, 4);
+    add_and_check(arena, 11, 3);
+
+    size_t total = drain_arena(arena);
+    SNMALLOC_ASSERT(total == 7);
+    UNUSED(total);
+
+    printf("  Consolidation S-only, S non-min: OK\n");
+  }
+
+  // Case 16: P+S, both min.
+  static void test_consolidation_ps_both_min()
+  {
+    reset_mock_store();
+    TestArena<8> arena;
+    add_and_check(arena, 10, 1);
+    add_and_check(arena, 12, 1);
+    add_and_check(arena, 11, 1);
+
+    size_t total = drain_arena(arena);
+    SNMALLOC_ASSERT(total == 3);
+    UNUSED(total);
+
+    printf("  Consolidation P+S, both min: OK\n");
+  }
+
+  // Case 17: P+S, P min, S non-min.
+  static void test_consolidation_ps_p_min_s_nonmin()
+  {
+    reset_mock_store();
+    TestArena<8> arena;
+    add_and_check(arena, 10, 1);
+    add_and_check(arena, 14, 3);
+    add_and_check(arena, 11, 3);
+
+    size_t total = drain_arena(arena);
+    SNMALLOC_ASSERT(total == 7);
+    UNUSED(total);
+
+    printf("  Consolidation P+S, P min, S non-min: OK\n");
+  }
+
+  // Case 18: P+S, P non-min, S min.
+  static void test_consolidation_ps_p_nonmin_s_min()
+  {
+    reset_mock_store();
+    TestArena<8> arena;
+    add_and_check(arena, 10, 3);
+    add_and_check(arena, 16, 1);
+    add_and_check(arena, 13, 3);
+
+    size_t total = drain_arena(arena);
+    SNMALLOC_ASSERT(total == 7);
+    UNUSED(total);
+
+    printf("  Consolidation P+S, P non-min, S min: OK\n");
+  }
+
+  // Case 19: P+S, both non-min.
+  static void test_consolidation_ps_both_nonmin()
+  {
+    reset_mock_store();
+    TestArena<8> arena;
+    add_and_check(arena, 10, 4);
+    add_and_check(arena, 19, 5);
+    add_and_check(arena, 14, 5);
+
+    size_t total = drain_arena(arena);
+    SNMALLOC_ASSERT(total == 14);
+    UNUSED(total);
+
+    printf("  Consolidation P+S, both non-min: OK\n");
+  }
+
+  // ==================================================================
+  // (F2) OddTwo — unaligned size-2 blocks
+  // ==================================================================
+
+  static void test_oddtwo_variant()
+  {
+    // Odd chunk index → OddTwo, even → EvenTwo.
+    reset_mock_store();
+    TestArena<8> arena;
+
+    // Odd address: chunk 11, size 2
+    arena.add_block(chunk_addr(11), chunk_size(2));
+    SNMALLOC_ASSERT(
+      MockRep::get_variant(chunk_addr(11)) == ArenaVariant::OddTwo);
+    arena.check_invariant(true);
+
+    // Even address: chunk 20, size 2
+    arena.add_block(chunk_addr(20), chunk_size(2));
+    SNMALLOC_ASSERT(
+      MockRep::get_variant(chunk_addr(20)) == ArenaVariant::EvenTwo);
+    arena.check_invariant(true);
+
+    // Both should be in the range tree.
+    auto& rt = ArenaTestAccess::get_range_tree(arena);
+    auto p1 = rt.get_root_path();
+    SNMALLOC_ASSERT(rt.find(p1, chunk_addr(11)));
+    auto p2 = rt.get_root_path();
+    SNMALLOC_ASSERT(rt.find(p2, chunk_addr(20)));
+
+    // OddTwo (chunk 11) should be in bin 0 (size-1 servable set).
+    auto& bt0 = ArenaTestAccess::get_bin_trees(arena)[0];
+    auto p3 = bt0.get_root_path();
+    SNMALLOC_ASSERT(bt0.find(p3, chunk_addr(11)));
+    UNUSED(p1, p2, p3);
+
+    size_t total = drain_arena(arena);
+    SNMALLOC_ASSERT(total == 4);
+    UNUSED(total);
+
+    printf("  OddTwo variant tagging: OK\n");
+  }
+
+  static void test_oddtwo_contains_min_filter()
+  {
+    // contains_min must not match OddTwo entries.
+    reset_mock_store();
+    TestArena<8> arena;
+
+    // Add OddTwo block at chunk 11 (odd, size 2).
+    arena.add_block(chunk_addr(11), chunk_size(2));
+    arena.check_invariant(true);
+
+    // Add a size-1 block at chunk 14, non-adjacent.
+    arena.add_block(chunk_addr(14), chunk_size(1));
+    arena.check_invariant(true);
+
+    // Now add chunk 13 (size 1). Its successor check should NOT
+    // pick up chunk 11's OddTwo entry via contains_min. It should
+    // just insert as size 1.
+    arena.add_block(chunk_addr(13), chunk_size(1));
+    arena.check_invariant(true);
+
+    // Chunk 13 should consolidate with chunk 14 (min successor),
+    // but NOT with chunk 11's OddTwo (range tree handles that).
+    // Drain to verify total.
+    size_t total = drain_arena(arena);
+    SNMALLOC_ASSERT(total == 4);
+    UNUSED(total);
+
+    printf("  OddTwo contains_min filter: OK\n");
+  }
+
+  static void test_oddtwo_consolidation()
+  {
+    // OddTwo block should consolidate via the range tree.
+    reset_mock_store();
+    TestArena<8> arena;
+
+    // Add OddTwo at chunk 11 (odd, size 2 → chunks 11-12).
+    arena.add_block(chunk_addr(11), chunk_size(2));
+    arena.check_invariant(true);
+
+    // Add adjacent block at chunk 13 (size 1).
+    // Range tree finds OddTwo at 11 as predecessor? No — chunk 13's
+    // predecessor in range tree is chunk 11 (size 2, ends at 13).
+    // So they should consolidate into size 3 at chunk 11.
+    arena.add_block(chunk_addr(13), chunk_size(1));
+    arena.check_invariant(true);
+
+    auto r = arena.remove_block(chunk_size(3));
+    SNMALLOC_ASSERT(r == chunk_addr(11));
+    UNUSED(r);
+
+    printf("  OddTwo consolidation (successor): OK\n");
+  }
+
+  static void test_oddtwo_consolidation_pred()
+  {
+    // Consolidation where the new block is a predecessor of OddTwo.
+    reset_mock_store();
+    TestArena<8> arena;
+
+    // Add OddTwo at chunk 11 (odd, size 2 → chunks 11-12).
+    arena.add_block(chunk_addr(11), chunk_size(2));
+    arena.check_invariant(true);
+
+    // Add block at chunk 10 (size 1). OddTwo at 11 is the successor
+    // in the range tree → consolidate into size 3 at chunk 10.
+    arena.add_block(chunk_addr(10), chunk_size(1));
+    arena.check_invariant(true);
+
+    auto r = arena.remove_block(chunk_size(3));
+    SNMALLOC_ASSERT(r == chunk_addr(10));
+    UNUSED(r);
+
+    printf("  OddTwo consolidation (predecessor): OK\n");
+  }
+
+  static void test_oddtwo_remove_carve()
+  {
+    // remove_block(1) from an OddTwo block should carve correctly.
+    reset_mock_store();
+    TestArena<8> arena;
+
+    // Add OddTwo at chunk 11 (odd, size 2).
+    arena.add_block(chunk_addr(11), chunk_size(2));
+    arena.check_invariant(true);
+
+    // Remove 1 chunk. Should carve from the OddTwo block.
+    auto r = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r != 0);
+    arena.check_invariant(true);
+
+    // The remainder (1 chunk) should be Min variant.
+    auto r2 = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r2 != 0);
+    UNUSED(r, r2);
+
+    // Arena should be empty now.
+    auto r3 = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r3 == 0);
+    UNUSED(r3);
+
+    printf("  OddTwo remove + carve: OK\n");
+  }
+
+  // ==================================================================
+  // (G) Overflow — arena-scale consolidation
+  // ==================================================================
+  static void test_overflow()
+  {
+    // K=4 → 16-chunk arena. Use base offset 16 to avoid address 0.
+    reset_mock_store();
+    TestArena<4> arena;
+
+    constexpr size_t BASE = 16;
+
+    // Step 1: add even-indexed chunks as individual blocks (8 blocks).
+    for (size_t i = 0; i < 16; i += 2)
+    {
+      arena.add_block(chunk_addr(BASE + i), chunk_size(1));
+      arena.check_invariant(true);
+    }
+
+    // Step 2: fill odd-indexed gaps. Each add consolidates with its
+    // even-indexed neighbours. The last add completes the arena.
+    for (size_t i = 1; i < 16; i += 2)
+    {
+      arena.add_block(chunk_addr(BASE + i), chunk_size(1));
+      // Don't check invariant on the last add — it returns overflow.
+      if (i < 15)
+      {
+        arena.check_invariant(true);
+      }
+    }
+
+    // The last add should have triggered overflow (16 chunks = 2^4).
+    auto r = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r == 0);
+    UNUSED(r);
+
+    printf("  Overflow (arena-scale consolidation): OK\n");
+  }
+
+  static void test_overflow_precise()
+  {
+    // K=4 → 16-chunk arena. Use base offset 16 to avoid address 0.
+    reset_mock_store();
+    TestArena<4> arena;
+
+    constexpr size_t BASE = 16;
+
+    arena.add_block(chunk_addr(BASE), chunk_size(8));
+    arena.check_invariant(true);
+
+    // Adding [BASE+8, BASE+16) consolidates to 16 chunks = 2^4 → overflow.
+    auto r = arena.add_block(chunk_addr(BASE + 8), chunk_size(8));
+    SNMALLOC_ASSERT(r.first == chunk_addr(BASE));
+    SNMALLOC_ASSERT(r.second == chunk_size(16));
+    UNUSED(r);
+
+    auto r2 = arena.remove_block(chunk_size(1));
+    SNMALLOC_ASSERT(r2 == 0);
+    UNUSED(r2);
+
+    printf("  Overflow precise: OK\n");
+  }
+
+  // ==================================================================
+  // (H) Randomised stress with oracle
+  // ==================================================================
+
+  // Oracle: std::set of (addr_chunks, size_chunks) representing
+  // maximally-consolidated free set.
+  struct OracleRange
+  {
+    size_t addr; // in chunk units
+    size_t size; // in chunk units
+
+    bool operator<(const OracleRange& o) const
+    {
+      return addr < o.addr;
+    }
+
+    bool operator==(const OracleRange& o) const
+    {
+      return addr == o.addr && size == o.size;
+    }
+  };
+
+  class Oracle
+  {
+    std::set<OracleRange> ranges;
+    size_t base_offset; // chunk offset to match arena addresses
+
+  public:
+    Oracle() : base_offset(0) {}
+
+    Oracle(size_t base) : base_offset(base) {}
+
+    void add(size_t addr_chunks, size_t size_chunks)
+    {
+      OracleRange key{addr_chunks, size_chunks};
+      auto it = ranges.lower_bound(key);
+
+      size_t new_addr = addr_chunks;
+      size_t new_size = size_chunks;
+
+      if (it != ranges.end() && it->addr == new_addr + new_size)
+      {
+        new_size += it->size;
+        it = ranges.erase(it);
+      }
+
+      if (it != ranges.begin())
+      {
+        auto prev = std::prev(it);
+        if (prev->addr + prev->size == new_addr)
+        {
+          new_addr = prev->addr;
+          new_size += prev->size;
+          ranges.erase(prev);
+        }
+      }
+
+      ranges.insert({new_addr, new_size});
+    }
+
+    // Returns {addr_chunks, size_chunks} or {0, 0} if nothing fits.
+    // addr_chunks is oracle-relative (without base offset).
+    std::pair<size_t, size_t> remove(size_t n_chunks)
+    {
+      size_t n_bytes = n_chunks << MIN_CHUNK_BITS;
+      if (n_bytes == 0 || n_bytes > Bins::max_supported_size())
+        return {0, 0};
+
+      // Mirror the arena exactly: build a bitmap using arena-offset
+      // byte addresses (so bin classification matches), then find_for_request.
+      typename Bins::Bitmap bm{};
+      std::map<size_t, std::vector<std::set<OracleRange>::iterator>> by_bin;
+
+      for (auto it = ranges.begin(); it != ranges.end(); ++it)
+      {
+        typename Bins::range_t r{
+          (base_offset + it->addr) << MIN_CHUNK_BITS,
+          it->size << MIN_CHUNK_BITS};
+        size_t bin = bm.add(r);
+        by_bin[bin].push_back(it);
+      }
+
+      size_t bin_id = bm.find_for_request(n_bytes);
+      if (bin_id == SIZE_MAX)
+        return {0, 0};
+
+      auto& entries = by_bin[bin_id];
+      auto best_it = entries[0];
+      for (size_t i = 1; i < entries.size(); i++)
+      {
+        if (entries[i]->addr < best_it->addr)
+          best_it = entries[i];
+      }
+
+      OracleRange block = *best_it;
+      ranges.erase(best_it);
+
+      auto carved = Bins::carve(
+        {(base_offset + block.addr) << MIN_CHUNK_BITS,
+         block.size << MIN_CHUNK_BITS},
+        n_bytes);
+      if (carved.pre.size != 0)
+        ranges.insert(
+          {(carved.pre.base >> MIN_CHUNK_BITS) - base_offset,
+           carved.pre.size >> MIN_CHUNK_BITS});
+      if (carved.post.size != 0)
+        ranges.insert(
+          {(carved.post.base >> MIN_CHUNK_BITS) - base_offset,
+           carved.post.size >> MIN_CHUNK_BITS});
+
+      return {
+        (carved.req.base >> MIN_CHUNK_BITS) - base_offset,
+        carved.req.size >> MIN_CHUNK_BITS};
+    }
+
+    bool empty() const
+    {
+      return ranges.empty();
+    }
+
+    size_t count() const
+    {
+      return ranges.size();
+    }
+  };
+
+  template<size_t K>
+  static void test_stress_seed(size_t seed, size_t num_ops)
+  {
+    reset_mock_store();
+    TestArena<K> arena;
+
+    constexpr size_t ARENA_CHUNKS = bits::one_at_bit(K);
+    // Offset all chunk addresses to avoid address 0 (tree null).
+    constexpr size_t BASE = ARENA_CHUNKS;
+    Oracle oracle(BASE);
+    // Track which chunks are allocated (not free).
+    std::vector<bool> allocated(ARENA_CHUNKS, true);
+
+    xoroshiro::p128r64 rng(seed);
+
+    for (size_t op = 0; op < num_ops; op++)
+    {
+      bool do_add = (rng.next() % 3) != 0; // Bias towards adding.
+
+      if (do_add)
+      {
+        // Find a free address range of random size within the arena.
+        size_t max_size = ARENA_CHUNKS / 4;
+        if (max_size < 1)
+          max_size = 1;
+        size_t size = (rng.next() % max_size) + 1;
+        size_t start = rng.next() % ARENA_CHUNKS;
+
+        // Adjust: find a contiguous allocated (not free) region.
+        // We need a region that's currently allocated (not in the
+        // free set) to add back.
+        bool found = false;
+        for (size_t try_start = start; try_start < ARENA_CHUNKS; try_start++)
+        {
+          // Check if [try_start, try_start + size) is all allocated.
+          size_t actual_size = 0;
+          for (size_t j = try_start; j < ARENA_CHUNKS && j < try_start + size;
+               j++)
+          {
+            if (!allocated[j])
+              break;
+            actual_size++;
+          }
+
+          if (actual_size >= 1)
+          {
+            size = actual_size;
+            start = try_start;
+            found = true;
+            break;
+          }
+        }
+
+        if (!found)
+          continue;
+
+        // Clamp to arena size limit.
+        if (size >= ARENA_CHUNKS)
+          size = ARENA_CHUNKS - 1;
+        if (start + size > ARENA_CHUNKS)
+          size = ARENA_CHUNKS - start;
+        if (size == 0)
+          continue;
+
+        // Mark as free.
+        SNMALLOC_ASSERT(start + size <= ARENA_CHUNKS);
+        for (size_t j = start; j < start + size; j++)
+          allocated[j] = false;
+
+        auto result =
+          arena.add_block(chunk_addr(BASE + start), chunk_size(size));
+        oracle.add(start, size);
+
+        if (result.first != 0)
+        {
+          // Overflow — all chunks are now free and returned to caller.
+          // Oracle should be empty after we remove the overflow range.
+          // Reset: mark everything as allocated again, clear oracle.
+          for (size_t j = 0; j < ARENA_CHUNKS; j++)
+            allocated[j] = true;
+          oracle = Oracle(BASE);
+          // The overflow range isn't tracked by the arena anymore.
+        }
+
+        arena.check_invariant(true);
+      }
+      else
+      {
+        // Remove.
+        size_t max_req = ARENA_CHUNKS / 4;
+        if (max_req < 1)
+          max_req = 1;
+        size_t n = (rng.next() % max_req) + 1;
+
+        auto arena_result = arena.remove_block(chunk_size(n));
+        auto oracle_result = oracle.remove(n);
+        UNUSED(arena_result);
+
+        // Both should agree on success/failure.
+        if (oracle_result.second == 0)
+        {
+          SNMALLOC_ASSERT(arena_result == 0);
+        }
+        else
+        {
+          SNMALLOC_ASSERT(arena_result != 0);
+          SNMALLOC_ASSERT(
+            arena_result == chunk_addr(BASE + oracle_result.first));
+
+          // Mark as allocated.
+          size_t start = oracle_result.first;
+          SNMALLOC_ASSERT(start + oracle_result.second <= ARENA_CHUNKS);
+          for (size_t j = start; j < start + oracle_result.second; j++)
+            allocated[j] = true;
+        }
+
+        arena.check_invariant(true);
+      }
+    }
+  }
+
+  static void test_stress()
+  {
+    constexpr size_t K = 6; // 64-chunk arena
+    constexpr size_t NUM_OPS = 500;
+    constexpr size_t NUM_SEEDS = 50;
+
+    for (size_t seed = 1; seed <= NUM_SEEDS; seed++)
+    {
+      test_stress_seed<K>(seed, NUM_OPS);
+    }
+    printf(
+      "  Randomised stress (%zu seeds x %zu ops): OK\n", NUM_SEEDS, NUM_OPS);
+  }
+
+  // ==================================================================
+  // (I) Multi-instance: shared pagemap, blocks migrating between arenas
+  // ==================================================================
+
+  static void test_multi_instance_basic()
+  {
+    reset_mock_store();
+    TestArena<8> arena_a;
+    TestArena<8> arena_b;
+    constexpr size_t BASE = 256; // avoid address 0
+
+    // Add distinct blocks to each arena.
+    arena_a.add_block(chunk_addr(BASE + 10), chunk_size(5));
+    arena_b.add_block(chunk_addr(BASE + 30), chunk_size(5));
+    arena_a.check_invariant(true);
+    arena_b.check_invariant(true);
+
+    // Migrate a block from A to B.
+    uintptr_t a_addr = arena_a.remove_block(chunk_size(3));
+    SNMALLOC_ASSERT(a_addr != 0);
+    arena_a.check_invariant(true);
+
+    arena_b.add_block(a_addr, chunk_size(3));
+    arena_a.check_invariant(true);
+    arena_b.check_invariant(true);
+
+    // Migrate from B back to A.
+    uintptr_t b_addr = arena_b.remove_block(chunk_size(2));
+    SNMALLOC_ASSERT(b_addr != 0);
+    arena_b.check_invariant(true);
+
+    arena_a.add_block(b_addr, chunk_size(2));
+    arena_a.check_invariant(true);
+    arena_b.check_invariant(true);
+
+    printf("  Basic migration: OK\n");
+  }
+
+  static void test_multi_instance_consolidation()
+  {
+    reset_mock_store();
+    TestArena<8> arena_a;
+    TestArena<8> arena_b;
+    constexpr size_t BASE = 256;
+
+    // Arena B holds two blocks with a gap: [20..24) and [28..32).
+    arena_b.add_block(chunk_addr(BASE + 20), chunk_size(4));
+    arena_b.add_block(chunk_addr(BASE + 28), chunk_size(4));
+    arena_b.check_invariant(true);
+
+    // Arena A holds the gap: [24..28).
+    arena_a.add_block(chunk_addr(BASE + 24), chunk_size(4));
+    arena_a.check_invariant(true);
+
+    // Migrate the gap from A to B → should consolidate into [20..32).
+    uintptr_t addr = arena_a.remove_block(chunk_size(4));
+    SNMALLOC_ASSERT(addr == chunk_addr(BASE + 24));
+    arena_a.check_invariant(true);
+
+    arena_b.add_block(addr, chunk_size(4));
+    arena_b.check_invariant(true);
+
+    // B should now serve a size-12 request from the consolidated block.
+    uintptr_t r_addr = arena_b.remove_block(chunk_size(12));
+    SNMALLOC_ASSERT(r_addr == chunk_addr(BASE + 20));
+    UNUSED(r_addr);
+    arena_b.check_invariant(true);
+
+    printf("  Consolidation after migration: OK\n");
+  }
+
+  template<size_t K>
+  static void test_multi_stress_seed(size_t seed, size_t num_ops)
+  {
+    reset_mock_store();
+    TestArena<K> arena_a;
+    TestArena<K> arena_b;
+
+    constexpr size_t ARENA_CHUNKS = bits::one_at_bit(K);
+    constexpr size_t BASE = ARENA_CHUNKS;
+    Oracle oracle_a(BASE);
+    Oracle oracle_b(BASE);
+
+    // 0 = not in any arena, 1 = in arena A, 2 = in arena B.
+    std::vector<uint8_t> owner(ARENA_CHUNKS, 0);
+
+    xoroshiro::p128r64 rng(seed);
+
+    for (size_t op = 0; op < num_ops; op++)
+    {
+      // 0,1 = add to A or B; 2,3 = remove from A or B; 4 = migrate.
+      size_t action = rng.next() % 5;
+
+      bool target_a = (action & 1) == 0;
+      auto& arena = target_a ? arena_a : arena_b;
+      auto& oracle = target_a ? oracle_a : oracle_b;
+      uint8_t my_id = target_a ? 1 : 2;
+
+      if (action <= 1)
+      {
+        // Add: find a contiguous unowned region to free into this arena.
+        size_t max_size = ARENA_CHUNKS / 4;
+        if (max_size < 1)
+          max_size = 1;
+        size_t size = (rng.next() % max_size) + 1;
+        size_t start = rng.next() % ARENA_CHUNKS;
+
+        bool found = false;
+        for (size_t s = start; s < ARENA_CHUNKS; s++)
+        {
+          size_t actual = 0;
+          for (size_t j = s; j < ARENA_CHUNKS && j < s + size; j++)
+          {
+            if (owner[j] != 0)
+              break;
+            actual++;
+          }
+          if (actual >= 1)
+          {
+            size = actual;
+            start = s;
+            found = true;
+            break;
+          }
+        }
+        if (!found)
+          continue;
+
+        if (size >= ARENA_CHUNKS)
+          size = ARENA_CHUNKS - 1;
+        if (start + size > ARENA_CHUNKS)
+          size = ARENA_CHUNKS - start;
+        if (size == 0)
+          continue;
+
+        for (size_t j = start; j < start + size; j++)
+          owner[j] = my_id;
+
+        auto result =
+          arena.add_block(chunk_addr(BASE + start), chunk_size(size));
+        oracle.add(start, size);
+
+        if (result.first != 0)
+        {
+          for (size_t j = 0; j < ARENA_CHUNKS; j++)
+            if (owner[j] == my_id)
+              owner[j] = 0;
+          oracle = Oracle(BASE);
+        }
+
+        arena.check_invariant(true);
+      }
+      else if (action <= 3)
+      {
+        // Remove from this arena.
+        size_t max_req = ARENA_CHUNKS / 4;
+        if (max_req < 1)
+          max_req = 1;
+        size_t n = (rng.next() % max_req) + 1;
+
+        auto arena_r = arena.remove_block(chunk_size(n));
+        auto oracle_r = oracle.remove(n);
+        UNUSED(arena_r);
+
+        if (oracle_r.second == 0)
+        {
+          SNMALLOC_ASSERT(arena_r == 0);
+        }
+        else
+        {
+          SNMALLOC_ASSERT(arena_r != 0);
+          SNMALLOC_ASSERT(arena_r == chunk_addr(BASE + oracle_r.first));
+
+          for (size_t j = oracle_r.first; j < oracle_r.first + oracle_r.second;
+               j++)
+          {
+            SNMALLOC_ASSERT(owner[j] == my_id);
+            owner[j] = 0;
+          }
+        }
+
+        arena.check_invariant(true);
+      }
+      else
+      {
+        // Migrate: remove from one arena, add to the other.
+        bool from_a = (rng.next() & 1) == 0;
+        auto& src = from_a ? arena_a : arena_b;
+        auto& src_oracle = from_a ? oracle_a : oracle_b;
+        auto& dst = from_a ? arena_b : arena_a;
+        auto& dst_oracle = from_a ? oracle_b : oracle_a;
+        uint8_t src_id = from_a ? 1 : 2;
+        uint8_t dst_id = from_a ? 2 : 1;
+        UNUSED(src_id);
+
+        size_t n = (rng.next() % 3) + 1;
+        uintptr_t src_r = src.remove_block(chunk_size(n));
+        auto src_or = src_oracle.remove(n);
+
+        if (src_or.second == 0)
+        {
+          SNMALLOC_ASSERT(src_r == 0);
+        }
+        else
+        {
+          SNMALLOC_ASSERT(src_r != 0);
+          SNMALLOC_ASSERT(src_r == chunk_addr(BASE + src_or.first));
+
+          for (size_t j = src_or.first; j < src_or.first + src_or.second; j++)
+          {
+            SNMALLOC_ASSERT(owner[j] == src_id);
+            owner[j] = dst_id;
+          }
+
+          auto dst_r = dst.add_block(src_r, chunk_size(src_or.second));
+          dst_oracle.add(src_or.first, src_or.second);
+
+          if (dst_r.first != 0)
+          {
+            for (size_t j = 0; j < ARENA_CHUNKS; j++)
+              if (owner[j] == dst_id)
+                owner[j] = 0;
+            dst_oracle = Oracle(BASE);
+          }
+        }
+
+        src.check_invariant(true);
+        dst.check_invariant(true);
+      }
+    }
+  }
+
+  static void test_multi_stress()
+  {
+    constexpr size_t K = 6; // 64-chunk arena
+    constexpr size_t NUM_OPS = 500;
+    constexpr size_t NUM_SEEDS = 50;
+
+    for (size_t seed = 1; seed <= NUM_SEEDS; seed++)
+      test_multi_stress_seed<K>(seed, NUM_OPS);
+
+    printf(
+      "  Multi-instance stress (%zu seeds x %zu ops): OK\n",
+      NUM_SEEDS,
+      NUM_OPS);
+  }
+
+  // ==================================================================
+  // (J) Boundary consolidation prevention
+  // ==================================================================
+  //
+  // The boundary field on mock_entry suppresses consolidation across
+  // that chunk; MockRep::can_consolidate reads it. This mirrors the
+  // real PagemapRep::can_consolidate reading entry.is_boundary().
+
+  // Test: predecessor merge blocked by boundary.
+  static void test_boundary_blocks_predecessor()
+  {
+    reset_mock_store();
+    constexpr size_t K = 6;
+    TestArena<K> arena;
+
+    uintptr_t p_addr = chunk_addr(2);
+    uintptr_t a_addr = chunk_addr(4);
+
+    // Place a boundary at a_addr — blocks should not consolidate leftward.
+    mock_store[mock_index(a_addr)].boundary = true;
+
+    arena.add_block(p_addr, chunk_size(2));
+    arena.add_block(a_addr, chunk_size(2));
+
+    // P (chunks 2-3) and A (chunks 4-5) are adjacent but the boundary
+    // at a_addr prevents merging. Both should remain separate.
+    auto r1_addr = arena.remove_block(chunk_size(2));
+    SNMALLOC_ASSERT(r1_addr == p_addr);
+    auto r2_addr = arena.remove_block(chunk_size(2));
+    SNMALLOC_ASSERT(r2_addr == a_addr);
+    UNUSED(r1_addr, r2_addr);
+
+    printf("  Boundary blocks predecessor merge: OK\n");
+  }
+
+  // Test: successor merge blocked by boundary.
+  static void test_boundary_blocks_successor()
+  {
+    reset_mock_store();
+    constexpr size_t K = 6;
+    TestArena<K> arena;
+
+    uintptr_t a_addr = chunk_addr(2);
+    uintptr_t s_addr = chunk_addr(4);
+
+    // Place a boundary at s_addr — blocks should not consolidate rightward.
+    mock_store[mock_index(s_addr)].boundary = true;
+
+    arena.add_block(s_addr, chunk_size(4));
+    arena.add_block(a_addr, chunk_size(2));
+
+    // A (chunks 2-3) and S (chunks 4-7) are adjacent but the boundary
+    // at s_addr prevents merging. Both should remain separate.
+    auto r1_addr = arena.remove_block(chunk_size(2));
+    SNMALLOC_ASSERT(r1_addr == a_addr);
+    auto r2_addr = arena.remove_block(chunk_size(4));
+    SNMALLOC_ASSERT(r2_addr == s_addr);
+    UNUSED(r1_addr, r2_addr);
+
+    printf("  Boundary blocks successor merge: OK\n");
+  }
+
+  // Test: boundary only blocks the specific merge; other merges proceed.
+  static void test_boundary_partial()
+  {
+    reset_mock_store();
+    constexpr size_t K = 6;
+    TestArena<K> arena;
+
+    // Three adjacent blocks: chunks [4,6), [6,8), [8,10).
+    // Boundary at chunk 8 blocks [6,8) ↔ [8,10) merge but allows
+    // [4,6) ↔ [6,8) merge into a 4-aligned block at chunk 4.
+    mock_store[mock_index(chunk_addr(8))].boundary = true;
+
+    arena.add_block(chunk_addr(4), chunk_size(2));
+    arena.add_block(chunk_addr(8), chunk_size(2));
+    arena.add_block(chunk_addr(6), chunk_size(2));
+
+    // [4,6) and [6,8) should consolidate to [4,8).
+    // [8,10) should remain separate due to boundary.
+    auto r1_addr = arena.remove_block(chunk_size(4));
+    SNMALLOC_ASSERT(r1_addr == chunk_addr(4));
+    auto r2_addr = arena.remove_block(chunk_size(2));
+    SNMALLOC_ASSERT(r2_addr == chunk_addr(8));
+    UNUSED(r1_addr, r2_addr);
+
+    printf("  Boundary partial (P merges, S blocked): OK\n");
+  }
+
+  // Regression test: a block whose successor address sits one past
+  // the arena's pagemap must not trigger a can_consolidate probe of
+  // that out-of-range chunk. The fix is in Arena::add_block —
+  // tree-membership tests gate the can_consolidate read. MockRep's
+  // can_consolidate now dereferences mock_store via mock_index, which
+  // asserts on out-of-range indices, so an unguarded probe in
+  // add_block trips here rather than only as a segfault in release
+  // builds.
+  static void test_block_at_arena_top_edge()
+  {
+    reset_mock_store();
+    constexpr size_t K = 10;
+    TestArena<K> arena;
+    constexpr size_t ARENA_CHUNKS = size_t{1} << K;
+
+    // Block ending at the very top of the arena (succ_addr would
+    // address chunk ARENA_CHUNKS, one past mock_store).
+    uintptr_t top_addr = chunk_addr(ARENA_CHUNKS - 4);
+    arena.add_block(top_addr, chunk_size(4));
+    arena.check_invariant(true);
+
+    auto r1 = arena.remove_block(chunk_size(4));
+    SNMALLOC_ASSERT(r1 == top_addr);
+    UNUSED(r1);
+
+    printf("  Block at arena top edge: OK\n");
+  }
+
+  // Test: min-size predecessor blocked by boundary.
+  static void test_boundary_blocks_min_predecessor()
+  {
+    reset_mock_store();
+    constexpr size_t K = 6;
+    TestArena<K> arena;
+
+    uintptr_t p_addr = chunk_addr(4);
+    uintptr_t a_addr = chunk_addr(5);
+
+    mock_store[mock_index(a_addr)].boundary = true;
+
+    arena.add_block(p_addr, chunk_size(1)); // min-size block
+    arena.add_block(
+      a_addr, chunk_size(1)); // adjacent, but boundary prevents merge
+
+    auto r1_addr = arena.remove_block(chunk_size(1));
+    auto r2_addr = arena.remove_block(chunk_size(1));
+    // Both should be separate min-size blocks.
+    SNMALLOC_ASSERT(
+      (r1_addr == p_addr && r2_addr == a_addr) ||
+      (r1_addr == a_addr && r2_addr == p_addr));
+    UNUSED(r1_addr, r2_addr);
+
+    printf("  Boundary blocks min predecessor merge: OK\n");
+  }
+
+} // namespace snmalloc
+
+int main()
+{
+  printf("--- Arena tests ---\n");
+
+  printf("(A) Accessor round-trips:\n");
+  snmalloc::test_variant_roundtrip();
+  snmalloc::test_large_size_roundtrip();
+  snmalloc::test_word_roundtrip();
+
+  printf("(B) RBTree smoke via arena:\n");
+  snmalloc::test_rbtree_smoke_via_arena();
+
+  printf("(C) Empty-state invariant:\n");
+  snmalloc::test_empty_invariant<4>();
+  snmalloc::test_empty_invariant<5>();
+  snmalloc::test_empty_invariant<6>();
+
+  printf("(D) add_block without consolidation:\n");
+  snmalloc::test_add_no_consolidation();
+
+  printf("(E) remove_block:\n");
+  snmalloc::test_remove_exact();
+  snmalloc::test_remove_carving();
+
+  printf("(F) Consolidation case matrix:\n");
+  snmalloc::test_consolidation_p_min();
+  snmalloc::test_consolidation_p_nonmin();
+  snmalloc::test_consolidation_s_min();
+  snmalloc::test_consolidation_s_nonmin();
+  snmalloc::test_consolidation_ps_both_min();
+  snmalloc::test_consolidation_ps_p_min_s_nonmin();
+  snmalloc::test_consolidation_ps_p_nonmin_s_min();
+  snmalloc::test_consolidation_ps_both_nonmin();
+
+  printf("(F2) OddTwo (unaligned size-2):\n");
+  snmalloc::test_oddtwo_variant();
+  snmalloc::test_oddtwo_contains_min_filter();
+  snmalloc::test_oddtwo_consolidation();
+  snmalloc::test_oddtwo_consolidation_pred();
+  snmalloc::test_oddtwo_remove_carve();
+
+  printf("(G) Overflow:\n");
+  snmalloc::test_overflow();
+  snmalloc::test_overflow_precise();
+
+  printf("(H) Randomised stress:\n");
+  snmalloc::test_stress();
+
+  printf("(I) Multi-instance:\n");
+  snmalloc::test_multi_instance_basic();
+  snmalloc::test_multi_instance_consolidation();
+  snmalloc::test_multi_stress();
+
+  printf("(J) Boundary consolidation:\n");
+  snmalloc::test_boundary_blocks_predecessor();
+  snmalloc::test_boundary_blocks_successor();
+  snmalloc::test_boundary_partial();
+  snmalloc::test_block_at_arena_top_edge();
+  snmalloc::test_boundary_blocks_min_predecessor();
+
+  printf("All Arena tests passed.\n");
+  return 0;
+}

@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <set>
 #include <vector>
 
 #ifndef SNMALLOC_TRACING
@@ -207,6 +208,122 @@ void test(size_t size, unsigned int seed)
   }
 }
 
+template<bool TRACE>
+void test_neighbours(size_t size, unsigned int seed)
+{
+  xoroshiro::p64r32 rand(seed);
+  snmalloc::RBTree<Rep, true, TRACE> tree;
+  std::set<Rep::key> oracle;
+  // Parallel vector keeps random-pick on remove O(1) instead of paying
+  // O(n) for std::advance over a std::set iterator.
+  std::vector<Rep::key> entries;
+
+  auto probe = [&](Rep::key k_probe) {
+    auto result = tree.neighbours(k_probe);
+
+    Rep::key expected_pred = Rep::null;
+    Rep::key expected_succ = Rep::null;
+    auto it = oracle.lower_bound(k_probe);
+    if (it != oracle.begin())
+    {
+      auto prev = it;
+      --prev;
+      expected_pred = *prev;
+    }
+    if (it != oracle.end())
+      expected_succ = *it;
+
+    if (result.first != expected_pred || result.second != expected_succ)
+    {
+      std::cout << "neighbours(" << k_probe << ") mismatch:"
+                << " got (" << result.first << ", " << result.second << ")"
+                << " expected (" << expected_pred << ", " << expected_succ
+                << ")" << std::endl;
+      abort();
+    }
+  };
+
+  auto do_probes = [&]() {
+    // Boundary probes. Key 0 is Rep::null and is never inserted (insert
+    // keys are 1 + rand % size), and size + 1 is one above the maximum
+    // possible insert; both are guaranteed not to be in the tree.
+    probe(Rep::key(0));
+    if (size + 1 <= 0xFFFF)
+      probe(Rep::key(size + 1));
+    // Two random probes, skipping any that collide with the tree.
+    for (size_t p = 0; p < 2; p++)
+    {
+      Rep::key k = Rep::key(rand.next() % (size + 2));
+      if (oracle.count(k) == 0)
+        probe(k);
+    }
+  };
+
+  // Empty tree: every probe must report (null, null).
+  do_probes();
+
+  bool first = true;
+  for (size_t i = 0; i < 20 * size; i++)
+  {
+    auto batch = 1 + rand.next() % (3 + (size / 2));
+    auto op = rand.next() % 4;
+    if (op < 2 || first)
+    {
+      first = false;
+      for (auto j = batch; j > 0; j--)
+      {
+        auto k = Rep::key(1 + rand.next() % size);
+        if (tree.insert_elem(k))
+        {
+          oracle.insert(k);
+          entries.push_back(k);
+        }
+      }
+    }
+    else if (op == 3)
+    {
+      for (auto j = batch; j > 0; j--)
+      {
+        if (entries.empty())
+          break;
+        auto index = rand.next() % entries.size();
+        Rep::key elem = entries[index];
+        if (!tree.remove_elem(elem))
+        {
+          std::cout << "Failed to remove element: " << elem << std::endl;
+          abort();
+        }
+        entries.erase(entries.begin() + static_cast<int>(index));
+        oracle.erase(elem);
+      }
+    }
+    else
+    {
+      for (auto j = batch; j > 0; j--)
+      {
+        if (entries.empty())
+          break;
+        auto min = tree.remove_min();
+        Rep::key expected = *oracle.begin();
+        if (min != expected)
+        {
+          std::cout << "remove_min mismatch: tree=" << min
+                    << " oracle=" << expected << std::endl;
+          abort();
+        }
+        oracle.erase(oracle.begin());
+        entries.erase(
+          std::remove(entries.begin(), entries.end(), min), entries.end());
+      }
+    }
+
+    do_probes();
+
+    if (entries.empty())
+      break;
+  }
+}
+
 int main(int argc, char** argv)
 {
   setup();
@@ -222,6 +339,11 @@ int main(int argc, char** argv)
       for (seed = 1; seed < 5 + (8 * size); seed++)
       {
         test<false>(size, seed);
+        // Run the neighbours oracle on a handful of seeds per size: the
+        // full size range gives good tree-shape coverage, the seed cap
+        // keeps the extra cost from blowing the per-test time budget.
+        if (seed < 5)
+          test_neighbours<false>(size, seed);
       }
 
     return 0;
@@ -235,5 +357,6 @@ int main(int argc, char** argv)
 
   // Trace particular example
   test<true>(size, seed);
+  test_neighbours<true>(size, seed);
   return 0;
 }

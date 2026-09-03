@@ -23,6 +23,19 @@ namespace snmalloc
     {
       return capptr::Arena<void>::unsafe_from(c.unsafe_ptr());
     }
+
+    /**
+     * Address-keyed sibling of `amplify`: returns a capability with
+     * address `a` and (on real capability hardware) the registered
+     * arena's permissions. The non-StrictProvenance pass-through
+     * variant simply fabricates a pointer at `a`.
+     */
+    template<bool potentially_out_of_range = false>
+    static SNMALLOC_FAST_PATH capptr::Arena<void>
+    amplify_from_address(address_t a)
+    {
+      return capptr::Arena<void>::unsafe_from(reinterpret_cast<void*>(a));
+    }
   };
 
   /**
@@ -66,6 +79,23 @@ namespace snmalloc
       return Aal::capptr_rebound(
         concreteAuthmap.template get<potentially_out_of_range>(address_cast(c)),
         c);
+    }
+
+    /**
+     * Address-keyed sibling of `amplify`: returns a capability at
+     * address `a` with the registered arena's permissions, suitable
+     * for cases where the caller holds only an integer address (for
+     * example, in-band tree-node access in `InplaceRep`). The
+     * authmap is set once per arena registration and never mutated
+     * thereafter, so this lookup is safe under concurrent allocator
+     * activity.
+     */
+    template<bool potentially_out_of_range = false>
+    static SNMALLOC_FAST_PATH capptr::Arena<void>
+    amplify_from_address(address_t a)
+    {
+      auto arena = concreteAuthmap.template get<potentially_out_of_range>(a);
+      return pointer_offset(arena, a - address_cast(arena));
     }
   };
 
