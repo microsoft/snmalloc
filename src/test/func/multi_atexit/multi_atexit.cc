@@ -13,8 +13,8 @@
 #endif
 
 #ifdef RUN_TEST
-#  include <snmalloc/snmalloc.h>
 #  include <stdlib.h>
+#  include <test/snmalloc_testlib.h>
 
 void do_nothing() {}
 

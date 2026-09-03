@@ -1,5 +1,5 @@
 #include <iostream>
-#include <snmalloc/snmalloc.h>
+#include <test/snmalloc_testlib.h>
 #include <vector>
 
 template<size_t size>

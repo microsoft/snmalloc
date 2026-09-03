@@ -1,4 +1,6 @@
 #pragma once
+#include <cstddef>
+#include <cstdint>
 #ifdef _MSC_VER
 #  define __PRETTY_FUNCTION__ __FUNCSIG__
 #endif
@@ -18,8 +20,7 @@ namespace snmalloc
   do \
   { \
     current_test = __PRETTY_FUNCTION__; \
-    MessageBuilder<1024> mb{"Starting test: " msg "\n", ##__VA_ARGS__}; \
-    DefaultPal::message(mb.get_message()); \
+    snmalloc::message<1024>("Starting test: " msg, ##__VA_ARGS__); \
   } while (0)
 
   /**
@@ -32,8 +33,14 @@ namespace snmalloc
 #define INFO(msg, ...) \
   do \
   { \
-    MessageBuilder<1024> mb{msg "\n", ##__VA_ARGS__}; \
-    DefaultPal::message(mb.get_message()); \
+    snmalloc::message<1024>(msg, ##__VA_ARGS__); \
   } while (0)
 
+}
+
+// Based on:
+// https://en.cppreference.com/w/cpp/memory/is_sufficiently_aligned.html
+bool is_aligned(void* ptr, std::size_t align_val_size)
+{
+  return reinterpret_cast<std::uintptr_t>(ptr) % align_val_size == 0;
 }

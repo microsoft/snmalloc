@@ -8,11 +8,11 @@
  */
 
 #include "bits.h"
-#include "cheri.h"
 #include "concept.h"
 #include "defines.h"
 #include "helpers.h"
-#include "mitigations.h"
 #include "ptrwrap.h"
 #include "redblacktree.h"
+#include "sizeclassconfig.h"
+#include "sizeclassstatic.h"
 #include "tid.h"

@@ -19,7 +19,7 @@
 #include <vector>
 using namespace std;
 
-#include <snmalloc/snmalloc.h>
+#include <test/snmalloc_testlib.h>
 #define malloc snmalloc::libc::malloc
 #define free snmalloc::libc::free
 #define malloc_usable_size snmalloc::libc::malloc_usable_size
@@ -100,6 +100,14 @@ int main()
   size_t iterations = 50000;
 #else
   size_t iterations = 200000;
+#endif
+#ifndef NDEBUG
+  // Debug builds run with full instrumentation enabled and are
+  // ~10x slower per iteration. The cross-thread batch behaviour
+  // this benchmark stresses is observable at much lower counts;
+  // reduce iterations so this test does not dominate Debug ctest
+  // wall-time. Release builds are unaffected.
+  iterations /= 10;
 #endif
 
   int threadcount = 8;

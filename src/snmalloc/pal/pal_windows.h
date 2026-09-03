@@ -624,7 +624,7 @@ namespace snmalloc
   }
 #  endif
 
-  void* PALWindows::reserve(size_t size) noexcept
+  inline void* PALWindows::reserve(size_t size) noexcept
   {
     void* ret = VirtualAlloc(nullptr, size, MEM_RESERVE, PAGE_READWRITE);
 

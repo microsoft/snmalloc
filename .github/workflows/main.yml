@@ -17,6 +17,9 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+env:
+  COMPILER_RT_LLVM_VERSION: "19.1.7"
+
 jobs:
   ubuntu:
     name: ${{matrix.os}} ${{matrix.build-type}} ${{matrix.variant}}
@@ -148,10 +151,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: Bazel - ${{ matrix.os }} ${{ matrix.build-type }}
     steps:
-    - uses: actions/checkout@v4
-    - uses: bazelbuild/setup-bazelisk@v3
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+    - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # v0.19.0
     - name: Mount bazel cache  # Optional
-      uses: actions/cache@v4
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: "~/.cache/bazel"
         key: bazel-${{ matrix.os }}-${{ matrix.build-type }}
@@ -182,6 +185,11 @@ jobs:
               -DSNMALLOC_USE_SELF_VENDORED_STL=ON
               -DCMAKE_CXX_COMPILER=clang++
             variant: "Self-vendored"
+          # Forward-edge uses Pointer Authentication
+          - os: "macos-15"
+            build-type: Release
+            extra-cmake-flags: "-DSNMALLOC_ENABLE_PAC=ON"
+            variant: "PAC"
     uses: ./.github/workflows/reusable-cmake-build.yml
     with:
       os: ${{matrix.os}}
@@ -213,10 +221,10 @@ jobs:
     uses: ./.github/workflows/reusable-vm-build.yml
     with:
       vm-type: netbsd
-      vm-version: '9.2'
+      vm-version: '10.1'
       build-type: Release
-      dependencies: "/usr/sbin/pkg_add cmake ninja-build gcc10"
-      cmake-flags: -DCMAKE_CXX_COMPILER=/usr/pkg/gcc10/bin/g++
+      dependencies: "/usr/sbin/pkg_add cmake ninja-build gcc14"
+      cmake-flags: "-DCMAKE_CXX_COMPILER=/usr/pkg/gcc14/bin/g++ -DSNMALLOC_CLEANUP=CXX11_DESTRUCTORS"
 
   # ============================================================================
   # QEMU cross-compilation builds
@@ -250,7 +258,7 @@ jobs:
     runs-on: ${{matrix.arch.host-os}}
     name: Crossbuild - ${{matrix.build-type}} ${{matrix.arch.triple}}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install cross-compile toolchain and QEMU
       run: >
         sudo apt update &&
@@ -363,7 +371,7 @@ jobs:
     name: Format check
     # We don't need to do the build for this job, but we need to configure it to get the clang-format target
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install clang-tidy and clang-format
       run: |
         sudo apt update
@@ -392,7 +400,7 @@ jobs:
     name: Fuzzing
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DSNMALLOC_ENABLE_FUZZING=ON -DFUZZTEST_FUZZING_MODE=ON -DCMAKE_CXX_COMPILER=clang++
     - name: Build
@@ -412,14 +420,28 @@ jobs:
     runs-on: ${{matrix.os}}
     name: GWP-ASan - ${{matrix.os}} ${{matrix.profile}}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Install Ninja
       run: sudo apt-get install -y ninja-build
+    - name: Set up sccache
+      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
+      with:
+        variant: sccache
+        key: gwp-asan-${{matrix.os}}-${{matrix.profile}}
+    - name: Cache compiler-rt
+      id: cache-compiler-rt
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          ${{ runner.temp }}/compiler-rt
+          ${{ runner.temp }}/llvm-project/compiler-rt/lib
+        key: compiler-rt-${{ env.COMPILER_RT_LLVM_VERSION }}-${{matrix.os}}-${{matrix.profile}}
     - name: Install Compiler-RT
+      if: steps.cache-compiler-rt.outputs.cache-hit != 'true'
       run: |
-        cd ..
-        git clone https://github.com/llvm/llvm-project --depth=1 -b llvmorg-19.1.7
-        mkdir compiler-rt
+        cd ${{ runner.temp }}
+        git clone https://github.com/llvm/llvm-project --depth=1 -b llvmorg-${{ env.COMPILER_RT_LLVM_VERSION }}
+        mkdir -p compiler-rt
         cmake -G Ninja \
               -S llvm-project/runtimes \
               -B llvm-project/build \
@@ -427,7 +449,7 @@ jobs:
               -DLLVM_ENABLE_RUNTIMES=compiler-rt \
               -DCMAKE_CXX_COMPILER=clang++-18 \
               -DCMAKE_C_COMPILER=clang-18 \
-              -DCMAKE_INSTALL_PREFIX=$(realpath compiler-rt)
+              -DCMAKE_INSTALL_PREFIX=${{ runner.temp }}/compiler-rt
         cmake --build llvm-project/build --parallel
         cmake --build llvm-project/build --target=install
     - name: Configure SnMalloc
@@ -436,11 +458,15 @@ jobs:
         -B${{github.workspace}}/build
         -DCMAKE_BUILD_TYPE=${{ matrix.profile }}
         -DCMAKE_CXX_COMPILER=clang++-18
+        -DCMAKE_C_COMPILER_LAUNCHER=sccache
+        -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
         -DSNMALLOC_ENABLE_GWP_ASAN_INTEGRATION=On
-        -DSNMALLOC_GWP_ASAN_INCLUDE_PATH=${{github.workspace}}/../llvm-project/compiler-rt/lib
-        -DSNMALLOC_GWP_ASAN_LIBRARY_PATH=${{github.workspace}}/../compiler-rt/lib/linux
+        -DSNMALLOC_GWP_ASAN_INCLUDE_PATH=${{ runner.temp }}/llvm-project/compiler-rt/lib
+        -DSNMALLOC_GWP_ASAN_LIBRARY_PATH=${{ runner.temp }}/compiler-rt/lib/linux
     - name: Build
       run: cmake --build ${{github.workspace}}/build --parallel
+    - name: Show sccache stats
+      run: sccache --show-stats
     - name: Test
       run: |
         cd ${{github.workspace}}/build
@@ -458,7 +484,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     name: vcpkg - ${{ matrix.os }} ${{ matrix.feature }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
     - name: Bootstrap vcpkg
       shell: bash

@@ -24,6 +24,12 @@ namespace snmalloc
      * internal high-privilege pointers for recycling memory on free().
      */
     StrictProvenance = (1 << 2),
+    /**
+     * This architecture can authenticate stored internal pointers, allowing
+     * allocator metadata edges to be signed before storage and authenticated on
+     * reload.
+     */
+    PtrAuthentication = (1 << 3),
   };
 
   enum AalName : int

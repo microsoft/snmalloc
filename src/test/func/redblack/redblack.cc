@@ -11,7 +11,9 @@
 #  define SNMALLOC_TRACING
 #endif
 // Redblack tree needs some libraries with trace enabled.
-#include "snmalloc/snmalloc.h"
+#include "test/snmalloc_testlib.h"
+
+#include <snmalloc/ds_core/redblacktree.h>
 
 struct NodeRef
 {

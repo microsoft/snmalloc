@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use std::env;
+use std::{env, path::{Path, PathBuf}};
 
 #[derive(Debug, PartialEq)]
 enum Compiler {
@@ -21,7 +21,8 @@ struct BuildConfig {
     build_type: String,
     msystem: Option<String>,
     cmake_cxx_standard: String,  
-    target_lib: String,  
+    target_lib: String,
+    source_root: PathBuf,
     features: BuildFeatures,
     #[cfg(feature = "build_cc")]
     builder: cc::Build,
@@ -44,6 +45,7 @@ impl std::fmt::Debug for BuildConfig {
             .field("msystem", &self.msystem)
             .field("cmake_cxx_standard", &self.cmake_cxx_standard)
             .field("target_lib", &self.target_lib)
+            .field("source_root", &self.source_root)
             .field("features", &self.features)
             .finish()
     }
@@ -74,12 +76,15 @@ impl BuildConfig {
         let feature_debug = cfg!(feature = "debug");
         let cargo_debug = env::var("DEBUG").map(|v| v == "true").unwrap_or(false);
         let debug = feature_debug || cargo_debug;
+        let source_root =
+            PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set"))
+                .join("upstream");
 
         #[cfg(feature = "build_cc")]
         let builder = cc::Build::new();
         
         #[cfg(not(feature = "build_cc"))]
-        let builder = Config::new("../..");
+        let builder = Config::new(&source_root);
 
         let mut config = Self {
             debug,
@@ -99,6 +104,7 @@ impl BuildConfig {
             } else {
                 "snmallocshim-rust"
             }).to_string(),
+            source_root,
             features: BuildFeatures::new(),
             builder,
             compiler: Compiler::Unknown,
@@ -214,7 +220,7 @@ trait BuilderDefine {
     fn flag_if_supported(&mut self, flag: &str) -> &mut Self;
     fn build_lib(&mut self, target_lib: &str) -> std::path::PathBuf;
     fn configure_output_dir(&mut self, out_dir: &str) -> &mut Self;
-    fn configure_cpp(&mut self, debug: bool) -> &mut Self;
+    fn configure_cpp(&mut self, debug: bool, source_root: &Path) -> &mut Self;
     fn compiler_define(&mut self, key: &str, value: &str) -> &mut Self;
 }
 
@@ -237,9 +243,9 @@ impl BuilderDefine for cc::Build {
         self.out_dir(out_dir)
     }
 
-    fn configure_cpp(&mut self, debug: bool) -> &mut Self {
-        self.include("../../src")
-            .file("../../src/snmalloc/override/rust.cc")
+    fn configure_cpp(&mut self, debug: bool, source_root: &Path) -> &mut Self {
+        self.include(source_root.join("src"))
+            .file(source_root.join("src/snmalloc/override/rust.cc"))
             .cpp(true)
             .debug(debug)
             .static_crt(true)
@@ -268,7 +274,7 @@ impl BuilderDefine for cmake::Config {
         self.out_dir(out_dir)
     }
 
-    fn configure_cpp(&mut self, debug: bool) -> &mut Self {
+    fn configure_cpp(&mut self, debug: bool, _source_root: &Path) -> &mut Self {
         self.define("SNMALLOC_RUST_SUPPORT", "ON")
             .very_verbose(true)
             .define("CMAKE_SH", "CMAKE_SH-NOTFOUND")
@@ -624,7 +630,7 @@ fn main() {
     let mut config = BuildConfig::new();
     
     config.builder
-        .configure_cpp(config.debug)
+        .configure_cpp(config.debug, &config.source_root)
         .configure_output_dir(&config.out_dir);
 
     // Apply all configurations

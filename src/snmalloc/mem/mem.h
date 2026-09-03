@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../ds/pool.h"
+#include "../ds/pooled.h"
 #include "backend_concept.h"
 #include "backend_wrappers.h"
 #include "check_init.h"
@@ -7,9 +9,6 @@
 #include "entropy.h"
 #include "freelist.h"
 #include "metadata.h"
-#include "pool.h"
-#include "pooled.h"
 #include "remoteallocator.h"
 #include "remotecache.h"
-#include "sizeclasstable.h"
 #include "ticker.h"

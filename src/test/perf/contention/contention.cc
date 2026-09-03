@@ -5,8 +5,7 @@
 
 #include <iomanip>
 #include <iostream>
-#include <snmalloc/pal/pal.h>
-#include <snmalloc/snmalloc.h>
+#include <test/snmalloc_testlib.h>
 #include <thread>
 #include <vector>
 
@@ -31,18 +30,18 @@ private:
     auto prev = ready.fetch_add(1);
     if (prev + 1 == cores)
     {
-      start = DefaultPal::tick();
+      start = snmalloc::pal_tick();
       flag = true;
     }
     while (!flag)
-      Aal::pause();
+      snmalloc::pal_pause();
 
     f(id);
 
     prev = complete.fetch_add(1);
     if (prev + 1 == cores)
     {
-      end = DefaultPal::tick();
+      end = snmalloc::pal_tick();
     }
   }
 
@@ -163,8 +162,15 @@ int main(int argc, char** argv)
   opt::Opt opt(argc, argv);
   size_t cores = opt.is<size_t>("--cores", 8);
 
-  size_t count = opt.is<size_t>("--swapcount", 1 << 20);
-  size_t size = opt.is<size_t>("--swapsize", 1 << 18);
+  // `--smoke` lowers the *defaults* for the iteration knobs so ctest
+  // runs at modest cost. Explicit `--swapcount` / `--swapsize` on the
+  // command line still win. The smoke values must remain large
+  // enough to cross the remote-deallocation cache thresholds
+  // (otherwise `mem/remotecache.h` and `mem/remoteallocator.h`
+  // coverage drops sharply).
+  bool smoke = opt.has("--smoke");
+  size_t count = opt.is<size_t>("--swapcount", smoke ? 1u << 18 : 1u << 20);
+  size_t size = opt.is<size_t>("--swapsize", smoke ? 1u << 16 : 1u << 18);
   use_malloc = opt.has("--use_malloc");
 
   std::cout << "Allocator is " << (use_malloc ? "System" : "snmalloc")

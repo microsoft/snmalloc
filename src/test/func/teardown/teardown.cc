@@ -8,7 +8,7 @@
 #include "test/setup.h"
 
 #include <iostream>
-#include <snmalloc/snmalloc.h>
+#include <test/snmalloc_testlib.h>
 #include <thread>
 
 void trigger_teardown()
@@ -59,7 +59,7 @@ void check_calloc(void* p, size_t size)
 void calloc1(size_t size)
 {
   trigger_teardown();
-  void* r = snmalloc::alloc<snmalloc::Zero>(size);
+  void* r = snmalloc::alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
   snmalloc::dealloc(r);
 }
@@ -67,7 +67,7 @@ void calloc1(size_t size)
 void calloc2(size_t size)
 {
   trigger_teardown();
-  void* r = snmalloc::alloc<snmalloc::Zero>(size);
+  void* r = snmalloc::alloc<snmalloc::ZeroMem::YesZero>(size);
   check_calloc(r, size);
   snmalloc::dealloc(r, size);
 }
@@ -124,7 +124,7 @@ int main(int, char**)
   f(5);
   f(7);
   printf("\n");
-  for (size_t exp = 1; exp < snmalloc::MAX_SMALL_SIZECLASS_BITS; exp++)
+  for (size_t exp = 1; exp < snmalloc::max_small_sizeclass_bits(); exp++)
   {
     auto shifted = [exp](size_t v) { return v << exp; };
 

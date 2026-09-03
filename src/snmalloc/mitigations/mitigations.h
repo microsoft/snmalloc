@@ -1,5 +1,5 @@
 #pragma once
-#include "defines.h"
+#include "../ds_core/defines.h"
 
 #include <stddef.h>
 

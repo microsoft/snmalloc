@@ -24,3 +24,6 @@
 
 # cache dirs
 .cache
+
+# rust target
+/target

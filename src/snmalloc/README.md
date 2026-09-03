@@ -10,6 +10,9 @@ These are arranged in a hierarchy such that each of the directories may include 
    This layer provides abstractions over CPU-specific intrinsics and defines things such as the virtual address-space size.
    There is a single AAL for an snmalloc instantiation.
  - `ds_aal/` provides data structures that depend on the AAL.
+ - `mitigations/` provides compile-time configuration for security mitigations.
+   This includes the `mitigations()` function (controlled by `SNMALLOC_CHECK_CLIENT`), mitigation-dependent allocator constants, and CHERI capability checks.
+   Layers below this (`ds_core/`, `aal/`, `ds_aal/`) are mitigation-independent, which allows code that only includes those layers to be compiled once regardless of mitigation settings.
  - `pal/` provides the platform abstraction layer (PAL).
    This exposes OS- or environment-specific abstractions into the rest of the code.
    An snmalloc instantiation may use more than one PAL, including ones provided by the user.

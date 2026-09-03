@@ -1,5 +1,14 @@
 ## Changelog
 
+### 0.7.5
+
+- Tracking upstream to match version 0.7.5.
+
+### 0.7.4
+
+- Tracking upstream to match version 0.7.4.
+- SnMalloc has been moved to upstream repository. Future releases will track upstream release directly.
+
 ### 0.3.8
 
 - Tracking upstream to match version 0.7.1

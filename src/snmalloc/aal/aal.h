@@ -173,11 +173,42 @@ namespace snmalloc
       else
       {
 #if __has_builtin(__builtin_readcyclecounter) && !defined(__APPLE__) && \
-  !defined(SNMALLOC_NO_AAL_BUILTINS)
+  !defined(__aarch64__) && !defined(_M_ARM64) && !defined(_M_ARM64EC) && \
+  !defined(__riscv) && !defined(SNMALLOC_NO_AAL_BUILTINS)
         return __builtin_readcyclecounter();
 #else
         return Arch::tick();
 #endif
+      }
+    }
+
+    static SNMALLOC_FAST_PATH uintptr_t pointer_auth_sign_data(
+      uintptr_t value, address_t storage_addr, uintptr_t tweak) noexcept
+    {
+      if constexpr ((Arch::aal_features & PtrAuthentication) != 0)
+      {
+        return Arch::pointer_auth_sign_data(
+          value, static_cast<uintptr_t>(storage_addr), tweak);
+      }
+      else
+      {
+        UNUSED(storage_addr, tweak);
+        return value;
+      }
+    }
+
+    static SNMALLOC_FAST_PATH uintptr_t pointer_auth_auth_data(
+      uintptr_t value, address_t storage_addr, uintptr_t tweak) noexcept
+    {
+      if constexpr ((Arch::aal_features & PtrAuthentication) != 0)
+      {
+        return Arch::pointer_auth_auth_data(
+          value, static_cast<uintptr_t>(storage_addr), tweak);
+      }
+      else
+      {
+        UNUSED(storage_addr, tweak);
+        return value;
       }
     }
   };

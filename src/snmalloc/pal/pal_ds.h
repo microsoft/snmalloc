@@ -103,7 +103,7 @@ namespace snmalloc
     template<typename T>
     friend class PalList;
 
-    stl::Atomic<PalTimerObject*> pal_next;
+    stl::Atomic<PalTimerObject*> pal_next{nullptr};
 
     void (*pal_notify)(PalTimerObject* self);
 
