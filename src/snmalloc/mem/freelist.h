@@ -219,6 +219,27 @@ namespace snmalloc
         }
 
         /**
+         * Read the next field without domesticating it.
+         *
+         * This returns exactly the value that was stored, with only the
+         * free-list encoding undone: a (possibly Wild) pointer in the common
+         * case, or the opaque bit-packed word that BatchedRemoteMessage keeps
+         * in the next field of its free ring.  Callers that want a pointer
+         * must domesticate the result (see read_next); callers reading an
+         * opaque word must not, as a domesticator may legitimately reject
+         * anything that is not an address within the heap.
+         */
+        BQueuePtr<BQueue>
+        read_next_raw(const FreeListKey& key, address_t key_tweak)
+        {
+          return Object::decode_next(
+            address_cast(&this->next_object),
+            this->next_object,
+            key,
+            key_tweak);
+        }
+
+        /**
          * Read the next pointer
          */
         template<
@@ -228,11 +249,7 @@ namespace snmalloc
         BHeadPtr<BView, BQueue> read_next(
           const FreeListKey& key, address_t key_tweak, Domesticator domesticate)
         {
-          return domesticate(Object::decode_next(
-            address_cast(&this->next_object),
-            this->next_object,
-            key,
-            key_tweak));
+          return domesticate(read_next_raw(key, key_tweak));
         }
 
         /**

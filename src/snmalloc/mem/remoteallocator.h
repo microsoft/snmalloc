@@ -112,8 +112,15 @@ namespace snmalloc
       address_t key_tweak,
       Domesticator_queue domesticate)
     {
+      /*
+       * The next field of the free ring holds the bit-packed (displacement,
+       * length) word written by mk_from_freelist_builder, not a pointer, so
+       * it must be read raw rather than through the domesticator (which may
+       * reject anything outside the heap, as FixedRangeConfig's does).  The
+       * pointer derived from it below is domesticated separately.
+       */
       uintptr_t encoded =
-        m->free_ring.read_next(key, key_tweak, domesticate).unsafe_uintptr();
+        m->free_ring.read_next_raw(key, key_tweak).unsafe_uintptr();
 
       uint16_t decoded_size =
         static_cast<uint16_t>(encoded) & bits::mask_bits(MAX_CAPACITY_BITS);
@@ -155,8 +162,9 @@ namespace snmalloc
       address_t key_tweak,
       Domesticator_queue domesticate)
     {
+      // See open_free_ring: this is a bit-packed word, not a pointer.
       uintptr_t encoded =
-        m->free_ring.read_next(key, key_tweak, domesticate).unsafe_uintptr();
+        m->free_ring.read_next_raw(key, key_tweak).unsafe_uintptr();
 
       uint16_t decoded_size =
         static_cast<uint16_t>(encoded) & bits::mask_bits(MAX_CAPACITY_BITS);
