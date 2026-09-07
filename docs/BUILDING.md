@@ -103,17 +103,17 @@ set(SNMALLOC_HEADER_ONLY_LIBRARY ON)
 add_subdirectory(snmalloc EXCLUDE_FROM_ALL)
 ```
 
-In addition make sure your executable is compiled to support 128 bit atomic operations. This may require you to add the following to your CMake file.
+Then link your target against the `snmalloc` interface target. This puts snmalloc's headers on the include path and adds the compiler flags it needs, including support for 128 bit atomic operations.
 
 ```cmake
-target_link_libraries([lib_name] PRIVATE snmalloc_lib)
+target_link_libraries([lib_name] PRIVATE snmalloc)
 ```
 
 You will also need to compile the relevant parts of snmalloc itself. Create a new file with the following contents and compile it with the rest of your application.
 
 ```c++
-#include "src/snmalloc/override/malloc.cc"
-#include "src/snmalloc/override/new.cc"
+#include "snmalloc/override/malloc.cc"
+#include "snmalloc/override/new.cc"
 ```
 
 To enable the `reallocarray` symbol export, this can be added to your cmake command line.
