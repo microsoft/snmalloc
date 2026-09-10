@@ -55,6 +55,7 @@ namespace snmalloc
       LogRange<3>,
       GlobalRange,
       CommitRange<PAL>,
+      DecayRange<PAL, Pagemap>,
       StatsRange>;
 
     // Controls the padding around the meta-data range.
