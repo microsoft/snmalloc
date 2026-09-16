@@ -63,7 +63,7 @@ jobs:
 
     - name: Build on FreeBSD
       if: inputs.vm-type == 'freebsd'
-      uses: vmactions/freebsd-vm@f0552d3b69211736abd97f02ff3d4674c56b73b1 # v1.5.5
+      uses: vmactions/freebsd-vm@8b0f1a8fc0ea0def307835c258940ca358fe6480 # v1.5.6
       with:
         release: ${{ inputs.vm-version }}
         usesh: true
@@ -84,7 +84,7 @@ jobs:
 
     - name: Build on NetBSD
       if: inputs.vm-type == 'netbsd'
-      uses: vmactions/netbsd-vm@6334c835de4c04a59fe59f0f8f071e02a2f0bab3 # v1.4.7
+      uses: vmactions/netbsd-vm@20ee93a005c9fc78743e6e05269f4cb023b87413 # v1.5.0
       with:
         release: ${{ inputs.vm-version }}
         usesh: true
