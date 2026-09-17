@@ -11,8 +11,8 @@ using namespace snmalloc;
 
 namespace
 {
-  FreeListKey key{0x1234, 0x5678, 0x9abc};
-  using Queue = FreeListMPSCQ<key>;
+  FreeListKey queue_key{0x1234, 0x5678, 0x9abc};
+  using Queue = FreeListMPSCQ<queue_key>;
   using Object = freelist::Object::T<>;
 
   freelist::HeadPtr domesticate(freelist::QueuePtr p)
@@ -80,7 +80,7 @@ namespace
       !queue.enqueue(as_head(second), as_head(second), domesticate));
 
     freelist::Object::atomic_store_next(
-      as_head(batch_first), as_head(batch_last), key, NO_KEY_TWEAK);
+      as_head(batch_first), as_head(batch_last), queue_key, NO_KEY_TWEAK);
     SNMALLOC_CHECK(
       !queue.enqueue(as_head(batch_first), as_head(batch_last), domesticate));
 
@@ -127,7 +127,8 @@ namespace
     SNMALLOC_CHECK(callbacks == 0);
     check_empty(queue);
 
-    freelist::Object::atomic_store_null(as_head(pending), key, NO_KEY_TWEAK);
+    freelist::Object::atomic_store_null(
+      as_head(pending), queue_key, NO_KEY_TWEAK);
     auto prev = queue.back.exchange(
       capptr_rewild(as_head(pending)), stl::memory_order_acq_rel);
     SNMALLOC_CHECK(prev == nullptr);
@@ -150,9 +151,9 @@ namespace
     CallbackOrder order;
 
     freelist::Object::atomic_store_next(
-      as_head(objects[0]), as_head(objects[1]), key, NO_KEY_TWEAK);
+      as_head(objects[0]), as_head(objects[1]), queue_key, NO_KEY_TWEAK);
     freelist::Object::atomic_store_next(
-      as_head(objects[1]), as_head(objects[2]), key, NO_KEY_TWEAK);
+      as_head(objects[1]), as_head(objects[2]), queue_key, NO_KEY_TWEAK);
     SNMALLOC_CHECK(
       queue.enqueue(as_head(objects[0]), as_head(objects[2]), domesticate));
 
@@ -201,7 +202,8 @@ namespace
 
     SNMALLOC_CHECK(queue.enqueue(as_head(first), as_head(first), domesticate));
 
-    freelist::Object::atomic_store_null(as_head(second), key, NO_KEY_TWEAK);
+    freelist::Object::atomic_store_null(
+      as_head(second), queue_key, NO_KEY_TWEAK);
     auto prev = queue.back.exchange(
       capptr_rewild(as_head(second)), stl::memory_order_acq_rel);
     SNMALLOC_CHECK(address_cast(prev) == address_cast(as_head(first)));
@@ -217,7 +219,7 @@ namespace
       address_cast(as_head(first)));
 
     freelist::Object::atomic_store_next(
-      as_head(first), as_head(second), key, NO_KEY_TWEAK);
+      as_head(first), as_head(second), queue_key, NO_KEY_TWEAK);
     queue.drain_and_reset(
       domesticate, [&callbacks](freelist::HeadPtr) { callbacks++; });
     SNMALLOC_CHECK(callbacks == 2);
@@ -234,7 +236,7 @@ namespace
 
     SNMALLOC_CHECK(queue.enqueue(as_head(first), as_head(first), domesticate));
     freelist::Object::atomic_store_next(
-      as_head(first), as_head(outside), key, NO_KEY_TWEAK);
+      as_head(first), as_head(outside), queue_key, NO_KEY_TWEAK);
 
     auto counting_domesticate =
       [&domesticates](freelist::QueuePtr value) -> freelist::HeadPtr {
@@ -257,7 +259,8 @@ namespace
       address_cast(queue.back.load(stl::memory_order_relaxed)) ==
       address_cast(as_head(first)));
 
-    freelist::Object::atomic_store_null(as_head(first), key, NO_KEY_TWEAK);
+    freelist::Object::atomic_store_null(
+      as_head(first), queue_key, NO_KEY_TWEAK);
     queue.drain_and_reset(domesticate, [](freelist::HeadPtr) {});
     check_empty(queue);
   }
@@ -291,7 +294,8 @@ namespace
     std::atomic<bool> completed{false};
     std::atomic<size_t> callbacks{0};
 
-    freelist::Object::atomic_store_null(as_head(object), key, NO_KEY_TWEAK);
+    freelist::Object::atomic_store_null(
+      as_head(object), queue_key, NO_KEY_TWEAK);
     auto prev = queue.back.exchange(
       capptr_rewild(as_head(object)), stl::memory_order_acq_rel);
     SNMALLOC_CHECK(prev == nullptr);
@@ -329,7 +333,8 @@ namespace
 
     SNMALLOC_CHECK(queue.enqueue(as_head(first), as_head(first), domesticate));
 
-    freelist::Object::atomic_store_null(as_head(second), key, NO_KEY_TWEAK);
+    freelist::Object::atomic_store_null(
+      as_head(second), queue_key, NO_KEY_TWEAK);
     auto prev = queue.back.exchange(
       capptr_rewild(as_head(second)), stl::memory_order_acq_rel);
     SNMALLOC_CHECK(address_cast(prev) == address_cast(as_head(first)));
@@ -348,7 +353,7 @@ namespace
     SNMALLOC_CHECK(callbacks.load(std::memory_order_relaxed) == 0);
 
     freelist::Object::atomic_store_next(
-      as_head(first), as_head(second), key, NO_KEY_TWEAK);
+      as_head(first), as_head(second), queue_key, NO_KEY_TWEAK);
     consumer.join();
 
     SNMALLOC_CHECK(callbacks.load(std::memory_order_relaxed) == 2);
@@ -405,7 +410,7 @@ namespace
     std::atomic<bool> release_callback{false};
 
     freelist::Object::atomic_store_next(
-      as_head(objects[0]), as_head(objects[1]), key, NO_KEY_TWEAK);
+      as_head(objects[0]), as_head(objects[1]), queue_key, NO_KEY_TWEAK);
     SNMALLOC_CHECK(
       queue.enqueue(as_head(objects[0]), as_head(objects[1]), domesticate));
 
@@ -425,7 +430,7 @@ namespace
       [&]() { return first_callback.load(std::memory_order_acquire); });
 
     freelist::Object::atomic_store_next(
-      as_head(objects[2]), as_head(objects[3]), key, NO_KEY_TWEAK);
+      as_head(objects[2]), as_head(objects[3]), queue_key, NO_KEY_TWEAK);
     SNMALLOC_CHECK(
       queue.enqueue(as_head(objects[2]), as_head(objects[3]), domesticate));
     release_callback.store(true, std::memory_order_release);
@@ -492,7 +497,10 @@ namespace
           for (size_t i = first_index; i < last_index; i++)
           {
             freelist::Object::atomic_store_next(
-              as_head(objects[i]), as_head(objects[i + 1]), key, NO_KEY_TWEAK);
+              as_head(objects[i]),
+              as_head(objects[i + 1]),
+              queue_key,
+              NO_KEY_TWEAK);
           }
 
           if (queue.enqueue(
@@ -593,7 +601,7 @@ namespace
             freelist::Object::atomic_store_next(
               as_head(objects[claimed[i]]),
               as_head(objects[claimed[i + 1]]),
-              key,
+              queue_key,
               NO_KEY_TWEAK);
           }
           for (size_t i = first; i <= last; i++)
