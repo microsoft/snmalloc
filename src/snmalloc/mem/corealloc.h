@@ -1386,11 +1386,13 @@ namespace snmalloc
     }
 
     /**
-     * Flush the cached state and delayed deallocations
+     * Flush one message-queue snapshot, cached state, and delayed
+     * deallocations. Enqueues whose back exchange observes the reset remain for
+     * a later flush.
      *
      * Returns true if messages are sent to other threads.
      */
-    bool flush(bool destroy_queue = false)
+    bool flush()
     {
       auto local_state = backend_state_ptr();
       auto domesticate = [local_state](freelist::QueuePtr p)
@@ -1400,26 +1402,17 @@ namespace snmalloc
 
       size_t bytes_flushed = 0; // Not currently used.
 
-      if (destroy_queue)
-      {
-        auto cb =
-          [this, domesticate, &bytes_flushed](capptr::Alloc<RemoteMessage> m) {
-            bool need_post = true; // Always going to post, so ignore.
-            const PagemapEntry& entry =
-              Config::Backend::get_metaentry(snmalloc::address_cast(m));
-            handle_dealloc_remote(
-              entry, m, need_post, domesticate, bytes_flushed);
-          };
+      auto cb = [this, domesticate, &bytes_flushed](
+                  capptr::Alloc<RemoteMessage> m) {
+        // Forwarded messages are posted together after the drain, so skip
+        // per-message capacity checks and intermediate-post signalling.
+        bool need_post = true;
+        const PagemapEntry& entry =
+          Config::Backend::get_metaentry(snmalloc::address_cast(m));
+        handle_dealloc_remote(entry, m, need_post, domesticate, bytes_flushed);
+      };
 
-        message_queue().destroy_and_iterate(domesticate, cb);
-      }
-      else
-      {
-        // Process incoming message queue
-        // Loop as normally only processes a batch
-        while (has_messages())
-          handle_message_queue<true>([]() {});
-      }
+      message_queue().drain_and_reset(domesticate, cb);
 
       auto& key = freelist::Object::key_root;
 
@@ -1514,7 +1507,7 @@ namespace snmalloc
         });
       };
 
-      bool sent_something = flush(true);
+      bool sent_something = flush();
 
       for (auto& alloc_class : alloc_classes)
       {

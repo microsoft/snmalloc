@@ -2,6 +2,7 @@
 
 #include "freelist_queue.h"
 #include "snmalloc/stl/new.h"
+#include "snmalloc/stl/utility.h"
 
 namespace snmalloc
 {
@@ -320,19 +321,14 @@ namespace snmalloc
       list.invariant();
     }
 
-    void init()
-    {
-      list.init();
-    }
-
     template<typename Domesticator_queue, typename Cb>
-    void destroy_and_iterate(Domesticator_queue domesticate, Cb cb)
+    void drain_and_reset(Domesticator_queue domesticate, Cb cb)
     {
-      auto cbwrap = [cb](freelist::HeadPtr p) SNMALLOC_FAST_PATH_LAMBDA {
+      auto cbwrap = [&cb](freelist::HeadPtr p) SNMALLOC_FAST_PATH_LAMBDA {
         cb(RemoteMessage::from_message_link(p));
       };
 
-      return list.destroy_and_iterate(domesticate, cbwrap);
+      return list.drain_and_reset(stl::move(domesticate), stl::move(cbwrap));
     }
 
     inline bool can_dequeue()
@@ -346,14 +342,17 @@ namespace snmalloc
      *
      * The Domesticator here is used only on pointers read from the head.  See
      * the commentary on the class.
+     *
+     * Returns true if this enqueue started a new queue generation, or false if
+     * it appended to an existing chain.
      */
     template<typename Domesticator_head>
-    void enqueue(
+    bool enqueue(
       capptr::Alloc<RemoteMessage> first,
       capptr::Alloc<RemoteMessage> last,
       Domesticator_head domesticate_head)
     {
-      list.enqueue(
+      return list.enqueue(
         RemoteMessage::to_message_link(first),
         RemoteMessage::to_message_link(last),
         domesticate_head);
