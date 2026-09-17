@@ -38,9 +38,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-26
             label-suffix: ''
-            label: macos-14
+            label: macos-26
             # macOS runners have AppleClang preinstalled but `llvm-cov`
             # / `llvm-profdata` are NOT on PATH (they live behind
             # `xcrun`). The coverage target's find_program(LLVM_COV ...)
