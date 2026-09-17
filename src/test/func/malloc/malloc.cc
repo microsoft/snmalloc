@@ -24,9 +24,9 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
     failed = true;
   }
   const auto alloc_size = testlib_malloc_usable_size(p);
-  const auto expected_size =
-    snmalloc::is_owned(p) ? testlib_malloc_good_size(size) : size;
-  const auto exact_size = align == 1;
+  const auto owned = snmalloc::is_owned(p);
+  const auto expected_size = owned ? testlib_malloc_good_size(size) : size;
+  const auto exact_size = owned && (align == 1);
 #ifdef __CHERI_PURE_CAPABILITY__
   const auto cheri_size = __builtin_cheri_length_get(p);
   if (cheri_size != alloc_size && (size != 0))
