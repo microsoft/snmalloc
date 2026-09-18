@@ -24,9 +24,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
     failed = true;
   }
   const auto alloc_size = testlib_malloc_usable_size(p);
-  const auto owned = snmalloc::is_owned(p);
-  const auto expected_size = owned ? testlib_malloc_good_size(size) : size;
-  const auto exact_size = owned && (align == 1);
+  const auto exact_size = snmalloc::is_owned(p) && (align == 1);
 #ifdef __CHERI_PURE_CAPABILITY__
   const auto cheri_size = __builtin_cheri_length_get(p);
   if (cheri_size != alloc_size && (size != 0))
@@ -61,18 +59,20 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
     }
   }
 #endif
-  if (exact_size && (alloc_size != expected_size) && (size != 0))
+  if (exact_size && (size != 0))
   {
-    INFO(
-      "Usable size is {}, but required to be {}.", alloc_size, expected_size);
-    failed = true;
+    const auto expected_size = testlib_malloc_good_size(size);
+    if (alloc_size != expected_size)
+    {
+      INFO(
+        "Usable size is {}, but required to be {}.", alloc_size, expected_size);
+      failed = true;
+    }
   }
-  if ((!exact_size) && (alloc_size < expected_size))
+  if ((!exact_size) && (alloc_size < size))
   {
     INFO(
-      "Usable size is {}, but required to be at least {}.",
-      alloc_size,
-      expected_size);
+      "Usable size is {}, but required to be at least {}.", alloc_size, size);
     failed = true;
   }
   if (((address_cast(p) % align) != 0) && (size != 0))
