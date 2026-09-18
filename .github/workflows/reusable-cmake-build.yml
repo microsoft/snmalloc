@@ -6,7 +6,7 @@ on:
       os:
         required: true
         type: string
-        description: 'Runner OS (e.g., ubuntu-24.04, macos-14, windows-2022)'
+        description: 'Runner OS (e.g., ubuntu-24.04, macos-26, windows-2022)'
       build-type:
         required: true
         type: string
