@@ -102,9 +102,10 @@ void consumer(const struct params* param, size_t qix)
            (queue_gate > param->N_CONSUMER));
 
   chatty("Cl %zu fini\n", qix);
-  myq.drain_and_reset(domesticate_nop, [](freelist::HeadPtr o) {
-    snmalloc::dealloc(o.as_void().unsafe_ptr());
-  });
+  myq.drain_and_reset(
+    domesticate_nop, domesticate_nop, [](freelist::HeadPtr o) {
+      snmalloc::dealloc(o.as_void().unsafe_ptr());
+    });
 }
 
 void proxy(const struct params* param, size_t qix)
@@ -136,9 +137,10 @@ void proxy(const struct params* param, size_t qix)
 
   chatty("Px %zu fini\n", qix);
 
-  myq.drain_and_reset(domesticate_nop, [](freelist::HeadPtr o) {
-    snmalloc::dealloc(o.as_void().unsafe_ptr());
-  });
+  myq.drain_and_reset(
+    domesticate_nop, domesticate_nop, [](freelist::HeadPtr o) {
+      snmalloc::dealloc(o.as_void().unsafe_ptr());
+    });
   queue_gate--;
 }
 
