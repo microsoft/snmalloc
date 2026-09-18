@@ -16,18 +16,14 @@ namespace snmalloc
    * for the client to reach as the Pagemap, which we trust to store not just
    * Tame CapPtr<>s but raw C++ pointers.
    *
-   * Where necessary, methods expose two domesticator callbacks at the
-   * interface and are careful to use one for the front and back values and the
-   * other for pointers read from the queue itself.  That's not ideal, but it
-   * lets the client condition its behavior appropriately and prevents us from
-   * accidentally following either of these pointers in generic code.
-   * Specifically,
+   * Where necessary, dequeue and draining expose two domesticator callbacks
+   * and are careful to use one for the front value and the other for pointers
+   * read from the queue itself.  Specifically,
    *
    *   * `domesticate_head` is used for the MPSCQ pointers used to reach into
    *     the chain of objects
    *
-   *   * `domesticate_queue` is used to traverse links in that chain (and in
-   *     fact, we traverse only the first).
+   *   * `domesticate_queue` is used to traverse links in that chain.
    *
    * In the case that the MPSCQ is not easily accessible to the client,
    * `domesticate_head` can just be a type coersion, and `domesticate_queue`
@@ -51,35 +47,88 @@ namespace snmalloc
       SNMALLOC_ASSERT(pointer_align_up(this, REMOTE_MIN_ALIGN) == this);
     }
 
-    void init()
-    {
-      back.store(nullptr);
-      front.store(nullptr);
-      invariant();
-    }
-
-    freelist::QueuePtr destroy()
-    {
-      if (back.load(stl::memory_order_relaxed) == nullptr)
-        return nullptr;
-
-      freelist::QueuePtr fnt = front.load();
-      back.store(nullptr, stl::memory_order_relaxed);
-      front.store(nullptr, stl::memory_order_relaxed);
-      return fnt;
-    }
-
+  private:
     template<typename Domesticator_queue, typename Cb>
-    void destroy_and_iterate(Domesticator_queue domesticate, Cb cb)
+    freelist::HeadPtr process_chain(
+      freelist::HeadPtr curr,
+      freelist::QueuePtr target,
+      Domesticator_queue& domesticate,
+      Cb& cb)
     {
-      auto p = domesticate(destroy());
-
-      while (p != nullptr)
+      while (address_cast(curr) != address_cast(target))
       {
-        auto n = p->atomic_read_next(Key, Key_tweak, domesticate);
-        cb(p);
-        p = n;
+        auto next = curr->atomic_read_next(Key, Key_tweak, domesticate);
+        if (SNMALLOC_UNLIKELY(next == nullptr))
+          return curr;
+
+        Aal::prefetch(next.unsafe_ptr());
+        if (SNMALLOC_UNLIKELY(!cb(curr)))
+          return next;
+
+        curr = next;
       }
+
+      return curr;
+    }
+
+  public:
+    /**
+     * Exactly one consumer role may execute this operation.  No dequeue,
+     * owning-allocator queue processing, or second drain may run concurrently.
+     *
+     * A producer that has exchanged back must eventually publish front or its
+     * predecessor link; otherwise this operation waits indefinitely.
+     *
+     * domesticate_head applies only to values loaded from front.
+     * domesticate_queue applies to successors decoded from message links.
+     *
+     * The queue is reset before the first callback.  The callback may therefore
+     * release or re-enqueue an object; any re-enqueue belongs to the
+     * replacement chain and is not consumed by this invocation.
+     */
+    template<
+      typename Domesticator_head,
+      typename Domesticator_queue,
+      typename Cb>
+    void drain_and_reset(
+      Domesticator_head domesticate_head,
+      Domesticator_queue domesticate_queue,
+      Cb cb)
+    {
+      // After reuse, acquire the release sequence headed by the preceding
+      // reset, so front cannot observe an earlier queue generation.
+      if (back.load(stl::memory_order_acquire) == nullptr)
+        return;
+
+      freelist::HeadPtr curr = nullptr;
+      do
+      {
+        auto raw = front.load(stl::memory_order_acquire);
+        if (raw != nullptr)
+          curr = domesticate_head(raw);
+        if (curr == nullptr)
+          Aal::pause();
+      } while (curr == nullptr);
+
+      // A producer that observes null back may immediately publish a new front,
+      // so the old front must be cleared before resetting back.
+      front.store(nullptr, stl::memory_order_relaxed);
+      auto target = back.exchange(nullptr, stl::memory_order_acq_rel);
+      SNMALLOC_ASSERT(target != nullptr);
+
+      auto process = [&cb](freelist::HeadPtr p) {
+        cb(p);
+        return true;
+      };
+
+      while (true)
+      {
+        curr = process_chain(curr, target, domesticate_queue, process);
+        if (address_cast(curr) == address_cast(target))
+          break;
+        Aal::pause();
+      }
+      cb(curr);
     }
 
     inline bool can_dequeue()
@@ -94,9 +143,13 @@ namespace snmalloc
      *
      * The Domesticator here is used only on pointers read from the head.  See
      * the commentary on the class.
+     *
+     * Returns true if this enqueue observed an empty back and started a new
+     * queue generation by publishing front.  Returns false if it appended to
+     * an existing chain.
      */
     template<typename Domesticator_head>
-    void enqueue(
+    bool enqueue(
       freelist::HeadPtr first,
       freelist::HeadPtr last,
       Domesticator_head domesticate_head)
@@ -125,12 +178,17 @@ namespace snmalloc
 
       if (SNMALLOC_LIKELY(prev != nullptr))
       {
+        // Once this store publishes first, a drain may observe it and release
+        // prev; this must therefore be this producer's final access to prev.
         freelist::Object::atomic_store_next(
           domesticate_head(prev), first, Key, Key_tweak);
-        return;
+        return false;
       }
 
+      // drain_and_reset clears front before resetting back, so only a producer
+      // whose exchange observed null may publish a replacement front.
       front.store(capptr_rewild(first));
+      return true;
     }
 
     /**
@@ -163,40 +221,12 @@ namespace snmalloc
       // Use back to bound, so we don't handle new entries.
       auto b = back.load(stl::memory_order_relaxed);
 
-      while (address_cast(curr) != address_cast(b))
-      {
-        freelist::HeadPtr next =
-          curr->atomic_read_next(Key, Key_tweak, domesticate_queue);
-        // We have observed a non-linearisable effect of the queue.
-        // Just go back to allocating normally.
-        if (SNMALLOC_UNLIKELY(next == nullptr))
-          break;
-        // We want this element next, so start it loading.
-        Aal::prefetch(next.unsafe_ptr());
-        if (SNMALLOC_UNLIKELY(!cb(curr)))
-        {
-          /*
-           * We've domesticate_queue-d next so that we can read through it, but
-           * we're storing it back into client-accessible memory in
-           * !QueueHeadsAreTame builds, so go ahead and consider it Wild again.
-           * On QueueHeadsAreTame builds, the subsequent domesticate_head call
-           * above will also be a type-level sleight of hand, but we can still
-           * justify it by the domesticate_queue that happened in this
-           * dequeue().
-           */
-          front = capptr_rewild(next);
-          invariant();
-          return;
-        }
-
-        curr = next;
-      }
-
       /*
-       * Here, we've hit the end of the queue: next is nullptr and curr has not
-       * been handed to the callback.  The same considerations about Wildness
-       * above hold here.
+       * process_chain may return a pointer domesticated from a queue link.
+       * Publishing it to client-accessible front requires it to be considered
+       * Wild again in !QueueHeadsAreTame builds.
        */
+      curr = process_chain(curr, b, domesticate_queue, cb);
       front = capptr_rewild(curr);
       invariant();
     }
