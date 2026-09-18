@@ -39,7 +39,7 @@ namespace snmalloc
       PagemapRegisterRange<Pagemap>,
       PagemapRegisterRange<Authmap>>;
 
-    using LocalState = StandardLocalState<Pal, Pagemap, Base>;
+    using LocalState = StandardLocalState<Pal, Pagemap, Authmap, Base>;
 
     using GlobalPoolState = PoolState<Allocator<CustomConfig>>;
 

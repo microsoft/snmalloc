@@ -307,12 +307,19 @@ void check_offset(void* base, void* interior)
 
 void check_external_pointer_large(size_t* base)
 {
+  // Probe `__malloc_start_pointer` at both ends of each 16 MiB
+  // stride within the allocation. The allocation size is recorded in
+  // the first word of the allocation itself. The end-of-stride probe
+  // is clamped to the last byte of the allocation.
   size_t size = *base;
   char* curr = (char*)base;
   for (size_t offset = 0; offset < size; offset += 1 << 24)
   {
     check_offset(base, (void*)(curr + offset));
-    check_offset(base, (void*)(curr + offset + (1 << 24) - 1));
+    size_t end = offset + (1 << 24) - 1;
+    if (end >= size)
+      end = size - 1;
+    check_offset(base, (void*)(curr + end));
   }
 }
 
@@ -437,6 +444,49 @@ void test_calloc_large_bug()
   SNMALLOC_CHECK(
     snmalloc::alloc_size(snmalloc::libc::__malloc_start_pointer(p1)) >= size);
   snmalloc::dealloc(p1);
+}
+
+/**
+ * `calloc` zeroing must cover exactly the reservation `round_size`
+ * reports — no more, no less. For a large request that lands in a
+ * non-pow2 sizeclass, the reservation is tighter than the next pow2,
+ * so a stray `next_pow2`-sized zeroing loop would overshoot into
+ * backend free range. This test allocates such a non-pow2 large
+ * request and verifies (a) the usable size is strictly less than the
+ * next pow2, and (b) every byte of the visible allocation is zero.
+ *
+ * Note: an overshoot may not fault — the deterministic gate for the
+ * `round_size` contract lives in the sizeclass test.
+ */
+void test_calloc_non_pow2_large()
+{
+  if constexpr (snmalloc::INTERMEDIATE_BITS == 0)
+  {
+    // All sizeclasses are powers of two in this configuration, so
+    // there is no non-pow2 large request to test.
+    std::cout << "INTERMEDIATE_BITS == 0: all sizeclasses pow2; skipping."
+              << std::endl;
+    return;
+  }
+
+  // 2.5 * MAX_SMALL_SIZECLASS_SIZE: definitely large, definitely not
+  // a power of two, and (with INTERMEDIATE_BITS >= 1) the smallest
+  // enclosing sizeclass is strictly less than the next pow2 above.
+  const size_t mss = size_t{1} << snmalloc::max_small_sizeclass_bits();
+  const size_t request = (mss << 1) + (mss >> 1);
+  const size_t next_pow2 = snmalloc::bits::next_pow2(request);
+
+  void* p = snmalloc::alloc<snmalloc::ZeroMem::YesZero>(request);
+  SNMALLOC_CHECK(p != nullptr);
+  const size_t usable = snmalloc::alloc_size(p);
+  SNMALLOC_CHECK(usable >= request);
+  SNMALLOC_CHECK(usable < next_pow2);
+  auto* bytes = static_cast<unsigned char*>(p);
+  for (size_t i = 0; i < usable; i++)
+  {
+    SNMALLOC_CHECK(bytes[i] == 0);
+  }
+  snmalloc::dealloc(p);
 }
 
 template<size_t asz, int dealloc = 2>
@@ -589,6 +639,7 @@ int main(int, char**)
   TEST(test_external_pointer);
   TEST(test_alloc_16M);
   TEST(test_calloc_16M);
+  TEST(test_calloc_non_pow2_large);
   TEST(test_consolidaton_bug);
 
   std::cout << "Tests completeed successfully!" << std::endl;

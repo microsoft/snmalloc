@@ -10,8 +10,8 @@ namespace snmalloc
   {
     // This is a range that can bypass the OptionalRange if it is disabled.
     // Disabling is global, and not local.
-    // This is used to allow disabling thread local buddy allocators when the
-    // initial fixed size heap is small.
+    // This is used to allow disabling the thread-local cache range when
+    // the initial fixed-size heap is small.
     //
     // The range builds a more complex parent
     //    Pipe<ParentRange, OptionalRange>
