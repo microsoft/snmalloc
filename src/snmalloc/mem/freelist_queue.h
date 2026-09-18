@@ -16,10 +16,9 @@ namespace snmalloc
    * for the client to reach as the Pagemap, which we trust to store not just
    * Tame CapPtr<>s but raw C++ pointers.
    *
-   * Where necessary, dequeue exposes two domesticator callbacks and is careful
-   * to use one for the front value and the other for pointers read from the
-   * queue itself.  Draining uses its queue domesticator for both the front
-   * value and links in the chain.  Specifically,
+   * Where necessary, dequeue and draining expose two domesticator callbacks
+   * and are careful to use one for the front value and the other for pointers
+   * read from the queue itself.  Specifically,
    *
    *   * `domesticate_head` is used for the MPSCQ pointers used to reach into
    *     the chain of objects
@@ -80,12 +79,21 @@ namespace snmalloc
      * A producer that has exchanged back must eventually publish front or its
      * predecessor link; otherwise this operation waits indefinitely.
      *
+     * domesticate_head applies only to values loaded from front.
+     * domesticate_queue applies to successors decoded from message links.
+     *
      * The queue is reset before the first callback.  The callback may therefore
      * release or re-enqueue an object; any re-enqueue belongs to the
      * replacement chain and is not consumed by this invocation.
      */
-    template<typename Domesticator_queue, typename Cb>
-    void drain_and_reset(Domesticator_queue domesticate, Cb cb)
+    template<
+      typename Domesticator_head,
+      typename Domesticator_queue,
+      typename Cb>
+    void drain_and_reset(
+      Domesticator_head domesticate_head,
+      Domesticator_queue domesticate_queue,
+      Cb cb)
     {
       // After reuse, acquire the release sequence headed by the preceding
       // reset, so front cannot observe an earlier queue generation.
@@ -97,7 +105,7 @@ namespace snmalloc
       {
         auto raw = front.load(stl::memory_order_acquire);
         if (raw != nullptr)
-          curr = domesticate(raw);
+          curr = domesticate_head(raw);
         if (curr == nullptr)
           Aal::pause();
       } while (curr == nullptr);
@@ -115,7 +123,7 @@ namespace snmalloc
 
       while (true)
       {
-        curr = process_chain(curr, target, domesticate, process);
+        curr = process_chain(curr, target, domesticate_queue, process);
         if (address_cast(curr) == address_cast(target))
           break;
         Aal::pause();

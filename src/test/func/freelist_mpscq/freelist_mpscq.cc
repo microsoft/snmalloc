@@ -59,7 +59,9 @@ namespace
     size_t callbacks = 0;
 
     queue.drain_and_reset(
-      domesticate, [&callbacks](freelist::HeadPtr) { callbacks++; });
+      domesticate, domesticate, [&callbacks](freelist::HeadPtr) {
+        callbacks++;
+      });
 
     SNMALLOC_CHECK(callbacks == 0);
     check_empty(queue);
@@ -85,7 +87,9 @@ namespace
       !queue.enqueue(as_head(batch_first), as_head(batch_last), domesticate));
 
     queue.drain_and_reset(
-      domesticate, [&order](freelist::HeadPtr value) { order.add(value); });
+      domesticate, domesticate, [&order](freelist::HeadPtr value) {
+        order.add(value);
+      });
 
     SNMALLOC_CHECK(order.count == 4);
     SNMALLOC_CHECK(
@@ -104,7 +108,9 @@ namespace
 
     order.count = 0;
     queue.drain_and_reset(
-      domesticate, [&order](freelist::HeadPtr value) { order.add(value); });
+      domesticate, domesticate, [&order](freelist::HeadPtr value) {
+        order.add(value);
+      });
     SNMALLOC_CHECK(order.count == 2);
     SNMALLOC_CHECK(
       address_cast(order.values[0]) == address_cast(as_head(replacement)));
@@ -186,7 +192,9 @@ namespace
 
     order.count = 0;
     queue.drain_and_reset(
-      domesticate, [&order](freelist::HeadPtr value) { order.add(value); });
+      domesticate, domesticate, [&order](freelist::HeadPtr value) {
+        order.add(value);
+      });
     SNMALLOC_CHECK(order.count == 1);
     SNMALLOC_CHECK(
       address_cast(order.values[0]) == address_cast(as_head(objects[2])));
@@ -221,7 +229,9 @@ namespace
     freelist::Object::atomic_store_next(
       as_head(first), as_head(second), queue_key, NO_KEY_TWEAK);
     queue.drain_and_reset(
-      domesticate, [&callbacks](freelist::HeadPtr) { callbacks++; });
+      domesticate, domesticate, [&callbacks](freelist::HeadPtr) {
+        callbacks++;
+      });
     SNMALLOC_CHECK(callbacks == 2);
     check_empty(queue);
   }
@@ -261,7 +271,53 @@ namespace
 
     freelist::Object::atomic_store_null(
       as_head(first), queue_key, NO_KEY_TWEAK);
-    queue.drain_and_reset(domesticate, [](freelist::HeadPtr) {});
+    queue.drain_and_reset(domesticate, domesticate, [](freelist::HeadPtr) {});
+    check_empty(queue);
+  }
+
+  void test_drain_uses_distinct_domesticators()
+  {
+    Queue queue;
+    Object objects[3];
+    CallbackOrder order;
+    size_t head_domesticates = 0;
+    size_t queue_domesticates = 0;
+
+    freelist::Object::atomic_store_next(
+      as_head(objects[0]), as_head(objects[1]), queue_key, NO_KEY_TWEAK);
+    freelist::Object::atomic_store_next(
+      as_head(objects[1]), as_head(objects[2]), queue_key, NO_KEY_TWEAK);
+    SNMALLOC_CHECK(
+      queue.enqueue(as_head(objects[0]), as_head(objects[2]), domesticate));
+
+    auto domesticate_head = [&](freelist::QueuePtr value) -> freelist::HeadPtr {
+      head_domesticates++;
+      SNMALLOC_CHECK(address_cast(value) == address_cast(as_head(objects[0])));
+      return domesticate(value);
+    };
+    auto domesticate_queue =
+      [&](freelist::QueuePtr value) -> freelist::HeadPtr {
+      queue_domesticates++;
+      SNMALLOC_CHECK(address_cast(value) != address_cast(as_head(objects[0])));
+      SNMALLOC_CHECK(
+        (address_cast(value) == address_cast(as_head(objects[1]))) ||
+        (address_cast(value) == address_cast(as_head(objects[2]))));
+      return domesticate(value);
+    };
+
+    queue.drain_and_reset(
+      domesticate_head, domesticate_queue, [&order](freelist::HeadPtr value) {
+        order.add(value);
+      });
+
+    SNMALLOC_CHECK(head_domesticates == 1);
+    SNMALLOC_CHECK(queue_domesticates == 2);
+    SNMALLOC_CHECK(order.count == 3);
+    for (size_t i = 0; i < 3; i++)
+    {
+      SNMALLOC_CHECK(
+        address_cast(order.values[i]) == address_cast(as_head(objects[i])));
+    }
     check_empty(queue);
   }
 
@@ -278,7 +334,7 @@ namespace
                &callbacks](capptr::Alloc<RemoteMessage>) mutable {
       callbacks += (*token)++;
     };
-    remote.drain_and_reset(domesticate, std::move(cb));
+    remote.drain_and_reset(domesticate, domesticate, std::move(cb));
 
     SNMALLOC_CHECK(callbacks == 1);
     SNMALLOC_CHECK(remote.list.back.load(stl::memory_order_relaxed) == nullptr);
@@ -302,10 +358,11 @@ namespace
 
     std::thread consumer([&]() {
       entered.store(true, std::memory_order_release);
-      queue.drain_and_reset(domesticate, [&](freelist::HeadPtr value) {
-        SNMALLOC_CHECK(address_cast(value) == address_cast(as_head(object)));
-        callbacks.fetch_add(1, std::memory_order_relaxed);
-      });
+      queue.drain_and_reset(
+        domesticate, domesticate, [&](freelist::HeadPtr value) {
+          SNMALLOC_CHECK(address_cast(value) == address_cast(as_head(object)));
+          callbacks.fetch_add(1, std::memory_order_relaxed);
+        });
       completed.store(true, std::memory_order_release);
     });
 
@@ -341,9 +398,10 @@ namespace
 
     std::thread consumer([&]() {
       entered.store(true, std::memory_order_release);
-      queue.drain_and_reset(domesticate, [&callbacks](freelist::HeadPtr) {
-        callbacks.fetch_add(1, std::memory_order_relaxed);
-      });
+      queue.drain_and_reset(
+        domesticate, domesticate, [&callbacks](freelist::HeadPtr) {
+          callbacks.fetch_add(1, std::memory_order_relaxed);
+        });
       completed.store(true, std::memory_order_release);
     });
 
@@ -383,7 +441,7 @@ namespace
 
     std::thread consumer([&]() {
       queue.drain_and_reset(
-        validating_domesticate, [&callbacks](freelist::HeadPtr) {
+        validating_domesticate, domesticate, [&callbacks](freelist::HeadPtr) {
           callbacks.fetch_add(1, std::memory_order_relaxed);
         });
       completed.store(true, std::memory_order_release);
@@ -397,6 +455,48 @@ namespace
     consumer.join();
 
     SNMALLOC_CHECK(callbacks.load(std::memory_order_relaxed) == 1);
+    SNMALLOC_CHECK(completed.load(std::memory_order_acquire));
+    check_empty(queue);
+  }
+
+  void test_rejected_successor()
+  {
+    Queue queue;
+    Object first;
+    Object second;
+    std::atomic<bool> reject{true};
+    std::atomic<bool> attempted{false};
+    std::atomic<bool> completed{false};
+    std::atomic<size_t> callbacks{0};
+
+    freelist::Object::atomic_store_next(
+      as_head(first), as_head(second), queue_key, NO_KEY_TWEAK);
+    SNMALLOC_CHECK(queue.enqueue(as_head(first), as_head(second), domesticate));
+
+    auto validating_domesticate = [&reject,
+                                   &attempted](freelist::QueuePtr value) {
+      attempted.store(true, std::memory_order_release);
+      if (reject.load(std::memory_order_acquire))
+        return freelist::HeadPtr(nullptr);
+      return domesticate(value);
+    };
+
+    std::thread consumer([&]() {
+      queue.drain_and_reset(
+        domesticate, validating_domesticate, [&callbacks](freelist::HeadPtr) {
+          callbacks.fetch_add(1, std::memory_order_relaxed);
+        });
+      completed.store(true, std::memory_order_release);
+    });
+
+    wait_until([&]() { return attempted.load(std::memory_order_acquire); });
+    SNMALLOC_CHECK(!completed.load(std::memory_order_acquire));
+    SNMALLOC_CHECK(callbacks.load(std::memory_order_relaxed) == 0);
+
+    reject.store(false, std::memory_order_release);
+    consumer.join();
+
+    SNMALLOC_CHECK(callbacks.load(std::memory_order_relaxed) == 2);
     SNMALLOC_CHECK(completed.load(std::memory_order_acquire));
     check_empty(queue);
   }
@@ -415,15 +515,17 @@ namespace
       queue.enqueue(as_head(objects[0]), as_head(objects[1]), domesticate));
 
     std::thread consumer([&]() {
-      queue.drain_and_reset(domesticate, [&](freelist::HeadPtr value) {
-        order.add(value);
-        if (address_cast(value) == address_cast(as_head(objects[0])))
-        {
-          first_callback.store(true, std::memory_order_release);
-          wait_until(
-            [&]() { return release_callback.load(std::memory_order_acquire); });
-        }
-      });
+      queue.drain_and_reset(
+        domesticate, domesticate, [&](freelist::HeadPtr value) {
+          order.add(value);
+          if (address_cast(value) == address_cast(as_head(objects[0])))
+          {
+            first_callback.store(true, std::memory_order_release);
+            wait_until([&]() {
+              return release_callback.load(std::memory_order_acquire);
+            });
+          }
+        });
     });
 
     wait_until(
@@ -446,7 +548,9 @@ namespace
 
     order.count = 0;
     queue.drain_and_reset(
-      domesticate, [&order](freelist::HeadPtr value) { order.add(value); });
+      domesticate, domesticate, [&order](freelist::HeadPtr value) {
+        order.add(value);
+      });
     SNMALLOC_CHECK(order.count == 2);
     for (size_t i = 0; i < 2; i++)
     {
@@ -519,12 +623,13 @@ namespace
     while (producers_live.load(std::memory_order_acquire) != 0 ||
            queue.back.load(stl::memory_order_relaxed) != nullptr)
     {
-      queue.drain_and_reset(domesticate, [&](freelist::HeadPtr value) {
-        size_t index = find_object(objects.get(), object_count, value);
-        SNMALLOC_CHECK(
-          seen[index].fetch_add(1, std::memory_order_relaxed) == 0);
-        callbacks++;
-      });
+      queue.drain_and_reset(
+        domesticate, domesticate, [&](freelist::HeadPtr value) {
+          size_t index = find_object(objects.get(), object_count, value);
+          SNMALLOC_CHECK(
+            seen[index].fetch_add(1, std::memory_order_relaxed) == 0);
+          callbacks++;
+        });
       std::this_thread::yield();
     }
 
@@ -543,7 +648,7 @@ namespace
     SNMALLOC_CHECK(
       queue.enqueue(as_head(replacement), as_head(replacement), domesticate));
     SNMALLOC_CHECK(queue.back.load(stl::memory_order_relaxed) != nullptr);
-    queue.drain_and_reset(domesticate, [](freelist::HeadPtr) {});
+    queue.drain_and_reset(domesticate, domesticate, [](freelist::HeadPtr) {});
     check_empty(queue);
   }
 
@@ -619,17 +724,18 @@ namespace
     while (!producer_done.load(std::memory_order_acquire) ||
            queue.back.load(stl::memory_order_relaxed) != nullptr)
     {
-      queue.drain_and_reset(domesticate, [&](freelist::HeadPtr value) {
-        size_t index = find_object(objects, object_count, value);
-        SNMALLOC_CHECK(states[index].load(std::memory_order_acquire) == 1);
-        size_t round = generation[index].load(std::memory_order_relaxed);
-        SNMALLOC_CHECK(
-          seen[(round * object_count) + index].fetch_add(
-            1, std::memory_order_relaxed) == 0);
-        callbacks++;
-        states[index].store(0, std::memory_order_release);
-        std::this_thread::yield();
-      });
+      queue.drain_and_reset(
+        domesticate, domesticate, [&](freelist::HeadPtr value) {
+          size_t index = find_object(objects, object_count, value);
+          SNMALLOC_CHECK(states[index].load(std::memory_order_acquire) == 1);
+          size_t round = generation[index].load(std::memory_order_relaxed);
+          SNMALLOC_CHECK(
+            seen[(round * object_count) + index].fetch_add(
+              1, std::memory_order_relaxed) == 0);
+          callbacks++;
+          states[index].store(0, std::memory_order_release);
+          std::this_thread::yield();
+        });
     }
     producer.join();
 
@@ -656,10 +762,12 @@ int main(int argc, char** argv)
   test_dequeue_positions();
   test_dequeue_publication_gap();
   test_dequeue_checks_bound_first();
+  test_drain_uses_distinct_domesticators();
   test_remote_allocator_move_only_callback();
   test_front_publication_gap();
   test_successor_publication_gap();
   test_rejected_front();
+  test_rejected_successor();
   test_callback_starts_replacement();
   test_concurrent_producers(heavy ? 4096 : 256);
   test_reuse(heavy ? 256 : 16);

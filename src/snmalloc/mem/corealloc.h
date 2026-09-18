@@ -1412,7 +1412,18 @@ namespace snmalloc
         handle_dealloc_remote(entry, m, need_post, domesticate, bytes_flushed);
       };
 
-      message_queue().drain_and_reset(domesticate, cb);
+      if constexpr (Config::Options.QueueHeadsAreTame)
+      {
+        auto domesticate_first =
+          [](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
+            return freelist::HeadPtr::unsafe_from(p.unsafe_ptr());
+          };
+        message_queue().drain_and_reset(domesticate_first, domesticate, cb);
+      }
+      else
+      {
+        message_queue().drain_and_reset(domesticate, domesticate, cb);
+      }
 
       auto& key = freelist::Object::key_root;
 

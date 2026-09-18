@@ -321,14 +321,23 @@ namespace snmalloc
       list.invariant();
     }
 
-    template<typename Domesticator_queue, typename Cb>
-    void drain_and_reset(Domesticator_queue domesticate, Cb cb)
+    template<
+      typename Domesticator_head,
+      typename Domesticator_queue,
+      typename Cb>
+    void drain_and_reset(
+      Domesticator_head domesticate_head,
+      Domesticator_queue domesticate_queue,
+      Cb cb)
     {
       auto cbwrap = [&cb](freelist::HeadPtr p) SNMALLOC_FAST_PATH_LAMBDA {
         cb(RemoteMessage::from_message_link(p));
       };
 
-      return list.drain_and_reset(stl::move(domesticate), stl::move(cbwrap));
+      return list.drain_and_reset(
+        stl::move(domesticate_head),
+        stl::move(domesticate_queue),
+        stl::move(cbwrap));
     }
 
     inline bool can_dequeue()
