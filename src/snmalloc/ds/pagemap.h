@@ -343,15 +343,22 @@ namespace snmalloc
             PAL::error("Internal error: Pagemap read access out of range.");
           }
         }
-        p = p - base;
       }
 
       //  If this is potentially_out_of_range, then the pages will not have
       //  been mapped. With Lazy commit they will at least be mapped read-only
       //  Note that: this means external pointer on Windows will be slow.
+      //  register_range takes an unadjusted address: it does its own
+      //  base-relative arithmetic when has_bounds, so it must be called
+      //  before the p = p - base adjustment below.
       if constexpr (potentially_out_of_range && !pal_supports<LazyCommit, PAL>)
       {
         register_range(p, 1);
+      }
+
+      if constexpr (has_bounds)
+      {
+        p = p - base;
       }
 
       if constexpr (potentially_out_of_range)

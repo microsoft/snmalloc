@@ -288,6 +288,21 @@ namespace snmalloc
       return BITS - clz_const(x - 1);
     }
 
+    /**
+     * Returns `floor(log2(x))`, i.e. the bit index of the highest set bit
+     * of `x`. Correct for `x >= 1`; calling with `x == 0` is UB (it would
+     * call `clz(0)`, whose precondition is `x != 0`).
+     */
+    inline SNMALLOC_FAST_PATH size_t prev_pow2_bits(size_t x)
+    {
+      return BITS - 1 - clz(x);
+    }
+
+    constexpr size_t prev_pow2_bits_const(size_t x)
+    {
+      return BITS - 1 - clz_const(x);
+    }
+
     constexpr SNMALLOC_FAST_PATH size_t
     align_down(size_t value, size_t alignment)
     {
@@ -346,6 +361,35 @@ namespace snmalloc
 
       size_t e =
         bits::BITS - MANTISSA_BITS - LOW_BITS - clz_const(value | LEADING_BIT);
+      size_t b = (e == 0) ? 0 : 1;
+      size_t m = (value >> (LOW_BITS + e - b)) & MANTISSA_MASK;
+
+      return (e << MANTISSA_BITS) + m;
+    }
+
+    /**
+     * Runtime counterpart of `to_exp_mant_const`. Identical semantics, but
+     * uses the `clz` intrinsic instead of the 64-iteration `clz_const`
+     * loop, which makes it suitable for the allocation fast path.
+     *
+     * Requires `MANTISSA_BITS + LOW_BITS > 0` so that `value | LEADING_BIT`
+     * is never zero, satisfying `clz`'s precondition.
+     */
+    template<size_t MANTISSA_BITS, size_t LOW_BITS = 0>
+    inline SNMALLOC_FAST_PATH size_t to_exp_mant(size_t value)
+    {
+      static_assert(
+        MANTISSA_BITS + LOW_BITS > 0,
+        "to_exp_mant requires MANTISSA_BITS + LOW_BITS > 0 so that "
+        "value | LEADING_BIT is non-zero (clz precondition)");
+
+      constexpr size_t LEADING_BIT = one_at_bit(MANTISSA_BITS + LOW_BITS) >> 1;
+      constexpr size_t MANTISSA_MASK = mask_bits(MANTISSA_BITS);
+
+      value = value - 1;
+
+      size_t e =
+        bits::BITS - MANTISSA_BITS - LOW_BITS - clz(value | LEADING_BIT);
       size_t b = (e == 0) ? 0 : 1;
       size_t m = (value >> (LOW_BITS + e - b)) & MANTISSA_MASK;
 

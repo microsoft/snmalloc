@@ -14,6 +14,17 @@
 using namespace snmalloc;
 static constexpr size_t GRANULARITY_BITS = 20;
 
+/**
+ * Test PAL that wraps DefaultPal but strips LazyCommit from pal_features.
+ * Used to exercise the get<true> code path that calls register_range on
+ * a bounded pagemap — see test_get_potentially_out_of_range_bounded below.
+ */
+struct NoLazyCommitPal : public DefaultPal
+{
+  static constexpr uint64_t pal_features =
+    DefaultPal::pal_features & ~static_cast<uint64_t>(LazyCommit);
+};
+
 struct T
 {
   size_t v = 99;
@@ -26,6 +37,9 @@ struct T
 FlatPagemap<GRANULARITY_BITS, T, DefaultPal, false> pagemap_test_unbound;
 
 FlatPagemap<GRANULARITY_BITS, T, DefaultPal, true> pagemap_test_bound;
+
+FlatPagemap<GRANULARITY_BITS, T, NoLazyCommitPal, true>
+  pagemap_test_bound_no_lazy;
 
 size_t failure_count = 0;
 
@@ -157,6 +171,30 @@ int main(int argc, char** argv)
 
   test_pagemap(false);
   test_pagemap(true);
+
+  // Regression test for the bounded + !LazyCommit path of get<true>.
+  // Previously, get_mut<true> base-adjusted p before calling register_range,
+  // which double-subtracted base inside register_range and tripped the
+  // out-of-range guard for legitimate in-range addresses.
+  {
+    auto size = bits::one_at_bit(GRANULARITY_BITS + 4);
+    auto* base = NoLazyCommitPal::reserve(size);
+    NoLazyCommitPal::notify_using<NoZero>(base, size);
+    auto [heap_base, heap_size] = pagemap_test_bound_no_lazy.init(base, size);
+    auto low = address_cast(heap_base);
+
+    pagemap_test_bound_no_lazy.set(low, T(7));
+
+    // get<true> with has_bounds && !LazyCommit must not error on an in-range
+    // address: the underlying register_range call sees a fully-adjusted base.
+    T value = pagemap_test_bound_no_lazy.get<true>(low);
+    if (value.v != 7)
+    {
+      std::cout << "get<true> bounded !LazyCommit: read " << value.v
+                << " expected 7" << std::endl;
+      failure_count++;
+    }
+  }
 
   if (failure_count != 0)
   {

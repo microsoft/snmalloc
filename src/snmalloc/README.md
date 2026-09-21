@@ -20,7 +20,7 @@ These are arranged in a hierarchy such that each of the directories may include 
  - `mem/` provides the core allocator abstractions.
    The code here is templated over a back-end, which defines a particular embedding of snmalloc.
  - `backend_helpers/` provides helper classes for use in defining a back end.
-   This includes data structures such as pagemap implementations (efficient maps from a chunk address to associated metadata) and buddy allocators for managing address-space ranges.
+   This includes data structures such as pagemap implementations (efficient maps from a chunk address to associated metadata) and range allocators for managing address-space ranges.
  - `backend/` provides some example implementations for snmalloc embeddings that provide a global memory allocator for an address space.
    Users may ignore this entirely and use the types in `mem/` with a custom back end to expose an snmalloc instance with specific behaviour.
    Layers above this can be used with a custom configuration by defining `SNMALLOC_PROVIDE_OWN_CONFIG` and exporting a type as `snmalloc::Config` that defines the configuration.

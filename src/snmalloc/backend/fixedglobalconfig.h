@@ -39,10 +39,17 @@ namespace snmalloc
       {
         return Aal::capptr_rebound(arena, c);
       }
+
+      template<bool potentially_out_of_range = false>
+      static SNMALLOC_FAST_PATH capptr::Arena<void>
+      amplify_from_address(address_t a)
+      {
+        return pointer_offset(arena, a - address_cast(arena));
+      }
     };
 
   public:
-    using LocalState = StandardLocalState<PAL, Pagemap>;
+    using LocalState = StandardLocalState<PAL, Pagemap, Authmap>;
 
     using GlobalPoolState = PoolState<Allocator<FixedRangeConfig>>;
 
@@ -86,7 +93,7 @@ namespace snmalloc
         Pagemap::concretePagemap.init(base, length);
 
       // Make this a alloc_config constant.
-      if (length < MIN_HEAP_SIZE_FOR_THREAD_LOCAL_BUDDY)
+      if (length < MIN_HEAP_SIZE_FOR_THREAD_LOCAL_CACHE)
       {
         LocalState::set_small_heap();
       }

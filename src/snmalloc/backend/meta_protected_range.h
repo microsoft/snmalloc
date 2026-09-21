@@ -24,6 +24,7 @@ namespace snmalloc
   template<
     typename PAL,
     typename Pagemap,
+    typename Authmap,
     typename Base,
     size_t MinSizeBits = MinBaseSizeBits<PAL>()>
   struct MetaProtectedRangeLocalState : BaseLocalStateConstants
@@ -32,7 +33,7 @@ namespace snmalloc
     // Global range of memory
     using GlobalR = Pipe<
       Base,
-      LargeBuddyRange<
+      LargeArenaRange<
         GlobalCacheSizeBits,
         bits::BITS - 1,
         Pagemap,
@@ -51,7 +52,7 @@ namespace snmalloc
     // would be able to corrupt meta-data.
     using CentralObjectRange = Pipe<
       GlobalR,
-      LargeBuddyRange<GlobalCacheSizeBits, bits::BITS - 1, Pagemap>,
+      LargeArenaRange<GlobalCacheSizeBits, bits::BITS - 1, Pagemap>,
       LogRange<3>,
       GlobalRange,
       CommitRange<PAL>,
@@ -67,7 +68,7 @@ namespace snmalloc
       GlobalR,
       SubRange<PAL, SubRangeRatioBits>, // Use SubRange to introduce guard
                                         // pages.
-      LargeBuddyRange<
+      LargeArenaRange<
         GlobalCacheSizeBits,
         bits::BITS - 1,
         Pagemap,
@@ -77,7 +78,7 @@ namespace snmalloc
       // page, so commit in the global range.
       stl::conditional_t<
         (max_page_chunk_size_bits > MIN_CHUNK_BITS),
-        LargeBuddyRange<
+        LargeArenaRange<
           max_page_chunk_size_bits,
           max_page_chunk_size_bits,
           Pagemap,
@@ -90,7 +91,7 @@ namespace snmalloc
     // Local caching of object range
     using ObjectRange = Pipe<
       CentralObjectRange,
-      LargeBuddyRange<
+      LargeArenaRange<
         LocalCacheSizeBits,
         LocalCacheSizeBits,
         Pagemap,
@@ -100,17 +101,23 @@ namespace snmalloc
     // Local caching of meta-data range
     using MetaRange = Pipe<
       CentralMetaRange,
-      LargeBuddyRange<
+      LargeArenaRange<
         LocalCacheSizeBits - SubRangeRatioBits,
         bits::BITS - 1,
         Pagemap>,
-      SmallBuddyRange>;
+      SmallArenaRange<Authmap>>;
 
     ObjectRange object_range;
 
     MetaRange meta_range;
 
   public:
+    /// Granularity of the local meta range. Backend rounds metadata
+    /// allocation sizes up to this; replaces pow2 rounding.
+    static constexpr size_t MIN_META_ALIGN = MetaRange::UNIT_SIZE;
+    static_assert(
+      bits::is_pow2(MIN_META_ALIGN), "MIN_META_ALIGN must be a power of two");
+
     using Stats = StatsCombiner<CentralObjectRange, CentralMetaRange>;
 
     ObjectRange* get_object_range()
@@ -124,9 +131,9 @@ namespace snmalloc
     }
 
     // Create global range that can service small meta-data requests.
-    // Don't want to add the SmallBuddyRange to the CentralMetaRange as that
+    // Don't want to add the SmallArenaRange to the CentralMetaRange as that
     // would require committing memory inside the main global lock.
     using GlobalMetaRange =
-      Pipe<CentralMetaRange, SmallBuddyRange, GlobalRange>;
+      Pipe<CentralMetaRange, SmallArenaRange<Authmap>, GlobalRange>;
   };
 } // namespace snmalloc
