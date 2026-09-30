@@ -18,6 +18,7 @@
 #  include <windows.h>
 #  pragma comment(lib, "bcrypt.lib")
 #  include <bcrypt.h>
+#  pragma comment(lib, "ntdll.lib")
 // VirtualAlloc2 is exposed in RS5 headers.
 #  ifdef NTDDI_WIN10_RS5
 #    if (NTDDI_VERSION >= NTDDI_WIN10_RS5) && \
@@ -58,6 +59,15 @@
  * Linker-provided symbol at the base address of the current module.
  */
 extern "C" IMAGE_DOS_HEADER __ImageBase;
+
+/**
+ * Returns TRUE if the loader has started shutting down the process, and FALSE
+ * otherwise, including when a DLL is unloaded by FreeLibrary while the process
+ * continues to run.  This is exported by ntdll.dll, but not declared in the
+ * SDK headers, so must be declared by the caller.  See
+ * https://learn.microsoft.com/en-us/windows/win32/devnotes/rtldllshutdowninprogress
+ */
+extern "C" __declspec(dllimport) BOOLEAN NTAPI RtlDllShutdownInProgress();
 
 namespace snmalloc
 {
@@ -256,33 +266,6 @@ namespace snmalloc
       return (nt_headers->FileHeader.Characteristics & IMAGE_FILE_DLL) != 0;
     }
 
-    /**
-     * Returns true if the loader has started shutting down the process.  DLL
-     * detach notifications and fiber-local storage callbacks run after this
-     * point.  Returns false if a module is being unloaded by FreeLibrary
-     * while the process continues to run.
-     *
-     * This wraps ntdll's RtlDllShutdownInProgress, which is not declared in
-     * the SDK headers, so it is looked up dynamically.  If it cannot be
-     * found, this returns false.
-     */
-    static bool dll_shutdown_in_progress()
-    {
-      HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
-      if (ntdll == nullptr)
-        return false;
-
-      FARPROC proc = GetProcAddress(ntdll, "RtlDllShutdownInProgress");
-      if (proc == nullptr)
-        return false;
-
-      // Cast through void(*)() to avoid function-type cast warnings.
-      using RtlDllShutdownInProgressFn = BOOLEAN(NTAPI*)();
-      auto fn = reinterpret_cast<RtlDllShutdownInProgressFn>(
-        reinterpret_cast<void (*)()>(proc));
-      return fn() != FALSE;
-    }
-
     /// Notify platform that we will not be using these pages
     static void notify_not_using(void* p, size_t size) noexcept
     {
@@ -475,7 +458,7 @@ namespace snmalloc
       // the memory when the process terminates.
       if (
         !snmalloc::PALWindows::current_module_is_dll() ||
-        snmalloc::PALWindows::dll_shutdown_in_progress())
+        RtlDllShutdownInProgress())
         return;
 
       if (data)

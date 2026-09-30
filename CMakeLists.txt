@@ -379,6 +379,9 @@ if (WIN32)
   # VirtualAlloc2 is exposed by mincore.lib, not Kernel32.lib (as the
   # documentation says)
   target_link_libraries(snmalloc INTERFACE $<$<NOT:$<BOOL:${WIN8COMPAT}>>:mincore>)
+  # RtlDllShutdownInProgress is exported by ntdll.  MSVC links this via a
+  # pragma in pal_windows.h, but MinGW ignores that pragma.
+  target_link_libraries(snmalloc INTERFACE ntdll)
   message(STATUS "snmalloc: Avoiding Windows 10 APIs is ${WIN8COMPAT}")
 endif()
 

@@ -583,6 +583,7 @@ fn configure_linking(config: &BuildConfig) {
             println!("cargo:rustc-link-lib=ws2_32");
             println!("cargo:rustc-link-lib=userenv");
             println!("cargo:rustc-link-lib=bcrypt");
+            println!("cargo:rustc-link-lib=ntdll");
             if config.debug {
                 println!("cargo:rustc-link-lib=msvcrtd");
             } else {
@@ -592,6 +593,7 @@ fn configure_linking(config: &BuildConfig) {
         _ if config.is_windows() && config.is_gnu() => {
             println!("cargo:rustc-link-lib=kernel32");
             println!("cargo:rustc-link-lib=bcrypt");
+            println!("cargo:rustc-link-lib=ntdll");
             println!("cargo:rustc-link-lib=winpthread");
 
             if config.is_clang_msys() {
