@@ -548,8 +548,8 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   # These are mitigation-independent and can be compiled once, then linked
   # against both fast and check testlib variants.
   set(TESTLIB_ONLY_TESTS
-    bits first_operation fls_teardown memory memory_usage multi_atexit
-    multi_threadatexit
+    bits dll_teardown first_operation fls_teardown memory memory_usage
+    multi_atexit multi_threadatexit
     redblack statistics teardown
     contention external_pointer large_alloc lotsofthreads post_teardown
     singlethread startup
@@ -635,6 +635,10 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
             "LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/profiles/${TESTNAME}/%p-%m.profraw")
         endif()
         if(WIN32)
+          if (${TEST} STREQUAL "dll_teardown")
+            add_dependencies(${TESTNAME}
+              snmalloc-dll-teardown-alloc snmalloc-dll-teardown-touch)
+          endif()
           # On Windows these tests use a lot of memory as it doesn't support
           # lazy commit.
           if (${TEST} MATCHES "two_alloc_types")
@@ -804,6 +808,22 @@ if(NOT SNMALLOC_HEADER_ONLY_LIBRARY)
   endif()
 
   if (SNMALLOC_BUILD_TESTING)
+    if (WIN32)
+      # DLLs loaded by the func-dll_teardown tests.
+      add_library(snmalloc-dll-teardown-alloc SHARED
+        ${TESTDIR}/func/dll_teardown/dll/alloc.cc)
+      target_link_libraries(snmalloc-dll-teardown-alloc PRIVATE snmalloc)
+      target_compile_definitions(snmalloc-dll-teardown-alloc PRIVATE
+        "SNMALLOC_USE_${TEST_CLEANUP}")
+      add_library(snmalloc-dll-teardown-touch SHARED
+        ${TESTDIR}/func/dll_teardown/dll/touch.cc)
+      foreach(DLL snmalloc-dll-teardown-alloc snmalloc-dll-teardown-touch)
+        # The test loads the DLLs by name, so avoid MinGW's "lib" prefix.
+        set_target_properties(${DLL} PROPERTIES PREFIX "")
+        add_warning_flags(${DLL})
+      endforeach()
+    endif()
+
     set(FLAVOURS fast;check)
 
     foreach(FLAVOUR ${FLAVOURS})
