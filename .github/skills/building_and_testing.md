@@ -1,57 +1,85 @@
 # Building and Testing Skill
 
-This file is the complete reference for building and testing snmalloc.
-It is designed to be used by a subagent that has NO context about what
-code changes were made — only that it needs to build and verify the
-project. This isolation is intentional: test results must be interpreted
-without bias from knowing what changed.
+This file contains the repository-specific guidance for building, testing, and
+benchmarking snmalloc.
 
 ## Build
 
-- Build directory: `build/`
-- Build system: Ninja with CMake
-- **Always test with a Debug build.** Debug enables assertions (`-check` variants) that catch invariant violations invisible in Release. A Release-only test run can report 100% pass while masking real bugs. Verify with `grep CMAKE_BUILD_TYPE build/CMakeCache.txt` — it must show `Debug`.
-- Rebuild all targets before running ctest: `ninja -C build` (required — ctest runs pre-built binaries)
-- Rebuild specific targets: `ninja -C build <target>`
-- Always run `clang-format` before committing changes: `ninja -C build clangformat`
+- The conventional build directory is `build/`. Commands below use a
+  single-config Ninja build. For a multi-config generator, build with
+  `cmake --build build --config Debug` and pass `-C Debug` to CTest; use
+  `Release` instead when benchmarking.
+- Use a Debug build for functional validation so that allocator assertions and
+  debug-conditioned checks are enabled. The separate `-check` test flavour
+  defines `SNMALLOC_CHECK_CLIENT` in every build configuration. Verify the
+  configuration of a single-config build with
+  `grep CMAKE_BUILD_TYPE build/CMakeCache.txt`.
+- Rebuild the relevant targets before running tests. Use `ninja -C build` for
+  the full build or `ninja -C build <target>` for a focused test.
+- Format changed code before committing with `ninja -C build clangformat`.
 
 ## Testing
 
-- Run `func-malloc-fast` and `func-jemalloc-fast` to catch allocation edge cases
-- The `-check` variants include assertions but may pass when `-fast` hangs due to timing differences
-- Use `timeout` when running tests to avoid infinite hangs
-- Never run a test on a stale build artifact. Rebuild in the same build directory/config before any run or rerun: `ninja -C <build_dir>` for `ctest` runs, or `ninja -C <build_dir> <target>` if you invoke a direct binary. If the rebuild fails, stop and report with the rebuild log.
-- Testing skill: keep commands stable (right build dir/config, consistent flags), prefer `ctest -R <name> --output-on-failure`, and avoid ad-hoc command variants that change coverage or filters.
-- Before considering a change complete, run the full test suite: `ctest --output-on-failure -j 4 --timeout 60`
+- Prefer focused tests while developing:
+  `ctest --test-dir build -R <name> --output-on-failure`.
+- Run `func-malloc-fast` and `func-jemalloc-fast` when allocator API or
+  compatibility behaviour may be affected. The `-check` variants can miss
+  timing-dependent hangs that appear in `-fast`.
+- Use a timeout for tests that could hang.
+- Run the full Debug suite when the breadth or risk of the change warrants it:
+  `ctest --test-dir build --output-on-failure -j 4 --timeout 400`.
+- Never test a stale binary. Rebuild in the same directory and configuration
+  before a run or rerun.
 
-### Test failures (never hand-wave)
+### Test failures
 
-- Never describe a failure as transient without evidence. Treat every failure as actionable until disproven.
-- After a rebuild (per the testing rule above) succeeds, rerun the exact failing command twice: Rerun #1 must match the original command (including filters/flags such as `-R`, `-j`, `--timeout`); Rerun #2 may add only `--output-on-failure` if it was missing. No other changes to flags or filters between reruns.
-- Required logging bundle for any failure or flake claim: rebuild command plus stdout/stderr; original failing command plus stdout/stderr; both rerun commands plus stdout/stderr; commit/branch; build directory and config (Release/Debug); compiler/toolchain; host OS; env vars/options affecting the run (allocator config, sanitizers, thread count); note if Rerun #2 added `--output-on-failure`.
-- Workflow: record failing command/output → rebuild in the same build directory (stop/report if rebuild fails) → two reruns as above → capture all logs/context → check CI status and origin/main baseline → only label a flake with evidence. Report flakes or unresolved failures in a PR comment with logs and CI links.
+- Treat a failure as actionable until there is evidence otherwise. Do not call
+  it transient solely because a rerun passes.
+- Preserve the failing command and output, rebuild the same configuration, and
+  rerun with materially equivalent options. Record enough environment and
+  configuration information to reproduce unresolved or intermittent failures.
+- If attribution is unclear, compare with CI and `origin/main`. Report the
+  evidence and any remaining uncertainty rather than guessing.
 
 ### Test library (`snmalloc_testlib`)
 
-Tests that only use the public allocator API can link against a pre-compiled static library (`snmalloc-testlib-{fast,check}`) instead of compiling the full allocator in each TU.
+Tests that use only the public allocator API can include the lightweight test
+header and be compiled once for both allocator test flavours.
 
-- **Header**: `test/snmalloc_testlib.h` — forward-declares the API surface; does NOT include any snmalloc headers. Tests that also need snmalloc internals (sizeclasses, pointer math, etc.) include `<snmalloc/snmalloc_core.h>` or `<snmalloc/pal/pal.h>` alongside it.
-- **CMake**: Add the test name to `LIBRARY_FUNC_TESTS` or `LIBRARY_PERF_TESTS` in `CMakeLists.txt`.
-- **Apply broadly**: When adding new API to testlib (e.g., `ScopedAllocHandle`), immediately audit all remaining non-library tests to see which ones can now be migrated. Don't wait for CI to find them one by one.
-- **Cannot migrate**: Tests that use custom `Config` types, `Pool<T>`, override machinery, internal data structures (freelists, MPSC queues), or the statically-sized `alloc<size>()` template with many size values genuinely need `snmalloc.h`.
+- `src/test/snmalloc_testlib.h`, included as `<test/snmalloc_testlib.h>`,
+  declares the supported API without including the full `snmalloc.h` or
+  `snmalloc_core.h` allocator headers.
+- Add tests whose only allocator-facing snmalloc header is this header to
+  `TESTLIB_ONLY_TESTS` in `CMakeLists.txt` so their source is compiled once and
+  linked against both `snmalloc-testlib-fast` and `snmalloc-testlib-check`.
+- Tests using custom `Config` types, `Pool<T>`, override machinery, internal
+  data structures, or many instantiations of `alloc<size>()` require direct
+  allocator headers and must not be classified as testlib-only.
+- When extending the test-library API, consider whether existing tests can now
+  use it, but avoid unrelated migration churn.
 
 ## Benchmarking
 
-- Before benchmarking, verify Release build: `grep CMAKE_BUILD_TYPE build/CMakeCache.txt` should show `Release`
-- Debug builds have assertions enabled and will give misleading performance numbers
+- Benchmark only an optimized Release build. For a single-config build, verify
+  it with `grep CMAKE_BUILD_TYPE <build_dir>/CMakeCache.txt`; for a multi-config
+  build, select `Release` explicitly when building and running the benchmark.
+- Rebuild the benchmark target before measuring, retain raw results, and report
+  the relevant allocator configuration and known methodological limitations.
 
-## Subagent protocol
+### Quick performance experiments
 
-When you are invoked as a testing subagent:
+For an explicitly exploratory or disposable experiment:
 
-1. **Read this file first.** It is your only reference for how to build and test.
-2. **You have no knowledge of what changed.** Do not ask. Do not speculate. Report only what you observe.
-3. **Rebuild before testing.** Always run `ninja -C build` before any test invocation. If the rebuild fails, report the failure and stop.
-4. **Run the requested tests** (or the full suite if not specified). Use the exact commands from this file.
-5. **Report results factually**: which tests passed, which failed, the exact commands you ran, and the full output of any failures. Do not interpret failures in terms of code changes — you don't know what they are.
-6. **Never label a failure as transient.** If a test fails, follow the failure protocol above (rebuild + two reruns + logging bundle). Report all evidence.
+1. Record the revision, dirty state, compiler, host, benchmark options, and
+   relevant allocator configuration.
+2. Use a dedicated Release build directory, or verify that the selected build
+   is Release.
+3. Rebuild the specific target and run a smoke check that exercises the
+   instrumented path before collecting measurements.
+4. Retain raw measurements and report timer resolution, run count, variability,
+   and known limitations.
+
+A disposable experiment does not require a full Debug baseline, full test
+suite, formatting, or independent review. Experimental code is not merge-ready.
+If it will be retained, committed, or submitted, promote it to a normal change
+and perform the validation appropriate to its final scope.
