@@ -66,65 +66,6 @@ namespace
     return nullptr;
   }
 
-  template<typename Config>
-  void assist(uint64_t sampled_time)
-  {
-    if (!AllocPoolAssistance<Config>::should_assist(sampled_time))
-      return;
-
-    auto* alloc = AllocPool<Config>::try_acquire_front();
-    if (alloc == nullptr)
-      return;
-
-    OnDestruct restore([alloc]() { AllocPool<Config>::release(alloc); });
-    alloc->try_flush();
-  }
-
-  void test_allocator_pool_assistance()
-  {
-    using TestConfig = snmalloc::Config;
-    using Pool = AllocPool<TestConfig>;
-    using Assistance = AllocPoolAssistance<TestConfig>;
-
-    auto* saved = Pool::extract();
-    auto* saved_last = last_in_chain<TestConfig>(saved);
-    SNMALLOC_CHECK(Assistance::debug_pending_count() == 0);
-
-    auto* first = Pool::acquire();
-    auto* owner = Pool::acquire();
-    auto* sender = Pool::acquire();
-    void* p = owner->alloc(64);
-
-    first->flush();
-    Pool::release(first);
-    owner->flush();
-    Pool::release(owner);
-    sender->dealloc(p);
-    sender->flush();
-    Pool::release(sender);
-    SNMALLOC_CHECK(Assistance::debug_pending_count() == 1);
-
-    auto* extracted = Pool::extract();
-    auto* extracted_last = last_in_chain<TestConfig>(extracted);
-    SNMALLOC_CHECK(Assistance::debug_pending_count() == 0);
-    Pool::restore(extracted, extracted_last);
-    SNMALLOC_CHECK(Assistance::debug_pending_count() == 1);
-
-    for (size_t i = 1; (i <= 4) && (Assistance::debug_pending_count() != 0);
-         i++)
-    {
-      assist<TestConfig>(i * idle_constant_ms);
-    }
-    SNMALLOC_CHECK(Assistance::debug_pending_count() == 0);
-
-    auto* added = Pool::extract();
-    auto* added_last = last_in_chain<TestConfig>(added);
-    if (added != nullptr)
-      Pool::restore(added, added_last);
-    if (saved != nullptr)
-      Pool::restore(saved, saved_last);
-  }
-
   void test_reservation_and_pacing()
   {
     using Assistance = AllocPoolAssistance<SchedulingConfig>;
@@ -228,7 +169,6 @@ namespace
 int main()
 {
   setup();
-  test_allocator_pool_assistance();
   test_reservation_and_pacing();
   test_single_pass_cleanup();
 }

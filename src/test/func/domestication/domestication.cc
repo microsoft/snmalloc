@@ -1,3 +1,4 @@
+#include <chrono>
 #include <iostream>
 
 // #  define SNMALLOC_TRACING
@@ -153,22 +154,20 @@ namespace
       sender->flush();
       SNMALLOC_CHECK(TestAssistance::debug_pending_count() == 1);
 
-      uint64_t sample = 0;
-      for (size_t i = 0;
-           (i < 3) && (TestAssistance::debug_pending_count() != 0);
-           i++)
+      const auto deadline =
+        std::chrono::steady_clock::now() +
+        std::chrono::milliseconds(3 * uint64_t{SNMALLOC_ASSIST_IDLE_MS});
+      while (TestAssistance::debug_pending_count() != 0)
       {
-        sample += SNMALLOC_ASSIST_IDLE_MS;
-        if (TestAssistance::should_assist(sample))
+        if (std::chrono::steady_clock::now() >= deadline)
         {
-          auto* alloc = TestPool::try_acquire_front();
-          SNMALLOC_CHECK(alloc != nullptr);
-          OnDestruct restore([alloc]() { TestPool::release(alloc); });
-          alloc->try_flush();
+          std::cerr << "Allocator assistance did not complete" << std::endl;
+          abort();
         }
-      }
 
-      SNMALLOC_CHECK(TestAssistance::debug_pending_count() == 0);
+        void* churn = sender->alloc(64);
+        sender->dealloc(churn);
+      }
 
       auto* assisted = TestPool::extract();
       SNMALLOC_CHECK(assisted != nullptr);
