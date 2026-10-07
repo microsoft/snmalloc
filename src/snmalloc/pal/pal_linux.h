@@ -42,6 +42,9 @@ namespace snmalloc
     static constexpr size_t page_size =
       Aal::aal_name == PowerPC ? 0x10000 : PALPOSIX::page_size;
 
+    static constexpr size_t address_bits =
+      Aal::aal_name == RISCV ? 38 : PALPOSIX::address_bits;
+
     /**
      * Linux requires an explicit no-reserve flag in `mmap` to guarantee lazy
      * commit if /proc/sys/vm/overcommit_memory is set to `heuristic` (0).
