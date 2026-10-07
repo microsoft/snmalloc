@@ -43,6 +43,7 @@ namespace snmalloc
 #ifdef SNMALLOC_TRACING
         message<1024>("Pal range alloc: {} ({})", result.unsafe_ptr(), size);
 #endif
+        message<1024>("Pal range alloc: {} ({})", result.unsafe_ptr(), size);
 
         return result;
       }
