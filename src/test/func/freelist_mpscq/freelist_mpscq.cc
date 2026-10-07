@@ -453,8 +453,7 @@ namespace
 
     std::thread producer([&]() {
       while (!preflight_reached.load(std::memory_order_acquire))
-      {
-      }
+      {}
       SNMALLOC_CHECK(
         queue.enqueue(as_head(appended), as_head(appended), domesticate) ==
         EnqueueResult::Appended);
@@ -465,8 +464,7 @@ namespace
       [&](freelist::QueuePtr value) -> freelist::HeadPtr {
       preflight_reached.store(true, std::memory_order_release);
       while (!append_complete.load(std::memory_order_acquire))
-      {
-      }
+      {}
       return domesticate(value);
     };
 

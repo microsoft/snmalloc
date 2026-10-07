@@ -150,8 +150,7 @@ namespace
     std::atomic<size_t> assisted{0};
     auto assist_after_start = [&start]() {
       while (!start.load(std::memory_order_acquire))
-      {
-      }
+      {}
       SNMALLOC_CHECK(!Assistance::should_assist(2 * idle_constant_ms));
     };
     std::thread first(assist_after_start);
@@ -163,8 +162,7 @@ namespace
     start.store(false, std::memory_order_relaxed);
     auto reserve_after_start = [&start, &assisted]() {
       while (!start.load(std::memory_order_acquire))
-      {
-      }
+      {}
       if (Assistance::should_assist(3 * idle_constant_ms))
         assisted.fetch_add(1, std::memory_order_relaxed);
     };
