@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ds_core/ds_core.h"
+#include "../pal/pal_consts.h"
 
 #include <stdint.h>
 
@@ -40,10 +41,11 @@ namespace snmalloc
      * Slow path that actually queries clock and sets up
      * how many calls for the next time we hit the slow path.
      */
-    template<typename T = void*>
-    SNMALLOC_SLOW_PATH T check_tick_slow(T p = nullptr) noexcept
+    template<typename T, typename Callback>
+    SNMALLOC_SLOW_PATH T check_tick_slow(T p, Callback callback) noexcept
     {
       uint64_t now_ms = PAL::time_in_ms();
+      callback(now_ms);
 
       // Set up clock.
       if (last_query_ms == 0)
@@ -73,6 +75,8 @@ namespace snmalloc
       auto new_deadline_in_ticks =
         ((1 + counted) * deadline_in_ms) / duration_ms;
 
+      if (new_deadline_in_ticks == 0)
+        new_deadline_in_ticks = 1;
       counted = new_deadline_in_ticks;
       count_down = new_deadline_in_ticks;
 
@@ -83,6 +87,12 @@ namespace snmalloc
     template<typename T = void*>
     SNMALLOC_FAST_PATH T check_tick(T p = nullptr)
     {
+      return check_tick(p, [](uint64_t) {});
+    }
+
+    template<typename T, typename Callback>
+    SNMALLOC_FAST_PATH T check_tick(T p, Callback callback)
+    {
       if constexpr (pal_supports<Time, PAL>)
       {
         // Check before decrement, so that later calcations can use
@@ -91,7 +101,7 @@ namespace snmalloc
         // heart beat.
         if (--count_down == 0)
         {
-          return check_tick_slow(p);
+          return check_tick_slow(p, callback);
         }
       }
       return p;
