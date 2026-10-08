@@ -517,6 +517,20 @@ namespace snmalloc
       return CapPtr<T, bounds>::unsafe_from(
         this->unsafe_capptr.exchange(desired.unsafe_ptr(), order));
     }
+
+    SNMALLOC_FAST_PATH bool compare_exchange_strong(
+      CapPtr<T, bounds>& expected,
+      CapPtr<T, bounds> desired,
+      stl::MemoryOrder success_order,
+      stl::MemoryOrder failure_order) noexcept
+    {
+      auto raw_expected = expected.unsafe_ptr();
+      bool result = this->unsafe_capptr.compare_exchange_strong(
+        raw_expected, desired.unsafe_ptr(), success_order, failure_order);
+      if (!result)
+        expected = CapPtr<T, bounds>::unsafe_from(raw_expected);
+      return result;
+    }
   };
 
   namespace capptr

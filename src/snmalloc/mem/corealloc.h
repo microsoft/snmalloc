@@ -2,6 +2,7 @@
 
 #include "../ds/ds.h"
 #include "../ds/pool.h"
+#include "allocpool_assistance.h"
 #include "check_init.h"
 #include "freelist.h"
 #include "metadata.h"
@@ -117,6 +118,8 @@ namespace snmalloc
      */
     using BackendSlabMetadata = typename Config::Backend::SlabMetadata;
     using PagemapEntry = typename Config::PagemapEntry;
+
+    static void assist_disused_allocators(uint64_t now_ms);
 
     /// }@
 
@@ -237,6 +240,30 @@ namespace snmalloc
       return *public_state();
     }
 
+  public:
+    void reinit()
+    {
+      if constexpr (uses_inactive_queue_marker<Config>)
+      {
+        if (message_queue().claim_from_inactive())
+        {
+          AllocPoolAssistance<Config>::pending_queue_claimed();
+        }
+      }
+    }
+
+    void deinit()
+    {
+      if constexpr (uses_inactive_queue_marker<Config>)
+      {
+        if (message_queue().release_to_inactive())
+        {
+          AllocPoolAssistance<Config>::pending_queue_added();
+        }
+      }
+    }
+
+  private:
     /**
      * Check if this allocator has messages to deallocate blocks from another
      * thread
@@ -298,6 +325,16 @@ namespace snmalloc
     constexpr Allocator(bool){};
 
   public:
+    bool debug_is_in_use()
+    {
+      return this->in_use.load(stl::memory_order_acquire);
+    }
+
+    bool debug_has_pending_remote()
+    {
+      return !message_queue().is_empty();
+    }
+
     /**
      * Constructor for the case that the core allocator owns the local state.
      * SFINAE disabled if the allocator does not own the local state.
@@ -429,10 +466,13 @@ namespace snmalloc
                            };
       auto cb = [this, domesticate, &need_post, &bytes_freed](
                   capptr::Alloc<RemoteMessage> msg) SNMALLOC_FAST_PATH_LAMBDA {
+        if (bytes_freed >= static_cast<size_t>(REMOTE_BATCH_LIMIT))
+          return false;
+
         auto& entry =
           Config::Backend::get_metaentry(snmalloc::address_cast(msg));
         handle_dealloc_remote(entry, msg, need_post, domesticate, bytes_freed);
-        return bytes_freed < REMOTE_BATCH_LIMIT;
+        return true;
       };
 
 #ifdef SNMALLOC_TRACING
@@ -828,7 +868,8 @@ namespace snmalloc
         }
 
         auto r = finish_alloc<Conts>(p, size);
-        return ticker.check_tick(r);
+        return ticker.check_tick(
+          r, [](uint64_t now_ms) { assist_disused_allocators(now_ms); });
       }
       return small_refill_slow<Conts, CheckInit>(
         sizeclass, fast_free_list, size);
@@ -889,7 +930,8 @@ namespace snmalloc
           }
 
           auto r = finish_alloc<Conts>(p, size);
-          return ticker.check_tick(r);
+          return ticker.check_tick(
+            r, [](uint64_t now_ms) { assist_disused_allocators(now_ms); });
         },
         [](Allocator* a, size_t size) SNMALLOC_FAST_PATH_LAMBDA {
           return a->template small_alloc<Conts, CheckInitNoOp>(size);
@@ -1386,14 +1428,13 @@ namespace snmalloc
     }
 
     /**
-     * Flush one message-queue snapshot, cached state, and delayed
-     * deallocations. Enqueues whose back exchange observes the reset remain for
-     * a later flush.
-     *
-     * Returns true if messages are sent to other threads.
+     * Flush queued messages, cached state, and delayed deallocations.
      */
-    bool flush()
+    template<bool Dequeue>
+    void flush_impl(bool& posted)
     {
+      message_queue().assert_not_inactive();
+
       auto local_state = backend_state_ptr();
       auto domesticate = [local_state](freelist::QueuePtr p)
                            SNMALLOC_FAST_PATH_LAMBDA {
@@ -1410,6 +1451,7 @@ namespace snmalloc
         const PagemapEntry& entry =
           Config::Backend::get_metaentry(snmalloc::address_cast(m));
         handle_dealloc_remote(entry, m, need_post, domesticate, bytes_flushed);
+        return true;
       };
 
       if constexpr (Config::Options.QueueHeadsAreTame)
@@ -1418,11 +1460,26 @@ namespace snmalloc
           [](freelist::QueuePtr p) SNMALLOC_FAST_PATH_LAMBDA {
             return freelist::HeadPtr::unsafe_from(p.unsafe_ptr());
           };
-        message_queue().drain_and_reset(domesticate_first, domesticate, cb);
+        if constexpr (Dequeue)
+        {
+          message_queue().template dequeue<true>(
+            domesticate_first, domesticate, cb);
+        }
+        else
+        {
+          message_queue().drain_and_reset(domesticate_first, domesticate, cb);
+        }
       }
       else
       {
-        message_queue().drain_and_reset(domesticate, domesticate, cb);
+        if constexpr (Dequeue)
+        {
+          message_queue().template dequeue<true>(domesticate, domesticate, cb);
+        }
+        else
+        {
+          message_queue().drain_and_reset(domesticate, domesticate, cb);
+        }
       }
 
       auto& key = freelist::Object::key_root;
@@ -1444,7 +1501,7 @@ namespace snmalloc
         } while (!small_fast_free_lists[i].empty());
       }
 
-      auto posted = remote_dealloc_cache.template post<sizeof(Allocator)>(
+      posted = remote_dealloc_cache.template post<sizeof(Allocator)>(
         local_state, get_trunc_id());
 
       // We may now have unused slabs, return to the global allocator.
@@ -1467,8 +1524,22 @@ namespace snmalloc
       }
       // Set the remote_dealloc_cache to immediately slow path.
       remote_dealloc_cache.capacity = 0;
+    }
 
+    bool flush()
+    {
+      bool posted = false;
+      flush_impl<false>(posted);
       return posted;
+    }
+
+    void try_flush()
+    {
+      if (message_queue().is_empty())
+        return;
+
+      bool posted = false;
+      flush_impl<true>(posted);
     }
 
     /**
@@ -1601,10 +1672,28 @@ namespace snmalloc
     }
   };
 
-  /**
-   * Use this alias to access the pool of allocators throughout snmalloc.
-   */
   template<typename Config>
   using AllocPool =
     Pool<Allocator<Config>, ConstructAllocator<Config>, Config::pool>;
+
+  template<SNMALLOC_CONCEPT(IsConfigLazy) Config>
+  void Allocator<Config>::assist_disused_allocators(uint64_t now_ms)
+  {
+    if constexpr (uses_inactive_queue_marker<Config>)
+    {
+      if (!AllocPoolAssistance<Config>::should_assist(now_ms))
+        return;
+
+      Allocator* alloc = AllocPool<Config>::try_acquire_front();
+      if (alloc == nullptr)
+        return;
+
+      OnDestruct restore([alloc]() { AllocPool<Config>::release(alloc); });
+      alloc->try_flush();
+    }
+    else
+    {
+      UNUSED(now_ms);
+    }
+  }
 } // namespace snmalloc

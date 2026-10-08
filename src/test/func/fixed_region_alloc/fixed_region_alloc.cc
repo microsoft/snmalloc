@@ -1,5 +1,6 @@
 #include "test/setup.h"
 
+#include <chrono>
 #include <iostream>
 #include <snmalloc/backend/fixedglobalconfig.h>
 #include <snmalloc/snmalloc.h>
@@ -31,6 +32,67 @@ int main()
             << pointer_offset(oe_base, size) << std::endl;
 
   CustomGlobals::init(nullptr, oe_base, size);
+
+  {
+    using Pool = AllocPool<CustomGlobals>;
+    using State = AllocPoolAssistance<CustomGlobals>;
+
+    auto count_allocators = []() {
+      size_t count = 0;
+      for (auto* alloc = Pool::iterate(); alloc != nullptr;
+           alloc = Pool::iterate(alloc))
+      {
+        count++;
+      }
+      return count;
+    };
+
+    auto sender = get_scoped_allocator<FixedAlloc>();
+    void* remote;
+    {
+      auto owner = get_scoped_allocator<FixedAlloc>();
+      remote = owner->alloc(128);
+      SNMALLOC_CHECK(remote != nullptr);
+    }
+
+    sender->dealloc(remote);
+    sender->flush();
+    SNMALLOC_CHECK(State::debug_pending_count() == 1);
+
+    const size_t allocator_count = count_allocators();
+    constexpr size_t batch_size = 256;
+    void* batch[batch_size];
+    size_t iterations = 0;
+    constexpr size_t iteration_limit = 1 << 24;
+    const auto deadline =
+      std::chrono::steady_clock::now() +
+      std::chrono::milliseconds(
+        3 * allocator_count * uint64_t{SNMALLOC_ASSIST_IDLE_MS});
+
+    while (State::debug_pending_count() != 0)
+    {
+      if (
+        (std::chrono::steady_clock::now() >= deadline) ||
+        (iterations == iteration_limit))
+      {
+        std::cerr << "Fixed-range assistance did not complete: pending="
+                  << State::debug_pending_count() << std::endl;
+        abort();
+      }
+
+      for (auto& p : batch)
+      {
+        p = sender->alloc(128);
+        SNMALLOC_CHECK(p != nullptr);
+      }
+      for (auto p : batch)
+        sender->dealloc(p);
+      iterations++;
+    }
+
+    SNMALLOC_CHECK(count_allocators() == allocator_count);
+  }
+
   auto a = get_scoped_allocator<FixedAlloc>();
 
   size_t object_size = 128;
