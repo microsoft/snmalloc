@@ -154,8 +154,7 @@ namespace
       sender->flush();
       SNMALLOC_CHECK(TestAssistance::debug_pending_count() == 1);
 
-      const auto deadline =
-        std::chrono::steady_clock::now() +
+      const auto deadline = std::chrono::steady_clock::now() +
         std::chrono::milliseconds(3 * uint64_t{SNMALLOC_ASSIST_IDLE_MS});
       while (TestAssistance::debug_pending_count() != 0)
       {
