@@ -20,7 +20,6 @@ int main()
 
   // 28 is large enough to produce a nested allocator.
   // It is also large enough for the example to run in.
-  // For 1MiB superslabs, SUPERSLAB_BITS + 4 is not big enough for the example.
   auto size = bits::one_at_bit(28);
   auto oe_base = DefaultPal::reserve(size);
   DefaultPal::notify_using<NoZero>(oe_base, size);
