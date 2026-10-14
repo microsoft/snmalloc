@@ -105,7 +105,7 @@ jobs:
       run: echo "hash=$(echo '${{ inputs.cmake-config }} ${{ inputs.extra-cmake-flags }}' | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
 
     - name: Set up sccache
-      uses: hendrikmuhs/ccache-action@d62db5f07c26379fc4b4e0916f098a92573c3b03 # v1.2.23
+      uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
       with:
         variant: sccache
         key: ${{ inputs.os }}-${{ inputs.build-type }}-${{ steps.config-hash.outputs.hash }}
@@ -242,7 +242,7 @@ jobs:
 
     - name: Upload coverage artifact
       if: ${{ !inputs.build-only && inputs.coverage }}
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: coverage-${{ inputs.coverage-artifact-name }}
         path: |
