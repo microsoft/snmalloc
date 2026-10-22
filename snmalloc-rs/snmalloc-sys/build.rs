@@ -215,6 +215,12 @@ impl BuildConfig {
     }
 }
 
+fn target_uses_static_crt() -> bool {
+    env::var("CARGO_CFG_TARGET_FEATURE")
+        .map(|features| features.split(',').any(|feature| feature == "crt-static"))
+        .unwrap_or(false)
+}
+
 trait BuilderDefine {
     fn define(&mut self, key: &str, value: &str) -> &mut Self;
     /// Set a CMake-style boolean option.
@@ -264,7 +270,6 @@ impl BuilderDefine for cc::Build {
             .file(source_root.join("src/snmalloc/override/rust.cc"))
             .cpp(true)
             .debug(debug)
-            .static_crt(true)
     }
 
     fn compiler_define(&mut self, key: &str, value: &str) -> &mut Self {
@@ -295,11 +300,21 @@ impl BuilderDefine for cmake::Config {
     }
 
     fn configure_cpp(&mut self, debug: bool, _source_root: &Path) -> &mut Self {
+        let static_crt = target_uses_static_crt();
+        let runtime_library = if static_crt {
+            "MultiThreaded"
+        } else {
+            "MultiThreadedDLL"
+        };
+
         self.define("SNMALLOC_RUST_SUPPORT", "ON")
             .very_verbose(true)
             .define("CMAKE_SH", "CMAKE_SH-NOTFOUND")
             .always_configure(true)
-            .static_crt(true)
+            .static_crt(static_crt)
+            // Keep the CRT flavor aligned with Rust without enabling the
+            // Debug CRT for snmalloc's Debug profile.
+            .define("CMAKE_MSVC_RUNTIME_LIBRARY", runtime_library)
             .profile(if debug { "Debug" } else { "Release" })
     }
 
@@ -584,9 +599,8 @@ fn configure_linking(config: &BuildConfig) {
             println!("cargo:rustc-link-lib=userenv");
             println!("cargo:rustc-link-lib=bcrypt");
             println!("cargo:rustc-link-lib=ntdll");
-            if config.debug {
-                println!("cargo:rustc-link-lib=msvcrtd");
-            } else {
+            if !target_uses_static_crt() {
+                // Rust's MSVC target uses the release CRT for every profile.
                 println!("cargo:rustc-link-lib=msvcrt");
             }
         }
