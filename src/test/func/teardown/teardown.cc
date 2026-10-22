@@ -142,4 +142,5 @@ int main(int, char**)
     f(shifted(7) - 1);
     printf("\n");
   }
+  snmalloc::debug_in_use(0);
 }

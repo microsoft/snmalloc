@@ -51,6 +51,24 @@ struct PoolSortEntry : Pooled<PoolSortEntry>
 
 using PoolSort = Pool<PoolSortEntry>;
 
+struct PoolReportEntry : Pooled<PoolReportEntry>
+{
+  size_t reinit_count = 0;
+  size_t deinit_count = 0;
+
+  void reinit()
+  {
+    reinit_count++;
+  }
+
+  void deinit()
+  {
+    deinit_count++;
+  }
+};
+
+using PoolReport = Pool<PoolReportEntry>;
+
 void test_alloc()
 {
   auto ptr = PoolA::acquire();
@@ -72,6 +90,53 @@ void test_constructor()
 
   PoolA::release(ptr1);
   PoolB::release(ptr2);
+}
+
+void test_lifecycle_hooks()
+{
+  auto* first = PoolReport::acquire();
+  auto* second = PoolReport::acquire();
+  SNMALLOC_CHECK(first->reinit_count == 0);
+  SNMALLOC_CHECK(first->deinit_count == 0);
+
+  PoolReport::release(first);
+  PoolReport::release(second);
+  SNMALLOC_CHECK(first->deinit_count == 1);
+  SNMALLOC_CHECK(second->deinit_count == 1);
+
+  auto* removed = PoolReport::try_acquire_front();
+  SNMALLOC_CHECK(removed == first);
+  SNMALLOC_CHECK(removed->reinit_count == 1);
+  PoolReport::release(removed);
+
+  auto* reused = PoolReport::acquire();
+  SNMALLOC_CHECK(reused == second);
+  SNMALLOC_CHECK(reused->reinit_count == 1);
+  PoolReport::release(reused);
+
+  first = PoolReport::extract();
+  SNMALLOC_CHECK(first != nullptr);
+  auto* last = first;
+  size_t count = 0;
+  while (last != nullptr)
+  {
+    SNMALLOC_CHECK(last->reinit_count == last->deinit_count);
+    count++;
+    auto* next = PoolReport::extract(last);
+    if (next == nullptr)
+      break;
+    last = next;
+  }
+  SNMALLOC_CHECK(count == 2);
+  PoolReport::restore(first, last);
+
+  PoolReport::sort();
+  auto* item = PoolReport::iterate();
+  while (item != nullptr)
+  {
+    SNMALLOC_CHECK(item->reinit_count + 1 == item->deinit_count);
+    item = PoolReport::iterate(item);
+  }
 }
 
 void test_alloc_many()
@@ -250,6 +315,8 @@ int main(int argc, char** argv)
   std::cout << "test_alloc passed" << std::endl;
   test_constructor();
   std::cout << "test_constructor passed" << std::endl;
+  test_lifecycle_hooks();
+  std::cout << "test_lifecycle_hooks passed" << std::endl;
   test_alloc_many();
   std::cout << "test_alloc_many passed" << std::endl;
   test_different_alloc();

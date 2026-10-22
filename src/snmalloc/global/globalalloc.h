@@ -11,10 +11,10 @@ namespace snmalloc
     static_assert(
       Config_::Options.AllocIsPoolAllocated,
       "Global cleanup is available only for pool-allocated configurations");
+
     // Call this periodically to free and coalesce memory allocated by
     // allocators that are not currently in use by any thread.
-    // One atomic operation to extract the stack, another to restore it.
-    // Handling the message queue for each stack is non-atomic.
+    // Handling the message queue for each allocator is non-atomic.
     auto* first = AllocPool<Config_>::extract();
     auto* alloc = first;
 
@@ -43,6 +43,23 @@ namespace snmalloc
     static_assert(
       Config_::Options.AllocIsPoolAllocated,
       "Global status is available only for pool-allocated configurations");
+
+    // debug_is_empty() calls flush(), which requires an active message queue.
+    // Extract unused allocators to claim their queues for the whole check.
+    auto* first = AllocPool<Config_>::extract();
+    auto* last = first;
+    OnDestruct restore_free_allocators([&first, &last]() {
+      if (first != nullptr)
+        AllocPool<Config_>::restore(first, last);
+    });
+    while (last != nullptr)
+    {
+      auto* next = AllocPool<Config_>::extract(last);
+      if (next == nullptr)
+        break;
+      last = next;
+    }
+
     // This is a debugging function. It checks that all memory from all
     // allocators has been freed.
     auto* alloc = AllocPool<Config_>::iterate();
