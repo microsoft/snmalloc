@@ -410,6 +410,12 @@ fn configure_platform(config: &mut BuildConfig) {
                     .define("CMAKE_INTERPROCEDURAL_OPTIMIZATION", "TRUE")
                     .define("SNMALLOC_IPO", "ON");
                 println!("cargo:rustc-link-arg=/LTCG");
+                // rustc cannot index /GL (LTCG) objects, so bundling the
+                // library into the rlib drops its sn_rust_* symbols. Leave it
+                // out of the rlib and pass it to the final link, as the CMake
+                // build already does (rust-lang/rust#26003).
+                #[cfg(feature = "build_cc")]
+                config.builder.link_lib_modifier("-bundle");
             }
             
             config.builder
@@ -686,6 +692,10 @@ fn main() {
         println!("cargo:rustc-link-arg=-Wl,--whole-archive");
         println!("cargo:rustc-link-lib=static={}", config.target_lib);
         println!("cargo:rustc-link-arg=-Wl,--no-whole-archive");
+    } else if cfg!(feature = "build_cc") && config.is_msvc() {
+        // cc already emits the link-lib line for the library (with -bundle
+        // under lto). rustc rejects a second line for the same library when
+        // either one carries modifiers.
     } else {
         println!("cargo:rustc-link-lib={}", config.target_lib);
     }
