@@ -213,7 +213,7 @@ jobs:
     uses: ./.github/workflows/reusable-vm-build.yml
     with:
       vm-type: freebsd
-      vm-version: '13.2'
+      vm-version: '14.5'
       build-type: ${{matrix.build-type}}
       dependencies: "pkg ins -y cmake ninja"
 
