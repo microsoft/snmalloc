@@ -6,6 +6,13 @@
 
 namespace snmalloc
 {
+  enum class EnqueueResult
+  {
+    StartedActive,
+    StartedInactive,
+    Appended
+  };
+
   /**
    * A FreeListMPSCQ is a chain of freed objects exposed as a MPSC append-only
    * atomic queue that uses one xchg per append.
@@ -55,6 +62,9 @@ namespace snmalloc
       Domesticator_queue& domesticate,
       Cb& cb)
     {
+      // Read the successor before invoking the callback.  If the callback
+      // rejects curr, curr remains owned by the queue with a published
+      // successor.
       while (address_cast(curr) != address_cast(target))
       {
         auto next = curr->atomic_read_next(Key, Key_tweak, domesticate);
@@ -63,15 +73,70 @@ namespace snmalloc
 
         Aal::prefetch(next.unsafe_ptr());
         if (SNMALLOC_UNLIKELY(!cb(curr)))
-          return next;
+          return curr;
 
         curr = next;
       }
 
+      // The returned node is unprocessed and remains in the queue.
       return curr;
     }
 
   public:
+    static freelist::QueuePtr inactive_marker()
+    {
+      return freelist::QueuePtr::unsafe_from(
+        unsafe_from_uintptr<freelist::Object::T<>>(1));
+    }
+
+    bool release_to_inactive()
+    {
+      freelist::QueuePtr expected = nullptr;
+      if (back.compare_exchange_strong(
+            expected,
+            inactive_marker(),
+            stl::memory_order_acq_rel,
+            stl::memory_order_acquire))
+      {
+        return false;
+      }
+
+      SNMALLOC_ASSERT(expected != inactive_marker());
+      return true;
+    }
+
+    bool claim_from_inactive()
+    {
+      auto expected = back.load(stl::memory_order_acquire);
+      if (expected == inactive_marker())
+      {
+        if (back.compare_exchange_strong(
+              expected,
+              nullptr,
+              stl::memory_order_acq_rel,
+              stl::memory_order_acquire))
+        {
+          return false;
+        }
+      }
+
+      SNMALLOC_ASSERT(expected != nullptr);
+      SNMALLOC_ASSERT(expected != inactive_marker());
+      return expected != nullptr;
+    }
+
+    void assert_not_inactive()
+    {
+      SNMALLOC_ASSERT(
+        back.load(stl::memory_order_relaxed) != inactive_marker());
+    }
+
+    bool is_empty()
+    {
+      auto value = back.load(stl::memory_order_acquire);
+      return value == nullptr || value == inactive_marker();
+    }
+
     /**
      * Exactly one consumer role may execute this operation.  No dequeue,
      * owning-allocator queue processing, or second drain may run concurrently.
@@ -95,6 +160,8 @@ namespace snmalloc
       Domesticator_queue domesticate_queue,
       Cb cb)
     {
+      assert_not_inactive();
+
       // After reuse, acquire the release sequence headed by the preceding
       // reset, so front cannot observe an earlier queue generation.
       if (back.load(stl::memory_order_acquire) == nullptr)
@@ -115,6 +182,7 @@ namespace snmalloc
       front.store(nullptr, stl::memory_order_relaxed);
       auto target = back.exchange(nullptr, stl::memory_order_acq_rel);
       SNMALLOC_ASSERT(target != nullptr);
+      SNMALLOC_ASSERT(target != inactive_marker());
 
       auto process = [&cb](freelist::HeadPtr p) {
         cb(p);
@@ -133,6 +201,7 @@ namespace snmalloc
 
     inline bool can_dequeue()
     {
+      assert_not_inactive();
       return front.load(stl::memory_order_relaxed) !=
         back.load(stl::memory_order_relaxed);
     }
@@ -144,12 +213,11 @@ namespace snmalloc
      * The Domesticator here is used only on pointers read from the head.  See
      * the commentary on the class.
      *
-     * Returns true if this enqueue observed an empty back and started a new
-     * queue generation by publishing front.  Returns false if it appended to
-     * an existing chain.
+     * Reports whether this enqueue started an active or inactive queue
+     * generation, or appended to an existing chain.
      */
     template<typename Domesticator_head>
-    bool enqueue(
+    EnqueueResult enqueue(
       freelist::HeadPtr first,
       freelist::HeadPtr last,
       Domesticator_head domesticate_head)
@@ -176,30 +244,37 @@ namespace snmalloc
       freelist::QueuePtr prev =
         back.exchange(capptr_rewild(last), stl::memory_order_acq_rel);
 
-      if (SNMALLOC_LIKELY(prev != nullptr))
+      if (SNMALLOC_UNLIKELY(prev == nullptr || prev == inactive_marker()))
       {
-        // Once this store publishes first, a drain may observe it and release
-        // prev; this must therefore be this producer's final access to prev.
-        freelist::Object::atomic_store_next(
-          domesticate_head(prev), first, Key, Key_tweak);
-        return false;
+        // drain_and_reset clears front before resetting back, so only a
+        // producer whose exchange observed an empty state may publish a
+        // replacement front.
+        front.store(capptr_rewild(first));
+        return prev == nullptr ? EnqueueResult::StartedActive :
+                                 EnqueueResult::StartedInactive;
       }
 
-      // drain_and_reset clears front before resetting back, so only a producer
-      // whose exchange observed null may publish a replacement front.
-      front.store(capptr_rewild(first));
-      return true;
+      // Once this store publishes first, a drain may observe it and release
+      // prev; this must therefore be this producer's final access to prev.
+      freelist::Object::atomic_store_next(
+        domesticate_head(prev), first, Key, Key_tweak);
+      return EnqueueResult::Appended;
     }
 
     /**
      * Destructively iterate the queue.  Each queue element is removed and fed
-     * to the callback in turn.  The callback may return false to stop iteration
-     * early (but must have processed the element it was given!).
+     * to the callback in turn.  The callback may return false to reject its
+     * argument and stop iteration early.  A rejected object must not have been
+     * consumed, freed, or re-enqueued; it remains owned by this queue.
+     *
+     * Closing dequeue requires the callback to process the retained final
+     * object after the queue has been closed.
      *
      * Takes a domestication callback for each of "pointers read from head" and
      * "pointers read from queue".  See the commentary on the class.
      */
     template<
+      bool Close = false,
       typename Domesticator_head,
       typename Domesticator_queue,
       typename Cb>
@@ -226,8 +301,34 @@ namespace snmalloc
        * Publishing it to client-accessible front requires it to be considered
        * Wild again in !QueueHeadsAreTame builds.
        */
-      curr = process_chain(curr, b, domesticate_queue, cb);
-      front = capptr_rewild(curr);
+      if constexpr (Close)
+      {
+        curr = process_chain(curr, b, domesticate_queue, cb);
+
+        auto current_back = back.load(stl::memory_order_acquire);
+        if (address_cast(curr) == address_cast(current_back))
+        {
+          front.store(nullptr, stl::memory_order_relaxed);
+          if (back.compare_exchange_strong(
+                current_back,
+                nullptr,
+                stl::memory_order_acq_rel,
+                stl::memory_order_acquire))
+          {
+            // A producer that could still access curr would have changed back,
+            // making the compare-exchange fail.
+            SNMALLOC_CHECK(cb(curr));
+            return;
+          }
+        }
+
+        front.store(capptr_rewild(curr), stl::memory_order_release);
+      }
+      else
+      {
+        curr = process_chain(curr, b, domesticate_queue, cb);
+        front = capptr_rewild(curr);
+      }
       invariant();
     }
   };
