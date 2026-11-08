@@ -51,6 +51,8 @@ jobs:
             args: "--features local_dynamic_tls"
           - name: lto
             args: "--features lto"
+          - name: build_cc-lto
+            args: '--features "build_cc lto"'
       # Don't abort runners if a single one fails
       fail-fast: false
     steps:
