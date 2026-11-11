@@ -84,7 +84,7 @@ jobs:
 
     - name: Build on NetBSD
       if: inputs.vm-type == 'netbsd'
-      uses: vmactions/netbsd-vm@c8a0d7ddb84619a7a8cc4e652efa7950b3fd9f92 # v1.5.2
+      uses: vmactions/netbsd-vm@5957cf330aef2e6ddc63c604364c99ce2e02b91d # v1.5.3
       with:
         release: ${{ inputs.vm-version }}
         usesh: true
@@ -105,7 +105,7 @@ jobs:
 
     - name: Build on OpenBSD
       if: inputs.vm-type == 'openbsd'
-      uses: vmactions/openbsd-vm@5f7b2c933b8846a138361d6843c52af4bef5d945 # v1.4.8
+      uses: vmactions/openbsd-vm@f1ca8bc8ecc5b6ef7218e5b914836e067e1546d3 # v1.4.9
       with:
         release: ${{ inputs.vm-version }}
         usesh: true
