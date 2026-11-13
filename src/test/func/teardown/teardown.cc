@@ -112,6 +112,20 @@ void f(size_t size)
   fflush(stdout);
 }
 
+void check_debug_in_use()
+{
+  {
+    auto a = snmalloc::get_scoped_allocator();
+    snmalloc::debug_in_use(1);
+    {
+      auto b = snmalloc::get_scoped_allocator();
+      snmalloc::debug_in_use(2);
+    }
+    snmalloc::debug_in_use(1);
+  }
+  snmalloc::debug_in_use(0);
+}
+
 int main(int, char**)
 {
   setup();
@@ -142,4 +156,6 @@ int main(int, char**)
     f(shifted(7) - 1);
     printf("\n");
   }
+
+  check_debug_in_use();
 }

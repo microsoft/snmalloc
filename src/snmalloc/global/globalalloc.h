@@ -120,11 +120,11 @@ namespace snmalloc
         count--;
       }
       alloc = AllocPool<Config_>::iterate(alloc);
+    }
 
-      if (count != 0)
-      {
-        error("Error: two few allocators in use.");
-      }
+    if (count != 0)
+    {
+      error("Error: two few allocators in use.");
     }
   }
 
