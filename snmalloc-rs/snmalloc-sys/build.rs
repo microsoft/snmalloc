@@ -215,6 +215,12 @@ impl BuildConfig {
     }
 }
 
+fn target_uses_static_crt() -> bool {
+    env::var("CARGO_CFG_TARGET_FEATURE")
+        .map(|features| features.split(',').any(|feature| feature == "crt-static"))
+        .unwrap_or(false)
+}
+
 trait BuilderDefine {
     fn define(&mut self, key: &str, value: &str) -> &mut Self;
     /// Set a CMake-style boolean option.
@@ -264,7 +270,6 @@ impl BuilderDefine for cc::Build {
             .file(source_root.join("src/snmalloc/override/rust.cc"))
             .cpp(true)
             .debug(debug)
-            .static_crt(true)
     }
 
     fn compiler_define(&mut self, key: &str, value: &str) -> &mut Self {
@@ -295,11 +300,21 @@ impl BuilderDefine for cmake::Config {
     }
 
     fn configure_cpp(&mut self, debug: bool, _source_root: &Path) -> &mut Self {
+        let static_crt = target_uses_static_crt();
+        let runtime_library = if static_crt {
+            "MultiThreaded"
+        } else {
+            "MultiThreadedDLL"
+        };
+
         self.define("SNMALLOC_RUST_SUPPORT", "ON")
             .very_verbose(true)
             .define("CMAKE_SH", "CMAKE_SH-NOTFOUND")
             .always_configure(true)
-            .static_crt(true)
+            .static_crt(static_crt)
+            // Keep the CRT flavor aligned with Rust without enabling the
+            // Debug CRT for snmalloc's Debug profile.
+            .define("CMAKE_MSVC_RUNTIME_LIBRARY", runtime_library)
             .profile(if debug { "Debug" } else { "Release" })
     }
 
@@ -395,6 +410,12 @@ fn configure_platform(config: &mut BuildConfig) {
                     .define("CMAKE_INTERPROCEDURAL_OPTIMIZATION", "TRUE")
                     .define("SNMALLOC_IPO", "ON");
                 println!("cargo:rustc-link-arg=/LTCG");
+                // rustc cannot index /GL (LTCG) objects, so bundling the
+                // library into the rlib drops its sn_rust_* symbols. Leave it
+                // out of the rlib and pass it to the final link, as the CMake
+                // build already does (rust-lang/rust#26003).
+                #[cfg(feature = "build_cc")]
+                config.builder.link_lib_modifier("-bundle");
             }
             
             config.builder
@@ -584,9 +605,8 @@ fn configure_linking(config: &BuildConfig) {
             println!("cargo:rustc-link-lib=userenv");
             println!("cargo:rustc-link-lib=bcrypt");
             println!("cargo:rustc-link-lib=ntdll");
-            if config.debug {
-                println!("cargo:rustc-link-lib=msvcrtd");
-            } else {
+            if !target_uses_static_crt() {
+                // Rust's MSVC target uses the release CRT for every profile.
                 println!("cargo:rustc-link-lib=msvcrt");
             }
         }
@@ -672,6 +692,10 @@ fn main() {
         println!("cargo:rustc-link-arg=-Wl,--whole-archive");
         println!("cargo:rustc-link-lib=static={}", config.target_lib);
         println!("cargo:rustc-link-arg=-Wl,--no-whole-archive");
+    } else if cfg!(feature = "build_cc") && config.is_msvc() {
+        // cc already emits the link-lib line for the library (with -bundle
+        // under lto). rustc rejects a second line for the same library when
+        // either one carries modifiers.
     } else {
         println!("cargo:rustc-link-lib={}", config.target_lib);
     }

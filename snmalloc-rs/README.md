@@ -47,7 +47,7 @@ The following environment variables are automatically detected and propagated:
 - `OPT_LEVEL`: Propagated to the C++ compiler to ensure optimization parity between Rust and C++ components.
 
 ### Windows CRT Consistency
-On Windows, the build script enforces static CRT linking (`/MT` or `/MTd`) across both `cc` and `cmake` builders. This prevents linker errors and ensures consistency when `snmalloc` is used as a global allocator.
+On Windows, the build script uses dynamic linking (`/MD`) by default and static linking (`/MT`) when the `crt-static` target feature is enabled.
 
 **To get the crates compiled, you need to choose either `1mib` or `16mib` to determine the chunk configuration**
 
