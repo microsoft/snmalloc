@@ -1,16 +1,15 @@
 #pragma once
 
 #include "../ds/ds.h"
+#include "allocpool_assistance.h"
 #include "backend_wrappers.h"
 #include "freelist.h"
 #include "metadata.h"
 #include "remoteallocator.h"
 #include "snmalloc/stl/array.h"
-#include "snmalloc/stl/atomic.h"
 
 namespace snmalloc
 {
-
   /**
    * Same-destination message batching.
    *
@@ -317,16 +316,29 @@ namespace snmalloc
               mitigations(sanity_checks),
               !entry.is_backend_owned(),
               "Delayed detection of attempt to free internal structure.");
+            EnqueueResult result;
             if constexpr (Config::Options.QueueHeadsAreTame)
             {
               auto domesticate_nop = [](freelist::QueuePtr p) {
                 return freelist::HeadPtr::unsafe_from(p.unsafe_ptr());
               };
-              remote->enqueue(first, last, domesticate_nop);
+              result = remote->enqueue(first, last, domesticate_nop);
             }
             else
             {
-              remote->enqueue(first, last, domesticate);
+              result = remote->enqueue(first, last, domesticate);
+            }
+
+            if constexpr (uses_inactive_queue_marker<Config>)
+            {
+              if (result == EnqueueResult::StartedInactive)
+              {
+                AllocPoolAssistance<Config>::pending_queue_added();
+              }
+            }
+            else
+            {
+              UNUSED(result);
             }
             sent_something = true;
           }

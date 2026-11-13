@@ -80,8 +80,7 @@ namespace snmalloc
    *
    * The third template argument is a method to retrieve the actual PoolState.
    *
-   * For the pool of allocators, refer to the AllocPool alias defined in
-   * corealloc.h.
+   * The allocator pool provides its own construction helper and PoolState.
    *
    * For a pool of another type, it is recommended to leave the
    * third template argument with its default value. The SingletonPoolState
@@ -94,8 +93,53 @@ namespace snmalloc
     PoolState<T>& get_state() = SingletonPoolState<T>::pool>
   class Pool
   {
+    template<typename U>
+    static auto call_reinit(U* p, int) -> decltype(p->reinit())
+    {
+      return p->reinit();
+    }
+
+    template<typename U>
+    static void call_reinit(U*, long)
+    {}
+
+    template<typename U>
+    static auto call_deinit(U* p, int) -> decltype(p->deinit())
+    {
+      return p->deinit();
+    }
+
+    template<typename U>
+    static void call_deinit(U*, long)
+    {}
+
+    static void reinit(T* first)
+    {
+      T* item = first;
+      while (item != nullptr)
+      {
+        T* next = item->next.unsafe_ptr();
+        call_reinit(item, 0);
+        item = next;
+      }
+    }
+
+    static void deinit(T* first, T* last)
+    {
+      T* item = first;
+      while (true)
+      {
+        SNMALLOC_ASSERT(item != nullptr);
+        T* next = item->next.unsafe_ptr();
+        call_deinit(item, 0);
+        if (item == last)
+          break;
+        item = next;
+      }
+    }
+
   public:
-    static T* acquire()
+    static T* try_acquire_front()
     {
       PoolState<T>& pool = get_state();
 
@@ -116,9 +160,18 @@ namespace snmalloc
       });
 
       if (result != nullptr)
+        call_reinit(result, 0);
+      return result;
+    }
+
+    static T* acquire()
+    {
+      T* result = try_acquire_front();
+      if (result != nullptr)
         return result;
 
       auto p = ConstructT::make();
+      PoolState<T>& pool = get_state();
 
       with(pool.lock, [&]() {
         p->list_next = pool.list;
@@ -155,6 +208,7 @@ namespace snmalloc
           pool.front = nullptr;
           pool.back = nullptr;
         });
+        reinit(result);
         return result;
       }
 
@@ -169,6 +223,7 @@ namespace snmalloc
     static void restore(T* first, T* last)
     {
       PoolState<T>& pool = get_state();
+      deinit(first, last);
       last->next = nullptr;
       with(pool.lock, [&]() {
         if (pool.front == nullptr)
@@ -192,6 +247,7 @@ namespace snmalloc
     static void restore_front(T* first, T* last)
     {
       PoolState<T>& pool = get_state();
+      deinit(first, last);
       last->next = nullptr;
 
       with(pool.lock, [&]() {

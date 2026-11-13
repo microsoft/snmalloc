@@ -1,3 +1,4 @@
+#include <chrono>
 #include <iostream>
 
 // #  define SNMALLOC_TRACING
@@ -116,6 +117,69 @@ namespace snmalloc
 #define SNMALLOC_NAME_MANGLE(a) test_##a
 #include <snmalloc/override/malloc.cc>
 
+namespace
+{
+  using TestAlloc = Allocator<snmalloc::CustomConfig>;
+  using TestPool = AllocPool<snmalloc::CustomConfig>;
+  using TestAssistance = AllocPoolAssistance<snmalloc::CustomConfig>;
+
+  TestAlloc* last_in_chain(TestAlloc* first)
+  {
+    auto* last = first;
+    while (last != nullptr)
+    {
+      auto* next = TestPool::extract(last);
+      if (next == nullptr)
+        return last;
+      last = next;
+    }
+    return nullptr;
+  }
+
+  void test_disused_allocator_assistance()
+  {
+    auto* saved = TestPool::extract();
+    auto* saved_last = last_in_chain(saved);
+    snmalloc::CustomConfig::domesticate_patch_location = nullptr;
+
+    {
+      ScopedAllocator<TestAlloc> sender;
+      void* p;
+      {
+        ScopedAllocator<TestAlloc> owner;
+        p = owner->alloc(64);
+      }
+
+      sender->dealloc(p);
+      sender->flush();
+      SNMALLOC_CHECK(TestAssistance::debug_pending_count() == 1);
+
+      const auto deadline = std::chrono::steady_clock::now() +
+        std::chrono::milliseconds(3 * uint64_t{SNMALLOC_ASSIST_IDLE_MS});
+      while (TestAssistance::debug_pending_count() != 0)
+      {
+        if (std::chrono::steady_clock::now() >= deadline)
+        {
+          std::cerr << "Allocator assistance did not complete" << std::endl;
+          abort();
+        }
+
+        void* churn = sender->alloc(64);
+        sender->dealloc(churn);
+      }
+
+      auto* assisted = TestPool::extract();
+      SNMALLOC_CHECK(assisted != nullptr);
+      SNMALLOC_CHECK(!assisted->debug_has_pending_remote());
+      auto* assisted_last = last_in_chain(assisted);
+      TestPool::restore(assisted, assisted_last);
+    }
+
+    if (saved != nullptr)
+      TestPool::restore(saved, saved_last);
+  }
+}
+
 int main()
 {
   static constexpr bool pagemap_randomize =
@@ -129,6 +193,8 @@ int main()
   entropy.init<DefaultPal>();
   entropy.make_free_list_key(RemoteAllocator::key_global);
   entropy.make_free_list_key(freelist::Object::key_root);
+
+  test_disused_allocator_assistance();
 
   ScopedAllocator alloc1;
 

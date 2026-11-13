@@ -68,13 +68,19 @@ int main()
   std::thread(thread_setspecific).join();
 
   // There should be a single allocator that can be extracted.
-  if (snmalloc::AllocPool<snmalloc::Config>::extract() == nullptr)
+  auto* first = snmalloc::AllocPool<snmalloc::Config>::extract();
+  if (first == nullptr)
   {
     // The thread has not torn down its allocator.
     snmalloc::report_fatal_error(
       "Teardown of thread allocator has not occurred.");
     return 1;
   }
+
+  auto* last = first;
+  while (auto* next = snmalloc::AllocPool<snmalloc::Config>::extract(last))
+    last = next;
+  snmalloc::AllocPool<snmalloc::Config>::restore(first, last);
 
   return 0;
 }
