@@ -75,7 +75,7 @@ void check_result(size_t size, size_t align, void* p, int err, bool null)
       "Usable size is {}, but required to be at least {}.", alloc_size, size);
     failed = true;
   }
-  if (((address_cast(p) % align) != 0) && (size != 0))
+  if ((address_cast(p) % align) != 0)
   {
     INFO("Address is {}, but required to be aligned to {}.\n", p, align);
     failed = true;
