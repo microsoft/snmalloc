@@ -314,6 +314,26 @@ namespace snmalloc
 
     using alloc_id_t = address_t;
 
+    bool is_empty()
+    {
+      return list.is_empty();
+    }
+
+    bool release_to_inactive()
+    {
+      return list.release_to_inactive();
+    }
+
+    bool claim_from_inactive()
+    {
+      return list.claim_from_inactive();
+    }
+
+    void assert_not_inactive()
+    {
+      list.assert_not_inactive();
+    }
+
     constexpr RemoteAllocator() = default;
 
     void invariant()
@@ -352,11 +372,11 @@ namespace snmalloc
      * The Domesticator here is used only on pointers read from the head.  See
      * the commentary on the class.
      *
-     * Returns true if this enqueue started a new queue generation, or false if
-     * it appended to an existing chain.
+     * Reports whether this enqueue started an active or inactive queue
+     * generation, or appended to an existing chain.
      */
     template<typename Domesticator_head>
-    bool enqueue(
+    EnqueueResult enqueue(
       capptr::Alloc<RemoteMessage> first,
       capptr::Alloc<RemoteMessage> last,
       Domesticator_head domesticate_head)
@@ -369,13 +389,18 @@ namespace snmalloc
 
     /**
      * Destructively iterate the queue.  Each queue element is removed and fed
-     * to the callback in turn.  The callback may return false to stop iteration
-     * early (but must have processed the element it was given!).
+     * to the callback in turn.  The callback may return false to reject its
+     * argument and stop iteration early.  A rejected message must not have been
+     * consumed, freed, or re-enqueued; it remains owned by the queue.
+     *
+     * Closing dequeue requires the callback to process the retained final
+     * message after the queue has been closed.
      *
      * Takes a domestication callback for each of "pointers read from head" and
      * "pointers read from queue".  See the commentary on the class.
      */
     template<
+      bool Close = false,
       typename Domesticator_head,
       typename Domesticator_queue,
       typename Cb>
@@ -387,7 +412,7 @@ namespace snmalloc
       auto cbwrap = [cb](freelist::HeadPtr p) SNMALLOC_FAST_PATH_LAMBDA {
         return cb(RemoteMessage::from_message_link(p));
       };
-      list.dequeue(domesticate_head, domesticate_queue, cbwrap);
+      list.template dequeue<Close>(domesticate_head, domesticate_queue, cbwrap);
     }
 
     alloc_id_t trunc_id()

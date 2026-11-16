@@ -93,6 +93,9 @@ namespace snmalloc
     1 * 1024 * 1024
 #endif
     ;
+  static_assert(
+    REMOTE_BATCH_LIMIT > 0,
+    "SNMALLOC_REMOTE_BATCH_PROCESS_SIZE must be positive");
 
   // Used to configure when the backend should use thread local buddies.
   // This only basically is used to disable some buddy allocators on small

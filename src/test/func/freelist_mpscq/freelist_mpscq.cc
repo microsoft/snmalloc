@@ -1,5 +1,7 @@
+#include <atomic>
 #include <snmalloc/snmalloc.h>
 #include <test/setup.h>
+#include <thread>
 
 using namespace snmalloc;
 
@@ -75,7 +77,7 @@ namespace
   /**
    * Enqueue reports whether it starts a queue generation and preserves FIFO
    * order for single-element and pre-linked multi-element enqueues.  After a
-   * callback stops dequeue, the next dequeue resumes at the successor.
+   * callback rejects an object, the next dequeue resumes at that object.
    * Dequeue retains the object at back; drain delivers it and resets the queue
    * for reuse.
    */
@@ -89,28 +91,32 @@ namespace
     Object replacement;
     CallbackOrder<freelist::HeadPtr, 5> order;
 
-    SNMALLOC_CHECK(queue.enqueue(as_head(first), as_head(first), domesticate));
     SNMALLOC_CHECK(
-      !queue.enqueue(as_head(second), as_head(second), domesticate));
+      queue.enqueue(as_head(first), as_head(first), domesticate) ==
+      EnqueueResult::StartedActive);
+    SNMALLOC_CHECK(
+      queue.enqueue(as_head(second), as_head(second), domesticate) ==
+      EnqueueResult::Appended);
 
     freelist::Object::atomic_store_next(
       as_head(batch_first), as_head(batch_last), queue_key, NO_KEY_TWEAK);
     SNMALLOC_CHECK(
-      !queue.enqueue(as_head(batch_first), as_head(batch_last), domesticate));
+      queue.enqueue(as_head(batch_first), as_head(batch_last), domesticate) ==
+      EnqueueResult::Appended);
 
-    queue.dequeue(domesticate, domesticate, [&order](freelist::HeadPtr value) {
-      order.add(value);
-      return false;
-    });
-    SNMALLOC_CHECK(order.count == 1);
+    queue.dequeue(
+      domesticate, domesticate, [](freelist::HeadPtr) { return false; });
+    SNMALLOC_CHECK(order.count == 0);
     SNMALLOC_CHECK(
-      address_cast(order.values[0]) == address_cast(as_head(first)));
+      address_cast(queue.front.load()) == address_cast(as_head(first)));
 
     queue.dequeue(domesticate, domesticate, [&order](freelist::HeadPtr value) {
       order.add(value);
       return true;
     });
     SNMALLOC_CHECK(order.count == 3);
+    SNMALLOC_CHECK(
+      address_cast(order.values[0]) == address_cast(as_head(first)));
     SNMALLOC_CHECK(
       address_cast(order.values[1]) == address_cast(as_head(second)));
     SNMALLOC_CHECK(
@@ -125,7 +131,8 @@ namespace
       address_cast(order.values[3]) == address_cast(as_head(batch_last)));
 
     SNMALLOC_CHECK(
-      queue.enqueue(as_head(replacement), as_head(replacement), domesticate));
+      queue.enqueue(as_head(replacement), as_head(replacement), domesticate) ==
+      EnqueueResult::StartedActive);
     queue.drain_and_reset(
       domesticate, domesticate, [&order](freelist::HeadPtr value) {
         order.add(value);
@@ -150,7 +157,9 @@ namespace
     size_t dequeue_callbacks = 0;
     size_t drain_callbacks = 0;
 
-    SNMALLOC_CHECK(queue.enqueue(as_head(tail), as_head(tail), domesticate));
+    SNMALLOC_CHECK(
+      queue.enqueue(as_head(tail), as_head(tail), domesticate) ==
+      EnqueueResult::StartedActive);
     freelist::Object::atomic_store_next(
       as_head(tail), as_head(outside), queue_key, NO_KEY_TWEAK);
 
@@ -197,7 +206,8 @@ namespace
     freelist::Object::atomic_store_next(
       as_head(old_first), as_head(old_last), queue_key, NO_KEY_TWEAK);
     SNMALLOC_CHECK(
-      queue.enqueue(as_head(old_first), as_head(old_last), domesticate));
+      queue.enqueue(as_head(old_first), as_head(old_last), domesticate) ==
+      EnqueueResult::StartedActive);
 
     queue.drain_and_reset(
       domesticate, domesticate, [&](freelist::HeadPtr value) {
@@ -210,7 +220,9 @@ namespace
             queue_key,
             NO_KEY_TWEAK);
           replacement_started = queue.enqueue(
-            as_head(replacement_first), as_head(replacement_last), domesticate);
+                                  as_head(replacement_first),
+                                  as_head(replacement_last),
+                                  domesticate) == EnqueueResult::StartedActive;
         }
       });
 
@@ -252,9 +264,12 @@ namespace
     size_t queue_domesticates = 0;
     CallbackOrder<capptr::Alloc<RemoteMessage>, 2> order;
 
-    SNMALLOC_CHECK(remote.enqueue(first_message, first_message, domesticate));
     SNMALLOC_CHECK(
-      !remote.enqueue(second_message, second_message, domesticate));
+      remote.enqueue(first_message, first_message, domesticate) ==
+      EnqueueResult::StartedActive);
+    SNMALLOC_CHECK(
+      remote.enqueue(second_message, second_message, domesticate) ==
+      EnqueueResult::Appended);
 
     auto domesticate_head = [&](freelist::QueuePtr value) -> freelist::HeadPtr {
       head_domesticates++;
@@ -281,6 +296,203 @@ namespace
     SNMALLOC_CHECK(
       address_cast(order.values[1]) == address_cast(second_message));
   }
+
+  void test_inactive_marker_transitions()
+  {
+    Queue queue;
+    Object first;
+    size_t callbacks = 0;
+
+    SNMALLOC_CHECK(!queue.release_to_inactive());
+    SNMALLOC_CHECK(queue.is_empty());
+
+    SNMALLOC_CHECK(
+      queue.enqueue(as_head(first), as_head(first), domesticate) ==
+      EnqueueResult::StartedInactive);
+    SNMALLOC_CHECK(queue.claim_from_inactive());
+    queue.drain_and_reset(
+      domesticate, domesticate, [&callbacks, &first](freelist::HeadPtr value) {
+        SNMALLOC_CHECK(address_cast(value) == address_cast(as_head(first)));
+        callbacks++;
+      });
+    SNMALLOC_CHECK(callbacks == 1);
+
+    SNMALLOC_CHECK(!queue.release_to_inactive());
+    SNMALLOC_CHECK(!queue.claim_from_inactive());
+  }
+
+  void test_closing_dequeue_contract()
+  {
+    Queue queue;
+    Object first;
+    Object last;
+    Object replacement;
+    CallbackOrder<freelist::HeadPtr, 3> order;
+
+    freelist::Object::atomic_store_next(
+      as_head(first), as_head(last), queue_key, NO_KEY_TWEAK);
+    SNMALLOC_CHECK(
+      queue.enqueue(as_head(first), as_head(last), domesticate) ==
+      EnqueueResult::StartedActive);
+    queue.dequeue<true>(
+      domesticate, domesticate, [&first](freelist::HeadPtr value) {
+        SNMALLOC_CHECK(address_cast(value) == address_cast(as_head(first)));
+        return false;
+      });
+    SNMALLOC_CHECK(order.count == 0);
+    SNMALLOC_CHECK(
+      address_cast(queue.front.load()) == address_cast(as_head(first)));
+    SNMALLOC_CHECK(
+      address_cast(queue.back.load()) == address_cast(as_head(last)));
+
+    queue.dequeue<true>(
+      domesticate,
+      domesticate,
+      [&order, &last, &replacement, &queue](freelist::HeadPtr value) {
+        order.add(value);
+        if (address_cast(value) == address_cast(as_head(last)))
+        {
+          SNMALLOC_CHECK(
+            queue.enqueue(
+              as_head(replacement), as_head(replacement), domesticate) ==
+            EnqueueResult::StartedActive);
+        }
+        return true;
+      });
+    SNMALLOC_CHECK(order.count == 2);
+    SNMALLOC_CHECK(
+      address_cast(order.values[0]) == address_cast(as_head(first)));
+    SNMALLOC_CHECK(
+      address_cast(order.values[1]) == address_cast(as_head(last)));
+
+    queue.dequeue<true>(
+      domesticate,
+      domesticate,
+      [&order, &replacement](freelist::HeadPtr value) {
+        SNMALLOC_CHECK(
+          address_cast(value) == address_cast(as_head(replacement)));
+        order.add(value);
+        return true;
+      });
+    SNMALLOC_CHECK(order.count == 3);
+    SNMALLOC_CHECK(queue.front.load() == nullptr);
+    SNMALLOC_CHECK(queue.back.load() == nullptr);
+  }
+
+  void test_closing_dequeue_unpublished_states()
+  {
+    Queue queue;
+    Object first;
+    Object last;
+    size_t callbacks = 0;
+
+    freelist::Object::atomic_store_null(as_head(last), queue_key, NO_KEY_TWEAK);
+    queue.back.store(capptr_rewild(as_head(last)), stl::memory_order_release);
+    queue.dequeue<true>(
+      domesticate, domesticate, [&callbacks](freelist::HeadPtr) {
+        callbacks++;
+        return true;
+      });
+    SNMALLOC_CHECK(callbacks == 0);
+    queue.front.store(capptr_rewild(as_head(last)), stl::memory_order_release);
+    queue.dequeue<true>(
+      domesticate, domesticate, [&callbacks](freelist::HeadPtr) {
+        callbacks++;
+        return true;
+      });
+    SNMALLOC_CHECK(callbacks == 1);
+    SNMALLOC_CHECK(queue.front.load() == nullptr);
+    SNMALLOC_CHECK(queue.back.load() == nullptr);
+
+    Queue linked_queue;
+    freelist::Object::atomic_store_null(
+      as_head(first), queue_key, NO_KEY_TWEAK);
+    freelist::Object::atomic_store_null(as_head(last), queue_key, NO_KEY_TWEAK);
+    linked_queue.front.store(
+      capptr_rewild(as_head(first)), stl::memory_order_release);
+    linked_queue.back.store(
+      capptr_rewild(as_head(last)), stl::memory_order_release);
+    linked_queue.dequeue<true>(
+      domesticate, domesticate, [&callbacks](freelist::HeadPtr) {
+        callbacks++;
+        return true;
+      });
+    SNMALLOC_CHECK(callbacks == 1);
+    SNMALLOC_CHECK(
+      address_cast(linked_queue.front.load()) == address_cast(as_head(first)));
+    SNMALLOC_CHECK(
+      address_cast(linked_queue.back.load()) == address_cast(as_head(last)));
+
+    freelist::Object::atomic_store_next(
+      as_head(first), as_head(last), queue_key, NO_KEY_TWEAK);
+    linked_queue.dequeue<true>(
+      domesticate, domesticate, [&callbacks](freelist::HeadPtr) {
+        callbacks++;
+        return true;
+      });
+    SNMALLOC_CHECK(callbacks == 3);
+    SNMALLOC_CHECK(linked_queue.front.load() == nullptr);
+    SNMALLOC_CHECK(linked_queue.back.load() == nullptr);
+  }
+
+  void test_closing_dequeue_append_race()
+  {
+    Queue queue;
+    Object first;
+    Object old_tail;
+    Object appended;
+    std::atomic<bool> preflight_reached{false};
+    std::atomic<bool> append_complete{false};
+    CallbackOrder<freelist::HeadPtr, 3> order;
+
+    freelist::Object::atomic_store_next(
+      as_head(first), as_head(old_tail), queue_key, NO_KEY_TWEAK);
+    SNMALLOC_CHECK(
+      queue.enqueue(as_head(first), as_head(old_tail), domesticate) ==
+      EnqueueResult::StartedActive);
+
+    std::thread producer([&]() {
+      while (!preflight_reached.load(std::memory_order_acquire))
+      {}
+      SNMALLOC_CHECK(
+        queue.enqueue(as_head(appended), as_head(appended), domesticate) ==
+        EnqueueResult::Appended);
+      append_complete.store(true, std::memory_order_release);
+    });
+
+    auto block_during_preflight =
+      [&](freelist::QueuePtr value) -> freelist::HeadPtr {
+      preflight_reached.store(true, std::memory_order_release);
+      while (!append_complete.load(std::memory_order_acquire))
+      {}
+      return domesticate(value);
+    };
+
+    queue.dequeue<true>(
+      domesticate, block_during_preflight, [&order](freelist::HeadPtr value) {
+        order.add(value);
+        return true;
+      });
+    producer.join();
+    SNMALLOC_CHECK(order.count == 1);
+    SNMALLOC_CHECK(
+      address_cast(order.values[0]) == address_cast(as_head(first)));
+    SNMALLOC_CHECK(
+      address_cast(queue.front.load()) == address_cast(as_head(old_tail)));
+    SNMALLOC_CHECK(
+      address_cast(queue.back.load()) == address_cast(as_head(appended)));
+
+    queue.dequeue<true>(
+      domesticate, domesticate, [&order](freelist::HeadPtr value) {
+        order.add(value);
+        return true;
+      });
+    SNMALLOC_CHECK(order.count == 3);
+    SNMALLOC_CHECK(
+      address_cast(order.values[1]) == address_cast(as_head(old_tail)));
+    SNMALLOC_CHECK(
+      address_cast(order.values[2]) == address_cast(as_head(appended)));
+  }
 }
 
 int main()
@@ -291,4 +503,8 @@ int main()
   test_dequeue_checks_bound_first();
   test_callback_starts_replacement();
   test_remote_allocator_uses_distinct_domesticators();
+  test_inactive_marker_transitions();
+  test_closing_dequeue_contract();
+  test_closing_dequeue_unpublished_states();
+  test_closing_dequeue_append_race();
 }
