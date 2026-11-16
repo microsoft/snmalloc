@@ -527,9 +527,10 @@ namespace snmalloc
     // However,
     //    alignment = 0x8
     //    size      = 0x0
-    // will also result in 0, but this should be allowed to allocate.
+    // will also result in 0, but this should be allowed to allocate, and the
+    // object must still have the requested alignment.
     // So we need to check for overflow, and return SIZE_MAX in this first case,
-    // and 0 in the second.
+    // and alignment (the result for size 1) in the second.
     size_t result = ((alignment - 1) | (size - 1)) + 1;
     // The following code is designed to fuse well with a subsequent
     // sizeclass calculation.  We use the same fast path constant to
@@ -544,6 +545,8 @@ namespace snmalloc
       // Check for overflow and return the maximum size.
       if (SNMALLOC_UNLIKELY(result < size))
         return SIZE_MAX;
+
+      return alignment;
     }
     return result;
   }

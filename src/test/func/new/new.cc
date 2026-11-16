@@ -120,6 +120,13 @@ void test_new_delete_aligned(size_t size)
     del_fun(aligned_mem, align_val);
 
     test_zero_alloc([&align_val](size_t s) { return new_fun(s, align_val); });
+
+    void* zero_mem = new_fun(0, align_val);
+    EXPECT(
+      is_aligned(zero_mem, align_val_size),
+      "Zero-size allocation was not aligned on value {}",
+      align_val_size);
+    del_fun(zero_mem, align_val);
   }
 }
 
@@ -202,8 +209,10 @@ int main(int argc, char** argv)
 
   START_TEST("Test non-throwing aligned delete with explicit size");
   test_delete_size_aligned < operator new, operator delete>(42);
+  test_delete_size_aligned < operator new, operator delete>(0);
   START_TEST("Test non-throwing aligned delete[] with explicit size");
   test_delete_size_aligned < operator new[], operator delete[]>(42);
+  test_delete_size_aligned < operator new[], operator delete[]>(0);
 
   snmalloc::debug_check_empty();
   return 0;
