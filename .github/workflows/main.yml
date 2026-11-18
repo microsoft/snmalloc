@@ -152,7 +152,7 @@ jobs:
     name: Bazel - ${{ matrix.os }} ${{ matrix.build-type }}
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-    - uses: bazel-contrib/setup-bazel@c5acdfb288317d0b5c0bbd7a396a3dc868bb0f86 # v0.19.0
+    - uses: bazel-contrib/setup-bazel@f34d6a05eae3c24acab7fa54587492daeaeffdab # v0.19.2
     - name: Mount bazel cache  # Optional
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
@@ -424,7 +424,7 @@ jobs:
     - name: Install Ninja
       run: sudo apt-get install -y ninja-build
     - name: Set up sccache
-      uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+      uses: hendrikmuhs/ccache-action@dbeefd73e8e2ffc1bbc412570072735eb4db3607 # v1.2.25
       with:
         variant: sccache
         key: gwp-asan-${{matrix.os}}-${{matrix.profile}}
