@@ -113,6 +113,10 @@ extern "C"
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(pvalloc)(size_t size)
   {
+    if (SNMALLOC_UNLIKELY(size > SIZE_MAX - (OS_PAGE_SIZE - 1)))
+    {
+      return snmalloc::libc::set_error();
+    }
     return snmalloc::libc::memalign(
       OS_PAGE_SIZE, (size + OS_PAGE_SIZE - 1) & ~(OS_PAGE_SIZE - 1));
   }

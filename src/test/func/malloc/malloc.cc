@@ -320,6 +320,9 @@ int main(int argc, char** argv)
     test_posix_memalign(0, align + 1, EINVAL, true);
   }
 
+  errno = SUCCESS;
+  check_result(SIZE_MAX, OS_PAGE_SIZE, testlib_pvalloc(SIZE_MAX), ENOMEM, true);
+
   test_reallocarray(nullptr, 1, 0, SUCCESS, false);
   for (smallsizeclass_t sc(0); sc < (MAX_SMALL_SIZECLASS_BITS + 4); sc++)
   {
