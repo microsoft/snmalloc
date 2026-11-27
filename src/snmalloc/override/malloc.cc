@@ -113,8 +113,7 @@ extern "C"
 
   SNMALLOC_EXPORT void* SNMALLOC_NAME_MANGLE(pvalloc)(size_t size)
   {
-    return snmalloc::libc::memalign(
-      OS_PAGE_SIZE, (size + OS_PAGE_SIZE - 1) & ~(OS_PAGE_SIZE - 1));
+    return snmalloc::libc::memalign(OS_PAGE_SIZE, size);
   }
 
 #if __has_include(<features.h>)
