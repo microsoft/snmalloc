@@ -158,5 +158,4 @@ extern "C"
   void* testlib_memalign(size_t alignment, size_t size);
   void* testlib_aligned_alloc(size_t alignment, size_t size);
   int testlib_posix_memalign(void** memptr, size_t alignment, size_t size);
-  void* testlib_pvalloc(size_t size);
 }
